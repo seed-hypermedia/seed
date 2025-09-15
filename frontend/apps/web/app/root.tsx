@@ -1,4 +1,4 @@
-import { LinksFunction } from '@remix-run/node'
+import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
 import {
   isRouteErrorResponse,
   Links,
@@ -6,12 +6,12 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
   useRouteError,
 } from '@remix-run/react'
-import { captureRemixErrorBoundaryError, withSentry } from '@sentry/remix'
-import { SizableText } from '@shm/ui/text'
-import { useEffect } from 'react'
-import { Providers } from './providers'
+import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+import {SizableText} from '@shm/ui/text'
+import {Providers} from './providers'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 
@@ -23,53 +23,60 @@ export const links: LinksFunction = () => {
 }
 
 // enable statistics when SEED_ENABLE_STATISTICS is "true" or "1" at build-time
-const ENABLE_STATS = process.env.SEED_ENABLE_STATISTICS === 'true' || process.env.SEED_ENABLE_STATISTICS === '1'
 
-function ClientPlausible() {
-  useEffect(() => {
-    if (!ENABLE_STATS) return // extra-safety: don't inject if disabled at build-time
+function getBaseDomain(host: string) {
+  if (!host || host === 'localhost' || /^[0-9.]+$/.test(host)) return host
+  const parts = host.split('.')
+  if (parts.length <= 2) return host
 
-    const getBaseDomain = (host: string) => {
-      // keep localhost and IPs as-is
-      if (!host || host === 'localhost' || /^[0-9.]+$/.test(host)) return host
+  const twoLevel = new Set([
+    'co.uk',
+    'org.uk',
+    'gov.uk',
+    'ac.uk',
+    'net.uk',
+    'sch.uk',
+  ])
+  const lastTwo = parts.slice(-2).join('.')
+  if (twoLevel.has(lastTwo) && parts.length >= 3) {
+    return parts.slice(-3).join('.')
+  }
+  return lastTwo
+}
 
-      const parts = host.split('.')
-      if (parts.length <= 2) return host
+export async function loader({request}: LoaderFunctionArgs) {
+  const url = new URL(request.url)
+  const runtimeDomain = getBaseDomain(url.hostname)
 
-      // common 2nd-level public suffixes that need 3 labels (e.g. something.co.uk -> something.co.uk)
-      const twoLevel = new Set(['co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'net.uk', 'sch.uk'])
+  console.log('=== Root Loader Debug ===')
+  console.log('Request URL:', request.url)
+  console.log('URL hostname:', url.hostname)
+  console.log('Runtime domain:', runtimeDomain)
 
-      const lastTwo = parts.slice(-2).join('.')
-      if (twoLevel.has(lastTwo) && parts.length >= 3) {
-        return parts.slice(-3).join('.')
-      }
+  // Gate everything on the server so no client env access is needed
+  const isProd = process.env.NODE_ENV === 'production'
+  console.log('NODE_ENV:', process.env.NODE_ENV)
+  console.log('isProd:', isProd)
 
-      // default: use last two labels (e.g. bob.hyper.media -> hyper.media)
-      return lastTwo
-    }
+  const enableStats =
+    process.env.SEED_ENABLE_STATISTICS === 'true' ||
+    process.env.SEED_ENABLE_STATISTICS === '1'
+  console.log('SEED_ENABLE_STATISTICS env var:', process.env.SEED_ENABLE_STATISTICS)
+  console.log('enableStats:', enableStats)
 
-    const runtimeDomain = getBaseDomain(location.hostname)
-    const domain = process.env.MONITORING_DOMAIN || runtimeDomain
+  const domain = process.env.MONITORING_DOMAIN || runtimeDomain
+  console.log('MONITORING_DOMAIN env var:', process.env.MONITORING_DOMAIN)
+  console.log('Final domain:', domain)
 
-    // don't add twice
-    if ((window as any).plausible) return
+  const result = {isProd, enableStats, domain}
+  console.log('Loader result:', result)
+  console.log('=== End Root Loader Debug ===')
 
-    ;(window as any).plausible = (window as any).plausible || function () {
-      ((window as any).plausible.q = (window as any).plausible.q || []).push(arguments)
-    }
-
-    const s = document.createElement('script')
-    s.defer = true
-    s.setAttribute('file-types', 'rpm,deb,dmg,exe')
-    s.setAttribute('data-domain', domain)
-    s.src = 'https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js'
-    document.head.appendChild(s)
-  }, [])
-
-  return null
+  return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
+  const {isProd, enableStats, domain} = useLoaderData<typeof loader>()
   return (
     <html lang="en">
       <head>
@@ -77,13 +84,22 @@ export function Layout({children}: {children: React.ReactNode}) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {/* Put Plausible in <head> so it loads ASAP */}
+        {isProd && enableStats ? (
+          <script
+            defer
+            data-domain={domain}
+            // enable the same plugins you had:
+            file-types="rpm,deb,dmg,exe"
+            src="https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+          />
+        ) : null}
       </head>
       <body className="bg-muted min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
 
         <ScrollRestoration />
         <Scripts />
-        {ENABLE_STATS && <ClientPlausible />}
       </body>
     </html>
   )
