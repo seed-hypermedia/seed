@@ -309,22 +309,8 @@ function InnerDocumentPage(
   function setDocumentPanel(panel: WebAccessory | null) {
     setActivePanel(panel)
     setMobilePanelOpen(!!panel)
-    const route = {
-      key: 'document',
-      id: {
-        uid: id.uid,
-        path: id.path,
-        version: id.version,
-        blockRef: id.blockRef,
-        blockRange: id.blockRange,
-      },
-    } as NavRoute
-    const href = routeToHref(route, context)
-    if (!href) return
-    replace(href, {
-      replace: true,
-      preventScrollReset: true,
-    })
+    // Don't navigate when setting panel - just update the state
+    // The URL navigation should only happen when explicitly navigating to different content
   }
 
   function setCommentPanel(comment: HMComment) {
@@ -429,6 +415,7 @@ function InnerDocumentPage(
         redirectToWebIdentityCommenting(id, {
           quotingBlockId: blockId,
         })
+        return
       }
       setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
       if (!media.gtSm) {

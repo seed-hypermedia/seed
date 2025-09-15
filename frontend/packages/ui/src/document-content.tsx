@@ -660,7 +660,11 @@ export function BlockNodeContent({
             width: layoutUnit * 1.5,
             height: layoutUnit * 1.25,
           }}
-          onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onBlockCitationClick?.(blockNode.block?.id)
+          }}
         >
           <BlockQuote color="currentColor" className="size-3 opacity-50" />
           <SizableText color="muted" size="xs">
@@ -681,7 +685,9 @@ export function BlockNodeContent({
             width: layoutUnit * 1.5,
             height: layoutUnit * 1.25,
           }}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockReply?.(blockNode.block?.id)
             } else {
@@ -703,7 +709,9 @@ export function BlockNodeContent({
             width: layoutUnit * 1.5,
             height: layoutUnit * 1.25,
           }}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockCommentClick?.(blockNode.block?.id, undefined, true)
             } else {
@@ -725,7 +733,9 @@ export function BlockNodeContent({
             width: layoutUnit * 1.5,
             height: layoutUnit * 1.25,
           }}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockCopy(blockNode.block.id, {expanded: true})
             } else {
@@ -750,7 +760,11 @@ export function BlockNodeContent({
               `${count} ${pluralS(count, 'document')} citing this block`,
             {count: citationsCount.citations},
           )}
-          onClick={() => onBlockCitationClick?.(blockNode.block?.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onBlockCitationClick?.(blockNode.block?.id)
+          }}
         >
           <BlockQuote color="currentColor" className="size-3 opacity-50" />
           <SizableText color="muted" size="xs">
@@ -765,7 +779,9 @@ export function BlockNodeContent({
         <BubbleButton
           tooltip="Reply to block"
           layoutUnit={layoutUnit}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockReply(blockNode.block.id)
             } else {
@@ -779,7 +795,9 @@ export function BlockNodeContent({
       {onBlockCommentClick ? (
         <BubbleButton
           layoutUnit={layoutUnit}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockCommentClick(
                 blockNode.block.id,
@@ -812,7 +830,9 @@ export function BlockNodeContent({
         <BubbleButton
           tooltip={tx('copy_block_exact', 'Copy Block Link (Exact Version)')}
           layoutUnit={layoutUnit}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
             if (blockNode.block?.id) {
               onBlockCopy(blockNode.block.id, {expanded: true})
             } else {
@@ -2578,7 +2598,7 @@ function BubbleButton({
   tooltip: string
   layoutUnit: number
 
-  onClick: () => void
+  onClick: (e: React.MouseEvent) => void
   children: React.ReactNode
 }) {
   return (
