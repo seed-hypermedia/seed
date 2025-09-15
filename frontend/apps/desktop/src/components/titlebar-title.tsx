@@ -118,7 +118,7 @@ export function TitleContent({
     return (
       <>
         <File className="size-4" />
-        <TitleTextButton className="no-window-drag">Drafts</TitleTextButton>
+        <TitleText {...titleProps}>Drafts</TitleText>
       </>
     )
   }
@@ -827,17 +827,17 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
   return (
     <div className="flex flex-1 items-stretch justify-stretch gap-2 overflow-hidden">
       <File className="size-4 self-center" />
-      <TitleTextButton
-        className="no-window-drag font-bold"
+      <TitleText
+        className="no-window-drag self-center font-bold"
         onClick={() => {
           navigate({key: 'drafts'})
         }}
       >
         Drafts
-      </TitleTextButton>
+      </TitleText>
       <BreadcrumbSeparator key={`draft-seperator`} />
 
-      <TitleText className="self-center font-bold">
+      <TitleText className="self-center font-bold hover:underline">
         {draft.data?.metadata.name || 'New Draft'}
       </TitleText>
       <DraftBadge />
@@ -858,14 +858,14 @@ function ContactTitle({route}: {route: ContactRoute}) {
   return (
     <>
       <Contact className="size-4" />
-      <TitleTextButton
-        className="no-window-drag"
+      <TitleText
+        className="no-window-drag self-center font-bold hover:underline"
         onClick={() => {
           navigate({key: 'contacts'})
         }}
       >
         Contacts
-      </TitleTextButton>
+      </TitleText>
       <BreadcrumbSeparator key={`contacts-seperator`} />
       <TitleText fontWeight="bold">
         {contact.data?.metadata?.name || 'Untitled Contact'}

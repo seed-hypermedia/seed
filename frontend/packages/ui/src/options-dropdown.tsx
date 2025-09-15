@@ -1,5 +1,5 @@
 import {MoreHorizontal} from 'lucide-react'
-import {Button, ButtonProps} from './button'
+import {ButtonProps, buttonVariants} from './button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,10 +48,13 @@ export function OptionsDropdown({
       )}
     >
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost" className="no-window-drag">
-            <MoreHorizontal className="size-4" />
-          </Button>
+        <DropdownMenuTrigger
+          className={cn(
+            buttonVariants({size: 'icon', variant: 'ghost'}),
+            'no-window-drag',
+          )}
+        >
+          <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="p-1" side={side} align={align}>
           <div className="flex flex-col">
