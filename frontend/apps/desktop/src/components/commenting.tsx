@@ -186,13 +186,13 @@ function _CommentBox(props: {
       content = (
         <Button
           variant="ghost"
-          className="text-muted-foreground m-0 h-auto flex-1 items-start justify-start border-0 px-[18px] py-3 text-left text-base hover:bg-transparent focus:bg-transparent"
+          className="bg-background ring-px ring-border ml-1 w-full flex-1 items-center justify-start truncate rounded-md px-2 py-1 text-left ring"
           style={{backgroundColor: backgroundColor}}
           onClick={() => {
             setIsStartingComment(true)
           }}
         >
-          <span className="text-sm font-thin italic">
+          <span className="text-sm italic opacity-50">
             {commentId ? 'Reply in Discussion' : 'Start a new Discussion'}
           </span>
         </Button>
@@ -201,7 +201,7 @@ function _CommentBox(props: {
   }
 
   return (
-    <div className="flex w-full items-start gap-2 px-4">
+    <div className="flex w-full items-start gap-2">
       <div className="flex shrink-0 grow-0">
         {account?.document?.metadata ? (
           <HMIcon
@@ -279,7 +279,7 @@ function _CommentDraftEditor({
   return (
     <div
       ref={sizeObserverdRef}
-      className="comment-editor mt-1 flex flex-1 flex-col gap-2 px-4"
+      className="comment-editor ring-px ring-border mt-1 flex flex-1 flex-col gap-2 px-4 ring"
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement
 

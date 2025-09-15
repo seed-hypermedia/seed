@@ -105,12 +105,12 @@ export function CommentDiscussions({
         <div
           className="bg-border absolute w-px"
           style={{
-            height: 32,
-            top: 8,
-            left: avatarSize / 2 - 1,
+            height: 40,
+            top: -16,
+            left: avatarSize + 4,
           }}
         />
-        {commentEditor}
+        <div className="px-2 pr-4">{commentEditor}</div>
       </div>
 
       {commentGroupReplies.data?.length > 0 ? (
@@ -263,7 +263,7 @@ export function BlockDiscussions({
     <AccessoryContent>
       <AccessoryBackButton onClick={onBack} />
       {quotedContent}
-      {commentEditor}
+      <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
     </AccessoryContent>
   )

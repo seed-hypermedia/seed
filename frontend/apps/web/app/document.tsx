@@ -28,6 +28,7 @@ import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {pluralS} from '@shm/shared/utils/language'
 import {AccessoryBackButton} from '@shm/ui/accessories'
+import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
@@ -300,9 +301,7 @@ function InnerDocumentPage(
     return {blockRef, blockRange}
   }, [location.hash])
 
-  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(() => {
-    return {type: 'discussions', comment: undefined}
-  })
+  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(null)
 
   function setDocumentPanel(panel: WebAccessory | null) {
     setActivePanel(panel)
@@ -616,7 +615,6 @@ function InnerDocumentPage(
     panelTitle = tx('Citations')
   }
 
-  console.log('BLOCK CITATIONS', interactionSummary.data?.blocks)
   if (!document)
     return (
       <DocumentDiscoveryPage
@@ -829,9 +827,7 @@ function InnerDocumentPage(
                   setDocumentPanel({type: 'discussions'})
                   setMobilePanelOpen(true)
                 }}
-                interactionSummary={
-                  interactionSummary.data ? <>{activitySummary}</> : null
-                }
+                commentsCount={interactionSummary.data?.comments || 0}
               />
 
               <div
@@ -871,27 +867,37 @@ function InnerDocumentPage(
 
 function MobileInteractionCardCollapsed({
   onClick,
-  interactionSummary,
+  commentsCount = 0,
 }: {
   onClick: () => void
-  interactionSummary: React.ReactNode
+  commentsCount: number
 }) {
   const tx = useTx()
   return (
-    <div className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex rounded-md border bg-white p-2 shadow-md">
+    <div
+      className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex rounded-t-md border bg-white p-2"
+      style={{
+        boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
+      }}
+    >
       <Button
         variant="ghost"
-        className="flex min-w-0 flex-1 items-center justify-start"
+        className="flex min-w-0 flex-1 items-center justify-start p-1"
         onClick={onClick}
       >
         <div className="shrink-0">
-          <MessageSquare />
+          <UIAvatar size={24} />
         </div>
-        <span className="ml-2 flex-1 truncate text-left">
+        <span className="bg-background ring-px ring-border ml-1 flex-1 truncate rounded-md px-2 py-1 text-left ring">
           {tx('Start a Discussion')}
         </span>
       </Button>
-      {interactionSummary}
+      {commentsCount ? (
+        <Button variant="ghost" onClick={onClick}>
+          <MessageSquare className="size-4 opacity-50" />
+          <span className="text-xs opacity-50">{commentsCount}</span>
+        </Button>
+      ) : null}
     </div>
   )
 }

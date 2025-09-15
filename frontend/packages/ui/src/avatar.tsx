@@ -1,4 +1,5 @@
 import {useMemo} from 'react'
+import avatarPlaceholder from './assets/avatar.png'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -13,7 +14,7 @@ export type UIAvatarProps = {
 }
 
 export function UIAvatar({
-  url,
+  url = avatarPlaceholder,
   id,
   label,
   size = 20,
@@ -33,6 +34,7 @@ export function UIAvatar({
       className={cn(
         'relative z-1 flex items-center justify-center overflow-hidden',
         onPress && 'cursor-pointer',
+        url == avatarPlaceholder && 'ring-px ring-border ring',
         className,
       )}
       style={{
@@ -47,7 +49,7 @@ export function UIAvatar({
         <img
           src={url}
           className="min-h-full min-w-full bg-[var(--color1)] object-cover"
-          alt={label || id || 'Avatar'}
+          alt={label || id || 'Account Avatar'}
         />
       ) : (
         <SizableText

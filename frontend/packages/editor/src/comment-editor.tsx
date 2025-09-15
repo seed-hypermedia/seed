@@ -463,7 +463,7 @@ export function CommentEditor({
           <UIAvatar id="?" label="?" size={32} />
         )}
       </div>
-      <div className="bg-muted w-full flex-1 rounded-md">
+      <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
         <div
           className={cn(
             'comment-editor min-h-8 flex-1',
