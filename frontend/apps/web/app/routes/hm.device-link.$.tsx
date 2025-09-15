@@ -269,7 +269,8 @@ export function HMDeviceLink() {
       <DeviceLinkContainer>
         {existingAccount && (
           <HMIcon
-            metadata={existingAccount.metadata}
+            name={existingAccount.metadata?.name}
+            icon={existingAccount.metadata?.icon}
             id={existingAccount.id}
             size={48}
           />
@@ -304,7 +305,8 @@ export function HMDeviceLink() {
     desktopAccountDocument?.metadata && desktopAccount ? (
       <HMIcon
         size={48}
-        metadata={desktopAccountDocument.metadata}
+        name={desktopAccountDocument.metadata?.name}
+        icon={desktopAccountDocument.metadata?.icon}
         id={desktopAccount.id}
       />
     ) : null
@@ -323,13 +325,15 @@ export function HMDeviceLink() {
       browserAccount && desktopAccount ? (
         <div className="flex gap-4">
           <HMIcon
-            metadata={browserAccountDocument?.metadata}
+            name={browserAccountDocument?.metadata?.name}
+            icon={browserAccountDocument?.metadata?.icon}
             id={browserAccount?.id}
             size={36}
           />
           <ArrowRight size={36} />
           <HMIcon
-            metadata={desktopAccountDocument?.metadata}
+            name={desktopAccountDocument?.metadata?.name}
+            icon={desktopAccountDocument?.metadata?.icon}
             id={desktopAccount?.id}
             size={36}
           />

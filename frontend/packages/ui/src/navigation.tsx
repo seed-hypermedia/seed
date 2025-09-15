@@ -59,7 +59,7 @@ export function DocumentSmallListItem({
         color={color}
         key={draftId || id?.id}
         title={getMetadataName(metadata)}
-        icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
+        icon={id && <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
         indented={indented}
         active={active}
         {...linkProps}
@@ -81,7 +81,7 @@ export function DocumentSmallListItem({
       color={color}
       key={draftId || id?.id}
       title={getMetadataName(metadata)}
-      icon={id && <HMIcon id={id} metadata={metadata} size={20} />}
+      icon={id && <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
       indented={indented}
       active={active}
       isDraft={!!draftId}

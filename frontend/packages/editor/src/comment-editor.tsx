@@ -171,6 +171,9 @@ export function CommentEditor({
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
 }) {
+  // Debug logging for account updates
+  console.log('🔍 CommentEditor render - account metadata:', account?.metadata)
+
   const {editor} = useCommentEditor(perspectiveAccountUid)
   // Check if we have non-empty draft content
   const hasDraftContent =
@@ -446,11 +449,12 @@ export function CommentEditor({
     return false
   }
 
+
   return (
     <div className="flex w-full items-start gap-2">
       <div className="flex shrink-0 grow-0">
         {account?.metadata ? (
-          <HMIcon id={account.id} metadata={account.metadata} size={32} />
+          <HMIcon id={account.id} name={account.metadata?.name} icon={account.metadata?.icon} size={32} />
         ) : (
           <UIAvatar id="?" label="?" size={32} />
         )}

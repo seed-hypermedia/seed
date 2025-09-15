@@ -454,7 +454,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
         <HMIcon
           size={18}
           id={selectedAccount?.id}
-          metadata={selectedAccount?.document?.metadata}
+          name={selectedAccount?.document?.metadata?.name}
+          icon={selectedAccount?.document?.metadata?.icon}
         />
         <SizableText size="sm">
           <span className="font-bold">

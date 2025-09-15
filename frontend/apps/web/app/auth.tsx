@@ -376,7 +376,9 @@ function EditProfileForm({
             placeholder={tx('My New Public Name')}
           />
         </Field>
-        <ImageField control={control} name="icon" label={tx('Site Icon')} />
+        <Field id="icon" label={tx('Site Icon')}>
+          <ImageField control={control} name="icon" label={tx('Site Icon')} />
+        </Field>
         <div className="flex justify-center">
           <Button
             type="submit"
@@ -428,9 +430,10 @@ function ImageField<Fields extends FieldValues>({
       : URL.createObjectURL(c.field.value)
     : null
   return (
-    <div className="relative flex size-[128px] flex-1 self-stretch overflow-hidden rounded-sm">
+    <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 dark:border-neutral-600 dark:hover:border-neutral-500">
       <input
         type="file"
+        accept="image/*"
         onChange={(event) => {
           const file = event.target.files?.[0]
           if (!file) return
@@ -439,20 +442,14 @@ function ImageField<Fields extends FieldValues>({
             c.field.onChange(blob)
           })
         }}
-        style={{
-          opacity: 0,
-          display: 'flex',
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 100,
-        }}
+        className="absolute inset-0 z-10 cursor-pointer opacity-0"
       />
       {!c.field.value && (
-        <div className="bg-muted pointer-none absolute z-5 flex h-full w-full items-center justify-center gap-2 opacity-100">
-          <SizableText size="xs" className="text-center text-white">
+        <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-neutral-100 dark:bg-neutral-800">
+          <SizableText
+            size="xs"
+            className="text-center text-neutral-600 dark:text-neutral-400"
+          >
             {tx('add', ({what}: {what: string}) => `Add ${what}`, {
               what: label,
             })}
@@ -461,20 +458,13 @@ function ImageField<Fields extends FieldValues>({
       )}
       {c.field.value && (
         <img
-          // @ts-expect-error
-          src={currentImgURL}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            position: 'absolute',
-            left: 0,
-            top: 0,
-          }}
+          src={currentImgURL || undefined}
+          alt={label}
+          className="absolute inset-0 h-full w-full object-cover"
         />
       )}
       {c.field.value && (
-        <div className="bg-muted pointer-none absolute z-5 flex h-full w-full items-center justify-center gap-2 opacity-100">
+        <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
           <SizableText size="xs" className="text-center text-white">
             Edit {label}
           </SizableText>
@@ -568,6 +558,9 @@ function EditProfileDialog({
       })
       queryClient.invalidateQueries({
         queryKey: [queryKeys.RESOLVED_ENTITY, id.id],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.ACCOUNT],
       })
     },
   })

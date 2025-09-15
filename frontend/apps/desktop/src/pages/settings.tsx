@@ -483,7 +483,8 @@ function AccountKeys() {
             {selectedAccountId ? (
               <HMIcon
                 id={selectedAccountId}
-                metadata={profileDocument?.metadata}
+                name={profileDocument?.metadata?.name}
+                icon={profileDocument?.metadata?.icon}
                 size={80}
               />
             ) : null}
@@ -986,7 +987,7 @@ function KeyItem({
       onClick={onSelect}
       className="h-auto w-full items-start"
     >
-      <HMIcon id={id} metadata={document?.metadata} size={24} />
+      <HMIcon id={id} name={document?.metadata?.name} icon={document?.metadata?.icon} size={24} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <SizableText
           weight={isActive ? 'bold' : 'normal'}

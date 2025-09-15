@@ -205,7 +205,7 @@ export function LibraryListItem({
               className="border-background bg-background group-hover:border-accent group-hover:bg-accent -ml-2 overflow-hidden rounded-full border-2 transition-all duration-200"
               style={{zIndex: idx + 1}}
             >
-              <HMIcon id={author.id} metadata={author.metadata} size={20} />
+              <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} size={20} />
             </div>
           ))}
           {entry.authors.length > editors.length && editors.length != 0 ? (

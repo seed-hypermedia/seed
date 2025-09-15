@@ -592,7 +592,8 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
             <HMIcon
               size={100}
               id={docId}
-              metadata={resource.data?.document?.metadata}
+              name={resource.data?.document?.metadata?.name}
+              icon={resource.data?.document?.metadata?.icon}
             />
           </div>
         ) : null}

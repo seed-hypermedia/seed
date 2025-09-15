@@ -23,7 +23,7 @@ export function ContactToken({
   )
   const icon =
     !id.path?.length || metadata?.icon ? (
-      <HMIcon size={20} id={id} metadata={metadata} />
+      <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} />
     ) : null
   const className =
     'h-5 truncate rounded px-1 text-sm font-bold inline-flex gap-1 items-center'

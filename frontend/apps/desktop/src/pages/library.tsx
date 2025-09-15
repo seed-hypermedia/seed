@@ -442,7 +442,7 @@ function LibrarySiteItem({
           isSelected={isSelected}
           onSelect={onSelect}
         />
-        <HMIcon id={id} metadata={metadata} />
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="items-center-justify-start flex flex-1 overflow-hidden">

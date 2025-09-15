@@ -85,7 +85,8 @@ export function BranchDialog({
               >
                 <HMIcon
                   id={selectedAccount.id}
-                  metadata={selectedAccount.document?.metadata}
+                  name={selectedAccount.document?.metadata.name}
+                  icon={selectedAccount.document?.metadata.icon}
                   size={24}
                 />
                 Create Document Branch

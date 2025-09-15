@@ -22,7 +22,7 @@ export function ResourceToken({
   )
   const icon =
     !id.path?.length || metadata?.icon ? (
-      <HMIcon size={20} id={id} metadata={metadata} />
+      <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} />
     ) : null
 
   const baseClassName =

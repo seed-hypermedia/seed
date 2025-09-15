@@ -231,7 +231,8 @@ function IdentitySelector({
               <HMIcon
                 key={selectedAccount.data?.id?.uid}
                 id={selectedAccount.data?.id}
-                metadata={selectedAccountDoc?.metadata}
+                name={selectedAccountDoc?.metadata?.name}
+                icon={selectedAccountDoc?.metadata?.icon}
                 size={24}
               />
             ) : null}
@@ -266,7 +267,7 @@ function IdentitySelector({
                   }}
                 >
                   {option.id ? (
-                    <HMIcon id={option?.id} metadata={option?.metadata} />
+                    <HMIcon id={option?.id} name={option?.metadata?.name} icon={option?.metadata?.icon} />
                   ) : null}
                   {option.metadata?.name}
                 </div>

@@ -1,25 +1,56 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {useImageUrl} from './get-file-url'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
 import {Button} from './button'
+import {useImageUrl} from './get-file-url'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 // TODO: support new drafts now
-export const HMIcon = memo(_HMIcon)
+export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
+  // Custom comparison function for memo
+  // Deep comparison for id object
+  if (prevProps.id?.id !== nextProps.id?.id) return false
+  if (prevProps.id?.version !== nextProps.id?.version) return false
+  if (prevProps.id?.blockRef !== nextProps.id?.blockRef) return false
+
+  if (prevProps.size !== nextProps.size) return false
+  if (prevProps.className !== nextProps.className) return false
+
+  // Direct comparison for name and icon props
+  if (prevProps.name !== nextProps.name) {
+    console.log('🔄 HMIcon memo: name changed', {
+      prev: prevProps.name,
+      next: nextProps.name,
+      id: prevProps.id?.uid?.slice(0, 8)
+    })
+    return false
+  }
+  if (prevProps.icon !== nextProps.icon) {
+    console.log('🔄 HMIcon memo: icon changed', {
+      prev: prevProps.icon,
+      next: nextProps.icon,
+      id: prevProps.id?.uid?.slice(0, 8)
+    })
+    return false
+  }
+
+  return true
+})
 
 function _HMIcon({
   id,
-  metadata,
+  name,
+  icon,
   size = 32,
   className,
   ...props
 }: Omit<UIAvatarProps, 'id'> & {
   id: UnpackedHypermediaId
-  metadata?: HMMetadata | null
+  name?: HMMetadata['name'] | null
+  icon?: HMMetadata['icon'] | null
   size?: number
   className?: string
 }) {
@@ -30,8 +61,8 @@ function _HMIcon({
     <UIAvatar
       size={size}
       id={id.id}
-      label={metadata?.name}
-      url={metadata?.icon ? imageUrl(metadata.icon, 'S') : undefined}
+      label={name || ''}
+      url={icon ? imageUrl(icon, 'S') : undefined}
       className={cn(
         'flex-none',
         id.path && id.path.length !== 0 ? 'rounded-md' : 'rounded-full',
@@ -60,7 +91,7 @@ export function LinkIcon({
   const linkProps = useRouteLink({key: 'document', id})
   let content = (
     <>
-      <HMIcon id={id} size={size} metadata={metadata} />
+      <HMIcon id={id} size={size} name={metadata?.name} icon={metadata?.icon} />
       <ErrorDot error={error} />
     </>
   )
@@ -107,5 +138,5 @@ export function LoadedHMIcon({
     entity.data?.type === 'document'
       ? entity.data.document?.metadata
       : undefined
-  return <HMIcon id={id} metadata={metadata} size={size} />
+  return <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={size} />
 }

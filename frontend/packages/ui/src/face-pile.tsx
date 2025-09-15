@@ -31,7 +31,8 @@ export function FacePile({
             <HMIcon
               key={authorInfo.id.uid}
               id={authorInfo.id}
-              metadata={authorInfo.metadata}
+              name={authorInfo.metadata?.name}
+              icon={authorInfo.metadata?.icon}
               size={20}
             />
           </div>

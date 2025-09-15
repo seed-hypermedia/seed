@@ -206,7 +206,8 @@ function _CommentBox(props: {
         {account?.document?.metadata ? (
           <HMIcon
             id={account.id}
-            metadata={account.document.metadata}
+            name={account.document.metadata?.name}
+            icon={account.document.metadata?.icon}
             size={32}
           />
         ) : (

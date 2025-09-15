@@ -653,7 +653,8 @@ function QueryStyleList({items}: {items: any[]}) {
               <HMIcon
                 size={28}
                 id={item.id}
-                metadata={item.document?.metadata}
+                name={item.document?.metadata.name}
+                icon={item.document?.metadata.icon}
               />
               <div className="flex flex-1 items-center gap-2 overflow-hidden py-2">
                 <SizableText weight="bold" className="truncate">

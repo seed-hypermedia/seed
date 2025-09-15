@@ -161,7 +161,7 @@ function FavoritesSection() {
             key={id.id}
             docId={id.id}
             title={metadata?.name || 'Untitled'}
-            icon={<HMIcon id={id} metadata={metadata} size={20} />}
+            icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />}
             active={route.key === 'document' && route.id.id === id.id}
             onClick={() => {
               navigate({key: 'document', id})

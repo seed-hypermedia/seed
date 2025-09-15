@@ -60,7 +60,7 @@ function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
           navigate({key: 'contact', id: hmId(id.uid)})
         }}
       >
-        <HMIcon metadata={metadata} id={id} size={24} />
+        <HMIcon name={metadata?.name} icon={metadata?.icon} id={id} size={24} />
         <div className="flex flex-1 items-center gap-2 overflow-hidden">
           <SizableText size="sm" className="flex-1 truncate text-left">
             {metadata?.name}
@@ -321,7 +321,12 @@ function CollaboratorItem({
       onClick={() => navigate({key: 'contact', id: collaboratorId})}
       className="w-full"
     >
-      <HMIcon metadata={collaboratorMetadata} id={collaboratorId} size={24} />
+      <HMIcon
+        name={collaboratorMetadata?.name}
+        icon={collaboratorMetadata?.icon}
+        id={collaboratorId}
+        size={24}
+      />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className="flex-1 truncate text-left">
           {
@@ -557,7 +562,12 @@ export const TagInputItem = forwardRef<HTMLDivElement, TagInputItemProps>(
         <div className="flex flex-1 justify-start gap-2">
           {/* <Ariakit.SelectItemCheck /> */}
           {metadata && props.member?.id ? (
-            <HMIcon size={16} metadata={metadata} id={props.member?.id} />
+            <HMIcon
+              size={16}
+              name={metadata?.name}
+              icon={metadata?.icon}
+              id={props.member?.id}
+            />
           ) : null}
           <div className="flex flex-1">
             <SizableText size="sm" className="text-currentColor">

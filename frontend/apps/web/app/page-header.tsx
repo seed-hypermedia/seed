@@ -39,7 +39,7 @@ export function PageHeader({
         <div className="flex flex-col gap-4">
           {!isHomeDoc && docId && hasIcon ? (
             <div className={`mt-[${hasCover ? -80 : 0}px]`}>
-              <HMIcon size={100} id={docId} metadata={docMetadata} />
+              <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
             </div>
           ) : null}
           {/* @ts-expect-error */}

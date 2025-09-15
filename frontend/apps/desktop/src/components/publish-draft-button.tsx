@@ -213,7 +213,8 @@ export default function PublishDraftButton() {
           {signingAccount ? (
             <HMIcon
               id={signingAccount.id}
-              metadata={signingAccount.document?.metadata}
+              name={signingAccount.document?.metadata?.name}
+              icon={signingAccount.document?.metadata?.icon}
               size={18}
             />
           ) : null}

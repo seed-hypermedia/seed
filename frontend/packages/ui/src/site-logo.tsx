@@ -44,7 +44,7 @@ export function SiteLogo({
       {...homeLinkProps}
       className={cn('flex items-center justify-center gap-2')}
     >
-      <HMIcon size={24} id={id} metadata={metadata} />
+      <HMIcon size={24} id={id} name={metadata?.name} icon={metadata?.icon} />
       <p
         className={cn(
           'text-foreground text-center font-bold select-none sm:text-left',

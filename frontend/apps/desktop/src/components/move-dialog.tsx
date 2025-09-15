@@ -87,7 +87,8 @@ export function MoveDialog({
               >
                 <HMIcon
                   id={selectedAccount.id}
-                  metadata={selectedAccount.document?.metadata}
+                  name={selectedAccount.document?.metadata?.name}
+                  icon={selectedAccount.document?.metadata?.icon}
                   size={24}
                 />
                 Move

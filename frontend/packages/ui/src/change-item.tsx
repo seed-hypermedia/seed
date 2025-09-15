@@ -72,7 +72,7 @@ export function ChangeItem({
         className="flex-shrink-0"
         style={{width: iconSize, height: iconSize}}
       >
-        <HMIcon size={iconSize} id={author.id} metadata={author.metadata} />
+        <HMIcon size={iconSize} id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">
         <div
