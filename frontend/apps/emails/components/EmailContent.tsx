@@ -6,11 +6,29 @@ import {
   MjmlSection,
   MjmlText,
 } from '@faire/mjml-react'
-import {BlockNode, createWebHMUrl, unpackHmId} from '@shm/shared'
+import {
+  BlockNode,
+  createWebHMUrl,
+  DAEMON_FILE_URL,
+  unpackHmId,
+} from '@shm/shared'
 import {format} from 'date-fns'
 import React from 'react'
 import {Notification} from '../notifier'
-import {extractIpfsUrlCid, getDaemonFileUrl} from './EmailHeader'
+
+export function getDaemonFileUrl(ipfsUrl?: string) {
+  if (ipfsUrl) {
+    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
+  }
+  return ''
+}
+
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
+  const regex = /^ipfs:\/\/(.+)$/
+  const match = cidOrIPFSUrl.match(regex)
+  // @ts-ignore
+  return match ? match[1] : cidOrIPFSUrl
+}
 
 export function EmailContent({notification}: {notification: Notification}) {
   const {authorName, authorAvatar, fallbackLetter, createdAt} =
@@ -81,16 +99,7 @@ export function EmailContent({notification}: {notification: Notification}) {
             )}
           </MjmlText>
         </MjmlColumn>
-        {notification.type === 'mention' ? (
-          renderMention({
-            blocks:
-              notification.source === 'comment'
-                ? notification.comment.content.map((n) => new BlockNode(n))
-                : [notification.block],
-            targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-            resolvedNames: notification.resolvedNames,
-          })
-        ) : notification.type === 'change' ? (
+        {notification.type === 'change' ? (
           renderChange({
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
             isNewDocument: notification.isNewDocument,
@@ -480,9 +489,7 @@ function getNotificationMeta(notification: Notification) {
   const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
 
   const createdAt =
-    notification.type === 'reply' ||
-    notification.type === 'discussion' ||
-    (notification.type === 'mention' && notification.source === 'comment')
+    notification.type === 'comment'
       ? notification.comment.createTime?.seconds
         ? format(
             new Date(Number(notification.comment.createTime.seconds) * 1000),

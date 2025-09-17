@@ -12,7 +12,6 @@ import {
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {
-  BlockNode,
   Comment,
   HMMetadata,
   SITE_BASE_URL,
@@ -38,10 +37,8 @@ export async function createNotificationsEmail(
   if (!notifications.length) return
 
   const grouped: GroupedNotifications = {
-    reply: {},
-    mention: {},
     change: {},
-    discussion: {},
+    comment: {},
   }
 
   for (const notif of notifications) {
@@ -58,7 +55,7 @@ export async function createNotificationsEmail(
     }
     // @ts-ignore
     notificationsByDocument[notification.notif.targetId.id].push(notification)
-    subscriberNames.add(notification.accountMeta?.name || 'You')
+    subscriberNames.add(notification.accountMeta?.name || 'Subscriber')
   }
   const docNotifs = Object.values(notificationsByDocument)
   const baseNotifsSubject =
@@ -108,22 +105,15 @@ ${docNotifs
       .map((notification) => {
         const {notif} = notification
 
-        if (
-          notif.type === 'reply' ||
-          (notif.type === 'mention' && notif.source === 'comment')
-        ) {
-          return `New ${notif.type} from ${notif.comment.author} on ${notif.url}`
+        if (notif.type === 'comment') {
+          return `New comment from ${notif.authorMeta?.name || 'someone'} on ${
+            notif.url
+          }`
         }
 
         if (notif.type === 'change') {
           return `New document change from ${
             notif.authorMeta?.name || notif.authorAccountId
-          } on ${notif.url}`
-        }
-
-        if (notif.type === 'discussion') {
-          return `New discussion from ${
-            notif.authorMeta?.name || notif.comment.author
           } on ${notif.url}`
         }
 
@@ -152,12 +142,9 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
-        <EmailHeader
-          avatarUrl={notifications?.[0]?.accountMeta?.icon || ''}
-          name={notifications?.[0]?.accountMeta?.name || ''}
-        />
+        <EmailHeader />
 
-        {(['reply', 'mention', 'change', 'discussion'] as const).map((type) => {
+        {(['change', 'comment'] as const).map((type) => {
           const docs = grouped[type]
           const docEntries = Object.entries(docs)
 
@@ -166,17 +153,9 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
           const totalCount = docEntries.flatMap(([, n]) => n).length
 
           const sectionTitle =
-            type === 'reply'
-              ? `You have ${totalCount} new repl${
-                  totalCount === 1 ? 'y' : 'ies'
-                }!`
-              : type === 'mention'
-              ? 'You have been mentioned!'
-              : type === 'discussion'
-              ? `New discussion${
-                  totalCount === 1 ? '' : 's'
-                } created on your site`
-              : 'New document changes!'
+            type === 'comment'
+              ? `New comment${totalCount === 1 ? '' : 's'}`
+              : 'Document changes'
 
           return (
             <>
@@ -198,24 +177,9 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                     <MjmlSection padding="0px 0px 10px">
                       <MjmlColumn>
                         <MjmlText fontSize="14px" color="#888">
-                          {type === 'reply' ? (
+                          {type === 'comment' ? (
                             <>
-                              You have ({docNotifs.length}) repl
-                              {docNotifs.length === 1 ? 'y' : 'ies'}
-                              {' on  '}
-                              <span
-                                style={{
-                                  fontWeight: 'bold',
-                                  color: 'black',
-                                  backgroundColor: 'lightgray',
-                                }}
-                              >
-                                {targetName}
-                              </span>
-                            </>
-                          ) : type === 'discussion' ? (
-                            <>
-                              {docNotifs.length} discussion
+                              {docNotifs.length} comment
                               {docNotifs.length === 1 ? '' : 's'} on{' '}
                               <span
                                 style={{
@@ -261,13 +225,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                           href={docUrl}
                           backgroundColor="#008060"
                         >
-                          {type === 'reply'
-                            ? 'Reply'
-                            : type === 'mention'
-                            ? 'Open Mention'
-                            : type === 'discussion'
-                            ? 'Open Discussion'
-                            : 'View Change'}
+                          {type === 'comment' ? 'View Comment' : 'View Change'}
                         </MjmlButton>
                       </MjmlColumn>
                     </MjmlSection>
@@ -289,37 +247,6 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
 export type Notification =
   | {
-      type: 'mention'
-      source: 'comment'
-      comment: PlainMessage<Comment>
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-      resolvedNames?: Record<string, string>
-    }
-  | {
-      type: 'mention'
-      source: 'change'
-      block: BlockNode
-      authorAccountId: string
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      url: string
-      resolvedNames?: Record<string, string>
-    }
-  | {
-      type: 'reply'
-      comment: PlainMessage<Comment>
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-    }
-  | {
       type: 'change'
       authorAccountId: string
       authorMeta: HMMetadata | null
@@ -329,13 +256,14 @@ export type Notification =
       isNewDocument: boolean
     }
   | {
-      type: 'discussion'
+      type: 'comment'
       comment: PlainMessage<Comment>
       parentComments: PlainMessage<Comment>[]
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      resolvedNames?: Record<string, string>
     }
 
 export type FullNotification = {
@@ -348,29 +276,15 @@ function getNotificationSummary(
   notification: Notification,
   accountMeta: HMMetadata | null,
 ): string {
-  if (notification.type === 'mention') {
-    return `${accountMeta?.name || 'You were'} mentioned by ${
-      notification.authorMeta?.name
-        ? notification.authorMeta.name
-        : notification.source === 'comment'
-        ? notification.comment.author
-        : 'Unknown User'
-    }.`
-  }
-  if (notification.type === 'reply') {
-    return `You have a new reply from ${
-      notification.authorMeta?.name || notification.comment.author
-    }.`
-  }
   if (notification.type === 'change') {
-    return `${notification.authorMeta?.name || 'Someone'} made a change to ${
-      notification.targetMeta?.name || 'your document'
+    return `${notification.authorMeta?.name || 'Someone'} made changes to ${
+      notification.targetMeta?.name || 'a document'
     }.`
   }
-  if (notification.type === 'discussion') {
-    return `${
-      notification.authorMeta?.name || notification.comment.author
-    } started a discussion on ${notification.targetMeta?.name || 'your site'}.`
+  if (notification.type === 'comment') {
+    return `${notification.authorMeta?.name || 'Someone'} commented on ${
+      notification.targetMeta?.name || 'a document'
+    }.`
   }
   return ''
 }

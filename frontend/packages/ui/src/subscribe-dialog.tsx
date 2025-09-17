@@ -1,3 +1,4 @@
+import {SEED_HOST_URL} from '@shm/shared/constants'
 import {useState} from 'react'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
@@ -10,6 +11,7 @@ import {
 } from './components/dialog'
 import {Input} from './components/input'
 import {Label} from './components/label'
+import {cn} from './utils'
 
 interface SubscribeDialogProps {
   open: boolean
@@ -37,7 +39,12 @@ export function SubscribeDialog({
     setError(null)
 
     try {
-      const response = await fetch('/hm/api/public-subscribe', {
+      const apiUrl =
+        typeof window !== 'undefined' && window.location.port !== '3000'
+          ? `${SEED_HOST_URL}/hm/api/public-subscribe`
+          : '/hm/api/public-subscribe'
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,6 +53,9 @@ export function SubscribeDialog({
           action: 'subscribe',
           email,
           accountId,
+          notifyAllMentions: isChecked,
+          notifyAllReplies: isChecked,
+          notifyOwnedDocChange: isChecked,
           notifySiteDiscussions: isChecked,
         }),
       })
@@ -100,8 +110,8 @@ export function SubscribeDialog({
             onCheckedChange={(checked) => setIsChecked(checked === true)}
             variant="primary"
           >
-            Get notified about all the activity happening with your account, as
-            well as all the sites you have subscribed to.
+            Get notified about all site activity including discussions, updates,
+            citations, and collaborator activity.
           </CheckboxField>
         </div>
 
@@ -122,6 +132,3 @@ export function SubscribeDialog({
     </Dialog>
   )
 }
-
-// Import cn utility
-import {cn} from './utils'

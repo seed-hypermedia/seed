@@ -1,9 +1,8 @@
 import {setSubscription} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
 import {getMetadata} from '@/loaders'
-import {BadRequestError, cborApiAction} from '@/server-api'
 import {withCors} from '@/utils/cors'
-import {LoaderFunction} from '@remix-run/node'
+import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {z} from 'zod'
@@ -24,11 +23,18 @@ const publicSubscribeAction = z.object({
 
 export type PublicSubscribeAction = z.infer<typeof publicSubscribeAction>
 
-export const action = cborApiAction<PublicSubscribeAction, any>(
-  async (payload, {pathParts}) => {
+export const action: ActionFunction = async ({request}) => {
+  if (request.method !== 'POST') {
+    return withCors(json({message: 'Method not allowed'}, {status: 405}))
+  }
+
+  try {
+    const data = await request.json()
+    const payload = publicSubscribeAction.parse(data)
+
     // Basic validation
     if (!payload.accountId) {
-      throw new BadRequestError('Account ID is required')
+      return withCors(json({error: 'Account ID is required'}, {status: 400}))
     }
 
     // Create the subscription
@@ -59,9 +65,19 @@ export const action = cborApiAction<PublicSubscribeAction, any>(
       }
     } catch (error) {
       console.error('Failed to send welcome email:', error)
-      // Don't fail the subscription if welcome email fails
     }
 
     return withCors(json({success: true}))
-  },
-)
+  } catch (error) {
+    console.error('Public subscribe error:', error)
+    if (error instanceof z.ZodError) {
+      return withCors(
+        json(
+          {error: 'Invalid request data', details: error.errors},
+          {status: 400},
+        ),
+      )
+    }
+    return withCors(json({error: 'Internal server error'}, {status: 500}))
+  }
+}
