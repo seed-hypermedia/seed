@@ -2,16 +2,13 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
-  Annotation,
   BlockNode,
   Comment,
   entityQueryPathToHmIdPath,
   Event,
-  HMBlockNode,
   HMBlockNodeSchema,
   HMDocumentMetadataSchema,
   hmId,
-  HMLoadedBlock,
   HMMetadata,
   HMMetadataPayload,
   unpackHmId,
@@ -99,10 +96,9 @@ async function handleEventsForEmailNotifications(
   const accountNotificationOptions: Record<
     string,
     {
-      notifyAllMentions: boolean
       notifyAllReplies: boolean
-      notifyOwnedDocChange: boolean
       notifySiteDiscussions: boolean
+      notifyOwnedDocChange: boolean
       email: string
     }
   > = {}
@@ -139,7 +135,12 @@ async function handleEventsForEmailNotifications(
       notificationsToSend[email] = []
     }
     if (accountMetas[accountId] === undefined) {
-      accountMetas[accountId] = (await getAccount(accountId)).metadata
+      try {
+        accountMetas[accountId] = (await getAccount(accountId)).metadata
+      } catch (error) {
+        console.error(`Error getting account ${accountId}:`, error)
+        return
+      }
     }
     notificationsToSend[email].push({
       accountId,
@@ -153,14 +154,14 @@ async function handleEventsForEmailNotifications(
       // @ts-expect-error
       if (opts.isUnsubscribed) continue
       accountNotificationOptions[account.id] = {
-        notifyAllMentions: account.notifyAllMentions,
         notifyAllReplies: account.notifyAllReplies,
-        notifyOwnedDocChange: account.notifyOwnedDocChange,
         notifySiteDiscussions: account.notifySiteDiscussions,
+        notifyOwnedDocChange: account.notifyOwnedDocChange,
         email: email.email,
       }
     }
   }
+
   const newComments: {
     comment: PlainMessage<Comment>
     parentAuthors: Set<string>
@@ -205,75 +206,75 @@ async function handleEventsForEmailNotifications(
                   : null,
             }
 
-            if (prevVersionId) {
-              const prevVersionDoc = await getDocument(prevVersionId)
-              const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
+            // if (prevVersionId) {
+            //   const prevVersionDoc = await getDocument(prevVersionId)
+            //   const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
 
-              const previousMentionsByBlockId: Record<string, Set<string>> = {}
+            //   const previousMentionsByBlockId: Record<string, Set<string>> = {}
 
-              for (const loaded of prevVersionDoc.content ?? []) {
-                const blockId = loaded.block?.id
-                if (!blockId) continue
+            //   for (const loaded of prevVersionDoc.content ?? []) {
+            //     const blockId = loaded.block?.id
+            //     if (!blockId) continue
 
-                // @ts-expect-error
-                const accountIds = getMentionsFromBlock(loaded.block)
-                if (accountIds.size > 0) {
-                  previousMentionsByBlockId[blockId] = accountIds
-                }
-              }
+            //     // @ts-expect-error
+            //     const accountIds = getMentionsFromBlock(loaded.block)
+            //     if (accountIds.size > 0) {
+            //       previousMentionsByBlockId[blockId] = accountIds
+            //     }
+            //   }
 
-              for (const [blockId, newMentions] of Object.entries(
-                mentionsMap,
-              )) {
-                const oldMentions =
-                  previousMentionsByBlockId[blockId] ?? new Set()
+            //   for (const [blockId, newMentions] of Object.entries(
+            //     mentionsMap,
+            //   )) {
+            //     const oldMentions =
+            //       previousMentionsByBlockId[blockId] ?? new Set()
 
-                for (const accountLink of newMentions) {
-                  const accountId = accountLink.slice('hm://'.length)
+            //     for (const accountLink of newMentions) {
+            //       const accountId = accountLink.slice('hm://'.length)
 
-                  // Skip if already mentioned in this block in the previous version
-                  if (oldMentions.has(accountId)) continue
+            //       // Skip if already mentioned in this block in the previous version
+            //       if (oldMentions.has(accountId)) continue
 
-                  // Skip if a user mentions themselves
-                  if (accountId === blob.author) continue
+            //       // Skip if a user mentions themselves
+            //       if (accountId === blob.author) continue
 
-                  const {notifyAllMentions, email} =
-                    accountNotificationOptions[accountId] || {}
-                  if (!notifyAllMentions) continue
+            //       const {notifyAllMentions, email} =
+            //         accountNotificationOptions[accountId] || {}
+            //       if (!notifyAllMentions) continue
 
-                  const op = changeDataWithOps.body.ops.find(
-                    // @ts-expect-error
-                    (op) =>
-                      op.type === 'ReplaceBlock' && op.block?.id === blockId,
-                  )
+            //       const op = changeDataWithOps.body.ops.find(
+            //         // @ts-expect-error
+            //         (op) =>
+            //           op.type === 'ReplaceBlock' && op.block?.id === blockId,
+            //       )
 
-                  if (!op?.block) continue
+            //       if (!op?.block) continue
 
-                  const blockNode = new BlockNode({
-                    block: op.block,
-                    children: [],
-                  })
+            //       const blockNode = new BlockNode({
+            //         block: op.block,
+            //         children: [],
+            //       })
 
-                  const authorMeta = (await getAccount(blob.author)).metadata
-                  const resolvedNames = await resolveAnnotationNames([
-                    blockNode,
-                  ])
+            //       const authorMeta = (await getAccount(blob.author)).metadata
+            //       const resolvedNames = await resolveAnnotationNames([
+            //         blockNode,
+            //       ])
 
-                  // @ts-expect-error
-                  await appendNotification(email, accountId, {
-                    type: 'mention',
-                    source: 'change',
-                    block: blockNode,
-                    authorAccountId: blob.author,
-                    authorMeta,
-                    targetMeta,
-                    targetId: unpacked,
-                    url: docUrl,
-                    resolvedNames,
-                  })
-                }
-              }
-            }
+            //       // @ts-expect-error
+            //       await appendNotification(email, accountId, {
+            //         type: 'mention',
+            //         source: 'change',
+            //         block: blockNode,
+            //         authorAccountId: blob.author,
+            //         authorMeta,
+            //         targetMeta,
+            //         targetId: unpacked,
+            //         url: docUrl,
+            //         resolvedNames,
+            //       })
+            //     }
+            //   }
+            // }
 
             const isNewDocument =
               Array.isArray(changeData.deps) && changeData.deps.length === 0
@@ -285,13 +286,13 @@ async function handleEventsForEmailNotifications(
 
               if (!notifyOwnedDocChange) continue
 
-              // Skip if the user made their own change
-              if (blob.author === accountId) continue
+              // // Skip if the user made their own change
+              // if (blob.author === accountId) continue
 
-              // Skip if the user is not an owner of a document
-              // @ts-expect-error
-              const isOwner = changedDoc?.authors?.[accountId]
-              if (!isOwner) continue
+              // // Skip if the user is not an owner of a document
+              // // @ts-expect-error
+              // const isOwner = changedDoc?.authors?.[accountId]
+              // if (!isOwner) continue
 
               const authorMeta = (await getAccount(blob.author)).metadata
 
@@ -312,53 +313,40 @@ async function handleEventsForEmailNotifications(
         if (blob.blobType !== 'Comment') continue
         const comment = await grpcClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)
-        const parentAuthors: Set<string> = new Set()
-        for (const parentComment of parentComments) {
-          if (parentComment.author === comment.targetAccount) continue
-          parentAuthors.add(parentComment.author)
+        let commentAuthorMeta = null
+        let targetMeta = null
+
+        try {
+          commentAuthorMeta = (await getAccount(comment.author)).metadata
+        } catch (error) {
+          console.error(
+            `Error getting comment author ${comment.author}:`,
+            error,
+          )
         }
-        const resolvedParentAuthors: Set<string> = new Set()
-        for (const parentAuthor of parentAuthors) {
-          try {
-            const account = await resolveAccount(parentAuthor)
-            resolvedParentAuthors.add(account.id.uid)
-          } catch (e) {
-            console.error(
-              'Error resolving parent author',
-              parentAuthor,
-              `when processing event id ipfs://${event.data.value?.cid}`,
-              e,
-            )
-          }
-        }
-        const explicitMentions = getMentions(comment)
-        const mentions: Set<string> = new Set()
-        for (const mentionedAuthor of explicitMentions) {
-          try {
-            const account = await resolveAccount(mentionedAuthor)
-            mentions.add(account.id.uid)
-          } catch (e) {
-            console.error(
-              'Error resolving mentioned author',
-              mentionedAuthor,
-              `when processing event id ipfs://${event.data.value?.cid}`,
-              e,
-            )
-          }
-        }
-        newComments.push({
-          comment: toPlainMessage(comment),
-          parentComments,
-          parentAuthors: resolvedParentAuthors,
-          commentAuthorMeta: (await getAccount(comment.author)).metadata,
-          targetMeta: (
+
+        try {
+          targetMeta = (
             await getMetadata(
               hmId(comment.targetAccount, {
                 path: entityQueryPathToHmIdPath(comment.targetPath),
               }),
             )
-          ).metadata,
-          mentions,
+          ).metadata
+        } catch (error) {
+          console.error(
+            `Error getting target metadata for ${comment.targetAccount}:`,
+            error,
+          )
+        }
+
+        newComments.push({
+          comment: toPlainMessage(comment),
+          parentComments,
+          parentAuthors: new Set(), // Not used anymore
+          commentAuthorMeta,
+          targetMeta,
+          mentions: new Set(), // Not used anymore
         })
       } catch (e) {
         console.error('Failed to process event', event, e)
@@ -374,64 +362,61 @@ async function handleEventsForEmailNotifications(
       path: entityQueryPathToHmIdPath(comment.targetPath),
     })
 
-    const ownerId = comment.targetAccount
-    const ownerPrefs = accountNotificationOptions[ownerId]
+    // const ownerId = comment.targetAccount
+    // const ownerPrefs = accountNotificationOptions[ownerId]
 
-    const isNewDiscussion =
-      (!comment.threadRoot || comment.threadRoot === '') &&
-      (!comment.replyParent || comment.replyParent === '')
+    // const isNewDiscussion =
+    //   (!comment.threadRoot || comment.threadRoot === '') &&
+    //   (!comment.replyParent || comment.replyParent === '')
 
-    if (ownerPrefs && comment.author !== ownerId && isNewDiscussion) {
-      if (ownerPrefs.notifySiteDiscussions) {
-        await appendNotification(ownerPrefs.email, ownerId, {
-          type: 'discussion',
-          comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: targetDocUrl,
-        })
-      }
-    }
+    // // Send notifications to all subscribers who want to be notified about site discussions
+    // if (isNewDiscussion) {
+    //   for (const accountId in accountNotificationOptions) {
+    //     // @ts-expect-error
+    //     const {notifySiteDiscussions, email} =
+    //       accountNotificationOptions[accountId]
+
+    //     if (!notifySiteDiscussions) continue
+    //     if (comment.author === accountId) continue // don't notify the author for their own discussions
+
+    //     await appendNotification(email, accountId, {
+    //       type: 'discussion',
+    //       comment,
+    //       parentComments: newComment.parentComments,
+    //       authorMeta: newComment.commentAuthorMeta,
+    //       targetMeta: newComment.targetMeta,
+    //       targetId: targetDocId,
+    //       url: targetDocUrl,
+    //     })
+    //   }
+    // }
 
     for (const accountId in accountNotificationOptions) {
       if (comment.author === accountId) continue // don't notify the author for their own comments
       const account = accountNotificationOptions[accountId]
 
-      // @ts-expect-error
-      if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
-        // @ts-expect-error
-        await appendNotification(account.email, accountId, {
-          type: 'reply',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: targetDocUrl,
-        })
-      }
-      // @ts-expect-error
-      if (account.notifyAllMentions) {
-        if (newComment.mentions.has(accountId)) {
-          const resolvedNames = await resolveAnnotationNames(
-            newComment.comment.content.map((n) => new BlockNode(n)),
-          )
-          // @ts-expect-error
-          await appendNotification(account.email, accountId, {
-            type: 'mention',
-            comment: newComment.comment,
-            source: 'comment',
-            parentComments: newComment.parentComments,
-            authorMeta: newComment.commentAuthorMeta,
-            targetMeta: newComment.targetMeta,
-            targetId: targetDocId,
-            url: targetDocUrl,
-            resolvedNames,
-          })
-        }
-      }
+      const isNewDiscussion =
+        (!comment.threadRoot || comment.threadRoot === '') &&
+        (!comment.replyParent || comment.replyParent === '')
+
+      const shouldNotify = isNewDiscussion
+        ? account?.notifySiteDiscussions
+        : account?.notifyAllReplies
+
+      if (!shouldNotify || !account) continue
+
+      await appendNotification(account.email, accountId, {
+        type: 'comment',
+        comment: newComment.comment,
+        parentComments: newComment.parentComments,
+        authorMeta: newComment.commentAuthorMeta,
+        targetMeta: newComment.targetMeta,
+        targetId: targetDocId,
+        url: targetDocUrl,
+        resolvedNames: await resolveAnnotationNames(
+          newComment.comment.content.map((n) => new BlockNode(n)),
+        ),
+      })
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
@@ -453,31 +438,31 @@ async function handleEventsForEmailNotifications(
   }
 }
 
-function getMentions(comment: PlainMessage<Comment>) {
-  const allMentions = new Set<string>()
-  comment.content.forEach((rawBlockNode) => {
-    const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-    const mentions = getBlockNodeMentions(blockNode)
-    for (const mention of mentions) {
-      allMentions.add(mention)
-    }
-  })
-  return allMentions
-}
+// function getMentions(comment: PlainMessage<Comment>) {
+//   const allMentions = new Set<string>()
+//   comment.content.forEach((rawBlockNode) => {
+//     const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+//     const mentions = getBlockNodeMentions(blockNode)
+//     for (const mention of mentions) {
+//       allMentions.add(mention)
+//     }
+//   })
+//   return allMentions
+// }
 
-function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
-  const mentions: Set<string> = new Set()
-  // @ts-expect-error
-  for (const annotation of blockNode.block?.annotations || []) {
-    if (annotation.type === 'Embed') {
-      const hmId = unpackHmId(annotation.link)
-      if (hmId && !hmId.path?.length) {
-        mentions.add(hmId.uid)
-      }
-    }
-  }
-  return mentions
-}
+// function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
+//   const mentions: Set<string> = new Set()
+//   // @ts-expect-error
+//   for (const annotation of blockNode.block?.annotations || []) {
+//     if (annotation.type === 'Embed') {
+//       const hmId = unpackHmId(annotation.link)
+//       if (hmId && !hmId.path?.length) {
+//         mentions.add(hmId.uid)
+//       }
+//     }
+//   }
+//   return mentions
+// }
 
 async function getParentComments(comment: PlainMessage<Comment>) {
   const parentComments: PlainMessage<Comment>[] = []
@@ -595,50 +580,50 @@ async function resolveAnnotationNames(blocks: BlockNode[]) {
   return resolvedNames
 }
 
-function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
-  const mentionMap: Record<string, Set<string>> = {}
+// function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
+//   const mentionMap: Record<string, Set<string>> = {}
 
-  for (const op of ops) {
-    if (op.type !== 'ReplaceBlock' || !op.block?.annotations) continue
+//   for (const op of ops) {
+//     if (op.type !== 'ReplaceBlock' || !op.block?.annotations) continue
 
-    const mentions = op.block.annotations
-      .filter(
-        (a: Annotation) => a.type === 'Embed' && a.link?.startsWith('hm://'),
-      )
-      .map((a: Annotation) => a.link)
-    // .map((a: Annotation) => a.link!.slice('hm://'.length))
+//     const mentions = op.block.annotations
+//       .filter(
+//         (a: Annotation) => a.type === 'Embed' && a.link?.startsWith('hm://'),
+//       )
+//       .map((a: Annotation) => a.link)
+//     // .map((a: Annotation) => a.link!.slice('hm://'.length))
 
-    if (mentions.length > 0 && op.block.id) {
-      mentionMap[op.block.id] = new Set(mentions)
-    }
-  }
+//     if (mentions.length > 0 && op.block.id) {
+//       mentionMap[op.block.id] = new Set(mentions)
+//     }
+//   }
 
-  return mentionMap
-}
+//   return mentionMap
+// }
 
-function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
-  const accountIds = new Set<string>()
+// function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
+//   const accountIds = new Set<string>()
 
-  // @ts-expect-error
-  if (!block?.content || !Array.isArray(block.content)) return accountIds
+//   // @ts-expect-error
+//   if (!block?.content || !Array.isArray(block.content)) return accountIds
 
-  // @ts-expect-error
-  for (const item of block.content) {
-    if (
-      item.type === 'InlineEmbed' &&
-      typeof item.ref === 'string' &&
-      item.ref.startsWith('hm://')
-    ) {
-      // Remove hm part of the link
-      const ref = item.ref.slice(5)
-      if (ref && !ref.includes('/')) {
-        accountIds.add(ref)
-      }
-    }
-  }
+//   // @ts-expect-error
+//   for (const item of block.content) {
+//     if (
+//       item.type === 'InlineEmbed' &&
+//       typeof item.ref === 'string' &&
+//       item.ref.startsWith('hm://')
+//     ) {
+//       // Remove hm part of the link
+//       const ref = item.ref.slice(5)
+//       if (ref && !ref.includes('/')) {
+//         accountIds.add(ref)
+//       }
+//     }
+//   }
 
-  return accountIds
-}
+//   return accountIds
+// }
 
 async function loadRefFromIpfs(cid: string): Promise<any> {
   const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`

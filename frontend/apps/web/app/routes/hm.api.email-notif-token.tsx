@@ -29,7 +29,7 @@ const emailNotifTokenAction = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('set-account-options'),
     accountId: z.string(),
-    notifyAllMentions: z.boolean().optional(),
+    // notifyAllMentions: z.boolean().optional(),
     notifyAllReplies: z.boolean().optional(),
     notifyOwnedDocChange: z.boolean().optional(),
     notifySiteDiscussions: z.boolean().optional(),
@@ -60,8 +60,8 @@ export const action: ActionFunction = async ({request, params}) => {
     const subscriberEmail = email.email
     const current = getSubscription(accountId, subscriberEmail)
 
-    const nextNotifyAllMentions =
-      body.notifyAllMentions ?? current?.notifyAllMentions ?? false
+    // const nextNotifyAllMentions =
+    //   body.notifyAllMentions ?? current?.notifyAllMentions ?? false
     const nextNotifyAllReplies =
       body.notifyAllReplies ?? current?.notifyAllReplies ?? false
     const nextNotifyOwnedDocChange =
@@ -72,7 +72,7 @@ export const action: ActionFunction = async ({request, params}) => {
     setSubscription({
       id: accountId,
       email: subscriberEmail,
-      notifyAllMentions: nextNotifyAllMentions,
+      notifyAllMentions: false, // Unused for now
       notifyAllReplies: nextNotifyAllReplies,
       notifyOwnedDocChange: nextNotifyOwnedDocChange,
       notifySiteDiscussions: nextNotifySiteDiscussions,

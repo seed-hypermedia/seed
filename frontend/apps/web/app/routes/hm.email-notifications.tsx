@@ -1,5 +1,6 @@
 import {useFullRender} from '@/cache-policy'
 import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {queryAPI} from '@/models'
 import {PageFooter} from '@/page-footer'
 import {WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
@@ -18,11 +19,11 @@ import {
   useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
-import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
-import {FullCheckbox} from '@shm/ui/form-input'
+import {SwitchField} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
+import {useEffect, useState} from 'react'
 
 export const loader = async ({request}: {request: Request}) => {
   const parsedRequest = parseRequest(request)
@@ -89,7 +90,7 @@ export default function EmailNotificationsPage() {
           origin={origin}
         />
         <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
-          <Container className="flex-1 gap-4 px-6 py-8">
+          <Container className="flex-1 gap-4 overflow-y-auto px-6 py-8">
             <EmailNotificationsContent />
           </Container>
         </div>
@@ -108,6 +109,7 @@ export function EmailNotificationsContent() {
     error,
   } = useEmailNotificationsWithToken(token)
   const {mutate: setEmailUnsubscribed} = useSetEmailUnsubscribed(token)
+  const {mutate: setAccountOptions} = useSetAccountOptions(token)
   if (!token) {
     return <SizableText>No token provided</SizableText>
   }
@@ -133,24 +135,28 @@ export function EmailNotificationsContent() {
     )
   }
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex max-w-2xl flex-col gap-6">
       {notifSettings ? (
         <>
           <div className="flex flex-col gap-1">
-            <p>{notifSettings.email}</p>
-            <h2 className="text-2xl font-bold">Email Notification Settings</h2>
+            <p className="text-sm text-gray-600">{notifSettings.email}</p>
+            <h2 className="text-2xl font-bold">Set Up Email Notifications</h2>
           </div>
           {notifSettings.isUnsubscribed ? (
             <>
-              <p className="text-red-600">
-                Unsubscribed from All Notifications
-              </p>
-              <SizableText>
-                You can enable notifications for the following accounts:
-              </SizableText>
-              {notifSettings.subscriptions.map((sub) => (
-                <AccountTitle key={sub.id} accountId={sub.id} />
-              ))}
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="font-medium text-red-700">
+                  Unsubscribed from All Notifications
+                </p>
+                <SizableText className="mt-2 text-red-600">
+                  You can enable notifications for the following sites:
+                </SizableText>
+                <div className="mt-3 space-y-2">
+                  {notifSettings.subscriptions.map((sub) => (
+                    <AccountTitle key={sub.id} accountId={sub.id} />
+                  ))}
+                </div>
+              </div>
               <Button
                 variant="default"
                 onClick={() => {
@@ -162,21 +168,67 @@ export function EmailNotificationsContent() {
             </>
           ) : (
             <>
-              {notifSettings.subscriptions.map((sub) => (
-                <EmailNotificationSubscription
-                  key={sub.id}
-                  subscription={sub}
-                  token={token}
-                />
-              ))}
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setEmailUnsubscribed(true)
-                }}
-              >
-                Unsubscribe from all Notifications
-              </Button>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <SwitchField
+                    id="all-notifications"
+                    label="Enable Notifications for all subscribed site activity"
+                    checked={notifSettings.subscriptions.every(
+                      (sub) =>
+                        sub.notifyOwnedDocChange && sub.notifySiteDiscussions,
+                    )}
+                    onCheckedChange={(checked) => {
+                      // Set all subscriptions to the same value
+                      notifSettings.subscriptions.forEach((sub) => {
+                        setAccountOptions({
+                          accountId: sub.id,
+                          notifyOwnedDocChange: checked === true,
+                          notifySiteDiscussions: checked === true,
+                        })
+                      })
+                    }}
+                  />
+                  <p className="ml-0 text-sm text-gray-600">
+                    When activity happens on a site you have subscribed to, you
+                    will receive an email notification for all activity
+                    happening: Site and document updates, new and ongoing
+                    discussions, new citations and collaborator changes.
+                  </p>
+
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Update Activity</h4>
+                    <p className="text-sm text-gray-600">
+                      Get notified when a site you have subscribed to has
+                      document updates or new documents.
+                    </p>
+
+                    <h4 className="font-medium">Discussion Activity</h4>
+                    <p className="text-sm text-gray-600">
+                      Get notified when a site you have subscribed to has new
+                      discussions or new replies in a thread.
+                    </p>
+                  </div>
+                </div>
+
+                {notifSettings.subscriptions.map((sub) => (
+                  <EmailNotificationSubscription
+                    key={sub.id}
+                    subscription={sub}
+                    token={token}
+                  />
+                ))}
+              </div>
+
+              <div className="border-t pt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setEmailUnsubscribed(true)
+                  }}
+                >
+                  Unsubscribe from all Notifications
+                </Button>
+              </div>
             </>
           )}
         </>
@@ -190,19 +242,41 @@ export function EmailNotificationsContent() {
 }
 
 function AccountTitle({accountId}: {accountId: string}) {
-  const {data: entity} = useResource(hmId(accountId))
-  const document = entity?.type === 'document' ? entity.document : undefined
+  const [accountData, setAccountData] = useState<{
+    id: any
+    metadata: any
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadAccount() {
+      try {
+        const response = (await queryAPI(`/hm/api/account/${accountId}`)) as any
+        setAccountData(response)
+      } catch (error) {
+        console.error('Error loading account:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadAccount()
+  }, [accountId])
+
+  const displayName =
+    accountData?.metadata?.name || accountId.slice(0, 8) + '...'
+
+  if (loading) {
+    return (
+      <div className="flex gap-2">
+        <SizableText weight="bold">{accountId.slice(0, 8)}...</SizableText>
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-2">
-      {entity?.id ? (
-        <HMIcon
-          size={24}
-          id={entity?.id}
-          name={document?.metadata?.name}
-          icon={document?.metadata?.icon}
-        />
-      ) : null}
-      <SizableText weight="bold">{document?.metadata.name}</SizableText>
+      {accountData?.id ? <HMIcon size={24} id={accountData.id} /> : null}
+      <SizableText weight="bold">{displayName}</SizableText>
     </div>
   )
 }
@@ -215,37 +289,42 @@ function EmailNotificationSubscription({
   token: string
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <AccountTitle accountId={subscription.id} />
-      <AccountValueCheckbox
-        token={token}
-        label="Notify on all mentions"
-        field="notifyAllMentions"
-        subscription={subscription}
-      />
-      <AccountValueCheckbox
-        token={token}
-        label="Notify on all replies"
-        field="notifyAllReplies"
-        subscription={subscription}
-      />
-      <AccountValueCheckbox
-        token={token}
-        label="Notify on owned document changes"
-        field="notifyOwnedDocChange"
-        subscription={subscription}
-      />
-      <AccountValueCheckbox
-        token={token}
-        label="Notify on created discussions in your site"
-        field="notifySiteDiscussions"
-        subscription={subscription}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <AccountTitle accountId={subscription.id} />
+      </div>
+
+      <div className="space-y-3">
+        <AccountValueSwitch
+          token={token}
+          label="Update Activity"
+          field="notifyOwnedDocChange"
+          subscription={subscription}
+        />
+        <AccountValueSwitch
+          token={token}
+          label="Discussion Activity"
+          field="notifySiteDiscussions"
+          subscription={subscription}
+        />
+        {/* <AccountValueSwitch
+          token={token}
+          label="Mentions"
+          field="notifyAllMentions"
+          subscription={subscription}
+        /> */}
+        {/* <AccountValueSwitch
+          token={token}
+          label="Replies"
+          field="notifyAllReplies"
+          subscription={subscription}
+        /> */}
+      </div>
     </div>
   )
 }
 
-function AccountValueCheckbox({
+function AccountValueSwitch({
   token,
   label,
   field,
@@ -253,27 +332,22 @@ function AccountValueCheckbox({
 }: {
   token: string
   label: string
-  field:
-    | 'notifyAllMentions'
-    | 'notifyAllReplies'
-    | 'notifyOwnedDocChange'
-    | 'notifySiteDiscussions'
+  field: 'notifyOwnedDocChange' | 'notifySiteDiscussions'
   subscription: Email['subscriptions'][number]
 }) {
   const {mutate: setAccount, isLoading} = useSetAccountOptions(token)
   return (
-    <FullCheckbox
-      paddingLeft={30}
-      // @ts-expect-error
-      value={subscription[field]}
-      onValue={() => {
+    <SwitchField
+      id={`${subscription.id}-${field}`}
+      label={label}
+      checked={subscription[field]}
+      onCheckedChange={(checked) => {
         setAccount({
           accountId: subscription.id,
-          [field]: !subscription[field],
+          [field]: checked,
         })
       }}
-      isLoading={isLoading}
-      label={label}
+      disabled={isLoading}
     />
   )
 }

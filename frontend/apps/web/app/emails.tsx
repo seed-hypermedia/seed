@@ -160,34 +160,19 @@ export async function sendNotificationWelcomeEmail(
     /\/$/,
     '',
   )}/hm/email-notifications?token=${opts.adminToken}`
-  let whenWillYouBeNotified = ''
-  let notifiedFor = ''
-  // TODO: improve this somehow
-  if (
-    opts.notifyAllMentions &&
-    opts.notifyAllReplies &&
-    opts.notifyOwnedDocChange &&
-    opts.notifySiteDiscussions
-  ) {
-    whenWillYouBeNotified =
-      'when you are mentioned, when someone changes a document you own, or when someone replies to your comments.'
-    notifiedFor = 'mentions, changes and replies'
-  } else if (opts.notifyAllMentions) {
-    whenWillYouBeNotified = 'when you are mentioned.'
-    notifiedFor = 'mentions'
-  } else if (opts.notifyAllReplies) {
-    whenWillYouBeNotified = 'when someone replies to your comments.'
-    notifiedFor = 'replies'
-  } else if (opts.notifyOwnedDocChange) {
-    whenWillYouBeNotified = 'when someone changes a document you own.'
-    notifiedFor = 'changes'
-  } else if (opts.notifySiteDiscussions) {
-    whenWillYouBeNotified = 'when someone creates a discussion in your site.'
-  } else {
-    return // notifs are disabled
+  let notificationTypes = []
+  if (opts.notifyAllMentions) notificationTypes.push('mentions')
+  if (opts.notifyAllReplies) notificationTypes.push('replies')
+  if (opts.notifyOwnedDocChange) notificationTypes.push('document updates')
+  if (opts.notifySiteDiscussions) notificationTypes.push('discussions')
+
+  if (notificationTypes.length === 0) {
+    return // no notifications enabled
   }
-  const subject = `You will be notified for ${notifiedFor}`
-  const primaryMessage = `We will notify you ${whenWillYouBeNotified}`
+
+  const notifiedFor = notificationTypes.join(', ')
+  const subject = `Welcome! You'll receive notifications for ${notifiedFor}`
+  const primaryMessage = `You're now subscribed to receive email notifications for ${notifiedFor} on this site.`
   const text = `Welcome to Hypermedia Notifications!
 
 ${primaryMessage}
@@ -199,7 +184,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         {/* This preview is visible from the email client before the user clicks on the email */}
         <MjmlPreview>
-          Notifications for {accountMeta?.name || 'your account'}, coming soon!
+          Welcome! You're now subscribed to receive email notifications.
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
@@ -224,14 +209,18 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 function NotifSettings({url}: {url: string}) {
   return (
     <MjmlSection>
-      <MjmlText fontSize={10} paddingBottom={10} align="center">
+      <MjmlText fontSize={12} paddingBottom={16} align="center" color="#666666">
         Subscribed by mistake? Click here to unsubscribe:
       </MjmlText>
       <MjmlButton
-        padding="8px"
-        backgroundColor="#828282"
+        padding="12px 24px"
+        backgroundColor="#068f7b"
         href={url}
         align="center"
+        borderRadius="6px"
+        color="#ffffff"
+        fontSize="14px"
+        fontWeight="500"
       >
         Manage Email Notifications
       </MjmlButton>
