@@ -299,6 +299,7 @@ SELECT distinct
     blobs.codec,
     blobs.multihash,
 	blobs.id,
+	structural_blobs.ts,
 	public_keys.principal AS author,
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
@@ -330,7 +331,8 @@ SELECT distinct
     blobs.id AS blob_id,
 	blobs.insert_time AS blob_insert_time,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs
+	structural_blobs.extra_attrs,
+	resource_links.id AS link_id,
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -339,14 +341,13 @@ LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resource_links.target IN (:targets)
 AND structural_blobs.ts <= :idx
 AND structural_blobs.type IN ('Comment')
-
 UNION ALL
 SELECT distinct
     resources.iri,
     blobs.codec,
     blobs.multihash,
     public_keys.principal AS author,
-    structural_blobs.ts,
+    changes.ts,
     'Ref' AS blob_type,
     changes.is_pinned,
     changes.anchor,
@@ -356,13 +357,15 @@ SELECT distinct
     blobs.id AS blob_id,
 	blobs.insert_time AS blob_insert_time,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs
+	structural_blobs.extra_attrs,
+	changes.link_id
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
+JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
 WHERE structural_blobs.ts <= :idx
+GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY structural_blobs.ts DESC
 LIMIT :page_size;
 `)

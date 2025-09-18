@@ -397,4 +397,7 @@ message Mention {
 
   // Optional. The fragment portion of the link.
   string target_fragment = 8;
+
+  // Optional. The type of mention. Could be embed, link, ...
+  string mention_type = 9;
 }

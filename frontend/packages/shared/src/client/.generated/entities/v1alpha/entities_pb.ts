@@ -1313,6 +1313,13 @@ export class Mention extends Message<Mention> {
    */
   targetFragment = "";
 
+  /**
+   * Optional. The type of mention. Could be embed, link, ...
+   *
+   * @generated from field: string mention_type = 9;
+   */
+  mentionType = "";
+
   constructor(data?: PartialMessage<Mention>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1329,6 +1336,7 @@ export class Mention extends Message<Mention> {
     { no: 6, name: "source_document", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "mention_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention {

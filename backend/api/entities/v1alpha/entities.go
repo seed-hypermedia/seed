@@ -1030,7 +1030,6 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		var lastCursor mentionsCursor
 
 		var count int32
-
 		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
 			// We query for pageSize + 1 items to know if there's more items on the next page,
 			// because if not we don't need to return the page token in the response.
@@ -1053,6 +1052,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				targetVersion = stmt.ColumnText(8)
 				fragment      = stmt.ColumnText(9)
 				tsid          = stmt.ColumnText(12)
+				mentionType   = stmt.ColumnText(13)
 			)
 
 			lastCursor.BlobID = stmt.ColumnInt64(10)
@@ -1081,6 +1081,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				TargetVersion:  targetVersion,
 				IsExactVersion: isPinned,
 				TargetFragment: fragment,
+				MentionType:    mentionType,
 			})
 
 			return nil
@@ -1107,6 +1108,7 @@ const qListMentionsTpl = `
 WITH changes AS (
 SELECT
     structural_blobs.genesis_blob,
+	structural_blobs.ts,
     resource_links.id AS link_id,
     resource_links.is_pinned,
     blobs.codec,
@@ -1116,12 +1118,12 @@ SELECT
     resource_links.extra_attrs->>'a' AS anchor,
 	resource_links.extra_attrs->>'v' AS target_version,
 	resource_links.extra_attrs->>'f' AS target_fragment,
-	structural_blobs.extra_attrs->>'tsid' AS tsid
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	resource_links.type
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resource_links.target = :target
 AND structural_blobs.type IN ('Change')
 )
@@ -1138,7 +1140,8 @@ SELECT
 	resource_links.extra_attrs->>'f' AS target_fragment,
     blobs.id AS blob_id,
     resource_links.id AS link_id,
-	structural_blobs.extra_attrs->>'tsid' AS tsid
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	resource_links.type AS link_type
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -1147,6 +1150,7 @@ LEFT JOIN resources ON resources.id = structural_blobs.resource
 WHERE resource_links.target = :target
 AND blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
+GROUP BY resources.iri, link_id, target_version, target_fragment
 
 UNION ALL
 SELECT
@@ -1154,7 +1158,7 @@ SELECT
     blobs.codec,
     blobs.multihash,
     public_keys.principal AS author,
-    structural_blobs.ts,
+    changes.ts,
     'Ref' AS blob_type,
     changes.is_pinned,
     changes.anchor,
@@ -1162,12 +1166,13 @@ SELECT
 	changes.target_fragment,
     blobs.id AS blob_id,
     changes.link_id,
-	structural_blobs.extra_attrs->>'tsid' AS tsid
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	changes.type AS link_type
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN changes ON ((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment')
+JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
 AND blobs.id %s :blob_id
 GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY blobs.id %s

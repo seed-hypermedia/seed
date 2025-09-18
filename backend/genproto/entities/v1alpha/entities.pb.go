@@ -1450,8 +1450,10 @@ type Mention struct {
 	TargetVersion string `protobuf:"bytes,7,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// Optional. The fragment portion of the link.
 	TargetFragment string `protobuf:"bytes,8,opt,name=target_fragment,json=targetFragment,proto3" json:"target_fragment,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Optional. The type of mention. Could be embed, link, ...
+	MentionType   string `protobuf:"bytes,9,opt,name=mention_type,json=mentionType,proto3" json:"mention_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Mention) Reset() {
@@ -1536,6 +1538,13 @@ func (x *Mention) GetTargetVersion() string {
 func (x *Mention) GetTargetFragment() string {
 	if x != nil {
 		return x.TargetFragment
+	}
+	return ""
+}
+
+func (x *Mention) GetMentionType() string {
+	if x != nil {
+		return x.MentionType
 	}
 	return ""
 }
@@ -1711,7 +1720,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\rreverse_order\x18\x04 \x01(\bR\freverseOrder\"\x84\x01\n" +
 	"\x1aListEntityMentionsResponse\x12>\n" +
 	"\bmentions\x18\x01 \x03(\v2\".com.seed.entities.v1alpha.MentionR\bmentions\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcd\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xf0\x03\n" +
 	"\aMention\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x1f\n" +
 	"\vsource_type\x18\x02 \x01(\tR\n" +
@@ -1722,7 +1731,8 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x10is_exact_version\x18\x05 \x01(\bR\x0eisExactVersion\x12'\n" +
 	"\x0fsource_document\x18\x06 \x01(\tR\x0esourceDocument\x12%\n" +
 	"\x0etarget_version\x18\a \x01(\tR\rtargetVersion\x12'\n" +
-	"\x0ftarget_fragment\x18\b \x01(\tR\x0etargetFragment\x1aq\n" +
+	"\x0ftarget_fragment\x18\b \x01(\tR\x0etargetFragment\x12!\n" +
+	"\fmention_type\x18\t \x01(\tR\vmentionType\x1aq\n" +
 	"\bBlobInfo\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12;\n" +
