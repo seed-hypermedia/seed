@@ -32,17 +32,17 @@ let config = {
   // },
   build: {minify: false, sourcemap: true},
   ssr: {
-    noExternal: ['react-icons'],
+    noExternal: ['react-icons', '@shm/editor'],
   },
   // DISABLED FOR NOW, suspected to be overwrtiting the runtime env vars
   // define: {
   //   // Define process.env as an empty object to prevent "process is not defined" errors
   //   // Vite will replace individual process.env.VARIABLE_NAME references at build time
-  //   'process.env': {
+  // 'process.env': {
   //     NODE_ENV: process.env.NODE_ENV || 'development',
   //     SEED_SIGNING_ENABLED: process.env.SEED_SIGNING_ENABLED,
   //     SEED_BASE_URL: process.env.SEED_BASE_URL,
-  //   },
+  // },
   // },
   optimizeDeps: {
     exclude:

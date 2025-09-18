@@ -6,13 +6,13 @@ import {
   BlockSpec,
   bnBlockStyles,
   camelToDataKebab,
-  createTipTapBlock,
   mergeCSSClasses,
   parse,
   PropSchema,
   propsToAttributes,
   render,
 } from '../core'
+import {createTipTapBlock} from '../core/extensions/Blocks/api/block'
 import {TagParseRule} from '@tiptap/pm/model'
 import {
   NodeViewContent,
