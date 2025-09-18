@@ -484,7 +484,21 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           // map the insertion point again, in case previous iterations shifted it
           const insertAt = tr.mapping.map(currentPos, 1)
 
+          // Check if the position is valid before inserting
+          const docSize = tr.doc.content.size
+          if (insertAt < 0 || insertAt > docSize) {
+            console.warn('Invalid insert position:', {
+              insertAt,
+              docSize,
+              currentPos,
+            })
+            return
+          }
+
           tr.insert(insertAt, textFragment)
+
+          // Update currentPos to the end of the inserted content
+          currentPos = insertAt + textFragment.size
 
           if (fragmentLinks.length) {
             deleteOnly = false
