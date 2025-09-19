@@ -137,7 +137,6 @@ export type WebResourcePayload = {
   siteHost: string | undefined
   supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
   supportQueries?: HMQueryResult[]
-  enableWebSigning?: boolean
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
 }

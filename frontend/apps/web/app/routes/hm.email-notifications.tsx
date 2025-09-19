@@ -71,7 +71,6 @@ export default function EmailNotificationsPage() {
     supportDocuments,
     supportQueries,
     origin,
-    enableWebSigning,
   } = data
   return (
     <WebSiteProvider

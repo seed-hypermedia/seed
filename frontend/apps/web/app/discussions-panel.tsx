@@ -17,7 +17,6 @@ type DiscussionsPanelProps = {
   originHomeId?: UnpackedHypermediaId
   siteHost?: string
   setBlockId: (blockId: string | null) => void
-  enableWebSigning: boolean
   comment?: HMComment
   blockId?: string
   handleBack: () => void

@@ -39,7 +39,6 @@ import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import WebCommenting from './commenting'
-import {useWebSigning} from './web-signing-context'
 
 injectModels()
 
@@ -399,7 +398,7 @@ function QueryStyleList({
           ) : null
         return (
           <Button
-            className="h-15 h-auto shadow-md"
+            className="h-auto shadow-md"
             variant="outline"
             onClick={() => {
               navigate(
@@ -431,7 +430,6 @@ function QueryStyleList({
 }
 
 function EmbedDocumentComments(props: EntityComponentProps) {
-  const {enableWebSigning} = useWebSigning()
   const unpackedId = unpackHmId(
     props.block.type === 'Embed' ? props.block.link : undefined,
   )
@@ -452,12 +450,7 @@ function EmbedDocumentComments(props: EntityComponentProps) {
               e.stopPropagation()
             }}
           >
-            {enableWebSigning || WEB_IDENTITY_ENABLED ? (
-              <WebCommenting
-                docId={unpackedId}
-                enableWebSigning={enableWebSigning}
-              />
-            ) : null}
+            <WebCommenting docId={unpackedId} />
           </div>
         }
         targetId={unpackedId}

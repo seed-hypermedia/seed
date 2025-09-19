@@ -89,7 +89,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 }
 
 export default function DeviceLinkPage() {
-  const {enableWebSigning, originHomeId, siteHost, origin, originHomeMetadata} =
+  const {originHomeId, siteHost, origin, originHomeMetadata} =
     unwrap<DeviceLinkPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>

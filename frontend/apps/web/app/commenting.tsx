@@ -59,7 +59,6 @@ export type WebCommentingProps = {
     response: CommentResponsePayload
     commentPayload: CommentPayload
   }) => void
-  enableWebSigning: boolean
   commentingOriginUrl?: string
   autoFocus?: boolean
 }

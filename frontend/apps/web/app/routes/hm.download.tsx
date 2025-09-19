@@ -117,7 +117,6 @@ export default function DownloadPage() {
     supportDocuments,
     supportQueries,
     origin,
-    enableWebSigning,
   } = data
   //   const os = getOS();
   const [platform, setPlatform] = useState<

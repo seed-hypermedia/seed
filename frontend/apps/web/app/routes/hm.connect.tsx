@@ -24,7 +24,6 @@ import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
 
 type ConnectPagePayload = {
-  enableWebSigning: boolean
   originHomeId: UnpackedHypermediaId | undefined
   originHomeMetadata: HMMetadata | undefined
   origin: string
@@ -65,7 +64,7 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
 }
 
 export default function ConnectPage() {
-  const {enableWebSigning, originHomeId, siteHost, origin, originHomeMetadata} =
+  const {originHomeId, siteHost, origin, originHomeMetadata} =
     unwrap<ConnectPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
