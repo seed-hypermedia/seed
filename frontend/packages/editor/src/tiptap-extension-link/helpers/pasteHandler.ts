@@ -252,6 +252,103 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }
         }
 
+        // Check if the link is hm link
+        if (selection.empty && link && !unpackedHmId) {
+          let tr = view.state.tr
+          if (!tr.selection.empty) tr.deleteSelection()
+
+          const pos = view.state.selection.$from.pos
+
+          view.dispatch(
+            tr.insertText(link.href, pos).addMark(
+              pos,
+              pos + link.href.length,
+              options.editor.schema.mark('link', {
+                href: link.href,
+              }),
+            ),
+          )
+
+          view.dispatch(
+            view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
+              activate: true,
+              link: link.href,
+              items: getLinkMenuItems({
+                isLoading: true,
+                gwUrl: options.gwUrl,
+              }),
+            }),
+          )
+
+          resolveHypermediaUrl(link.href)
+            .then((linkMetaResult) => {
+              if (linkMetaResult) {
+                // hm link
+                const fullHmUrl = hmIdWithVersion(
+                  linkMetaResult.id,
+                  linkMetaResult.version,
+                  extractBlockRefOfUrl(link.href),
+                  extractBlockRangeOfUrl(link.href),
+                )
+
+                if (fullHmUrl) {
+                  const title = linkMetaResult.title
+
+                  // Update the link with hm url and title
+                  if (title) {
+                    view.dispatch(
+                      view.state.tr
+                        .deleteRange(pos, pos + link.href.length)
+                        .insertText(title, pos)
+                        .addMark(
+                          pos,
+                          pos + title.length,
+                          options.editor.schema.mark('link', {
+                            href: fullHmUrl,
+                          }),
+                        ),
+                    )
+                  } else {
+                    view.dispatch(
+                      view.state.tr
+                        .deleteRange(pos, pos + link.href.length)
+                        .insertText(fullHmUrl, pos)
+                        .addMark(
+                          pos,
+                          pos + fullHmUrl.length,
+                          options.editor.schema.mark('link', {
+                            href: fullHmUrl,
+                          }),
+                        ),
+                    )
+                  }
+
+                  view.dispatch(
+                    view.state.tr.setMeta(linkMenuPluginKey, {
+                      activate: true,
+                      ref: fullHmUrl,
+                      items: getLinkMenuItems({
+                        isLoading: false,
+                        hmId: unpackHmId(fullHmUrl),
+                        sourceUrl: fullHmUrl,
+                        docTitle: title || undefined,
+                        gwUrl: options.gwUrl,
+                      }),
+                    }),
+                  )
+                }
+              } else {
+                handleWebUrl(view, link, options)
+              }
+            })
+            .catch((err) => {
+              console.log('Error checking for hypermedia site:', err)
+              handleWebUrl(view, link, options)
+            })
+
+          return true
+        }
+
         if (link && selection.empty) {
           let tr = view.state.tr
           if (!tr.selection.empty) tr.deleteSelection()
@@ -577,6 +674,176 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
       return ['instagram', '']
     }
     return ['web', '']
+  }
+
+  function handleWebUrl(view: any, link: any, options: PasteHandlerOptions) {
+    let tr = view.state.tr
+    if (!tr.selection.empty) tr.deleteSelection()
+
+    const [mediaCase, fileName] = checkMediaUrl(link.href)
+
+    const pos = view.state.selection.$from.pos
+
+    view.dispatch(
+      tr.insertText(link.href, pos).addMark(
+        pos,
+        pos + link.href.length,
+        options.editor.schema.mark('link', {
+          href: link.href,
+        }),
+      ),
+    )
+
+    view.dispatch(
+      view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
+        activate: true,
+        link: link.href,
+        items: getLinkMenuItems({
+          isLoading: true,
+          gwUrl: options.gwUrl,
+        }),
+      }),
+    )
+
+    switch (mediaCase) {
+      case 'image':
+        view.dispatch(
+          view.state.tr.setMeta(linkMenuPluginKey, {
+            link: link.href,
+            items: getLinkMenuItems({
+              isLoading: false,
+              media: 'image',
+              fileName: fileName,
+              gwUrl: options.gwUrl,
+            }),
+          }),
+        )
+        break
+      case 'file':
+        view.dispatch(
+          view.state.tr.setMeta(linkMenuPluginKey, {
+            link: link.href,
+            items: getLinkMenuItems({
+              isLoading: false,
+              media: 'file',
+              fileName: fileName,
+              gwUrl: options.gwUrl,
+            }),
+          }),
+        )
+        break
+      case 'video':
+        view.dispatch(
+          view.state.tr.setMeta(linkMenuPluginKey, {
+            link: link.href,
+            items: getLinkMenuItems({
+              isLoading: false,
+              media: 'video',
+              sourceUrl: link.href,
+              fileName: fileName,
+              gwUrl: options.gwUrl,
+            }),
+          }),
+        )
+        break
+      case 'twitter':
+        view.dispatch(
+          view.state.tr.setMeta(linkMenuPluginKey, {
+            link: link.href,
+            items: getLinkMenuItems({
+              isLoading: false,
+              media: 'twitter',
+              sourceUrl: link.href,
+              fileName: fileName,
+              gwUrl: options.gwUrl,
+            }),
+          }),
+        )
+        break
+      case 'instagram':
+        view.dispatch(
+          view.state.tr.setMeta(linkMenuPluginKey, {
+            link: link.href,
+            items: getLinkMenuItems({
+              isLoading: false,
+              media: 'instagram',
+              sourceUrl: link.href,
+              fileName: fileName,
+              gwUrl: options.gwUrl,
+            }),
+          }),
+        )
+        break
+      // @ts-ignore
+      case 'web': {
+        const metaPromise = resolveHypermediaUrl(link.href)
+          // @ts-ignore
+          .then((linkMetaResult) => {
+            if (!linkMetaResult) return
+            const fullHmUrl = hmIdWithVersion(
+              linkMetaResult.id,
+              linkMetaResult.version,
+              extractBlockRefOfUrl(link.href),
+              extractBlockRangeOfUrl(link.href),
+            )
+            const title = linkMetaResult.title
+            if (title && fullHmUrl) {
+              view.dispatch(
+                view.state.tr
+                  .deleteRange(pos, pos + link.href.length)
+                  .insertText(title, pos)
+                  .addMark(
+                    pos,
+                    pos + title.length,
+                    options.editor.schema.mark('link', {
+                      href: fullHmUrl,
+                    }),
+                  ),
+              )
+            }
+            if (fullHmUrl) {
+              view.dispatch(
+                view.state.tr.setMeta(linkMenuPluginKey, {
+                  link: fullHmUrl,
+                  items: getLinkMenuItems({
+                    hmId: unpackHmId(fullHmUrl),
+                    isLoading: false,
+                    sourceUrl: fullHmUrl,
+                    docTitle: title,
+                    gwUrl: options.gwUrl,
+                  }),
+                }),
+              )
+              return true
+            }
+          })
+          .catch((err) => {
+            console.log('ERROR FETCHING web link')
+            console.log(err)
+          })
+        const mediaPromise = Promise.resolve(false)
+        Promise.all([metaPromise, mediaPromise])
+          .then((results) => {
+            const [embedResult, mediaResult] = results
+            if (!embedResult && !mediaResult) {
+              view.dispatch(
+                view.state.tr.setMeta(linkMenuPluginKey, {
+                  items: getLinkMenuItems({
+                    isLoading: false,
+                    sourceUrl: link.href,
+                    gwUrl: options.gwUrl,
+                  }),
+                }),
+              )
+            }
+          })
+          .catch((err) => {
+            console.log(err)
+          })
+      }
+      default:
+        break
+    }
   }
 
   return pastePlugin
