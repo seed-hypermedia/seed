@@ -6,18 +6,12 @@ import {ExternalLink} from 'lucide-react'
 import {ReactNode} from 'react'
 import {AccountFooterActionsLazy} from './client-lazy'
 
-export function PageFooter({
-  id,
-  enableWebSigning,
-}: {
-  id?: UnpackedHypermediaId | null
-  enableWebSigning?: boolean
-}) {
+export function PageFooter({id}: {id?: UnpackedHypermediaId | null}) {
   const tx = useTx()
   return (
     <div className="border-border mb-11 border-t px-3 py-2 sm:mb-0 sm:px-4 sm:py-2">
       <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
-        {enableWebSigning ? <AccountFooterActionsLazy /> : <div />}
+        <AccountFooterActionsLazy />
         <div className="flex items-center gap-4">
           <SizableText size="xs">
             {tx(

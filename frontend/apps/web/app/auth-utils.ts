@@ -101,6 +101,10 @@ export async function signAgentCapability(
 export async function preparePublicKey(
   publicKey: CryptoKey,
 ): Promise<Uint8Array> {
+  if (publicKey.type !== 'public') {
+    throw new Error('Can only stringify public keys')
+  }
+
   // Export raw key first
   const raw = await crypto.subtle.exportKey('raw', publicKey)
   const bytes = new Uint8Array(raw)

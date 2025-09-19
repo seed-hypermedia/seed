@@ -476,7 +476,7 @@ export function Comment({
                   )}
                   {...authorLink}
                 >
-                  {authorMetadata?.name || '...'}
+                  {authorMetadata?.name || authorId?.slice(0, 10) || '...'}
                 </button>
 
                 <CommentDate comment={comment} />

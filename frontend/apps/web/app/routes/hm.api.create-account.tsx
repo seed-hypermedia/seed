@@ -9,12 +9,16 @@ type BlobPayload = {
 }
 
 export type CreateAccountPayload = {
-  genesis: BlobPayload
-  home: BlobPayload
-  ref: Uint8Array
-  icon: BlobPayload | null
+  genesis?: BlobPayload
+  home?: BlobPayload
+  ref?: Uint8Array
+  icon?: BlobPayload | null
+  profile?: BlobPayload
 }
 
+/**
+ * This route takes a "bundle" of account-related blobs, and saves them to the daemon server.
+ */
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return json({message: 'Method not allowed'}, {status: 405})
@@ -30,7 +34,7 @@ export const action: ActionFunction = async ({request}) => {
   const payload = cborDecode(new Uint8Array(cborData)) as CreateAccountPayload
 
   if (payload.icon) {
-    const storedImageResult = await grpcClient.daemon.storeBlobs({
+    await grpcClient.daemon.storeBlobs({
       blobs: [
         {
           cid: payload.icon.cid,
@@ -40,29 +44,37 @@ export const action: ActionFunction = async ({request}) => {
     })
   }
 
-  const storedGenesisResult = await grpcClient.daemon.storeBlobs({
-    blobs: [
-      {
-        cid: payload.genesis.cid,
-        data: payload.genesis.data,
-      },
-    ],
-  })
-  const storedHomeResult = await grpcClient.daemon.storeBlobs({
-    blobs: [
-      {
-        cid: payload.home.cid,
-        data: payload.home.data,
-      },
-    ],
-  })
-  const storedRefResult = await grpcClient.daemon.storeBlobs({
-    blobs: [
-      {
-        data: payload.ref,
-      },
-    ],
-  })
+  if (payload.genesis) {
+    await grpcClient.daemon.storeBlobs({
+      blobs: [
+        {
+          cid: payload.genesis.cid,
+          data: payload.genesis.data,
+        },
+      ],
+    })
+  }
+
+  if (payload.home) {
+    await grpcClient.daemon.storeBlobs({
+      blobs: [
+        {
+          cid: payload.home.cid,
+          data: payload.home.data,
+        },
+      ],
+    })
+  }
+
+  if (payload.ref) {
+    await grpcClient.daemon.storeBlobs({
+      blobs: [
+        {
+          data: payload.ref,
+        },
+      ],
+    })
+  }
 
   return json({
     message: 'Success',

@@ -16,13 +16,13 @@ import {
   WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
+import {EditProfileDialog} from '@/auth'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
@@ -62,16 +62,12 @@ export type WebCommentingProps = {
   enableWebSigning: boolean
   commentingOriginUrl?: string
   autoFocus?: boolean
-  onAccountRequired?: () => void
 }
 
 /**
  * This is the main commenting component. It is used to create a new comment.
  */
 export default function WebCommenting(props: WebCommentingProps) {
-  if (!props.enableWebSigning) {
-    return <ExternalWebCommenting {...props} />
-  }
   return <LocalWebCommenting {...props} />
 }
 
@@ -109,14 +105,12 @@ export function LocalWebCommenting({
   quotingBlockId,
   onDiscardDraft,
   onSuccess,
-  enableWebSigning,
   commentingOriginUrl,
   autoFocus,
-  onAccountRequired,
 }: WebCommentingProps) {
-  // const userKeyPair = useLocalKeyPair()
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
+  const tx = useTxString()
 
   // Use draft persistence
   const {
@@ -183,7 +177,6 @@ export function LocalWebCommenting({
     dataUpdatedAt: myAccount.dataUpdatedAt,
     queryKey: ['ACCOUNT', userKeyPair?.id],
   })
-  const tx = useTxString()
 
   const {
     content: emailNotificationsPromptContent,
@@ -199,6 +192,8 @@ export function LocalWebCommenting({
       openEmailNotificationsPrompt({})
     })
   }
+
+  const editProfileDialog = useAppDialog(EditProfileDialog)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -216,12 +211,8 @@ export function LocalWebCommenting({
   ) => {
     if (isSubmitting) return // Prevent double submission
 
-    if (!userKeyPair) {
+    if (!userKeyPair || !myAccount) {
       createAccount()
-      return
-    }
-    if (!enableWebSigning) {
-      toast.error('Cannot sign comments on this domain.')
       return
     }
 
@@ -247,6 +238,15 @@ export function LocalWebCommenting({
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const onAvatarPress = async () => {
+    if (!userKeyPair) {
+      createAccount()
+      return
+    }
+    editProfileDialog.open({accountUid: userKeyPair.id})
+    return
   }
 
   // Don't render until draft is loaded
@@ -281,6 +281,7 @@ export function LocalWebCommenting({
           handleSubmit={handleSubmit}
           initialBlocks={draft || undefined}
           onContentChange={saveDraft}
+          onAvatarPress={onAvatarPress}
           onDiscardDraft={() => {
             removeDraft()
             onDiscardDraft?.()
@@ -314,6 +315,7 @@ export function LocalWebCommenting({
         />
       </DocContentProvider>
       {createAccountContent}
+      {editProfileDialog.content}
       {emailNotificationsPromptContent}
     </div>
   )

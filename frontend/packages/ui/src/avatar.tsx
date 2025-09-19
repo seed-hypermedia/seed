@@ -1,7 +1,47 @@
-import {useMemo} from 'react'
+import {useMemo, memo, useEffect, useRef} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {SizableText} from './text'
 import {cn} from './utils'
+import * as jdenticon from 'jdenticon'
+
+jdenticon.configure({
+  hues: [151],
+  lightness: {
+    color: [0.35, 0.5],
+    grayscale: [0.55, 0.55],
+  },
+  saturation: {
+    color: 0.54,
+    grayscale: 0.5,
+  },
+  backColor: '#0000',
+})
+
+/**
+ * This component generates an arbitrary but deterministic SVG icon based on the given value.
+ * Useful as a placeholder for users without avatars.
+ * It's much better than a generic avatar because users without names, or with the same name could be distinguished,
+ * as the identicon is based on their ID.
+ */
+const Identicon = memo((props: {value: string; size: number}) => {
+  const icon = useRef(null)
+
+  useEffect(() => {
+    if (icon.current) {
+      jdenticon.update(icon.current, props.value)
+    }
+  }, [props.value, props.size])
+
+  return (
+    <svg
+      data-jdenticon-value={props.value}
+      height={props.size}
+      width={props.size}
+      ref={icon}
+      {...props}
+    />
+  )
+})
 
 export type UIAvatarProps = {
   url?: string
@@ -45,7 +85,9 @@ export function UIAvatar({
       }}
       onClick={onPress}
     >
-      {url ? (
+      {id && (!url || url === avatarPlaceholder) ? (
+        <Identicon value={id} size={size} />
+      ) : url ? (
         <img
           src={url}
           className="min-h-full min-w-full bg-[var(--color1)] object-cover"

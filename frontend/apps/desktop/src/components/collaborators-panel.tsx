@@ -523,10 +523,10 @@ function UnresolvedItem({value}: {value: SearchResult}) {
     resource.data?.type === 'document'
       ? resource.data.document?.metadata
       : undefined
-  let label = metadata?.name || '...'
+  let label = metadata?.name || value.id.uid.slice(0, 10)
   return (
     <>
-      <UIAvatar label={label} id={value.id.id} />
+      <UIAvatar label={label} id={value.id.uid} />
       <SizableText>{label}</SizableText>
     </>
   )

@@ -89,7 +89,7 @@ export default function ConnectPage() {
             <HMConnectPage />
           </div>
         </div>
-        <PageFooter enableWebSigning={enableWebSigning} />
+        <PageFooter />
       </div>
     </WebSiteProvider>
   )

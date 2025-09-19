@@ -431,35 +431,27 @@ function InnerDocumentPage(
 
   const onReplyClick = useCallback(
     (comment: HMComment) => {
-      if (enableWebSigning) {
-        const targetId = isRouteEqualToCommentTarget({id, comment})
+      const targetId = isRouteEqualToCommentTarget({id, comment})
 
-        if (targetId) {
-          const route = {
-            key: 'document',
-            id,
-            accessory: {
-              key: 'discussions',
-              openComment: comment.id,
-            },
-          } as NavRoute
-          const href = routeToHref(route, context)
-          if (href) {
-            replace(href)
-          }
-        } else {
-          setEditorAutoFocus(true)
-          setCommentPanel(comment)
-          if (!media.gtSm) {
-            setMobilePanelOpen(true)
-          }
+      if (targetId) {
+        const route = {
+          key: 'document',
+          id,
+          accessory: {
+            key: 'discussions',
+            openComment: comment.id,
+          },
+        } as NavRoute
+        const href = routeToHref(route, context)
+        if (href) {
+          replace(href)
         }
       } else {
-        redirectToWebIdentityCommenting(id, {
-          replyCommentId: comment.id,
-          replyCommentVersion: comment.version,
-          rootReplyCommentVersion: comment.threadRootVersion,
-        })
+        setEditorAutoFocus(true)
+        setCommentPanel(comment)
+        if (!media.gtSm) {
+          setMobilePanelOpen(true)
+        }
       }
     },
     [enableWebSigning],
@@ -761,10 +753,7 @@ function InnerDocumentPage(
                         </div>
                       </div>
                       <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
-                        <PageFooter
-                          enableWebSigning={enableWebSigning}
-                          id={id}
-                        />
+                        <PageFooter id={id} />
                       </div>
                     </div>
                   </ScrollArea>

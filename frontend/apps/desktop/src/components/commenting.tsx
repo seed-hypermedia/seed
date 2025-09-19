@@ -211,7 +211,7 @@ function _CommentBox(props: {
             size={32}
           />
         ) : (
-          <UIAvatar id="?" label="?" size={32} />
+          <UIAvatar size={32} />
         )}
       </div>
 

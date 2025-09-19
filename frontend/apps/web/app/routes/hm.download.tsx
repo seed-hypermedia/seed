@@ -245,7 +245,7 @@ export default function DownloadPage() {
             )}
           </div>
         </Container>
-        <PageFooter enableWebSigning={enableWebSigning} />
+        <PageFooter />
       </div>
     </WebSiteProvider>
   )

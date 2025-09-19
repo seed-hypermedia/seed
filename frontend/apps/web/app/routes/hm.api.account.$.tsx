@@ -2,6 +2,7 @@ import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {ConnectError, Code} from '@connectrpc/connect'
 import {Params} from '@remix-run/react'
 import {HMDocumentMetadataSchema, hmId, HMMetadataPayload} from '@shm/shared'
 
@@ -35,6 +36,17 @@ export const loader = async ({
   if (!accountUid) {
     throw new Error('No account uid provided')
   }
-  const account = await getAccount(accountUid)
-  return wrapJSON(account)
+
+  try {
+    const account = await getAccount(accountUid)
+    return wrapJSON(account)
+  } catch (err) {
+    if (err instanceof ConnectError && err.code === Code.NotFound) {
+      return wrapJSON(err, {
+        status: 404,
+        statusText: 'Not Found',
+      })
+    }
+    throw err
+  }
 }

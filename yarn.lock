@@ -12213,6 +12213,7 @@ __metadata:
     ipfs-unixfs-importer: ^15.3.2
     isbot: 4
     it-length-prefixed-stream: ^2.0.1
+    jdenticon: ^3.3.0
     libp2p: ^2.8.5
     lucide-react: ^0.511.0
     mjml: ^4.15.3
@@ -17188,6 +17189,15 @@ __metadata:
   version: 1.0.30001727
   resolution: "caniuse-lite@npm:1.0.30001727"
   checksum: 2bc6112f242701198a99c17713d4409be9b404d09005f34f351ec29a4ea46c054e7aa4982bc16f06b81b7a375cbc61c937e89650170cbce84db772a376ed3963
+  languageName: node
+  linkType: hard
+
+"canvas-renderer@npm:~2.2.0":
+  version: 2.2.1
+  resolution: "canvas-renderer@npm:2.2.1"
+  dependencies:
+    "@types/node": "*"
+  checksum: 91d8807aee0fa0549862a4124455bea7833d4c739df39b6519df367ec4f57683735d6bf873dfbc0d47ce49e4d92a02cc2bd15eda2a025fa961d3d1c0539d85e8
   languageName: node
   linkType: hard
 
@@ -24778,6 +24788,17 @@ __metadata:
   version: 2.1.0
   resolution: "javascript-stringify@npm:2.1.0"
   checksum: 009981ec84299da88795fc764221ed213e3d52251cc93a396430a7a02ae09f1163a9be36a36808689681a8e6113cf00fe97ec2eea2552df48111f79be59e9358
+  languageName: node
+  linkType: hard
+
+"jdenticon@npm:^3.3.0":
+  version: 3.3.0
+  resolution: "jdenticon@npm:3.3.0"
+  dependencies:
+    canvas-renderer: ~2.2.0
+  bin:
+    jdenticon: bin/jdenticon.js
+  checksum: 5157925f261d0c25c9ffd84e3d7fb33bb797d95bd064b8e08f71ad5428ba18b241196caebe10da4d5de995d59d00f952a46d1ea2927cf7ea1db65a38931bcf16
   languageName: node
   linkType: hard
 

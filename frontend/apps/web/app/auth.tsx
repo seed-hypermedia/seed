@@ -164,6 +164,7 @@ export async function createAccount({
     generation: 1,
   })
   const refBlock = await encodeBlock(ref)
+
   const createAccountPayload: CreateAccountPayload = {
     genesis: {
       data: genesisChangeBlock.bytes,
@@ -324,7 +325,7 @@ function CreateAccountDialog({
       <DialogDescription>
         {tx(
           'create_account_description',
-          'Your account key will be securely stored in this browser. The identity will be accessible only on this domain, but you can link it to other domains and devices.',
+          'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
         )}
       </DialogDescription>
       <EditProfileForm
@@ -376,8 +377,12 @@ function EditProfileForm({
             placeholder={tx('My New Public Name')}
           />
         </Field>
-        <Field id="icon" label={tx('Site Icon')}>
-          <ImageField control={control} name="icon" label={tx('Site Icon')} />
+        <Field id="icon" label={tx('Profile Icon')}>
+          <ImageField
+            control={control}
+            name="icon"
+            label={tx('Profile Icon')}
+          />
         </Field>
         <div className="flex justify-center">
           <Button
@@ -387,7 +392,7 @@ function EditProfileForm({
               AccountWithImage || 'false'
             }`}
           >
-            {submitLabel || tx('Save Account')}
+            {submitLabel || tx('Save')}
           </Button>
         </div>
       </div>
@@ -497,7 +502,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
             )
           : tx(
               'logout_account_not_saved',
-              'This account key is not saved anywhere else. By logging out, you will loose access to this identity forever.',
+              'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
             )}
       </DialogDescription>
       <Button
@@ -513,7 +518,7 @@ function LogoutDialog({onClose}: {onClose: () => void}) {
   )
 }
 
-function EditProfileDialog({
+export function EditProfileDialog({
   onClose,
   input,
 }: {

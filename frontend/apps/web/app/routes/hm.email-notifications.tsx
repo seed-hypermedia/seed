@@ -94,7 +94,7 @@ export default function EmailNotificationsPage() {
             <EmailNotificationsContent />
           </Container>
         </div>
-        <PageFooter enableWebSigning={enableWebSigning} />
+        <PageFooter />
       </div>
     </WebSiteProvider>
   )

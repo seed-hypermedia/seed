@@ -139,6 +139,7 @@ export function CommentEditor({
   onDiscardDraft,
   initialBlocks,
   onContentChange,
+  onAvatarPress,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -170,6 +171,7 @@ export function CommentEditor({
   onDiscardDraft?: () => void
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
+  onAvatarPress?: () => void
 }) {
   // Debug logging for account updates
   console.log('🔍 CommentEditor render - account metadata:', account?.metadata)
@@ -458,9 +460,10 @@ export function CommentEditor({
             name={account.metadata?.name}
             icon={account.metadata?.icon}
             size={32}
+            onPress={onAvatarPress}
           />
         ) : (
-          <UIAvatar id="?" label="?" size={32} />
+          <UIAvatar size={32} onPress={onAvatarPress} />
         )}
       </div>
       <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">

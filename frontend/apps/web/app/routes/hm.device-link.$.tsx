@@ -113,7 +113,7 @@ export default function DeviceLinkPage() {
             <HMDeviceLink />
           </div>
         </div>
-        <PageFooter enableWebSigning={enableWebSigning} />
+        <PageFooter />
       </div>
     </WebSiteProvider>
   )

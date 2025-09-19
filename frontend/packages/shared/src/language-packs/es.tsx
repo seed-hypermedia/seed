@@ -49,16 +49,18 @@ const Translations = {
   Logout: 'Cerrar sesión',
   'Edit Profile': 'Editar perfil',
   'Open App': 'Abrir en Seed',
+  Save: 'Guardar',
   'Save Account': 'Guardar Cuenta',
   'Account Name': 'Nombre de la cuenta',
   'Site Icon': 'Icono del sitio',
+  'Profile Icon': 'Icono del perfil',
   'Really Logout?': '¿Cerrar sesión?',
   'Log out': 'Cerrar sesión',
   'Log out Forever': 'Cerrar sesión para siempre',
   logout_account_saved:
     'Esta cuenta permanecerá accesible en otros dispositivos.',
   logout_account_not_saved:
-    'Esta cuenta no está guardada en ningún otro lugar. Al cerrar sesión, perderás acceso a esta identidad para siempre.',
+    'Esta cuenta no está guardada en ningún otro lugar. Al cerrar sesión, perderás acceso a esta identidad para siempre. Siempre puedes crear una nueva cuenta más tarde.',
   'Email Notification Settings': 'Configuración de Notificaciones por Email',
   'Notification Email': 'Email de notificaciones',
   'Notify me when': 'Notificarme cuando',
@@ -87,7 +89,7 @@ const Translations = {
     'Este bloque está colapsado. Puedes expandirlo y ver sus hijos',
   'My New Public Name': 'Mi nuevo nombre público',
   create_account_description:
-    'Tu clave de cuenta será almacenada de forma segura en este navegador. La identidad será accesible solo en este dominio, pero puedes vincularla a otros dominios y dispositivos.',
+    'Cuentas de Hypermedia utilizan cryptografía asimétrica. La clave privada de tu cuenta será almacenada de forma segura en este navegador, y nadie más podrá acceder a ella. La identidad será accesible solo en este dominio, pero puedes vincularla a otros dominios y dispositivos más tarde.',
   add: (args: {what: string}) => `Añadir ${args.what}`,
   create_account_title: (args: {siteName: string}) =>
     `Crear cuenta en ${args.siteName}`,

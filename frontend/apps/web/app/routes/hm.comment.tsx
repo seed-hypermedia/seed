@@ -349,7 +349,7 @@ export default function CreateComment() {
                     </Button>
                   ) : null}
                 </div>
-                <PageFooter enableWebSigning={enableWebSigning} />
+                <PageFooter />
               </div>
             </div>
           </ScrollArea>

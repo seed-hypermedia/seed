@@ -71,6 +71,7 @@
     "ipfs-unixfs-importer": "^15.3.2",
     "isbot": "4",
     "it-length-prefixed-stream": "^2.0.1",
+    "jdenticon": "^3.3.0",
     "libp2p": "^2.8.5",
     "lucide-react": "^0.511.0",
     "mjml": "^4.15.3",
