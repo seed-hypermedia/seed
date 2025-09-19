@@ -1,8 +1,4 @@
-import {
-  BlockSchema,
-  TypesMatch,
-  defaultProps,
-} from './blocknote'
+import {BlockSchema, TypesMatch, defaultProps} from './blocknote'
 import {defaultBlockSchema} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {common, createLowlight} from 'lowlight'
 import {ButtonBlock} from './button'
