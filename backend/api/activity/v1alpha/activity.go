@@ -292,29 +292,28 @@ var qEntitiesLookupID = dqb.Str(`
 
 var qListMentions = dqb.Str(`
 WITH changes AS (
-SELECT distinct
-    structural_blobs.genesis_blob,
-    resource_links.id AS link_id,
-    resource_links.is_pinned,
-    blobs.codec,
-    blobs.multihash,
-	blobs.id,
-	structural_blobs.ts,
-	public_keys.principal AS author,
-    resource_links.extra_attrs->>'a' AS anchor,
-	resource_links.extra_attrs->>'v' AS target_version,
-	resource_links.extra_attrs->>'f' AS target_fragment,
-	resource_links.type AS link_type,
-	structural_blobs.extra_attrs->>'tsid' AS tsid
-
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE resource_links.target IN (:targets)
-AND structural_blobs.type IN ('Change')
-AND structural_blobs.ts <= :idx
+	SELECT distinct
+	    structural_blobs.genesis_blob,
+	    resource_links.id AS link_id,
+	    resource_links.is_pinned,
+	    blobs.codec,
+	    blobs.multihash,
+		blobs.id,
+		structural_blobs.ts,
+		public_keys.principal AS author,
+	    resource_links.extra_attrs->>'a' AS anchor,
+		resource_links.extra_attrs->>'v' AS target_version,
+		resource_links.extra_attrs->>'f' AS target_fragment,
+		resource_links.type AS link_type,
+		structural_blobs.extra_attrs->>'tsid' AS tsid
+	FROM resource_links
+	JOIN structural_blobs ON structural_blobs.id = resource_links.source
+	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+	JOIN public_keys ON public_keys.id = structural_blobs.author
+	LEFT JOIN resources ON resources.id = structural_blobs.resource
+	WHERE resource_links.target IN (:targets)
+	AND structural_blobs.type IN ('Change')
+	AND structural_blobs.ts <= :idx
 )
 SELECT distinct
     resources.iri,
@@ -332,7 +331,7 @@ SELECT distinct
 	blobs.insert_time AS blob_insert_time,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	structural_blobs.extra_attrs,
-	resource_links.id AS link_id,
+	resource_links.id AS link_id
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
