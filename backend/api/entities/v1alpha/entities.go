@@ -420,6 +420,13 @@ type searchResult struct {
 	isDeleted     bool
 }
 
+type movedResource struct {
+	newIri        string
+	oldIri        string
+	isDeleted     bool
+	latestVersion string
+}
+
 // SearchEntities implements the Fuzzy search of entities.
 func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntitiesRequest) (*entities.SearchEntitiesResponse, error) {
 	//start := time.Now()
@@ -658,12 +665,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	for _, match := range bodyMatches {
 		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
 	}
-	type movedResource struct {
-		newIri        string
-		oldIri        string
-		isDeleted     bool
-		latestVersion string
-	}
+
 	var movedResources []movedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 
@@ -1012,7 +1014,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	}
 
 	resp := &entities.ListEntityMentionsResponse{}
-
+	var genesisBlobIDs []string
 	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
 		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
@@ -1054,7 +1056,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				tsid          = stmt.ColumnText(12)
 				mentionType   = stmt.ColumnText(13)
 			)
-
+			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(14), 10))
 			lastCursor.BlobID = stmt.ColumnInt64(10)
 			lastCursor.LinkID = stmt.ColumnInt64(11)
 
@@ -1093,6 +1095,39 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	}); err != nil {
 		return nil, err
 	}
+	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
+	var movedResources []movedResource
+	err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+			movedResources = append(movedResources, movedResource{
+				newIri:    stmt.ColumnText(0),
+				oldIri:    stmt.ColumnText(1),
+				isDeleted: stmt.ColumnInt(2) == 1,
+			})
+			return nil
+		}, genesisBlobJson)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, movedResource := range movedResources {
+		for i, result := range resp.Mentions {
+			if result.Source == movedResource.oldIri {
+				resp.Mentions[i].Source = movedResource.newIri
+			}
+		}
+	}
+
+	seenMentions := make(map[string]bool)
+	uniqueMentions := make([]*entities.Mention, 0, len(resp.Mentions))
+	for _, m := range resp.Mentions {
+		key := fmt.Sprintf("%s|%s|%s|%s|%t", m.Source, m.SourceType, m.TargetVersion, m.TargetFragment, m.IsExactVersion)
+		if !seenMentions[key] {
+			seenMentions[key] = true
+			uniqueMentions = append(uniqueMentions, m)
+		}
+	}
+	resp.Mentions = uniqueMentions
 
 	return resp, nil
 }
@@ -1119,7 +1154,8 @@ SELECT
 	resource_links.extra_attrs->>'v' AS target_version,
 	resource_links.extra_attrs->>'f' AS target_fragment,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	resource_links.type
+	resource_links.type,
+	structural_blobs.genesis_blob
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -1141,7 +1177,8 @@ SELECT
     blobs.id AS blob_id,
     resource_links.id AS link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	resource_links.type AS link_type
+	resource_links.type AS link_type,
+	structural_blobs.genesis_blob
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -1167,7 +1204,8 @@ SELECT
     blobs.id AS blob_id,
     changes.link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	changes.type AS link_type
+	changes.type AS link_type,
+	changes.genesis_blob
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
