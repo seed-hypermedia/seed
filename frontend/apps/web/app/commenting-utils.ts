@@ -1,4 +1,4 @@
-import {WEB_IDENTITY_ORIGIN} from '@shm/shared'
+import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 

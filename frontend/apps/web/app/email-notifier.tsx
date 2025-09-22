@@ -5,8 +5,6 @@ import {
   Annotation,
   BlockNode,
   Comment,
-  DAEMON_HTTP_URL,
-  ENABLE_EMAIL_NOTIFICATIONS,
   entityQueryPathToHmIdPath,
   Event,
   HMBlockNode,
@@ -16,9 +14,13 @@ import {
   HMLoadedBlock,
   HMMetadata,
   HMMetadataPayload,
-  SITE_BASE_URL,
   unpackHmId,
 } from '@shm/shared'
+import {
+  DAEMON_HTTP_URL,
+  ENABLE_EMAIL_NOTIFICATIONS,
+  SITE_BASE_URL,
+} from '@shm/shared/constants'
 // import {CID} from 'multiformats/cid'
 import {grpcClient} from './client'
 import {

@@ -1,18 +1,20 @@
 import {useNavigate} from '@remix-run/react'
 import {
   createWebHMUrl,
-  DAEMON_FILE_URL,
-  ENABLE_EMAIL_NOTIFICATIONS,
-  LIGHTNING_API_URL,
   NavRoute,
   OptimizedImageSize,
   routeToHref,
-  SITE_BASE_URL,
   UniversalAppProvider,
   UnpackedHypermediaId,
+} from '@shm/shared'
+import {
+  DAEMON_FILE_URL,
+  ENABLE_EMAIL_NOTIFICATIONS,
+  LIGHTNING_API_URL,
+  SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
-} from '@shm/shared'
+} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'
 import {

@@ -1,12 +1,12 @@
 import {getAccount} from '@/models/entities'
 import {
-  BIG_INT,
   getCommentGroups,
   HMComment,
   HMMetadataPayload,
   parseFragment,
   unpackHmId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {
   CommentsService,
   ListCommentsByIdRequest,

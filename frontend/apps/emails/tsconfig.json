@@ -13,6 +13,10 @@
     "allowSyntheticDefaultImports": true,
     "skipDefaultLibCheck": true,
     "noLib": false,
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
+      "@shm/shared/*": ["../../packages/shared/src/*"]
+    }
   }
 }

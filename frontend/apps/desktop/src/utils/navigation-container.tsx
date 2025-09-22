@@ -3,11 +3,8 @@ import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
-import {
-  DAEMON_FILE_URL,
-  DEFAULT_GATEWAY_URL,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {UnpackedHypermediaId} from '@shm/shared'
+import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {

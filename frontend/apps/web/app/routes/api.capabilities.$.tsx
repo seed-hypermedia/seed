@@ -1,6 +1,7 @@
 import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
-import {BIG_INT, hmIdPathToEntityQueryPath} from '@shm/shared'
+import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 
 export const loader = apiGetter(async ({pathParts}) => {
   const [_api, _capabilities, uid, ...restPath] = pathParts

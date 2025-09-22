@@ -1,4 +1,4 @@
-import {DAEMON_FILE_URL} from '@shm/shared'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import fetch from 'node-fetch'
 import sharp from 'sharp'

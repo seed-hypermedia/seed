@@ -3,12 +3,12 @@ import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {
-  BIG_INT,
   calculateInteractionSummary,
   hmIdPathToEntityQueryPath,
   InteractionSummaryPayload,
   unpackHmId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 
 export type {InteractionSummaryPayload} from '@shm/shared'
 

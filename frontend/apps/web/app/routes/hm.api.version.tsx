@@ -1,6 +1,6 @@
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
-import {DAEMON_HTTP_URL} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import fs from 'fs/promises'
 
 function stripNewlines(str: string) {

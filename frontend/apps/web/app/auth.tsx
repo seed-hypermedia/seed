@@ -2,12 +2,12 @@ import {injectModels} from '@/models'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
-  ENABLE_EMAIL_NOTIFICATIONS,
   hmId,
   hostnameStripProtocol,
   queryKeys,
   useUniversalAppContext,
 } from '@shm/shared'
+import {ENABLE_EMAIL_NOTIFICATIONS} from '@shm/shared/constants'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'

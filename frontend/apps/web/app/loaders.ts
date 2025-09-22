@@ -26,11 +26,10 @@ import {
   HMMetadataPayload,
   HMQueryResult,
   packHmId,
-  SITE_BASE_URL,
   UnpackedHypermediaId,
   unpackHmId,
-  WEB_SIGNING_ENABLED,
 } from '@shm/shared'
+import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,

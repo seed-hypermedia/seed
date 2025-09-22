@@ -2,12 +2,12 @@ import {grpcClient} from '@/client'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
 import {
-  BIG_INT,
   getCommentGroups,
   hmId,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {HMAccount, HMComment, HMMetadataPayload} from '@shm/shared/hm-types'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {loadBatchAccounts} from '@shm/shared/models/entity'

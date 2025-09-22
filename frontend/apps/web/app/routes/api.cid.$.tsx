@@ -1,5 +1,5 @@
 import {apiGetter, BadRequestError, NotFoundError} from '@/server-api'
-import {DAEMON_HTTP_URL} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {CID} from 'multiformats/cid'
 
 export const loader = apiGetter(async (req) => {

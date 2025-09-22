@@ -1,12 +1,12 @@
 import {grpcClient} from '@/grpc-client'
 import {
-  BIG_INT,
   calculateInteractionSummary,
   hmIdPathToEntityQueryPath,
   InteractionSummaryPayload,
   queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {useQuery} from '@tanstack/react-query'
 
 export function useInteractionSummary(

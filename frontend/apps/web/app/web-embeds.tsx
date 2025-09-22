@@ -16,7 +16,6 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
-  WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'

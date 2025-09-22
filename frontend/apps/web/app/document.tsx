@@ -17,7 +17,6 @@ import {
   routeToHref,
   UnpackedHypermediaId,
   useUniversalAppContext,
-  WEB_IDENTITY_ENABLED,
 } from '@shm/shared'
 import {
   CommentsProvider,

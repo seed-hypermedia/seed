@@ -1,5 +1,5 @@
 import {hmBlockSchema} from '../../../../full-schema'
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
 import remarkParse from 'remark-parse'

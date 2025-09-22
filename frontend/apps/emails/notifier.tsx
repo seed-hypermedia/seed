@@ -11,13 +11,8 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {
-  BlockNode,
-  Comment,
-  HMMetadata,
-  SITE_BASE_URL,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {BlockNode, Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {SITE_BASE_URL} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
