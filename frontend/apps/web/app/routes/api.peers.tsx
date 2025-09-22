@@ -1,6 +1,7 @@
 import {grpcClient} from '@/client'
 import {apiGetter} from '@/server-api'
-import {BIG_INT, ConnectionStatus} from '@shm/shared'
+import {ConnectionStatus} from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 
 const ConnectionStatusKeys = {
   [ConnectionStatus.NOT_CONNECTED]: 'NOT_CONNECTED',

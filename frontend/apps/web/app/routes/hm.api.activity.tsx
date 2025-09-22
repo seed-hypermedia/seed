@@ -2,7 +2,6 @@ import {grpcClient} from '@/client'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {
-  BIG_INT,
   entityQueryPathToHmIdPath,
   getCommentGroups,
   HMAccountsMetadata,
@@ -15,6 +14,7 @@ import {
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {getActivityTime} from '@shm/shared/models/activity'
 
 export type ActivityPayload = {

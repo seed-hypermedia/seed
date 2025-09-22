@@ -1,8 +1,5 @@
-import {
-  DAEMON_FILE_URL,
-  OptimizedImageSize,
-  useUniversalAppContext,
-} from '@shm/shared'
+import {OptimizedImageSize, useUniversalAppContext} from '@shm/shared'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
 
 export function getDaemonFileUrl(ipfsUrl?: string) {
   if (ipfsUrl) {

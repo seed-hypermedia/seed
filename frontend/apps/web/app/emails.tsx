@@ -10,12 +10,8 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {
-  Comment,
-  HMMetadata,
-  SITE_BASE_URL,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {SITE_BASE_URL} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
@@ -83,7 +79,7 @@ ${notifications
     return `New ${notification.notif.type} from ${comment.author} on ${notification.notif.url}`
   })
   .join('\n')}
-  
+
 ${firstNotifUrl}
 
 `
@@ -195,7 +191,7 @@ export async function sendNotificationWelcomeEmail(
   const text = `Welcome to Hypermedia Notifications!
 
 ${primaryMessage}
-      
+
 Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
   const {html} = renderReactToMjml(
     <Mjml>

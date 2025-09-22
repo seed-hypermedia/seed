@@ -1,13 +1,12 @@
 import {grpcClient} from '@/client'
 import {getDocument} from '@/loaders'
 import {
-  BIG_INT,
-  DAEMON_HTTP_URL,
   HMBlockNode,
   HMCommentSchema,
   hmId,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared'
+import {BIG_INT, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {findtIpfsUrlCid} from '@shm/ui/get-file-url'
 

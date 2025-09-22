@@ -6,13 +6,13 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
+import {hmId} from '@shm/shared'
 import {
-  hmId,
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
   WEB_SIGNING_ENABLED,
-} from '@shm/shared'
+} from '@shm/shared/constants'
 import fs from 'fs'
 import {mkdir, readFile, stat, writeFile} from 'fs/promises'
 import * as isbotModule from 'isbot'

@@ -1,7 +1,8 @@
 import {grpcClient} from '@/client'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
 import {Params} from '@remix-run/react'
-import {BIG_INT, hmId, unpackHmId} from '@shm/shared'
+import {hmId, unpackHmId} from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {
   HMAccount,
   HMCitationsPayload,

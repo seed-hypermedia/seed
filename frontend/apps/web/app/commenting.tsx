@@ -4,7 +4,6 @@ import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
-  ENABLE_EMAIL_NOTIFICATIONS,
   HMBlockNode,
   hostnameStripProtocol,
   idToUrl,
@@ -13,8 +12,11 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
-  WEB_IDENTITY_ORIGIN,
 } from '@shm/shared'
+import {
+  ENABLE_EMAIL_NOTIFICATIONS,
+  WEB_IDENTITY_ORIGIN,
+} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {EditProfileDialog} from '@/auth'
 import {useTx, useTxString} from '@shm/shared/translation'

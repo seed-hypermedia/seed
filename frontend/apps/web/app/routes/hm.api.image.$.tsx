@@ -1,5 +1,6 @@
 import {LoaderFunction} from '@remix-run/node'
-import {DAEMON_HTTP_URL, OptimizedImageSize} from '@shm/shared'
+import {OptimizedImageSize} from '@shm/shared'
+import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'

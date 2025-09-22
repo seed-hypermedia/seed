@@ -11954,6 +11954,7 @@ __metadata:
   resolution: "@shm/emails@workspace:frontend/apps/emails"
   dependencies:
     "@faire/mjml-react": ^3.5.0
+    "@shm/shared": "*"
     "@types/react": ^19.1.5
     "@types/react-dom": ^19.1.5
     mjml: ^4.15.3

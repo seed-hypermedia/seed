@@ -1,4 +1,4 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {toast} from '@shm/ui/toast'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'

@@ -5,7 +5,7 @@ import {
   NOTIFY_SMTP_PASSWORD,
   NOTIFY_SMTP_PORT,
   NOTIFY_SMTP_USER,
-} from '@shm/shared'
+} from '@shm/shared/constants'
 import dotenv from 'dotenv'
 import nodemailer from 'nodemailer'
 
