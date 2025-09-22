@@ -107,6 +107,7 @@ const Translations = {
   please_double_check_url: `Por favor, verifica la URL o regresa al panel de control para encontrar lo que buscas. Si necesitas ayuda, no dudes en contactar a soporte.`,
   'Copy Comment Link': 'Copiar enlace de comentario',
   'Internal Server Error': 'Error interno del servidor',
+  'Server Error': 'Error del servidor',
   error_no_daemon_connection:
     'No hay conexión con el backend. Seguramente es un bug en nuestro código. Por favor, háznoslo saber!',
 

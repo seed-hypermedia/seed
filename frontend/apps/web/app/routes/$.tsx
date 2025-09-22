@@ -11,6 +11,7 @@ import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
@@ -82,13 +83,13 @@ export default function UnifiedDocumentPage() {
   }
 
   if (data.daemonError) {
-    return <DaemonErrorPage {...data} />
+    return <DaemonErrorPage daemonError={data.daemonError} />
   }
 
   return <DocumentPage {...data} />
 }
 
-export function DaemonErrorPage(props: SiteDocumentPayload) {
+export function DaemonErrorPage(props: {daemonError: ConnectError}) {
   const tx = useTx()
   return (
     <div className="flex h-screen w-screen flex-col">
@@ -96,27 +97,23 @@ export function DaemonErrorPage(props: SiteDocumentPayload) {
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
-            {tx('Internal Server Error')}
+            {props.daemonError.code === Code.Unavailable
+              ? tx('Internal Server Error')
+              : tx('Server Error')}
           </SizableText>
 
-          <SizableText asChild>
-            <p>
+          {props.daemonError.code === Code.Unavailable ? (
+            <SizableText>
               {tx(
                 'error_no_daemon_connection',
                 `No connection to the backend daemon server. It's probably a bug in our software. Please let us know!`,
               )}
-            </p>
-          </SizableText>
+            </SizableText>
+          ) : null}
 
-          {props.daemonError ? (
-            <>
-              <pre className="text-destructive">
-                {props.daemonError.toString()}
-              </pre>
-            </>
-          ) : (
-            <></>
-          )}
+          <pre className="text-destructive whitespace-pre-wrap">
+            {props.daemonError.toString()}
+          </pre>
         </div>
       </div>
     </div>
