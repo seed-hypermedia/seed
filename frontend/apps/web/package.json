@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "1.10.0",
-    "@chainsafe/libp2p-yamux": "^7.0.4",
     "@connectrpc/connect": "1.4.0",
     "@connectrpc/connect-node": "1.4.0",
     "@emotion/react": "^11.14.0",
@@ -28,6 +27,7 @@
     "@libp2p/peer-id": "^5.1.9",
     "@libp2p/ping": "^2.0.37",
     "@libp2p/webrtc": "^5.2.24",
+    "@libp2p/yamux": "^7.0.4",
     "@mantine/core": "6.0.13",
     "@mantine/hooks": "6.0.13",
     "@manuscripts/prosemirror-recreate-steps": "0.1.4",
