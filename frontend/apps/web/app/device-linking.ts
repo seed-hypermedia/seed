@@ -1,4 +1,4 @@
-import {yamux} from '@libp2p/yamux'
+import {yamux} from '@chainsafe/libp2p-yamux'
 import * as cbor from '@ipld/dag-cbor'
 import {circuitRelayTransport} from '@libp2p/circuit-relay-v2'
 import {identify} from '@libp2p/identify'
