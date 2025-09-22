@@ -5,7 +5,7 @@ import {
   documentPageHeaders,
   documentPageMeta,
 } from '@/document'
-import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {parseRequest} from '@/request'
@@ -82,27 +82,34 @@ export default function UnifiedDocumentPage() {
     return <NoSitePage />
   }
 
-  if (data.daemonError) {
-    return <DaemonErrorPage daemonError={data.daemonError} />
+  // The not found error is handled by the DocumentPage component,
+  // and here we handle the rest of the errors.
+  if (data.daemonError && data.daemonError.code !== Code.NotFound) {
+    return (
+      <DaemonErrorPage
+        message={data.daemonError.message}
+        code={data.daemonError.code}
+      />
+    )
   }
 
   return <DocumentPage {...data} />
 }
 
-export function DaemonErrorPage(props: {daemonError: ConnectError}) {
+export function DaemonErrorPage(props: GRPCError) {
   const tx = useTx()
   return (
     <div className="flex h-screen w-screen flex-col">
       <div className="flex flex-1 items-start justify-center px-4 py-12">
-        <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
+        <div className="border-border dark:bg-background flex w-full max-w-2xl flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
-            {props.daemonError.code === Code.Unavailable
+            {props.code === Code.Unavailable
               ? tx('Internal Server Error')
               : tx('Server Error')}
           </SizableText>
 
-          {props.daemonError.code === Code.Unavailable ? (
+          {props.code === Code.Unavailable ? (
             <SizableText>
               {tx(
                 'error_no_daemon_connection',
@@ -111,8 +118,8 @@ export function DaemonErrorPage(props: {daemonError: ConnectError}) {
             </SizableText>
           ) : null}
 
-          <pre className="text-destructive whitespace-pre-wrap">
-            {props.daemonError.toString()}
+          <pre className="text-destructive wrap-break-word whitespace-pre-wrap">
+            {props.message}
           </pre>
         </div>
       </div>

@@ -55,7 +55,7 @@ import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping'
-import {ConnectError} from '@connectrpc/connect'
+import {Code, ConnectError} from '@connectrpc/connect'
 
 export async function getMetadata(
   id: UnpackedHypermediaId,
@@ -689,7 +689,15 @@ export type SiteDocumentPayload = WebResourcePayload & {
   originHomeId: UnpackedHypermediaId
   origin: string
   comment?: HMComment
-  daemonError?: ConnectError
+  daemonError?: GRPCError
+}
+
+// We have to define our own error type here instead of using the ConnectError type,
+// because for some reason the code gets stripped away when data is passed from the loader to the component,
+// probably due to superjson serialization.
+export type GRPCError = {
+  message: string
+  code: Code
 }
 
 export async function loadSiteResource<T>(
@@ -745,9 +753,12 @@ export async function loadSiteResource<T>(
       return redirect(destRedirectUrl)
     }
 
-    let daemonError: ConnectError | undefined = undefined
+    let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
-      daemonError = e
+      daemonError = {
+        message: e.message,
+        code: e.code,
+      }
     }
 
     return wrapJSON(
