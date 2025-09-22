@@ -105,11 +105,11 @@ export function SmallListItem({
       data-docid={docId}
       {...props}
     >
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+      <div className="flex flex-1 items-start gap-2 overflow-hidden">
         {isValidElement(icon) ? (
-          icon
+          <div className="pt-0.5">{icon}</div>
         ) : icon ? (
-          <div className="size-4 flex-none shrink-0">
+          <div className="size-4 flex-none shrink-0 pt-0.5">
             {/* @ts-expect-error */}
             {createElement(icon, {
               size: 18,

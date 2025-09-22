@@ -677,7 +677,7 @@ function PathItemCard({
       {directoryItems?.length ? (
         <>
           <ScrollArea className="flex-1 overflow-y-auto py-0">
-            <div>
+            <div className="space-y-1">
               {directoryItems?.map((item) => {
                 return (
                   <DocumentSmallListItem
