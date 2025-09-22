@@ -56,6 +56,7 @@ import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping'
+import {ConnectError} from '@connectrpc/connect'
 
 export async function getMetadata(
   id: UnpackedHypermediaId,
@@ -689,6 +690,7 @@ export type SiteDocumentPayload = WebResourcePayload & {
   originHomeId: UnpackedHypermediaId
   origin: string
   comment?: HMComment
+  daemonError?: ConnectError
 }
 
 export async function loadSiteResource<T>(
@@ -743,11 +745,15 @@ export async function loadSiteResource<T>(
       })
       return redirect(destRedirectUrl)
     }
-    // console.error('Error Loading Site Document', id, e)
-    // probably document not found. todo, handle other errors
+
+    let daemonError: ConnectError | undefined = undefined
+    if (e instanceof ConnectError) {
+      daemonError = e
+    }
+
+    return wrapJSON(
+      {homeMetadata, origin, originHomeId, daemonError, ...(extraData || {})},
+      {status: id ? 200 : 404},
+    )
   }
-  return wrapJSON(
-    {homeMetadata, origin, originHomeId, ...(extraData || {})},
-    {status: id ? 200 : 404},
-  )
 }

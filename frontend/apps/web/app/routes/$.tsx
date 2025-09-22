@@ -13,6 +13,8 @@ import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
+import {useTx} from '@shm/shared/translation'
+import {SizableText} from '@shm/ui/text'
 
 type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
@@ -79,5 +81,44 @@ export default function UnifiedDocumentPage() {
     return <NoSitePage />
   }
 
+  if (data.daemonError) {
+    return <DaemonErrorPage {...data} />
+  }
+
   return <DocumentPage {...data} />
+}
+
+export function DaemonErrorPage(props: SiteDocumentPayload) {
+  const tx = useTx()
+  return (
+    <div className="flex h-screen w-screen flex-col">
+      <div className="flex flex-1 items-start justify-center px-4 py-12">
+        <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
+          <SizableText size="3xl">☹️</SizableText>
+          <SizableText size="2xl" weight="bold">
+            {tx('Internal Server Error')}
+          </SizableText>
+
+          <SizableText asChild>
+            <p>
+              {tx(
+                'error_no_daemon_connection',
+                `No connection to the backend daemon server. It's probably a bug in our software. Please let us know!`,
+              )}
+            </p>
+          </SizableText>
+
+          {props.daemonError ? (
+            <>
+              <pre className="text-destructive">
+                {props.daemonError.toString()}
+              </pre>
+            </>
+          ) : (
+            <></>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }

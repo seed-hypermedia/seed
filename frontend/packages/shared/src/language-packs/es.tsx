@@ -106,6 +106,9 @@ const Translations = {
   oops_document_not_found: `Oops! El documento que buscas no parece existir. Puede que haya sido movido, eliminado o el enlace sea incorrecto.`,
   please_double_check_url: `Por favor, verifica la URL o regresa al panel de control para encontrar lo que buscas. Si necesitas ayuda, no dudes en contactar a soporte.`,
   'Copy Comment Link': 'Copiar enlace de comentario',
+  'Internal Server Error': 'Error interno del servidor',
+  error_no_daemon_connection:
+    'No hay conexión con el backend. Seguramente es un bug en nuestro código. Por favor, háznoslo saber!',
 
   // I can't figure out how to get the error page translated...
   // "Uh oh, it's not you, it's us...": 'Uh oh, no es tu culpa, es nuestra...',
