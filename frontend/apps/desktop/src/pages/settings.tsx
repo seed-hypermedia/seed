@@ -99,6 +99,7 @@ import {
 } from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
 import {useForm} from 'react-hook-form'
 import QRCode from 'react-qr-code'
 import {z} from 'zod'
@@ -864,6 +865,7 @@ function LinkDeviceDialog({
       </div>
     )
   }
+
   return (
     <>
       <DialogTitle>Link New Web Session</DialogTitle>
@@ -886,7 +888,16 @@ function LinkDeviceDialog({
           {linkDeviceUrl ? (
             <p>Or, scan this code with your smartphone:</p>
           ) : null}
-          <QRCode value={linkDeviceUrl} size={465} />
+          <ErrorBoundary
+            fallbackRender={(err) => (
+              <SizableText color="destructive">
+                Failed to generate QR code: {err.error.toString()}. It's
+                probably a bug. Try using the URL above.
+              </SizableText>
+            )}
+          >
+            <QRCode value={linkDeviceUrl} size={465} />
+          </ErrorBoundary>
         </div>
       ) : (
         <DeviceLabelForm
