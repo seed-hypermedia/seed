@@ -22,33 +22,29 @@ async function getAccount(accountUid: string) {
 
   // Final account after following redirects.
   let grpcAccount: Account | undefined
+  let currentUid = accountUid
   for (let i = 0; i <= maxAccountRedirects; i++) {
+    if (visited.has(currentUid)) {
+      throw new Error(`Account redirect cycle detected for ID: ${currentUid}`)
+    }
+    visited.add(currentUid)
+
     grpcAccount = await grpcClient.documents.getAccount({
-      id: accountUid,
+      id: currentUid,
     })
 
+    // If there's no alias, we've reached the final account.
     if (!grpcAccount.aliasAccount) {
       break
     }
 
-    if (visited.has(grpcAccount.aliasAccount)) {
-      throw new Error(`Account redirect cycle detected`)
-    }
-
-    if (i === maxAccountRedirects) {
-      throw new Error(
-        `Account redirect chain is too long (${maxAccountRedirects})`,
-      )
-    }
-
-    visited.add(grpcAccount.aliasAccount)
-    accountUid = grpcAccount.aliasAccount
+    currentUid = grpcAccount.aliasAccount
   }
 
-  // This should never happen, because gRPC error would have been thrown before,
-  // but TS compile is unhappy without this check.
   if (!grpcAccount) {
-    throw new Error(`Unreachable: Account not found`)
+    throw new Error(
+      `Account redirect chain is too long (${maxAccountRedirects})`,
+    )
   }
 
   const serverAccount = toPlainMessage(grpcAccount)
@@ -58,7 +54,7 @@ async function getAccount(accountUid: string) {
   const serverMetadata = grpcAccount.metadata?.toJson() || {}
   const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
   return {
-    id: hmId(accountUid),
+    id: hmId(grpcAccount.id),
     metadata,
   } as HMMetadataPayload
 }
