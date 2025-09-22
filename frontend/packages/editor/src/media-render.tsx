@@ -1,14 +1,9 @@
-import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
-import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelectionChange'
-import {MaxFileSizeB, MaxFileSizeMB} from './file'
-import {HMBlockSchema} from './schema'
-import {getNodesInSelection} from './utils'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {useDocContentContext} from '@shm/ui/document-content'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -18,6 +13,11 @@ import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {ChangeEvent, FunctionComponent, useEffect, useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {MultipleNodeSelection} from './blocknote/core/extensions/SideMenu/MultipleNodeSelection'
+import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelectionChange'
+import {MaxFileSizeB, MaxFileSizeMB} from './file'
+import {HMBlockSchema} from './schema'
+import {getNodesInSelection} from './utils'
 
 export type MediaType = {
   id: string
@@ -321,6 +321,7 @@ function MediaForm({
   }
 
   const {handleFileAttachment, comment} = useDocContentContext()
+  const getFileUrl = useFileUrl()
 
   const handleUpload = async (files: File[]) => {
     // @ts-ignore
@@ -380,7 +381,7 @@ function MediaForm({
         assign({
           props: {
             url: ipfsUrl,
-            displaySrc: getDaemonFileUrl(ipfsUrl),
+            displaySrc: getFileUrl(ipfsUrl),
             name,
             size: size.toString(),
           },

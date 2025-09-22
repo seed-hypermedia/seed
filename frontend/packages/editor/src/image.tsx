@@ -1,16 +1,16 @@
+import {useDocContentContext} from '@shm/ui/document-content'
+import {getDaemonFileUrl, useFileUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/resize-handle'
+import {useEffect, useRef, useState} from 'react'
+import {RiImage2Line} from 'react-icons/ri'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
 import {createReactBlockSpec} from './blocknote/react'
+import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, timeoutPromise} from './utils'
-import {useDocContentContext} from '@shm/ui/document-content'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {ResizeHandle} from '@shm/ui/resize-handle'
-import {useEffect, useRef, useState} from 'react'
-import {RiImage2Line} from 'react-icons/ri'
-import {MediaContainer} from './media-container'
 
 export const ImageBlock = createReactBlockSpec({
   type: 'image',
@@ -200,6 +200,8 @@ const display = ({
   assign,
 }: DisplayComponentProps) => {
   const {importWebFile} = useDocContentContext()
+  const getFileUrl = useFileUrl()
+
   useEffect(() => {
     // @ts-ignore
     if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
@@ -223,7 +225,11 @@ const display = ({
       }
     }
   }, [])
-  const imageSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
+  const imageSrc =
+    block.props.displaySrc ||
+    (block.props.url
+      ? getFileUrl(block.props.url)
+      : getDaemonFileUrl(block.props.url))
   // Min image width in px.
   const minWidth = 64
   // Max image height in px.

@@ -42,6 +42,6 @@ export function useFileUrl() {
   return (ipfsUrl: string) => {
     const cid = extractIpfsUrlCid(ipfsUrl)
     if (!cid) return ''
-    return `${ipfsFileUrl || ''}/${cid}`
+    return `${ipfsFileUrl || DAEMON_FILE_URL}/${cid}`
   }
 }

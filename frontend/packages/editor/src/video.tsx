@@ -1,3 +1,9 @@
+import {getDaemonFileUrl, isIpfsUrl, useFileUrl} from '@shm/ui/get-file-url'
+import {ResizeHandle} from '@shm/ui/resize-handle'
+import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
+import {useEffect, useRef, useState} from 'react'
+import {RiVideoAddLine} from 'react-icons/ri'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
@@ -6,12 +12,6 @@ import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
 import {isValidUrl, youtubeParser} from './utils'
-import {getDaemonFileUrl, isIpfsUrl} from '@shm/ui/get-file-url'
-import {ResizeHandle} from '@shm/ui/resize-handle'
-import {toast} from '@shm/ui/toast'
-import {cn} from '@shm/ui/utils'
-import {useEffect, useRef, useState} from 'react'
-import {RiVideoAddLine} from 'react-icons/ri'
 
 export const getSourceType = (name: string) => {
   const nameArray = name.split('.')
@@ -151,7 +151,12 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  // const videoSrc = block.props.displaySrc || getDaemonFileUrl(block.props.url)
+  const getFileUrl = useFileUrl()
+  const videoSrc =
+    block.props.displaySrc ||
+    (block.props.url
+      ? getFileUrl(block.props.url)
+      : getDaemonFileUrl(block.props.url))
 
   // Min video width in px.
   const minWidth = 256
@@ -312,7 +317,7 @@ const display = ({
             className="absolute top-0 left-0 h-full w-full"
           >
             <source
-              src={block.props.displaySrc || getDaemonFileUrl(block.props.url)}
+              src={videoSrc}
               // @ts-ignore
               type={getSourceType(block.props.name)}
             />
@@ -328,7 +333,11 @@ const display = ({
             className="absolute top-0 left-0 h-full w-full"
           >
             <source
-              src={getDaemonFileUrl(block.props.url)}
+              src={
+                block.props.url
+                  ? getFileUrl(block.props.url)
+                  : getDaemonFileUrl(block.props.url)
+              }
               // @ts-ignore
               type={getSourceType(block.props.name)}
             />
