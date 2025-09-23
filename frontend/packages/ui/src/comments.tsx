@@ -3,7 +3,7 @@ import {
   AlertDialogTitle,
 } from '@radix-ui/react-alert-dialog'
 import {
-  formattedDateMedium,
+  formattedDateShort,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -578,7 +578,7 @@ function CommentDate({comment}: {comment: HMComment}) {
       className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"
       {...link}
     >
-      {formattedDateMedium(comment.createTime)}
+      {formattedDateShort(comment.createTime)}
     </a>
   )
 }
