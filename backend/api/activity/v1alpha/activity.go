@@ -76,7 +76,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 	var events []*activity.Event
-	srv.log.Info("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
+	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
