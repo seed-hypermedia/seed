@@ -61,7 +61,6 @@ import {
 } from 'react-resizable-panels'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
-import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {WebDiscussionsPanel} from './discussions-panel'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
@@ -334,10 +333,9 @@ function InnerDocumentPage(
     setMobilePanelOpen(true)
   }
 
-  // if the server is providing a comment
-  const activePanel: WebAccessory | null = comment
-    ? {type: 'discussions', comment}
-    : _activePanel
+  // if the server is providing a comment, use it as default, but allow local state to override
+  const activePanel: WebAccessory | null =
+    _activePanel || (comment ? {type: 'discussions', comment} : null)
 
   // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
   const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)
