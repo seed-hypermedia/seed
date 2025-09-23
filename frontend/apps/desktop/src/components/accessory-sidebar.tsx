@@ -159,11 +159,14 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         autoSaveId="accessory"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50} className="overflow-hidden pr-2 pl-1">
+        <Panel id="main" minSize={50} className="overflow-hidden pl-0">
           {children}
         </Panel>
         {accessoryKey !== undefined ? (
-          <PanelResizeHandle className="panel-resize-handle" />
+          <PanelResizeHandle
+            style={{width: '0px'}}
+            className="panel-resize-handle"
+          />
         ) : null}
         <Panel
           hidden={accessoryKey === undefined}
@@ -175,7 +178,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           onResize={(size) => {
             dispatch({type: 'accessoryWidth', value: size})
           }}
-          className="px-2"
+          className="pr-0"
         >
           <div
             className={cn(
