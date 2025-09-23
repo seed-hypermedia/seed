@@ -108,7 +108,7 @@ function ContactPageSidebar({
   contactId?: UnpackedHypermediaId | undefined
 }) {
   const selectedAccountContacts = useSelectedAccountContacts()
-  const [tab, setTab] = useState<'all' | 'saved'>('all')
+  const [tab, setTab] = useState<'all' | 'saved'>('saved')
   const allAccounts = useAllAccountsWithContacts()
   let displayContacts =
     tab === 'all'
@@ -122,14 +122,14 @@ function ContactPageSidebar({
     <div className="flex h-full flex-col items-stretch">
       <div className="mt-4 flex flex-shrink-0 px-2">
         <Tab
-          label="All Contacts"
-          isActive={tab === 'all'}
-          onPress={() => setTab('all')}
-        />
-        <Tab
           label="Saved Contacts"
           isActive={tab === 'saved'}
           onPress={() => setTab('saved')}
+        />
+        <Tab
+          label="All Contacts"
+          isActive={tab === 'all'}
+          onPress={() => setTab('all')}
         />
       </div>
       <div className="flex flex-1 flex-col items-stretch overflow-y-auto">
