@@ -65,40 +65,7 @@ export type WebCommentingProps = {
   autoFocus?: boolean
 }
 
-/**
- * This is the main commenting component. It is used to create a new comment.
- */
-export default function WebCommenting(props: WebCommentingProps) {
-  return <LocalWebCommenting {...props} />
-}
-
-export function ExternalWebCommenting(props: WebCommentingProps) {
-  const tx = useTx()
-  return (
-    <Button
-      variant="default"
-      onClick={() => {
-        redirectToWebIdentityCommenting(props.docId, {
-          replyCommentId: props.replyCommentId,
-          replyCommentVersion: props.replyCommentVersion,
-          rootReplyCommentVersion: props.rootReplyCommentVersion,
-          quotingBlockId: props.quotingBlockId,
-        })
-      }}
-      className="w-full"
-    >
-      {tx(
-        'comment_with_identity',
-        (args: {host: string}) => `Comment with ${args.host} Identity`,
-        {
-          host: hostnameStripProtocol(WEB_IDENTITY_ORIGIN),
-        },
-      )}
-    </Button>
-  )
-}
-
-export function LocalWebCommenting({
+export default function WebCommenting({
   docId,
   replyCommentVersion,
   rootReplyCommentVersion,
