@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client'
 import {getAccount, resolveHMDocument} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
-import {Params} from '@remix-run/react'
+import type {Params} from 'react-router'
 import {hmId, parseFragment, unpackHmId} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
 import {

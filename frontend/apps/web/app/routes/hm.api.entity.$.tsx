@@ -2,7 +2,7 @@ import {resolveHMDocument} from '@/loaders'
 import {parseRequest} from '@/request'
 import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
-import {Params} from '@remix-run/react'
+import type {Params} from 'react-router'
 import {HMDocument, hmId} from '@shm/shared'
 
 export const loader = async ({

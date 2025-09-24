@@ -1,14 +1,11 @@
-import {vitePlugin as remix} from '@remix-run/dev'
-import {installGlobals} from '@remix-run/node'
-//@ts-ignore
+// @ts-ignore
+import {reactRouter} from '@react-router/dev/vite'
 import tailwindcss from '@tailwindcss/vite'
 
 import * as path from 'path'
 import {defineConfig} from 'vite'
 import commonjs from 'vite-plugin-commonjs'
 import tsconfigPaths from 'vite-tsconfig-paths'
-
-installGlobals()
 
 // console.log(`== ~ process.env.NODE_ENV:`, process.env.NODE_ENV);
 let config = {
@@ -52,13 +49,11 @@ let config = {
         : ['expo-linear-gradient', 'react-icons', '@shm/editor'],
   },
   plugins: [
-    remix(),
+    reactRouter(),
     tsconfigPaths(),
     commonjs({
       filter(id) {
-        if (id.includes('node_modules/@react-native/normalize-color')) {
-          return true
-        }
+        return id.includes('node_modules/@react-native/normalize-color')
       },
     }),
     // analyzer({

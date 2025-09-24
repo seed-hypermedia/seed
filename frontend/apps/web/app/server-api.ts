@@ -1,5 +1,6 @@
-import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
-import {Params} from '@remix-run/react'
+import {ActionFunction, LoaderFunction} from 'react-router'
+import {json} from '@/utils/json'
+import type {Params} from 'react-router'
 import {WEB_API_DISABLED, WEB_IS_GATEWAY} from '@shm/shared/constants'
 import {cborDecode} from './api'
 import {ParsedRequest, parseRequest} from './request'

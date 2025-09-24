@@ -1,14 +1,12 @@
-import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
+import {LinksFunction, LoaderFunctionArgs} from 'react-router'
+import {json} from '@/utils/json'
+import {Links, Meta, Scripts, ScrollRestoration} from 'react-router'
 import {
   isRouteErrorResponse,
-  Links,
-  Meta,
   Outlet,
-  Scripts,
-  ScrollRestoration,
   useLoaderData,
   useRouteError,
-} from '@remix-run/react'
+} from 'react-router-dom'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {SizableText} from '@shm/ui/text'
 import {Providers} from './providers'

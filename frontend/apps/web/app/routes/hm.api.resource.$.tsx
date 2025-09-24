@@ -2,7 +2,7 @@ import {getResource} from '@/loaders'
 import {parseRequest} from '@/request'
 import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping'
-import {Params} from '@remix-run/react'
+import type {Params} from 'react-router'
 import {hmId, HMResource} from '@shm/shared'
 
 export const loader = async ({

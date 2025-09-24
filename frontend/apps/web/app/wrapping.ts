@@ -1,4 +1,4 @@
-import {json, TypedResponse} from '@remix-run/node'
+import {json, TypedResponse} from '@/utils/json'
 import {deserialize, serialize, SuperJSONResult} from 'superjson'
 
 export type Wrapped<T> = SuperJSONResult

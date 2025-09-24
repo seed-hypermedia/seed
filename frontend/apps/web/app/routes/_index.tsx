@@ -1,4 +1,4 @@
-import {Params} from '@remix-run/react'
+import type {Params} from 'react-router'
 import {loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({

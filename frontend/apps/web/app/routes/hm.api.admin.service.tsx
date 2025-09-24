@@ -1,5 +1,6 @@
 import {adminSecret, getServiceConfig, writeConfig} from '@/site-config'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {randomBytes} from 'crypto'
 import {z} from 'zod'
 

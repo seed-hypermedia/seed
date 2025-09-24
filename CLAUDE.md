@@ -56,7 +56,7 @@ yarn test
 yarn web:test
 yarn web:test run <testFileName>  # Run specific test file
 
-# Run shared package tests  
+# Run shared package tests
 yarn workspace @shm/shared test run
 
 # Run desktop app tests
@@ -80,7 +80,7 @@ The codebase follows a monorepo structure using Yarn workspaces:
 
 - **`frontend/apps/`**: Application codebases
   - `desktop/`: Electron-based desktop application
-  - `web/`: Remix-based web application  
+  - `web/`: React Router v7 web application
   - `explore/`, `landing/`, `performance/`: Supporting applications
 
 - **`frontend/packages/`**: Shared packages
@@ -97,7 +97,7 @@ The codebase follows a monorepo structure using Yarn workspaces:
 **Frontend Stack:**
 - React 18 with TypeScript
 - Electron (desktop app)
-- Remix (web app)
+- React Router v7 (web app)
 - TailwindCSS for styling
 - TipTap for rich text editing
 - tRPC for type-safe API communication
@@ -120,5 +120,5 @@ The codebase follows a monorepo structure using Yarn workspaces:
 - Always run `yarn workspace @shm/shared build:types` before type checking to ensure types are built
 - Tests should be run automatically when modifying code with existing test files
 - The desktop app uses Electron Forge for building and packaging
-- Web app uses Remix with server-side rendering
+- Web app uses React Router v7 with server-side rendering
 - P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for production network

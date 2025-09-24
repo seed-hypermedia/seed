@@ -1,5 +1,5 @@
 import {injectModels} from '@/models'
-import {useNavigate} from '@remix-run/react'
+import {useNavigate} from 'react-router-dom'
 import {
   createWebHMUrl,
   formattedDate,

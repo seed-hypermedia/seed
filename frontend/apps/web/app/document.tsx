@@ -1,6 +1,6 @@
 import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
-import {HeadersFunction, MetaFunction} from '@remix-run/node'
-import {useLocation, useNavigate} from '@remix-run/react'
+import {HeadersFunction, MetaFunction} from 'react-router'
+import {useLocation, useNavigate} from 'react-router-dom'
 import {
   BlockRange,
   deduplicateCitations,

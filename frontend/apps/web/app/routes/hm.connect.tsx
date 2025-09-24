@@ -6,8 +6,9 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {unwrap, wrapJSON} from '@/wrapping'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
-import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+import {LoaderFunctionArgs, MetaFunction} from 'react-router'
+import {MetaDescriptor} from 'react-router'
+import {useLoaderData} from 'react-router-dom'
 import {hmId} from '@shm/shared'
 import {
   HMMetadata,

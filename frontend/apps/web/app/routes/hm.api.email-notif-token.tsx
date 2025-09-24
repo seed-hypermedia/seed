@@ -1,6 +1,6 @@
 import {getEmailWithToken, setAccount, setEmailUnsubscribed} from '@/db'
-import {ActionFunction, LoaderFunction} from '@remix-run/node'
-import {json} from '@remix-run/react'
+import {ActionFunction, LoaderFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {z} from 'zod'
 
 export const loader: LoaderFunction = async ({request, params}) => {

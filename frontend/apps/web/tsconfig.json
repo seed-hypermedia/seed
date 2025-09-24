@@ -8,11 +8,14 @@
     "app/**/.client/**/*.tsx",
     "app/shims/react-native-svg.js",
     "devicelink/**/*.ts",
-    "devicelink/**/*.tsx"
+    "devicelink/**/*.tsx",
+    ".react-router/types/**/*",
+    "vite.config.mts",
+    "react-router.config.ts"
   ],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["vite/client"],
+    "types": ["@react-router/node", "vite/client"],
     "isolatedModules": true,
     "esModuleInterop": true,
     "jsx": "preserve",
@@ -37,6 +40,7 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "baseUrl": ".",
+    "rootDirs": [".", "./.react-router/types"],
     "paths": {
       "@/*": ["./app/*"],
       "@shm/editor/*": ["../../packages/editor/src/*"],

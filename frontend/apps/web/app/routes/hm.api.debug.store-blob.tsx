@@ -1,5 +1,6 @@
 import {grpcClient} from '@/client'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
+import {json} from '@/utils/json'
 
 // TODO: this is a debug endpoint for storing blobs, we should probably use higher level actions to avoid abuse
 

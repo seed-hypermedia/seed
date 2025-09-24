@@ -1,6 +1,7 @@
 import {grpcClient} from '@/client'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
+import {json} from '@/utils/json'
 
 export type DelegateDevicePayload = {
   profileAlias: Uint8Array

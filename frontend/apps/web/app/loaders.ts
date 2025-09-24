@@ -1,5 +1,5 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {redirect} from '@remix-run/react'
+import {redirect} from 'react-router'
 import {
   createWebHMUrl,
   EditorText,

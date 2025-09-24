@@ -1,8 +1,8 @@
 import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {getConfig, writeConfig} from '@/site-config'
-import type {ActionFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {ActionFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {z} from 'zod'
 
 const registerSchema = z.object({
@@ -27,7 +27,7 @@ export const action: ActionFunction = async ({request}) => {
   const {url, hostname} = parseRequest(request)
   try {
     const data = await request.json()
-    console.log('~ REGISTER REQUEST ', data)
+    console.log('~ REGISTER REQUEST ', json)
     const input = registerSchema.parse(data)
     const config = await getConfig(hostname)
     if (!config) throw new Error(`No config defined for ${hostname}`)

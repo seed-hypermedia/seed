@@ -1,7 +1,8 @@
 import {grpcClient} from '@/client'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
-import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
+import {ActionFunction, LoaderFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {
   hmIdPathToEntityQueryPath,
   unpackedHmIdSchema,

@@ -1,8 +1,8 @@
 import {grpcClient} from '@/client'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
-import type {LoaderFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {LoaderFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'
 
 export const loader: LoaderFunction = async ({request}) => {

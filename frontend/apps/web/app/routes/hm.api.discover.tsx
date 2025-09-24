@@ -1,5 +1,6 @@
 import {discoverDocument, discoverMedia} from '@/utils/discovery'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
+import {json} from '@/utils/json'
 import {siteDiscoverRequestSchema} from '@shm/shared/hm-types'
 
 export const action: ActionFunction = async ({request}) => {

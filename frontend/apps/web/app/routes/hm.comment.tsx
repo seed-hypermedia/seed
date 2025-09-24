@@ -14,8 +14,9 @@ import {getConfig} from '@/site-config'
 import {Button} from '@shm/ui/button'
 
 import {unwrap, wrapJSON} from '@/wrapping'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
-import {MetaDescriptor, useLoaderData, useSearchParams} from '@remix-run/react'
+import {LoaderFunctionArgs, MetaFunction} from 'react-router'
+import {MetaDescriptor} from 'react-router'
+import {useLoaderData, useSearchParams} from 'react-router-dom'
 import {
   HMAccountsMetadata,
   HMAnnotation,

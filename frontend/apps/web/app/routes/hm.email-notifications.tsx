@@ -6,7 +6,7 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
-import {useLoaderData} from '@remix-run/react'
+import {useLoaderData, useSearchParams} from 'react-router-dom'
 import {hmId} from '@shm/shared'
 import {SizableText} from '@shm/ui/text'
 import {Container} from '../ui/container'
@@ -17,7 +17,7 @@ import {
   useSetAccountOptions,
   useSetSubscription,
 } from '@/email-notifications-token-models'
-import {useSearchParams} from '@remix-run/react'
+
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {FullCheckbox} from '@shm/ui/form-input'
