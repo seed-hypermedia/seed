@@ -969,7 +969,7 @@ export function BlockNodeContent({
           : blockCitationCount > 0 && (
               <div
                 className={cn(
-                  'absolute top-0 right-0 right-[-18px] flex flex-col gap-2 pl-4',
+                  'absolute top-0 right-[-18px] flex flex-col gap-2 pl-4',
                   hover && 'z-30',
                 )}
                 style={{

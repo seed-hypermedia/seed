@@ -1,8 +1,9 @@
 import {vitePlugin as remix} from '@remix-run/dev'
 import {installGlobals} from '@remix-run/node'
+//@ts-ignore
 import tailwindcss from '@tailwindcss/vite'
 
-import path from 'path'
+import * as path from 'path'
 import {defineConfig} from 'vite'
 import commonjs from 'vite-plugin-commonjs'
 import tsconfigPaths from 'vite-tsconfig-paths'

@@ -11,7 +11,7 @@ export default function RegisterPage() {
   return (
     <div className="flex h-screen w-screen flex-col">
       <div className="flex flex-1 items-start justify-center px-4 py-12">
-        <div className="border-border dark:bg-background flex w-full max-w-lg flex-0 flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
+        <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="5xl">🚀</SizableText>
           <SizableText size="2xl" weight="bold">
             Secret Site Setup Link

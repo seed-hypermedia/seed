@@ -548,7 +548,7 @@ export function SearchInput({
         />
       </div>
       <div className="h-full max-h-[200px] overflow-hidden">
-        <ScrollArea className="h-[200px] h-full">{children}</ScrollArea>
+        <ScrollArea className="h-full">{children}</ScrollArea>
       </div>
     </div>
   )
