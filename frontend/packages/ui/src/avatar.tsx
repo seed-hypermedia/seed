@@ -1,8 +1,7 @@
-import {useMemo, memo, useEffect, useRef} from 'react'
-import avatarPlaceholder from './assets/avatar.png'
+import * as jdenticon from 'jdenticon'
+import {memo, useEffect, useMemo, useRef} from 'react'
 import {SizableText} from './text'
 import {cn} from './utils'
-import * as jdenticon from 'jdenticon'
 
 jdenticon.configure({
   hues: [151],
@@ -54,7 +53,7 @@ export type UIAvatarProps = {
 }
 
 export function UIAvatar({
-  url = avatarPlaceholder,
+  url,
   id,
   label,
   size = 20,
@@ -74,7 +73,7 @@ export function UIAvatar({
       className={cn(
         'relative z-1 flex items-center justify-center overflow-hidden',
         onPress && 'cursor-pointer',
-        url == avatarPlaceholder && 'ring-px ring-border ring',
+        'ring-px ring-border ring',
         className,
       )}
       style={{
@@ -85,7 +84,7 @@ export function UIAvatar({
       }}
       onClick={onPress}
     >
-      {id && (!url || url === avatarPlaceholder) ? (
+      {id && !url ? (
         <Identicon value={id} size={size} />
       ) : url ? (
         <img
