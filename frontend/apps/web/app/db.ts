@@ -10,6 +10,7 @@ export type BaseSubscription = {
   notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
   notifySiteDiscussions: boolean
+  notifyAllComments: boolean
 }
 
 type BaseEmail = {
@@ -32,6 +33,7 @@ type DBSubscription = {
   notifyAllReplies: number
   notifyOwnedDocChange: number
   notifySiteDiscussions: number
+  notifyAllComments: number
 }
 
 type DBEmail = {
@@ -112,6 +114,7 @@ export async function initDatabase(): Promise<void> {
       notifyAllReplies BOOLEAN NOT NULL DEFAULT FALSE,
       notifyOwnedDocChange BOOLEAN NOT NULL DEFAULT FALSE,
       notifySiteDiscussions BOOLEAN NOT NULL DEFAULT FALSE,
+      notifyAllComments BOOLEAN NOT NULL DEFAULT FALSE,
       PRIMARY KEY (id, email)
     ) WITHOUT ROWID;
 
@@ -122,7 +125,8 @@ export async function initDatabase(): Promise<void> {
       notifyAllMentions,
       notifyAllReplies,
       notifyOwnedDocChange,
-      notifySiteDiscussions
+      notifySiteDiscussions,
+      notifyAllComments
     )
     SELECT
       id,
@@ -131,7 +135,8 @@ export async function initDatabase(): Promise<void> {
       notifyAllMentions,
       notifyAllReplies,
       notifyOwnedDocChange,
-      notifySiteDiscussions
+      notifySiteDiscussions,
+      FALSE
     FROM accounts_old;
 
     DROP TABLE accounts_old;
@@ -199,6 +204,7 @@ export function getSubscription(
     notifyAllReplies: Boolean(result.notifyAllReplies),
     notifyOwnedDocChange: Boolean(result.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(result.notifySiteDiscussions),
+    notifyAllComments: Boolean(result.notifyAllComments),
   }
 }
 
@@ -216,6 +222,7 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
     notifyAllReplies: Boolean(r.notifyAllReplies),
     notifyOwnedDocChange: Boolean(r.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(r.notifySiteDiscussions),
+    notifyAllComments: Boolean(r.notifyAllComments),
   }))
 }
 
@@ -241,21 +248,24 @@ export function updateSubscription(
     notifyAllReplies,
     notifyOwnedDocChange,
     notifySiteDiscussions,
+    notifyAllComments,
   }: {
     notifyAllMentions?: boolean
     notifyAllReplies?: boolean
     notifyOwnedDocChange?: boolean
     notifySiteDiscussions?: boolean
+    notifyAllComments?: boolean
   },
 ): void {
   const stmt = db.prepare(`
-    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ? WHERE id = ?
+    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
   `)
   stmt.run(
     notifyAllMentions ? 1 : 0,
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
     notifySiteDiscussions ? 1 : 0,
+    notifyAllComments ? 1 : 0,
     id,
   )
 }
@@ -301,6 +311,7 @@ export function getEmailWithToken(emailAdminToken: string): Email | null {
       notifyAllReplies: Boolean(sub.notifyAllReplies),
       notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
       notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
+      notifyAllComments: Boolean(sub.notifyAllComments),
     })),
   }
 }
@@ -339,6 +350,7 @@ export function getAllEmails(): Email[] {
         notifyAllReplies: Boolean(sub.notifyAllReplies),
         notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
         notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
+        notifyAllComments: Boolean(sub.notifyAllComments),
       })),
     }
   })
@@ -351,6 +363,7 @@ export function setSubscription({
   notifyAllReplies,
   notifyOwnedDocChange,
   notifySiteDiscussions,
+  notifyAllComments,
 }: {
   id: string
   email: string
@@ -358,6 +371,7 @@ export function setSubscription({
   notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
   notifySiteDiscussions?: boolean
+  notifyAllComments?: boolean
 }): void {
   if (!email) {
     throw new Error('setSubscription requires an email for the (id,email) key')
@@ -389,16 +403,21 @@ export function setSubscription({
     notifySiteDiscussions,
     current?.notifySiteDiscussions,
   )
+  const nextNotifyAllComments = toInt(
+    notifyAllComments,
+    current?.notifyAllComments,
+  )
 
   const upsert = db.prepare(`
     INSERT INTO email_subscriptions (
-      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id, email) DO UPDATE SET
       notifyAllMentions     = excluded.notifyAllMentions,
       notifyAllReplies      = excluded.notifyAllReplies,
       notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
-      notifySiteDiscussions = excluded.notifySiteDiscussions
+      notifySiteDiscussions = excluded.notifySiteDiscussions,
+      notifyAllComments     = excluded.notifyAllComments
   `)
 
   upsert.run(
@@ -408,6 +427,7 @@ export function setSubscription({
     nextNotifyAllReplies,
     nextNotifyOwnedDocChange,
     nextNotifySiteDiscussions,
+    nextNotifyAllComments,
   )
 }
 

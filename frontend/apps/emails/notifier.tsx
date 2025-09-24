@@ -35,6 +35,8 @@ export async function createNotificationsEmail(
   const grouped: GroupedNotifications = {
     change: {},
     comment: {},
+    mention: {},
+    reply: {},
   }
 
   for (const notif of notifications) {
@@ -102,15 +104,31 @@ ${docNotifs
         const {notif} = notification
 
         if (notif.type === 'comment') {
-          return `New comment from ${notif.authorMeta?.name || 'someone'} on ${
-            notif.url
-          }`
+          return `New comment from ${
+            notif.authorMeta?.name || 'an account you are subscribed to'
+          } on ${notif.url}`
         }
 
         if (notif.type === 'change') {
           return `New document change from ${
             notif.authorMeta?.name || notif.authorAccountId
           } on ${notif.url}`
+        }
+
+        if (notif.type === 'mention') {
+          return `${
+            notif.authorMeta?.name || notif.authorAccountId
+          } mentioned ${
+            notification.accountMeta?.name || 'an account you are subscribed to'
+          } on ${notif.url}`
+        }
+
+        if (notif.type === 'reply') {
+          return `${
+            notif.authorMeta?.name || notif.comment.author
+          } replied to ${
+            notification.accountMeta?.name || 'an account you are subscribed to'
+          } comment on ${notif.url}`
         }
 
         return ''
@@ -140,7 +158,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
       <MjmlBody width={500}>
         <EmailHeader />
 
-        {(['change', 'comment'] as const).map((type) => {
+        {(['change', 'comment', 'mention', 'reply'] as const).map((type) => {
           const docs = grouped[type]
           const docEntries = Object.entries(docs)
 
@@ -148,10 +166,19 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
           const totalCount = docEntries.flatMap(([, n]) => n).length
 
-          const sectionTitle =
-            type === 'comment'
-              ? `New comment${totalCount === 1 ? '' : 's'}`
-              : 'Document changes'
+          const sectionTitle = (() => {
+            switch (type) {
+              case 'comment':
+                return `New comment${totalCount === 1 ? '' : 's'}`
+              case 'mention':
+                return `Mention${totalCount === 1 ? '' : 's'}`
+              case 'reply':
+                return `Repl${totalCount === 1 ? 'y' : 'ies'}`
+              case 'change':
+              default:
+                return 'Document changes'
+            }
+          })()
 
           return (
             <>
@@ -177,6 +204,34 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                             <>
                               {docNotifs.length} comment
                               {docNotifs.length === 1 ? '' : 's'} on{' '}
+                              <span
+                                style={{
+                                  fontWeight: 'bold',
+                                  color: 'black',
+                                  backgroundColor: 'lightgray',
+                                }}
+                              >
+                                {targetName}
+                              </span>
+                            </>
+                          ) : type === 'mention' ? (
+                            <>
+                              {docNotifs.length} mention
+                              {docNotifs.length === 1 ? '' : 's'} on{' '}
+                              <span
+                                style={{
+                                  fontWeight: 'bold',
+                                  color: 'black',
+                                  backgroundColor: 'lightgray',
+                                }}
+                              >
+                                {targetName}
+                              </span>
+                            </>
+                          ) : type === 'reply' ? (
+                            <>
+                              {docNotifs.length} repl
+                              {totalCount === 1 ? 'y' : 'ies'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -221,7 +276,13 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                           href={docUrl}
                           backgroundColor="#008060"
                         >
-                          {type === 'comment' ? 'View Comment' : 'View Change'}
+                          {type === 'comment'
+                            ? 'View Comment'
+                            : type === 'mention'
+                            ? 'View Mention'
+                            : type === 'reply'
+                            ? 'View Reply'
+                            : 'View Change'}
                         </MjmlButton>
                       </MjmlColumn>
                     </MjmlSection>
@@ -261,6 +322,27 @@ export type Notification =
       url: string
       resolvedNames?: Record<string, string>
     }
+  | {
+      type: 'mention'
+      authorAccountId: string
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      source: 'comment' | 'document'
+      comment?: PlainMessage<Comment>
+      resolvedNames?: Record<string, string>
+    }
+  | {
+      type: 'reply'
+      comment: PlainMessage<Comment>
+      parentComments: PlainMessage<Comment>[]
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      resolvedNames?: Record<string, string>
+    }
 
 export type FullNotification = {
   accountId: string
@@ -281,6 +363,22 @@ function getNotificationSummary(
     return `${notification.authorMeta?.name || 'Someone'} commented on ${
       notification.targetMeta?.name || 'a document'
     }.`
+  }
+  if (notification.type === 'mention') {
+    if (notification.source === 'comment') {
+      return `${notification.authorMeta?.name || 'Someone'} mentioned ${
+        accountMeta?.name || 'an account you are subscribed to'
+      } in a comment on ${notification.targetMeta?.name || 'a document'}.`
+    } else {
+      return `${notification.authorMeta?.name || 'Someone'} mentioned ${
+        accountMeta?.name || 'an account you are subscribed to'
+      } in ${notification.targetMeta?.name || 'a document'}.`
+    }
+  }
+  if (notification.type === 'reply') {
+    return `${notification.authorMeta?.name || 'Someone'} replied to ${
+      accountMeta?.name || 'an account you are subscribed to'
+    } comment on ${notification.targetMeta?.name || 'a document'}.`
   }
   return ''
 }
