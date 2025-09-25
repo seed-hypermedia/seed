@@ -1,6 +1,6 @@
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
-import {SiteDocumentPayload} from './loaders'
+import type {SiteDocumentPayload} from './loaders'
 import {PageFooter} from './page-footer'
 
 export function NotFoundPage({id}: SiteDocumentPayload) {

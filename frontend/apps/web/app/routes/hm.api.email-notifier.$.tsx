@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import type {BaseAccount} from '@/db'
 import {getAccount, getEmail, setAccount} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'

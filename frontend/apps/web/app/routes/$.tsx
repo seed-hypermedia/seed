@@ -1,21 +1,25 @@
 import {useFullRender} from '@/cache-policy'
-import {
-  links as documentLinks,
-  DocumentPage,
-  documentPageHeaders,
-  documentPageMeta,
-} from '@/document'
+import {links as documentLinks, DocumentPage} from '@/document'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
-import {defaultPageMeta} from '@/meta'
+import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
-import {unwrap, wrapJSON} from '@/wrapping'
-import {Code, ConnectError} from '@connectrpc/connect'
+import {unwrap, type Wrapped} from '@/wrapping'
+import {wrapJSON} from '@/wrapping.server'
+import {Code} from '@connectrpc/connect'
+import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
-import {hmId} from '@shm/shared'
+import {
+  getDocumentTitle,
+  hmId,
+  hmIdPathToEntityQueryPath,
+  hostnameStripProtocol,
+} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
+import {getOptimizedImageUrl} from '@/providers'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 
 type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
@@ -23,17 +27,125 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
 export const links = () => [...documentLinks()]
 
+export const documentPageMeta = ({
+  data,
+}: {
+  data: Wrapped<SiteDocumentPayload>
+}): ReturnType<MetaFunction> => {
+  const siteDocument = unwrap<SiteDocumentPayload>(data)
+  const homeIcon = siteDocument?.homeMetadata?.icon
+    ? getOptimizedImageUrl(
+        extractIpfsUrlCid(siteDocument.homeMetadata.icon),
+        'S',
+      )
+    : null
+  const meta: ReturnType<MetaFunction> = []
+
+  meta.push({
+    tagName: 'link',
+    rel: 'icon',
+    href: homeIcon || defaultSiteIcon,
+    type: 'image/png',
+  })
+
+  if (!siteDocument) return meta
+
+  if (siteDocument.id)
+    meta.push({
+      name: 'hypermedia_id',
+      content: siteDocument.id.id,
+    })
+  if (siteDocument.document) {
+    const documentTitle = getDocumentTitle(siteDocument.document)
+    const documentDescription = ''
+    const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
+      siteDocument.id.uid
+    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
+      siteDocument.id.version
+    }`
+    const currentUrl = `${siteDocument.origin}${
+      siteDocument.id.path?.length ? '/' + siteDocument.id.path.join('/') : ''
+    }`
+    const domain = hostnameStripProtocol(siteDocument.origin)
+
+    meta.push({title: documentTitle})
+    meta.push({
+      name: 'description',
+      content: documentDescription,
+    })
+
+    meta.push({
+      property: 'og:url',
+      content: currentUrl,
+    })
+    meta.push({
+      property: 'og:type',
+      content: 'website',
+    })
+    meta.push({
+      property: 'og:title',
+      content: documentTitle,
+    })
+    meta.push({
+      property: 'og:description',
+      content: documentDescription,
+    })
+    meta.push({
+      property: 'og:image',
+      content: imageUrl,
+    })
+
+    // Twitter Meta Tags
+    meta.push({
+      name: 'twitter:card',
+      content: 'summary_large_image',
+    })
+    meta.push({
+      property: 'twitter:domain',
+      content: domain,
+    })
+    meta.push({
+      property: 'twitter:url',
+      content: currentUrl,
+    })
+    meta.push({
+      name: 'twitter:title',
+      content: documentTitle,
+    })
+    meta.push({
+      name: 'twitter:description',
+      content: documentDescription,
+    })
+    meta.push({
+      name: 'twitter:image',
+      content: imageUrl,
+    })
+
+    meta.push({
+      name: 'hypermedia_version',
+      content: siteDocument.document.version,
+    })
+    meta.push({
+      name: 'hypermedia_title',
+      content: documentTitle,
+    })
+  } else {
+    meta.push({title: 'Not Found'})
+  }
+  return meta
+}
+
 export const meta: MetaFunction<typeof loader> = (args) => {
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
   if (payload === 'no-site') return unregisteredMeta()
   return documentPageMeta({
-    // @ts-expect-error
+    // @ts-ignore
     data: args.data,
   })
 }
 
-export const headers = documentPageHeaders
+export const headers: HeadersFunction = ({loaderHeaders}) => loaderHeaders
 
 export const loader = async ({
   params,

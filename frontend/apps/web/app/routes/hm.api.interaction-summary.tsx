@@ -1,6 +1,6 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
-import {wrapJSON, WrappedResponse} from '@/wrapping'
+import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
 import {
   calculateInteractionSummary,

@@ -1,6 +1,6 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {getAccount} from '@/loaders'
-import {wrapJSON, WrappedResponse} from '@/wrapping'
+import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {
   entityQueryPathToHmIdPath,
   getCommentGroups,

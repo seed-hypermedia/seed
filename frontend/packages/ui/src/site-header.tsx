@@ -9,13 +9,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import React, {
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import React, {useCallback, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
@@ -39,6 +33,7 @@ import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 // Stable width estimator functions
 const getNavItemWidth = () => 150
@@ -102,7 +97,7 @@ export function SiteHeader({
 
   const headerRef = useRef<HTMLDivElement>(null)
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const updateHeaderHeight = () => {
       const headerHeight = headerRef.current?.offsetHeight || 60
 

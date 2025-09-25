@@ -9,14 +9,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
-import {
-  Fragment,
-  PropsWithChildren,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import {Fragment, PropsWithChildren, useEffect, useRef, useState} from 'react'
 import {UIAvatar} from './avatar'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -30,6 +23,7 @@ import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 export function MobileSearch({
   originHomeId,
@@ -323,7 +317,7 @@ export function SearchResultItem({
   const collapsedPath = useCollapsedPath(item.path ?? [], elm)
   const unpackedId = unpackHmId(item.key)
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (selected) {
       elm.current?.scrollIntoView({block: 'nearest'})
     }

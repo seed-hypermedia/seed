@@ -50,11 +50,11 @@ import {
   HMRedirectError,
 } from '@shm/shared/models/entity'
 import {getBlockNodeById} from '@shm/ui/document-content'
-import {grpcClient} from './client'
+import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config'
 import {discoverDocument} from './utils/discovery'
-import {wrapJSON, WrappedResponse} from './wrapping'
+import {wrapJSON, WrappedResponse} from './wrapping.server'
 import {Code, ConnectError} from '@connectrpc/connect'
 
 export async function getMetadata(

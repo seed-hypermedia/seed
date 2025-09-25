@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
 import {ActionFunction, json, LoaderFunction} from '@remix-run/node'

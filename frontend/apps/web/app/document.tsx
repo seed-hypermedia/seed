@@ -1,18 +1,14 @@
 import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
-import {HeadersFunction, MetaFunction} from '@remix-run/node'
 import {useLocation, useNavigate} from '@remix-run/react'
 import {
   BlockRange,
   deduplicateCitations,
   ExpandedBlockRange,
-  getDocumentTitle,
   HMComment,
   HMDocument,
   HMDocumentCitation,
   HMEntityContent,
-  hmIdPathToEntityQueryPath,
   HMMetadata,
-  hostnameStripProtocol,
   NavRoute,
   routeToHref,
   UnpackedHypermediaId,
@@ -36,7 +32,6 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {BlockQuote, Close, HistoryIcon} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -65,127 +60,14 @@ import {WebDiscussionsPanel} from './discussions-panel'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
-import {defaultSiteIcon} from './meta'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
-import {getOptimizedImageUrl, WebSiteProvider} from './providers'
+import {WebSiteProvider} from './providers'
 import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
-import {unwrap, Wrapped} from './wrapping'
-
-export const documentPageHeaders: HeadersFunction = ({loaderHeaders}) =>
-  loaderHeaders
 
 export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
-
-export const documentPageMeta = ({
-  data,
-}: {
-  data: Wrapped<SiteDocumentPayload>
-}): ReturnType<MetaFunction> => {
-  const siteDocument = unwrap<SiteDocumentPayload>(data)
-  const homeIcon = siteDocument?.homeMetadata?.icon
-    ? getOptimizedImageUrl(
-        extractIpfsUrlCid(siteDocument.homeMetadata.icon),
-        'S',
-      )
-    : null
-  const meta: ReturnType<MetaFunction> = []
-
-  meta.push({
-    tagName: 'link',
-    rel: 'icon',
-    href: homeIcon || defaultSiteIcon,
-    type: 'image/png',
-  })
-
-  if (!siteDocument) return meta
-
-  if (siteDocument.id)
-    meta.push({
-      name: 'hypermedia_id',
-      content: siteDocument.id.id,
-    })
-  if (siteDocument.document) {
-    const documentTitle = getDocumentTitle(siteDocument.document)
-    const documentDescription = ''
-    const imageUrl = `${siteDocument.origin}/hm/api/content-image?space=${
-      siteDocument.id.uid
-    }&path=${hmIdPathToEntityQueryPath(siteDocument.id.path)}&version=${
-      siteDocument.id.version
-    }`
-    const currentUrl = `${siteDocument.origin}${
-      siteDocument.id.path?.length ? '/' + siteDocument.id.path.join('/') : ''
-    }`
-    const domain = hostnameStripProtocol(siteDocument.origin)
-
-    meta.push({title: documentTitle})
-    meta.push({
-      name: 'description',
-      content: documentDescription,
-    })
-
-    meta.push({
-      property: 'og:url',
-      content: currentUrl,
-    })
-    meta.push({
-      property: 'og:type',
-      content: 'website',
-    })
-    meta.push({
-      property: 'og:title',
-      content: documentTitle,
-    })
-    meta.push({
-      property: 'og:description',
-      content: documentDescription,
-    })
-    meta.push({
-      property: 'og:image',
-      content: imageUrl,
-    })
-
-    // Twitter Meta Tags
-    meta.push({
-      name: 'twitter:card',
-      content: 'summary_large_image',
-    })
-    meta.push({
-      property: 'twitter:domain',
-      content: domain,
-    })
-    meta.push({
-      property: 'twitter:url',
-      content: currentUrl,
-    })
-    meta.push({
-      name: 'twitter:title',
-      content: documentTitle,
-    })
-    meta.push({
-      name: 'twitter:description',
-      content: documentDescription,
-    })
-    meta.push({
-      name: 'twitter:image',
-      content: imageUrl,
-    })
-
-    meta.push({
-      name: 'hypermedia_version',
-      content: siteDocument.document.version,
-    })
-    meta.push({
-      name: 'hypermedia_title',
-      content: documentTitle,
-    })
-  } else {
-    meta.push({title: 'Not Found'})
-  }
-  return meta
-}
 
 type WebAccessory =
   | {

@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import type {LoaderFunction} from '@remix-run/node'

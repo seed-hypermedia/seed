@@ -1,5 +1,5 @@
-import {grpcClient} from '@/client'
-import {wrapJSON} from '@/wrapping'
+import {grpcClient} from '@/client.server'
+import {wrapJSON} from '@/wrapping.server'
 import {SearchPayload, unpackHmId} from '@shm/shared'
 
 export const loader = async ({request}: {request: Request}) => {

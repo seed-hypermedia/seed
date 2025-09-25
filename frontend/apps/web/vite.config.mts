@@ -1,6 +1,5 @@
 import {vitePlugin as remix} from '@remix-run/dev'
-import {installGlobals} from '@remix-run/node'
-//@ts-ignore
+// @ts-ignore
 import tailwindcss from '@tailwindcss/vite'
 
 import * as path from 'path'
@@ -8,7 +7,8 @@ import {defineConfig} from 'vite'
 import commonjs from 'vite-plugin-commonjs'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
-installGlobals()
+// @ts-ignore
+import {envOnlyMacros} from 'vite-env-only'
 
 // console.log(`== ~ process.env.NODE_ENV:`, process.env.NODE_ENV);
 let config = {
@@ -35,24 +35,29 @@ let config = {
   ssr: {
     noExternal: ['react-icons', '@shm/editor'],
   },
-  // DISABLED FOR NOW, suspected to be overwrtiting the runtime env vars
-  // define: {
-  //   // Define process.env as an empty object to prevent "process is not defined" errors
-  //   // Vite will replace individual process.env.VARIABLE_NAME references at build time
-  // 'process.env': {
-  //     NODE_ENV: process.env.NODE_ENV || 'development',
-  //     SEED_SIGNING_ENABLED: process.env.SEED_SIGNING_ENABLED,
-  //     SEED_BASE_URL: process.env.SEED_BASE_URL,
-  // },
-  // },
+  define: {
+    'process.env': {
+      NODE_ENV: process.env.NODE_ENV,
+      NODE_DEBUG: process.env.NODE_DEBUG,
+      SEED_ENABLE_STATISTICS: process.env.SEED_ENABLE_STATISTICS,
+      SITE_SENTRY_DSN: process.env.SITE_SENTRY_DSN,
+    },
+  },
   optimizeDeps: {
     exclude:
       process.env.NODE_ENV === 'production'
         ? []
-        : ['expo-linear-gradient', 'react-icons', '@shm/editor'],
+        : [
+            'expo-linear-gradient',
+            'react-icons',
+            '@shm/editor',
+            '@shm/shared',
+            '@remix-run/react',
+          ],
   },
   plugins: [
     remix(),
+    envOnlyMacros(),
     tsconfigPaths(),
     commonjs({
       filter(id) {

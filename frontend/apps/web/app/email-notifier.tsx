@@ -22,7 +22,7 @@ import {
   SITE_BASE_URL,
 } from '@shm/shared/constants'
 // import {CID} from 'multiformats/cid'
-import {grpcClient} from './client'
+import {grpcClient} from './client.server'
 import {
   getAllEmails,
   getNotifierLastProcessedBlobCid,

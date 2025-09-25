@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {SITE_BASE_URL} from '@shm/shared/constants'
 import {readFileSync} from 'fs'
 import fs, {readFile} from 'fs/promises'

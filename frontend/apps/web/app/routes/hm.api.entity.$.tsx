@@ -1,7 +1,7 @@
 import {resolveHMDocument} from '@/loaders'
 import {parseRequest} from '@/request'
 import {withCors} from '@/utils/cors'
-import {wrapJSON, WrappedResponse} from '@/wrapping'
+import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
 import {HMDocument, hmId} from '@shm/shared'
 

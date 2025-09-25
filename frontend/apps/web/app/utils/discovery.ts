@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {getDocument} from '@/loaders'
 import {
   HMBlockNode,

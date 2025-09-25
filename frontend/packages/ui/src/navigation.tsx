@@ -13,7 +13,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {ReactNode, useLayoutEffect, useMemo} from 'react'
+import {ReactNode, useMemo} from 'react'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {ButtonProps} from './button'
 import {HMIcon} from './hm-icon'
@@ -21,6 +21,7 @@ import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 export function DocumentSmallListItem({
   metadata,
@@ -434,7 +435,7 @@ export function DocNavigationWrapper({
 }) {
   const popoverState = usePopoverState()
   const media = useMedia()
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (media.gtSm && popoverState.open) {
       popoverState.onOpenChange(false)
     }

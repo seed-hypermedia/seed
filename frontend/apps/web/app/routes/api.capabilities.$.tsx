@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {apiGetter} from '@/server-api'
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'

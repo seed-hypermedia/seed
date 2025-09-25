@@ -1,9 +1,9 @@
-import {grpcClient} from '@/client'
-import {wrapJSON, WrappedResponse} from '@/wrapping'
+import {grpcClient} from '@/client.server'
+import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {HMAccount, hmId, parseFragment, unpackHmId} from '@shm/shared'
+import {parseFragment, unpackHmId} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {HMComment, HMMetadataPayload} from '@shm/shared/hm-types'
+import {HMComment} from '@shm/shared/hm-types'
 import {ListCommentsByReferenceResponse} from '@shm/shared/models/comments-service'
 import {loadBatchAccounts} from '@shm/shared/models/entity'
 

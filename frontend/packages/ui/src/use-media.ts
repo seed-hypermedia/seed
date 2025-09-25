@@ -1,4 +1,5 @@
-import {useLayoutEffect, useMemo, useState} from 'react'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+import {useMemo, useState} from 'react'
 
 // Define a type for media queries configuration
 export type MediaQueries = Record<string, {[key: string]: string | number}>
@@ -92,7 +93,7 @@ export function useMedia(customMediaQueries?: MediaQueries): MediaQueryState {
     return initialState
   })
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (typeof window === 'undefined') {
       return
     }

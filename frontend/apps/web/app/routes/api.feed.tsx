@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {apiGetter} from '@/server-api'
 
 export const loader = apiGetter(async (req) => {

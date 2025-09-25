@@ -5,7 +5,6 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
   HMBlockNode,
-  hostnameStripProtocol,
   idToUrl,
   packHmId,
   queryKeys,
@@ -13,13 +12,10 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {
-  ENABLE_EMAIL_NOTIFICATIONS,
-  WEB_IDENTITY_ORIGIN,
-} from '@shm/shared/constants'
+import {ENABLE_EMAIL_NOTIFICATIONS} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {EditProfileDialog} from '@/auth'
-import {useTx, useTxString} from '@shm/shared/translation'
+import {useTxString} from '@shm/shared/translation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {DocContentProvider} from '@shm/ui/document-content'
@@ -35,7 +31,6 @@ import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
 import {useEffect, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
-import {redirectToWebIdentityCommenting} from './commenting-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
 import {
@@ -47,6 +42,7 @@ import type {
   CommentResponsePayload,
 } from './routes/hm.api.comment'
 import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
+
 injectModels()
 
 export type WebCommentingProps = {

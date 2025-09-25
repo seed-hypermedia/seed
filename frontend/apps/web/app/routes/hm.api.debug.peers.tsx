@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'

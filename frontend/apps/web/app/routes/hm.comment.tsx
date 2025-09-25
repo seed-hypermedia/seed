@@ -13,7 +13,8 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config'
 import {Button} from '@shm/ui/button'
 
-import {unwrap, wrapJSON} from '@/wrapping'
+import {unwrap} from '@/wrapping'
+import {wrapJSON} from '@/wrapping.server'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData, useSearchParams} from '@remix-run/react'
 import {

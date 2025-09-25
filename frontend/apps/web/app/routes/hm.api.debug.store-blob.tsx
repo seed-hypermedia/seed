@@ -1,4 +1,4 @@
-import {grpcClient} from '@/client'
+import {grpcClient} from '@/client.server'
 import {ActionFunction, json} from '@remix-run/node'
 
 // TODO: this is a debug endpoint for storing blobs, we should probably use higher level actions to avoid abuse
