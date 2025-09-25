@@ -8,7 +8,8 @@ import {z} from 'zod'
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET
 
 const webDataDir = process.env.DATA_DIR || process.cwd()
-console.log('~~ process.env.DATA_DIR webDataDir', process.env.DATA_DIR)
+console.log('~~ process.env.DATA_DIR DATA_DIR', process.env.DATA_DIR)
+console.log('~~ process.env.DATA_DIR webDataDir', webDataDir)
 console.log('~~ process.env.DATA_DIR cwd', process.cwd())
 const configPath = join(webDataDir, 'config.json')
 const serviceConfigPath = join(webDataDir, 'service-config.json')

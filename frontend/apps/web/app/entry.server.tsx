@@ -25,7 +25,11 @@ import {initEmailNotifier} from './email-notifier'
 import {getDocument} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
-import {applyConfigSubscriptions, getConfig, getHostnames} from './site-config'
+import {
+  applyConfigSubscriptions,
+  getConfig,
+  getHostnames,
+} from './site-config.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 

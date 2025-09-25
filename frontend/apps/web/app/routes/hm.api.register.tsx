@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
-import {getConfig, writeConfig} from '@/site-config'
+import {getConfig, writeConfig} from '@/site-config.server'
 import type {ActionFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {z} from 'zod'

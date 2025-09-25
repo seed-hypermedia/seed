@@ -7,7 +7,7 @@ import {
   writeConfig,
   writeCustomDomainConfig,
   type ServiceConfig,
-} from '@/site-config'
+} from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {randomBytes} from 'crypto'
 import {z} from 'zod'

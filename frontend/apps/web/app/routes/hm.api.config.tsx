@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config'
+import {getConfig} from '@/site-config.server'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'

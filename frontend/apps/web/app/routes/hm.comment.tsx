@@ -10,7 +10,7 @@ import {
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config'
+import {getConfig} from '@/site-config.server'
 import {Button} from '@shm/ui/button'
 
 import {unwrap} from '@/wrapping'

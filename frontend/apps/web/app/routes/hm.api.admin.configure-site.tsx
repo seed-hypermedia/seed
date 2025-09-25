@@ -3,7 +3,7 @@ import {
   getServiceConfig,
   siteConfigSchema,
   writeConfig,
-} from '@/site-config'
+} from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {z} from 'zod'
 

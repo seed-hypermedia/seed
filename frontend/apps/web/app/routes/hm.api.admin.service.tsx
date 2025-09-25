@@ -1,4 +1,4 @@
-import {adminSecret, getServiceConfig, writeConfig} from '@/site-config'
+import {adminSecret, getServiceConfig, writeConfig} from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {randomBytes} from 'crypto'
 import {z} from 'zod'

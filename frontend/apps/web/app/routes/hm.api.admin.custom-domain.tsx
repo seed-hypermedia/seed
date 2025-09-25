@@ -2,7 +2,7 @@ import {
   adminSecret,
   getServiceConfig,
   writeCustomDomainConfig,
-} from '@/site-config'
+} from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {z} from 'zod'
 

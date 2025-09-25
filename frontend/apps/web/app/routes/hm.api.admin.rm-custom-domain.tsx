@@ -1,4 +1,8 @@
-import {adminSecret, getServiceConfig, rmCustomDomain} from '@/site-config'
+import {
+  adminSecret,
+  getServiceConfig,
+  rmCustomDomain,
+} from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {z} from 'zod'
 

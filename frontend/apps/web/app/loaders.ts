@@ -52,7 +52,7 @@ import {
 import {getBlockNodeById} from '@shm/ui/document-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
-import {getConfig} from './site-config'
+import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
 import {Code, ConnectError} from '@connectrpc/connect'
