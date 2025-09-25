@@ -1,7 +1,7 @@
-import * as jdenticon from 'jdenticon'
-import {memo, useEffect, useMemo, useRef} from 'react'
+import {memo, useEffect, useRef} from 'react'
 import {SizableText} from './text'
 import {cn} from './utils'
+import * as jdenticon from 'jdenticon'
 
 jdenticon.configure({
   hues: [151],
@@ -43,14 +43,16 @@ const Identicon = memo((props: {value: string; size: number}) => {
 })
 
 export type UIAvatarProps = {
-  url?: string
   size?: number
   color?: string
   label?: string
-  id?: string
   onPress?: () => void
   className?: string
-}
+} & (
+  | {url: string; id: string} // At least url or id must be provided, but both are fine too.
+  | {url?: string; id: string}
+  | {url: string; id?: string}
+)
 
 export function UIAvatar({
   url,
@@ -61,11 +63,6 @@ export function UIAvatar({
   onPress,
   className,
 }: UIAvatarProps) {
-  let avatarColor = useMemo(() => {
-    if (color) return color
-    return id ? getRandomColor(id) : 'bg-gray-100'
-  }, [id, color])
-
   let text = label ? label[0] : id ? id[0] : '?'
 
   return (
@@ -73,14 +70,14 @@ export function UIAvatar({
       className={cn(
         'relative z-1 flex items-center justify-center overflow-hidden',
         onPress && 'cursor-pointer',
-        'ring-px ring-border ring',
+        !url && 'ring-px ring-border ring',
         className,
       )}
       style={{
         width: size,
         height: size,
         borderRadius: size,
-        backgroundColor: url ? 'var(--color1)' : avatarColor,
+        backgroundColor: url || !color ? 'var(--color1)' : color,
       }}
       onClick={onPress}
     >

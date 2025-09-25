@@ -203,15 +203,15 @@ function _CommentBox(props: {
   return (
     <div className="flex w-full items-start gap-2">
       <div className="flex shrink-0 grow-0">
-        {account?.document?.metadata ? (
+        {account ? (
           <HMIcon
             id={account.id}
-            name={account.document.metadata?.name}
-            icon={account.document.metadata?.icon}
+            name={account.document?.metadata?.name}
+            icon={account.document?.metadata?.icon}
             size={32}
           />
         ) : (
-          <UIAvatar size={32} />
+          <UIAvatar id="no-account" size={32} />
         )}
       </div>
 

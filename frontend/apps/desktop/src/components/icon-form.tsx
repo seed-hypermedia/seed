@@ -19,9 +19,9 @@ export function IconForm({
   ...props
 }: {
   label?: string
-  emptyLabel?: string
+  url: string
   id?: string
-  url?: string
+  emptyLabel?: string
   size?: number
   marginTop?: number
   borderRadius?: number
@@ -47,7 +47,7 @@ export function IconForm({
   }
 
   const iconImage = (
-    <UIAvatar label={label} id={id} size={size} url={url} color="$brand12" />
+    <UIAvatar label={label} id={id} url={url} size={size} color="$brand12" />
   )
   if (!onIconUpload) return iconImage
   return (

@@ -2,7 +2,6 @@ import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
-import userProfilePlaceholder from './assets/avatar.png'
 import {UIAvatar, UIAvatarProps} from './avatar'
 import {Button} from './button'
 import {useImageUrl} from './get-file-url'
@@ -58,21 +57,19 @@ function _HMIcon({
   const imageUrl = useImageUrl()
   if (!id) return null
 
+  if (id.path && id.path.length > 0 && !icon) {
+    return <></>
+  }
+
   return (
     <UIAvatar
       size={size}
       id={id.id}
       label={name || ''}
-      url={
-        icon
-          ? imageUrl(icon, 'S')
-          : id.path?.length
-          ? undefined
-          : userProfilePlaceholder
-      }
+      url={icon ? imageUrl(icon, 'S') : undefined}
       className={cn(
         'flex-none',
-        id.path && id.path.length !== 0 ? 'rounded-md' : 'rounded-full',
+        id.path && id.path.length !== 0 ? 'rounded-sm' : 'rounded-full',
         className,
       )}
       {...props}

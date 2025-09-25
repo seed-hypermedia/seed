@@ -724,7 +724,7 @@ function MobileInteractionCardCollapsed({
         onClick={onClick}
       >
         <div className="shrink-0">
-          {myAccount.data?.id && myAccount.data?.metadata?.icon ? (
+          {myAccount.data?.id ? (
             <HMIcon
               id={myAccount.data.id}
               name={myAccount.data?.metadata?.name}
@@ -732,7 +732,7 @@ function MobileInteractionCardCollapsed({
               size={32}
             />
           ) : (
-            <UIAvatar size={32} />
+            <UIAvatar id="no-account" size={32} />
           )}
         </div>
         <span className="bg-background ring-px ring-border ml-1 flex-1 truncate rounded-md px-2 py-1 text-left ring">

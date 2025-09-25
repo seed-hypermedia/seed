@@ -26,6 +26,7 @@ import {
   handleDragMedia,
   serverBlockNodesFromEditorBlocks,
 } from './utils'
+import avatarPlaceholder from './assets/avatar.png'
 
 function crawlEditorBlocks(
   blocks: EditorBlock[],
@@ -463,7 +464,7 @@ export function CommentEditor({
             onPress={onAvatarPress}
           />
         ) : (
-          <UIAvatar size={32} onPress={onAvatarPress} />
+          <UIAvatar url={avatarPlaceholder} size={32} onPress={onAvatarPress} />
         )}
       </div>
       <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">

@@ -641,7 +641,7 @@ function QueryStyleList({items}: {items: any[]}) {
         entries.map((item) => {
           return (
             <Button
-              className="h-15 h-auto shadow-md"
+              className="h-auto shadow-md"
               variant="outline"
               onClick={() => {
                 navigate({
