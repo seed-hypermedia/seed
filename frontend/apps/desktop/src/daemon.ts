@@ -79,6 +79,7 @@ export async function startMainDaemon(): Promise<{
   if (process.env.SEED_NO_DAEMON_SPAWN) {
     log.debug('Go daemon spawn skipped')
     updateGoDaemonState({t: 'ready'})
+    markGRPCReady()
     return {
       httpPort: process.env.VITE_DESKTOP_HTTP_PORT,
       grpcPort: process.env.VITE_DESKTOP_GRPC_PORT,
