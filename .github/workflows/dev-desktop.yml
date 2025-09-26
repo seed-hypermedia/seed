@@ -8,6 +8,9 @@ on:
   schedule:
     # Run at 8:00 AM UTC on every weekday (Monday through Friday)
     - cron: "0 8 * * 1-5"
+  push:
+    branches:
+      - feat/flatpak
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -63,22 +66,22 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
-            arch: arm64
-            goarch: arm64
-            daemon_name: aarch64-apple-darwin
+          # - os: macos-13-large
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-apple-darwin
+          # - os: macos-13-xlarge
+          #   arch: arm64
+          #   goarch: arm64
+          #   daemon_name: aarch64-apple-darwin
           - os: ubuntu-latest
             arch: x64
             goarch: amd64
             daemon_name: x86_64-unknown-linux-gnu
-          - os: windows-2025
-            arch: x64
-            goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+          # - os: windows-2025
+          #   arch: x64
+          #   goarch: amd64
+          #   daemon_name: x86_64-pc-windows-msvc
     steps:
       - name: Checkout
         uses: actions/checkout@v4
