@@ -142,6 +142,7 @@ jobs:
           DEBUG: electron-*,electron-installer-flatpak*,@malept/flatpak-bundler
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          FLATPAK_BUILDER_VERBOSE: "1"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"

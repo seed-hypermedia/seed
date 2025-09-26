@@ -33,22 +33,24 @@ runs:
         sudo apt-get install -y gcc-12 g++-12
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
-        sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libayatana-appindicator3-dev librsvg2-dev patchelf rpm libc6 python3 build-essential sqlite3 libsqlite3-dev flatpak flatpak-builder elfutils snapd libnss3 libnspr4 libasound2t64 libnotify4 libpcre3 libpulse0 libxss1 libxtst6
-        sudo snap install snapcraft --classic
-        sudo snap install multipass
+        sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libayatana-appindicator3-dev librsvg2-dev patchelf rpm libc6 python3 build-essential sqlite3 libsqlite3-dev flatpak flatpak-builder elfutils libnss3 libnspr4 libasound2t64 libnotify4 libpcre3 libpulse0 libxss1 libxtst6
+        # Snap-related packages temporarily disabled - focusing on flatpak
+        # sudo apt-get install -y snapd
+        # sudo snap install snapcraft --classic --channel=7.x/stable
+        # sudo snap install multipass
       shell: bash
 
-    # Additional packages for Flatpak and Snapcraft building
+    # Additional packages for Flatpak building
 
-    - name: "Setup Flatpak and Snapcraft"
+    - name: "Setup Flatpak"
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
         # Setup Flatpak
         sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
         sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
 
-        # Setup environment for snapcraft CI builds
-        echo "SNAPCRAFT_BUILD_ENVIRONMENT=host" >> $GITHUB_ENV
+        # Snapcraft setup temporarily disabled - focusing on flatpak
+        # echo "SNAPCRAFT_BUILD_ENVIRONMENT=host" >> $GITHUB_ENV
       shell: bash
 
     - name: Setup cache Ubuntu

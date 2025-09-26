@@ -1,7 +1,8 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
 import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
-import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
+// Temporarily disabled - focusing on flatpak first
+// import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
@@ -85,28 +86,29 @@ const flatpakConfig = {
   },
 }
 
-const snapConfig = {
-  options: {
-    name: IS_PROD_DEV ? 'seed-dev' : 'seed',
-    summary: 'Seed: a hyper.media protocol client',
-    description: 'Seed: a hyper.media protocol client',
-    grade: 'stable',
-    confinement: 'strict',
-    base: 'core22', // Updated from core18 to core22 for compatibility
-    plugs: {
-      'browser-support': null,
-      network: null,
-      home: null,
-      opengl: null,
-      pulseaudio: null,
-      unity7: null,
-      x11: null,
-      wayland: null,
-      desktop: null,
-      'desktop-legacy': null,
-    },
-  },
-}
+// Temporarily disabled - focusing on flatpak first
+// const snapConfig = {
+//   options: {
+//     name: IS_PROD_DEV ? 'seed-dev' : 'seed',
+//     summary: 'Seed: a hyper.media protocol client',
+//     description: 'Seed: a hyper.media protocol client',
+//     grade: 'stable',
+//     confinement: 'strict',
+//     base: 'core18', // Using core18 with snapcraft 7.x for compatibility
+//     plugs: {
+//       'browser-support': null,
+//       network: null,
+//       home: null,
+//       opengl: null,
+//       pulseaudio: null,
+//       unity7: null,
+//       x11: null,
+//       wayland: null,
+//       desktop: null,
+//       'desktop-legacy': null,
+//     },
+//   },
+// }
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -169,7 +171,8 @@ const config: ForgeConfig = {
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
     new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
-    new MakerSnap(snapConfig as MakerSnapConfig),
+    // Temporarily disabled - focusing on flatpak first
+    // new MakerSnap(snapConfig as MakerSnapConfig),
   ],
   plugins: [
     // {
