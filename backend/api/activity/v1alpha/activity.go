@@ -150,16 +150,17 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		eventType := stmt.ColumnText(1)
 		author := stmt.ColumnBytes(2)
 		resource := stmt.ColumnText(3)
-		eventTime := stmt.ColumnInt64(4) * 1000 //Its in microseconds and we need nanos
-		observeTime := stmt.ColumnInt64(5)
+		eventTime := timestamppb.New(time.UnixMilli(stmt.ColumnInt64(4)))
+		observeTime := timestamppb.New(time.Unix(stmt.ColumnInt64(5), 0))
 		mhash := stmt.ColumnBytes(6)
 		codec := stmt.ColumnInt64(7)
-		tsid := stmt.ColumnText(8)
+		tsid := blob.TSID(stmt.ColumnText(8))
 		extraAttrs := stmt.ColumnText(9)
 		accountID := core.Principal(author).String()
 		cID := cid.NewCidV1(uint64(codec), mhash)
 		if eventType == "Comment" {
-			resource = "hm://" + accountID + "/" + tsid
+			resource = "hm://" + accountID + "/" + tsid.String()
+			eventTime = timestamppb.New(tsid.Timestamp())
 		}
 		event := activity.Event{
 			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
@@ -171,8 +172,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				BlobId:     id,
 			}},
 			Account:     accountID,
-			EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
-			ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
+			EventTime:   eventTime,
+			ObserveTime: observeTime,
 		}
 		events = append(events, &event)
 		return nil
@@ -204,7 +205,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					source     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-					eventTime  = stmt.ColumnInt64(4) * 1000
+					eventTime  = timestamppb.New(time.UnixMilli(stmt.ColumnInt64(4)))
 					blobType   = stmt.ColumnText(5)
 
 					isPinned = stmt.ColumnInt(6) > 0
@@ -214,17 +215,19 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 					linkType    = stmt.ColumnText(10)
 					blobID      = stmt.ColumnInt64(11)
-					observeTime = stmt.ColumnInt64(12)
-					tsid        = stmt.ColumnText(13)
+					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
+					tsid        = blob.TSID(stmt.ColumnText(13))
 					extraAttrs  = stmt.ColumnText(14)
 				)
+
 				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
 				if source == "" && blobType != "Comment" {
 					return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
 				}
 
 				if blobType == "Comment" {
-					source = "hm://" + author + "/" + tsid
+					source = "hm://" + author + "/" + tsid.String()
+					eventTime = timestamppb.New(tsid.Timestamp())
 
 				} else {
 					if targetVersion != "" {
@@ -246,8 +249,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 						IsPinned:   isPinned,
 					}},
 					Account:     author,
-					EventTime:   &timestamppb.Timestamp{Seconds: eventTime / 1000000000, Nanos: int32(eventTime % 1000000000)}, //nolint:gosec
-					ObserveTime: &timestamppb.Timestamp{Seconds: observeTime},
+					EventTime:   eventTime,
+					ObserveTime: observeTime,
 				}
 				events = append(events, &event)
 				return nil
@@ -270,7 +273,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	})
 	events = events[:int(math.Min(float64(len(events)), float64(req.PageSize)))]
 	var nextPageToken string
-	if events[len(events)-1].EventTime.AsTime().UnixNano() != 0 && int(req.PageSize) == len(events) {
+	if events[len(events)-1].EventTime.AsTime().UnixMicro() != 0 && int(req.PageSize) == len(events) {
 		nextPageToken, err = apiutil.EncodePageToken(events[len(events)-1].EventTime.AsTime().UnixMicro()-1, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode next page token: %w", err)

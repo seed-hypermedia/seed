@@ -1053,7 +1053,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				anchor        = stmt.ColumnText(7)
 				targetVersion = stmt.ColumnText(8)
 				fragment      = stmt.ColumnText(9)
-				tsid          = stmt.ColumnText(12)
+				tsid          = blob.TSID(stmt.ColumnText(12))
 				mentionType   = stmt.ColumnText(13)
 			)
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(14), 10))
@@ -1065,8 +1065,9 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 			}
 
 			if blobType == "Comment" {
+				ts = tsid.Timestamp()
 				sourceDoc = source
-				source = "hm://" + author + "/" + tsid
+				source = "hm://" + author + "/" + tsid.String()
 
 			}
 
