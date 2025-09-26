@@ -139,7 +139,7 @@ jobs:
           yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
-          DEBUG: electron-*
+          DEBUG: electron-*,electron-installer-flatpak*,@malept/flatpak-bundler
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
