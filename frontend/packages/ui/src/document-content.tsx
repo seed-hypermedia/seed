@@ -1161,7 +1161,7 @@ function BlockContentImage({
   ...props
 }: BlockContentProps) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
-  const {textUnit} = useDocContentContext()
+  const {textUnit, comment} = useDocContentContext()
   const imageUrl = useImageUrl()
   const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
     'closed',
@@ -1268,9 +1268,13 @@ function BlockContentImage({
         data-width={getBlockAttribute(block.attributes, 'width')}
       >
         <div
-          className={cn('max-w-full cursor-pointer')}
+          className={cn(
+            'max-w-full cursor-pointer',
+            comment &&
+              'max-h-[120px] overflow-hidden [mask-image:linear-gradient(to_bottom,black_calc(100%_-_30px),transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_calc(100%_-_30px),transparent_100%)]',
+          )}
           style={{
-            width: getBlockAttribute(block.attributes, 'width')
+            maxWidth: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
               : undefined,
           }}
