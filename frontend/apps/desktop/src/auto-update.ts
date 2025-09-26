@@ -44,7 +44,9 @@ export default function autoUpdate() {
 
   // Check if running inside Flatpak
   if (isRunningInFlatpak()) {
-    log.info('[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup')
+    log.info(
+      '[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup',
+    )
     setTimeout(() => {
       handleFlatpakUpdates()
     }, 2000) // Brief delay to ensure UI is ready
@@ -147,14 +149,17 @@ function isRunningInFlatpak(): boolean {
 }
 
 function handleFlatpakUpdates() {
-  log.info('[AUTO-UPDATE] Running inside Flatpak - using native update mechanism')
-  
+  log.info(
+    '[AUTO-UPDATE] Running inside Flatpak - using native update mechanism',
+  )
+
   // Send notification to user about Flatpak updates
   const win = BrowserWindow.getFocusedWindow()
   if (win) {
     win.webContents.send('auto-update:status', {
       type: 'flatpak-info',
-      message: 'Updates are handled by your system package manager. Use "flatpak update" or your software center.'
+      message:
+        'Updates are handled by your system package manager. Use "flatpak update" or your software center.',
     })
   }
 }

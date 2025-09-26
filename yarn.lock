@@ -3789,18 +3789,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron-forge/maker-flatpak@npm:^7.9.0":
-  version: 7.9.0
-  resolution: "@electron-forge/maker-flatpak@npm:7.9.0"
+"@electron-forge/maker-flatpak@npm:7.6.0":
+  version: 7.6.0
+  resolution: "@electron-forge/maker-flatpak@npm:7.6.0"
   dependencies:
-    "@electron-forge/maker-base": 7.9.0
-    "@electron-forge/shared-types": 7.9.0
+    "@electron-forge/maker-base": 7.6.0
+    "@electron-forge/shared-types": 7.6.0
     "@malept/electron-installer-flatpak": ^0.11.4
     fs-extra: ^10.0.0
   dependenciesMeta:
     "@malept/electron-installer-flatpak":
       optional: true
-  checksum: 7bb1816bdee271ac91d0479e488ca2d35f31a06b7100fbdb2466011d84ca7399167cb09f02fb97adac076f20063209db1a53f5f548608517b012d376e4f98ff5
+  checksum: bc0ed8b66b501a5c04c957c69456ece7c14646bf9fb65398aad1a691bfbf7ffd40754c9f540b09a85524fddb10b065ebc302c2b366715ed1af04a7aa67e860ad
   languageName: node
   linkType: hard
 
@@ -11897,7 +11897,7 @@ __metadata:
     "@electron-forge/cli": 7.6.0
     "@electron-forge/maker-deb": 7.6.0
     "@electron-forge/maker-dmg": 7.6.0
-    "@electron-forge/maker-flatpak": ^7.9.0
+    "@electron-forge/maker-flatpak": 7.6.0
     "@electron-forge/maker-rpm": 7.6.0
     "@electron-forge/maker-snap": ^7.9.0
     "@electron-forge/maker-squirrel": 7.6.0
