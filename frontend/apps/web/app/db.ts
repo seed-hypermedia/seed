@@ -2,14 +2,15 @@ import Database from 'better-sqlite3'
 import crypto from 'crypto'
 import {join} from 'path'
 
-export type BaseAccount = {
+export type BaseSubscription = {
   id: string
-  email: string | null
+  email: string
   createdAt: string
   notifyAllMentions: boolean
   notifyAllReplies: boolean
   notifyOwnedDocChange: boolean
   notifySiteDiscussions: boolean
+  notifyAllComments: boolean
 }
 
 type BaseEmail = {
@@ -19,19 +20,20 @@ type BaseEmail = {
   isUnsubscribed: boolean
 }
 
-type Account = BaseAccount
+type Subscription = BaseSubscription
 export type Email = BaseEmail & {
-  accounts: BaseAccount[]
+  subscriptions: BaseSubscription[]
 }
 
-type DBAccount = {
+type DBSubscription = {
   id: string
-  email: string | null
+  email: string
   createdAt: string
   notifyAllMentions: number
   notifyAllReplies: number
   notifyOwnedDocChange: number
   notifySiteDiscussions: number
+  notifyAllComments: number
 }
 
 type DBEmail = {
@@ -98,6 +100,52 @@ export async function initDatabase(): Promise<void> {
     `)
     version = 3
   }
+
+  if (version === 3) {
+    db.exec(`
+    BEGIN;
+    ALTER TABLE accounts RENAME TO accounts_old;
+
+    CREATE TABLE email_subscriptions (
+      id TEXT NOT NULL,
+      email TEXT NOT NULL REFERENCES emails(email),
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      notifyAllMentions BOOLEAN NOT NULL DEFAULT FALSE,
+      notifyAllReplies BOOLEAN NOT NULL DEFAULT FALSE,
+      notifyOwnedDocChange BOOLEAN NOT NULL DEFAULT FALSE,
+      notifySiteDiscussions BOOLEAN NOT NULL DEFAULT FALSE,
+      notifyAllComments BOOLEAN NOT NULL DEFAULT FALSE,
+      PRIMARY KEY (id, email)
+    ) WITHOUT ROWID;
+
+    INSERT INTO email_subscriptions (
+      id,
+      email,
+      createdAt,
+      notifyAllMentions,
+      notifyAllReplies,
+      notifyOwnedDocChange,
+      notifySiteDiscussions,
+      notifyAllComments
+    )
+    SELECT
+      id,
+      email,
+      createdAt,
+      notifyAllMentions,
+      notifyAllReplies,
+      notifyOwnedDocChange,
+      notifySiteDiscussions,
+      FALSE
+    FROM accounts_old;
+
+    DROP TABLE accounts_old;
+
+    PRAGMA user_version = 4;
+    COMMIT;
+  `)
+    version = 4
+  }
 }
 
 export function cleanup(): void {
@@ -106,7 +154,7 @@ export function cleanup(): void {
   }
 }
 
-export function createAccount({
+export function createSubscription({
   id,
   email,
   notifyAllMentions = false,
@@ -128,7 +176,7 @@ export function createAccount({
     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
   }
   const stmt = db.prepare(
-    'INSERT INTO accounts (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions) VALUES (?, ?, ?, ?, ?, ?)',
   )
   stmt.run(
     id,
@@ -140,13 +188,14 @@ export function createAccount({
   )
 }
 
-export function getAccount(id: string): Account | null {
+export function getSubscription(
+  id: string,
+  email: string,
+): BaseSubscription | null {
   const stmt = db.prepare(`
-    SELECT accounts.*
-    FROM accounts 
-    WHERE accounts.id = ?
+    SELECT * FROM email_subscriptions WHERE id = ? AND email = ?
   `)
-  const result = stmt.get(id) as DBAccount | undefined
+  const result = stmt.get(id, email) as Subscription | undefined
   if (!result) return null
 
   return {
@@ -155,7 +204,26 @@ export function getAccount(id: string): Account | null {
     notifyAllReplies: Boolean(result.notifyAllReplies),
     notifyOwnedDocChange: Boolean(result.notifyOwnedDocChange),
     notifySiteDiscussions: Boolean(result.notifySiteDiscussions),
+    notifyAllComments: Boolean(result.notifyAllComments),
   }
+}
+
+export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
+  const stmt = db.prepare(`
+    SELECT es.*
+    FROM email_subscriptions es
+    WHERE es.id = ?
+  `)
+  const rows = stmt.all(id) as DBSubscription[]
+
+  return rows.map((r) => ({
+    ...r,
+    notifyAllMentions: Boolean(r.notifyAllMentions),
+    notifyAllReplies: Boolean(r.notifyAllReplies),
+    notifyOwnedDocChange: Boolean(r.notifyOwnedDocChange),
+    notifySiteDiscussions: Boolean(r.notifySiteDiscussions),
+    notifyAllComments: Boolean(r.notifyAllComments),
+  }))
 }
 
 export function getNotifierLastProcessedBlobCid(): string | undefined {
@@ -173,28 +241,31 @@ export function setNotifierLastProcessedBlobCid(cid: string): void {
   stmt.run('last_processed_blob_cid', cid)
 }
 
-export function updateAccount(
+export function updateSubscription(
   id: string,
   {
     notifyAllMentions,
     notifyAllReplies,
     notifyOwnedDocChange,
     notifySiteDiscussions,
+    notifyAllComments,
   }: {
     notifyAllMentions?: boolean
     notifyAllReplies?: boolean
     notifyOwnedDocChange?: boolean
     notifySiteDiscussions?: boolean
+    notifyAllComments?: boolean
   },
 ): void {
   const stmt = db.prepare(`
-    UPDATE accounts SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ? WHERE id = ?
+    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
   `)
   stmt.run(
     notifyAllMentions ? 1 : 0,
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
     notifySiteDiscussions ? 1 : 0,
+    notifyAllComments ? 1 : 0,
     id,
   )
 }
@@ -218,28 +289,29 @@ export function getEmail(email: string): BaseEmail | null {
 export function getEmailWithToken(emailAdminToken: string): Email | null {
   const stmt = db.prepare(`
     SELECT emails.*
-    FROM emails 
+    FROM emails
     WHERE emails.adminToken = ?
   `)
   const email = stmt.get(emailAdminToken) as DBEmail | undefined
   if (!email) return null
 
-  const accountsStmt = db.prepare(`
-    SELECT accounts.*
-    FROM accounts
-    WHERE accounts.email = ?
+  const subsStmt = db.prepare(`
+    SELECT es.*
+    FROM email_subscriptions es
+    WHERE es.email = ?
   `)
-  const accounts = accountsStmt.all(email.email) as DBAccount[]
+  const subs = subsStmt.all(email.email) as DBSubscription[]
 
   return {
     ...email,
     isUnsubscribed: Boolean(email.isUnsubscribed),
-    accounts: accounts.map((account) => ({
-      ...account,
-      notifyAllMentions: Boolean(account.notifyAllMentions),
-      notifyAllReplies: Boolean(account.notifyAllReplies),
-      notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
-      notifySiteDiscussions: Boolean(account.notifySiteDiscussions),
+    subscriptions: subs.map((sub) => ({
+      ...sub,
+      notifyAllMentions: Boolean(sub.notifyAllMentions),
+      notifyAllReplies: Boolean(sub.notifyAllReplies),
+      notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
+      notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
+      notifyAllComments: Boolean(sub.notifyAllComments),
     })),
   }
 }
@@ -262,89 +334,165 @@ export function getAllEmails(): Email[] {
   const emails = stmt.all() as DBEmail[]
 
   return emails.map((email) => {
-    const accountsStmt = db.prepare(`
-      SELECT accounts.*
-      FROM accounts
-      WHERE accounts.email = ?
-    `)
-    const accounts = accountsStmt.all(email.email) as DBAccount[]
+    const subsStmt = db.prepare(`
+    SELECT es.*
+    FROM email_subscriptions es
+    WHERE es.email = ?
+  `)
+    const subs = subsStmt.all(email.email) as DBSubscription[]
 
     return {
       ...email,
       isUnsubscribed: Boolean(email.isUnsubscribed),
-      accounts: accounts.map((account) => ({
-        ...account,
-        notifyAllMentions: Boolean(account.notifyAllMentions),
-        notifyAllReplies: Boolean(account.notifyAllReplies),
-        notifyOwnedDocChange: Boolean(account.notifyOwnedDocChange),
-        notifySiteDiscussions: Boolean(account.notifySiteDiscussions),
+      subscriptions: subs.map((sub) => ({
+        ...sub,
+        notifyAllMentions: Boolean(sub.notifyAllMentions),
+        notifyAllReplies: Boolean(sub.notifyAllReplies),
+        notifyOwnedDocChange: Boolean(sub.notifyOwnedDocChange),
+        notifySiteDiscussions: Boolean(sub.notifySiteDiscussions),
+        notifyAllComments: Boolean(sub.notifyAllComments),
       })),
     }
   })
 }
 
-export function setAccount({
+export function setSubscription({
   id,
   email,
   notifyAllMentions,
   notifyAllReplies,
   notifyOwnedDocChange,
   notifySiteDiscussions,
+  notifyAllComments,
 }: {
   id: string
-  email?: string
+  email: string
   notifyAllMentions?: boolean
   notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
   notifySiteDiscussions?: boolean
+  notifyAllComments?: boolean
 }): void {
-  const existingAccount = getAccount(id)
-
-  if (!existingAccount) {
-    createAccount({
-      id,
-      email,
-      notifyAllMentions,
-      notifyAllReplies,
-      notifyOwnedDocChange,
-      notifySiteDiscussions,
-    })
-    return
+  if (!email) {
+    throw new Error('setSubscription requires an email for the (id,email) key')
   }
 
-  // If email is being changed, create new email entry
-  if (email && email !== existingAccount.email) {
-    const emailStmt = db.prepare(
-      'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-    )
-    emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
-  }
+  const ensureEmailStmt = db.prepare(
+    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
+  )
+  ensureEmailStmt.run(email, crypto.randomBytes(32).toString('hex'))
 
-  // Update account with new values
-  const stmt = db.prepare(`
-    UPDATE accounts 
-    SET email = ?,
-        notifyAllMentions = ?,
-        notifyAllReplies = ?,
-        notifyOwnedDocChange = ?,
-        notifySiteDiscussions = ?
-    WHERE id = ?
+  const current = getSubscription(id, email)
+
+  const toInt = (next: boolean | undefined, curr: boolean | undefined) =>
+    next ?? curr ?? false ? 1 : 0
+
+  const nextNotifyAllMentions = toInt(
+    notifyAllMentions,
+    current?.notifyAllMentions,
+  )
+  const nextNotifyAllReplies = toInt(
+    notifyAllReplies,
+    current?.notifyAllReplies,
+  )
+  const nextNotifyOwnedDocChange = toInt(
+    notifyOwnedDocChange,
+    current?.notifyOwnedDocChange,
+  )
+  const nextNotifySiteDiscussions = toInt(
+    notifySiteDiscussions,
+    current?.notifySiteDiscussions,
+  )
+  const nextNotifyAllComments = toInt(
+    notifyAllComments,
+    current?.notifyAllComments,
+  )
+
+  const upsert = db.prepare(`
+    INSERT INTO email_subscriptions (
+      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id, email) DO UPDATE SET
+      notifyAllMentions     = excluded.notifyAllMentions,
+      notifyAllReplies      = excluded.notifyAllReplies,
+      notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
+      notifySiteDiscussions = excluded.notifySiteDiscussions,
+      notifyAllComments     = excluded.notifyAllComments
   `)
 
-  const getBooleanValue = (
-    newValue: boolean | undefined,
-    currentValue: boolean,
-  ) => (newValue !== undefined ? (newValue ? 1 : 0) : currentValue ? 1 : 0)
-
-  stmt.run(
-    email ?? existingAccount.email,
-    getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
-    getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
-    getBooleanValue(notifyOwnedDocChange, existingAccount.notifyOwnedDocChange),
-    getBooleanValue(
-      notifySiteDiscussions,
-      existingAccount.notifySiteDiscussions,
-    ),
+  upsert.run(
     id,
+    email,
+    nextNotifyAllMentions,
+    nextNotifyAllReplies,
+    nextNotifyOwnedDocChange,
+    nextNotifySiteDiscussions,
+    nextNotifyAllComments,
   )
 }
+
+// export function setAccount({
+//   id,
+//   email,
+//   notifyAllMentions,
+//   notifyAllReplies,
+//   notifyOwnedDocChange,
+//   notifySiteDiscussions,
+// }: {
+//   id: string
+//   email?: string
+//   notifyAllMentions?: boolean
+//   notifyAllReplies?: boolean
+//   notifyOwnedDocChange?: boolean
+//   notifySiteDiscussions?: boolean
+// }): void {
+//   const existingAccount = getAccount(id)
+
+//   if (!existingAccount) {
+//     createAccount({
+//       id,
+//       email,
+//       notifyAllMentions,
+//       notifyAllReplies,
+//       notifyOwnedDocChange,
+//       notifySiteDiscussions,
+//     })
+//     return
+//   }
+
+//   // If email is being changed, create new email entry
+//   if (email && email !== existingAccount.email) {
+//     const emailStmt = db.prepare(
+//       'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
+//     )
+//     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
+//   }
+
+//   // Update account with new values
+//   const stmt = db.prepare(`
+//     UPDATE accounts
+//     SET email = ?,
+//         notifyAllMentions = ?,
+//         notifyAllReplies = ?,
+//         notifyOwnedDocChange = ?,
+//         notifySiteDiscussions = ?
+//     WHERE id = ?
+//   `)
+
+//   const getBooleanValue = (
+//     newValue: boolean | undefined,
+//     currentValue: boolean,
+//   ) => (newValue !== undefined ? (newValue ? 1 : 0) : currentValue ? 1 : 0)
+
+//   stmt.run(
+//     email ?? existingAccount.email,
+//     getBooleanValue(notifyAllMentions, existingAccount.notifyAllMentions),
+//     getBooleanValue(notifyAllReplies, existingAccount.notifyAllReplies),
+//     getBooleanValue(notifyOwnedDocChange, existingAccount.notifyOwnedDocChange),
+//     getBooleanValue(
+//       notifySiteDiscussions,
+//       existingAccount.notifySiteDiscussions,
+//     ),
+//     id,
+//   )
+// }

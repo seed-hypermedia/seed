@@ -11,7 +11,7 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {BlockNode, Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {SITE_BASE_URL} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
@@ -33,10 +33,10 @@ export async function createNotificationsEmail(
   if (!notifications.length) return
 
   const grouped: GroupedNotifications = {
-    reply: {},
-    mention: {},
     change: {},
-    discussion: {},
+    comment: {},
+    mention: {},
+    reply: {},
   }
 
   for (const notif of notifications) {
@@ -53,7 +53,7 @@ export async function createNotificationsEmail(
     }
     // @ts-ignore
     notificationsByDocument[notification.notif.targetId.id].push(notification)
-    subscriberNames.add(notification.accountMeta?.name || 'You')
+    subscriberNames.add(notification.accountMeta?.name || 'Subscriber')
   }
   const docNotifs = Object.values(notificationsByDocument)
   const baseNotifsSubject =
@@ -103,11 +103,10 @@ ${docNotifs
       .map((notification) => {
         const {notif} = notification
 
-        if (
-          notif.type === 'reply' ||
-          (notif.type === 'mention' && notif.source === 'comment')
-        ) {
-          return `New ${notif.type} from ${notif.comment.author} on ${notif.url}`
+        if (notif.type === 'comment') {
+          return `New comment from ${
+            notif.authorMeta?.name || 'an account you are subscribed to'
+          } on ${notif.url}`
         }
 
         if (notif.type === 'change') {
@@ -116,10 +115,20 @@ ${docNotifs
           } on ${notif.url}`
         }
 
-        if (notif.type === 'discussion') {
-          return `New discussion from ${
-            notif.authorMeta?.name || notif.comment.author
+        if (notif.type === 'mention') {
+          return `${
+            notif.authorMeta?.name || notif.authorAccountId
+          } mentioned ${
+            notification.accountMeta?.name || 'an account you are subscribed to'
           } on ${notif.url}`
+        }
+
+        if (notif.type === 'reply') {
+          return `${
+            notif.authorMeta?.name || notif.comment.author
+          } replied to ${
+            notification.accountMeta?.name || 'an account you are subscribed to'
+          } comment on ${notif.url}`
         }
 
         return ''
@@ -147,12 +156,9 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
         </MjmlPreview>
       </MjmlHead>
       <MjmlBody width={500}>
-        <EmailHeader
-          avatarUrl={notifications?.[0]?.accountMeta?.icon || ''}
-          name={notifications?.[0]?.accountMeta?.name || ''}
-        />
+        <EmailHeader />
 
-        {(['reply', 'mention', 'change', 'discussion'] as const).map((type) => {
+        {(['change', 'comment', 'mention', 'reply'] as const).map((type) => {
           const docs = grouped[type]
           const docEntries = Object.entries(docs)
 
@@ -160,18 +166,19 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
           const totalCount = docEntries.flatMap(([, n]) => n).length
 
-          const sectionTitle =
-            type === 'reply'
-              ? `You have ${totalCount} new repl${
-                  totalCount === 1 ? 'y' : 'ies'
-                }!`
-              : type === 'mention'
-              ? 'You have been mentioned!'
-              : type === 'discussion'
-              ? `New discussion${
-                  totalCount === 1 ? '' : 's'
-                } created on your site`
-              : 'New document changes!'
+          const sectionTitle = (() => {
+            switch (type) {
+              case 'comment':
+                return `New comment${totalCount === 1 ? '' : 's'}`
+              case 'mention':
+                return `Mention${totalCount === 1 ? '' : 's'}`
+              case 'reply':
+                return `Repl${totalCount === 1 ? 'y' : 'ies'}`
+              case 'change':
+              default:
+                return 'Document changes'
+            }
+          })()
 
           return (
             <>
@@ -193,11 +200,10 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                     <MjmlSection padding="0px 0px 10px">
                       <MjmlColumn>
                         <MjmlText fontSize="14px" color="#888">
-                          {type === 'reply' ? (
+                          {type === 'comment' ? (
                             <>
-                              You have ({docNotifs.length}) repl
-                              {docNotifs.length === 1 ? 'y' : 'ies'}
-                              {' on  '}
+                              {docNotifs.length} comment
+                              {docNotifs.length === 1 ? '' : 's'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -208,10 +214,24 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                                 {targetName}
                               </span>
                             </>
-                          ) : type === 'discussion' ? (
+                          ) : type === 'mention' ? (
                             <>
-                              {docNotifs.length} discussion
+                              {docNotifs.length} mention
                               {docNotifs.length === 1 ? '' : 's'} on{' '}
+                              <span
+                                style={{
+                                  fontWeight: 'bold',
+                                  color: 'black',
+                                  backgroundColor: 'lightgray',
+                                }}
+                              >
+                                {targetName}
+                              </span>
+                            </>
+                          ) : type === 'reply' ? (
+                            <>
+                              {docNotifs.length} repl
+                              {totalCount === 1 ? 'y' : 'ies'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -256,12 +276,12 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                           href={docUrl}
                           backgroundColor="#008060"
                         >
-                          {type === 'reply'
-                            ? 'Reply'
+                          {type === 'comment'
+                            ? 'View Comment'
                             : type === 'mention'
-                            ? 'Open Mention'
-                            : type === 'discussion'
-                            ? 'Open Discussion'
+                            ? 'View Mention'
+                            : type === 'reply'
+                            ? 'View Reply'
                             : 'View Change'}
                         </MjmlButton>
                       </MjmlColumn>
@@ -284,37 +304,6 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
 export type Notification =
   | {
-      type: 'mention'
-      source: 'comment'
-      comment: PlainMessage<Comment>
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-      resolvedNames?: Record<string, string>
-    }
-  | {
-      type: 'mention'
-      source: 'change'
-      block: BlockNode
-      authorAccountId: string
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      url: string
-      resolvedNames?: Record<string, string>
-    }
-  | {
-      type: 'reply'
-      comment: PlainMessage<Comment>
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      parentComments: PlainMessage<Comment>[]
-      url: string
-    }
-  | {
       type: 'change'
       authorAccountId: string
       authorMeta: HMMetadata | null
@@ -324,13 +313,35 @@ export type Notification =
       isNewDocument: boolean
     }
   | {
-      type: 'discussion'
+      type: 'comment'
       comment: PlainMessage<Comment>
       parentComments: PlainMessage<Comment>[]
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
+      resolvedNames?: Record<string, string>
+    }
+  | {
+      type: 'mention'
+      authorAccountId: string
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      source: 'comment' | 'document'
+      comment?: PlainMessage<Comment>
+      resolvedNames?: Record<string, string>
+    }
+  | {
+      type: 'reply'
+      comment: PlainMessage<Comment>
+      parentComments: PlainMessage<Comment>[]
+      authorMeta: HMMetadata | null
+      targetMeta: HMMetadata | null
+      targetId: UnpackedHypermediaId
+      url: string
+      resolvedNames?: Record<string, string>
     }
 
 export type FullNotification = {
@@ -343,29 +354,31 @@ function getNotificationSummary(
   notification: Notification,
   accountMeta: HMMetadata | null,
 ): string {
-  if (notification.type === 'mention') {
-    return `${accountMeta?.name || 'You were'} mentioned by ${
-      notification.authorMeta?.name
-        ? notification.authorMeta.name
-        : notification.source === 'comment'
-        ? notification.comment.author
-        : 'Unknown User'
+  if (notification.type === 'change') {
+    return `${notification.authorMeta?.name || 'Someone'} made changes to ${
+      notification.targetMeta?.name || 'a document'
     }.`
+  }
+  if (notification.type === 'comment') {
+    return `${notification.authorMeta?.name || 'Someone'} commented on ${
+      notification.targetMeta?.name || 'a document'
+    }.`
+  }
+  if (notification.type === 'mention') {
+    if (notification.source === 'comment') {
+      return `${notification.authorMeta?.name || 'Someone'} mentioned ${
+        accountMeta?.name || 'an account you are subscribed to'
+      } in a comment on ${notification.targetMeta?.name || 'a document'}.`
+    } else {
+      return `${notification.authorMeta?.name || 'Someone'} mentioned ${
+        accountMeta?.name || 'an account you are subscribed to'
+      } in ${notification.targetMeta?.name || 'a document'}.`
+    }
   }
   if (notification.type === 'reply') {
-    return `You have a new reply from ${
-      notification.authorMeta?.name || notification.comment.author
-    }.`
-  }
-  if (notification.type === 'change') {
-    return `${notification.authorMeta?.name || 'Someone'} made a change to ${
-      notification.targetMeta?.name || 'your document'
-    }.`
-  }
-  if (notification.type === 'discussion') {
-    return `${
-      notification.authorMeta?.name || notification.comment.author
-    } started a discussion on ${notification.targetMeta?.name || 'your site'}.`
+    return `${notification.authorMeta?.name || 'Someone'} replied to ${
+      accountMeta?.name || 'an account you are subscribed to'
+    } comment on ${notification.targetMeta?.name || 'a document'}.`
   }
   return ''
 }

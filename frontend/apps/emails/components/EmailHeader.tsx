@@ -2,37 +2,11 @@ import {
   MjmlColumn,
   MjmlGroup,
   MjmlImage,
-  MjmlRaw,
   MjmlSection,
   MjmlText,
 } from '@faire/mjml-react'
-import {DAEMON_FILE_URL} from '@shm/shared/constants'
 
-export function getDaemonFileUrl(ipfsUrl?: string) {
-  if (ipfsUrl) {
-    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
-  }
-  return ''
-}
-
-export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
-  const regex = /^ipfs:\/\/(.+)$/
-  const match = cidOrIPFSUrl.match(regex)
-  // @ts-ignore
-  return match ? match[1] : cidOrIPFSUrl
-}
-
-export function EmailHeader({
-  avatarUrl,
-  name,
-}: {
-  avatarUrl: string
-  name: string
-  // @ts-ignore
-}) {
-  // @ts-ignore
-  const fallbackLetter = name[0].toUpperCase()
-
+export function EmailHeader() {
   return (
     <MjmlSection padding="16px 24px" border-bottom="1px solid #eee">
       {/* <MjmlColumn width="50%" verticalAlign="middle"> */}
@@ -57,8 +31,7 @@ export function EmailHeader({
           </MjmlText>
         </MjmlColumn>
       </MjmlGroup>
-      {/* </MjmlColumn> */}
-      <MjmlColumn width="30%" verticalAlign="middle">
+      {/* <MjmlColumn width="30%" verticalAlign="middle">
         {avatarUrl ? (
           <MjmlImage
             src={getDaemonFileUrl(avatarUrl)}
@@ -98,7 +71,7 @@ export function EmailHeader({
             </table>
           </MjmlRaw>
         )}
-      </MjmlColumn>
+      </MjmlColumn> */}
     </MjmlSection>
   )
 }

@@ -2,16 +2,13 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
-  Annotation,
   BlockNode,
   Comment,
   entityQueryPathToHmIdPath,
   Event,
-  HMBlockNode,
   HMBlockNodeSchema,
   HMDocumentMetadataSchema,
   hmId,
-  HMLoadedBlock,
   HMMetadata,
   HMMetadataPayload,
   unpackHmId,
@@ -28,8 +25,11 @@ import {
   getNotifierLastProcessedBlobCid,
   setNotifierLastProcessedBlobCid,
 } from './db'
-import {getAccount, getDocument, getMetadata} from './loaders'
+import {getAccount, getComment, getDocument, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
+
+// Lock to prevent concurrent processing
+let isProcessing = false
 
 export async function initEmailNotifier() {
   if (!ENABLE_EMAIL_NOTIFICATIONS) return
@@ -51,15 +51,32 @@ export async function initEmailNotifier() {
 }
 
 async function handleEmailNotifications() {
-  const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
-  console.log(
-    '~~ handleEmailNotifications lastProcessedBlobCid',
-    lastProcessedBlobCid,
-  )
-  if (lastProcessedBlobCid) {
-    await handleEmailNotificationsAfterBlobCid(lastProcessedBlobCid)
-  } else {
-    await resetNotifierLastProcessedBlobCid()
+  // Prevent concurrent processing
+  if (isProcessing) {
+    console.log('~~ skipping - already processing notifications')
+    return
+  }
+
+  isProcessing = true
+  try {
+    const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
+    console.log(
+      '~~ handleEmailNotifications lastProcessedBlobCid',
+      lastProcessedBlobCid,
+    )
+    if (lastProcessedBlobCid) {
+      await handleEmailNotificationsAfterBlobCid(lastProcessedBlobCid)
+    } else {
+      await resetNotifierLastProcessedBlobCid()
+    }
+
+    const newLastProcessedBlobCid = getNotifierLastProcessedBlobCid()
+    console.log(
+      '~~ handleEmailNotifications newLastProcessedBlobCid',
+      newLastProcessedBlobCid,
+    )
+  } finally {
+    isProcessing = false
   }
 }
 
@@ -101,9 +118,10 @@ async function handleEventsForEmailNotifications(
     {
       notifyAllMentions: boolean
       notifyAllReplies: boolean
-      notifyOwnedDocChange: boolean
       notifySiteDiscussions: boolean
-      email: string
+      notifyOwnedDocChange: boolean
+      notifyAllComments: boolean
+      emails: string[]
     }
   > = {}
   const emailOptions: Record<
@@ -139,7 +157,12 @@ async function handleEventsForEmailNotifications(
       notificationsToSend[email] = []
     }
     if (accountMetas[accountId] === undefined) {
-      accountMetas[accountId] = (await getAccount(accountId)).metadata
+      try {
+        accountMetas[accountId] = (await getAccount(accountId)).metadata
+      } catch (error) {
+        console.error(`Error getting account ${accountId}:`, error)
+        accountMetas[accountId] = null
+      }
     }
     notificationsToSend[email].push({
       accountId,
@@ -148,19 +171,30 @@ async function handleEventsForEmailNotifications(
     })
   }
   for (const email of allEmails) {
-    for (const account of email.accounts) {
+    for (const account of email.subscriptions) {
       const opts = emailOptions[email.email]
       // @ts-expect-error
       if (opts.isUnsubscribed) continue
-      accountNotificationOptions[account.id] = {
-        notifyAllMentions: account.notifyAllMentions,
-        notifyAllReplies: account.notifyAllReplies,
-        notifyOwnedDocChange: account.notifyOwnedDocChange,
-        notifySiteDiscussions: account.notifySiteDiscussions,
-        email: email.email,
+
+      if (!accountNotificationOptions[account.id]) {
+        accountNotificationOptions[account.id] = {
+          notifyAllMentions: account.notifyAllMentions,
+          notifyAllReplies: account.notifyAllReplies,
+          notifySiteDiscussions: account.notifySiteDiscussions,
+          notifyOwnedDocChange: account.notifyOwnedDocChange,
+          notifyAllComments: account.notifyAllComments,
+          emails: [],
+        }
+      }
+
+      if (
+        !accountNotificationOptions[account.id]!.emails.includes(email.email)
+      ) {
+        accountNotificationOptions[account.id]!.emails.push(email.email)
       }
     }
   }
+
   const newComments: {
     comment: PlainMessage<Comment>
     parentAuthors: Set<string>
@@ -205,6 +239,80 @@ async function handleEventsForEmailNotifications(
                   : null,
             }
 
+            // if (prevVersionId) {
+            //   const prevVersionDoc = await getDocument(prevVersionId)
+            //   const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
+
+            //   const previousMentionsByBlockId: Record<string, Set<string>> = {}
+
+            //   for (const loaded of prevVersionDoc.content ?? []) {
+            //     const blockId = loaded.block?.id
+            //     if (!blockId) continue
+
+            //     // @ts-expect-error
+            //     const accountIds = getMentionsFromBlock(loaded.block)
+            //     if (accountIds.size > 0) {
+            //       previousMentionsByBlockId[blockId] = accountIds
+            //     }
+            //   }
+
+            //   for (const [blockId, newMentions] of Object.entries(
+            //     mentionsMap,
+            //   )) {
+            //     const oldMentions =
+            //       previousMentionsByBlockId[blockId] ?? new Set()
+
+            //     for (const accountLink of newMentions) {
+            //       const accountId = accountLink.slice('hm://'.length)
+
+            //       // Skip if already mentioned in this block in the previous version
+            //       if (oldMentions.has(accountId)) continue
+
+            //       // Skip if a user mentions themselves
+            //       if (accountId === blob.author) continue
+
+            //       const {notifyAllMentions, email} =
+            //         accountNotificationOptions[accountId] || {}
+            //       if (!notifyAllMentions) continue
+
+            //       const op = changeDataWithOps.body.ops.find(
+            //         // @ts-expect-error
+            //         (op) =>
+            //           op.type === 'ReplaceBlock' && op.block?.id === blockId,
+            //       )
+
+            //       if (!op?.block) continue
+
+            //       const blockNode = new BlockNode({
+            //         block: op.block,
+            //         children: [],
+            //       })
+
+            //       const authorMeta = (await getAccount(blob.author)).metadata
+            //       const resolvedNames = await resolveAnnotationNames([
+            //         blockNode,
+            //       ])
+
+            //       // @ts-expect-error
+            //       await appendNotification(email, accountId, {
+            //         type: 'mention',
+            //         source: 'change',
+            //         block: blockNode,
+            //         authorAccountId: blob.author,
+            //         authorMeta,
+            //         targetMeta,
+            //         targetId: unpacked,
+            //         url: docUrl,
+            //         resolvedNames,
+            //       })
+            //     }
+            //   }
+            // }
+
+            const isNewDocument =
+              Array.isArray(changeData.deps) && changeData.deps.length === 0
+
+            // Check if there are previous mentions to compare against
             if (prevVersionId) {
               const prevVersionDoc = await getDocument(prevVersionId)
               const mentionsMap = getMentionsFromOps(changeDataWithOps.body.ops)
@@ -215,7 +323,6 @@ async function handleEventsForEmailNotifications(
                 const blockId = loaded.block?.id
                 if (!blockId) continue
 
-                // @ts-expect-error
                 const accountIds = getMentionsFromBlock(loaded.block)
                 if (accountIds.size > 0) {
                   previousMentionsByBlockId[blockId] = accountIds
@@ -235,75 +342,63 @@ async function handleEventsForEmailNotifications(
                   if (oldMentions.has(accountId)) continue
 
                   // Skip if a user mentions themselves
-                  if (accountId === blob.author) continue
+                  // if (accountId === blob.author) continue
 
-                  const {notifyAllMentions, email} =
-                    accountNotificationOptions[accountId] || {}
-                  if (!notifyAllMentions) continue
-
-                  const op = changeDataWithOps.body.ops.find(
-                    // @ts-expect-error
-                    (op) =>
-                      op.type === 'ReplaceBlock' && op.block?.id === blockId,
-                  )
-
-                  if (!op?.block) continue
-
-                  const blockNode = new BlockNode({
-                    block: op.block,
-                    children: [],
-                  })
+                  const account = accountNotificationOptions[accountId]
+                  if (!account?.notifyAllMentions) continue
 
                   const authorMeta = (await getAccount(blob.author)).metadata
-                  const resolvedNames = await resolveAnnotationNames([
-                    blockNode,
-                  ])
 
-                  // @ts-expect-error
-                  await appendNotification(email, accountId, {
-                    type: 'mention',
-                    source: 'change',
-                    block: blockNode,
-                    authorAccountId: blob.author,
-                    authorMeta,
-                    targetMeta,
-                    targetId: unpacked,
-                    url: docUrl,
-                    resolvedNames,
-                  })
+                  // Send notification to all emails subscribed to this account
+                  for (const email of account.emails) {
+                    console.log(
+                      `~~ document mention check: ${accountId} (${email}) - mention: true`,
+                    )
+
+                    await appendNotification(email, accountId, {
+                      type: 'mention',
+                      source: 'document',
+                      authorAccountId: blob.author,
+                      authorMeta,
+                      targetMeta,
+                      targetId: unpacked,
+                      url: docUrl,
+                    })
+                  }
                 }
               }
             }
 
-            const isNewDocument =
-              Array.isArray(changeData.deps) && changeData.deps.length === 0
-
+            // Notify users subscribed to the document's site for document changes
             for (const accountId in accountNotificationOptions) {
-              // @ts-expect-error
-              const {notifyOwnedDocChange, email} =
-                accountNotificationOptions[accountId]
+              // Only notify users subscribed to this document's site
+              if (accountId !== unpacked.uid) continue
+
+              const account = accountNotificationOptions[accountId]
+              if (!account) continue
+
+              const {notifyOwnedDocChange, emails} = account
 
               if (!notifyOwnedDocChange) continue
 
-              // Skip if the user made their own change
-              if (blob.author === accountId) continue
-
-              // Skip if the user is not an owner of a document
-              // @ts-expect-error
-              const isOwner = changedDoc?.authors?.[accountId]
-              if (!isOwner) continue
-
               const authorMeta = (await getAccount(blob.author)).metadata
 
-              await appendNotification(email, accountId, {
-                type: 'change',
-                authorAccountId: blob.author,
-                authorMeta,
-                targetMeta,
-                targetId: unpacked,
-                url: docUrl,
-                isNewDocument: isNewDocument,
-              })
+              // Send notification to all emails subscribed to this account
+              for (const email of emails) {
+                console.log(
+                  `~~ document change check: ${accountId} (${email}) - document change: true`,
+                )
+
+                await appendNotification(email, accountId, {
+                  type: 'change',
+                  authorAccountId: blob.author,
+                  authorMeta,
+                  targetMeta,
+                  targetId: unpacked,
+                  url: docUrl,
+                  isNewDocument: isNewDocument,
+                })
+              }
             }
           } catch (e) {
             console.error('Error processing Ref event', e)
@@ -312,53 +407,40 @@ async function handleEventsForEmailNotifications(
         if (blob.blobType !== 'Comment') continue
         const comment = await grpcClient.comments.getComment({id: blob.cid})
         const parentComments = await getParentComments(comment)
-        const parentAuthors: Set<string> = new Set()
-        for (const parentComment of parentComments) {
-          if (parentComment.author === comment.targetAccount) continue
-          parentAuthors.add(parentComment.author)
+        let commentAuthorMeta = null
+        let targetMeta = null
+
+        try {
+          commentAuthorMeta = (await getAccount(comment.author)).metadata
+        } catch (error) {
+          console.error(
+            `Error getting comment author ${comment.author}:`,
+            error,
+          )
         }
-        const resolvedParentAuthors: Set<string> = new Set()
-        for (const parentAuthor of parentAuthors) {
-          try {
-            const account = await resolveAccount(parentAuthor)
-            resolvedParentAuthors.add(account.id.uid)
-          } catch (e) {
-            console.error(
-              'Error resolving parent author',
-              parentAuthor,
-              `when processing event id ipfs://${event.data.value?.cid}`,
-              e,
-            )
-          }
-        }
-        const explicitMentions = getMentions(comment)
-        const mentions: Set<string> = new Set()
-        for (const mentionedAuthor of explicitMentions) {
-          try {
-            const account = await resolveAccount(mentionedAuthor)
-            mentions.add(account.id.uid)
-          } catch (e) {
-            console.error(
-              'Error resolving mentioned author',
-              mentionedAuthor,
-              `when processing event id ipfs://${event.data.value?.cid}`,
-              e,
-            )
-          }
-        }
-        newComments.push({
-          comment: toPlainMessage(comment),
-          parentComments,
-          parentAuthors: resolvedParentAuthors,
-          commentAuthorMeta: (await getAccount(comment.author)).metadata,
-          targetMeta: (
+
+        try {
+          targetMeta = (
             await getMetadata(
               hmId(comment.targetAccount, {
                 path: entityQueryPathToHmIdPath(comment.targetPath),
               }),
             )
-          ).metadata,
-          mentions,
+          ).metadata
+        } catch (error) {
+          console.error(
+            `Error getting target metadata for ${comment.targetAccount}:`,
+            error,
+          )
+        }
+
+        newComments.push({
+          comment: toPlainMessage(comment),
+          parentComments,
+          parentAuthors: new Set(), // Not used anymore
+          commentAuthorMeta,
+          targetMeta,
+          mentions: new Set(), // Not used anymore
         })
       } catch (e) {
         console.error('Failed to process event', event, e)
@@ -374,71 +456,190 @@ async function handleEventsForEmailNotifications(
       path: entityQueryPathToHmIdPath(comment.targetPath),
     })
 
-    const ownerId = comment.targetAccount
-    const ownerPrefs = accountNotificationOptions[ownerId]
+    // const ownerId = comment.targetAccount
+    // const ownerPrefs = accountNotificationOptions[ownerId]
 
-    const isNewDiscussion =
-      (!comment.threadRoot || comment.threadRoot === '') &&
-      (!comment.replyParent || comment.replyParent === '')
+    // const isNewDiscussion =
+    //   (!comment.threadRoot || comment.threadRoot === '') &&
+    //   (!comment.replyParent || comment.replyParent === '')
 
-    if (ownerPrefs && comment.author !== ownerId && isNewDiscussion) {
-      if (ownerPrefs.notifySiteDiscussions) {
-        await appendNotification(ownerPrefs.email, ownerId, {
-          type: 'discussion',
-          comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: targetDocUrl,
-        })
+    // // Send notifications to all subscribers who want to be notified about site discussions
+    // if (isNewDiscussion) {
+    //   for (const accountId in accountNotificationOptions) {
+    //     // @ts-expect-error
+    //     const {notifySiteDiscussions, email} =
+    //       accountNotificationOptions[accountId]
+
+    //     if (!notifySiteDiscussions) continue
+    //     if (comment.author === accountId) continue // don't notify the author for their own discussions
+
+    //     await appendNotification(email, accountId, {
+    //       type: 'discussion',
+    //       comment,
+    //       parentComments: newComment.parentComments,
+    //       authorMeta: newComment.commentAuthorMeta,
+    //       targetMeta: newComment.targetMeta,
+    //       targetId: targetDocId,
+    //       url: targetDocUrl,
+    //     })
+    //   }
+    // }
+
+    // Get all mentioned users in this comment
+    const mentionedUsers = new Set<string>()
+    for (const rawBlockNode of comment.content) {
+      const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+      // @ts-expect-error
+      for (const annotation of blockNode.block?.annotations || []) {
+        if (annotation.type === 'Embed') {
+          const hmId = unpackHmId(annotation.link)
+          if (hmId && !hmId.path?.length) {
+            mentionedUsers.add(hmId.uid)
+          }
+        }
+      }
+    }
+
+    // Get the parent comment author for reply notifications
+    let parentCommentAuthor: string | null = null
+    if (comment.replyParent) {
+      try {
+        const parentComment = await getComment(comment.replyParent)
+        if (parentComment) {
+          parentCommentAuthor = parentComment.author
+        }
+      } catch (error) {
+        console.error(
+          `Error getting parent comment ${comment.replyParent}:`,
+          error,
+        )
       }
     }
 
     for (const accountId in accountNotificationOptions) {
-      if (comment.author === accountId) continue // don't notify the author for their own comments
       const account = accountNotificationOptions[accountId]
 
-      // @ts-expect-error
-      if (account.notifyAllReplies && newComment.parentAuthors.has(accountId)) {
-        // @ts-expect-error
-        await appendNotification(account.email, accountId, {
-          type: 'reply',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: targetDocUrl,
-        })
+      const isNewDiscussion =
+        (!comment.threadRoot || comment.threadRoot === '') &&
+        (!comment.replyParent || comment.replyParent === '')
+
+      let shouldNotify = false
+      let notificationReason = ''
+
+      // Notify users subscribed to this site
+      if (
+        accountId === comment.targetAccount &&
+        account?.notifySiteDiscussions
+      ) {
+        shouldNotify = true
+        notificationReason = 'site discussion'
       }
-      // @ts-expect-error
-      if (account.notifyAllMentions) {
-        if (newComment.mentions.has(accountId)) {
-          const resolvedNames = await resolveAnnotationNames(
-            newComment.comment.content.map((n) => new BlockNode(n)),
-          )
-          // @ts-expect-error
-          await appendNotification(account.email, accountId, {
+
+      // Notify users subscribed to the comment author
+
+      // Notify users subscribed to mentioned users
+      if (mentionedUsers.has(accountId) && account?.notifyAllMentions) {
+        shouldNotify = true
+        notificationReason = 'mention'
+      }
+
+      // Notify users subscribed to the parent comment author
+      if (parentCommentAuthor === accountId && account?.notifyAllReplies) {
+        shouldNotify = true
+        notificationReason = 'reply'
+      }
+
+      if (!shouldNotify || !account) continue
+
+      // Send notification to all emails subscribed to this account
+      for (const email of account.emails) {
+        console.log(
+          `~~ ${notificationReason} check: ${accountId} (${email}) - ${notificationReason}: true`,
+        )
+
+        // Create notification based on the reason
+        if (notificationReason === 'mention') {
+          await appendNotification(email, accountId, {
             type: 'mention',
-            comment: newComment.comment,
+            authorAccountId: comment.author,
+            authorMeta: newComment.commentAuthorMeta,
+            targetMeta: newComment.targetMeta,
+            targetId: targetDocId,
+            url: targetDocUrl,
             source: 'comment',
+            comment: newComment.comment,
+            resolvedNames: await resolveAnnotationNames(
+              newComment.comment.content.map((n) => new BlockNode(n)),
+            ),
+          })
+        } else if (notificationReason === 'reply') {
+          await appendNotification(email, accountId, {
+            type: 'reply',
+            comment: newComment.comment,
             parentComments: newComment.parentComments,
             authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
             url: targetDocUrl,
-            resolvedNames,
+            resolvedNames: await resolveAnnotationNames(
+              newComment.comment.content.map((n) => new BlockNode(n)),
+            ),
+          })
+        } else {
+          // Site discussion or user comment
+          await appendNotification(email, accountId, {
+            type: 'comment',
+            comment: newComment.comment,
+            parentComments: newComment.parentComments,
+            authorMeta: newComment.commentAuthorMeta,
+            targetMeta: newComment.targetMeta,
+            targetId: targetDocId,
+            url: targetDocUrl,
+            resolvedNames: await resolveAnnotationNames(
+              newComment.comment.content.map((n) => new BlockNode(n)),
+            ),
+          })
+        }
+      }
+    }
+
+    // Notify users who are subscribed to the comment author
+    for (const email of allEmails) {
+      for (const subscription of email.subscriptions) {
+        // Check if this subscription is for the comment author and has notifyAllComments enabled
+        if (
+          subscription.id === comment.author &&
+          subscription.notifyAllComments
+        ) {
+          console.log(
+            `~~ user comment check: ${comment.author} (${email.email}) - user comment: true`,
+          )
+
+          await appendNotification(email.email, comment.author, {
+            type: 'comment',
+            comment: newComment.comment,
+            parentComments: newComment.parentComments,
+            authorMeta: newComment.commentAuthorMeta,
+            targetMeta: newComment.targetMeta,
+            targetId: targetDocId,
+            url: targetDocUrl,
+            resolvedNames: await resolveAnnotationNames(
+              newComment.comment.content.map((n) => new BlockNode(n)),
+            ),
           })
         }
       }
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
+  console.log('~~ emailsToSend count:', emailsToSend.length)
   for (const [email, notifications] of emailsToSend) {
     const opts = emailOptions[email]
     // @ts-expect-error
     if (opts.isUnsubscribed) continue
+    console.log(
+      `~~ processing email ${email} with ${notifications.length} notifications`,
+    )
     const notificationEmail = await createNotificationsEmail(
       email,
       // @ts-expect-error
@@ -453,31 +654,31 @@ async function handleEventsForEmailNotifications(
   }
 }
 
-function getMentions(comment: PlainMessage<Comment>) {
-  const allMentions = new Set<string>()
-  comment.content.forEach((rawBlockNode) => {
-    const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-    const mentions = getBlockNodeMentions(blockNode)
-    for (const mention of mentions) {
-      allMentions.add(mention)
-    }
-  })
-  return allMentions
-}
+// function getMentions(comment: PlainMessage<Comment>) {
+//   const allMentions = new Set<string>()
+//   comment.content.forEach((rawBlockNode) => {
+//     const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+//     const mentions = getBlockNodeMentions(blockNode)
+//     for (const mention of mentions) {
+//       allMentions.add(mention)
+//     }
+//   })
+//   return allMentions
+// }
 
-function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
-  const mentions: Set<string> = new Set()
-  // @ts-expect-error
-  for (const annotation of blockNode.block?.annotations || []) {
-    if (annotation.type === 'Embed') {
-      const hmId = unpackHmId(annotation.link)
-      if (hmId && !hmId.path?.length) {
-        mentions.add(hmId.uid)
-      }
-    }
-  }
-  return mentions
-}
+// function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
+//   const mentions: Set<string> = new Set()
+//   // @ts-expect-error
+//   for (const annotation of blockNode.block?.annotations || []) {
+//     if (annotation.type === 'Embed') {
+//       const hmId = unpackHmId(annotation.link)
+//       if (hmId && !hmId.path?.length) {
+//         mentions.add(hmId.uid)
+//       }
+//     }
+//   }
+//   return mentions
+// }
 
 async function getParentComments(comment: PlainMessage<Comment>) {
   const parentComments: PlainMessage<Comment>[] = []
@@ -518,6 +719,7 @@ async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   if (!newestEvent) return
   const lastProcessedBlobCid = newestEvent.data.value?.cid
   if (!lastProcessedBlobCid) return
+  console.log('~~ markEventsAsProcessed setting CID to:', lastProcessedBlobCid)
   await setNotifierLastProcessedBlobCid(lastProcessedBlobCid)
 }
 
@@ -602,11 +804,8 @@ function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
     if (op.type !== 'ReplaceBlock' || !op.block?.annotations) continue
 
     const mentions = op.block.annotations
-      .filter(
-        (a: Annotation) => a.type === 'Embed' && a.link?.startsWith('hm://'),
-      )
-      .map((a: Annotation) => a.link)
-    // .map((a: Annotation) => a.link!.slice('hm://'.length))
+      .filter((a: any) => a.type === 'Embed' && a.link?.startsWith('hm://'))
+      .map((a: any) => a.link)
 
     if (mentions.length > 0 && op.block.id) {
       mentionMap[op.block.id] = new Set(mentions)
@@ -616,13 +815,11 @@ function getMentionsFromOps(ops: any[]): Record<string, Set<string>> {
   return mentionMap
 }
 
-function getMentionsFromBlock(block: HMLoadedBlock): Set<string> {
+function getMentionsFromBlock(block: any): Set<string> {
   const accountIds = new Set<string>()
 
-  // @ts-expect-error
   if (!block?.content || !Array.isArray(block.content)) return accountIds
 
-  // @ts-expect-error
   for (const item of block.content) {
     if (
       item.type === 'InlineEmbed' &&

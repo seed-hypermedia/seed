@@ -7,10 +7,24 @@ import {
   MjmlText,
 } from '@faire/mjml-react'
 import {BlockNode, createWebHMUrl, unpackHmId} from '@shm/shared'
+import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {format} from 'date-fns'
 import React from 'react'
 import {Notification} from '../notifier'
-import {extractIpfsUrlCid, getDaemonFileUrl} from './EmailHeader'
+
+export function getDaemonFileUrl(ipfsUrl?: string) {
+  if (ipfsUrl) {
+    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
+  }
+  return ''
+}
+
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
+  const regex = /^ipfs:\/\/(.+)$/
+  const match = cidOrIPFSUrl.match(regex)
+  // @ts-ignore
+  return match ? match[1] : cidOrIPFSUrl
+}
 
 export function EmailContent({notification}: {notification: Notification}) {
   const {authorName, authorAvatar, fallbackLetter, createdAt} =
@@ -81,26 +95,86 @@ export function EmailContent({notification}: {notification: Notification}) {
             )}
           </MjmlText>
         </MjmlColumn>
-        {notification.type === 'mention' ? (
-          renderMention({
-            blocks:
-              notification.source === 'comment'
-                ? notification.comment.content.map((n) => new BlockNode(n))
-                : [notification.block],
-            targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-            resolvedNames: notification.resolvedNames,
-          })
-        ) : notification.type === 'change' ? (
+        {notification.type === 'change' ? (
           renderChange({
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
             isNewDocument: notification.isNewDocument,
           })
-        ) : (
+        ) : notification.type === 'mention' ? (
           <MjmlColumn width="100%" verticalAlign="middle">
-            {renderBlocks(
-              notification.comment.content.map((n) => new BlockNode(n)),
-              notification.url,
+            {notification.comment ? (
+              renderMention({
+                blocks: notification.comment.content.map(
+                  (n) => new BlockNode(n),
+                ),
+                targetDocName:
+                  notification.targetMeta?.name ?? 'Untitled Document',
+                resolvedNames: notification.resolvedNames,
+              })
+            ) : (
+              // Document mention
+              <MjmlText fontSize="14px" padding="12px 25px">
+                was mentioned in{' '}
+                <span
+                  style={{
+                    backgroundColor: '#eee',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    display: 'inline-block',
+                  }}
+                >
+                  {notification.targetMeta?.name ?? 'Untitled Document'}
+                </span>
+              </MjmlText>
             )}
+          </MjmlColumn>
+        ) : notification.type === 'reply' ? (
+          <MjmlColumn width="100%" verticalAlign="middle">
+            <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+              New reply:
+            </MjmlText>
+            <MjmlSection padding="0 0 8px 23px">
+              <MjmlColumn border-left="1px solid #20C997">
+                {renderBlocks(
+                  notification.comment.content.map((n) => new BlockNode(n)),
+                  notification.url,
+                  notification.resolvedNames,
+                )}
+              </MjmlColumn>
+            </MjmlSection>
+          </MjmlColumn>
+        ) : (
+          // Default to comment
+          <MjmlColumn width="100%" verticalAlign="middle">
+            <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+              Commented:
+            </MjmlText>
+            <MjmlSection padding="0 0 8px 23px">
+              <MjmlColumn border-left="1px solid #20C997">
+                {renderBlocks(
+                  notification.comment.content.map((n) => new BlockNode(n)),
+                  notification.url,
+                  notification.resolvedNames,
+                )}
+              </MjmlColumn>
+            </MjmlSection>
+            <MjmlSection padding="0 0 16px 0">
+              <MjmlColumn>
+                <MjmlText fontSize="14px" color="#888">
+                  on:{' '}
+                  <span
+                    style={{
+                      backgroundColor: '#eee',
+                      borderRadius: '4px',
+                      padding: '2px 6px',
+                      display: 'inline-block',
+                    }}
+                  >
+                    {notification.targetMeta?.name ?? 'Untitled Document'}
+                  </span>
+                </MjmlText>
+              </MjmlColumn>
+            </MjmlSection>
           </MjmlColumn>
         )}
       </MjmlSection>
@@ -475,21 +549,31 @@ function getNotificationMeta(notification: Notification) {
 
   const authorName =
     authorMeta?.name ||
-    ('comment' in notification ? notification.comment.author : 'Unknown')
+    ('comment' in notification
+      ? notification.comment.author
+      : notification.authorAccountId || 'Unknown')
 
   const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
 
-  const createdAt =
-    notification.type === 'reply' ||
-    notification.type === 'discussion' ||
-    (notification.type === 'mention' && notification.source === 'comment')
-      ? notification.comment.createTime?.seconds
+  const createdAt = (() => {
+    if (notification.type === 'comment' || notification.type === 'reply') {
+      return notification.comment.createTime?.seconds
         ? format(
             new Date(Number(notification.comment.createTime.seconds) * 1000),
             'MMM d',
           )
         : ''
-      : ''
+    }
+    if (notification.type === 'mention') {
+      return notification.comment?.createTime?.seconds
+        ? format(
+            new Date(Number(notification.comment.createTime.seconds) * 1000),
+            'MMM d',
+          )
+        : ''
+    }
+    return ''
+  })()
 
   return {
     authorName,

@@ -18,7 +18,7 @@ export function useEmailNotificationsWithToken(token: string | null) {
   })
 }
 
-export function useSetSubscription(token: string | null) {
+export function useSetEmailUnsubscribed(token: string | null) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationKey: ['set-subscription', token],
@@ -46,6 +46,7 @@ export function useSetAccountOptions(token: string | null) {
       notifyAllReplies?: boolean
       notifyOwnedDocChange?: boolean
       notifySiteDiscussions?: boolean
+      notifyAllComments?: boolean
     }) => {
       await post(`/hm/api/email-notif-token?token=${token}`, {
         action: 'set-account-options',
