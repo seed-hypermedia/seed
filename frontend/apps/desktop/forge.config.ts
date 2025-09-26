@@ -92,6 +92,7 @@ const snapConfig = {
     description: 'Seed: a hyper.media protocol client',
     grade: 'stable',
     confinement: 'strict',
+    base: 'core22', // Updated from core18 to core22 for compatibility
     plugs: {
       'browser-support': null,
       network: null,
