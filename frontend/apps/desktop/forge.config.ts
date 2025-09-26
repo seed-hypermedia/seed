@@ -67,6 +67,8 @@ const flatpakConfig = {
     runtime: 'org.freedesktop.Platform',
     runtimeVersion: '23.08',
     sdk: 'org.freedesktop.Sdk',
+    base: 'org.electronjs.Electron2.BaseApp',
+    baseVersion: '23.08', // Use the same version as runtime for consistency
     files: [
       // Include all necessary files - each entry is [source, destination]
       ['**/*', '/app'] as [string, string],
