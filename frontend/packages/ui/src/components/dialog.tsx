@@ -55,12 +55,12 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 w-full max-w-xl translate-x-[-50%] translate-y-[-50%] rounded-lg shadow-lg duration-200 max-h-[100dvh] max-h-[calc(var(--vvh,1vh)*100)] sm:max-h-[calc(100dvh-4rem)] sm:max-h-[calc(var(--vvh,1vh)*100-4rem)] overflow-hidden',
+          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 max-h-[100dvh] max-h-[calc(var(--vvh,1vh)*100)] w-full max-w-xl translate-x-[-50%] translate-y-[-50%] overflow-hidden rounded-lg shadow-lg duration-200 sm:max-h-[calc(100dvh-4rem)] sm:max-h-[calc(var(--vvh,1vh)*100-4rem)]',
           className,
         )}
         {...props}
       >
-        <div className="flex flex-col gap-4 p-5 max-h-[inherit] overflow-auto overscroll-contain">
+        <div className="flex max-h-[inherit] flex-col gap-4 overflow-auto overscroll-contain p-5">
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close
