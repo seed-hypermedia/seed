@@ -175,7 +175,7 @@ export default function WebCommenting({
   ) => {
     if (isSubmitting) return // Prevent double submission
 
-    if (!userKeyPair || !myAccount) {
+    if (!userKeyPair || !myAccount.data) {
       createAccount()
       return
     }
