@@ -17,12 +17,14 @@ interface SubscribeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   accountId?: string
+  siteUrl?: string
 }
 
 export function SubscribeDialog({
   open,
   onOpenChange,
   accountId,
+  siteUrl,
 }: SubscribeDialogProps) {
   const [email, setEmail] = useState('')
   const [isChecked, setIsChecked] = useState(false)
@@ -39,10 +41,11 @@ export function SubscribeDialog({
     setError(null)
 
     try {
-      const apiUrl =
-        typeof window !== 'undefined' && window.location.port !== '3000'
-          ? `${SEED_HOST_URL}/hm/api/public-subscribe`
-          : '/hm/api/public-subscribe'
+      const apiUrl = siteUrl
+        ? `${siteUrl}/hm/api/public-subscribe`
+        : typeof window !== 'undefined' && window.location.port !== '3000'
+        ? `${SEED_HOST_URL}/hm/api/public-subscribe`
+        : '/hm/api/public-subscribe'
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -110,8 +113,8 @@ export function SubscribeDialog({
             onCheckedChange={(checked) => setIsChecked(checked === true)}
             variant="primary"
           >
-            Get notified about all site activity including discussions, updates,
-            citations, and collaborator activity.
+            Get notified about site activity (discussions, document changes) and
+            user activity (mentions, replies, comments).
           </CheckboxField>
         </div>
 

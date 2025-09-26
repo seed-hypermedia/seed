@@ -154,6 +154,7 @@ export async function sendNotificationWelcomeEmail(
     notifyAllReplies: boolean
     notifyOwnedDocChange: boolean
     notifySiteDiscussions: boolean
+    notifyAllComments?: boolean
   },
 ) {
   const notifSettingsUrl = `${SITE_BASE_URL.replace(
@@ -165,6 +166,7 @@ export async function sendNotificationWelcomeEmail(
   if (opts.notifyAllReplies) notificationTypes.push('replies')
   if (opts.notifyOwnedDocChange) notificationTypes.push('document updates')
   if (opts.notifySiteDiscussions) notificationTypes.push('discussions')
+  if (opts.notifyAllComments) notificationTypes.push('comments')
 
   if (notificationTypes.length === 0) {
     return // no notifications enabled

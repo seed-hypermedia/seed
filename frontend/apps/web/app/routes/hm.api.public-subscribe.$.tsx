@@ -45,6 +45,7 @@ export const action: ActionFunction = async ({request}) => {
       notifyAllReplies: payload.notifyAllReplies,
       notifyOwnedDocChange: payload.notifyOwnedDocChange,
       notifySiteDiscussions: payload.notifySiteDiscussions,
+      notifyAllComments: true,
     })
 
     // Send welcome email
@@ -60,6 +61,7 @@ export const action: ActionFunction = async ({request}) => {
             notifyAllReplies: payload.notifyAllReplies,
             notifyOwnedDocChange: payload.notifyOwnedDocChange,
             notifySiteDiscussions: payload.notifySiteDiscussions,
+            notifyAllComments: true,
           })
         }
       }

@@ -16,6 +16,7 @@ import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +35,6 @@ import {SubscribeDialog} from './subscribe-dialog'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 // Stable width estimator functions
 const getNavItemWidth = () => 150
@@ -251,6 +251,7 @@ export function SiteHeader({
           open={isSubscribeDialogOpen}
           onOpenChange={setIsSubscribeDialogOpen}
           accountId={headerHomeId?.uid}
+          siteUrl={document?.metadata?.siteUrl || origin}
         />
       </header>
     </>
