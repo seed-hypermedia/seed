@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import crypto from 'crypto'
-import { join } from 'path'
+import {join} from 'path'
 
 export type BaseSubscription = {
   id: string
