@@ -18,12 +18,12 @@ import {Search} from './icons'
 import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
 
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 export function MobileSearch({
   originHomeId,
@@ -168,7 +168,7 @@ export function HeaderSearch({
           popoverState.onOpenChange(open)
         }}
       >
-        <PopoverTrigger asChild>
+        <PopoverTrigger>
           <Button variant="ghost" size="icon">
             <Search className="size-4" />
           </Button>
