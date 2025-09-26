@@ -86,8 +86,8 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
         <div
           className="absolute top-0 bottom-0 left-[-20px] z-50 rounded-lg bg-gray-100 opacity-0 hover:opacity-10 dark:bg-gray-900"
           style={{width: HoverRegionWidth + 20}}
-          onMouseEnter={ctx.onMenuHoverDelayed}
-          onMouseLeave={ctx.onMenuHoverLeave}
+          // onMouseEnter={ctx.onMenuHoverDelayed}
+          // onMouseLeave={ctx.onMenuHoverLeave}
           onClick={ctx.onMenuHover}
         />
       ) : null}
@@ -128,8 +128,8 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
             bottom: isLocked ? undefined : 8,
             height: isLocked ? '100%' : 'calc(100% - 60px)',
           }}
-          onMouseEnter={ctx.onMenuHover}
-          onMouseLeave={ctx.onMenuHoverLeave}
+          // onMouseEnter={ctx.onMenuHover}
+          // onMouseLeave={ctx.onMenuHoverLeave}
         >
           <div
             className={cn(
@@ -149,7 +149,7 @@ export function GenericSidebarContainer({children}: {children: ReactNode}) {
           </div>
         </div>
       </Panel>
-      <PanelResizeHandle className="panel-resize-handle" />
+      {isLocked ? <PanelResizeHandle className="panel-resize-handle" /> : null}
     </>
   )
 }
