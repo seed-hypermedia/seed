@@ -549,9 +549,11 @@ function getNotificationMeta(notification: Notification) {
 
   const authorName =
     authorMeta?.name ||
-    ('comment' in notification
+    ('comment' in notification && notification.comment
       ? notification.comment.author
-      : notification.authorAccountId || 'Unknown')
+      : 'authorAccountId' in notification
+      ? notification.authorAccountId
+      : 'Unknown')
 
   const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
 

@@ -4,12 +4,16 @@ import {join} from 'path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {
   cleanup,
+  createSubscription,
   getAllEmails,
   getEmailWithToken,
   getNotifierLastProcessedBlobCid,
+  getSubscription,
   initDatabase,
   setEmailUnsubscribed,
   setNotifierLastProcessedBlobCid,
+  setSubscription,
+  updateSubscription,
 } from './db'
 
 interface TableInfo {
@@ -116,124 +120,165 @@ describe('Database', () => {
     })
   })
 
-  describe.skip('subscription operations', () => {
+  describe('subscription operations', () => {
     // TODO: Update tests to match new subscription-based schema
-    it('should create account without email', () => {
-      const accountData = {
-        id: 'test-id',
-        notifyAllMentions: true,
-        notifyAllReplies: false,
-      }
-      createAccount(accountData)
-
-      const account = getAccount(accountData.id)
-      expect(account).toMatchObject({
-        id: accountData.id,
-        email: null,
-        notifyAllMentions: accountData.notifyAllMentions,
-        notifyAllReplies: accountData.notifyAllReplies,
-        notifyOwnedDocChange: false,
-        notifySiteDiscussions: false,
-      })
-      expect(account?.createdAt).toBeDefined()
-    })
-
-    it('should create account with email', () => {
-      const accountData = {
+    it('should create subscription without email', () => {
+      const subscriptionData = {
         id: 'test-id',
         email: 'test@example.com',
         notifyAllMentions: true,
         notifyAllReplies: false,
-      }
-      createAccount(accountData)
-
-      const account = getAccount(accountData.id)
-      expect(account).toMatchObject({
-        id: accountData.id,
-        email: accountData.email,
-        notifyAllMentions: accountData.notifyAllMentions,
-        notifyAllReplies: accountData.notifyAllReplies,
         notifyOwnedDocChange: false,
         notifySiteDiscussions: false,
-      })
-      expect(account?.createdAt).toBeDefined()
-    })
-
-    it('should update account notification settings', () => {
-      const accountData = {
-        id: 'test-id',
-        notifyAllMentions: false,
-        notifyAllReplies: false,
+        notifyAllComments: true,
       }
-      createAccount(accountData)
+      createSubscription(subscriptionData)
 
-      updateAccount(accountData.id, {
-        notifyAllMentions: true,
-        notifyAllReplies: true,
-        notifyOwnedDocChange: true,
-        notifySiteDiscussions: true,
+      const subscription = getSubscription(
+        subscriptionData.id,
+        subscriptionData.email,
+      )
+      expect(subscription).toMatchObject({
+        id: subscriptionData.id,
+        email: subscriptionData.email,
+        notifyAllMentions: subscriptionData.notifyAllMentions,
+        notifyAllReplies: subscriptionData.notifyAllReplies,
+        notifyOwnedDocChange: subscriptionData.notifyOwnedDocChange,
+        notifySiteDiscussions: subscriptionData.notifySiteDiscussions,
+        notifyAllComments: subscriptionData.notifyAllComments,
       })
-
-      const account = getAccount(accountData.id)
-      expect(account).toMatchObject({
-        id: accountData.id,
-        notifyAllMentions: true,
-        notifyAllReplies: true,
-        notifyOwnedDocChange: true,
-        notifySiteDiscussions: true,
-      })
+      expect(subscription?.createdAt).toBeDefined()
     })
 
-    it('should return null for non-existent account', () => {
-      const account = getAccount('non-existent-id')
-      expect(account).toBeNull()
-    })
-
-    it('should set account - create new if not exists', () => {
-      const accountData = {
-        id: 'test-id',
-        email: 'test@example.com',
-        notifyAllMentions: true,
-        notifyAllReplies: false,
-      }
-      setAccount(accountData)
-
-      const account = getAccount(accountData.id)
-      expect(account).toMatchObject({
-        id: accountData.id,
-        email: accountData.email,
-        notifyAllMentions: accountData.notifyAllMentions,
-        notifyAllReplies: accountData.notifyAllReplies,
-        notifyOwnedDocChange: false,
-        notifySiteDiscussions: false,
-      })
-    })
-
-    it('should set account - update existing', () => {
-      const initialData = {
-        id: 'test-id',
-        email: 'test1@example.com',
-        notifyAllMentions: false,
-        notifyAllReplies: false,
-      }
-      createAccount(initialData)
-
-      const updateData = {
-        id: 'test-id',
+    it('should create subscription with email', () => {
+      const subscriptionData = {
+        id: 'test-id-2',
         email: 'test2@example.com',
         notifyAllMentions: true,
-        notifyAllReplies: true,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       }
-      setAccount(updateData)
+      createSubscription(subscriptionData)
 
-      const account = getAccount(updateData.id)
-      expect(account).toMatchObject({
+      const subscription = getSubscription(
+        subscriptionData.id,
+        subscriptionData.email,
+      )
+      expect(subscription).toMatchObject({
+        id: subscriptionData.id,
+        email: subscriptionData.email,
+        notifyAllMentions: subscriptionData.notifyAllMentions,
+        notifyAllReplies: subscriptionData.notifyAllReplies,
+        notifyOwnedDocChange: subscriptionData.notifyOwnedDocChange,
+        notifySiteDiscussions: subscriptionData.notifySiteDiscussions,
+        notifyAllComments: subscriptionData.notifyAllComments,
+      })
+      expect(subscription?.createdAt).toBeDefined()
+    })
+
+    it('should update subscription notification settings', () => {
+      const subscriptionData = {
+        id: 'test-id-3',
+        email: 'test3@example.com',
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
+      }
+      createSubscription(subscriptionData)
+
+      updateSubscription(subscriptionData.id, {
+        notifyAllMentions: true,
+        notifyAllReplies: true,
+        notifyOwnedDocChange: true,
+        notifySiteDiscussions: true,
+        notifyAllComments: false,
+      })
+
+      const subscription = getSubscription(
+        subscriptionData.id,
+        subscriptionData.email,
+      )
+      expect(subscription).toMatchObject({
+        id: subscriptionData.id,
+        notifyAllMentions: true,
+        notifyAllReplies: true,
+        notifyOwnedDocChange: true,
+        notifySiteDiscussions: true,
+        notifyAllComments: false,
+      })
+    })
+
+    it('should return null for non-existent subscription', () => {
+      const subscription = getSubscription(
+        'non-existent-id',
+        'non-existent@example.com',
+      )
+      expect(subscription).toBeNull()
+    })
+
+    it('should set subscription - create new if not exists', () => {
+      const subscriptionData = {
+        id: 'test-id-4',
+        email: 'test4@example.com',
+        notifyAllMentions: true,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
+      }
+      setSubscription(subscriptionData)
+
+      const subscription = getSubscription(
+        subscriptionData.id,
+        subscriptionData.email,
+      )
+      expect(subscription).toMatchObject({
+        id: subscriptionData.id,
+        email: subscriptionData.email,
+        notifyAllMentions: subscriptionData.notifyAllMentions,
+        notifyAllReplies: subscriptionData.notifyAllReplies,
+        notifyOwnedDocChange: subscriptionData.notifyOwnedDocChange,
+        notifySiteDiscussions: subscriptionData.notifySiteDiscussions,
+        notifyAllComments: subscriptionData.notifyAllComments,
+      })
+    })
+
+    it('should set subscription - update existing', () => {
+      const initialData = {
+        id: 'test-id-5',
+        email: 'test5@example.com',
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
+      }
+      createSubscription(initialData)
+
+      const updateData = {
+        id: 'test-id-5',
+        email: 'test5-updated@example.com',
+        notifyAllMentions: true,
+        notifyAllReplies: true,
+        notifyOwnedDocChange: true,
+        notifySiteDiscussions: true,
+        notifyAllComments: false,
+      }
+      setSubscription(updateData)
+
+      const subscription = getSubscription(updateData.id, updateData.email)
+      expect(subscription).toMatchObject({
         id: updateData.id,
         email: updateData.email,
         notifyAllMentions: updateData.notifyAllMentions,
         notifyAllReplies: updateData.notifyAllReplies,
-        notifyOwnedDocChange: false,
-        notifySiteDiscussions: false,
+        notifyOwnedDocChange: updateData.notifyOwnedDocChange,
+        notifySiteDiscussions: updateData.notifySiteDiscussions,
+        notifyAllComments: updateData.notifyAllComments,
       })
 
       // Verify new email was created
@@ -245,54 +290,65 @@ describe('Database', () => {
       expect(emails.map((e) => e.email)).toContain(updateData.email)
     })
 
-    it('should set account - partial update', () => {
+    it('should set subscription - partial update', () => {
       const initialData = {
-        id: 'test-id',
-        email: 'test@example.com',
+        id: 'test-id-6',
+        email: 'test6@example.com',
         notifyAllMentions: false,
         notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       }
-      createAccount(initialData)
+      createSubscription(initialData)
 
-      setAccount({
-        id: 'test-id',
+      setSubscription({
+        id: 'test-id-6',
+        email: 'test6@example.com',
         notifyAllMentions: true,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
 
-      const account = getAccount(initialData.id)
-      expect(account).toMatchObject({
+      const subscription = getSubscription(initialData.id, initialData.email)
+      expect(subscription).toMatchObject({
         id: initialData.id,
         email: initialData.email,
         notifyAllMentions: true,
         notifyAllReplies: false,
         notifyOwnedDocChange: false,
         notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
     })
   })
 
-  describe.skip('email operations', () => {
-    it('should create and retrieve email with accounts', () => {
+  describe('email operations', () => {
+    it('should create and retrieve email with subscriptions', () => {
       const email = 'test@example.com'
-      const account1 = {
+      const subscription1 = {
         id: 'test-id-1',
         email,
         notifyAllMentions: true,
         notifyAllReplies: false,
         notifyOwnedDocChange: false,
         notifySiteDiscussions: false,
+        notifyAllComments: true,
       }
-      const account2 = {
+      const subscription2 = {
         id: 'test-id-2',
         email,
         notifyAllMentions: false,
         notifyAllReplies: true,
         notifyOwnedDocChange: false,
         notifySiteDiscussions: false,
+        notifyAllComments: true,
       }
 
-      createAccount(account1)
-      createAccount(account2)
+      createSubscription(subscription1)
+      createSubscription(subscription2)
 
       // Get the adminToken from the database directly
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
@@ -306,24 +362,26 @@ describe('Database', () => {
       expect(emailData?.email).toBe(email)
       expect(emailData?.adminToken).toBe(adminToken.adminToken)
       expect(emailData?.isUnsubscribed).toBe(false)
-      expect(emailData?.accounts).toHaveLength(2)
-      expect(emailData?.accounts).toEqual(
+      expect(emailData?.subscriptions).toHaveLength(2)
+      expect(emailData?.subscriptions).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            id: account1.id,
-            email: account1.email,
-            notifyAllMentions: account1.notifyAllMentions,
-            notifyAllReplies: account1.notifyAllReplies,
-            notifyOwnedDocChange: account1.notifyOwnedDocChange,
-            notifySiteDiscussions: account1.notifySiteDiscussions,
+            id: subscription1.id,
+            email: subscription1.email,
+            notifyAllMentions: subscription1.notifyAllMentions,
+            notifyAllReplies: subscription1.notifyAllReplies,
+            notifyOwnedDocChange: subscription1.notifyOwnedDocChange,
+            notifySiteDiscussions: subscription1.notifySiteDiscussions,
+            notifyAllComments: subscription1.notifyAllComments,
           }),
           expect.objectContaining({
-            id: account2.id,
-            email: account2.email,
-            notifyAllMentions: account2.notifyAllMentions,
-            notifyAllReplies: account2.notifyAllReplies,
-            notifyOwnedDocChange: account2.notifyOwnedDocChange,
-            notifySiteDiscussions: account2.notifySiteDiscussions,
+            id: subscription2.id,
+            email: subscription2.email,
+            notifyAllMentions: subscription2.notifyAllMentions,
+            notifyAllReplies: subscription2.notifyAllReplies,
+            notifyOwnedDocChange: subscription2.notifyOwnedDocChange,
+            notifySiteDiscussions: subscription2.notifySiteDiscussions,
+            notifyAllComments: subscription2.notifyAllComments,
           }),
         ]),
       )
@@ -331,9 +389,14 @@ describe('Database', () => {
 
     it('should unsubscribe and subscribe email', () => {
       const email = 'test@example.com'
-      createAccount({
-        id: 'test-id',
+      createSubscription({
+        id: 'test-id-7',
         email,
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
 
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
@@ -358,31 +421,46 @@ describe('Database', () => {
       expect(emailData).toBeNull()
     })
 
-    it('should get all emails with their accounts', () => {
+    it('should get all emails with their subscriptions', () => {
       const email1 = 'test1@example.com'
       const email2 = 'test2@example.com'
 
-      createAccount({
+      createSubscription({
         id: 'test-id-1',
         email: email1,
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
-      createAccount({
+      createSubscription({
         id: 'test-id-2',
         email: email1,
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
-      createAccount({
+      createSubscription({
         id: 'test-id-3',
         email: email2,
+        notifyAllMentions: false,
+        notifyAllReplies: false,
+        notifyOwnedDocChange: false,
+        notifySiteDiscussions: false,
+        notifyAllComments: true,
       })
 
       const emails = getAllEmails()
       expect(emails).toHaveLength(2)
 
       const email1Data = emails.find((e) => e.email === email1)
-      expect(email1Data?.accounts).toHaveLength(2)
+      expect(email1Data?.subscriptions).toHaveLength(2)
 
       const email2Data = emails.find((e) => e.email === email2)
-      expect(email2Data?.accounts).toHaveLength(1)
+      expect(email2Data?.subscriptions).toHaveLength(1)
     })
   })
 

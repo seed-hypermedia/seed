@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import crypto from 'crypto'
-import {join} from 'path'
+import { join } from 'path'
 
 export type BaseSubscription = {
   id: string
@@ -161,6 +161,7 @@ export function createSubscription({
   notifyAllReplies = false,
   notifyOwnedDocChange = false,
   notifySiteDiscussions = false,
+  notifyAllComments = false,
 }: {
   id: string
   email?: string
@@ -168,6 +169,7 @@ export function createSubscription({
   notifyAllReplies?: boolean
   notifyOwnedDocChange?: boolean
   notifySiteDiscussions?: boolean
+  notifyAllComments?: boolean
 }): void {
   if (email) {
     const emailStmt = db.prepare(
@@ -176,7 +178,7 @@ export function createSubscription({
     emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
   }
   const stmt = db.prepare(
-    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments) VALUES (?, ?, ?, ?, ?, ?, ?)',
   )
   stmt.run(
     id,
@@ -185,6 +187,7 @@ export function createSubscription({
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
     notifySiteDiscussions ? 1 : 0,
+    notifyAllComments ? 1 : 0,
   )
 }
 

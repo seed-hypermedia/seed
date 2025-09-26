@@ -252,7 +252,7 @@ Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
                         <>
                           <EmailContent
                             key={
-                              'comment' in notif
+                              'comment' in notif && notif.comment
                                 ? notif.comment.id
                                 : Math.random()
                             }
