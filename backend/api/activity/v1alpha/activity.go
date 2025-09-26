@@ -76,7 +76,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 	var events []*activity.Event
-	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
+	// Track the structural timestamp (ms) used for DB paging, aligned with events slice.
+	var cursorTS []int64
+	srv.log.Info("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
@@ -150,7 +152,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		eventType := stmt.ColumnText(1)
 		author := stmt.ColumnBytes(2)
 		resource := stmt.ColumnText(3)
-		eventTime := timestamppb.New(time.UnixMilli(stmt.ColumnInt64(4)))
+		// Structural timestamp (ms) used for DB paging
+		structTsMillis := stmt.ColumnInt64(4)
+		eventTime := timestamppb.New(time.UnixMilli(structTsMillis))
 		observeTime := timestamppb.New(time.Unix(stmt.ColumnInt64(5), 0))
 		mhash := stmt.ColumnBytes(6)
 		codec := stmt.ColumnInt64(7)
@@ -176,6 +180,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			ObserveTime: observeTime,
 		}
 		events = append(events, &event)
+		cursorTS = append(cursorTS, structTsMillis)
 		return nil
 	}, cursorBlobID, pageSize)
 	if err != nil {
@@ -205,8 +210,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					source     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
-					eventTime  = timestamppb.New(time.UnixMilli(stmt.ColumnInt64(4)))
-					blobType   = stmt.ColumnText(5)
+					// Structural timestamp (ms) used for DB paging
+					structTsMillis = stmt.ColumnInt64(4)
+					eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
+					blobType       = stmt.ColumnText(5)
 
 					isPinned = stmt.ColumnInt(6) > 0
 					//anchor        = stmt.ColumnText(7)
@@ -253,6 +260,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					ObserveTime: observeTime,
 				}
 				events = append(events, &event)
+				cursorTS = append(cursorTS, structTsMillis)
 				return nil
 			}, strings.Join(eids, ","), cursorBlobID, req.PageSize); err != nil {
 				return err
@@ -268,15 +276,42 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return &activity.ListEventsResponse{}, nil
 	}
 
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].EventTime.AsTime().After(events[j].EventTime.AsTime())
+	// Sort by EventTime for display, but paginate using structural ts (ms).
+	idx := make([]int, len(events))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.Slice(idx, func(i, j int) bool {
+		return events[idx[i]].EventTime.AsTime().After(events[idx[j]].EventTime.AsTime())
 	})
-	events = events[:int(math.Min(float64(len(events)), float64(req.PageSize)))]
+	sortedEvents := make([]*activity.Event, len(events))
+	sortedCursorTS := make([]int64, len(cursorTS))
+	for k, i := range idx {
+		sortedEvents[k] = events[i]
+		sortedCursorTS[k] = cursorTS[i]
+	}
+	events = sortedEvents
+	cursorTS = sortedCursorTS
+
+	// Apply page size to both arrays.
+	pageLen := int(math.Min(float64(len(events)), float64(req.PageSize)))
+	events = events[:pageLen]
+	cursorTS = cursorTS[:pageLen]
+
+	// Next page token based on the minimum structural ts (ms) in the returned page.
 	var nextPageToken string
-	if events[len(events)-1].EventTime.AsTime().UnixMicro() != 0 && int(req.PageSize) == len(events) {
-		nextPageToken, err = apiutil.EncodePageToken(events[len(events)-1].EventTime.AsTime().UnixMicro()-1, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode next page token: %w", err)
+	if pageLen > 0 && int(req.PageSize) == pageLen {
+		minTS := cursorTS[0]
+		for _, ts := range cursorTS[1:] {
+			if ts != 0 && (minTS == 0 || ts < minTS) {
+				minTS = ts
+			}
+		}
+		if minTS != 0 {
+			nextPageToken, err = apiutil.EncodePageToken(minTS-1, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode next page token: %w", err)
+			}
 		}
 	}
 
