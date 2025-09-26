@@ -1,13 +1,13 @@
-import { MakerDeb, MakerDebConfig } from '@electron-forge/maker-deb'
-import { MakerFlatpak, MakerFlatpakConfig } from '@electron-forge/maker-flatpak'
-import { MakerRpm, MakerRpmConfig } from '@electron-forge/maker-rpm'
-import { MakerSnap, MakerSnapConfig } from '@electron-forge/maker-snap'
-import { MakerSquirrel } from '@electron-forge/maker-squirrel'
-import { MakerZIP } from '@electron-forge/maker-zip'
-import { PublisherS3 } from '@electron-forge/publisher-s3'
-import type { ForgeConfig } from '@electron-forge/shared-types'
+import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
+import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
+import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
+import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
+import {MakerSquirrel} from '@electron-forge/maker-squirrel'
+import {MakerZIP} from '@electron-forge/maker-zip'
+import {PublisherS3} from '@electron-forge/publisher-s3'
+import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
-import { VitePlugin } from '@electron-forge/plugin-vite'
+import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
@@ -94,14 +94,14 @@ const snapConfig = {
     confinement: 'strict',
     plugs: {
       'browser-support': null,
-      'network': null,
-      'home': null,
-      'opengl': null,
-      'pulseaudio': null,
-      'unity7': null,
-      'x11': null,
-      'wayland': null,
-      'desktop': null,
+      network: null,
+      home: null,
+      opengl: null,
+      pulseaudio: null,
+      unity7: null,
+      x11: null,
+      wayland: null,
+      desktop: null,
       'desktop-legacy': null,
     },
   },
