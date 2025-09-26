@@ -1,6 +1,7 @@
 import { MakerDeb, MakerDebConfig } from '@electron-forge/maker-deb'
 import { MakerFlatpak, MakerFlatpakConfig } from '@electron-forge/maker-flatpak'
 import { MakerRpm, MakerRpmConfig } from '@electron-forge/maker-rpm'
+import { MakerSnap, MakerSnapConfig } from '@electron-forge/maker-snap'
 import { MakerSquirrel } from '@electron-forge/maker-squirrel'
 import { MakerZIP } from '@electron-forge/maker-zip'
 import { PublisherS3 } from '@electron-forge/publisher-s3'
@@ -58,6 +59,54 @@ const commonLinuxConfig = {
   },
 }
 
+const flatpakConfig = {
+  options: {
+    ...commonLinuxConfig.options,
+    id: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    runtime: 'org.freedesktop.Platform',
+    runtimeVersion: '23.08',
+    sdk: 'org.freedesktop.Sdk',
+    files: [
+      // Include all necessary files - each entry is [source, destination]
+      ['**/*', '/app'] as [string, string],
+    ],
+    finishArgs: [
+      '--share=ipc',
+      '--socket=x11',
+      '--socket=wayland',
+      '--socket=pulseaudio',
+      '--share=network',
+      '--device=dri',
+      '--filesystem=home',
+      '--talk-name=org.freedesktop.Notifications',
+      '--talk-name=org.kde.StatusNotifierWatcher',
+      '--own-name=com.seed.*',
+    ],
+  },
+}
+
+const snapConfig = {
+  options: {
+    name: IS_PROD_DEV ? 'seed-dev' : 'seed',
+    summary: 'Seed: a hyper.media protocol client',
+    description: 'Seed: a hyper.media protocol client',
+    grade: 'stable',
+    confinement: 'strict',
+    plugs: {
+      'browser-support': null,
+      'network': null,
+      'home': null,
+      'opengl': null,
+      'pulseaudio': null,
+      'unity7': null,
+      'x11': null,
+      'wayland': null,
+      'desktop': null,
+      'desktop-legacy': null,
+    },
+  },
+}
+
 const config: ForgeConfig = {
   packagerConfig: {
     appVersion: process.env.VITE_VERSION,
@@ -79,41 +128,6 @@ const config: ForgeConfig = {
   },
   makers: [
     new MakerDeb(commonLinuxConfig as MakerDebConfig),
-    new MakerFlatpak({
-      options: {
-        ...commonLinuxConfig.options,
-        base: 'io.atom.electron.BaseApp',
-        baseVersion: '22.08',
-        files: [],
-        runtimeVersion: '22.08',
-        finishArgs: [
-          // Display and audio
-          '--socket=x11',
-          '--socket=pulseaudio',
-          
-          // Network and IPC
-          '--share=network',
-          '--share=ipc',
-          
-          // Graphics and hardware
-          '--device=dri',
-          
-          // File system access (restricted to home)
-          '--filesystem=home',
-          
-          // System integration
-          '--talk-name=org.freedesktop.Notifications',
-          '--talk-name=org.freedesktop.DBus',
-          '--talk-name=org.gtk.vfs.*',
-          
-          // Environment
-          '--env=ELECTRON_TRASH=gio',
-          
-          // Allow daemon execution (be careful with this)
-          '--talk-name=org.freedesktop.systemd1',
-        ],
-      },
-    } as MakerFlatpakConfig),
     new MakerZIP(
       IS_PROD_DEV
         ? (arch) => ({
@@ -153,9 +167,8 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    // Flatpak maker - requires: sudo apt install flatpak flatpak-builder elfutils
-    // Uncomment after installing dependencies:
-    new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
+    new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
+    new MakerSnap(snapConfig as MakerSnapConfig),
   ],
   plugins: [
     // {

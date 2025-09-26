@@ -3818,6 +3818,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@electron-forge/maker-snap@npm:^7.9.0":
+  version: 7.9.0
+  resolution: "@electron-forge/maker-snap@npm:7.9.0"
+  dependencies:
+    "@electron-forge/maker-base": 7.9.0
+    "@electron-forge/shared-types": 7.9.0
+    electron-installer-snap: ^5.2.0
+  dependenciesMeta:
+    electron-installer-snap:
+      optional: true
+  checksum: 2c5b8bb717b6b0ae0f196fd4265f0426606c4e3cfa9bccb161622a0ae34f6a2272d8deb001529d3e1505cac18d6b46d5a365f49746740d9521b61b390f714e36
+  languageName: node
+  linkType: hard
+
 "@electron-forge/maker-squirrel@npm:7.6.0":
   version: 7.6.0
   resolution: "@electron-forge/maker-squirrel@npm:7.6.0"
@@ -11885,6 +11899,7 @@ __metadata:
     "@electron-forge/maker-dmg": 7.6.0
     "@electron-forge/maker-flatpak": ^7.9.0
     "@electron-forge/maker-rpm": 7.6.0
+    "@electron-forge/maker-snap": ^7.9.0
     "@electron-forge/maker-squirrel": 7.6.0
     "@electron-forge/maker-zip": 7.6.0
     "@electron-forge/plugin-vite": 7.6.0
@@ -19830,6 +19845,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"electron-installer-snap@npm:^5.2.0":
+  version: 5.2.0
+  resolution: "electron-installer-snap@npm:5.2.0"
+  dependencies:
+    "@malept/cross-spawn-promise": ^1.0.0
+    debug: ^4.3.4
+    electron-installer-common: ^0.10.2
+    fs-extra: ^9.0.0
+    js-yaml: ^3.10.0
+    lodash: ^4.17.15
+    semver: ^7.1.1
+    tmp-promise: ^3.0.2
+    which: ^2.0.1
+    yargs: ^16.0.2
+  bin:
+    electron-installer-snap: src/cli.js
+  checksum: 189d7cc6151d060c74d5e3168ca11be43b13895f626dce679b8e079df637f532d13beca2cbf476b497dbc6b96794c1b54220aef0131fe1e0f3342f10fa8e49d8
+  languageName: node
+  linkType: hard
+
 "electron-is-dev@npm:^2.0.0":
   version: 2.0.0
   resolution: "electron-is-dev@npm:2.0.0"
@@ -25580,7 +25615,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"js-yaml@npm:^3.13.1":
+"js-yaml@npm:^3.10.0, js-yaml@npm:^3.13.1":
   version: 3.14.1
   resolution: "js-yaml@npm:3.14.1"
   dependencies:

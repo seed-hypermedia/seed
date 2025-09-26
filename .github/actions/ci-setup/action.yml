@@ -33,16 +33,17 @@ runs:
         sudo apt-get install -y gcc-12 g++-12
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
         sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
-        sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libayatana-appindicator3-dev librsvg2-dev patchelf rpm libc6 python3 build-essential sqlite3 libsqlite3-dev
+        sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libayatana-appindicator3-dev librsvg2-dev patchelf rpm libc6 python3 build-essential sqlite3 libsqlite3-dev flatpak flatpak-builder snapcraft
       shell: bash
 
-    # flatpak gnome-software-plugin-flatpak flatpak-builder elfutils
+    # Additional packages for Flatpak and Snapcraft building
 
-    # - name: "Setup Flatpak"
-    #   if: inputs.matrix-os == 'ubuntu-latest'
-    #   run: |
-    #     sudo flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-    #   shell: bash
+    - name: "Setup Flatpak"
+      if: inputs.matrix-os == 'ubuntu-latest'
+      run: |
+        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+      shell: bash
 
     - name: Setup cache Ubuntu
       uses: actions/cache@v3
