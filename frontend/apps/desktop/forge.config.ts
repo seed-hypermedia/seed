@@ -82,7 +82,7 @@ const flatpakConfig = {
         ],
       },
     ],
-    // Removed files property - let electron-forge handle file copying automatically
+    files: [], // No additional files needed - main app is handled by @electron/packager automatically
     finishArgs: [
       '--share=ipc',
       '--socket=x11',
