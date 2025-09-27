@@ -82,10 +82,7 @@ const flatpakConfig = {
         ],
       },
     ],
-    files: [
-      // Include all necessary files - each entry is [source, destination]
-      ['**/*', '/app'] as [string, string],
-    ],
+    // Removed files property - let electron-forge handle file copying automatically
     finishArgs: [
       '--share=ipc',
       '--socket=x11',
