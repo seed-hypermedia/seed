@@ -65,10 +65,23 @@ const flatpakConfig = {
     ...commonLinuxConfig.options,
     id: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
     runtime: 'org.freedesktop.Platform',
-    runtimeVersion: '23.08',
+    runtimeVersion: '24.08', // Updated to match working Nextcloud config
     sdk: 'org.freedesktop.Sdk',
     base: 'org.electronjs.Electron2.BaseApp',
-    baseVersion: '23.08', // Use the same version as runtime for consistency
+    baseVersion: '24.08', // Updated to match working Nextcloud config
+    branch: 'stable',
+    modules: [
+      {
+        name: 'zypak',
+        sources: [
+          {
+            type: 'git',
+            url: 'https://github.com/refi64/zypak',
+            tag: 'v2024.01.17', // Updated to match working Nextcloud config
+          },
+        ],
+      },
+    ],
     files: [
       // Include all necessary files - each entry is [source, destination]
       ['**/*', '/app'] as [string, string],
