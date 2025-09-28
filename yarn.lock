@@ -3749,7 +3749,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@electron-forge/maker-base@npm:7.9.0":
+"@electron-forge/maker-base@npm:7.9.0, @electron-forge/maker-base@npm:^6.0.0 || ^7.0.0":
   version: 7.9.0
   resolution: "@electron-forge/maker-base@npm:7.9.0"
   dependencies:
@@ -10625,6 +10625,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@reforged/maker-appimage@npm:^5.1.0":
+  version: 5.1.0
+  resolution: "@reforged/maker-appimage@npm:5.1.0"
+  dependencies:
+    "@electron-forge/maker-base": ^6.0.0 || ^7.0.0
+    "@reforged/maker-types": ^2.0.0
+    "@spacingbat3/lss": ^1.0.0
+    semver: ^7.3.8
+  checksum: a2fe9adee43edbe62d8817e68d5ad036187f2806648d8faeaa13cf554e08ccca5eed3b4c994558c4a37ac490e71a757f86652bb0e4be63052e26ca2e6dcf07b3
+  languageName: node
+  linkType: hard
+
+"@reforged/maker-types@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@reforged/maker-types@npm:2.0.0"
+  checksum: f8311caeddc22ec39f2dd400333c8bb5c2d401d188a21c928231942e6da9021bec4a8c0c792a22c3854de58ad9afc51c7e344790943788a0d4f7dd604d5a51d0
+  languageName: node
+  linkType: hard
+
 "@remirror/core-constants@npm:^2.0.2":
   version: 2.0.2
   resolution: "@remirror/core-constants@npm:2.0.2"
@@ -11918,6 +11937,7 @@ __metadata:
     "@playwright/test": 1.40.1
     "@radix-ui/colors": 0.1.9
     "@radix-ui/react-dropdown-menu": 2.0.5
+    "@reforged/maker-appimage": ^5.1.0
     "@sentry/electron": 4.7.0
     "@sentry/tracing": 7.49.0
     "@sentry/vite-plugin": latest
@@ -13104,6 +13124,13 @@ __metadata:
     "@smithy/types": ^4.3.1
     tslib: ^2.6.2
   checksum: 0fb8f5bd351f875f50e4b82845eb427f42d200dd49d39001be3c1f8da6c08383e41c2fcfb5a53fb628211210fe181da30c3c60cb3923805a2063df5cf1be6dd7
+  languageName: node
+  linkType: hard
+
+"@spacingbat3/lss@npm:^1.0.0":
+  version: 1.2.0
+  resolution: "@spacingbat3/lss@npm:1.2.0"
+  checksum: 7fa48f95e94c6a763a4c886eda65f964ad1a39bb5e3e3c439ab6ce4794b4712724badef90f16115707b2a74b066856eb3825f2510d5adaa9b7aa2d4f22d6f2b2
   languageName: node
   linkType: hard
 
@@ -34125,7 +34152,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7.1.1, semver@npm:^7.1.3, semver@npm:^7.2.1, semver@npm:^7.3.2, semver@npm:^7.3.4, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.5.3, semver@npm:^7.5.4, semver@npm:^7.6.0, semver@npm:^7.6.3, semver@npm:^7.7.2":
+"semver@npm:^7.1.1, semver@npm:^7.1.3, semver@npm:^7.2.1, semver@npm:^7.3.2, semver@npm:^7.3.4, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.3.8, semver@npm:^7.5.2, semver@npm:^7.5.3, semver@npm:^7.5.4, semver@npm:^7.6.0, semver@npm:^7.6.3, semver@npm:^7.7.2":
   version: 7.7.2
   resolution: "semver@npm:7.7.2"
   bin:
