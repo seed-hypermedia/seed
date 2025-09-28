@@ -5,6 +5,7 @@ import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 // import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
+import {MakerAppImage, MakerAppImageConfig} from '@reforged/maker-appimage'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
@@ -183,6 +184,7 @@ const config: ForgeConfig = {
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
     new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
+    new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
     // Temporarily disabled - focusing on flatpak first
     // new MakerSnap(snapConfig as MakerSnapConfig),
   ],
