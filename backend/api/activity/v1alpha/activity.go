@@ -138,56 +138,56 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		%s
 		WHERE %s %s;
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
-	conn, cancel, err := srv.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
 
 	pageSize := req.PageSize
 	if len(req.AddLinkedResource) > 0 {
 		pageSize = req.PageSize * 2
 	}
-	err = sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
-		id := stmt.ColumnInt64(0)
-		eventType := stmt.ColumnText(1)
-		author := stmt.ColumnBytes(2)
-		resource := stmt.ColumnText(3)
-		// Structural timestamp (ms) used for DB paging
-		structTsMillis := stmt.ColumnInt64(4)
-		eventTime := timestamppb.New(time.UnixMilli(structTsMillis))
-		observeTime := timestamppb.New(time.Unix(stmt.ColumnInt64(5), 0))
-		mhash := stmt.ColumnBytes(6)
-		codec := stmt.ColumnInt64(7)
-		tsid := blob.TSID(stmt.ColumnText(8))
-		extraAttrs := stmt.ColumnText(9)
-		accountID := core.Principal(author).String()
-		cID := cid.NewCidV1(uint64(codec), mhash)
-		if eventType == "Comment" {
-			resource = "hm://" + accountID + "/" + tsid.String()
-			eventTime = timestamppb.New(tsid.Timestamp())
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
+			id := stmt.ColumnInt64(0)
+			eventType := stmt.ColumnText(1)
+			author := stmt.ColumnBytes(2)
+			resource := stmt.ColumnText(3)
+			// Structural timestamp (ms) used for DB paging
+			structTsMillis := stmt.ColumnInt64(4)
+			eventTime := timestamppb.New(time.UnixMilli(structTsMillis))
+			observeTime := timestamppb.New(time.Unix(stmt.ColumnInt64(5), 0))
+			mhash := stmt.ColumnBytes(6)
+			codec := stmt.ColumnInt64(7)
+			tsid := blob.TSID(stmt.ColumnText(8))
+			extraAttrs := stmt.ColumnText(9)
+			accountID := core.Principal(author).String()
+			cID := cid.NewCidV1(uint64(codec), mhash)
+			if eventType == "Comment" {
+				resource = "hm://" + accountID + "/" + tsid.String()
+				eventTime = timestamppb.New(tsid.Timestamp())
+			}
+			event := activity.Event{
+				Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
+					Cid:        cID.String(),
+					BlobType:   eventType,
+					Author:     accountID,
+					Resource:   resource,
+					ExtraAttrs: extraAttrs,
+					BlobId:     id,
+				}},
+				Account:     accountID,
+				EventTime:   eventTime,
+				ObserveTime: observeTime,
+			}
+			events = append(events, &event)
+			cursorTS = append(cursorTS, structTsMillis)
+			return nil
+		}, cursorBlobID, pageSize)
+		if err != nil {
+			return fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
 		}
-		event := activity.Event{
-			Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
-				Cid:        cID.String(),
-				BlobType:   eventType,
-				Author:     accountID,
-				Resource:   resource,
-				ExtraAttrs: extraAttrs,
-				BlobId:     id,
-			}},
-			Account:     accountID,
-			EventTime:   eventTime,
-			ObserveTime: observeTime,
-		}
-		events = append(events, &event)
-		cursorTS = append(cursorTS, structTsMillis)
 		return nil
-	}, cursorBlobID, pageSize)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
+	}); err != nil {
+		return nil, err
 	}
-	cancel()
+
 	if len(req.AddLinkedResource) > 0 {
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var eids []string
@@ -302,6 +302,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	// Next page token based on the minimum structural ts (ms) in the returned page.
 	var nextPageToken string
+	var err error
 	if pageLen > 0 && int(req.PageSize) == pageLen {
 		minTS := cursorTS[0]
 		for _, ts := range cursorTS[1:] {
