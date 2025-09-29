@@ -15,6 +15,7 @@ import {pluralS} from '../utils/language'
 
 const Translations = {
   Close: 'Cerrar',
+  Feed: 'Feed',
   version_count: (args: {count: number}) =>
     `${args.count} ${pluralS(args.count, 'versión', 'versiones')}`,
   comment_count: (args: {count: number}) =>

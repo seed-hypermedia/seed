@@ -157,9 +157,6 @@ export async function loadBlob<BlobSchema>(cid: string): Promise<BlobSchema> {
   const res = await fetch(`http://localhost:${DAEMON_HTTP_PORT}/ipfs/${cid}`)
   const cborData = await res.arrayBuffer()
   const data = decode(cborData)
-
-  // const data = await res.json()
-  console.log('~~! loadBlob', data)
   return data as BlobSchema
 }
 

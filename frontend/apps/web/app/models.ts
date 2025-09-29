@@ -15,14 +15,19 @@ import {
 } from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
-import {useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQuery,
+  UseQueryOptions,
+} from '@tanstack/react-query'
+import {serverOnly$} from 'vite-env-only/macros'
+import {grpcClient} from './client.server'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
+import {HMFeedPayload} from './routes/hm.api.feed'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
-import {serverOnly$} from 'vite-env-only/macros'
-import {grpcClient} from './client.server'
 
 export async function queryAPI<ResponsePayloadType>(url: string) {
   const response = await fetch(url)
@@ -128,6 +133,25 @@ export function useCitations(
   return response
 }
 
+export function useDocFeed(docId: UnpackedHypermediaId) {
+  return useInfiniteQuery(
+    [queryKeys.FEED, docId.id],
+    async ({pageParam}) => {
+      let url = `/hm/api/feed?id=${docId.id}`
+      if (pageParam) {
+        url += `&pageToken=${pageParam}`
+      }
+      return await queryAPI<HMFeedPayload>(url)
+    },
+    {
+      getNextPageParam: (lastPage, allPages) => {
+        const next = lastPage.nextPageToken
+        return next || undefined
+      },
+    },
+  )
+}
+
 export function useInteractionSummary(
   id: UnpackedHypermediaId,
   opts: {enabled?: boolean} = {},
@@ -147,13 +171,15 @@ export function resourceQuery(id: UnpackedHypermediaId): Promise<HMResource> {
     v: id?.version || '',
     l: id?.latest ? 'true' : '',
   }).toString()
-  const url = `/hm/api/resource/${id?.uid}${
+  const url = `http://localhost:3000/hm/api/resource/${id?.uid}${
     id?.path ? `/${id.path.join('/')}` : ''
   }?${queryString}`
+  console.log('WEB RESOURCE QUERY', url)
   return queryAPI<HMResource>(url)
 }
 
 export function injectModels() {
+  console.log('INJECTING MODELS')
   setSearchQuery(searchQuery)
   setResourceQuery(resourceQuery)
   setRecentsQuery(getRecents)
