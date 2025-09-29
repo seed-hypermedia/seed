@@ -464,7 +464,12 @@ export function CommentEditor({
             onPress={onAvatarPress}
           />
         ) : (
-          <UIAvatar url={avatarPlaceholder} size={32} onPress={onAvatarPress} />
+          <UIAvatar
+            url={avatarPlaceholder}
+            size={32}
+            onPress={onAvatarPress}
+            className="rounded-full"
+          />
         )}
       </div>
       <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
