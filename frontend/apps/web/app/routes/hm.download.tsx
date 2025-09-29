@@ -72,6 +72,8 @@ const releaseSchema = z.object({
       .object({
         rpm: assetSchema.optional(),
         deb: assetSchema.optional(),
+        app_image: assetSchema.optional(),
+        flatpak: assetSchema.optional(),
       })
       .optional(),
   }),
@@ -164,6 +166,16 @@ export default function DownloadPage() {
         large
         label="Download Seed for Linux (deb)"
         asset={stableRelease.assets?.linux?.deb}
+      />,
+      <ReleaseEntry
+        large
+        label="Download Seed for Linux (AppImage)"
+        asset={stableRelease.assets?.linux?.app_image}
+      />,
+      <ReleaseEntry
+        large
+        label="Download Seed for Linux (Flatpak)"
+        asset={stableRelease.assets?.linux?.flatpak}
       />,
     )
   }
