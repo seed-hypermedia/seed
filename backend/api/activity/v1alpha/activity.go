@@ -142,7 +142,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if err != nil {
 		return nil, err
 	}
-	defer cancel()
+
 	pageSize := req.PageSize
 	if len(req.AddLinkedResource) > 0 {
 		pageSize = req.PageSize * 2
@@ -184,8 +184,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return nil
 	}, cursorBlobID, pageSize)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
 	}
+	cancel()
 	if len(req.AddLinkedResource) > 0 {
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var eids []string
