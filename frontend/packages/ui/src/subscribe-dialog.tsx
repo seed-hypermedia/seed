@@ -27,7 +27,7 @@ export function SubscribeDialog({
   siteUrl,
 }: SubscribeDialogProps) {
   const [email, setEmail] = useState('')
-  const [isChecked, setIsChecked] = useState(false)
+  const [isChecked, setIsChecked] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
