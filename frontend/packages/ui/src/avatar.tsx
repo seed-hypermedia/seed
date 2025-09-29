@@ -76,7 +76,6 @@ export function UIAvatar({
       style={{
         width: size,
         height: size,
-        borderRadius: size,
         backgroundColor: url || !color ? 'var(--color1)' : color,
       }}
       onClick={onPress}

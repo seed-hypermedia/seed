@@ -10,10 +10,8 @@ import {
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Fragment, PropsWithChildren, useEffect, useRef, useState} from 'react'
-import {UIAvatar} from './avatar'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
-import {getDaemonFileUrl} from './get-file-url'
 import {Search} from './icons'
 import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
@@ -24,6 +22,7 @@ import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+import {HMIcon} from './hm-icon'
 
 export function MobileSearch({
   originHomeId,
@@ -354,31 +353,27 @@ export function SearchResultItem({
       variant="ghost"
       {...selectProps}
       className={cn(
-        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start rounded-none py-2',
+        'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start gap-3 rounded-none py-2', // added gap-3
         selected && 'bg-brand-12',
         className,
       )}
     >
-      <div className="flex h-5 items-center justify-center">
-        {item.icon ? (
-          <UIAvatar
-            label={item.title}
-            size={20}
-            id={item.key}
-            url={getDaemonFileUrl(item.icon)}
-          />
-        ) : item.path?.length === 1 ? (
-          <UIAvatar label={item.title} size={20} id={item.key} />
-        ) : null}
-      </div>
-      <div className="flex w-full flex-1 flex-col justify-start gap-1">
+      {/* Icon column (only takes space if present) */}
+      {item.icon && (
+        <div className="flex h-5 w-5 flex-none items-center justify-center">
+          {unpackedId ? <HMIcon id={unpackedId} icon={item.icon} /> : null}
+        </div>
+      )}
+
+      {/* Main (title/details) column */}
+      <div className="flex min-w-0 flex-1 flex-col justify-start gap-1">
         <SizableText className="line-clamp-1 h-5 w-full truncate text-left font-sans font-medium">
           {!!item.path && unpackedId?.blockRef
             ? item.path[item.path?.length - 1]
             : highlightSearchMatch(item.title, item.searchQuery)}
         </SizableText>
 
-        {unpackedId?.blockRef ? (
+        {unpackedId?.blockRef && (
           <SizableText
             size="xs"
             weight="light"
@@ -386,24 +381,26 @@ export function SearchResultItem({
           >
             ...{highlightSearchMatch(item.title, item.searchQuery)}...
           </SizableText>
-        ) : null}
+        )}
 
         {!!item.path && (unpackedId?.latest || item.versionTime) && (
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex flex-1 items-center">
-              {!!item.path ? (
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+            <div className="flex min-w-0 flex-1 items-center">
+              {!!item.path && (
                 <SizableText
                   size="xs"
                   weight="light"
-                  className="line-clamp-1 flex-none truncate font-sans text-gray-400"
+                  className="line-clamp-1 truncate font-sans text-gray-400"
                 >
                   {collapsedPath.join(' / ')}
                 </SizableText>
-              ) : null}
+              )}
             </div>
+
+            {/* Type column */}
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
-                className="line-clamp-1 flex-none text-gray-400"
+                className="flex-none whitespace-nowrap text-gray-400"
                 size="xs"
                 weight="light"
                 color={unpackedId?.latest ? 'success' : 'default'}

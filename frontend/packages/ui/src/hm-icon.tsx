@@ -57,7 +57,10 @@ function _HMIcon({
   const imageUrl = useImageUrl()
   if (!id) return null
 
-  if (id.path && id.path.length > 0 && !icon) {
+  const isHomeDocument = id.path && id.path.length === 0
+
+  // We decided that for non-home documents we don't want to show any icons, unless it's specified in the metadat.
+  if (!isHomeDocument && !icon) {
     return <></>
   }
 
@@ -69,7 +72,10 @@ function _HMIcon({
       url={icon ? imageUrl(icon, 'S') : undefined}
       className={cn(
         'flex-none',
-        id.path && id.path.length !== 0 ? 'rounded-sm' : 'rounded-full',
+        // We want home documents and profiles to have round icons,
+        // and normal documents to have square icons.
+        // This should help differentiate between "people" and "documents".
+        isHomeDocument ? 'rounded-full' : 'rounded-sm',
         className,
       )}
       {...props}
