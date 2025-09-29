@@ -12,11 +12,13 @@ import {
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {SizableText} from '@shm/ui/text'
 import {Providers} from './providers'
+import sonnerStyles from 'sonner/dist/styles.css?url'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 
 export const links: LinksFunction = () => {
   return [
+    {rel: 'stylesheet', href: sonnerStyles},
     {rel: 'stylesheet', href: globalStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
   ]
