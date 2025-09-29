@@ -53,6 +53,17 @@ export default function autoUpdate() {
     return
   }
 
+  // Check if running as AppImage
+  if (isRunningInAppImage()) {
+    log.info(
+      '[AUTO-UPDATE] Running as AppImage - skipping custom auto-update setup',
+    )
+    setTimeout(() => {
+      handleAppImageUpdates()
+    }, 2000) // Brief delay to ensure UI is ready
+    return
+  }
+
   // if (!isAutoUpdateSupported()) {
   //   log.debug('[MAIN][AUTO-UPDATE]: Auto-Update is not supported')
   //   return
@@ -148,6 +159,11 @@ function isRunningInFlatpak(): boolean {
   )
 }
 
+function isRunningInAppImage(): boolean {
+  // Check for AppImage environment indicator
+  return process.env.APPIMAGE !== undefined
+}
+
 function handleFlatpakUpdates() {
   log.info(
     '[AUTO-UPDATE] Running inside Flatpak - using native update mechanism',
@@ -164,10 +180,32 @@ function handleFlatpakUpdates() {
   }
 }
 
+function handleAppImageUpdates() {
+  log.info(
+    '[AUTO-UPDATE] Running as AppImage - using AppImage update mechanism',
+  )
+
+  // Send notification to user about AppImage updates
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    win.webContents.send('auto-update:status', {
+      type: 'appimage-info',
+      message:
+        'AppImage updates: Download the latest version from our website or use AppImageUpdate tool for efficient delta updates.',
+    })
+  }
+}
+
 export function customAutoUpdates() {
   // Check if running inside Flatpak
   if (isRunningInFlatpak()) {
     handleFlatpakUpdates()
+    return
+  }
+
+  // Check if running as AppImage
+  if (isRunningInAppImage()) {
+    handleAppImageUpdates()
     return
   }
 
