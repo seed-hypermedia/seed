@@ -46,7 +46,7 @@ async function loadContactEvent(
   event: Event,
 ): Promise<LoadedContactEvent | null> {
   const {author, cid, resource} = event.data.value || {}
-  const {observeTime} = event
+  const {eventTime} = event
 
   const contactData = cid ? await loadBlob<unknown>(cid) : null
   if (!author) return null
@@ -56,7 +56,7 @@ async function loadContactEvent(
   if (!resourceId) return null
   return {
     type: 'contact',
-    time: observeTime || {seconds: 0, nanos: 0},
+    time: eventTime || {seconds: 0, nanos: 0},
     author: {
       id: authorId,
       metadata: await getMetadata(authorId),
@@ -73,7 +73,7 @@ async function loadCapabilityEvent(
   event: Event,
 ): Promise<LoadedCapabilityEvent | null> {
   const {author, resource} = event.data.value || {}
-  const {observeTime, data: caapabilityBlob} = event
+  const {eventTime, data: caapabilityBlob} = event
   const newBlob = event.data.case === 'newBlob' ? event.data.value : null
   const {blobType, cid} = newBlob || {}
 
@@ -106,7 +106,7 @@ async function loadCapabilityEvent(
     },
     targetId: null,
     targetMetadata: null,
-    time: observeTime || {seconds: 0, nanos: 0},
+    time: eventTime || {seconds: 0, nanos: 0},
     delegates: [], // TODO: Load actual delegates when capability loading is implemented
     capabilityId: resourceId,
     capability: {
@@ -121,7 +121,7 @@ async function loadCommentEvent(
   event: Event,
 ): Promise<LoadedCommentEvent | null> {
   const {author, resource} = event.data.value || {}
-  const {observeTime} = event
+  const {eventTime} = event
 
   const resourceId = unpackHmId(resource)
   const resourceData = resourceId ? await loadResource(resourceId) : null
@@ -145,7 +145,7 @@ async function loadCommentEvent(
   return {
     id: resourceId.uid,
     type: 'comment',
-    time: observeTime || {seconds: 0, nanos: 0},
+    time: eventTime || {seconds: 0, nanos: 0},
     author: {
       id: authorId,
       metadata: await getMetadata(authorId),
