@@ -1,5 +1,4 @@
 import {draftMachine} from '@/models/draft-machine'
-import {useExperiments} from '@/models/experiments'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocAccessoryOption} from '@shm/shared/routes'
@@ -38,8 +37,6 @@ export function useDocumentAccessory({
   let accessory: ReactNode = null
   const accessoryKey = route.accessory?.key
   const accessoryOptions: Array<DocAccessoryOption> = []
-  const experiments = useExperiments()
-  const newFeed = experiments.data?.newFeed
 
   if (accessoryKey == 'citations') {
     accessory = (
@@ -54,7 +51,7 @@ export function useDocumentAccessory({
     )
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
-  } else if (accessoryKey === 'activity' && newFeed) {
+  } else if (accessoryKey === 'activity') {
     accessory = <FeedPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'collaborators') {
     // @ts-expect-error
@@ -101,7 +98,7 @@ export function useDocumentAccessory({
   if (docId) {
     accessoryOptions.push({
       key: 'activity',
-      label: newFeed ? 'Feed' : 'All',
+      label: 'Feed',
     })
 
     accessoryOptions.push({

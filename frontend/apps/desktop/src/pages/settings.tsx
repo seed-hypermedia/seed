@@ -82,7 +82,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {
   AtSign,
-  Biohazard,
   Check,
   Code2,
   Cog,
@@ -107,18 +106,18 @@ export default function Settings() {
     <div
       className={cn(
         windowContainerStyles,
-        'h-full max-h-full min-h-0 w-full overflow-hidden pt-0',
+        'overflow-hidden pt-0 w-full h-full min-h-0 max-h-full',
       )}
     >
       <div className={panelContainerStyles}>
         <Tabs
           onValueChange={(v) => setActiveTab(v)}
           defaultValue="accounts"
-          className="flex flex-1 flex-col overflow-hidden"
+          className="flex overflow-hidden flex-col flex-1"
         >
           <TabsList
             aria-label="Manage your account"
-            className="flex h-auto w-full flex-none shrink-0 items-center justify-center rounded-none bg-transparent p-0"
+            className="flex flex-none justify-center items-center p-0 w-full h-auto bg-transparent rounded-none shrink-0"
           >
             <Tab
               value="accounts"
@@ -144,12 +143,12 @@ export default function Settings() {
               icon={Info}
               label="App Info"
             />
-            <Tab
+            {/* <Tab
               value="experiments"
               active={activeTab === 'experiments'}
               icon={Biohazard}
               label="Experiments"
-            />
+            /> */}
             <Tab
               value="developer"
               active={activeTab === 'developer'}
@@ -170,9 +169,9 @@ export default function Settings() {
           <CustomTabsContent value="app-info">
             <AppSettings />
           </CustomTabsContent>
-          <CustomTabsContent value="experiments">
+          {/* <CustomTabsContent value="experiments">
             <ExperimentsSettings />
-          </CustomTabsContent>
+          </CustomTabsContent> */}
           <CustomTabsContent value="developer">
             <DeveloperSettings />
           </CustomTabsContent>
@@ -197,7 +196,7 @@ export function DeleteDraftLogs() {
           })
         }}
       >
-        <Trash className="mr-2 h-4 w-4" />
+        <Trash className="mr-2 w-4 h-4" />
         Confirm Delete Draft Log Folder?
       </Button>
     )
@@ -209,7 +208,7 @@ export function DeleteDraftLogs() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 h-4 w-4" />
+      <Trash className="mr-2 w-4 h-4" />
       Delete All Draft Logs
     </Button>
   )
@@ -230,7 +229,7 @@ export function DeleteAllRecents() {
           })
         }}
       >
-        <Trash className="mr-2 h-4 w-4" />
+        <Trash className="mr-2 w-4 h-4" />
         Confirm Delete All Recents?
       </Button>
     )
@@ -242,7 +241,7 @@ export function DeleteAllRecents() {
         setIsConfirming(true)
       }}
     >
-      <Trash className="mr-2 h-4 w-4" />
+      <Trash className="mr-2 w-4 h-4" />
       Delete All Recent Items
     </Button>
   )
@@ -336,7 +335,7 @@ export function DeveloperSettings() {
               openDraftLogs.mutate()
             }}
           >
-            <ExternalLink className="mr-2 h-4 w-4" />
+            <ExternalLink className="mr-2 w-4 h-4" />
             Open Draft Log Folder
           </Button>
           <DeleteDraftLogs />
@@ -362,15 +361,15 @@ export function ProfileForm({
   return (
     <>
       <div className="flex gap-4">
-        <div className="flex flex-shrink-0 flex-grow-0 flex-col items-center">
+        <div className="flex flex-col flex-grow-0 flex-shrink-0 items-center">
           <IconForm url={getDaemonFileUrl(profile?.icon)} />
         </div>
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-col flex-1 gap-3">
           <div className="flex flex-col">
             <Label htmlFor="accountid">Account Id</Label>
             <div className="flex">
               <Input
-                className="user-select-none flex-1 rounded-r-none"
+                className="flex-1 rounded-r-none user-select-none"
                 id="accountid"
                 disabled
                 value={accountId}
@@ -461,7 +460,7 @@ function AccountKeys() {
   return keys.data?.length && selectedAccount ? (
     <div className="flex flex-1 gap-3">
       <div className="flex max-w-[25%] flex-1 flex-col gap-2">
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-col flex-1">
           {keys.data?.map((key) => (
             <KeyItem
               item={key}
@@ -473,11 +472,11 @@ function AccountKeys() {
       </div>
       <div
         className={cn(
-          'border-border dark:bg-background bg-muted flex flex-[3] flex-col rounded-lg border',
+          'flex flex-col rounded-lg border border-border dark:bg-background bg-muted flex-[3]',
         )}
       >
         <div className="flex flex-col gap-4 p-4">
-          <div className="mb-4 flex gap-4">
+          <div className="flex gap-4 mb-4">
             {selectedAccountId ? (
               <HMIcon
                 id={selectedAccountId}
@@ -486,7 +485,7 @@ function AccountKeys() {
                 size={80}
               />
             ) : null}
-            <div className="mt-2 flex flex-1 flex-col gap-3">
+            <div className="flex flex-col flex-1 gap-3 mt-2">
               <Field id="username" label="Profile Name">
                 <Input
                   disabled
@@ -503,7 +502,7 @@ function AccountKeys() {
               <Field label="Secret Recovery Phrase" id="words">
                 <div className="flex gap-3">
                   <Textarea
-                    className="border-border flex-1 border"
+                    className="flex-1 border border-border"
                     rows={4}
                     disabled
                     value={
@@ -521,9 +520,9 @@ function AccountKeys() {
                       onClick={() => setShowWords((v) => !v)}
                     >
                       {showWords ? (
-                        <EyeOff className="h-4 w-4" />
+                        <EyeOff className="w-4 h-4" />
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <Eye className="w-4 h-4" />
                       )}
                     </Button>
                     <Button
@@ -535,14 +534,14 @@ function AccountKeys() {
                         toast.success('Words copied to clipboard')
                       }}
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="w-4 h-4" />
                     </Button>
 
                     <AlertDialog>
                       <Tooltip content="Delete words from device">
                         <AlertDialogTrigger asChild>
                           <Button size="sm" variant="destructive">
-                            <Trash className="h-4 w-4" />
+                            <Trash className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
                       </Tooltip>
@@ -556,7 +555,7 @@ function AccountKeys() {
                             words after you delete them. please save them
                             securely in another place before you delete
                           </AlertDialogDescription>
-                          <div className="flex justify-end gap-3">
+                          <div className="flex gap-3 justify-end">
                             <AlertDialogCancel asChild>
                               <Button variant="ghost">Cancel</Button>
                             </AlertDialogCancel>
@@ -591,7 +590,7 @@ function AccountKeys() {
             <Tooltip content="Delete account from device">
               <AlertDialogTrigger asChild>
                 <Button size="sm" variant="destructive" className="self-end">
-                  <Trash className="mr-2 h-4 w-4" />
+                  <Trash className="mr-2 w-4 h-4" />
                   Delete Account
                 </Button>
               </AlertDialogTrigger>
@@ -606,7 +605,7 @@ function AccountKeys() {
                   saved the Secret Recovery Phrase for this account if you want
                   to recover it later.
                 </AlertDialogDescription>
-                <div className="flex justify-end gap-3">
+                <div className="flex gap-3 justify-end">
                   <AlertDialogCancel asChild>
                     <Button variant="ghost">Cancel</Button>
                   </AlertDialogCancel>
@@ -643,12 +642,12 @@ function AccountKeys() {
       </div>
     </div>
   ) : (
-    <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-6">
-      <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+    <div className="flex flex-col flex-1 gap-4 justify-center items-center p-6 h-full">
+      <div className="flex justify-center items-center w-20 h-20 rounded-lg bg-muted">
         <UserRoundPlus size={50} className="text-muted-foreground" />
       </div>
       <SizableText size="xl">No Accounts Found</SizableText>
-      <p className="text-muted-foreground max-w-lg text-center">
+      <p className="max-w-lg text-center text-muted-foreground">
         Create a new profile to get started with Seed. You'll need to create a
         profile to use all the features.
       </p>
@@ -660,7 +659,7 @@ function AccountKeys() {
           console.log('Create new profile clicked')
         }}
       >
-        <Plus className="mr-2 h-4 w-4" />
+        <Plus className="mr-2 w-4 h-4" />
         Create a new Profile
       </Button>
     </div>
@@ -686,7 +685,7 @@ function AccountKeys() {
 // return (
 //   <SettingsSection title="Email Notifications">
 //     {isLoading ? (
-//       <div className="flex items-center gap-3">
+//       <div className="flex gap-3 items-center">
 //         <Spinner size="small" />
 //         <SizableText className="text-muted-foreground">
 //           Loading notification settings...
@@ -694,13 +693,13 @@ function AccountKeys() {
 //       </div>
 //     ) : hasError ? (
 //       <div className="flex flex-col gap-3">
-//         <div className="flex items-center gap-3">
+//         <div className="flex gap-3 items-center">
 //           <X className="text-destructive size-6" />
 //           <SizableText className="text-destructive">
 //             Unable to load email notification settings
 //           </SizableText>
 //         </div>
-//         <SizableText className="text-muted-foreground text-sm">
+//         <SizableText className="text-sm text-muted-foreground">
 //           This may be due to network issues or gateway configuration problems.
 //         </SizableText>
 //       </div>
@@ -731,7 +730,7 @@ function AccountKeys() {
 //           />
 //         )}
 //         {hasNoNotifs ? (
-//           <div className="flex items-center gap-3">
+//           <div className="flex gap-3 items-center">
 //             <X className="text-muted-foreground size-6" />
 //             <SizableText className="text-muted-foreground">
 //               No notifications enabled
@@ -740,7 +739,7 @@ function AccountKeys() {
 //         ) : null}
 //       </div>
 //     ) : (
-//       <div className="flex items-center gap-3">
+//       <div className="flex gap-3 items-center">
 //         <SizableText className="text-muted-foreground">
 //           No email notification settings configured
 //         </SizableText>
@@ -757,7 +756,7 @@ function AccountKeys() {
 //           })
 //         }
 //       >
-//         <Pencil className="mr-2 h-4 w-4" />
+//         <Pencil className="mr-2 w-4 h-4" />
 //         Edit Notification Settings
 //       </Button>
 //     </div>
@@ -769,7 +768,7 @@ function AccountKeys() {
 
 function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex gap-3 items-center">
       <div className="w-6">
         {checked ? <Check className="text-primary size-4" /> : null}
       </div>
@@ -815,7 +814,7 @@ function LinkedDevices({
           variant="default"
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 w-4 h-4" />
           Link Web Session
         </Button>
       </div>
@@ -857,7 +856,7 @@ function LinkDeviceDialog({
             }}
           >
             Close
-            <Check className="ml-2 h-4 w-4" />
+            <Check className="ml-2 w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -943,7 +942,7 @@ function DeviceLabelForm({
 
   if (linkDevice.isLoading) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -994,7 +993,7 @@ function KeyItem({
     <Button
       variant={isActive ? 'secondary' : 'ghost'}
       onClick={onSelect}
-      className="h-auto w-full items-start"
+      className="items-start w-full h-auto"
     >
       <HMIcon
         id={id}
@@ -1002,10 +1001,10 @@ function KeyItem({
         icon={document?.metadata?.icon}
         size={24}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex overflow-hidden flex-col flex-1">
         <SizableText
           weight={isActive ? 'bold' : 'normal'}
-          className="h-6 truncate text-left"
+          className="h-6 text-left truncate"
         >
           {document?.metadata.name || item}
         </SizableText>
@@ -1030,16 +1029,16 @@ export function ExperimentSection({
   return (
     <div
       className={cn(
-        'dark:bg-background bg-muted flex items-center gap-6 rounded border p-3 px-6',
+        'flex gap-6 items-center p-3 px-6 rounded border dark:bg-background bg-muted',
       )}
     >
       <SizableText size="2xl">{experiment.emoji}</SizableText>
-      <div className="flex flex-1 flex-col gap-3">
+      <div className="flex flex-col flex-1 gap-3">
         <div className="flex flex-1 gap-3">
           <SizableText size="xl">{experiment.label}</SizableText>
         </div>
         <SizableText>{experiment.description}</SizableText>
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           {value ? <EnabledTag /> : <div />}
           <Button
             variant={value ? 'destructive' : 'default'}
@@ -1057,7 +1056,7 @@ export function ExperimentSection({
 
 function EnabledTag() {
   return (
-    <div className="flex items-center gap-3 rounded-sm px-3 py-1">
+    <div className="flex gap-3 items-center px-3 py-1 rounded-sm">
       <Check className="text-brand size-4" />
       <SizableText size="sm" className="text-brand" weight="bold">
         Enabled
@@ -1087,12 +1086,6 @@ const EXPERIMENTS = //: ExperimentType[]
     //   emoji: '🍀',
     //   description: 'Embed Nostr notes into documents for permanent referencing.',
     // },
-    {
-      key: 'newFeed',
-      label: 'New Feed',
-      emoji: '🍿',
-      description: 'Test the new feed experience.',
-    },
   ] as const
 
 function GatewaySettings({}: {}) {
@@ -1112,7 +1105,7 @@ function GatewaySettings({}: {}) {
       <TableList>
         <InfoListHeader title="URL" />
         <TableList.Item>
-          <div className="flex w-full gap-3">
+          <div className="flex gap-3 w-full">
             <Input className="flex-1" value={gwUrl} onChangeText={setGWUrl} />
             <Button
               size="sm"
@@ -1211,7 +1204,7 @@ function PushOnCopySetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex items-center gap-2" key={option.value}>
+              <div className="flex gap-2 items-center" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
@@ -1308,7 +1301,7 @@ function PushOnPublishSetting({}: {}) {
             // {value: 'ask', label: 'Ask'},
           ].map((option) => {
             return (
-              <div className="flex items-center gap-2" key={option.value}>
+              <div className="flex gap-2 items-center" key={option.value}>
                 <RadioGroupItem
                   value={option.value}
                   id={`${id}-${option.value}`}
@@ -1324,30 +1317,30 @@ function PushOnPublishSetting({}: {}) {
   )
 }
 
-function ExperimentsSettings({}: {}) {
-  const experiments = useExperiments()
-  const writeExperiments = useWriteExperiments()
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="my-4 flex flex-col space-y-4 self-stretch">
-        {EXPERIMENTS.map((experiment) => {
-          return (
-            <ExperimentSection
-              key={experiment.key}
-              id={experiment.key}
-              value={!!experiments.data?.[experiment.key]}
-              experiment={experiment}
-              onValue={(isEnabled) => {
-                console.log(experiment.key, 'isEnabled', isEnabled)
-                writeExperiments.mutate({[experiment.key]: isEnabled})
-              }}
-            />
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+// function ExperimentsSettings({}: {}) {
+//   const experiments = useExperiments()
+//   const writeExperiments = useWriteExperiments()
+//   return (
+//     <div className="flex flex-col gap-3">
+//       <div className="flex flex-col self-stretch my-4 space-y-4">
+//         {EXPERIMENTS.map((experiment) => {
+//           return (
+//             <ExperimentSection
+//               key={experiment.key}
+//               id={experiment.key}
+//               value={!!experiments.data?.[experiment.key]}
+//               experiment={experiment}
+//               onValue={(isEnabled) => {
+//                 console.log(experiment.key, 'isEnabled', isEnabled)
+//                 writeExperiments.mutate({[experiment.key]: isEnabled})
+//               }}
+//             />
+//           )
+//         })}
+//       </div>
+//     </div>
+//   )
+// }
 
 function DeviceItem({id}: {id: string}) {
   let {data} = usePeerInfo(id)
@@ -1435,7 +1428,7 @@ function AppSettings() {
             </div>
             <Tooltip content="Check for app updates automatically on Launch">
               <Button size="sm" variant="ghost" className="bg-transparent">
-                <Info className="h-4 w-4" />
+                <Info className="w-4 h-4" />
               </Button>
             </Tooltip>
           </div>
@@ -1454,7 +1447,7 @@ function AppSettings() {
                     toast.success('Copied Routing Address successfully')
                   }}
                 >
-                  <Copy className="mr-2 h-4 w-4" />
+                  <Copy className="mr-2 w-4 h-4" />
                   Copy Addresses
                 </Button>
               </Tooltip>
@@ -1521,7 +1514,7 @@ function AppSettings() {
                   toast.success('Copied Build Info successfully')
                 }}
               >
-                <Copy className="mr-2 h-4 w-4" />
+                <Copy className="mr-2 w-4 h-4" />
                 Copy Debug Info
               </Button>
             </Tooltip>
@@ -1558,11 +1551,11 @@ function AppSettings() {
 const CustomTabsContent = (props: React.ComponentProps<typeof TabsContent>) => {
   return (
     <TabsContent
-      className="flex flex-1 flex-col gap-3 overflow-hidden"
+      className="flex overflow-hidden flex-col flex-1 gap-3"
       {...props}
     >
       <ScrollArea>
-        <div className="flex flex-1 flex-col gap-4 p-4 pb-5">
+        <div className="flex flex-col flex-1 gap-4 p-4 pb-5">
           {props.children}
         </div>
       </ScrollArea>
@@ -1610,7 +1603,7 @@ function SettingsSection({
   return (
     <div
       className={cn(
-        'dark:bg-background bg-muted flex flex-col gap-3 rounded p-3',
+        'flex flex-col gap-3 p-3 rounded dark:bg-background bg-muted',
       )}
     >
       <SizableText size="2xl">{title}</SizableText>

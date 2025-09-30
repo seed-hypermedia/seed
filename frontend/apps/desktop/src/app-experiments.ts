@@ -13,7 +13,6 @@ const experimentsZ = z
     developerTools: z.boolean().optional(),
     pubContentDevMenu: z.boolean().optional(),
     newLibrary: z.boolean().optional(),
-    newFeed: z.boolean().optional(),
   })
   .strict()
 type Experiments = z.infer<typeof experimentsZ>
