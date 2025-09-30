@@ -598,8 +598,8 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             <Button
               size="icon"
               key={key}
-              onMouseEnter={ctx.onMenuHover}
-              onMouseLeave={ctx.onMenuHoverLeave}
+              // onMouseEnter={ctx.onMenuHover}
+              // onMouseLeave={ctx.onMenuHoverLeave}
               onClick={handleClick}
             >
               {icon}
