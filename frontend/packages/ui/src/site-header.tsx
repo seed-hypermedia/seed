@@ -188,13 +188,13 @@ export function SiteHeader({
             <Tooltip content="toggle Site Feed">
               <Button
                 size="xs"
-                variant={isMainFeedVisible ? 'default' : 'outline'}
+                variant={isMainFeedVisible ? 'default' : undefined}
                 onClick={() => {
                   console.log('== FEED SITE HEADER CLICK')
                   handleToggleFeed()
                 }}
               >
-                <Sparkle className="size-3" />
+                <Sparkle className="size-4" />
               </Button>
             </Tooltip>
             {headerSearch}

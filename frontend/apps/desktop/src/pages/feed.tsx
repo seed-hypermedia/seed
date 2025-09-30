@@ -2,6 +2,7 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
+import {FeedPanel} from '@/components/feed-panel'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {DesktopCommentsService} from '@/desktop-comments-service'
 import {
@@ -303,12 +304,16 @@ function _FeedContent({
               {...mainContentProps}
               className={cn(
                 mainContentProps.className,
-                'base-doc-container relative mt-5 sm:mr-10 sm:ml-0',
+                'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
               )}
             >
               <Text weight="bold" size="3xl">
                 What's New
               </Text>
+              <TSeparator />
+              <div className="-mx-5">
+                <FeedPanel docId={id} />
+              </div>
             </Container>
             {showSidebars ? (
               <div
