@@ -1166,6 +1166,7 @@ function BlockContentImage({
   const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
     'closed',
   )
+  const [imageHeight, setImageHeight] = useState<number>(0)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -1271,6 +1272,7 @@ function BlockContentImage({
           className={cn(
             'max-w-full cursor-pointer',
             comment &&
+              imageHeight > 60 &&
               'max-h-[120px] overflow-hidden [mask-image:linear-gradient(to_bottom,black_calc(100%_-_30px),transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_calc(100%_-_30px),transparent_100%)]',
           )}
           style={{
@@ -1293,6 +1295,10 @@ function BlockContentImage({
             }}
             onClick={() => {
               handleDoubleClick()
+            }}
+            onLoad={(e) => {
+              const img = e.currentTarget
+              setImageHeight(img.offsetHeight)
             }}
             className="transition-transform duration-200"
           />
