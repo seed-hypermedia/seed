@@ -1185,3 +1185,9 @@ export const siteDiscoverRequestSchema = z.object({
 })
 
 export type SiteDiscoverRequest = z.infer<typeof siteDiscoverRequestSchema>
+
+// export const HMFeedPayloadSchema = z.object({
+//   events: z.array(HMFeedEventSchema),
+//   nextPageToken: z.string(),
+// })
+// export type HMFeedPayload = z.infer<typeof HMFeedPayloadSchema>

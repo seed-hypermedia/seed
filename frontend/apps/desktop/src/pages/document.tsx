@@ -72,7 +72,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, FilePlus, MessageSquare} from 'lucide-react'
+import {AlertCircle, Asterisk, FilePlus, MessageSquare} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -186,7 +186,7 @@ export default function DocumentPage() {
           }
         }}
       >
-        <div className="flex h-full flex-1 flex-col">
+        <div className="flex flex-col flex-1 h-full">
           <AccessoryLayout
             mainPanelRef={mainPanelRef}
             accessory={accessory}
@@ -339,7 +339,7 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
       />
       <div
-        className="relative flex flex-1 flex-col overflow-hidden"
+        className="flex overflow-hidden relative flex-col flex-1"
         ref={elementRef}
       >
         <DocInteractionsSummary docId={id} />
@@ -357,7 +357,7 @@ function _MainDocumentPage({
                 }}
               >
                 <div
-                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
+                  className="flex overflow-scroll flex-col h-full hide-scrollbar"
                   // paddingVertical="$4"
                 >
                   <DocNavigation showCollapsed={showCollapsed} />
@@ -374,7 +374,7 @@ function _MainDocumentPage({
               )}
             >
               {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
+              <div className="flex-1 pl-4 mt-4 mb-16 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
                   blockRange={id.blockRange}
@@ -409,8 +409,16 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   if (!docRoute) return null
   if (docRoute.accessory) return null
   return (
-    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
+    <div className="absolute top-2 right-2 z-40 bg-white rounded-md shadow-md dark:bg-background">
       <div className="flex">
+        <InteractionSummaryItem
+          label="activity"
+          count={interactionSummary.data?.changes || 0}
+          onPress={() => {
+            replace({...docRoute, accessory: {key: 'activity'}})
+          }}
+          icon={<Asterisk size={16} color="currentColor" />}
+        />
         <InteractionSummaryItem
           label="version"
           count={interactionSummary.data?.changes || 0}
@@ -575,13 +583,13 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <Container
-      className="dark:bg-background w-full rounded-lg bg-white"
+      className="w-full bg-white rounded-lg dark:bg-background"
       style={{
         marginTop: hasCover ? -40 : 0,
         paddingTop: !hasCover ? 60 : 24,
       }}
     >
-      <div className="group flex flex-col gap-4" data-group="header">
+      <div className="flex flex-col gap-4 group" data-group="header">
         {hasIcon ? (
           <div
             className="flex"
@@ -606,7 +614,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
           </SeedHeading>
         </div>
         {resource.data.document?.metadata?.summary ? (
-          <span className="font-body text-muted-foreground text-xl">
+          <span className="text-xl font-body text-muted-foreground">
             {resource.data.document?.metadata?.summary}
           </span>
         ) : null}
@@ -616,11 +624,11 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
               siteUrl={resource.data?.document?.metadata.siteUrl}
             />
           ) : null}
-          <div className="flex flex-1 items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
+          <div className="flex flex-1 gap-3 justify-between items-center">
+            <div className="flex flex-wrap flex-1 gap-3 items-center">
               {resource.data?.document?.path.length || authors?.length !== 1 ? (
                 <>
-                  <div className="flex max-w-full flex-wrap items-center gap-1">
+                  <div className="flex flex-wrap gap-1 items-center max-w-full">
                     {authors
                       ?.map((a, index) => {
                         const contact = authorContacts[a]
@@ -669,7 +677,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                       })
                       .filter(Boolean)}
                   </div>
-                  <div className="bg-border h-6 w-px" />
+                  <div className="w-px h-6 bg-border" />
                 </>
               ) : null}
               {resource.data?.document ? (
@@ -733,10 +741,10 @@ function DocMessageBox({
 }) {
   return (
     <div className={cn(panelContainerStyles)}>
-      <div className="mx-auto px-8 py-10">
-        <div className="border-border bg-background flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
+      <div className="px-8 py-10 mx-auto">
+        <div className="flex flex-col flex-none gap-4 p-6 w-full max-w-lg rounded-lg border shadow-lg border-border bg-background dark:bg-black">
           {spinner ? (
-            <div className="flex items-center justify-start">
+            <div className="flex justify-start items-center">
               <Spinner className="size-6 fill-blue-500" />
             </div>
           ) : null}
