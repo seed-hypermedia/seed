@@ -1,7 +1,7 @@
-import {setGroupTypes} from '@/utils'
 import {Editor, Extension} from '@tiptap/core'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {Plugin} from 'prosemirror-state'
+import {setGroupTypes} from '../../../../utils'
 import {getPrevBlockInfo} from '../../api/blockManipulation/commands/mergeBlocks'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
