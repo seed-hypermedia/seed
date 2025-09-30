@@ -38,6 +38,7 @@ var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./document'))
+var Feed = lazy(() => import('./feed'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
@@ -254,6 +255,11 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Drafts,
         Fallback: BaseLoading,
+      }
+    case 'feed':
+      return {
+        PageComponent: Feed,
+        Fallback: DocumentPlaceholder,
       }
     default:
       return {

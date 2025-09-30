@@ -125,7 +125,7 @@ export function TitleContent({
   if (route.key === 'contact') {
     return <ContactTitle route={route} />
   }
-  if (route.key === 'document') {
+  if (route.key === 'document' || route.key === 'feed') {
     return <BreadcrumbTitle entityId={route.id} onPublishSite={onPublishSite} />
   }
   if (route.key === 'draft') {
@@ -158,6 +158,8 @@ function BreadcrumbTitle({
   draft?: boolean
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
+  const navigate = useNavigate('push')
+  const route = useNavRoute()
   const contacts = useSelectedAccountContacts()
   const latestDoc = useResource({...entityId, version: null, latest: true})
   const isLatest =
@@ -397,6 +399,30 @@ function BreadcrumbTitle({
       className="flex items-center gap-2 overflow-hidden"
     >
       <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
+        <Button
+          className="no-window-drag"
+          variant="outline"
+          size="xs"
+          onClick={() => {
+            console.log('=== ROUTING', route)
+            if (route.key == 'document') {
+              navigate({
+                key: 'feed',
+                id: route.id,
+                accessory: route.accessory,
+              })
+            } else if (route.key == 'feed') {
+              navigate({
+                ...route,
+                key: 'document',
+              })
+            } else {
+              console.log('FEED: impossible routing', route)
+            }
+          }}
+        >
+          Feed
+        </Button>
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [

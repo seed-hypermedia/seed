@@ -111,7 +111,14 @@ export const documentRouteSchema = z.object({
   accessory: documentAccessorySchema.nullable().optional(),
 })
 
+export const feedRouteSchema = z.object({
+  key: z.literal('feed'),
+  id: unpackedHmIdSchema,
+  accessory: documentAccessorySchema.nullable().optional(),
+})
+
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
+export type FeedRoute = z.infer<typeof feedRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
@@ -170,6 +177,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   favoritesSchema,
   draftsSchema,
   deletedContentRouteSchema,
+  feedRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 

@@ -1,11 +1,8 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {triggerCommentDraftFocus} from '@/components/commenting'
-import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
-import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {useTemplateDialog} from '@/components/site-template'
 import {DesktopCommentsService} from '@/desktop-comments-service'
 import {
   roleCanWrite,
@@ -18,15 +15,9 @@ import {
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {
-  createNotifierRequester,
-  getAccountNotifsSafe,
-} from '@/models/email-notifications'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
-import {useGatewayUrl} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -70,17 +61,18 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, Asterisk, FilePlus, MessageSquare} from 'lucide-react'
+import {AlertCircle, FilePlus, MessageSquare} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
-export default function DocumentPage() {
+export default function FeedPage() {
   const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
 
-  const docId = route.key == 'document' && route.id
+  const docId = route.key == 'feed' && route.id
+
+  console.log(`== ~ FeedPage ~ docId:`, docId)
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
@@ -89,38 +81,7 @@ export default function DocumentPage() {
 
   const {accessory, accessoryOptions} = useDocumentAccessory({docId})
 
-  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
-  const immediatePromptNotifs =
-    route.immediatelyPromptNotifs && !route.id?.path?.length
-
-  const gatewayUrl = useGatewayUrl()
-  const markPromptedKey = trpc.prompting.markPromptedKey.useMutation()
-
-  useEffect(() => {
-    if (immediatePromptNotifs) {
-      getAccountNotifsSafe(
-        createNotifierRequester(gatewayUrl.data),
-        route.id.uid,
-      ).then((result) => {
-        if (result && !result.account?.email) {
-          notifSettingsDialog.open({
-            accountUid: route.id.uid,
-            title: 'Get Emailed when Important Things Happen Here',
-          })
-          markPromptedKey.mutate({
-            key: `account-email-notifs-${route.id.uid}`,
-            isPrompted: true,
-          })
-        } else {
-          // 'notifs already set on server! or disconnected from server',
-        }
-      })
-      replace({...route, immediatelyPromptNotifs: false})
-    }
-  }, [immediatePromptNotifs])
-
   const mainPanelRef = useRef<HTMLDivElement>(null)
-  const templateDialogContent = useTemplateDialog(route)
 
   return (
     <>
@@ -134,7 +95,7 @@ export default function DocumentPage() {
 
           if (targetRoute) {
             push({
-              key: 'document',
+              key: route.key,
               id: targetRoute,
               accessory: {
                 key: 'discussions',
@@ -163,7 +124,7 @@ export default function DocumentPage() {
           if (targetRoute) {
             // comment target is not the same as the route, so we need to change the whole route
             push({
-              key: 'document',
+              key: route.key,
               id: targetRoute,
               accessory: {
                 key: 'discussions',
@@ -198,7 +159,7 @@ export default function DocumentPage() {
           >
             <MainDocumentPage
               id={route.id}
-              isBlockFocused={route.isBlockFocused || false}
+              isBlockFocused={false}
               onScrollParamSet={useCallback((isFrozen) => {
                 mainPanelRef.current?.style.setProperty(
                   'overflow',
@@ -215,8 +176,6 @@ export default function DocumentPage() {
             />
           </AccessoryLayout>
         </div>
-        {templateDialogContent}
-        {notifSettingsDialog.content}
       </CommentsProvider>
     </>
   )
@@ -305,20 +264,17 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  // @ts-ignore
   if (resource.isInitialLoading) return null
 
-  // @ts-ignore
   if (resource.data?.type === 'redirect') {
     return (
-      // @ts-ignore
       <DocRedirected docId={id} redirectTarget={resource.data.redirectTarget} />
     )
   }
 
   {
   }
-  // @ts-ignore
+
   if (resource.data?.type === 'not-found') {
     return <DocDiscovery />
   }
@@ -349,18 +305,7 @@ function _MainDocumentPage({
               <div
                 {...sidebarProps}
                 className={`${sidebarProps.className || ''} flex flex-col`}
-                style={{
-                  ...sidebarProps.style,
-                  marginTop: document?.metadata.cover ? 152 : 220,
-                }}
-              >
-                <div
-                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
-                  // paddingVertical="$4"
-                >
-                  <DocNavigation showCollapsed={showCollapsed} />
-                </div>
-              </div>
+              />
             ) : null}
 
             <Container
@@ -371,15 +316,7 @@ function _MainDocumentPage({
                 'base-doc-container relative sm:mr-10 sm:ml-0',
               )}
             >
-              {isHomeDoc ? null : <DocPageHeader docId={id} />}
-              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
-                <DocPageContent
-                  blockRef={id.blockRef}
-                  blockRange={id.blockRange}
-                  resource={resource.data}
-                  isBlockFocused={isBlockFocused}
-                />
-              </div>
+              <h1>FEED HERE</h1>
             </Container>
             {showSidebars ? (
               <div
@@ -409,14 +346,6 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   return (
     <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
       <div className="flex">
-        <InteractionSummaryItem
-          label="activity"
-          count={interactionSummary.data?.changes || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'activity'}})
-          }}
-          icon={<Asterisk size={16} color="currentColor" />}
-        />
         <InteractionSummaryItem
           label="version"
           count={interactionSummary.data?.changes || 0}

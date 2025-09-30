@@ -348,7 +348,6 @@ function _CommentDraftEditor({
   )
 }
 
-const autosaveIndicatorSize = 6
 function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
   const currentIsSaved = useStream(isSaved)
   return (
@@ -375,7 +374,7 @@ function CommentReference({reference}: {reference: string | null}) {
   const referenceContent = useMemo(() => {
     const content =
       // @ts-ignore
-      referenceData.data?.type === 'document'
+      referenceData.data?.type == 'document'
         ? // @ts-ignore
           referenceData.data.document?.content
         : undefined
@@ -396,7 +395,7 @@ function CommentReference({reference}: {reference: string | null}) {
 
   const highlight = useMemo(() => {
     if (!referenceId) return false
-    if (route.key !== 'document') return false
+    if (route.key != 'document' && route.key != 'feed') return false
     if (!route.id) return false
     if (!referenceId.blockRef) return false
     return referenceId.blockRef == route.id.blockRef
@@ -423,10 +422,14 @@ function CommentReference({reference}: {reference: string | null}) {
         }
       }}
       onClick={() => {
-        if (route.key == 'document' && referenceId?.blockRef) {
+        if (
+          (route.key == 'document' || route.key == 'feed') &&
+          referenceId?.blockRef
+        ) {
           navigate({
             ...route,
-            isBlockFocused: false,
+            // @ts-expect-error
+            isBlockFocused: route.key == 'feed' ? undefined : false,
             id: {
               ...route.id,
               blockRef: referenceId.blockRef,

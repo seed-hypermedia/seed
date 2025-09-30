@@ -125,15 +125,22 @@ export function routeToHref(
   },
 ) {
   const docRoute =
-    typeof route !== 'string' && route.key === 'document' ? route : null
+    typeof route !== 'string' &&
+    (route.key == 'document' || route.key == 'feed')
+      ? route
+      : null
   const docId =
-    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
+    typeof route === 'string'
+      ? null
+      : route.key == 'document' || route.key == 'feed'
+      ? route.id
+      : null
   const activeCommentId =
-    docRoute?.accessory?.key === 'discussions'
+    docRoute?.accessory?.key == 'discussions'
       ? docRoute.accessory?.openComment
       : null
   let href: string | undefined = undefined
-  if (typeof route === 'string') {
+  if (typeof route == 'string') {
     href = route
   } else if (activeCommentId) {
     const [accountUid, commentTsid] = activeCommentId.split('/')

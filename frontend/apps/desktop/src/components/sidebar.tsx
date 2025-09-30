@@ -37,7 +37,7 @@ export function MainAppSidebar() {
       <CreateDocumentButton />
       <SmallListItem
         active={
-          route.key == 'document' &&
+          (route.key == 'document' || route.key == 'feed') &&
           route.id.uid == selectedAccountId &&
           route.id.path?.length == 0
         }

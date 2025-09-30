@@ -55,6 +55,8 @@ export function getRouteKey(route: NavRoute): string {
   }
   if (route.key == 'document')
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
+  if (route.key == 'feed')
+    return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
 

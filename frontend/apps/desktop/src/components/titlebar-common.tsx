@@ -21,7 +21,7 @@ import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {DocumentRoute, DraftRoute, FeedRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {
   displayHostname,
@@ -94,7 +94,7 @@ export function DocOptionsButton({
 }) {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
-  if (route.key !== 'document')
+  if (route.key !== 'document' && route.key !== 'feed')
     throw new Error(
       'DocOptionsButton can only be rendered on publication route',
     )
@@ -322,7 +322,7 @@ export function DocOptionsButton({
   )
 }
 
-function useExistingDraft(route: DocumentRoute) {
+function useExistingDraft(route: DocumentRoute | FeedRoute) {
   const drafts = useAccountDraftList(route.id.uid)
   const existingDraft = drafts.data?.find((d) => {
     // @ts-expect-error
@@ -336,7 +336,7 @@ function useExistingDraft(route: DocumentRoute) {
 function EditDocButton() {
   const route = useNavRoute()
 
-  if (route.key !== 'document')
+  if (route.key != 'document' && route.key != 'feed')
     throw new Error('EditDocButton can only be rendered on document route')
   const capability = useSelectedAccountCapability(route.id)
   const navigate = useNavigate()
@@ -431,7 +431,7 @@ export function PageActionButtons(props: TitleBarProps) {
         <DraftActionButtons route={route} />
       </TitlebarSection>
     )
-  } else if (route.key === 'document') {
+  } else if (route.key == 'document' || route.key == 'feed') {
     return <DocumentTitlebarButtons route={route} />
   }
   return null
@@ -477,7 +477,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   )
 }
 
-function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
+function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
   const latestDoc = useSubscribedResource(latestId(id))
   const isLatest =
@@ -493,7 +493,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute}) {
   const showPublishSiteButton =
     isHomeDoc &&
     canEditDoc &&
-    entity.data?.type === 'document' &&
+    entity.data?.type == 'document' &&
     !entity.data.document?.metadata.siteUrl
   return (
     <TitlebarSection>
@@ -611,7 +611,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   )
 }
 
-function GoToLatestVersionButton({route}: {route: DocumentRoute}) {
+function GoToLatestVersionButton({route}: {route: DocumentRoute | FeedRoute}) {
   const navigate = useNavigate('push')
 
   return (
@@ -638,7 +638,11 @@ function AccessorySidebarToggle() {
   const [currentAccessory, setCurrentAccessory] = useState<
     DocumentRoute['accessory'] | null | undefined
   >(() => {
-    if (route.key === 'document' || route.key == 'draft') {
+    if (
+      route.key == 'document' ||
+      route.key == 'draft' ||
+      route.key == 'feed'
+    ) {
       if (typeof route.accessory == 'undefined' || route.accessory == null) {
         return {key: 'discussions'}
       } else {
@@ -650,7 +654,11 @@ function AccessorySidebarToggle() {
   })
 
   useEffect(() => {
-    if (route.key === 'document' || route.key == 'draft') {
+    if (
+      route.key == 'document' ||
+      route.key == 'draft' ||
+      route.key == 'feed'
+    ) {
       if (typeof route.accessory == 'undefined' || route.accessory == null) {
         // setCurrentAccessory({key: 'discussions'})
       } else {
@@ -659,15 +667,21 @@ function AccessorySidebarToggle() {
     }
   }, [route])
 
-  if (route.key == 'document') {
+  if (route.key == 'document' || route.key == 'feed') {
     return (
       <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
         <Button
           size="icon"
           onClick={() => {
-            if (route.key === 'document') {
+            if (route.key == 'document') {
               replace({
                 ...route,
+                accessory: route.accessory ? null : currentAccessory,
+              })
+            } else if (route.key == 'feed') {
+              replace({
+                id: route.id,
+                key: route.key,
                 accessory: route.accessory ? null : currentAccessory,
               })
             }
