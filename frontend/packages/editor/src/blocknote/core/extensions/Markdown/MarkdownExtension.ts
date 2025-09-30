@@ -1,12 +1,13 @@
+import {setGroupTypes} from '@/utils'
+import {Editor, Extension} from '@tiptap/core'
+import {Fragment, Node} from '@tiptap/pm/model'
+import {Plugin} from 'prosemirror-state'
 import {getPrevBlockInfo} from '../../api/blockManipulation/commands/mergeBlocks'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
   getBlockInfoFromPos,
   getBlockInfoFromSelection,
 } from '../Blocks/helpers/getBlockInfoFromPos'
-import {Editor, Extension} from '@tiptap/core'
-import {Fragment, Node} from '@tiptap/pm/model'
-import {Plugin} from 'prosemirror-state'
 import {MarkdownToBlocks} from './MarkdownToBlocks'
 
 function containsMarkdownSymbols(pastedText: string) {
@@ -157,6 +158,7 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
           props: {
             handlePaste: (view, event, slice) => {
               const selectedNode = view.state.selection.$from.parent
+
               // Don't proceed if pasting into code block
               if (
                 selectedNode.type.name === 'code-block' ||
@@ -234,7 +236,6 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                   // @ts-ignore
                   organizedBlocks,
                 )
-                // @ts-expect-error
                 setGroupTypes(bnEditor._tiptapEditor, organizedBlocks)
               })
 

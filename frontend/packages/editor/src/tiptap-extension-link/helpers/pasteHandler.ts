@@ -1,3 +1,4 @@
+import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
@@ -545,84 +546,54 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return true
         }
 
+        // Check if there are any links in the pasted content
+        let hasLinksInContent = false
+        slice.content.forEach((node: any) => {
+          if (node.type.name === 'blockGroup') return
+          const nodeText = node.textContent || ''
+          const fragmentLinks = find(nodeText) || []
+          if (fragmentLinks.length > 0) {
+            hasLinksInContent = true
+          }
+        })
+
+        // If no links, let other plugins handle the paste
+        if (!hasLinksInContent) {
+          return false
+        }
+
         let tr = state.tr
 
-        let deleteOnly = false
-
         if (!selection.empty) {
-          deleteOnly = true
           tr.delete(selection.from, selection.to)
         }
 
-        // map currentPos through the previously added steps
-        let currentPos = tr.mapping.map(selection.from, 1)
+        // Insert the slice content
+        const blockContentInfo = getBlockInfoFromPos(
+          state,
+          selection.from,
+        ).blockContent
+        tr.replaceWith(
+          blockContentInfo.beforePos,
+          blockContentInfo.afterPos,
+          slice.content,
+        )
 
-        let hasFragmentLinks = false
-
-        slice.content.forEach((node) => {
+        // Apply link marks to the inserted content
+        slice.content.forEach((node: any) => {
           if (node.type.name === 'blockGroup') return
 
-          // find links for this node
-          const fragmentLinks = find(node.textContent) || []
-          if (fragmentLinks.length) hasFragmentLinks = true
+          const nodeText = node.textContent || ''
+          const fragmentLinks = find(nodeText) || []
+          if (fragmentLinks.length > 0) {
+            const base = selection.from
 
-          // get the inline content for insertion
-          let textFragment = node.content
-          if (!node.isTextblock) {
-            node.descendants((child) => {
-              if (child.isTextblock) {
-                textFragment = child.content
-                return false
-              }
-              return true
-            })
-          }
+            fragmentLinks.forEach((link: any) => {
+              const from = base + link.start
+              const to = base + link.end
 
-          // map the insertion point again, in case previous iterations shifted it
-          const insertAt = tr.mapping.map(currentPos, 1)
-
-          // Check if the position is valid before inserting
-          const docSize = tr.doc.content.size
-          if (insertAt < 0 || insertAt > docSize) {
-            console.warn('Invalid insert position:', {
-              insertAt,
-              docSize,
-              currentPos,
-            })
-            return
-          }
-
-          tr.insert(insertAt, textFragment)
-
-          // Update currentPos to the end of the inserted content
-          currentPos = insertAt + textFragment.size
-
-          if (fragmentLinks.length) {
-            deleteOnly = false
-
-            const base = insertAt
-
-            for (const link of fragmentLinks) {
-              // compute bounds inside the newly inserted text
-              let from = base + link.start
-              let to = base + link.end
-
-              const size = tr.doc.content.size
-              if (from < 0) from = 0
-              if (to < from) to = from
-              if (to > size) to = size
-              if (from === to) continue
-
-              const markType =
-                tr.doc.type.schema.marks[options.type.name] ?? options.type
-
-              let hasMark = false
-              try {
-                hasMark = tr.doc.rangeHasMark(from, to, markType)
-              } catch (e) {
-                console.warn('rangeHasMark failed', {from, to, size})
-                continue
-              }
+              const markType = options.type
+              const hasMark = tr.doc.rangeHasMark(from, to, markType)
 
               if (!hasMark) {
                 const id = nanoid(8)
@@ -632,19 +603,12 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   markType.create({href: link.href, id}),
                 ).setMeta('hmPlugin:uncheckedLink', id)
               }
-            }
+            })
           }
-
-          // advance currentPos by the size of inserted content
-          const mappedAfterInsert = tr.mapping.map(insertAt, 1)
-          currentPos = mappedAfterInsert + textFragment.size
         })
 
-        if (tr.docChanged && !deleteOnly && hasFragmentLinks) {
-          view.dispatch(tr)
-          return true
-        }
-        return false
+        view.dispatch(tr)
+        return true
       },
     },
   })
