@@ -4,6 +4,7 @@ import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   BlockNode,
   Comment,
+  createWebHMUrl,
   entityQueryPathToHmIdPath,
   Event,
   HMBlockNodeSchema,
@@ -449,41 +450,25 @@ async function handleEventsForEmailNotifications(
   }
   for (const newComment of newComments) {
     const comment = newComment.comment
-    const targetDocUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${
-      comment.targetAccount
-    }${comment.targetPath}`
+    // const targetDocUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${
+    //   comment.targetAccount
+    // }${comment.targetPath}`
+
+    // Create comment-specific URL for comment-related notifications
+    const commentIdParts = comment.id.split('/')
+    const commentTimestampId = commentIdParts[1]
+    if (!commentTimestampId) {
+      console.error('Invalid comment ID format:', comment.id)
+      continue
+    }
+    const commentUrl = createWebHMUrl(comment.author, {
+      path: [commentTimestampId],
+      hostname: SITE_BASE_URL.replace(/\/$/, ''),
+    })
+
     const targetDocId = hmId(comment.targetAccount, {
       path: entityQueryPathToHmIdPath(comment.targetPath),
     })
-
-    // const ownerId = comment.targetAccount
-    // const ownerPrefs = accountNotificationOptions[ownerId]
-
-    // const isNewDiscussion =
-    //   (!comment.threadRoot || comment.threadRoot === '') &&
-    //   (!comment.replyParent || comment.replyParent === '')
-
-    // // Send notifications to all subscribers who want to be notified about site discussions
-    // if (isNewDiscussion) {
-    //   for (const accountId in accountNotificationOptions) {
-    //     // @ts-expect-error
-    //     const {notifySiteDiscussions, email} =
-    //       accountNotificationOptions[accountId]
-
-    //     if (!notifySiteDiscussions) continue
-    //     if (comment.author === accountId) continue // don't notify the author for their own discussions
-
-    //     await appendNotification(email, accountId, {
-    //       type: 'discussion',
-    //       comment,
-    //       parentComments: newComment.parentComments,
-    //       authorMeta: newComment.commentAuthorMeta,
-    //       targetMeta: newComment.targetMeta,
-    //       targetId: targetDocId,
-    //       url: targetDocUrl,
-    //     })
-    //   }
-    // }
 
     // Get all mentioned users in this comment
     const mentionedUsers = new Set<string>()
@@ -565,7 +550,7 @@ async function handleEventsForEmailNotifications(
             authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
-            url: targetDocUrl,
+            url: commentUrl,
             source: 'comment',
             comment: newComment.comment,
             resolvedNames: await resolveAnnotationNames(
@@ -580,7 +565,7 @@ async function handleEventsForEmailNotifications(
             authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
-            url: targetDocUrl,
+            url: commentUrl,
             resolvedNames: await resolveAnnotationNames(
               newComment.comment.content.map((n) => new BlockNode(n)),
             ),
@@ -594,7 +579,7 @@ async function handleEventsForEmailNotifications(
             authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
-            url: targetDocUrl,
+            url: commentUrl,
             resolvedNames: await resolveAnnotationNames(
               newComment.comment.content.map((n) => new BlockNode(n)),
             ),
@@ -622,7 +607,7 @@ async function handleEventsForEmailNotifications(
             authorMeta: newComment.commentAuthorMeta,
             targetMeta: newComment.targetMeta,
             targetId: targetDocId,
-            url: targetDocUrl,
+            url: commentUrl,
             resolvedNames: await resolveAnnotationNames(
               newComment.comment.content.map((n) => new BlockNode(n)),
             ),
