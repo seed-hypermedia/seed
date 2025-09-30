@@ -31,7 +31,7 @@ export function useDocumentAccessory({
 } {
   const route = useNavRoute()
   const replace = useNavigate('replace')
-  if (route.key !== 'document' && route.key !== 'draft')
+  if (route.key != 'document' && route.key != 'draft' && route.key != 'feed')
     return {accessory: null, accessoryOptions: []}
 
   let accessory: ReactNode = null

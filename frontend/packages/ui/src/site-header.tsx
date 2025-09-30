@@ -17,6 +17,7 @@ import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+import {Sparkle} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +53,8 @@ export function SiteHeader({
   origin,
   isLatest = true,
   editNavPane,
+  handleToggleFeed,
+  isMainFeedVisible = false,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -65,6 +68,8 @@ export function SiteHeader({
   origin?: string
   isLatest?: boolean
   editNavPane?: React.ReactNode
+  handleToggleFeed: () => void
+  isMainFeedVisible: boolean
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
@@ -180,6 +185,18 @@ export function SiteHeader({
 
         {isCenterLayout ? null : (
           <div className="flex items-center gap-2">
+            <Tooltip content="toggle Site Feed">
+              <Button
+                size="xs"
+                variant={isMainFeedVisible ? 'default' : 'outline'}
+                onClick={() => {
+                  console.log('== FEED SITE HEADER CLICK')
+                  handleToggleFeed()
+                }}
+              >
+                <Sparkle className="size-3" />
+              </Button>
+            </Tooltip>
             {headerSearch}
             <Button
               variant="brand"

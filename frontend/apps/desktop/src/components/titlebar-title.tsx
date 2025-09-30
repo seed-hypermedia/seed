@@ -49,6 +49,7 @@ import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
+import {Sparkle} from 'lucide-react'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
@@ -401,7 +402,7 @@ function BreadcrumbTitle({
       <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
         <Button
           className="no-window-drag"
-          variant="outline"
+          variant={route.key == 'feed' ? 'default' : 'outline'}
           size="xs"
           onClick={() => {
             console.log('=== ROUTING', route)
@@ -421,6 +422,7 @@ function BreadcrumbTitle({
             }
           }}
         >
+          <Sparkle className="size-3" />
           Feed
         </Button>
         {displayItems.flatMap((item, itemIndex) => {
@@ -792,7 +794,7 @@ export function Title({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   return (
-    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch overflow-hidden pl-2">
+    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch overflow-hidden">
       <TitleContent size={size} onPublishSite={onPublishSite} />
     </div>
   )

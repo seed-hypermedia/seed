@@ -24,6 +24,7 @@ import {
   BlockRange,
   calculateBlockCitations,
   DocumentRoute,
+  FeedRoute,
   getCommentTargetId,
   getDocumentTitle,
   HMDocument,
@@ -44,25 +45,19 @@ import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
-import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentDate} from '@shm/ui/document-date'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {
-  ArrowRight,
-  BlockQuote,
-  HistoryIcon,
-  MoreHorizontal,
-} from '@shm/ui/icons'
+import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
+import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, FilePlus, MessageSquare} from 'lucide-react'
+import {AlertCircle, FilePlus, MessageSquare, Sparkle} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -71,8 +66,6 @@ export default function FeedPage() {
   const route = useNavRoute()
 
   const docId = route.key == 'feed' && route.id
-
-  console.log(`== ~ FeedPage ~ docId:`, docId)
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
   const accessoryKey = route.accessory?.key
@@ -157,7 +150,7 @@ export default function FeedPage() {
             }}
             accessoryOptions={accessoryOptions}
           >
-            <MainDocumentPage
+            <FeedContent
               id={route.id}
               isBlockFocused={false}
               onScrollParamSet={useCallback((isFrozen) => {
@@ -181,16 +174,18 @@ export default function FeedPage() {
   )
 }
 
-function _MainDocumentPage({
+function _FeedContent({
   id,
   isBlockFocused,
   onScrollParamSet,
+  route,
 }: {
   id: UnpackedHypermediaId
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
   isCommentingPanelOpen: boolean
   onAccessory: (accessory: DocumentRoute['accessory']) => void
+  route: DocumentRoute | FeedRoute
 }) {
   const replace = useNavigate('replace')
 
@@ -199,7 +194,7 @@ function _MainDocumentPage({
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
-      replace({key: 'document', id: account.data.id})
+      replace({key: route.key, id: account.data.id})
     }
   }, [account.data])
 
@@ -210,20 +205,20 @@ function _MainDocumentPage({
     ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
-        replace({key: 'document', id: redirectTarget})
+        replace({key: route.key, id: redirectTarget})
       }
     },
   )
   const loadedCommentResource =
     // @ts-ignore
-    resource.data?.type === 'comment' ? resource.data : undefined
+    resource.data?.type == 'comment' ? resource.data : undefined
   useEffect(() => {
     if (loadedCommentResource) {
       const comment = loadedCommentResource.comment
       const targetDocId = getCommentTargetId(comment)
       if (targetDocId) {
         replace({
-          key: 'document',
+          key: route.key,
           id: targetDocId,
           accessory: {key: 'discussions', openComment: comment.id},
         })
@@ -241,7 +236,7 @@ function _MainDocumentPage({
 
   const document =
     // @ts-ignore
-    resource.data?.type === 'document' ? resource.data.document : undefined
+    resource.data?.type == 'document' ? resource.data.document : undefined
   const metadata = document?.metadata
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
@@ -272,9 +267,6 @@ function _MainDocumentPage({
     )
   }
 
-  {
-  }
-
   if (resource.data?.type === 'not-found') {
     return <DocDiscovery />
   }
@@ -298,8 +290,6 @@ function _MainDocumentPage({
       >
         <DocInteractionsSummary docId={id} />
         <ScrollArea>
-          <DocumentCover cover={document?.metadata.cover} />
-
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
               <div
@@ -313,10 +303,12 @@ function _MainDocumentPage({
               {...mainContentProps}
               className={cn(
                 mainContentProps.className,
-                'base-doc-container relative sm:mr-10 sm:ml-0',
+                'base-doc-container relative mt-5 sm:mr-10 sm:ml-0',
               )}
             >
-              <h1>FEED HERE</h1>
+              <Text weight="bold" size="3xl">
+                What's New
+              </Text>
             </Container>
             {showSidebars ? (
               <div
@@ -330,7 +322,7 @@ function _MainDocumentPage({
     </div>
   )
 }
-const MainDocumentPage = React.memo(_MainDocumentPage)
+const FeedContent = React.memo(_FeedContent)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 
 const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
@@ -339,7 +331,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
   const interactionSummary = useInteractionSummary(docId)
 
   const route = useNavRoute()
-  const docRoute = route.key === 'document' ? route : null
+  const docRoute = route.key == 'document' || route.key == 'feed' ? route : null
   const replace = useNavigate('replace')
   if (!docRoute) return null
   if (docRoute.accessory) return null
@@ -347,22 +339,13 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
     <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
       <div className="flex">
         <InteractionSummaryItem
-          label="version"
+          label="activity"
           count={interactionSummary.data?.changes || 0}
           onPress={() => {
-            replace({...docRoute, accessory: {key: 'versions'}})
+            replace({...docRoute, accessory: {key: 'activity'}})
           }}
-          icon={<HistoryIcon size={16} color="currentColor" />}
+          icon={<Sparkle className="size-3" color="currentColor" />}
         />
-        <InteractionSummaryItem
-          label="citation"
-          count={interactionSummary.data?.citations || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'citations'}})
-          }}
-          icon={<BlockQuote className="size-3" />}
-        />
-
         <InteractionSummaryItem
           label="comment"
           count={interactionSummary.data?.comments || 0}
@@ -416,7 +399,7 @@ function _AppDocSiteHeader({
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
   if (!siteHomeEntity) return null
-  if (route.key !== 'document') return null
+  if (route.key != 'document' && route.key != 'feed') return null
   return (
     <SiteHeader
       originHomeId={hmId(siteHomeEntity.id.uid)}
@@ -434,6 +417,13 @@ function _AppDocSiteHeader({
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
+      }}
+      isMainFeedVisible={route.key == 'feed'}
+      handleToggleFeed={() => {
+        replace({
+          ...route,
+          key: route.key == 'document' ? 'feed' : 'document',
+        })
       }}
     />
   )

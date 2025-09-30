@@ -130,7 +130,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
 
   const resource = useSubscribedResource(docId)
   // @ts-ignore
-  const isDocument = resource.data?.type === 'document'
+  const isDocument = resource.data?.type == 'document'
   const allDocumentCapabilities = useAllDocumentCapabilities(docId)
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||

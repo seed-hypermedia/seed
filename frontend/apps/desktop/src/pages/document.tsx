@@ -57,12 +57,7 @@ import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentDate} from '@shm/ui/document-date'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {
-  ArrowRight,
-  BlockQuote,
-  HistoryIcon,
-  MoreHorizontal,
-} from '@shm/ui/icons'
+import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -72,7 +67,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, Asterisk, FilePlus, MessageSquare} from 'lucide-react'
+import {AlertCircle, FilePlus, MessageSquare, Sparkle} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -415,23 +410,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
           onPress={() => {
             replace({...docRoute, accessory: {key: 'activity'}})
           }}
-          icon={<Asterisk size={16} color="currentColor" />}
-        />
-        <InteractionSummaryItem
-          label="version"
-          count={interactionSummary.data?.changes || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'versions'}})
-          }}
-          icon={<HistoryIcon size={16} color="currentColor" />}
-        />
-        <InteractionSummaryItem
-          label="citation"
-          count={interactionSummary.data?.citations || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'citations'}})
-          }}
-          icon={<BlockQuote className="size-3" />}
+          icon={<Sparkle className="size-3" color="currentColor" />}
         />
 
         <InteractionSummaryItem
@@ -487,7 +466,7 @@ function _AppDocSiteHeader({
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
   if (!siteHomeEntity) return null
-  if (route.key !== 'document') return null
+  if (route.key !== 'document' && route.key != 'feed') return null
   return (
     <SiteHeader
       originHomeId={hmId(siteHomeEntity.id.uid)}
@@ -505,6 +484,13 @@ function _AppDocSiteHeader({
       supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
+      }}
+      isMainFeedVisible={route.key == 'feed'}
+      handleToggleFeed={() => {
+        replace({
+          ...route,
+          key: route.key == 'document' ? 'feed' : 'document',
+        })
       }}
     />
   )
