@@ -43,7 +43,7 @@ export function WebFeedPanel({docId}: {docId: UnpackedHypermediaId}) {
 
       observerRef.current = new IntersectionObserver((entries) => {
         const entry = entries[0]
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
       }, observerOptions)
@@ -89,12 +89,12 @@ export function WebFeedPanel({docId}: {docId: UnpackedHypermediaId}) {
         })}
       </div>
       {isFetchingNextPage && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           Loading more...
         </div>
       )}
       {!hasNextPage && allEvents.length > 0 && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           No more events
         </div>
       )}
