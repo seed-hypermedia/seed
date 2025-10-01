@@ -39,10 +39,9 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   async function loadContactEvent(
     event: Event,
   ): Promise<LoadedContactEvent | null> {
-    const {author, cid, resource} = event.data.value || {}
+    const {author, resource} = event.data.value || {}
     const {eventTime} = event
 
-    const contactData = cid ? await loadBlob<unknown>(cid) : null
     if (!author) return null
     if (!resource) return null
     const authorId = hmId(author)
@@ -67,9 +66,9 @@ export function createFeedLoader(grpcClient: GRPCClient) {
     event: Event,
   ): Promise<LoadedCapabilityEvent | null> {
     const {author, resource} = event.data.value || {}
-    const {eventTime, data: caapabilityBlob} = event
+    const {eventTime} = event
     const newBlob = event.data.case === 'newBlob' ? event.data.value : null
-    const {blobType, cid} = newBlob || {}
+    const {cid} = newBlob || {}
 
     if (!author || !resource) {
       return null
