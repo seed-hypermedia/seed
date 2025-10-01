@@ -153,6 +153,7 @@ export default function FeedPage() {
           >
             <FeedContent
               id={route.id}
+              route={route}
               isBlockFocused={false}
               onScrollParamSet={useCallback((isFrozen) => {
                 mainPanelRef.current?.style.setProperty(

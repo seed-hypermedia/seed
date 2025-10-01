@@ -77,6 +77,8 @@ export function WebSiteHeader(
           document.body.style.overflow = 'auto'
         }
       }}
+      handleToggleFeed={() => {}}
+      isMainFeedVisible={false}
     />
   )
 }
