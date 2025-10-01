@@ -159,6 +159,7 @@ export const loader = async ({
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
+  const feed = url.searchParams.get('feed') === 'true'
   const serviceConfig = await getConfig(hostname)
   if (!serviceConfig) return wrapJSON('no-site', {status: 404})
   const {registeredAccountUid} = serviceConfig
@@ -181,6 +182,7 @@ export const loader = async ({
   }
   return await loadSiteResource(parsedRequest, documentId, {
     prefersLanguages: parsedRequest.prefersLanguages,
+    feed,
   })
 }
 

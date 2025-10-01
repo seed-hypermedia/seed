@@ -133,11 +133,35 @@ export function useCitations(
   return response
 }
 
-export function useDocFeed(docId: UnpackedHypermediaId) {
+export function useDocFeed({
+  docId,
+  pageSize,
+  filterAuthors,
+  filterResource,
+  filterEventType,
+}: {
+  docId: UnpackedHypermediaId
+  pageSize?: number
+  filterAuthors?: string[]
+  filterResource?: string
+  filterEventType?: string[]
+}) {
   return useInfiniteQuery(
     [queryKeys.FEED, docId.id],
     async ({pageParam}) => {
       let url = `/hm/api/feed?id=${docId.id}`
+      if (pageSize) {
+        url += `&pageSize=${pageSize}`
+      }
+      if (filterAuthors) {
+        url += `&filterAuthors=${filterAuthors.join(',')}`
+      }
+      if (filterResource) {
+        url += `&filterResource=${filterResource}`
+      }
+      if (filterEventType) {
+        url += `&filterEventType=${filterEventType.join(',')}`
+      }
       if (pageParam) {
         url += `&pageToken=${pageParam}`
       }

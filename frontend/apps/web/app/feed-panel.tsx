@@ -3,7 +3,17 @@ import {FeedEvent} from '@shm/ui/feed-items'
 import {useCallback, useEffect, useRef} from 'react'
 import {useDocFeed} from './models'
 
-export function WebFeedPanel({docId}: {docId: UnpackedHypermediaId}) {
+export function WebFeedPanel({
+  docId,
+  filterResource,
+  filterAuthors,
+  filterEventType,
+}: {
+  docId: UnpackedHypermediaId
+  filterResource?: string
+  filterAuthors?: string[]
+  filterEventType?: string[]
+}) {
   const {
     data,
     fetchNextPage,
@@ -11,7 +21,7 @@ export function WebFeedPanel({docId}: {docId: UnpackedHypermediaId}) {
     isFetchingNextPage,
     isLoading,
     error,
-  } = useDocFeed(docId)
+  } = useDocFeed({docId, filterResource, filterAuthors, filterEventType})
 
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)

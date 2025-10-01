@@ -52,7 +52,12 @@ export function useDocumentAccessory({
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'activity') {
-    accessory = <FeedPanel docId={docId as UnpackedHypermediaId} />
+    accessory = (
+      <FeedPanel
+        docId={docId as UnpackedHypermediaId}
+        filterResource={docId?.id}
+      />
+    )
   } else if (accessoryKey === 'collaborators') {
     // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />

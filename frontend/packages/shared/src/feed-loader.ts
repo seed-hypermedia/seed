@@ -225,13 +225,26 @@ export function createFeedLoader(grpcClient: GRPCClient) {
     }
   }
 
-  async function loadDocumentFeed(
-    docId: UnpackedHypermediaId,
-    pageToken?: string,
-  ) {
+  async function loadDocumentFeed({
+    docId,
+    filterResource,
+    filterAuthors,
+    filterEventType,
+    pageSize = 5,
+    pageToken,
+  }: {
+    docId: UnpackedHypermediaId
+    filterResource?: string
+    filterAuthors?: string[]
+    filterEventType?: string[]
+    pageToken?: string
+    pageSize?: number
+  }) {
     const feedResp = await grpcClient.activityFeed.listEvents({
-      filterResource: `${docId.id}*`,
-      pageSize: 5,
+      filterResource: filterResource ? filterResource : `${docId.id}*`,
+      filterAuthors: filterAuthors ? filterAuthors : [],
+      filterEventType: filterEventType ? filterEventType : [],
+      pageSize,
       pageToken,
     })
 

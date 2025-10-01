@@ -4,7 +4,19 @@ import {FeedEvent} from '@shm/ui/feed-items'
 import {useCallback, useEffect, useRef} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 
-export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
+export function FeedPanel({
+  docId,
+  pageSize,
+  filterAuthors,
+  filterResource,
+  filterEventType,
+}: {
+  docId: UnpackedHypermediaId
+  pageSize?: number
+  filterAuthors?: string[]
+  filterResource?: string
+  filterEventType?: string[]
+}) {
   const {
     data,
     fetchNextPage,
@@ -12,7 +24,13 @@ export function FeedPanel({docId}: {docId: UnpackedHypermediaId}) {
     isFetchingNextPage,
     isLoading,
     error,
-  } = useDocFeed(docId)
+  } = useDocFeed({
+    docId,
+    pageSize,
+    filterAuthors,
+    filterResource,
+    filterEventType,
+  })
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 

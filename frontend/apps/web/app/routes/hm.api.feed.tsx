@@ -22,10 +22,23 @@ export const loader = async ({
 
   const id = unpackHmId(url.searchParams.get('id') || undefined)
   const pageToken = url.searchParams.get('pageToken') || undefined
+  const pageSize = parseInt(url.searchParams.get('pageSize') || '10', 10)
+  const filterAuthors =
+    url.searchParams.get('filterAuthors')?.split(',') || undefined
+  const filterResource = url.searchParams.get('filterResource') || undefined
+  const filterEventType =
+    url.searchParams.get('filterEventType')?.split(',') || undefined
   if (!id) throw new Error('id is required')
   let result: HMFeedPayload | {error: string}
   try {
-    const result = await loadDocumentFeed(id, pageToken)
+    const result = await loadDocumentFeed({
+      docId: id,
+      pageToken,
+      pageSize,
+      filterAuthors,
+      filterResource,
+      filterEventType,
+    })
     if (result.nextPageToken === pageToken) {
       return wrapJSON({events: [], nextPageToken: pageToken})
     }

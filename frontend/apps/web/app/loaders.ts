@@ -690,6 +690,7 @@ export type SiteDocumentPayload = WebResourcePayload & {
   origin: string
   comment?: HMComment
   daemonError?: GRPCError
+  feed?: boolean
 }
 
 // We have to define our own error type here instead of using the ConnectError type,

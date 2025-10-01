@@ -29,6 +29,7 @@ import {Button} from '@shm/ui/button'
 import {ChangeItem} from '@shm/ui/change-item'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
@@ -40,6 +41,7 @@ import {
   DocumentOutline,
   useNodesOutline,
 } from '@shm/ui/navigation'
+import {Separator} from '@shm/ui/separator'
 import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
@@ -130,6 +132,7 @@ function InnerDocumentPage(
     origin,
     comment,
     isLatest,
+    feed,
   } = props
 
   const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
@@ -367,50 +370,6 @@ function InnerDocumentPage(
       />
     ) : null
 
-  // const commentEditor = (
-  //   <DocContentProvider
-  //     entityId={docId}
-  //     debug
-  //     comment
-  //     entityComponents={{
-  //       Comment: () => <p>comment</p>,
-  //       Document: () => <p>document</p>,
-  //       Inline: () => <span>inline</span>,
-  //       Query: () => <p>query</p>,
-  //     }}
-  //     onBlockCopy={(props) => {
-  //       console.log('onBlockCopy', props)
-  //     }}
-  //     onBlockCitationClick={(props) => {
-  //       console.log('onBlockCitationClick', props)
-  //     }}
-  //     saveCidAsFile={async (props) => {
-  //       console.log('saveCidAsFile', props)
-  //     }}
-  //     layoutUnit={14}
-  //     textUnit={12}
-  //     collapsedBlocks={new Set()}
-  //     setCollapsedBlocks={(props) => {
-  //       console.log('setCollapsedBlocks', props)
-  //     }}
-  //   >
-  //     <CommentEditor
-  //       submitButton={(props) => (
-  //         <button
-  //           onClick={() => {
-  //             console.log('comment => submit button clicked', props)
-  //           }}
-  //         >
-  //           submit
-  //         </button>
-  //       )}
-  //       handleSubmit={(props) => {
-  //         console.log('comment => handle submit', props)
-  //       }}
-  //     />
-  //   </DocContentProvider>
-  // )
-
   if (activityEnabled && activePanel?.type == 'discussions') {
     panel = (
       <WebDiscussionsPanel
@@ -434,7 +393,7 @@ function InnerDocumentPage(
     panelTitle = tx('Discussions')
   }
   if (activityEnabled && activePanel?.type == 'feed') {
-    panel = <WebFeedPanel docId={id} />
+    panel = <WebFeedPanel docId={id} filterResource={id.id} />
     panelTitle = tx('Feed')
   }
   if (activityEnabled && activePanel?.type == 'versions') {
@@ -508,109 +467,153 @@ function InnerDocumentPage(
               ) : null}
               <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
                 <ScrollArea onScroll={onScroll}>
-                  <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                      <DocumentCover cover={document.metadata.cover} />
-
-                      <div
-                        className={cn('flex flex-1', wrapperProps.className)}
-                        style={wrapperProps.style}
+                  {feed ? (
+                    <div
+                      {...wrapperProps}
+                      className={cn(wrapperProps.className, 'flex')}
+                    >
+                      {showSidebars ? (
+                        <div
+                          {...sidebarProps}
+                          className={`${
+                            sidebarProps.className || ''
+                          } flex flex-col`}
+                        />
+                      ) : null}
+                      <Container
+                        clearVerticalSpace
+                        {...mainContentProps}
+                        className={cn(
+                          mainContentProps.className,
+                          'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                        )}
                       >
-                        {showSidebars ? (
-                          <div
-                            className={cn(
-                              sidebarProps.className,
-                              'hide-scrollbar overflow-y-scroll pb-6',
-                            )}
-                            style={{
-                              ...sidebarProps.style,
-                              marginTop: document.metadata?.cover ? 152 : 220,
-                            }}
-                          >
-                            <div className="hide-scrollbar h-full overflow-scroll pb-6">
-                              <WebDocumentOutline
-                                showCollapsed={showCollapsed}
-                                supportDocuments={props.supportDocuments}
-                                onActivateBlock={onActivateBlock}
-                                id={id}
-                                document={document}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                        <div {...mainContentProps}>
-                          {isHomeDoc ? null : (
-                            <PageHeader
-                              originHomeId={originHomeId}
-                              breadcrumbs={props.breadcrumbs}
-                              docMetadata={document.metadata}
-                              docId={id}
-                              // @ts-expect-error
-                              authors={document.authors.map(
-                                (author) => accountsMetadata[author],
-                              )}
-                              updateTime={document.updateTime}
-                            />
-                          )}
-                          <WebDocContentProvider
-                            // @ts-expect-error
-                            onBlockCitationClick={
-                              activityEnabled ? onBlockCitationClick : undefined
-                            }
-                            onBlockCommentClick={
-                              activityEnabled ? onBlockCommentClick : undefined
-                            }
-                            originHomeId={originHomeId}
-                            id={{...id, version: document.version}}
-                            siteHost={siteHost}
-                            supportDocuments={supportDocuments}
-                            supportQueries={supportQueries}
-                            blockCitations={interactionSummary.data?.blocks}
-                            routeParams={{
-                              uid: id.uid,
-                              version: id.version || undefined,
-                              blockRef: blockRef,
-                              blockRange: blockRange,
-                            }}
-                          >
-                            <DocContent
-                              document={document}
-                              handleBlockReplace={() => {
-                                // setDocumentPanel(null)
-                                return true
-                                // const route = {
-                                //   key: 'document',
-                                //   id: {
-                                //     uid: id.uid,
-                                //     path: id.path,
-                                //     version: id.version,
-                                //     blockRef: id.blockRef,
-                                //     blockRange: id.blockRange,
-                                //   },
-                                // } as NavRoute
-                                // const href = routeToHref(route, context)
-                                // if (!href) return false
-                                // replace(href, {
-                                //   replace: true,
-                                //   preventScrollReset: true,
-                                // })
-                                // return true
-                              }}
-                            />
-                          </WebDocContentProvider>
+                        <Text weight="bold" size="3xl">
+                          What's New
+                        </Text>
+                        <Separator />
+                        <div className="-mx-5">
+                          <WebFeedPanel docId={id} />
                         </div>
-                        {showSidebars ? (
-                          <div
-                            className={cn(sidebarProps.className)}
-                            style={sidebarProps.style}
-                          />
-                        ) : null}
+                      </Container>
+                      {showSidebars ? (
+                        <div
+                          {...sidebarProps}
+                          className={`${
+                            sidebarProps.className || ''
+                          } flex flex-col`}
+                        />
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <DocumentCover cover={document.metadata.cover} />
+
+                        <div
+                          {...wrapperProps}
+                          className={cn('flex flex-1', wrapperProps.className)}
+                        >
+                          {showSidebars ? (
+                            <div
+                              className={cn(
+                                sidebarProps.className,
+                                'hide-scrollbar overflow-y-scroll pb-6',
+                              )}
+                              style={{
+                                ...sidebarProps.style,
+                                marginTop: document.metadata?.cover ? 152 : 220,
+                              }}
+                            >
+                              <div className="hide-scrollbar h-full overflow-scroll pb-6">
+                                <WebDocumentOutline
+                                  showCollapsed={showCollapsed}
+                                  supportDocuments={props.supportDocuments}
+                                  onActivateBlock={onActivateBlock}
+                                  id={id}
+                                  document={document}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                          <div {...mainContentProps}>
+                            {isHomeDoc ? null : (
+                              <PageHeader
+                                originHomeId={originHomeId}
+                                breadcrumbs={props.breadcrumbs}
+                                docMetadata={document.metadata}
+                                docId={id}
+                                // @ts-expect-error
+                                authors={document.authors.map(
+                                  (author) => accountsMetadata[author],
+                                )}
+                                updateTime={document.updateTime}
+                              />
+                            )}
+                            <WebDocContentProvider
+                              // @ts-expect-error
+                              onBlockCitationClick={
+                                activityEnabled
+                                  ? onBlockCitationClick
+                                  : undefined
+                              }
+                              onBlockCommentClick={
+                                activityEnabled
+                                  ? onBlockCommentClick
+                                  : undefined
+                              }
+                              originHomeId={originHomeId}
+                              id={{...id, version: document.version}}
+                              siteHost={siteHost}
+                              supportDocuments={supportDocuments}
+                              supportQueries={supportQueries}
+                              blockCitations={interactionSummary.data?.blocks}
+                              routeParams={{
+                                uid: id.uid,
+                                version: id.version || undefined,
+                                blockRef: blockRef,
+                                blockRange: blockRange,
+                              }}
+                            >
+                              <DocContent
+                                document={document}
+                                handleBlockReplace={() => {
+                                  // setDocumentPanel(null)
+                                  return true
+                                  // const route = {
+                                  //   key: 'document',
+                                  //   id: {
+                                  //     uid: id.uid,
+                                  //     path: id.path,
+                                  //     version: id.version,
+                                  //     blockRef: id.blockRef,
+                                  //     blockRange: id.blockRange,
+                                  //   },
+                                  // } as NavRoute
+                                  // const href = routeToHref(route, context)
+                                  // if (!href) return false
+                                  // replace(href, {
+                                  //   replace: true,
+                                  //   preventScrollReset: true,
+                                  // })
+                                  // return true
+                                }}
+                              />
+                            </WebDocContentProvider>
+                          </div>
+                          {showSidebars ? (
+                            <div
+                              className={cn(sidebarProps.className)}
+                              style={sidebarProps.style}
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
+                        <PageFooter id={id} />
                       </div>
                     </div>
-                    <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
-                      <PageFooter id={id} />
-                    </div>
-                  </div>
+                  )}
                 </ScrollArea>
               </div>
             </div>
