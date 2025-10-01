@@ -99,6 +99,11 @@ export const SEED_HOST_URL =
   IME.VITE_SEED_HOST_URL ||
   'http://localhost:5555'
 
+export const SEED_ASSET_HOST =
+  WEB_ENV.SEED_ASSET_HOST ||
+  process.env.VITE_SEED_ASSET_HOST ||
+  IME.VITE_SEED_ASSET_HOST
+
 export const WEB_IDENTITY_ORIGIN =
   WEB_ENV.WEB_IDENTITY_ORIGIN ||
   process.env.SEED_IDENTITY_DEFAULT_ORIGIN ||

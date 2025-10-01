@@ -11,6 +11,7 @@ import {
   DAEMON_FILE_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
+  SEED_ASSET_HOST,
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
@@ -112,7 +113,8 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
 }
 
 export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
-  let url = `/hm/api/image/${cid}`
+  let url = SEED_ASSET_HOST || ''
+  url += `/hm/api/image/${cid}`
   if (size) url += `?size=${size}`
   return url
 }
@@ -221,6 +223,7 @@ export function WebSiteProvider(props: {
               WEB_IDENTITY_ORIGIN,
               WEB_IDENTITY_ENABLED,
               ENABLE_EMAIL_NOTIFICATIONS,
+              SEED_ASSET_HOST,
             })}`,
           }}
         />
