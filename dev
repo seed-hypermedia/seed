@@ -82,9 +82,19 @@ def main():
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
-        testnet_var = "SEED_P2P_TESTNET_NAME"
-        if testnet_var not in os.environ:
-            os.environ[testnet_var] = "dev"
+        os.environ["SEED_P2P_TESTNET_NAME"] = "dev"
+        os.environ["VITE_DESKTOP_APPDATA"] = "Seed-local"
+        os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"
+
+        return run("yarn desktop", args=args)
+
+    @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
+    def run_desktop(args):
+        run("node scripts/cleanup-desktop.js")
+        run("plz build //backend:seed-daemon //:yarn")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
 
         os.environ["VITE_DESKTOP_APPDATA"] = "Seed-local"
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.testnet.seed.hyper.media"

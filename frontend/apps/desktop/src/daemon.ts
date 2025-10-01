@@ -86,15 +86,19 @@ export async function startMainDaemon(): Promise<{
       p2pPort: process.env.VITE_DESKTOP_P2P_PORT,
     }
   }
+  const daemonEnv = {
+    ...process.env,
+    SENTRY_RELEASE: VERSION,
+  }
+
+  // log.info('Daemon with env:', daemonEnv)
+  // log.info('Daemon with arguments:', daemonArguments)
 
   const daemonProcess = spawn(goDaemonExecutablePath, daemonArguments, {
     // daemon env
     cwd: path.join(process.cwd(), '../../..'),
     // @ts-expect-error
-    env: {
-      ...process.env,
-      SENTRY_RELEASE: VERSION,
-    },
+    env: daemonEnv,
     stdio: 'pipe',
   })
 
