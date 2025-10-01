@@ -118,7 +118,7 @@ export default function Main({className}: {className?: string}) {
 
           <PanelContent>
             {sidebar}
-            <Panel id="page" order={2}>
+            <Panel id="page" order={2} className="pl-1">
               <PageComponent />
             </Panel>
           </PanelContent>
