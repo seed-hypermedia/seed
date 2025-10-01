@@ -33,7 +33,7 @@ import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {BlockQuote, Close, HistoryIcon} from '@shm/ui/icons'
+import {Close} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocNavigationWrapper,
@@ -335,26 +335,11 @@ function InnerDocumentPage(
       citations={interactionSummary.data?.citations}
       comments={interactionSummary.data?.comments}
       changes={interactionSummary.data?.changes}
-      onCitationsOpen={() => {
-        setDocumentPanel({
-          type: 'citations',
-          blockId: undefined,
-        })
-        if (!media.gtSm) {
-          setMobilePanelOpen(true)
-        }
-      }}
       onCommentsOpen={() => {
         setDocumentPanel({
           type: 'discussions',
           blockId: undefined,
         })
-        if (!media.gtSm) {
-          setMobilePanelOpen(true)
-        }
-      }}
-      onVersionOpen={() => {
-        setDocumentPanel({type: 'versions'})
         if (!media.gtSm) {
           setMobilePanelOpen(true)
         }
@@ -845,9 +830,7 @@ function _DocInteractionsSummary({
   citations,
   comments,
   changes,
-  onCitationsOpen,
   onCommentsOpen,
-  onVersionOpen,
   onFeedOpen,
   activePanel,
 }: {
@@ -855,9 +838,7 @@ function _DocInteractionsSummary({
   citations?: number
   comments?: number
   changes?: number
-  onCitationsOpen?: () => void
   onCommentsOpen?: () => void
-  onVersionOpen?: () => void
   onFeedOpen?: () => void
   activePanel: WebAccessory | null
 }) {
@@ -871,40 +852,6 @@ function _DocInteractionsSummary({
           onClick={onFeedOpen}
           // @ts-ignore
           icon={<Sparkle className="size-4" />}
-        />
-      )}
-      {onVersionOpen && changes && (
-        <InteractionSummaryItem
-          label={tx(
-            'version_count',
-            ({count}) => `${count} ${pluralS(count, 'version')}`,
-            {
-              count: changes || 0,
-            },
-          )}
-          active={activePanel?.type === 'versions'}
-          count={changes || 0}
-          onClick={onVersionOpen}
-          // @ts-ignore
-          icon={<HistoryIcon className="size-5" />}
-        />
-      )}
-      {onCitationsOpen && (
-        <InteractionSummaryItem
-          label={tx(
-            'citation_count',
-            ({count}) => `${count} ${pluralS(count, 'citation')}`,
-            {
-              count: citations || 0,
-            },
-          )}
-          active={activePanel?.type === 'citations'}
-          count={citations || 0}
-          onClick={() => {
-            onCitationsOpen()
-          }}
-          // @ts-ignore
-          icon={<BlockQuote className="size-3" />}
         />
       )}
 

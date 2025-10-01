@@ -186,16 +186,36 @@ export function SiteHeader({
         {isCenterLayout ? null : (
           <div className="flex items-center gap-2">
             <Tooltip content="toggle Site Feed">
-              <Button
-                size="xs"
-                variant={isMainFeedVisible ? 'default' : undefined}
-                onClick={() => {
-                  console.log('== FEED SITE HEADER CLICK')
-                  handleToggleFeed()
-                }}
-              >
-                <Sparkle className="size-4" />
-              </Button>
+              <div className={cn('flex items-center gap-1 px-1')}>
+                <a
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+                    isMainFeedVisible
+                      ? 'text-foreground'
+                      : 'text-muted-foreground',
+                    'hover:text-foreground',
+                  )}
+                  onClick={handleToggleFeed}
+                >
+                  <Sparkle
+                    className={cn(
+                      'size-4',
+                      isMainFeedVisible
+                        ? 'text-foreground text-bold'
+                        : 'text-muted-foreground',
+                    )}
+                  />
+                  <span
+                    className={
+                      isMainFeedVisible
+                        ? 'text-foreground text-bold'
+                        : 'text-muted-foreground'
+                    }
+                  >
+                    Feed
+                  </span>
+                </a>
+              </div>
             </Tooltip>
             {headerSearch}
             <Button
