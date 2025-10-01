@@ -470,7 +470,10 @@ function InnerDocumentPage(
                   {feed ? (
                     <div
                       {...wrapperProps}
-                      className={cn(wrapperProps.className, 'flex')}
+                      className={cn(
+                        wrapperProps.className,
+                        'flex pt-[var(--site-header-h)]',
+                      )}
                     >
                       {showSidebars ? (
                         <div

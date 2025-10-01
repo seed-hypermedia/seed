@@ -206,11 +206,12 @@ export function SiteHeader({
                     )}
                   />
                   <span
-                    className={
+                    className={cn(
+                      'hidden md:block',
                       isMainFeedVisible
                         ? 'text-foreground text-bold'
-                        : 'text-muted-foreground'
-                    }
+                        : 'text-muted-foreground',
+                    )}
                   >
                     Feed
                   </span>
