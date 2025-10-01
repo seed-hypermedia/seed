@@ -195,7 +195,7 @@ contextBridge.exposeInMainWorld('windowMaximizedState', windowMaximizedState)
 ipcRenderer.addListener(
   'window-state-change',
   (info, state: {isMaximized: boolean}) => {
-    dispatchAppWindow('window_state_changed')
+    dispatchAppWindow({type: 'window_state_changed'})
     // Update the window maximized state
     updateWindowMaximizedState(state.isMaximized)
     // Also expose the state directly

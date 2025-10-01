@@ -36,7 +36,7 @@ export function FindInPage() {
 
     const unsubscribe = window.appWindowEvents?.subscribe(
       (event: AppWindowEvent) => {
-        if (event === 'find_in_page') {
+        if (event.type === 'find_in_page') {
           setTimeout(() => {
             queryInput.current?.focus()
             queryInput.current?.select()

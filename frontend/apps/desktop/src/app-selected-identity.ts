@@ -69,7 +69,7 @@ export function setGlobalSelectedIdentity(newIdentity: string | null) {
 
   // Broadcast to all windows
   dispatchAllWindowsAppEvent({
-    key: 'selectedIdentityChanged',
+    type: 'selectedIdentityChanged',
     selectedIdentity: newIdentity,
   })
 

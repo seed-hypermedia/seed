@@ -28,7 +28,7 @@ export function createAppMenu() {
           label: 'Search / Open',
           accelerator: 'CmdOrCtrl+k',
           click: () => {
-            dispatchFocusedWindowAppEvent('open_launcher')
+            dispatchFocusedWindowAppEvent({type: 'open_launcher'})
           },
         },
         {type: 'separator'},
@@ -36,13 +36,13 @@ export function createAppMenu() {
           label: 'Trigger Sync with Peers',
           accelerator: 'CmdOrCtrl+Option+r',
           click: () => {
-            dispatchFocusedWindowAppEvent('trigger_peer_sync')
+            dispatchFocusedWindowAppEvent({type: 'trigger_peer_sync'})
           },
         },
         {
           label: 'Reindex the Database',
           click: () => {
-            dispatchFocusedWindowAppEvent('trigger_database_reindex')
+            dispatchFocusedWindowAppEvent({type: 'trigger_database_reindex'})
           },
         },
         {
@@ -106,7 +106,7 @@ export function createAppMenu() {
           label: 'Back',
           accelerator: 'CmdOrCtrl+Left',
           click: () => {
-            dispatchFocusedWindowAppEvent('back')
+            dispatchFocusedWindowAppEvent({type: 'back'})
           },
         },
         {
@@ -114,7 +114,7 @@ export function createAppMenu() {
           label: 'Forward',
           accelerator: 'CmdOrCtrl+Right',
           click: () => {
-            dispatchFocusedWindowAppEvent('forward')
+            dispatchFocusedWindowAppEvent({type: 'forward'})
           },
         },
         {type: 'separator'},

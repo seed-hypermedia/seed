@@ -93,10 +93,10 @@ export function NavigationContainer({
 
   useEffect(() => {
     return window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
-      if (event === 'back') {
+      if (event.type === 'back') {
         navigation.dispatch({type: 'pop'})
       }
-      if (event === 'forward') {
+      if (event.type === 'forward') {
         navigation.dispatch({type: 'forward'})
       }
     })

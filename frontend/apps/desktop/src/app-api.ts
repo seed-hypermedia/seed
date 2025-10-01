@@ -402,7 +402,7 @@ export async function handleUrlOpen(url: string) {
   if (parsedConnectUrl) {
     ensureFocusedWindowVisible()
     dispatchFocusedWindowAppEvent({
-      key: 'connectPeer',
+      type: 'connectPeer',
       connectionUrl: url,
     })
     return

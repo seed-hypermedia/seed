@@ -173,9 +173,7 @@ function ConfirmConnectionDialogContent({
 function ConfirmConnectionDialog() {
   const dialog = useAppDialog(ConfirmConnectionDialogContent)
   useListenAppEvent('connectPeer', (payload) => {
-    if (typeof payload === 'object' && payload.key === 'connectPeer') {
-      dialog.open(payload.connectionUrl)
-    }
+    dialog.open(payload.connectionUrl)
   })
   return dialog.content
 }

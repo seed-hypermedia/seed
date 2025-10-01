@@ -120,7 +120,7 @@ function useWindowUtils(ipc: AppIPC): WindowUtils {
   useEffect(() => {
     const unsubscribe = window.appWindowEvents?.subscribe(
       (event: AppWindowEvent) => {
-        if (event === 'window_state_changed') {
+        if (event.type === 'window_state_changed') {
           // Get the actual window state from the exposed windowMaximizedState
           if (window.windowMaximizedState) {
             const currentState = window.windowMaximizedState.get()
