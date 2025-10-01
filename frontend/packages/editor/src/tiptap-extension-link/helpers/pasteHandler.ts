@@ -285,6 +285,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             .then((linkMetaResult) => {
               if (linkMetaResult) {
                 // hm link
+                const currentPos =
+                  view.state.selection.$from.pos - link.href.length
                 const fullHmUrl = hmIdWithVersion(
                   linkMetaResult.id,
                   linkMetaResult.version,
@@ -299,11 +301,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   if (title) {
                     view.dispatch(
                       view.state.tr
-                        .deleteRange(pos, pos + link.href.length)
-                        .insertText(title, pos)
+                        .deleteRange(currentPos, currentPos + link.href.length)
+                        .insertText(title, currentPos)
                         .addMark(
-                          pos,
-                          pos + title.length,
+                          currentPos,
+                          currentPos + title.length,
                           options.editor.schema.mark('link', {
                             href: fullHmUrl,
                           }),
@@ -312,11 +314,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                   } else {
                     view.dispatch(
                       view.state.tr
-                        .deleteRange(pos, pos + link.href.length)
-                        .insertText(fullHmUrl, pos)
+                        .deleteRange(currentPos, currentPos + link.href.length)
+                        .insertText(fullHmUrl, currentPos)
                         .addMark(
-                          pos,
-                          pos + fullHmUrl.length,
+                          currentPos,
+                          currentPos + fullHmUrl.length,
                           options.editor.schema.mark('link', {
                             href: fullHmUrl,
                           }),
@@ -461,14 +463,16 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     extractBlockRangeOfUrl(link.href),
                   )
                   const title = linkMetaResult.title
+                  const currentPos =
+                    view.state.selection.$from.pos - link.href.length
                   if (title && fullHmUrl) {
                     view.dispatch(
                       view.state.tr
-                        .deleteRange(pos, pos + link.href.length)
-                        .insertText(title, pos)
+                        .deleteRange(currentPos, currentPos + link.href.length)
+                        .insertText(title, currentPos)
                         .addMark(
-                          pos,
-                          pos + title.length,
+                          currentPos,
+                          currentPos + title.length,
                           options.editor.schema.mark('link', {
                             href: fullHmUrl,
                           }),
@@ -573,6 +577,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           state,
           selection.from,
         ).blockContent
+
         tr.replaceWith(
           blockContentInfo.beforePos,
           blockContentInfo.afterPos,
@@ -585,6 +590,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
           const nodeText = node.textContent || ''
           const fragmentLinks = find(nodeText) || []
+
           if (fragmentLinks.length > 0) {
             const base = selection.from
 
@@ -641,22 +647,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
   }
 
   function handleWebUrl(view: any, link: any, options: PasteHandlerOptions) {
-    let tr = view.state.tr
-    if (!tr.selection.empty) tr.deleteSelection()
-
     const [mediaCase, fileName] = checkMediaUrl(link.href)
-
-    const pos = view.state.selection.$from.pos
-
-    view.dispatch(
-      tr.insertText(link.href, pos).addMark(
-        pos,
-        pos + link.href.length,
-        options.editor.schema.mark('link', {
-          href: link.href,
-        }),
-      ),
-    )
 
     view.dispatch(
       view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
@@ -751,14 +742,15 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               extractBlockRangeOfUrl(link.href),
             )
             const title = linkMetaResult.title
+            const currentPos = view.state.selection.$from.pos - link.href.length
             if (title && fullHmUrl) {
               view.dispatch(
                 view.state.tr
-                  .deleteRange(pos, pos + link.href.length)
-                  .insertText(title, pos)
+                  .deleteRange(currentPos, currentPos + link.href.length)
+                  .insertText(title, currentPos)
                   .addMark(
-                    pos,
-                    pos + title.length,
+                    currentPos,
+                    currentPos + title.length,
                     options.editor.schema.mark('link', {
                       href: fullHmUrl,
                     }),
