@@ -204,7 +204,7 @@ function PanelContent({children}: {children: ReactNode}) {
     <PanelGroup
       ref={ref}
       direction="horizontal"
-      className={cn('flex flex-1 overflow-hidden', isLocked ? '' : 'pl-1')}
+      className={cn('flex flex-1 overflow-hidden px-2')}
       autoSaveId="main"
       storage={ctx.widthStorage}
     >
