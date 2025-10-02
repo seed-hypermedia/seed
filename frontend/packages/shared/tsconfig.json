@@ -1,7 +1,16 @@
 {
-  "files": [],
-  "references": [
-    {"path": "./tsconfig.app.json"},
-    {"path": "./tsconfig.node.json"}
-  ]
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "composite": false,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
+    "paths": {
+      "@shm/ui/*": ["../ui/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "dist", "node_modules"]
 }

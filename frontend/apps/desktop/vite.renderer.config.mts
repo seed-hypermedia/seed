@@ -1,4 +1,4 @@
-import {sentryVitePlugin} from '@sentry/vite-plugin'
+// import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -54,6 +54,7 @@ export default defineConfig(({command, mode}) => {
     ],
     resolve: {
       extensions,
+      preserveSymlinks: true,
       dedupe: [
         '@shm/shared',
         '@shm/shared/*',
@@ -68,12 +69,27 @@ export default defineConfig(({command, mode}) => {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
+        '@noble/curves/secp256k1': '@noble/curves/secp256k1',
+        '@noble/hashes/utils': '@noble/hashes/utils',
+        '@noble/hashes/sha256': '@noble/hashes/sha256',
+        '@noble/ciphers/chacha': '@noble/ciphers/chacha',
       },
     },
     alias: {
       'react-native': 'react-native-web',
     },
     optimizeDeps: {
+      exclude: [
+        '@date-fns/tz',
+        '@ariakit/core',
+      ],
+      include: [
+        '@noble/curves',
+        '@noble/hashes',
+        '@noble/ciphers',
+        'nostr-tools',
+        'parse5',
+      ],
       esbuildOptions: {
         resolveExtensions: extensions,
       },
@@ -107,16 +123,16 @@ export default defineConfig(({command, mode}) => {
     },
   }
 
-  if (command == 'build') {
-    config.plugins.push(
-      sentryVitePlugin({
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-        org: 'mintter',
-        project: 'electron',
-        telemetry: false,
-      }),
-    )
-  }
+  // if (command == 'build') {
+  //   config.plugins.push(
+  //     sentryVitePlugin({
+  //       authToken: process.env.SENTRY_AUTH_TOKEN,
+  //       org: 'mintter',
+  //       project: 'electron',
+  //       telemetry: false,
+  //     }),
+  //   )
+  // }
 
   return config
 })

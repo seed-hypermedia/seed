@@ -1,4 +1,4 @@
-import {sentryVitePlugin} from '@sentry/vite-plugin'
+// import {sentryVitePlugin} from '@sentry/vite-plugin'
 import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
@@ -77,31 +77,19 @@ export default defineConfig(({command, mode}) => {
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
       },
     },
-    plugins:
-      command == 'build'
-        ? [
-            tsConfigPaths({
-              root: '../../',
-            }),
-            sentryVitePlugin({
-              authToken: process.env.SENTRY_AUTH_TOKEN,
-              org: 'mintter',
-              project: 'electron',
-              telemetry: false,
-            }),
-          ]
-        : [
-            tsConfigPaths({
-              root: '../../',
-            }),
-            // {
-            //   name: 'log-files',
-            //   transform(code, id) {
-            //     console.log('Processing file:', id)
-            //     return code
-            //   },
-            // },
-          ],
+    plugins: [
+      tsConfigPaths({
+        root: '../../',
+      }),
+      // command == 'build'
+      //   ? sentryVitePlugin({
+      //       authToken: process.env.SENTRY_AUTH_TOKEN,
+      //       org: 'mintter',
+      //       project: 'electron',
+      //       telemetry: false,
+      //     })
+      //   : null,
+    ].filter(Boolean),
     alias: {
       'react-native': 'react-native-web',
     },
