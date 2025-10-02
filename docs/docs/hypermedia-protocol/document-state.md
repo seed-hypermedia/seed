@@ -17,7 +17,6 @@ The document `metadata` may include the following fields to help describe the pu
 
 Every document will contain a `content` list of [Block Nodes](./block-node.md).
 
-
 ## Example Document
 
 `TODO - show an example document value here`

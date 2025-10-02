@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * State describes various states of the daemon.
@@ -35,11 +42,11 @@ export enum State {
   ACTIVE = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(State)
-proto3.util.setEnumType(State, "com.seed.daemon.v1alpha.State", [
-  { no: 0, name: "STARTING" },
-  { no: 1, name: "MIGRATING" },
-  { no: 3, name: "ACTIVE" },
-]);
+proto3.util.setEnumType(State, 'com.seed.daemon.v1alpha.State', [
+  {no: 0, name: 'STARTING'},
+  {no: 1, name: 'MIGRATING'},
+  {no: 3, name: 'ACTIVE'},
+])
 
 /**
  * Request to generate mnemonic words.
@@ -54,33 +61,45 @@ export class GenMnemonicRequest extends Message<GenMnemonicRequest> {
    *
    * @generated from field: int32 word_count = 1;
    */
-  wordCount = 0;
+  wordCount = 0
 
   constructor(data?: PartialMessage<GenMnemonicRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.GenMnemonicRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.GenMnemonicRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "word_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-  ]);
+    {no: 1, name: 'word_count', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenMnemonicRequest {
-    return new GenMnemonicRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GenMnemonicRequest {
+    return new GenMnemonicRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenMnemonicRequest {
-    return new GenMnemonicRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GenMnemonicRequest {
+    return new GenMnemonicRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenMnemonicRequest {
-    return new GenMnemonicRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GenMnemonicRequest {
+    return new GenMnemonicRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GenMnemonicRequest | PlainMessage<GenMnemonicRequest> | undefined, b: GenMnemonicRequest | PlainMessage<GenMnemonicRequest> | undefined): boolean {
-    return proto3.util.equals(GenMnemonicRequest, a, b);
+  static equals(
+    a: GenMnemonicRequest | PlainMessage<GenMnemonicRequest> | undefined,
+    b: GenMnemonicRequest | PlainMessage<GenMnemonicRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GenMnemonicRequest, a, b)
   }
 }
 
@@ -96,33 +115,51 @@ export class GenMnemonicResponse extends Message<GenMnemonicResponse> {
    *
    * @generated from field: repeated string mnemonic = 1;
    */
-  mnemonic: string[] = [];
+  mnemonic: string[] = []
 
   constructor(data?: PartialMessage<GenMnemonicResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.GenMnemonicResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.GenMnemonicResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "mnemonic", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'mnemonic',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenMnemonicResponse {
-    return new GenMnemonicResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GenMnemonicResponse {
+    return new GenMnemonicResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenMnemonicResponse {
-    return new GenMnemonicResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GenMnemonicResponse {
+    return new GenMnemonicResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenMnemonicResponse {
-    return new GenMnemonicResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GenMnemonicResponse {
+    return new GenMnemonicResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GenMnemonicResponse | PlainMessage<GenMnemonicResponse> | undefined, b: GenMnemonicResponse | PlainMessage<GenMnemonicResponse> | undefined): boolean {
-    return proto3.util.equals(GenMnemonicResponse, a, b);
+  static equals(
+    a: GenMnemonicResponse | PlainMessage<GenMnemonicResponse> | undefined,
+    b: GenMnemonicResponse | PlainMessage<GenMnemonicResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(GenMnemonicResponse, a, b)
   }
 }
 
@@ -137,14 +174,14 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
    *
    * @generated from field: repeated string mnemonic = 1;
    */
-  mnemonic: string[] = [];
+  mnemonic: string[] = []
 
   /**
    * Optional. Passphrase for the seed.
    *
    * @generated from field: string passphrase = 2;
    */
-  passphrase = "";
+  passphrase = ''
 
   /**
    * Required. Private name/label for the signing key, to easily identify keys when they are more than one.
@@ -152,35 +189,53 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
    *
    * @generated from field: string name = 3;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<RegisterKeyRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.RegisterKeyRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.RegisterKeyRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "mnemonic", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 2, name: "passphrase", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'mnemonic',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 2, name: 'passphrase', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegisterKeyRequest {
-    return new RegisterKeyRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RegisterKeyRequest {
+    return new RegisterKeyRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegisterKeyRequest {
-    return new RegisterKeyRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterKeyRequest {
+    return new RegisterKeyRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegisterKeyRequest {
-    return new RegisterKeyRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterKeyRequest {
+    return new RegisterKeyRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RegisterKeyRequest | PlainMessage<RegisterKeyRequest> | undefined, b: RegisterKeyRequest | PlainMessage<RegisterKeyRequest> | undefined): boolean {
-    return proto3.util.equals(RegisterKeyRequest, a, b);
+  static equals(
+    a: RegisterKeyRequest | PlainMessage<RegisterKeyRequest> | undefined,
+    b: RegisterKeyRequest | PlainMessage<RegisterKeyRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(RegisterKeyRequest, a, b)
   }
 }
 
@@ -191,29 +246,40 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
  */
 export class GetInfoRequest extends Message<GetInfoRequest> {
   constructor(data?: PartialMessage<GetInfoRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.GetInfoRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.GetInfoRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetInfoRequest {
-    return new GetInfoRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetInfoRequest {
+    return new GetInfoRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetInfoRequest {
-    return new GetInfoRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetInfoRequest {
+    return new GetInfoRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetInfoRequest {
-    return new GetInfoRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetInfoRequest {
+    return new GetInfoRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined, b: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined): boolean {
-    return proto3.util.equals(GetInfoRequest, a, b);
+  static equals(
+    a: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined,
+    b: GetInfoRequest | PlainMessage<GetInfoRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetInfoRequest, a, b)
   }
 }
 
@@ -224,29 +290,40 @@ export class GetInfoRequest extends Message<GetInfoRequest> {
  */
 export class ForceSyncRequest extends Message<ForceSyncRequest> {
   constructor(data?: PartialMessage<ForceSyncRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.ForceSyncRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.ForceSyncRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ForceSyncRequest {
-    return new ForceSyncRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ForceSyncRequest {
+    return new ForceSyncRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ForceSyncRequest {
-    return new ForceSyncRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ForceSyncRequest {
+    return new ForceSyncRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ForceSyncRequest {
-    return new ForceSyncRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ForceSyncRequest {
+    return new ForceSyncRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ForceSyncRequest | PlainMessage<ForceSyncRequest> | undefined, b: ForceSyncRequest | PlainMessage<ForceSyncRequest> | undefined): boolean {
-    return proto3.util.equals(ForceSyncRequest, a, b);
+  static equals(
+    a: ForceSyncRequest | PlainMessage<ForceSyncRequest> | undefined,
+    b: ForceSyncRequest | PlainMessage<ForceSyncRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ForceSyncRequest, a, b)
   }
 }
 
@@ -257,29 +334,40 @@ export class ForceSyncRequest extends Message<ForceSyncRequest> {
  */
 export class ForceReindexRequest extends Message<ForceReindexRequest> {
   constructor(data?: PartialMessage<ForceReindexRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.ForceReindexRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.ForceReindexRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ForceReindexRequest {
-    return new ForceReindexRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ForceReindexRequest {
+    return new ForceReindexRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ForceReindexRequest {
-    return new ForceReindexRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ForceReindexRequest {
+    return new ForceReindexRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ForceReindexRequest {
-    return new ForceReindexRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ForceReindexRequest {
+    return new ForceReindexRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined, b: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined): boolean {
-    return proto3.util.equals(ForceReindexRequest, a, b);
+  static equals(
+    a: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined,
+    b: ForceReindexRequest | PlainMessage<ForceReindexRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ForceReindexRequest, a, b)
   }
 }
 
@@ -290,29 +378,40 @@ export class ForceReindexRequest extends Message<ForceReindexRequest> {
  */
 export class ForceReindexResponse extends Message<ForceReindexResponse> {
   constructor(data?: PartialMessage<ForceReindexResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.ForceReindexResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.ForceReindexResponse'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ForceReindexResponse {
-    return new ForceReindexResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ForceReindexResponse {
+    return new ForceReindexResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ForceReindexResponse {
-    return new ForceReindexResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ForceReindexResponse {
+    return new ForceReindexResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ForceReindexResponse {
-    return new ForceReindexResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ForceReindexResponse {
+    return new ForceReindexResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined, b: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined): boolean {
-    return proto3.util.equals(ForceReindexResponse, a, b);
+  static equals(
+    a: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined,
+    b: ForceReindexResponse | PlainMessage<ForceReindexResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ForceReindexResponse, a, b)
   }
 }
 
@@ -323,29 +422,40 @@ export class ForceReindexResponse extends Message<ForceReindexResponse> {
  */
 export class DeleteAllKeysRequest extends Message<DeleteAllKeysRequest> {
   constructor(data?: PartialMessage<DeleteAllKeysRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.DeleteAllKeysRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.DeleteAllKeysRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteAllKeysRequest {
-    return new DeleteAllKeysRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteAllKeysRequest {
+    return new DeleteAllKeysRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteAllKeysRequest {
-    return new DeleteAllKeysRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteAllKeysRequest {
+    return new DeleteAllKeysRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteAllKeysRequest {
-    return new DeleteAllKeysRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteAllKeysRequest {
+    return new DeleteAllKeysRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteAllKeysRequest | PlainMessage<DeleteAllKeysRequest> | undefined, b: DeleteAllKeysRequest | PlainMessage<DeleteAllKeysRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteAllKeysRequest, a, b);
+  static equals(
+    a: DeleteAllKeysRequest | PlainMessage<DeleteAllKeysRequest> | undefined,
+    b: DeleteAllKeysRequest | PlainMessage<DeleteAllKeysRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteAllKeysRequest, a, b)
   }
 }
 
@@ -356,29 +466,40 @@ export class DeleteAllKeysRequest extends Message<DeleteAllKeysRequest> {
  */
 export class ListKeysRequest extends Message<ListKeysRequest> {
   constructor(data?: PartialMessage<ListKeysRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.ListKeysRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.ListKeysRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListKeysRequest {
-    return new ListKeysRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListKeysRequest {
+    return new ListKeysRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListKeysRequest {
-    return new ListKeysRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListKeysRequest {
+    return new ListKeysRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListKeysRequest {
-    return new ListKeysRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListKeysRequest {
+    return new ListKeysRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListKeysRequest | PlainMessage<ListKeysRequest> | undefined, b: ListKeysRequest | PlainMessage<ListKeysRequest> | undefined): boolean {
-    return proto3.util.equals(ListKeysRequest, a, b);
+  static equals(
+    a: ListKeysRequest | PlainMessage<ListKeysRequest> | undefined,
+    b: ListKeysRequest | PlainMessage<ListKeysRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListKeysRequest, a, b)
   }
 }
 
@@ -393,33 +514,45 @@ export class ListKeysResponse extends Message<ListKeysResponse> {
    *
    * @generated from field: repeated com.seed.daemon.v1alpha.NamedKey keys = 1;
    */
-  keys: NamedKey[] = [];
+  keys: NamedKey[] = []
 
   constructor(data?: PartialMessage<ListKeysResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.ListKeysResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.ListKeysResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "keys", kind: "message", T: NamedKey, repeated: true },
-  ]);
+    {no: 1, name: 'keys', kind: 'message', T: NamedKey, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListKeysResponse {
-    return new ListKeysResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListKeysResponse {
+    return new ListKeysResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListKeysResponse {
-    return new ListKeysResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListKeysResponse {
+    return new ListKeysResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListKeysResponse {
-    return new ListKeysResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListKeysResponse {
+    return new ListKeysResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListKeysResponse | PlainMessage<ListKeysResponse> | undefined, b: ListKeysResponse | PlainMessage<ListKeysResponse> | undefined): boolean {
-    return proto3.util.equals(ListKeysResponse, a, b);
+  static equals(
+    a: ListKeysResponse | PlainMessage<ListKeysResponse> | undefined,
+    b: ListKeysResponse | PlainMessage<ListKeysResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListKeysResponse, a, b)
   }
 }
 
@@ -434,41 +567,53 @@ export class UpdateKeyRequest extends Message<UpdateKeyRequest> {
    *
    * @generated from field: string current_name = 1;
    */
-  currentName = "";
+  currentName = ''
 
   /**
    * New name for the key.
    *
    * @generated from field: string new_name = 2;
    */
-  newName = "";
+  newName = ''
 
   constructor(data?: PartialMessage<UpdateKeyRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.UpdateKeyRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.UpdateKeyRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "current_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "new_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'current_name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'new_name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateKeyRequest {
+    return new UpdateKeyRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateKeyRequest {
+    return new UpdateKeyRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateKeyRequest {
-    return new UpdateKeyRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateKeyRequest {
+    return new UpdateKeyRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined, b: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateKeyRequest, a, b);
+  static equals(
+    a: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined,
+    b: UpdateKeyRequest | PlainMessage<UpdateKeyRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateKeyRequest, a, b)
   }
 }
 
@@ -483,33 +628,45 @@ export class DeleteKeyRequest extends Message<DeleteKeyRequest> {
    *
    * @generated from field: string name = 1;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<DeleteKeyRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.DeleteKeyRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.DeleteKeyRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteKeyRequest {
-    return new DeleteKeyRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteKeyRequest {
+    return new DeleteKeyRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteKeyRequest {
-    return new DeleteKeyRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteKeyRequest {
+    return new DeleteKeyRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteKeyRequest {
-    return new DeleteKeyRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteKeyRequest {
+    return new DeleteKeyRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteKeyRequest | PlainMessage<DeleteKeyRequest> | undefined, b: DeleteKeyRequest | PlainMessage<DeleteKeyRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteKeyRequest, a, b);
+  static equals(
+    a: DeleteKeyRequest | PlainMessage<DeleteKeyRequest> | undefined,
+    b: DeleteKeyRequest | PlainMessage<DeleteKeyRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteKeyRequest, a, b)
   }
 }
 
@@ -525,33 +682,45 @@ export class StoreBlobsRequest extends Message<StoreBlobsRequest> {
    *
    * @generated from field: repeated com.seed.daemon.v1alpha.Blob blobs = 1;
    */
-  blobs: Blob[] = [];
+  blobs: Blob[] = []
 
   constructor(data?: PartialMessage<StoreBlobsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.StoreBlobsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.StoreBlobsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "blobs", kind: "message", T: Blob, repeated: true },
-  ]);
+    {no: 1, name: 'blobs', kind: 'message', T: Blob, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StoreBlobsRequest {
-    return new StoreBlobsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StoreBlobsRequest {
-    return new StoreBlobsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StoreBlobsRequest {
-    return new StoreBlobsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): StoreBlobsRequest {
+    return new StoreBlobsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined, b: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined): boolean {
-    return proto3.util.equals(StoreBlobsRequest, a, b);
+  static equals(
+    a: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined,
+    b: StoreBlobsRequest | PlainMessage<StoreBlobsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(StoreBlobsRequest, a, b)
   }
 }
 
@@ -567,33 +736,51 @@ export class StoreBlobsResponse extends Message<StoreBlobsResponse> {
    *
    * @generated from field: repeated string cids = 1;
    */
-  cids: string[] = [];
+  cids: string[] = []
 
   constructor(data?: PartialMessage<StoreBlobsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.StoreBlobsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.StoreBlobsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "cids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'cids',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StoreBlobsResponse {
-    return new StoreBlobsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StoreBlobsResponse {
-    return new StoreBlobsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StoreBlobsResponse {
-    return new StoreBlobsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): StoreBlobsResponse {
+    return new StoreBlobsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined, b: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined): boolean {
-    return proto3.util.equals(StoreBlobsResponse, a, b);
+  static equals(
+    a: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined,
+    b: StoreBlobsResponse | PlainMessage<StoreBlobsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(StoreBlobsResponse, a, b)
   }
 }
 
@@ -608,7 +795,7 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
    *
    * @generated from field: string signing_key_name = 1;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Optional. Label that will be used for the newly created capability.
@@ -616,34 +803,61 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
    *
    * @generated from field: string label = 2;
    */
-  label = "";
+  label = ''
 
   constructor(data?: PartialMessage<CreateDeviceLinkSessionRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'label', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDeviceLinkSessionRequest {
-    return new CreateDeviceLinkSessionRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateDeviceLinkSessionRequest {
-    return new CreateDeviceLinkSessionRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateDeviceLinkSessionRequest {
-    return new CreateDeviceLinkSessionRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateDeviceLinkSessionRequest {
+    return new CreateDeviceLinkSessionRequest().fromJsonString(
+      jsonString,
+      options,
+    )
   }
 
-  static equals(a: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined, b: CreateDeviceLinkSessionRequest | PlainMessage<CreateDeviceLinkSessionRequest> | undefined): boolean {
-    return proto3.util.equals(CreateDeviceLinkSessionRequest, a, b);
+  static equals(
+    a:
+      | CreateDeviceLinkSessionRequest
+      | PlainMessage<CreateDeviceLinkSessionRequest>
+      | undefined,
+    b:
+      | CreateDeviceLinkSessionRequest
+      | PlainMessage<CreateDeviceLinkSessionRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateDeviceLinkSessionRequest, a, b)
   }
 }
 
@@ -654,29 +868,47 @@ export class CreateDeviceLinkSessionRequest extends Message<CreateDeviceLinkSess
  */
 export class GetDeviceLinkSessionRequest extends Message<GetDeviceLinkSessionRequest> {
   constructor(data?: PartialMessage<GetDeviceLinkSessionRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDeviceLinkSessionRequest {
-    return new GetDeviceLinkSessionRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDeviceLinkSessionRequest {
-    return new GetDeviceLinkSessionRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDeviceLinkSessionRequest {
-    return new GetDeviceLinkSessionRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetDeviceLinkSessionRequest {
+    return new GetDeviceLinkSessionRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetDeviceLinkSessionRequest | PlainMessage<GetDeviceLinkSessionRequest> | undefined, b: GetDeviceLinkSessionRequest | PlainMessage<GetDeviceLinkSessionRequest> | undefined): boolean {
-    return proto3.util.equals(GetDeviceLinkSessionRequest, a, b);
+  static equals(
+    a:
+      | GetDeviceLinkSessionRequest
+      | PlainMessage<GetDeviceLinkSessionRequest>
+      | undefined,
+    b:
+      | GetDeviceLinkSessionRequest
+      | PlainMessage<GetDeviceLinkSessionRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetDeviceLinkSessionRequest, a, b)
   }
 }
 
@@ -691,41 +923,58 @@ export class SignDataRequest extends Message<SignDataRequest> {
    *
    * @generated from field: string signing_key_name = 1;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Required. Data to be signed.
    *
    * @generated from field: bytes data = 2;
    */
-  data = new Uint8Array(0);
+  data = new Uint8Array(0)
 
   constructor(data?: PartialMessage<SignDataRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.SignDataRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.SignDataRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
-  ]);
+    {
+      no: 1,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'data', kind: 'scalar', T: 12 /* ScalarType.BYTES */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SignDataRequest {
-    return new SignDataRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SignDataRequest {
+    return new SignDataRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SignDataRequest {
-    return new SignDataRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SignDataRequest {
+    return new SignDataRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SignDataRequest {
-    return new SignDataRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SignDataRequest {
+    return new SignDataRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SignDataRequest | PlainMessage<SignDataRequest> | undefined, b: SignDataRequest | PlainMessage<SignDataRequest> | undefined): boolean {
-    return proto3.util.equals(SignDataRequest, a, b);
+  static equals(
+    a: SignDataRequest | PlainMessage<SignDataRequest> | undefined,
+    b: SignDataRequest | PlainMessage<SignDataRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(SignDataRequest, a, b)
   }
 }
 
@@ -740,33 +989,45 @@ export class SignDataResponse extends Message<SignDataResponse> {
    *
    * @generated from field: bytes signature = 1;
    */
-  signature = new Uint8Array(0);
+  signature = new Uint8Array(0)
 
   constructor(data?: PartialMessage<SignDataResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.SignDataResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.SignDataResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signature", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
-  ]);
+    {no: 1, name: 'signature', kind: 'scalar', T: 12 /* ScalarType.BYTES */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SignDataResponse {
-    return new SignDataResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SignDataResponse {
+    return new SignDataResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SignDataResponse {
-    return new SignDataResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SignDataResponse {
+    return new SignDataResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SignDataResponse {
-    return new SignDataResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SignDataResponse {
+    return new SignDataResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SignDataResponse | PlainMessage<SignDataResponse> | undefined, b: SignDataResponse | PlainMessage<SignDataResponse> | undefined): boolean {
-    return proto3.util.equals(SignDataResponse, a, b);
+  static equals(
+    a: SignDataResponse | PlainMessage<SignDataResponse> | undefined,
+    b: SignDataResponse | PlainMessage<SignDataResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(SignDataResponse, a, b)
   }
 }
 
@@ -781,35 +1042,35 @@ export class DeviceLinkSession extends Message<DeviceLinkSession> {
    *
    * @generated from field: com.seed.daemon.v1alpha.AddrInfo addr_info = 1;
    */
-  addrInfo?: AddrInfo;
+  addrInfo?: AddrInfo
 
   /**
    * Secret token for the linking session.
    *
    * @generated from field: string secret_token = 2;
    */
-  secretToken = "";
+  secretToken = ''
 
   /**
    * Account ID that wants to link the new device.
    *
    * @generated from field: string account_id = 3;
    */
-  accountId = "";
+  accountId = ''
 
   /**
    * Label for the future capability as defined by the user.
    *
    * @generated from field: string label = 4;
    */
-  label = "";
+  label = ''
 
   /**
    * Expiration time of the session.
    *
    * @generated from field: google.protobuf.Timestamp expire_time = 5;
    */
-  expireTime?: Timestamp;
+  expireTime?: Timestamp
 
   /**
    * Optional. Time when the session was redeemed,
@@ -817,38 +1078,50 @@ export class DeviceLinkSession extends Message<DeviceLinkSession> {
    *
    * @generated from field: google.protobuf.Timestamp redeem_time = 6;
    */
-  redeemTime?: Timestamp;
+  redeemTime?: Timestamp
 
   constructor(data?: PartialMessage<DeviceLinkSession>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.DeviceLinkSession";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.DeviceLinkSession'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "addr_info", kind: "message", T: AddrInfo },
-    { no: 2, name: "secret_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "expire_time", kind: "message", T: Timestamp },
-    { no: 6, name: "redeem_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'addr_info', kind: 'message', T: AddrInfo},
+    {no: 2, name: 'secret_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'account_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'label', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'expire_time', kind: 'message', T: Timestamp},
+    {no: 6, name: 'redeem_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeviceLinkSession {
-    return new DeviceLinkSession().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeviceLinkSession {
+    return new DeviceLinkSession().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeviceLinkSession {
-    return new DeviceLinkSession().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeviceLinkSession {
+    return new DeviceLinkSession().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeviceLinkSession {
-    return new DeviceLinkSession().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeviceLinkSession {
+    return new DeviceLinkSession().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined, b: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined): boolean {
-    return proto3.util.equals(DeviceLinkSession, a, b);
+  static equals(
+    a: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined,
+    b: DeviceLinkSession | PlainMessage<DeviceLinkSession> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeviceLinkSession, a, b)
   }
 }
 
@@ -861,39 +1134,57 @@ export class AddrInfo extends Message<AddrInfo> {
   /**
    * @generated from field: string peer_id = 1;
    */
-  peerId = "";
+  peerId = ''
 
   /**
    * @generated from field: repeated string addrs = 2;
    */
-  addrs: string[] = [];
+  addrs: string[] = []
 
   constructor(data?: PartialMessage<AddrInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.AddrInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.AddrInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {no: 1, name: 'peer_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'addrs',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddrInfo {
-    return new AddrInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): AddrInfo {
+    return new AddrInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AddrInfo {
-    return new AddrInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): AddrInfo {
+    return new AddrInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AddrInfo {
-    return new AddrInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): AddrInfo {
+    return new AddrInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: AddrInfo | PlainMessage<AddrInfo> | undefined, b: AddrInfo | PlainMessage<AddrInfo> | undefined): boolean {
-    return proto3.util.equals(AddrInfo, a, b);
+  static equals(
+    a: AddrInfo | PlainMessage<AddrInfo> | undefined,
+    b: AddrInfo | PlainMessage<AddrInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(AddrInfo, a, b)
   }
 }
 
@@ -910,41 +1201,53 @@ export class Blob extends Message<Blob> {
    *
    * @generated from field: string cid = 1;
    */
-  cid = "";
+  cid = ''
 
   /**
    * Required. Raw data of the blob.
    *
    * @generated from field: bytes data = 2;
    */
-  data = new Uint8Array(0);
+  data = new Uint8Array(0)
 
   constructor(data?: PartialMessage<Blob>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.Blob";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.Blob'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "data", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
-  ]);
+    {no: 1, name: 'cid', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'data', kind: 'scalar', T: 12 /* ScalarType.BYTES */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Blob {
-    return new Blob().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Blob {
+    return new Blob().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Blob {
-    return new Blob().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Blob {
+    return new Blob().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Blob {
-    return new Blob().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Blob {
+    return new Blob().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Blob | PlainMessage<Blob> | undefined, b: Blob | PlainMessage<Blob> | undefined): boolean {
-    return proto3.util.equals(Blob, a, b);
+  static equals(
+    a: Blob | PlainMessage<Blob> | undefined,
+    b: Blob | PlainMessage<Blob> | undefined,
+  ): boolean {
+    return proto3.util.equals(Blob, a, b)
   }
 }
 
@@ -959,57 +1262,69 @@ export class Info extends Message<Info> {
    *
    * @generated from field: com.seed.daemon.v1alpha.State state = 1;
    */
-  state = State.STARTING;
+  state = State.STARTING
 
   /**
    * Libp2p Peer ID of this node.
    *
    * @generated from field: string peer_id = 2;
    */
-  peerId = "";
+  peerId = ''
 
   /**
    * Start time of the node.
    *
    * @generated from field: google.protobuf.Timestamp start_time = 3;
    */
-  startTime?: Timestamp;
+  startTime?: Timestamp
 
   /**
    * The libp2p protocol ID that the daemon is using.
    *
    * @generated from field: string protocol_id = 4;
    */
-  protocolId = "";
+  protocolId = ''
 
   constructor(data?: PartialMessage<Info>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.Info";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.Info'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "state", kind: "enum", T: proto3.getEnumType(State) },
-    { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "start_time", kind: "message", T: Timestamp },
-    { no: 4, name: "protocol_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'state', kind: 'enum', T: proto3.getEnumType(State)},
+    {no: 2, name: 'peer_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'start_time', kind: 'message', T: Timestamp},
+    {no: 4, name: 'protocol_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Info {
-    return new Info().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Info {
+    return new Info().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Info {
-    return new Info().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Info {
+    return new Info().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Info {
-    return new Info().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Info {
+    return new Info().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Info | PlainMessage<Info> | undefined, b: Info | PlainMessage<Info> | undefined): boolean {
-    return proto3.util.equals(Info, a, b);
+  static equals(
+    a: Info | PlainMessage<Info> | undefined,
+    b: Info | PlainMessage<Info> | undefined,
+  ): boolean {
+    return proto3.util.equals(Info, a, b)
   }
 }
 
@@ -1025,49 +1340,60 @@ export class NamedKey extends Message<NamedKey> {
    *
    * @generated from field: string public_key = 1;
    */
-  publicKey = "";
+  publicKey = ''
 
   /**
    * Private name for the key. Useful to identify the keys when there're more than one.
    *
    * @generated from field: string name = 2;
    */
-  name = "";
+  name = ''
 
   /**
    * Account ID representation of this key.
    *
    * @generated from field: string account_id = 3;
    */
-  accountId = "";
+  accountId = ''
 
   constructor(data?: PartialMessage<NamedKey>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.NamedKey";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.daemon.v1alpha.NamedKey'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "public_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'public_key', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'account_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NamedKey {
-    return new NamedKey().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): NamedKey {
+    return new NamedKey().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): NamedKey {
-    return new NamedKey().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): NamedKey {
+    return new NamedKey().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): NamedKey {
-    return new NamedKey().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): NamedKey {
+    return new NamedKey().fromJsonString(jsonString, options)
   }
 
-  static equals(a: NamedKey | PlainMessage<NamedKey> | undefined, b: NamedKey | PlainMessage<NamedKey> | undefined): boolean {
-    return proto3.util.equals(NamedKey, a, b);
+  static equals(
+    a: NamedKey | PlainMessage<NamedKey> | undefined,
+    b: NamedKey | PlainMessage<NamedKey> | undefined,
+  ): boolean {
+    return proto3.util.equals(NamedKey, a, b)
   }
 }
-

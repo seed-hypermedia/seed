@@ -4,10 +4,10 @@ Each document operation takes the following format:
 
 ```json
 {
-    "op": "SetAttributes",
-    "attributes": {
-        "name": "New Document Name"
-    }
+  "op": "SetAttributes",
+  "attributes": {
+    "name": "New Document Name"
+  }
 }
 ```
 

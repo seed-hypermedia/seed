@@ -3,8 +3,23 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Change, DeleteEntityRequest, DiscoverEntityRequest, DiscoverEntityResponse, EntityTimeline, GetChangeRequest, GetEntityTimelineRequest, ListDeletedEntitiesRequest, ListDeletedEntitiesResponse, ListEntityMentionsRequest, ListEntityMentionsResponse, SearchEntitiesRequest, SearchEntitiesResponse, UndeleteEntityRequest } from "./entities_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  Change,
+  DeleteEntityRequest,
+  DiscoverEntityRequest,
+  DiscoverEntityResponse,
+  EntityTimeline,
+  GetChangeRequest,
+  GetEntityTimelineRequest,
+  ListDeletedEntitiesRequest,
+  ListDeletedEntitiesResponse,
+  ListEntityMentionsRequest,
+  ListEntityMentionsResponse,
+  SearchEntitiesRequest,
+  SearchEntitiesResponse,
+  UndeleteEntityRequest,
+} from './entities_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Provides functionality to query information about Hypermedia Entities.
@@ -12,7 +27,7 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.entities.v1alpha.Entities
  */
 export const Entities = {
-  typeName: "com.seed.entities.v1alpha.Entities",
+  typeName: 'com.seed.entities.v1alpha.Entities',
   methods: {
     /**
      * Gets a change by ID.
@@ -20,7 +35,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.GetChange
      */
     getChange: {
-      name: "GetChange",
+      name: 'GetChange',
       I: GetChangeRequest,
       O: Change,
       kind: MethodKind.Unary,
@@ -31,7 +46,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.GetEntityTimeline
      */
     getEntityTimeline: {
-      name: "GetEntityTimeline",
+      name: 'GetEntityTimeline',
       I: GetEntityTimelineRequest,
       O: EntityTimeline,
       kind: MethodKind.Unary,
@@ -42,7 +57,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.DiscoverEntity
      */
     discoverEntity: {
-      name: "DiscoverEntity",
+      name: 'DiscoverEntity',
       I: DiscoverEntityRequest,
       O: DiscoverEntityResponse,
       kind: MethodKind.Unary,
@@ -55,7 +70,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.SearchEntities
      */
     searchEntities: {
-      name: "SearchEntities",
+      name: 'SearchEntities',
       I: SearchEntitiesRequest,
       O: SearchEntitiesResponse,
       kind: MethodKind.Unary,
@@ -66,7 +81,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.DeleteEntity
      */
     deleteEntity: {
-      name: "DeleteEntity",
+      name: 'DeleteEntity',
       I: DeleteEntityRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -77,7 +92,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.ListDeletedEntities
      */
     listDeletedEntities: {
-      name: "ListDeletedEntities",
+      name: 'ListDeletedEntities',
       I: ListDeletedEntitiesRequest,
       O: ListDeletedEntitiesResponse,
       kind: MethodKind.Unary,
@@ -89,7 +104,7 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.UndeleteEntity
      */
     undeleteEntity: {
-      name: "UndeleteEntity",
+      name: 'UndeleteEntity',
       I: UndeleteEntityRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -100,11 +115,10 @@ export const Entities = {
      * @generated from rpc com.seed.entities.v1alpha.Entities.ListEntityMentions
      */
     listEntityMentions: {
-      name: "ListEntityMentions",
+      name: 'ListEntityMentions',
       I: ListEntityMentionsRequest,
       O: ListEntityMentionsResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

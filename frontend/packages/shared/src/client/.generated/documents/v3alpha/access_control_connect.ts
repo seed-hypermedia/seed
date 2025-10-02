@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Capability, CreateCapabilityRequest, GetCapabilityRequest, ListCapabilitiesForDelegateRequest, ListCapabilitiesRequest, ListCapabilitiesResponse } from "./access_control_pb";
-import { MethodKind } from "@bufbuild/protobuf";
+import {
+  Capability,
+  CreateCapabilityRequest,
+  GetCapabilityRequest,
+  ListCapabilitiesForDelegateRequest,
+  ListCapabilitiesRequest,
+  ListCapabilitiesResponse,
+} from './access_control_pb'
+import {MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Access Control service provides management API for issuing and revoking Capabilities.
@@ -12,7 +19,7 @@ import { MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.documents.v3alpha.AccessControl
  */
 export const AccessControl = {
-  typeName: "com.seed.documents.v3alpha.AccessControl",
+  typeName: 'com.seed.documents.v3alpha.AccessControl',
   methods: {
     /**
      * Lists existing capabilities.
@@ -20,7 +27,7 @@ export const AccessControl = {
      * @generated from rpc com.seed.documents.v3alpha.AccessControl.ListCapabilities
      */
     listCapabilities: {
-      name: "ListCapabilities",
+      name: 'ListCapabilities',
       I: ListCapabilitiesRequest,
       O: ListCapabilitiesResponse,
       kind: MethodKind.Unary,
@@ -31,7 +38,7 @@ export const AccessControl = {
      * @generated from rpc com.seed.documents.v3alpha.AccessControl.ListCapabilitiesForDelegate
      */
     listCapabilitiesForDelegate: {
-      name: "ListCapabilitiesForDelegate",
+      name: 'ListCapabilitiesForDelegate',
       I: ListCapabilitiesForDelegateRequest,
       O: ListCapabilitiesResponse,
       kind: MethodKind.Unary,
@@ -42,7 +49,7 @@ export const AccessControl = {
      * @generated from rpc com.seed.documents.v3alpha.AccessControl.CreateCapability
      */
     createCapability: {
-      name: "CreateCapability",
+      name: 'CreateCapability',
       I: CreateCapabilityRequest,
       O: Capability,
       kind: MethodKind.Unary,
@@ -53,11 +60,10 @@ export const AccessControl = {
      * @generated from rpc com.seed.documents.v3alpha.AccessControl.GetCapability
      */
     getCapability: {
-      name: "GetCapability",
+      name: 'GetCapability',
       I: GetCapabilityRequest,
       O: Capability,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

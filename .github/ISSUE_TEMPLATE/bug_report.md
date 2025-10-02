@@ -1,8 +1,8 @@
 ---
 name: Bug Report
 about: Report an unexpected behavior, bug, or crash
-title: "Bug: "
-labels: ["type: bug"]
+title: 'Bug: '
+labels: ['type: bug']
 assignees: ''
 ---
 
@@ -15,7 +15,7 @@ assignees: ''
 
 ## Steps to Reproduce
 
-<!-- 
+<!--
     List the actions that would allow to reproduce the bug.
     Bugs that are reproducible are *much* more likely to get fixed!
     If you are unable to reproduce the problem, try to at least describe what you were doing
@@ -25,7 +25,6 @@ assignees: ''
 ## Expected Behavior
 
 <!-- Describe the expected behavior of the system. -->
-
 
 ## Debug Info
 

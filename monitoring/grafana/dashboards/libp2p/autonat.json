@@ -205,9 +205,7 @@
       "options": {
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -269,9 +267,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "/^Value$/",
           "values": false
         },
@@ -691,7 +687,7 @@
   "tags": [],
   "templating": {
     "list": [
-       {
+      {
         "hide": 0,
         "label": "datasource",
         "name": "DS_PROMETHEUS",

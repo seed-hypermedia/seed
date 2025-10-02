@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * Subscribe to a resource
@@ -17,7 +24,7 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document.
@@ -25,7 +32,7 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Optional. Indicate if we not only subscribe to the resource
@@ -33,7 +40,7 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
    *
    * @generated from field: bool recursive = 3;
    */
-  recursive = false;
+  recursive = false
 
   /**
    * Optional. If true, the server will not wait for the subscription
@@ -41,36 +48,54 @@ export class SubscribeRequest extends Message<SubscribeRequest> {
    *
    * @generated from field: optional bool async = 4;
    */
-  async?: boolean;
+  async?: boolean
 
   constructor(data?: PartialMessage<SubscribeRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.SubscribeRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.SubscribeRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "async", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {
+      no: 4,
+      name: 'async',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+      opt: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribeRequest {
-    return new SubscribeRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SubscribeRequest {
+    return new SubscribeRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SubscribeRequest {
-    return new SubscribeRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SubscribeRequest {
+    return new SubscribeRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SubscribeRequest {
-    return new SubscribeRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SubscribeRequest {
+    return new SubscribeRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SubscribeRequest | PlainMessage<SubscribeRequest> | undefined, b: SubscribeRequest | PlainMessage<SubscribeRequest> | undefined): boolean {
-    return proto3.util.equals(SubscribeRequest, a, b);
+  static equals(
+    a: SubscribeRequest | PlainMessage<SubscribeRequest> | undefined,
+    b: SubscribeRequest | PlainMessage<SubscribeRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(SubscribeRequest, a, b)
   }
 }
 
@@ -85,7 +110,7 @@ export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document.
@@ -93,34 +118,46 @@ export class UnsubscribeRequest extends Message<UnsubscribeRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   constructor(data?: PartialMessage<UnsubscribeRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.UnsubscribeRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.UnsubscribeRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UnsubscribeRequest {
-    return new UnsubscribeRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UnsubscribeRequest {
+    return new UnsubscribeRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UnsubscribeRequest {
-    return new UnsubscribeRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UnsubscribeRequest {
+    return new UnsubscribeRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UnsubscribeRequest {
-    return new UnsubscribeRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UnsubscribeRequest {
+    return new UnsubscribeRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UnsubscribeRequest | PlainMessage<UnsubscribeRequest> | undefined, b: UnsubscribeRequest | PlainMessage<UnsubscribeRequest> | undefined): boolean {
-    return proto3.util.equals(UnsubscribeRequest, a, b);
+  static equals(
+    a: UnsubscribeRequest | PlainMessage<UnsubscribeRequest> | undefined,
+    b: UnsubscribeRequest | PlainMessage<UnsubscribeRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UnsubscribeRequest, a, b)
   }
 }
 
@@ -135,41 +172,60 @@ export class ListSubscriptionsRequest extends Message<ListSubscriptionsRequest> 
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. The page token for requesting next pages.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListSubscriptionsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.ListSubscriptionsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.activity.v1alpha.ListSubscriptionsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListSubscriptionsRequest {
-    return new ListSubscriptionsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListSubscriptionsRequest {
+    return new ListSubscriptionsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListSubscriptionsRequest {
-    return new ListSubscriptionsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListSubscriptionsRequest {
+    return new ListSubscriptionsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListSubscriptionsRequest {
-    return new ListSubscriptionsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListSubscriptionsRequest {
+    return new ListSubscriptionsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListSubscriptionsRequest | PlainMessage<ListSubscriptionsRequest> | undefined, b: ListSubscriptionsRequest | PlainMessage<ListSubscriptionsRequest> | undefined): boolean {
-    return proto3.util.equals(ListSubscriptionsRequest, a, b);
+  static equals(
+    a:
+      | ListSubscriptionsRequest
+      | PlainMessage<ListSubscriptionsRequest>
+      | undefined,
+    b:
+      | ListSubscriptionsRequest
+      | PlainMessage<ListSubscriptionsRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListSubscriptionsRequest, a, b)
   }
 }
 
@@ -184,41 +240,71 @@ export class ListSubscriptionsResponse extends Message<ListSubscriptionsResponse
    *
    * @generated from field: repeated com.seed.activity.v1alpha.Subscription subscriptions = 1;
    */
-  subscriptions: Subscription[] = [];
+  subscriptions: Subscription[] = []
 
   /**
    * The token to request the next page.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListSubscriptionsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.ListSubscriptionsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.activity.v1alpha.ListSubscriptionsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "subscriptions", kind: "message", T: Subscription, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'subscriptions',
+      kind: 'message',
+      T: Subscription,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListSubscriptionsResponse {
-    return new ListSubscriptionsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListSubscriptionsResponse {
+    return new ListSubscriptionsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListSubscriptionsResponse {
-    return new ListSubscriptionsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListSubscriptionsResponse {
+    return new ListSubscriptionsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListSubscriptionsResponse {
-    return new ListSubscriptionsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListSubscriptionsResponse {
+    return new ListSubscriptionsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListSubscriptionsResponse | PlainMessage<ListSubscriptionsResponse> | undefined, b: ListSubscriptionsResponse | PlainMessage<ListSubscriptionsResponse> | undefined): boolean {
-    return proto3.util.equals(ListSubscriptionsResponse, a, b);
+  static equals(
+    a:
+      | ListSubscriptionsResponse
+      | PlainMessage<ListSubscriptionsResponse>
+      | undefined,
+    b:
+      | ListSubscriptionsResponse
+      | PlainMessage<ListSubscriptionsResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListSubscriptionsResponse, a, b)
   }
 }
 
@@ -233,7 +319,7 @@ export class Subscription extends Message<Subscription> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Path of the document within the account.
@@ -241,7 +327,7 @@ export class Subscription extends Message<Subscription> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Whether this subscription also subscribes to
@@ -249,43 +335,54 @@ export class Subscription extends Message<Subscription> {
    *
    * @generated from field: bool recursive = 3;
    */
-  recursive = false;
+  recursive = false
 
   /**
    * Timestamp when the user started the subscrition.
    *
    * @generated from field: google.protobuf.Timestamp since = 4;
    */
-  since?: Timestamp;
+  since?: Timestamp
 
   constructor(data?: PartialMessage<Subscription>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.Subscription";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.Subscription'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "since", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 4, name: 'since', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Subscription {
-    return new Subscription().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Subscription {
+    return new Subscription().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Subscription {
-    return new Subscription().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Subscription {
+    return new Subscription().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Subscription {
-    return new Subscription().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Subscription {
+    return new Subscription().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Subscription | PlainMessage<Subscription> | undefined, b: Subscription | PlainMessage<Subscription> | undefined): boolean {
-    return proto3.util.equals(Subscription, a, b);
+  static equals(
+    a: Subscription | PlainMessage<Subscription> | undefined,
+    b: Subscription | PlainMessage<Subscription> | undefined,
+  ): boolean {
+    return proto3.util.equals(Subscription, a, b)
   }
 }
-

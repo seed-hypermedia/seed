@@ -3,9 +3,16 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
-import { BlockNode } from "./documents_pb";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
+import {BlockNode} from './documents_pb'
 
 /**
  * Request to create a comment.
@@ -18,21 +25,21 @@ export class CreateCommentRequest extends Message<CreateCommentRequest> {
    *
    * @generated from field: string target_account = 1;
    */
-  targetAccount = "";
+  targetAccount = ''
 
   /**
    * Required. Path within the account where the comment is applied.
    *
    * @generated from field: string target_path = 2;
    */
-  targetPath = "";
+  targetPath = ''
 
   /**
    * Required. Version of the document at the time of the comment.
    *
    * @generated from field: string target_version = 3;
    */
-  targetVersion = "";
+  targetVersion = ''
 
   /**
    * Optional. When current comment is a reply to another comment,
@@ -41,21 +48,21 @@ export class CreateCommentRequest extends Message<CreateCommentRequest> {
    *
    * @generated from field: string reply_parent = 4;
    */
-  replyParent = "";
+  replyParent = ''
 
   /**
    * Required. Content of the comment.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode content = 5;
    */
-  content: BlockNode[] = [];
+  content: BlockNode[] = []
 
   /**
    * Required. Name of the key to use for signing the comment.
    *
    * @generated from field: string signing_key_name = 6;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Optional. ID of the capability that allows publishing comments for the target account and path.
@@ -63,39 +70,66 @@ export class CreateCommentRequest extends Message<CreateCommentRequest> {
    *
    * @generated from field: string capability = 7;
    */
-  capability = "";
+  capability = ''
 
   constructor(data?: PartialMessage<CreateCommentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateCommentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.CreateCommentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "reply_parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "content", kind: "message", T: BlockNode, repeated: true },
-    { no: 6, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'target_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'target_path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'target_version',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 4, name: 'reply_parent', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'content', kind: 'message', T: BlockNode, repeated: true},
+    {
+      no: 6,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 7, name: 'capability', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateCommentRequest {
-    return new CreateCommentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateCommentRequest {
+    return new CreateCommentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateCommentRequest {
-    return new CreateCommentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateCommentRequest {
+    return new CreateCommentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateCommentRequest {
-    return new CreateCommentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateCommentRequest {
+    return new CreateCommentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateCommentRequest | PlainMessage<CreateCommentRequest> | undefined, b: CreateCommentRequest | PlainMessage<CreateCommentRequest> | undefined): boolean {
-    return proto3.util.equals(CreateCommentRequest, a, b);
+  static equals(
+    a: CreateCommentRequest | PlainMessage<CreateCommentRequest> | undefined,
+    b: CreateCommentRequest | PlainMessage<CreateCommentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateCommentRequest, a, b)
   }
 }
 
@@ -112,33 +146,45 @@ export class GetCommentRequest extends Message<GetCommentRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetCommentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetCommentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetCommentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommentRequest {
-    return new GetCommentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetCommentRequest {
+    return new GetCommentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommentRequest {
-    return new GetCommentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetCommentRequest {
+    return new GetCommentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommentRequest {
-    return new GetCommentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetCommentRequest {
+    return new GetCommentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetCommentRequest | PlainMessage<GetCommentRequest> | undefined, b: GetCommentRequest | PlainMessage<GetCommentRequest> | undefined): boolean {
-    return proto3.util.equals(GetCommentRequest, a, b);
+  static equals(
+    a: GetCommentRequest | PlainMessage<GetCommentRequest> | undefined,
+    b: GetCommentRequest | PlainMessage<GetCommentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetCommentRequest, a, b)
   }
 }
 
@@ -154,33 +200,58 @@ export class BatchGetCommentsRequest extends Message<BatchGetCommentsRequest> {
    *
    * @generated from field: repeated string ids = 1;
    */
-  ids: string[] = [];
+  ids: string[] = []
 
   constructor(data?: PartialMessage<BatchGetCommentsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetCommentsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetCommentsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'ids',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetCommentsRequest {
-    return new BatchGetCommentsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetCommentsRequest {
-    return new BatchGetCommentsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetCommentsRequest {
-    return new BatchGetCommentsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetCommentsRequest {
+    return new BatchGetCommentsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BatchGetCommentsRequest | PlainMessage<BatchGetCommentsRequest> | undefined, b: BatchGetCommentsRequest | PlainMessage<BatchGetCommentsRequest> | undefined): boolean {
-    return proto3.util.equals(BatchGetCommentsRequest, a, b);
+  static equals(
+    a:
+      | BatchGetCommentsRequest
+      | PlainMessage<BatchGetCommentsRequest>
+      | undefined,
+    b:
+      | BatchGetCommentsRequest
+      | PlainMessage<BatchGetCommentsRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetCommentsRequest, a, b)
   }
 }
 
@@ -195,33 +266,52 @@ export class BatchGetCommentsResponse extends Message<BatchGetCommentsResponse> 
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Comment comments = 1;
    */
-  comments: Comment[] = [];
+  comments: Comment[] = []
 
   constructor(data?: PartialMessage<BatchGetCommentsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetCommentsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetCommentsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "comments", kind: "message", T: Comment, repeated: true },
-  ]);
+    {no: 1, name: 'comments', kind: 'message', T: Comment, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetCommentsResponse {
-    return new BatchGetCommentsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetCommentsResponse {
-    return new BatchGetCommentsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetCommentsResponse {
-    return new BatchGetCommentsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetCommentsResponse {
+    return new BatchGetCommentsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BatchGetCommentsResponse | PlainMessage<BatchGetCommentsResponse> | undefined, b: BatchGetCommentsResponse | PlainMessage<BatchGetCommentsResponse> | undefined): boolean {
-    return proto3.util.equals(BatchGetCommentsResponse, a, b);
+  static equals(
+    a:
+      | BatchGetCommentsResponse
+      | PlainMessage<BatchGetCommentsResponse>
+      | undefined,
+    b:
+      | BatchGetCommentsResponse
+      | PlainMessage<BatchGetCommentsResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetCommentsResponse, a, b)
   }
 }
 
@@ -236,57 +326,74 @@ export class ListCommentsRequest extends Message<ListCommentsRequest> {
    *
    * @generated from field: string target_account = 1;
    */
-  targetAccount = "";
+  targetAccount = ''
 
   /**
    * Required. Path within the account to list the comments for.
    *
    * @generated from field: string target_path = 2;
    */
-  targetPath = "";
+  targetPath = ''
 
   /**
    * Optional. The maximum number of comments to return.
    *
    * @generated from field: int32 page_size = 3;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. The page token obtained from a previous request (if any).
    *
    * @generated from field: string page_token = 4;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListCommentsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCommentsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListCommentsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 4, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'target_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'target_path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 4, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentsRequest {
-    return new ListCommentsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCommentsRequest {
+    return new ListCommentsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentsRequest {
-    return new ListCommentsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsRequest {
+    return new ListCommentsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentsRequest {
-    return new ListCommentsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsRequest {
+    return new ListCommentsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListCommentsRequest | PlainMessage<ListCommentsRequest> | undefined, b: ListCommentsRequest | PlainMessage<ListCommentsRequest> | undefined): boolean {
-    return proto3.util.equals(ListCommentsRequest, a, b);
+  static equals(
+    a: ListCommentsRequest | PlainMessage<ListCommentsRequest> | undefined,
+    b: ListCommentsRequest | PlainMessage<ListCommentsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCommentsRequest, a, b)
   }
 }
 
@@ -301,49 +408,68 @@ export class ListCommentsByAuthorRequest extends Message<ListCommentsByAuthorReq
    *
    * @generated from field: string author = 1;
    */
-  author = "";
+  author = ''
 
   /**
    * Optional. The maximum number of comments to return.
    *
    * @generated from field: int32 page_size = 2;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. The page token obtained from a previous request (if any).
    *
    * @generated from field: string page_token = 3;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListCommentsByAuthorRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCommentsByAuthorRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListCommentsByAuthorRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 3, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentsByAuthorRequest {
-    return new ListCommentsByAuthorRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentsByAuthorRequest {
-    return new ListCommentsByAuthorRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentsByAuthorRequest {
-    return new ListCommentsByAuthorRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsByAuthorRequest {
+    return new ListCommentsByAuthorRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListCommentsByAuthorRequest | PlainMessage<ListCommentsByAuthorRequest> | undefined, b: ListCommentsByAuthorRequest | PlainMessage<ListCommentsByAuthorRequest> | undefined): boolean {
-    return proto3.util.equals(ListCommentsByAuthorRequest, a, b);
+  static equals(
+    a:
+      | ListCommentsByAuthorRequest
+      | PlainMessage<ListCommentsByAuthorRequest>
+      | undefined,
+    b:
+      | ListCommentsByAuthorRequest
+      | PlainMessage<ListCommentsByAuthorRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCommentsByAuthorRequest, a, b)
   }
 }
 
@@ -358,41 +484,58 @@ export class ListCommentsResponse extends Message<ListCommentsResponse> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Comment comments = 1;
    */
-  comments: Comment[] = [];
+  comments: Comment[] = []
 
   /**
    * Token to retrieve the next page of comments (if necessary).
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListCommentsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCommentsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListCommentsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "comments", kind: "message", T: Comment, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'comments', kind: 'message', T: Comment, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCommentsResponse {
-    return new ListCommentsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCommentsResponse {
+    return new ListCommentsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCommentsResponse {
-    return new ListCommentsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsResponse {
+    return new ListCommentsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCommentsResponse {
-    return new ListCommentsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCommentsResponse {
+    return new ListCommentsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListCommentsResponse | PlainMessage<ListCommentsResponse> | undefined, b: ListCommentsResponse | PlainMessage<ListCommentsResponse> | undefined): boolean {
-    return proto3.util.equals(ListCommentsResponse, a, b);
+  static equals(
+    a: ListCommentsResponse | PlainMessage<ListCommentsResponse> | undefined,
+    b: ListCommentsResponse | PlainMessage<ListCommentsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCommentsResponse, a, b)
   }
 }
 
@@ -407,42 +550,42 @@ export class Comment extends Message<Comment> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Account ID that this comment targets.
    *
    * @generated from field: string target_account = 2;
    */
-  targetAccount = "";
+  targetAccount = ''
 
   /**
    * Path within the account this comment targets.
    *
    * @generated from field: string target_path = 3;
    */
-  targetPath = "";
+  targetPath = ''
 
   /**
    * Version of the document this comment targets.
    *
    * @generated from field: string target_version = 4;
    */
-  targetVersion = "";
+  targetVersion = ''
 
   /**
    * Optional. The ID of the top-level non-reply comment of the conversation thread.
    *
    * @generated from field: string thread_root = 5;
    */
-  threadRoot = "";
+  threadRoot = ''
 
   /**
    * Optional. Version of the thread root comment (if this is a reply).
    *
    * @generated from field: string thread_root_version = 12;
    */
-  threadRootVersion = "";
+  threadRootVersion = ''
 
   /**
    * Optional. The ID of the comment to which this comment is a direct reply.
@@ -450,95 +593,127 @@ export class Comment extends Message<Comment> {
    *
    * @generated from field: string reply_parent = 6;
    */
-  replyParent = "";
+  replyParent = ''
 
   /**
    * Optional. Version of the parent comment (if this is a reply).
    *
    * @generated from field: string reply_parent_version = 13;
    */
-  replyParentVersion = "";
+  replyParentVersion = ''
 
   /**
    * Account ID of the author of the comment.
    *
    * @generated from field: string author = 7;
    */
-  author = "";
+  author = ''
 
   /**
    * Content of the comment.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode content = 8;
    */
-  content: BlockNode[] = [];
+  content: BlockNode[] = []
 
   /**
    * Timestamp when the comment was created.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 9;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * Optional. ID of the capability this comment was created with, if any.
    *
    * @generated from field: string capability = 10;
    */
-  capability = "";
+  capability = ''
 
   /**
    * Version of this comment.
    *
    * @generated from field: string version = 11;
    */
-  version = "";
+  version = ''
 
   /**
    * Timestamp when the comment was last updated.
    *
    * @generated from field: google.protobuf.Timestamp update_time = 14;
    */
-  updateTime?: Timestamp;
+  updateTime?: Timestamp
 
   constructor(data?: PartialMessage<Comment>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Comment";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Comment'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "thread_root", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 12, name: "thread_root_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "reply_parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 13, name: "reply_parent_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "content", kind: "message", T: BlockNode, repeated: true },
-    { no: 9, name: "create_time", kind: "message", T: Timestamp },
-    { no: 10, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 11, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 14, name: "update_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'target_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 3, name: 'target_path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 4,
+      name: 'target_version',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 5, name: 'thread_root', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 12,
+      name: 'thread_root_version',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 6, name: 'reply_parent', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 13,
+      name: 'reply_parent_version',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 7, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 8, name: 'content', kind: 'message', T: BlockNode, repeated: true},
+    {no: 9, name: 'create_time', kind: 'message', T: Timestamp},
+    {no: 10, name: 'capability', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 11, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 14, name: 'update_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {
-    return new Comment().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Comment {
+    return new Comment().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Comment {
-    return new Comment().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Comment {
+    return new Comment().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Comment {
-    return new Comment().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Comment {
+    return new Comment().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Comment | PlainMessage<Comment> | undefined, b: Comment | PlainMessage<Comment> | undefined): boolean {
-    return proto3.util.equals(Comment, a, b);
+  static equals(
+    a: Comment | PlainMessage<Comment> | undefined,
+    b: Comment | PlainMessage<Comment> | undefined,
+  ): boolean {
+    return proto3.util.equals(Comment, a, b)
   }
 }
 
@@ -555,41 +730,58 @@ export class UpdateCommentRequest extends Message<UpdateCommentRequest> {
    *
    * @generated from field: com.seed.documents.v3alpha.Comment comment = 1;
    */
-  comment?: Comment;
+  comment?: Comment
 
   /**
    * Required. Name of the key to use for signing the comment update.
    *
    * @generated from field: string signing_key_name = 2;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   constructor(data?: PartialMessage<UpdateCommentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.UpdateCommentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.UpdateCommentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "comment", kind: "message", T: Comment },
-    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'comment', kind: 'message', T: Comment},
+    {
+      no: 2,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateCommentRequest {
-    return new UpdateCommentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateCommentRequest {
-    return new UpdateCommentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateCommentRequest {
-    return new UpdateCommentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateCommentRequest {
+    return new UpdateCommentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined, b: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateCommentRequest, a, b);
+  static equals(
+    a: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined,
+    b: UpdateCommentRequest | PlainMessage<UpdateCommentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateCommentRequest, a, b)
   }
 }
 
@@ -604,41 +796,57 @@ export class DeleteCommentRequest extends Message<DeleteCommentRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. Name of the key to use for signing the comment deletion.
    *
    * @generated from field: string signing_key_name = 2;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   constructor(data?: PartialMessage<DeleteCommentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DeleteCommentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DeleteCommentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteCommentRequest {
-    return new DeleteCommentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteCommentRequest {
-    return new DeleteCommentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteCommentRequest {
-    return new DeleteCommentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteCommentRequest {
+    return new DeleteCommentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined, b: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteCommentRequest, a, b);
+  static equals(
+    a: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined,
+    b: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteCommentRequest, a, b)
   }
 }
-

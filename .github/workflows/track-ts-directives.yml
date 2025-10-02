@@ -3,15 +3,15 @@ name: Track TypeScript Directives (AWS S3)
 on:
   schedule:
     # Run daily at 2 AM UTC
-    - cron: "0 2 * * *"
+    - cron: '0 2 * * *'
   workflow_dispatch: # Allow manual triggering
   push:
     branches:
       - main
     paths:
-      - "scripts/count-ts-directives.mjs"
-      - "scripts/generate-ts-dashboard.mjs"
-      - ".github/workflows/track-ts-directives-s3.yml"
+      - 'scripts/count-ts-directives.mjs'
+      - 'scripts/generate-ts-dashboard.mjs'
+      - '.github/workflows/track-ts-directives-s3.yml'
 
 permissions:
   contents: read
@@ -29,8 +29,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "yarn"
+          node-version: '20'
+          cache: 'yarn'
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile

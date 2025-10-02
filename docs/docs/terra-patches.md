@@ -12,7 +12,7 @@ Once you have a stable way to order patches, you can follow a simple procedure f
 
 ## Replace-First
 
-All strings, booleans, and numbers are replaced when 
+All strings, booleans, and numbers are replaced when
 
 ```
 Before: "simple value"
@@ -34,14 +34,12 @@ Patch: { name: 'Oliver', age: 5 }
 After: { name: 'Oliver', age: 5 }
 ```
 
-
 ## Special Patch Tags
 
 The following are reserved keywords inside objects, and are used to designate additional patch behavior.
 
 - `#map` - MapPatch
 - `#list` - ListPatch
-
 
 ### Tagged `#map` Patches
 
@@ -53,7 +51,6 @@ Patch: { '#map': { age: 10 } }
 After: { name: 'Claire', age: 10 }
 ```
 
-
 #### Tagged `#list` Patches
 
 > Todo: What is the actual behavior here? This is just speculative:
@@ -63,7 +60,6 @@ Before: [ 'Claire' ]
 Patch: { '#list': { '#ins': 'Oliver' } }
 After: [ 'Claire', 'Oliver' ]
 ```
-
 
 ## Open Questions
 

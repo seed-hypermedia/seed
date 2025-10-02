@@ -3,8 +3,22 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Empty, Message, proto3, protoInt64, Struct, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {
+  Empty,
+  Message,
+  proto3,
+  protoInt64,
+  Struct,
+  Timestamp,
+} from '@bufbuild/protobuf'
 
 /**
  * Attrbites that can be used for sorting.
@@ -38,11 +52,15 @@ export enum SortAttribute {
   PATH = 2,
 }
 // Retrieve enum metadata with: proto3.getEnumType(SortAttribute)
-proto3.util.setEnumType(SortAttribute, "com.seed.documents.v3alpha.SortAttribute", [
-  { no: 0, name: "ACTIVITY_TIME" },
-  { no: 1, name: "NAME" },
-  { no: 2, name: "PATH" },
-]);
+proto3.util.setEnumType(
+  SortAttribute,
+  'com.seed.documents.v3alpha.SortAttribute',
+  [
+    {no: 0, name: 'ACTIVITY_TIME'},
+    {no: 1, name: 'NAME'},
+    {no: 2, name: 'PATH'},
+  ],
+)
 
 /**
  * Request for getting a single document.
@@ -55,7 +73,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document.
@@ -63,7 +81,7 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Optional. Exact version of the document to retrieve.
@@ -71,35 +89,47 @@ export class GetDocumentRequest extends Message<GetDocumentRequest> {
    *
    * @generated from field: string version = 3;
    */
-  version = "";
+  version = ''
 
   constructor(data?: PartialMessage<GetDocumentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetDocumentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetDocumentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDocumentRequest {
-    return new GetDocumentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetDocumentRequest {
+    return new GetDocumentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDocumentRequest {
-    return new GetDocumentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentRequest {
+    return new GetDocumentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDocumentRequest {
-    return new GetDocumentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentRequest {
+    return new GetDocumentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetDocumentRequest | PlainMessage<GetDocumentRequest> | undefined, b: GetDocumentRequest | PlainMessage<GetDocumentRequest> | undefined): boolean {
-    return proto3.util.equals(GetDocumentRequest, a, b);
+  static equals(
+    a: GetDocumentRequest | PlainMessage<GetDocumentRequest> | undefined,
+    b: GetDocumentRequest | PlainMessage<GetDocumentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetDocumentRequest, a, b)
   }
 }
 
@@ -117,49 +147,66 @@ export class RedirectErrorDetails extends Message<RedirectErrorDetails> {
    *
    * @generated from field: string target_account = 1;
    */
-  targetAccount = "";
+  targetAccount = ''
 
   /**
    * Path of the target document within the target account.
    *
    * @generated from field: string target_path = 2;
    */
-  targetPath = "";
+  targetPath = ''
 
   /**
    * Optional. If true, the redirect is a republishing redirect.
    *
    * @generated from field: bool republish = 3;
    */
-  republish = false;
+  republish = false
 
   constructor(data?: PartialMessage<RedirectErrorDetails>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.RedirectErrorDetails";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.RedirectErrorDetails'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "target_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "target_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "republish", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {
+      no: 1,
+      name: 'target_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'target_path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'republish', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RedirectErrorDetails {
-    return new RedirectErrorDetails().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RedirectErrorDetails {
-    return new RedirectErrorDetails().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RedirectErrorDetails {
-    return new RedirectErrorDetails().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RedirectErrorDetails {
+    return new RedirectErrorDetails().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined, b: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined): boolean {
-    return proto3.util.equals(RedirectErrorDetails, a, b);
+  static equals(
+    a: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined,
+    b: RedirectErrorDetails | PlainMessage<RedirectErrorDetails> | undefined,
+  ): boolean {
+    return proto3.util.equals(RedirectErrorDetails, a, b)
   }
 }
 
@@ -174,7 +221,7 @@ export class GetDocumentInfoRequest extends Message<GetDocumentInfoRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document.
@@ -182,34 +229,52 @@ export class GetDocumentInfoRequest extends Message<GetDocumentInfoRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   constructor(data?: PartialMessage<GetDocumentInfoRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetDocumentInfoRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetDocumentInfoRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDocumentInfoRequest {
-    return new GetDocumentInfoRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDocumentInfoRequest {
-    return new GetDocumentInfoRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDocumentInfoRequest {
-    return new GetDocumentInfoRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentInfoRequest {
+    return new GetDocumentInfoRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetDocumentInfoRequest | PlainMessage<GetDocumentInfoRequest> | undefined, b: GetDocumentInfoRequest | PlainMessage<GetDocumentInfoRequest> | undefined): boolean {
-    return proto3.util.equals(GetDocumentInfoRequest, a, b);
+  static equals(
+    a:
+      | GetDocumentInfoRequest
+      | PlainMessage<GetDocumentInfoRequest>
+      | undefined,
+    b:
+      | GetDocumentInfoRequest
+      | PlainMessage<GetDocumentInfoRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetDocumentInfoRequest, a, b)
   }
 }
 
@@ -222,33 +287,58 @@ export class BatchGetDocumentInfoRequest extends Message<BatchGetDocumentInfoReq
   /**
    * @generated from field: repeated com.seed.documents.v3alpha.GetDocumentInfoRequest requests = 1;
    */
-  requests: GetDocumentInfoRequest[] = [];
+  requests: GetDocumentInfoRequest[] = []
 
   constructor(data?: PartialMessage<BatchGetDocumentInfoRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetDocumentInfoRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetDocumentInfoRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "requests", kind: "message", T: GetDocumentInfoRequest, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'requests',
+      kind: 'message',
+      T: GetDocumentInfoRequest,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetDocumentInfoRequest {
-    return new BatchGetDocumentInfoRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoRequest {
-    return new BatchGetDocumentInfoRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoRequest {
-    return new BatchGetDocumentInfoRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetDocumentInfoRequest {
+    return new BatchGetDocumentInfoRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BatchGetDocumentInfoRequest | PlainMessage<BatchGetDocumentInfoRequest> | undefined, b: BatchGetDocumentInfoRequest | PlainMessage<BatchGetDocumentInfoRequest> | undefined): boolean {
-    return proto3.util.equals(BatchGetDocumentInfoRequest, a, b);
+  static equals(
+    a:
+      | BatchGetDocumentInfoRequest
+      | PlainMessage<BatchGetDocumentInfoRequest>
+      | undefined,
+    b:
+      | BatchGetDocumentInfoRequest
+      | PlainMessage<BatchGetDocumentInfoRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetDocumentInfoRequest, a, b)
   }
 }
 
@@ -261,33 +351,61 @@ export class BatchGetDocumentInfoResponse extends Message<BatchGetDocumentInfoRe
   /**
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentInfo[] = [];
+  documents: DocumentInfo[] = []
 
   constructor(data?: PartialMessage<BatchGetDocumentInfoResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetDocumentInfoResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetDocumentInfoResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'documents',
+      kind: 'message',
+      T: DocumentInfo,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetDocumentInfoResponse {
-    return new BatchGetDocumentInfoResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoResponse {
-    return new BatchGetDocumentInfoResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetDocumentInfoResponse {
-    return new BatchGetDocumentInfoResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetDocumentInfoResponse {
+    return new BatchGetDocumentInfoResponse().fromJsonString(
+      jsonString,
+      options,
+    )
   }
 
-  static equals(a: BatchGetDocumentInfoResponse | PlainMessage<BatchGetDocumentInfoResponse> | undefined, b: BatchGetDocumentInfoResponse | PlainMessage<BatchGetDocumentInfoResponse> | undefined): boolean {
-    return proto3.util.equals(BatchGetDocumentInfoResponse, a, b);
+  static equals(
+    a:
+      | BatchGetDocumentInfoResponse
+      | PlainMessage<BatchGetDocumentInfoResponse>
+      | undefined,
+    b:
+      | BatchGetDocumentInfoResponse
+      | PlainMessage<BatchGetDocumentInfoResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetDocumentInfoResponse, a, b)
   }
 }
 
@@ -302,7 +420,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document to create change for.
@@ -311,7 +429,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Required. Version of the document to apply changes to.
@@ -319,14 +437,14 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: string base_version = 3;
    */
-  baseVersion = "";
+  baseVersion = ''
 
   /**
    * Required. Changes to be applied to the document.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentChange changes = 4;
    */
-  changes: DocumentChange[] = [];
+  changes: DocumentChange[] = []
 
   /**
    * Required. Name of the key to use for signing.
@@ -334,7 +452,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: string signing_key_name = 5;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Optional. ID of the capability that allows signing key to write on behalf of the account
@@ -342,7 +460,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: string capability = 6;
    */
-  capability = "";
+  capability = ''
 
   /**
    * Optional. Timestamp that the change should have.
@@ -351,39 +469,69 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    *
    * @generated from field: google.protobuf.Timestamp timestamp = 7;
    */
-  timestamp?: Timestamp;
+  timestamp?: Timestamp
 
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateDocumentChangeRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.CreateDocumentChangeRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "base_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "changes", kind: "message", T: DocumentChange, repeated: true },
-    { no: 5, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "timestamp", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'base_version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 4,
+      name: 'changes',
+      kind: 'message',
+      T: DocumentChange,
+      repeated: true,
+    },
+    {
+      no: 5,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 6, name: 'capability', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 7, name: 'timestamp', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {
-    return new CreateDocumentChangeRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateDocumentChangeRequest {
-    return new CreateDocumentChangeRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateDocumentChangeRequest {
-    return new CreateDocumentChangeRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateDocumentChangeRequest {
+    return new CreateDocumentChangeRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateDocumentChangeRequest | PlainMessage<CreateDocumentChangeRequest> | undefined, b: CreateDocumentChangeRequest | PlainMessage<CreateDocumentChangeRequest> | undefined): boolean {
-    return proto3.util.equals(CreateDocumentChangeRequest, a, b);
+  static equals(
+    a:
+      | CreateDocumentChangeRequest
+      | PlainMessage<CreateDocumentChangeRequest>
+      | undefined,
+    b:
+      | CreateDocumentChangeRequest
+      | PlainMessage<CreateDocumentChangeRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateDocumentChangeRequest, a, b)
   }
 }
 
@@ -396,41 +544,53 @@ export class DeleteDocumentRequest extends Message<DeleteDocumentRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document to delete.
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   constructor(data?: PartialMessage<DeleteDocumentRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DeleteDocumentRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DeleteDocumentRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteDocumentRequest {
-    return new DeleteDocumentRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteDocumentRequest {
+    return new DeleteDocumentRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteDocumentRequest {
-    return new DeleteDocumentRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteDocumentRequest {
+    return new DeleteDocumentRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteDocumentRequest {
-    return new DeleteDocumentRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteDocumentRequest {
+    return new DeleteDocumentRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteDocumentRequest | PlainMessage<DeleteDocumentRequest> | undefined, b: DeleteDocumentRequest | PlainMessage<DeleteDocumentRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteDocumentRequest, a, b);
+  static equals(
+    a: DeleteDocumentRequest | PlainMessage<DeleteDocumentRequest> | undefined,
+    b: DeleteDocumentRequest | PlainMessage<DeleteDocumentRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteDocumentRequest, a, b)
   }
 }
 
@@ -445,41 +605,60 @@ export class ListRootDocumentsRequest extends Message<ListRootDocumentsRequest> 
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtained from a previous response.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListRootDocumentsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListRootDocumentsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListRootDocumentsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRootDocumentsRequest {
-    return new ListRootDocumentsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListRootDocumentsRequest {
+    return new ListRootDocumentsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRootDocumentsRequest {
-    return new ListRootDocumentsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListRootDocumentsRequest {
+    return new ListRootDocumentsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRootDocumentsRequest {
-    return new ListRootDocumentsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListRootDocumentsRequest {
+    return new ListRootDocumentsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListRootDocumentsRequest | PlainMessage<ListRootDocumentsRequest> | undefined, b: ListRootDocumentsRequest | PlainMessage<ListRootDocumentsRequest> | undefined): boolean {
-    return proto3.util.equals(ListRootDocumentsRequest, a, b);
+  static equals(
+    a:
+      | ListRootDocumentsRequest
+      | PlainMessage<ListRootDocumentsRequest>
+      | undefined,
+    b:
+      | ListRootDocumentsRequest
+      | PlainMessage<ListRootDocumentsRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListRootDocumentsRequest, a, b)
   }
 }
 
@@ -494,41 +673,71 @@ export class ListRootDocumentsResponse extends Message<ListRootDocumentsResponse
    *
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentInfo[] = [];
+  documents: DocumentInfo[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListRootDocumentsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListRootDocumentsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListRootDocumentsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'documents',
+      kind: 'message',
+      T: DocumentInfo,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRootDocumentsResponse {
-    return new ListRootDocumentsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListRootDocumentsResponse {
+    return new ListRootDocumentsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRootDocumentsResponse {
-    return new ListRootDocumentsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListRootDocumentsResponse {
+    return new ListRootDocumentsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRootDocumentsResponse {
-    return new ListRootDocumentsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListRootDocumentsResponse {
+    return new ListRootDocumentsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListRootDocumentsResponse | PlainMessage<ListRootDocumentsResponse> | undefined, b: ListRootDocumentsResponse | PlainMessage<ListRootDocumentsResponse> | undefined): boolean {
-    return proto3.util.equals(ListRootDocumentsResponse, a, b);
+  static equals(
+    a:
+      | ListRootDocumentsResponse
+      | PlainMessage<ListRootDocumentsResponse>
+      | undefined,
+    b:
+      | ListRootDocumentsResponse
+      | PlainMessage<ListRootDocumentsResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListRootDocumentsResponse, a, b)
   }
 }
 
@@ -544,7 +753,7 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Token of the page to request, obtained from
@@ -552,7 +761,7 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   /**
    * Optional. If set to true, only accounts that the user is subscribed to will be returned.
@@ -560,7 +769,7 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
    *
    * @generated from field: bool subscribed_only = 3;
    */
-  subscribedOnly = false;
+  subscribedOnly = false
 
   /**
    * Optional. Configuration for sorting the response.
@@ -568,36 +777,53 @@ export class ListAccountsRequest extends Message<ListAccountsRequest> {
    *
    * @generated from field: com.seed.documents.v3alpha.SortOptions sort_options = 4;
    */
-  sortOptions?: SortOptions;
+  sortOptions?: SortOptions
 
   constructor(data?: PartialMessage<ListAccountsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListAccountsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListAccountsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "sort_options", kind: "message", T: SortOptions },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'subscribed_only',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+    },
+    {no: 4, name: 'sort_options', kind: 'message', T: SortOptions},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAccountsRequest {
-    return new ListAccountsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListAccountsRequest {
+    return new ListAccountsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAccountsRequest {
-    return new ListAccountsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListAccountsRequest {
+    return new ListAccountsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAccountsRequest {
-    return new ListAccountsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListAccountsRequest {
+    return new ListAccountsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined, b: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined): boolean {
-    return proto3.util.equals(ListAccountsRequest, a, b);
+  static equals(
+    a: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined,
+    b: ListAccountsRequest | PlainMessage<ListAccountsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListAccountsRequest, a, b)
   }
 }
 
@@ -612,41 +838,58 @@ export class ListAccountsResponse extends Message<ListAccountsResponse> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Account accounts = 1;
    */
-  accounts: Account[] = [];
+  accounts: Account[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListAccountsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListAccountsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListAccountsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "accounts", kind: "message", T: Account, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'accounts', kind: 'message', T: Account, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAccountsResponse {
-    return new ListAccountsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListAccountsResponse {
+    return new ListAccountsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListAccountsResponse {
-    return new ListAccountsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListAccountsResponse {
+    return new ListAccountsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListAccountsResponse {
-    return new ListAccountsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListAccountsResponse {
+    return new ListAccountsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined, b: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined): boolean {
-    return proto3.util.equals(ListAccountsResponse, a, b);
+  static equals(
+    a: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined,
+    b: ListAccountsResponse | PlainMessage<ListAccountsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListAccountsResponse, a, b)
   }
 }
 
@@ -661,33 +904,45 @@ export class GetAccountRequest extends Message<GetAccountRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetAccountRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetAccountRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetAccountRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAccountRequest {
-    return new GetAccountRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetAccountRequest {
+    return new GetAccountRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAccountRequest {
-    return new GetAccountRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetAccountRequest {
+    return new GetAccountRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAccountRequest {
-    return new GetAccountRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetAccountRequest {
+    return new GetAccountRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined, b: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined): boolean {
-    return proto3.util.equals(GetAccountRequest, a, b);
+  static equals(
+    a: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined,
+    b: GetAccountRequest | PlainMessage<GetAccountRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetAccountRequest, a, b)
   }
 }
 
@@ -702,33 +957,58 @@ export class BatchGetAccountsRequest extends Message<BatchGetAccountsRequest> {
    *
    * @generated from field: repeated string ids = 1;
    */
-  ids: string[] = [];
+  ids: string[] = []
 
   constructor(data?: PartialMessage<BatchGetAccountsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetAccountsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetAccountsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'ids',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetAccountsRequest {
-    return new BatchGetAccountsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetAccountsRequest {
-    return new BatchGetAccountsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetAccountsRequest {
-    return new BatchGetAccountsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetAccountsRequest {
+    return new BatchGetAccountsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BatchGetAccountsRequest | PlainMessage<BatchGetAccountsRequest> | undefined, b: BatchGetAccountsRequest | PlainMessage<BatchGetAccountsRequest> | undefined): boolean {
-    return proto3.util.equals(BatchGetAccountsRequest, a, b);
+  static equals(
+    a:
+      | BatchGetAccountsRequest
+      | PlainMessage<BatchGetAccountsRequest>
+      | undefined,
+    b:
+      | BatchGetAccountsRequest
+      | PlainMessage<BatchGetAccountsRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetAccountsRequest, a, b)
   }
 }
 
@@ -744,7 +1024,7 @@ export class BatchGetAccountsResponse extends Message<BatchGetAccountsResponse> 
    *
    * @generated from field: map<string, com.seed.documents.v3alpha.Account> accounts = 1;
    */
-  accounts: { [key: string]: Account } = {};
+  accounts: {[key: string]: Account} = {}
 
   /**
    * Errors (if any) that occurred while retrieving accounts,
@@ -757,34 +1037,65 @@ export class BatchGetAccountsResponse extends Message<BatchGetAccountsResponse> 
    *
    * @generated from field: map<string, bytes> errors = 2;
    */
-  errors: { [key: string]: Uint8Array } = {};
+  errors: {[key: string]: Uint8Array} = {}
 
   constructor(data?: PartialMessage<BatchGetAccountsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BatchGetAccountsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.BatchGetAccountsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "accounts", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "message", T: Account} },
-    { no: 2, name: "errors", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 12 /* ScalarType.BYTES */} },
-  ]);
+    {
+      no: 1,
+      name: 'accounts',
+      kind: 'map',
+      K: 9 /* ScalarType.STRING */,
+      V: {kind: 'message', T: Account},
+    },
+    {
+      no: 2,
+      name: 'errors',
+      kind: 'map',
+      K: 9 /* ScalarType.STRING */,
+      V: {kind: 'scalar', T: 12 /* ScalarType.BYTES */},
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetAccountsResponse {
-    return new BatchGetAccountsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetAccountsResponse {
-    return new BatchGetAccountsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetAccountsResponse {
-    return new BatchGetAccountsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BatchGetAccountsResponse {
+    return new BatchGetAccountsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BatchGetAccountsResponse | PlainMessage<BatchGetAccountsResponse> | undefined, b: BatchGetAccountsResponse | PlainMessage<BatchGetAccountsResponse> | undefined): boolean {
-    return proto3.util.equals(BatchGetAccountsResponse, a, b);
+  static equals(
+    a:
+      | BatchGetAccountsResponse
+      | PlainMessage<BatchGetAccountsResponse>
+      | undefined,
+    b:
+      | BatchGetAccountsResponse
+      | PlainMessage<BatchGetAccountsResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(BatchGetAccountsResponse, a, b)
   }
 }
 
@@ -799,49 +1110,66 @@ export class UpdateProfileRequest extends Message<UpdateProfileRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. The updated profile data.
    *
    * @generated from field: com.seed.documents.v3alpha.Profile profile = 2;
    */
-  profile?: Profile;
+  profile?: Profile
 
   /**
    * Required. Name of the key to use for signing the profile.
    *
    * @generated from field: string signing_key_name = 3;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   constructor(data?: PartialMessage<UpdateProfileRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.UpdateProfileRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.UpdateProfileRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "profile", kind: "message", T: Profile },
-    { no: 3, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'profile', kind: 'message', T: Profile},
+    {
+      no: 3,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateProfileRequest {
-    return new UpdateProfileRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateProfileRequest {
-    return new UpdateProfileRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateProfileRequest {
-    return new UpdateProfileRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateProfileRequest {
+    return new UpdateProfileRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined, b: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateProfileRequest, a, b);
+  static equals(
+    a: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined,
+    b: UpdateProfileRequest | PlainMessage<UpdateProfileRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateProfileRequest, a, b)
   }
 }
 
@@ -858,21 +1186,21 @@ export class Account extends Message<Account> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Metadata attributes from the root document of this account's Space.
    *
    * @generated from field: google.protobuf.Struct metadata = 2;
    */
-  metadata?: Struct;
+  metadata?: Struct
 
   /**
    * Summary of the activity in the entire account.
    *
    * @generated from field: com.seed.documents.v3alpha.ActivitySummary activity_summary = 3;
    */
-  activitySummary?: ActivitySummary;
+  activitySummary?: ActivitySummary
 
   /**
    * Whether the user is subscribed to this account.
@@ -880,7 +1208,7 @@ export class Account extends Message<Account> {
    *
    * @generated from field: bool is_subscribed = 4;
    */
-  isSubscribed = false;
+  isSubscribed = false
 
   /**
    * Optional. ID of another Account this account claims to act on behalf of.
@@ -889,7 +1217,7 @@ export class Account extends Message<Account> {
    *
    * @generated from field: string alias_account = 5;
    */
-  aliasAccount = "";
+  aliasAccount = ''
 
   /**
    * Optional. Profile information about the account.
@@ -897,38 +1225,55 @@ export class Account extends Message<Account> {
    *
    * @generated from field: com.seed.documents.v3alpha.Profile profile = 6;
    */
-  profile?: Profile;
+  profile?: Profile
 
   constructor(data?: PartialMessage<Account>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Account";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Account'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "metadata", kind: "message", T: Struct },
-    { no: 3, name: "activity_summary", kind: "message", T: ActivitySummary },
-    { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 5, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "profile", kind: "message", T: Profile },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'metadata', kind: 'message', T: Struct},
+    {no: 3, name: 'activity_summary', kind: 'message', T: ActivitySummary},
+    {no: 4, name: 'is_subscribed', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {
+      no: 5,
+      name: 'alias_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 6, name: 'profile', kind: 'message', T: Profile},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Account {
-    return new Account().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Account {
+    return new Account().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Account {
-    return new Account().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Account {
+    return new Account().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Account {
-    return new Account().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Account {
+    return new Account().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Account | PlainMessage<Account> | undefined, b: Account | PlainMessage<Account> | undefined): boolean {
-    return proto3.util.equals(Account, a, b);
+  static equals(
+    a: Account | PlainMessage<Account> | undefined,
+    b: Account | PlainMessage<Account> | undefined,
+  ): boolean {
+    return proto3.util.equals(Account, a, b)
   }
 }
 
@@ -943,21 +1288,21 @@ export class Profile extends Message<Profile> {
    *
    * @generated from field: string name = 1;
    */
-  name = "";
+  name = ''
 
   /**
    * URI for the icon/avatar.
    *
    * @generated from field: string icon = 2;
    */
-  icon = "";
+  icon = ''
 
   /**
    * Optional short description text.
    *
    * @generated from field: string description = 3;
    */
-  description = "";
+  description = ''
 
   /**
    * Output only. Time when the profile was updated.
@@ -965,36 +1310,48 @@ export class Profile extends Message<Profile> {
    *
    * @generated from field: google.protobuf.Timestamp update_time = 4;
    */
-  updateTime?: Timestamp;
+  updateTime?: Timestamp
 
   constructor(data?: PartialMessage<Profile>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Profile";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Profile'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "update_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'icon', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'description', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'update_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Profile {
-    return new Profile().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Profile {
+    return new Profile().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Profile {
-    return new Profile().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Profile {
+    return new Profile().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Profile {
-    return new Profile().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Profile {
+    return new Profile().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Profile | PlainMessage<Profile> | undefined, b: Profile | PlainMessage<Profile> | undefined): boolean {
-    return proto3.util.equals(Profile, a, b);
+  static equals(
+    a: Profile | PlainMessage<Profile> | undefined,
+    b: Profile | PlainMessage<Profile> | undefined,
+  ): boolean {
+    return proto3.util.equals(Profile, a, b)
   }
 }
 
@@ -1010,41 +1367,63 @@ export class CreateAliasRequest extends Message<CreateAliasRequest> {
    *
    * @generated from field: string signing_key_name = 1;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Required. ID of the target (alias) account.
    *
    * @generated from field: string alias_account = 2;
    */
-  aliasAccount = "";
+  aliasAccount = ''
 
   constructor(data?: PartialMessage<CreateAliasRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateAliasRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.CreateAliasRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 2,
+      name: 'alias_account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateAliasRequest {
+    return new CreateAliasRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateAliasRequest {
+    return new CreateAliasRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateAliasRequest {
-    return new CreateAliasRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateAliasRequest {
+    return new CreateAliasRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined, b: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined): boolean {
-    return proto3.util.equals(CreateAliasRequest, a, b);
+  static equals(
+    a: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined,
+    b: CreateAliasRequest | PlainMessage<CreateAliasRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateAliasRequest, a, b)
   }
 }
 
@@ -1059,57 +1438,74 @@ export class CreateContactRequest extends Message<CreateContactRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Name of the key to use for signing.
    *
    * @generated from field: string signing_key_name = 2;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Required. Account ID about which we are issuing the contact record.
    *
    * @generated from field: string subject = 3;
    */
-  subject = "";
+  subject = ''
 
   /**
    * Required. Name that we know the subject by.
    *
    * @generated from field: string name = 4;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<CreateContactRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateContactRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.CreateContactRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 3, name: 'subject', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateContactRequest {
-    return new CreateContactRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateContactRequest {
+    return new CreateContactRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateContactRequest {
-    return new CreateContactRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateContactRequest {
+    return new CreateContactRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateContactRequest {
-    return new CreateContactRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateContactRequest {
+    return new CreateContactRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined, b: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined): boolean {
-    return proto3.util.equals(CreateContactRequest, a, b);
+  static equals(
+    a: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined,
+    b: CreateContactRequest | PlainMessage<CreateContactRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateContactRequest, a, b)
   }
 }
 
@@ -1124,33 +1520,45 @@ export class GetContactRequest extends Message<GetContactRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetContactRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetContactRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetContactRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactRequest {
-    return new GetContactRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetContactRequest {
+    return new GetContactRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactRequest {
-    return new GetContactRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactRequest {
+    return new GetContactRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactRequest {
-    return new GetContactRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactRequest {
+    return new GetContactRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetContactRequest | PlainMessage<GetContactRequest> | undefined, b: GetContactRequest | PlainMessage<GetContactRequest> | undefined): boolean {
-    return proto3.util.equals(GetContactRequest, a, b);
+  static equals(
+    a: GetContactRequest | PlainMessage<GetContactRequest> | undefined,
+    b: GetContactRequest | PlainMessage<GetContactRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetContactRequest, a, b)
   }
 }
 
@@ -1167,41 +1575,58 @@ export class UpdateContactRequest extends Message<UpdateContactRequest> {
    *
    * @generated from field: com.seed.documents.v3alpha.Contact contact = 1;
    */
-  contact?: Contact;
+  contact?: Contact
 
   /**
    * Required. Name of the key to use for signing the contact update.
    *
    * @generated from field: string signing_key_name = 2;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   constructor(data?: PartialMessage<UpdateContactRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.UpdateContactRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.UpdateContactRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "contact", kind: "message", T: Contact },
-    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'contact', kind: 'message', T: Contact},
+    {
+      no: 2,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateContactRequest {
-    return new UpdateContactRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateContactRequest {
+    return new UpdateContactRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateContactRequest {
-    return new UpdateContactRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateContactRequest {
+    return new UpdateContactRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateContactRequest {
-    return new UpdateContactRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateContactRequest {
+    return new UpdateContactRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined, b: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateContactRequest, a, b);
+  static equals(
+    a: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined,
+    b: UpdateContactRequest | PlainMessage<UpdateContactRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateContactRequest, a, b)
   }
 }
 
@@ -1216,41 +1641,58 @@ export class DeleteContactRequest extends Message<DeleteContactRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. Name of the key to use for signing the contact deletion.
    *
    * @generated from field: string signing_key_name = 2;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   constructor(data?: PartialMessage<DeleteContactRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DeleteContactRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DeleteContactRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteContactRequest {
-    return new DeleteContactRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteContactRequest {
+    return new DeleteContactRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteContactRequest {
-    return new DeleteContactRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteContactRequest {
+    return new DeleteContactRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteContactRequest {
-    return new DeleteContactRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteContactRequest {
+    return new DeleteContactRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined, b: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteContactRequest, a, b);
+  static equals(
+    a: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined,
+    b: DeleteContactRequest | PlainMessage<DeleteContactRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteContactRequest, a, b)
   }
 }
 
@@ -1265,67 +1707,94 @@ export class ListContactsRequest extends Message<ListContactsRequest> {
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtained from a previous response.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   /**
    * Required. Filter for listing contacts.
    *
    * @generated from oneof com.seed.documents.v3alpha.ListContactsRequest.filter
    */
-  filter: {
-    /**
-     * Lists contacts by issuer account key.
-     * I.e. lists the contacts that an account has ever issued.
-     *
-     * @generated from field: string account = 3;
-     */
-    value: string;
-    case: "account";
-  } | {
-    /**
-     * Lists contacts by subject.
-     *
-     * @generated from field: string subject = 4;
-     */
-    value: string;
-    case: "subject";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  filter:
+    | {
+        /**
+         * Lists contacts by issuer account key.
+         * I.e. lists the contacts that an account has ever issued.
+         *
+         * @generated from field: string account = 3;
+         */
+        value: string
+        case: 'account'
+      }
+    | {
+        /**
+         * Lists contacts by subject.
+         *
+         * @generated from field: string subject = 4;
+         */
+        value: string
+        case: 'subject'
+      }
+    | {case: undefined; value?: undefined} = {case: undefined}
 
   constructor(data?: PartialMessage<ListContactsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListContactsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListContactsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "filter" },
-    { no: 4, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "filter" },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'account',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      oneof: 'filter',
+    },
+    {
+      no: 4,
+      name: 'subject',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      oneof: 'filter',
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListContactsRequest {
-    return new ListContactsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListContactsRequest {
+    return new ListContactsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListContactsRequest {
-    return new ListContactsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListContactsRequest {
+    return new ListContactsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListContactsRequest {
-    return new ListContactsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListContactsRequest {
+    return new ListContactsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined, b: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined): boolean {
-    return proto3.util.equals(ListContactsRequest, a, b);
+  static equals(
+    a: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined,
+    b: ListContactsRequest | PlainMessage<ListContactsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListContactsRequest, a, b)
   }
 }
 
@@ -1340,41 +1809,58 @@ export class ListContactsResponse extends Message<ListContactsResponse> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Contact contacts = 1;
    */
-  contacts: Contact[] = [];
+  contacts: Contact[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListContactsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListContactsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListContactsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "contacts", kind: "message", T: Contact, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'contacts', kind: 'message', T: Contact, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListContactsResponse {
-    return new ListContactsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListContactsResponse {
+    return new ListContactsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListContactsResponse {
-    return new ListContactsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListContactsResponse {
+    return new ListContactsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListContactsResponse {
-    return new ListContactsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListContactsResponse {
+    return new ListContactsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined, b: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined): boolean {
-    return proto3.util.equals(ListContactsResponse, a, b);
+  static equals(
+    a: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined,
+    b: ListContactsResponse | PlainMessage<ListContactsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListContactsResponse, a, b)
   }
 }
 
@@ -1389,73 +1875,85 @@ export class Contact extends Message<Contact> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Subject is the account that's being described by the contact record.
    *
    * @generated from field: string subject = 2;
    */
-  subject = "";
+  subject = ''
 
   /**
    * Name is the public name of the contact that we know them by.
    *
    * @generated from field: string name = 3;
    */
-  name = "";
+  name = ''
 
   /**
    * Time when the contact was created.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 4;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * Time when the contact was updated.
    *
    * @generated from field: google.protobuf.Timestamp update_time = 5;
    */
-  updateTime?: Timestamp;
+  updateTime?: Timestamp
 
   /**
    * Account ID that issued this contact.
    *
    * @generated from field: string account = 6;
    */
-  account = "";
+  account = ''
 
   constructor(data?: PartialMessage<Contact>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Contact";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Contact'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "subject", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "create_time", kind: "message", T: Timestamp },
-    { no: 5, name: "update_time", kind: "message", T: Timestamp },
-    { no: 6, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'subject', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'create_time', kind: 'message', T: Timestamp},
+    {no: 5, name: 'update_time', kind: 'message', T: Timestamp},
+    {no: 6, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Contact {
-    return new Contact().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Contact {
+    return new Contact().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Contact {
-    return new Contact().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Contact {
+    return new Contact().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Contact {
-    return new Contact().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Contact {
+    return new Contact().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Contact | PlainMessage<Contact> | undefined, b: Contact | PlainMessage<Contact> | undefined): boolean {
-    return proto3.util.equals(Contact, a, b);
+  static equals(
+    a: Contact | PlainMessage<Contact> | undefined,
+    b: Contact | PlainMessage<Contact> | undefined,
+  ): boolean {
+    return proto3.util.equals(Contact, a, b)
   }
 }
 
@@ -1470,21 +1968,21 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Pagination token.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   /**
    * Required. ID of the account to list the directory for.
    *
    * @generated from field: string account = 3;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the directory to list documents for.
@@ -1492,21 +1990,21 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
    *
    * @generated from field: string directory_path = 4;
    */
-  directoryPath = "";
+  directoryPath = ''
 
   /**
    * Optional. If true, list documents recursively.
    *
    * @generated from field: bool recursive = 5;
    */
-  recursive = false;
+  recursive = false
 
   /**
    * Optional. If set to true, only documents that the user is subscribed to will be returned.
    *
    * @generated from field: bool subscribed_only = 6;
    */
-  subscribedOnly = false;
+  subscribedOnly = false
 
   /**
    * Optional. Configuration for sorting.
@@ -1514,39 +2012,61 @@ export class ListDirectoryRequest extends Message<ListDirectoryRequest> {
    *
    * @generated from field: com.seed.documents.v3alpha.SortOptions sort_options = 7;
    */
-  sortOptions?: SortOptions;
+  sortOptions?: SortOptions
 
   constructor(data?: PartialMessage<ListDirectoryRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDirectoryRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListDirectoryRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "directory_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "subscribed_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 7, name: "sort_options", kind: "message", T: SortOptions },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 4,
+      name: 'directory_path',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 5, name: 'recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {
+      no: 6,
+      name: 'subscribed_only',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+    },
+    {no: 7, name: 'sort_options', kind: 'message', T: SortOptions},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDirectoryRequest {
-    return new ListDirectoryRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDirectoryRequest {
-    return new ListDirectoryRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDirectoryRequest {
-    return new ListDirectoryRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDirectoryRequest {
+    return new ListDirectoryRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined, b: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined): boolean {
-    return proto3.util.equals(ListDirectoryRequest, a, b);
+  static equals(
+    a: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined,
+    b: ListDirectoryRequest | PlainMessage<ListDirectoryRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDirectoryRequest, a, b)
   }
 }
 
@@ -1561,7 +2081,7 @@ export class SortOptions extends Message<SortOptions> {
    *
    * @generated from field: com.seed.documents.v3alpha.SortAttribute attribute = 1;
    */
-  attribute = SortAttribute.ACTIVITY_TIME;
+  attribute = SortAttribute.ACTIVITY_TIME
 
   /**
    * By default sort is ascending (smaller values first).
@@ -1569,34 +2089,51 @@ export class SortOptions extends Message<SortOptions> {
    *
    * @generated from field: bool descending = 2;
    */
-  descending = false;
+  descending = false
 
   constructor(data?: PartialMessage<SortOptions>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.SortOptions";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.SortOptions'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "attribute", kind: "enum", T: proto3.getEnumType(SortAttribute) },
-    { no: 2, name: "descending", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {
+      no: 1,
+      name: 'attribute',
+      kind: 'enum',
+      T: proto3.getEnumType(SortAttribute),
+    },
+    {no: 2, name: 'descending', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SortOptions {
-    return new SortOptions().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SortOptions {
+    return new SortOptions().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SortOptions {
-    return new SortOptions().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SortOptions {
+    return new SortOptions().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SortOptions {
-    return new SortOptions().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SortOptions {
+    return new SortOptions().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SortOptions | PlainMessage<SortOptions> | undefined, b: SortOptions | PlainMessage<SortOptions> | undefined): boolean {
-    return proto3.util.equals(SortOptions, a, b);
+  static equals(
+    a: SortOptions | PlainMessage<SortOptions> | undefined,
+    b: SortOptions | PlainMessage<SortOptions> | undefined,
+  ): boolean {
+    return proto3.util.equals(SortOptions, a, b)
   }
 }
 
@@ -1611,41 +2148,64 @@ export class ListDirectoryResponse extends Message<ListDirectoryResponse> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentInfo[] = [];
+  documents: DocumentInfo[] = []
 
   /**
    * Optional. Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListDirectoryResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDirectoryResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListDirectoryResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'documents',
+      kind: 'message',
+      T: DocumentInfo,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDirectoryResponse {
-    return new ListDirectoryResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDirectoryResponse {
-    return new ListDirectoryResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDirectoryResponse {
-    return new ListDirectoryResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDirectoryResponse {
+    return new ListDirectoryResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined, b: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined): boolean {
-    return proto3.util.equals(ListDirectoryResponse, a, b);
+  static equals(
+    a: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined,
+    b: ListDirectoryResponse | PlainMessage<ListDirectoryResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDirectoryResponse, a, b)
   }
 }
 
@@ -1661,49 +2221,61 @@ export class ListDocumentsRequest extends Message<ListDocumentsRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Optional. Number of results per page. Default is defined by the server.
    *
    * @generated from field: int32 page_size = 2;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtained from a previous response.
    *
    * @generated from field: string page_token = 3;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListDocumentsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListDocumentsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 3, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentsRequest {
-    return new ListDocumentsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDocumentsRequest {
+    return new ListDocumentsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentsRequest {
-    return new ListDocumentsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentsRequest {
+    return new ListDocumentsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentsRequest {
-    return new ListDocumentsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentsRequest {
+    return new ListDocumentsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDocumentsRequest | PlainMessage<ListDocumentsRequest> | undefined, b: ListDocumentsRequest | PlainMessage<ListDocumentsRequest> | undefined): boolean {
-    return proto3.util.equals(ListDocumentsRequest, a, b);
+  static equals(
+    a: ListDocumentsRequest | PlainMessage<ListDocumentsRequest> | undefined,
+    b: ListDocumentsRequest | PlainMessage<ListDocumentsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDocumentsRequest, a, b)
   }
 }
 
@@ -1718,41 +2290,64 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
    */
-  documents: DocumentInfo[] = [];
+  documents: DocumentInfo[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListDocumentsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ListDocumentsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'documents',
+      kind: 'message',
+      T: DocumentInfo,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentsResponse {
-    return new ListDocumentsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDocumentsResponse {
+    return new ListDocumentsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentsResponse {
-    return new ListDocumentsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentsResponse {
+    return new ListDocumentsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentsResponse {
-    return new ListDocumentsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentsResponse {
+    return new ListDocumentsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined, b: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined): boolean {
-    return proto3.util.equals(ListDocumentsResponse, a, b);
+  static equals(
+    a: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined,
+    b: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDocumentsResponse, a, b)
   }
 }
 
@@ -1767,65 +2362,84 @@ export class ListDocumentChangesRequest extends Message<ListDocumentChangesReque
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document to list versions for.
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Required. Version of the document to list changes for.
    *
    * @generated from field: string version = 3;
    */
-  version = "";
+  version = ''
 
   /**
    * Optional. Number of results per page. Default is defined by the server.
    *
    * @generated from field: int32 page_size = 4;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtained from a previous response.
    *
    * @generated from field: string page_token = 5;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListDocumentChangesRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentChangesRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListDocumentChangesRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 5, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 5, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentChangesRequest {
-    return new ListDocumentChangesRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentChangesRequest {
-    return new ListDocumentChangesRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentChangesRequest {
-    return new ListDocumentChangesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentChangesRequest {
+    return new ListDocumentChangesRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDocumentChangesRequest | PlainMessage<ListDocumentChangesRequest> | undefined, b: ListDocumentChangesRequest | PlainMessage<ListDocumentChangesRequest> | undefined): boolean {
-    return proto3.util.equals(ListDocumentChangesRequest, a, b);
+  static equals(
+    a:
+      | ListDocumentChangesRequest
+      | PlainMessage<ListDocumentChangesRequest>
+      | undefined,
+    b:
+      | ListDocumentChangesRequest
+      | PlainMessage<ListDocumentChangesRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDocumentChangesRequest, a, b)
   }
 }
 
@@ -1840,41 +2454,71 @@ export class ListDocumentChangesResponse extends Message<ListDocumentChangesResp
    *
    * @generated from field: repeated com.seed.documents.v3alpha.DocumentChangeInfo changes = 1;
    */
-  changes: DocumentChangeInfo[] = [];
+  changes: DocumentChangeInfo[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListDocumentChangesResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentChangesResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListDocumentChangesResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "changes", kind: "message", T: DocumentChangeInfo, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'changes',
+      kind: 'message',
+      T: DocumentChangeInfo,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentChangesResponse {
-    return new ListDocumentChangesResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentChangesResponse {
-    return new ListDocumentChangesResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentChangesResponse {
-    return new ListDocumentChangesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDocumentChangesResponse {
+    return new ListDocumentChangesResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined, b: ListDocumentChangesResponse | PlainMessage<ListDocumentChangesResponse> | undefined): boolean {
-    return proto3.util.equals(ListDocumentChangesResponse, a, b);
+  static equals(
+    a:
+      | ListDocumentChangesResponse
+      | PlainMessage<ListDocumentChangesResponse>
+      | undefined,
+    b:
+      | ListDocumentChangesResponse
+      | PlainMessage<ListDocumentChangesResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDocumentChangesResponse, a, b)
   }
 }
 
@@ -1889,33 +2533,52 @@ export class GetDocumentChangeRequest extends Message<GetDocumentChangeRequest> 
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetDocumentChangeRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetDocumentChangeRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.GetDocumentChangeRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDocumentChangeRequest {
-    return new GetDocumentChangeRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDocumentChangeRequest {
-    return new GetDocumentChangeRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDocumentChangeRequest {
-    return new GetDocumentChangeRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetDocumentChangeRequest {
+    return new GetDocumentChangeRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetDocumentChangeRequest | PlainMessage<GetDocumentChangeRequest> | undefined, b: GetDocumentChangeRequest | PlainMessage<GetDocumentChangeRequest> | undefined): boolean {
-    return proto3.util.equals(GetDocumentChangeRequest, a, b);
+  static equals(
+    a:
+      | GetDocumentChangeRequest
+      | PlainMessage<GetDocumentChangeRequest>
+      | undefined,
+    b:
+      | GetDocumentChangeRequest
+      | PlainMessage<GetDocumentChangeRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetDocumentChangeRequest, a, b)
   }
 }
 
@@ -1930,57 +2593,79 @@ export class UpdateDocumentReadStatusRequest extends Message<UpdateDocumentReadS
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the document to update.
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Required. New read status of the document.
    *
    * @generated from field: bool is_read = 3;
    */
-  isRead = false;
+  isRead = false
 
   /**
    * Optional. Whether the status should be updated recursively for children of the path.
    *
    * @generated from field: bool is_recursive = 4;
    */
-  isRecursive = false;
+  isRecursive = false
 
   constructor(data?: PartialMessage<UpdateDocumentReadStatusRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "is_read", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "is_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'is_read', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 4, name: 'is_recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateDocumentReadStatusRequest {
-    return new UpdateDocumentReadStatusRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateDocumentReadStatusRequest {
-    return new UpdateDocumentReadStatusRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateDocumentReadStatusRequest {
-    return new UpdateDocumentReadStatusRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateDocumentReadStatusRequest {
+    return new UpdateDocumentReadStatusRequest().fromJsonString(
+      jsonString,
+      options,
+    )
   }
 
-  static equals(a: UpdateDocumentReadStatusRequest | PlainMessage<UpdateDocumentReadStatusRequest> | undefined, b: UpdateDocumentReadStatusRequest | PlainMessage<UpdateDocumentReadStatusRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateDocumentReadStatusRequest, a, b);
+  static equals(
+    a:
+      | UpdateDocumentReadStatusRequest
+      | PlainMessage<UpdateDocumentReadStatusRequest>
+      | undefined,
+    b:
+      | UpdateDocumentReadStatusRequest
+      | PlainMessage<UpdateDocumentReadStatusRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateDocumentReadStatusRequest, a, b)
   }
 }
 
@@ -1995,7 +2680,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path of the new Ref.
@@ -2003,21 +2688,21 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Required. Target for the new Ref.
    *
    * @generated from field: com.seed.documents.v3alpha.RefTarget target = 3;
    */
-  target?: RefTarget;
+  target?: RefTarget
 
   /**
    * Required. Name of the signing key to use for signing the Ref.
    *
    * @generated from field: string signing_key_name = 4;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Optional. ID of the Capability blob that grants the necessary rights to the signin key
@@ -2025,7 +2710,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    *
    * @generated from field: string capability = 5;
    */
-  capability = "";
+  capability = ''
 
   /**
    * Optional. A timestamp of the Ref blob.
@@ -2035,7 +2720,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    *
    * @generated from field: google.protobuf.Timestamp timestamp = 6;
    */
-  timestamp?: Timestamp;
+  timestamp?: Timestamp
 
   /**
    * Optional. The generation number for the Ref.
@@ -2044,39 +2729,56 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    *
    * @generated from field: int64 generation = 7;
    */
-  generation = protoInt64.zero;
+  generation = protoInt64.zero
 
   constructor(data?: PartialMessage<CreateRefRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateRefRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.CreateRefRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "target", kind: "message", T: RefTarget },
-    { no: 4, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "timestamp", kind: "message", T: Timestamp },
-    { no: 7, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'target', kind: 'message', T: RefTarget},
+    {
+      no: 4,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 5, name: 'capability', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'timestamp', kind: 'message', T: Timestamp},
+    {no: 7, name: 'generation', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRefRequest {
-    return new CreateRefRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateRefRequest {
+    return new CreateRefRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateRefRequest {
-    return new CreateRefRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateRefRequest {
+    return new CreateRefRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateRefRequest {
-    return new CreateRefRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateRefRequest {
+    return new CreateRefRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined, b: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined): boolean {
-    return proto3.util.equals(CreateRefRequest, a, b);
+  static equals(
+    a: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined,
+    b: CreateRefRequest | PlainMessage<CreateRefRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateRefRequest, a, b)
   }
 }
 
@@ -2091,33 +2793,45 @@ export class GetRefRequest extends Message<GetRefRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetRefRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetRefRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetRefRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetRefRequest {
-    return new GetRefRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetRefRequest {
+    return new GetRefRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetRefRequest {
-    return new GetRefRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetRefRequest {
+    return new GetRefRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetRefRequest {
-    return new GetRefRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetRefRequest {
+    return new GetRefRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetRefRequest | PlainMessage<GetRefRequest> | undefined, b: GetRefRequest | PlainMessage<GetRefRequest> | undefined): boolean {
-    return proto3.util.equals(GetRefRequest, a, b);
+  static equals(
+    a: GetRefRequest | PlainMessage<GetRefRequest> | undefined,
+    b: GetRefRequest | PlainMessage<GetRefRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetRefRequest, a, b)
   }
 }
 
@@ -2132,57 +2846,75 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Author of the change.
    *
    * @generated from field: string author = 2;
    */
-  author = "";
+  author = ''
 
   /**
    * List of change IDs that this change depends on.
    *
    * @generated from field: repeated string deps = 3;
    */
-  deps: string[] = [];
+  deps: string[] = []
 
   /**
    * Time when the change was created (as claimed by the author).
    *
    * @generated from field: google.protobuf.Timestamp create_time = 4;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   constructor(data?: PartialMessage<DocumentChangeInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentChangeInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DocumentChangeInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "deps", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 4, name: "create_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'deps',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 4, name: 'create_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChangeInfo {
-    return new DocumentChangeInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChangeInfo {
-    return new DocumentChangeInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChangeInfo {
-    return new DocumentChangeInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChangeInfo {
+    return new DocumentChangeInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined, b: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined): boolean {
-    return proto3.util.equals(DocumentChangeInfo, a, b);
+  static equals(
+    a: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined,
+    b: DocumentChangeInfo | PlainMessage<DocumentChangeInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentChangeInfo, a, b)
   }
 }
 
@@ -2198,7 +2930,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Path of the document within the account.
@@ -2206,28 +2938,28 @@ export class DocumentInfo extends Message<DocumentInfo> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * User-defined metadata attributes of the document.
    *
    * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata?: Struct;
+  metadata?: Struct
 
   /**
    * Every author ID who has ever made changes to this document.
    *
    * @generated from field: repeated string authors = 4;
    */
-  authors: string[] = [];
+  authors: string[] = []
 
   /**
    * Time when the document was created.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 5;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * Time when the document was updated.
@@ -2235,21 +2967,21 @@ export class DocumentInfo extends Message<DocumentInfo> {
    *
    * @generated from field: google.protobuf.Timestamp update_time = 6;
    */
-  updateTime?: Timestamp;
+  updateTime?: Timestamp
 
   /**
    * ID of the genesis change of this document.
    *
    * @generated from field: string genesis = 8;
    */
-  genesis = "";
+  genesis = ''
 
   /**
    * Current version of the document.
    *
    * @generated from field: string version = 9;
    */
-  version = "";
+  version = ''
 
   /**
    * Breadcrumbs of this document.
@@ -2263,65 +2995,89 @@ export class DocumentInfo extends Message<DocumentInfo> {
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Breadcrumb breadcrumbs = 10;
    */
-  breadcrumbs: Breadcrumb[] = [];
+  breadcrumbs: Breadcrumb[] = []
 
   /**
    * Summary of the activity on the document.
    *
    * @generated from field: com.seed.documents.v3alpha.ActivitySummary activity_summary = 11;
    */
-  activitySummary?: ActivitySummary;
+  activitySummary?: ActivitySummary
 
   /**
    * Information about the generation of the document.
    *
    * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 12;
    */
-  generationInfo?: GenerationInfo;
+  generationInfo?: GenerationInfo
 
   /**
    * Output only. Redirect information if the document is a republish or a redirect.
    *
    * @generated from field: com.seed.documents.v3alpha.RefTarget.Redirect redirect_info = 13;
    */
-  redirectInfo?: RefTarget_Redirect;
+  redirectInfo?: RefTarget_Redirect
 
   constructor(data?: PartialMessage<DocumentInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DocumentInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "message", T: Struct },
-    { no: 4, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 5, name: "create_time", kind: "message", T: Timestamp },
-    { no: 6, name: "update_time", kind: "message", T: Timestamp },
-    { no: 8, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 10, name: "breadcrumbs", kind: "message", T: Breadcrumb, repeated: true },
-    { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
-    { no: 12, name: "generation_info", kind: "message", T: GenerationInfo },
-    { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'metadata', kind: 'message', T: Struct},
+    {
+      no: 4,
+      name: 'authors',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 5, name: 'create_time', kind: 'message', T: Timestamp},
+    {no: 6, name: 'update_time', kind: 'message', T: Timestamp},
+    {no: 8, name: 'genesis', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 9, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 10,
+      name: 'breadcrumbs',
+      kind: 'message',
+      T: Breadcrumb,
+      repeated: true,
+    },
+    {no: 11, name: 'activity_summary', kind: 'message', T: ActivitySummary},
+    {no: 12, name: 'generation_info', kind: 'message', T: GenerationInfo},
+    {no: 13, name: 'redirect_info', kind: 'message', T: RefTarget_Redirect},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
-    return new DocumentInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentInfo {
+    return new DocumentInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentInfo {
-    return new DocumentInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentInfo {
+    return new DocumentInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentInfo {
-    return new DocumentInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentInfo {
+    return new DocumentInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentInfo | PlainMessage<DocumentInfo> | undefined, b: DocumentInfo | PlainMessage<DocumentInfo> | undefined): boolean {
-    return proto3.util.equals(DocumentInfo, a, b);
+  static equals(
+    a: DocumentInfo | PlainMessage<DocumentInfo> | undefined,
+    b: DocumentInfo | PlainMessage<DocumentInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentInfo, a, b)
   }
 }
 
@@ -2336,7 +3092,7 @@ export class GenerationInfo extends Message<GenerationInfo> {
    *
    * @generated from field: string genesis = 1;
    */
-  genesis = "";
+  genesis = ''
 
   /**
    * A generation number of the document.
@@ -2345,34 +3101,46 @@ export class GenerationInfo extends Message<GenerationInfo> {
    *
    * @generated from field: int64 generation = 2;
    */
-  generation = protoInt64.zero;
+  generation = protoInt64.zero
 
   constructor(data?: PartialMessage<GenerationInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GenerationInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GenerationInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-  ]);
+    {no: 1, name: 'genesis', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'generation', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GenerationInfo {
-    return new GenerationInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GenerationInfo {
+    return new GenerationInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GenerationInfo {
-    return new GenerationInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GenerationInfo {
+    return new GenerationInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GenerationInfo {
-    return new GenerationInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GenerationInfo {
+    return new GenerationInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GenerationInfo | PlainMessage<GenerationInfo> | undefined, b: GenerationInfo | PlainMessage<GenerationInfo> | undefined): boolean {
-    return proto3.util.equals(GenerationInfo, a, b);
+  static equals(
+    a: GenerationInfo | PlainMessage<GenerationInfo> | undefined,
+    b: GenerationInfo | PlainMessage<GenerationInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(GenerationInfo, a, b)
   }
 }
 
@@ -2387,65 +3155,82 @@ export class ActivitySummary extends Message<ActivitySummary> {
    *
    * @generated from field: google.protobuf.Timestamp latest_comment_time = 1;
    */
-  latestCommentTime?: Timestamp;
+  latestCommentTime?: Timestamp
 
   /**
    * ID of the most recent comment.
    *
    * @generated from field: string latest_comment_id = 4;
    */
-  latestCommentId = "";
+  latestCommentId = ''
 
   /**
    * Total number of comments.
    *
    * @generated from field: int32 comment_count = 2;
    */
-  commentCount = 0;
+  commentCount = 0
 
   /**
    * Timestamp of the most recent change.
    *
    * @generated from field: google.protobuf.Timestamp latest_change_time = 3;
    */
-  latestChangeTime?: Timestamp;
+  latestChangeTime?: Timestamp
 
   /**
    * Whether there's any unread activity on this document/account.
    *
    * @generated from field: bool is_unread = 5;
    */
-  isUnread = false;
+  isUnread = false
 
   constructor(data?: PartialMessage<ActivitySummary>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ActivitySummary";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.ActivitySummary'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "latest_comment_time", kind: "message", T: Timestamp },
-    { no: 4, name: "latest_comment_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
-    { no: 5, name: "is_unread", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'latest_comment_time', kind: 'message', T: Timestamp},
+    {
+      no: 4,
+      name: 'latest_comment_id',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'comment_count', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 3, name: 'latest_change_time', kind: 'message', T: Timestamp},
+    {no: 5, name: 'is_unread', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActivitySummary {
-    return new ActivitySummary().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ActivitySummary {
+    return new ActivitySummary().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ActivitySummary {
-    return new ActivitySummary().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ActivitySummary {
+    return new ActivitySummary().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ActivitySummary {
-    return new ActivitySummary().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ActivitySummary {
+    return new ActivitySummary().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ActivitySummary | PlainMessage<ActivitySummary> | undefined, b: ActivitySummary | PlainMessage<ActivitySummary> | undefined): boolean {
-    return proto3.util.equals(ActivitySummary, a, b);
+  static equals(
+    a: ActivitySummary | PlainMessage<ActivitySummary> | undefined,
+    b: ActivitySummary | PlainMessage<ActivitySummary> | undefined,
+  ): boolean {
+    return proto3.util.equals(ActivitySummary, a, b)
   }
 }
 
@@ -2460,49 +3245,61 @@ export class Breadcrumb extends Message<Breadcrumb> {
    *
    * @generated from field: string name = 1;
    */
-  name = "";
+  name = ''
 
   /**
    * Path of the document.
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Will be true if we don't have any indexed information about this document.
    *
    * @generated from field: bool is_missing = 3;
    */
-  isMissing = false;
+  isMissing = false
 
   constructor(data?: PartialMessage<Breadcrumb>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Breadcrumb";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Breadcrumb'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "is_missing", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'is_missing', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Breadcrumb {
-    return new Breadcrumb().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Breadcrumb {
+    return new Breadcrumb().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Breadcrumb {
-    return new Breadcrumb().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Breadcrumb {
+    return new Breadcrumb().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Breadcrumb {
-    return new Breadcrumb().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Breadcrumb {
+    return new Breadcrumb().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Breadcrumb | PlainMessage<Breadcrumb> | undefined, b: Breadcrumb | PlainMessage<Breadcrumb> | undefined): boolean {
-    return proto3.util.equals(Breadcrumb, a, b);
+  static equals(
+    a: Breadcrumb | PlainMessage<Breadcrumb> | undefined,
+    b: Breadcrumb | PlainMessage<Breadcrumb> | undefined,
+  ): boolean {
+    return proto3.util.equals(Breadcrumb, a, b)
   }
 }
 
@@ -2517,7 +3314,7 @@ export class Document extends Message<Document> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Path of the document within the account.
@@ -2525,14 +3322,14 @@ export class Document extends Message<Document> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Metadata values for a document.
    *
    * @generated from field: google.protobuf.Struct metadata = 3;
    */
-  metadata?: Struct;
+  metadata?: Struct
 
   /**
    * Output only. Every account ID who has modified the document.
@@ -2540,92 +3337,116 @@ export class Document extends Message<Document> {
    *
    * @generated from field: repeated string authors = 5;
    */
-  authors: string[] = [];
+  authors: string[] = []
 
   /**
    * Blocks content of the document.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode content = 6;
    */
-  content: BlockNode[] = [];
+  content: BlockNode[] = []
 
   /**
    * Output only. Blocks that were created but not moved into the document content.
    *
    * @generated from field: map<string, com.seed.documents.v3alpha.BlockNode> detached_blocks = 14;
    */
-  detachedBlocks: { [key: string]: BlockNode } = {};
+  detachedBlocks: {[key: string]: BlockNode} = {}
 
   /**
    * Output only. Time when document was created.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 7;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * Output only. Time when document was updated.
    *
    * @generated from field: google.protobuf.Timestamp update_time = 8;
    */
-  updateTime?: Timestamp;
+  updateTime?: Timestamp
 
   /**
    * Output only. ID of the genesis change of this document.
    *
    * @generated from field: string genesis = 9;
    */
-  genesis = "";
+  genesis = ''
 
   /**
    * Output only. Current version of the document.
    *
    * @generated from field: string version = 10;
    */
-  version = "";
+  version = ''
 
   /**
    * Output only. Information about the generation of the document.
    *
    * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 13;
    */
-  generationInfo?: GenerationInfo;
+  generationInfo?: GenerationInfo
 
   constructor(data?: PartialMessage<Document>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Document";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Document'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "metadata", kind: "message", T: Struct },
-    { no: 5, name: "authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 6, name: "content", kind: "message", T: BlockNode, repeated: true },
-    { no: 14, name: "detached_blocks", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "message", T: BlockNode} },
-    { no: 7, name: "create_time", kind: "message", T: Timestamp },
-    { no: 8, name: "update_time", kind: "message", T: Timestamp },
-    { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 10, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 13, name: "generation_info", kind: "message", T: GenerationInfo },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'metadata', kind: 'message', T: Struct},
+    {
+      no: 5,
+      name: 'authors',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 6, name: 'content', kind: 'message', T: BlockNode, repeated: true},
+    {
+      no: 14,
+      name: 'detached_blocks',
+      kind: 'map',
+      K: 9 /* ScalarType.STRING */,
+      V: {kind: 'message', T: BlockNode},
+    },
+    {no: 7, name: 'create_time', kind: 'message', T: Timestamp},
+    {no: 8, name: 'update_time', kind: 'message', T: Timestamp},
+    {no: 9, name: 'genesis', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 10, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 13, name: 'generation_info', kind: 'message', T: GenerationInfo},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {
-    return new Document().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Document {
+    return new Document().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Document {
-    return new Document().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Document {
+    return new Document().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Document {
-    return new Document().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Document {
+    return new Document().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Document | PlainMessage<Document> | undefined, b: Document | PlainMessage<Document> | undefined): boolean {
-    return proto3.util.equals(Document, a, b);
+  static equals(
+    a: Document | PlainMessage<Document> | undefined,
+    b: Document | PlainMessage<Document> | undefined,
+  ): boolean {
+    return proto3.util.equals(Document, a, b)
   }
 }
 
@@ -2640,41 +3461,53 @@ export class BlockNode extends Message<BlockNode> {
    *
    * @generated from field: com.seed.documents.v3alpha.Block block = 1;
    */
-  block?: Block;
+  block?: Block
 
   /**
    * Child blocks.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.BlockNode children = 2;
    */
-  children: BlockNode[] = [];
+  children: BlockNode[] = []
 
   constructor(data?: PartialMessage<BlockNode>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.BlockNode";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.BlockNode'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "block", kind: "message", T: Block },
-    { no: 2, name: "children", kind: "message", T: BlockNode, repeated: true },
-  ]);
+    {no: 1, name: 'block', kind: 'message', T: Block},
+    {no: 2, name: 'children', kind: 'message', T: BlockNode, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BlockNode {
-    return new BlockNode().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): BlockNode {
+    return new BlockNode().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BlockNode {
-    return new BlockNode().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): BlockNode {
+    return new BlockNode().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BlockNode {
-    return new BlockNode().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): BlockNode {
+    return new BlockNode().fromJsonString(jsonString, options)
   }
 
-  static equals(a: BlockNode | PlainMessage<BlockNode> | undefined, b: BlockNode | PlainMessage<BlockNode> | undefined): boolean {
-    return proto3.util.equals(BlockNode, a, b);
+  static equals(
+    a: BlockNode | PlainMessage<BlockNode> | undefined,
+    b: BlockNode | PlainMessage<BlockNode> | undefined,
+  ): boolean {
+    return proto3.util.equals(BlockNode, a, b)
   }
 }
 
@@ -2689,21 +3522,21 @@ export class Block extends Message<Block> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Type of the block. Specific to the renderer.
    *
    * @generated from field: string type = 2;
    */
-  type = "";
+  type = ''
 
   /**
    * Text of the content block.
    *
    * @generated from field: string text = 3;
    */
-  text = "";
+  text = ''
 
   /**
    * Optional. The hyperlink to an external resource.
@@ -2711,7 +3544,7 @@ export class Block extends Message<Block> {
    *
    * @generated from field: string link = 7;
    */
-  link = "";
+  link = ''
 
   /**
    * Remaining type-specific attribtues of the block.
@@ -2725,14 +3558,14 @@ export class Block extends Message<Block> {
    *
    * @generated from field: google.protobuf.Struct attributes = 4;
    */
-  attributes?: Struct;
+  attributes?: Struct
 
   /**
    * Annotation "layers" of the block.
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Annotation annotations = 5;
    */
-  annotations: Annotation[] = [];
+  annotations: Annotation[] = []
 
   /**
    * Output only. Current revision of the block. It's the ID of the last Change that modified this block.
@@ -2740,39 +3573,57 @@ export class Block extends Message<Block> {
    *
    * @generated from field: string revision = 6;
    */
-  revision = "";
+  revision = ''
 
   constructor(data?: PartialMessage<Block>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Block";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Block'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "link", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "attributes", kind: "message", T: Struct },
-    { no: 5, name: "annotations", kind: "message", T: Annotation, repeated: true },
-    { no: 6, name: "revision", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'text', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 7, name: 'link', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'attributes', kind: 'message', T: Struct},
+    {
+      no: 5,
+      name: 'annotations',
+      kind: 'message',
+      T: Annotation,
+      repeated: true,
+    },
+    {no: 6, name: 'revision', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Block {
-    return new Block().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Block {
+    return new Block().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Block {
-    return new Block().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Block {
+    return new Block().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Block {
-    return new Block().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Block {
+    return new Block().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Block | PlainMessage<Block> | undefined, b: Block | PlainMessage<Block> | undefined): boolean {
-    return proto3.util.equals(Block, a, b);
+  static equals(
+    a: Block | PlainMessage<Block> | undefined,
+    b: Block | PlainMessage<Block> | undefined,
+  ): boolean {
+    return proto3.util.equals(Block, a, b)
   }
 }
 
@@ -2794,7 +3645,7 @@ export class Annotation extends Message<Annotation> {
    *
    * @generated from field: string type = 1;
    */
-  type = "";
+  type = ''
 
   /**
    * Optional. A hyperlink to an external resource.
@@ -2802,14 +3653,14 @@ export class Annotation extends Message<Annotation> {
    *
    * @generated from field: string link = 5;
    */
-  link = "";
+  link = ''
 
   /**
    * Arbitrary key-value attributes of the annotation.
    *
    * @generated from field: google.protobuf.Struct attributes = 2;
    */
-  attributes?: Struct;
+  attributes?: Struct
 
   /**
    * Start offsets of possibly disjoint spans of text for which this annotation is applied.
@@ -2817,7 +3668,7 @@ export class Annotation extends Message<Annotation> {
    *
    * @generated from field: repeated int32 starts = 3;
    */
-  starts: number[] = [];
+  starts: number[] = []
 
   /**
    * End offsets of possibly disjoint spans of text for which this annotation is applied.
@@ -2825,37 +3676,61 @@ export class Annotation extends Message<Annotation> {
    *
    * @generated from field: repeated int32 ends = 4;
    */
-  ends: number[] = [];
+  ends: number[] = []
 
   constructor(data?: PartialMessage<Annotation>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Annotation";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Annotation'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "link", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "attributes", kind: "message", T: Struct },
-    { no: 3, name: "starts", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
-    { no: 4, name: "ends", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
-  ]);
+    {no: 1, name: 'type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'link', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'attributes', kind: 'message', T: Struct},
+    {
+      no: 3,
+      name: 'starts',
+      kind: 'scalar',
+      T: 5 /* ScalarType.INT32 */,
+      repeated: true,
+    },
+    {
+      no: 4,
+      name: 'ends',
+      kind: 'scalar',
+      T: 5 /* ScalarType.INT32 */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Annotation {
-    return new Annotation().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Annotation {
+    return new Annotation().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Annotation {
-    return new Annotation().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Annotation {
+    return new Annotation().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Annotation {
-    return new Annotation().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Annotation {
+    return new Annotation().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Annotation | PlainMessage<Annotation> | undefined, b: Annotation | PlainMessage<Annotation> | undefined): boolean {
-    return proto3.util.equals(Annotation, a, b);
+  static equals(
+    a: Annotation | PlainMessage<Annotation> | undefined,
+    b: Annotation | PlainMessage<Annotation> | undefined,
+  ): boolean {
+    return proto3.util.equals(Annotation, a, b)
   }
 }
 
@@ -2868,79 +3743,121 @@ export class DocumentChange extends Message<DocumentChange> {
   /**
    * @generated from oneof com.seed.documents.v3alpha.DocumentChange.op
    */
-  op: {
-    /**
-     * New metadata to set on the document.
-     *
-     * Deprecated: Use SetAttribute instead.
-     *
-     * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetMetadata set_metadata = 1;
-     */
-    value: DocumentChange_SetMetadata;
-    case: "setMetadata";
-  } | {
-    /**
-     * Move operation that creates/moves a block within the document hierarchy.
-     *
-     * @generated from field: com.seed.documents.v3alpha.DocumentChange.MoveBlock move_block = 2;
-     */
-    value: DocumentChange_MoveBlock;
-    case: "moveBlock";
-  } | {
-    /**
-     * New block state that replaces an existing block.
-     *
-     * @generated from field: com.seed.documents.v3alpha.Block replace_block = 3;
-     */
-    value: Block;
-    case: "replaceBlock";
-  } | {
-    /**
-     * ID of a block to delete.
-     *
-     * @generated from field: string delete_block = 4;
-     */
-    value: string;
-    case: "deleteBlock";
-  } | {
-    /**
-     * Sets an attribute on a block.
-     *
-     * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetAttribute set_attribute = 5;
-     */
-    value: DocumentChange_SetAttribute;
-    case: "setAttribute";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  op:
+    | {
+        /**
+         * New metadata to set on the document.
+         *
+         * Deprecated: Use SetAttribute instead.
+         *
+         * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetMetadata set_metadata = 1;
+         */
+        value: DocumentChange_SetMetadata
+        case: 'setMetadata'
+      }
+    | {
+        /**
+         * Move operation that creates/moves a block within the document hierarchy.
+         *
+         * @generated from field: com.seed.documents.v3alpha.DocumentChange.MoveBlock move_block = 2;
+         */
+        value: DocumentChange_MoveBlock
+        case: 'moveBlock'
+      }
+    | {
+        /**
+         * New block state that replaces an existing block.
+         *
+         * @generated from field: com.seed.documents.v3alpha.Block replace_block = 3;
+         */
+        value: Block
+        case: 'replaceBlock'
+      }
+    | {
+        /**
+         * ID of a block to delete.
+         *
+         * @generated from field: string delete_block = 4;
+         */
+        value: string
+        case: 'deleteBlock'
+      }
+    | {
+        /**
+         * Sets an attribute on a block.
+         *
+         * @generated from field: com.seed.documents.v3alpha.DocumentChange.SetAttribute set_attribute = 5;
+         */
+        value: DocumentChange_SetAttribute
+        case: 'setAttribute'
+      }
+    | {case: undefined; value?: undefined} = {case: undefined}
 
   constructor(data?: PartialMessage<DocumentChange>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentChange";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.DocumentChange'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "set_metadata", kind: "message", T: DocumentChange_SetMetadata, oneof: "op" },
-    { no: 2, name: "move_block", kind: "message", T: DocumentChange_MoveBlock, oneof: "op" },
-    { no: 3, name: "replace_block", kind: "message", T: Block, oneof: "op" },
-    { no: 4, name: "delete_block", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "op" },
-    { no: 5, name: "set_attribute", kind: "message", T: DocumentChange_SetAttribute, oneof: "op" },
-  ]);
+    {
+      no: 1,
+      name: 'set_metadata',
+      kind: 'message',
+      T: DocumentChange_SetMetadata,
+      oneof: 'op',
+    },
+    {
+      no: 2,
+      name: 'move_block',
+      kind: 'message',
+      T: DocumentChange_MoveBlock,
+      oneof: 'op',
+    },
+    {no: 3, name: 'replace_block', kind: 'message', T: Block, oneof: 'op'},
+    {
+      no: 4,
+      name: 'delete_block',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      oneof: 'op',
+    },
+    {
+      no: 5,
+      name: 'set_attribute',
+      kind: 'message',
+      T: DocumentChange_SetAttribute,
+      oneof: 'op',
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange {
-    return new DocumentChange().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentChange {
+    return new DocumentChange().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChange {
-    return new DocumentChange().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange {
+    return new DocumentChange().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChange {
-    return new DocumentChange().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange {
+    return new DocumentChange().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentChange | PlainMessage<DocumentChange> | undefined, b: DocumentChange | PlainMessage<DocumentChange> | undefined): boolean {
-    return proto3.util.equals(DocumentChange, a, b);
+  static equals(
+    a: DocumentChange | PlainMessage<DocumentChange> | undefined,
+    b: DocumentChange | PlainMessage<DocumentChange> | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentChange, a, b)
   }
 }
 
@@ -2957,49 +3874,68 @@ export class DocumentChange_MoveBlock extends Message<DocumentChange_MoveBlock> 
    *
    * @generated from field: string block_id = 1;
    */
-  blockId = "";
+  blockId = ''
 
   /**
    * ID of the new parent for the block being moved.
    *
    * @generated from field: string parent = 2;
    */
-  parent = "";
+  parent = ''
 
   /**
    * ID of the new left sibling for the block being moved.
    *
    * @generated from field: string left_sibling = 3;
    */
-  leftSibling = "";
+  leftSibling = ''
 
   constructor(data?: PartialMessage<DocumentChange_MoveBlock>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentChange.MoveBlock";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.DocumentChange.MoveBlock'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "parent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "left_sibling", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'block_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'parent', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'left_sibling', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange_MoveBlock {
-    return new DocumentChange_MoveBlock().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentChange_MoveBlock {
+    return new DocumentChange_MoveBlock().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChange_MoveBlock {
-    return new DocumentChange_MoveBlock().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_MoveBlock {
+    return new DocumentChange_MoveBlock().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChange_MoveBlock {
-    return new DocumentChange_MoveBlock().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_MoveBlock {
+    return new DocumentChange_MoveBlock().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentChange_MoveBlock | PlainMessage<DocumentChange_MoveBlock> | undefined, b: DocumentChange_MoveBlock | PlainMessage<DocumentChange_MoveBlock> | undefined): boolean {
-    return proto3.util.equals(DocumentChange_MoveBlock, a, b);
+  static equals(
+    a:
+      | DocumentChange_MoveBlock
+      | PlainMessage<DocumentChange_MoveBlock>
+      | undefined,
+    b:
+      | DocumentChange_MoveBlock
+      | PlainMessage<DocumentChange_MoveBlock>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentChange_MoveBlock, a, b)
   }
 }
 
@@ -3016,41 +3952,60 @@ export class DocumentChange_SetMetadata extends Message<DocumentChange_SetMetada
    *
    * @generated from field: string key = 1;
    */
-  key = "";
+  key = ''
 
   /**
    * Metadata value to set.
    *
    * @generated from field: string value = 2;
    */
-  value = "";
+  value = ''
 
   constructor(data?: PartialMessage<DocumentChange_SetMetadata>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentChange.SetMetadata";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.DocumentChange.SetMetadata'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'key', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'value', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange_SetMetadata {
-    return new DocumentChange_SetMetadata().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentChange_SetMetadata {
+    return new DocumentChange_SetMetadata().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChange_SetMetadata {
-    return new DocumentChange_SetMetadata().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_SetMetadata {
+    return new DocumentChange_SetMetadata().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChange_SetMetadata {
-    return new DocumentChange_SetMetadata().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_SetMetadata {
+    return new DocumentChange_SetMetadata().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined, b: DocumentChange_SetMetadata | PlainMessage<DocumentChange_SetMetadata> | undefined): boolean {
-    return proto3.util.equals(DocumentChange_SetMetadata, a, b);
+  static equals(
+    a:
+      | DocumentChange_SetMetadata
+      | PlainMessage<DocumentChange_SetMetadata>
+      | undefined,
+    b:
+      | DocumentChange_SetMetadata
+      | PlainMessage<DocumentChange_SetMetadata>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentChange_SetMetadata, a, b)
   }
 }
 
@@ -3068,7 +4023,7 @@ export class DocumentChange_SetAttribute extends Message<DocumentChange_SetAttri
    *
    * @generated from field: string block_id = 1;
    */
-  blockId = "";
+  blockId = ''
 
   /**
    * A path of keys to set the value for.
@@ -3076,69 +4031,117 @@ export class DocumentChange_SetAttribute extends Message<DocumentChange_SetAttri
    *
    * @generated from field: repeated string key = 2;
    */
-  key: string[] = [];
+  key: string[] = []
 
   /**
    * Value to set.
    *
    * @generated from oneof com.seed.documents.v3alpha.DocumentChange.SetAttribute.value
    */
-  value: {
-    /**
-     * @generated from field: string string_value = 3;
-     */
-    value: string;
-    case: "stringValue";
-  } | {
-    /**
-     * @generated from field: int64 int_value = 4;
-     */
-    value: bigint;
-    case: "intValue";
-  } | {
-    /**
-     * @generated from field: bool bool_value = 5;
-     */
-    value: boolean;
-    case: "boolValue";
-  } | {
-    /**
-     * @generated from field: google.protobuf.Empty null_value = 6;
-     */
-    value: Empty;
-    case: "nullValue";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  value:
+    | {
+        /**
+         * @generated from field: string string_value = 3;
+         */
+        value: string
+        case: 'stringValue'
+      }
+    | {
+        /**
+         * @generated from field: int64 int_value = 4;
+         */
+        value: bigint
+        case: 'intValue'
+      }
+    | {
+        /**
+         * @generated from field: bool bool_value = 5;
+         */
+        value: boolean
+        case: 'boolValue'
+      }
+    | {
+        /**
+         * @generated from field: google.protobuf.Empty null_value = 6;
+         */
+        value: Empty
+        case: 'nullValue'
+      }
+    | {case: undefined; value?: undefined} = {case: undefined}
 
   constructor(data?: PartialMessage<DocumentChange_SetAttribute>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.DocumentChange.SetAttribute";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.DocumentChange.SetAttribute'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "block_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 3, name: "string_value", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "value" },
-    { no: 4, name: "int_value", kind: "scalar", T: 3 /* ScalarType.INT64 */, oneof: "value" },
-    { no: 5, name: "bool_value", kind: "scalar", T: 8 /* ScalarType.BOOL */, oneof: "value" },
-    { no: 6, name: "null_value", kind: "message", T: Empty, oneof: "value" },
-  ]);
+    {no: 1, name: 'block_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'key',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 3,
+      name: 'string_value',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      oneof: 'value',
+    },
+    {
+      no: 4,
+      name: 'int_value',
+      kind: 'scalar',
+      T: 3 /* ScalarType.INT64 */,
+      oneof: 'value',
+    },
+    {
+      no: 5,
+      name: 'bool_value',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+      oneof: 'value',
+    },
+    {no: 6, name: 'null_value', kind: 'message', T: Empty, oneof: 'value'},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentChange_SetAttribute {
-    return new DocumentChange_SetAttribute().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentChange_SetAttribute {
-    return new DocumentChange_SetAttribute().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentChange_SetAttribute {
-    return new DocumentChange_SetAttribute().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DocumentChange_SetAttribute {
+    return new DocumentChange_SetAttribute().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DocumentChange_SetAttribute | PlainMessage<DocumentChange_SetAttribute> | undefined, b: DocumentChange_SetAttribute | PlainMessage<DocumentChange_SetAttribute> | undefined): boolean {
-    return proto3.util.equals(DocumentChange_SetAttribute, a, b);
+  static equals(
+    a:
+      | DocumentChange_SetAttribute
+      | PlainMessage<DocumentChange_SetAttribute>
+      | undefined,
+    b:
+      | DocumentChange_SetAttribute
+      | PlainMessage<DocumentChange_SetAttribute>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(DocumentChange_SetAttribute, a, b)
   }
 }
 
@@ -3153,89 +4156,101 @@ export class Ref extends Message<Ref> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Account (space) in which the Ref blob exists.
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   /**
    * Path in the account Ref creates an entry for.
    *
    * @generated from field: string path = 3;
    */
-  path = "";
+  path = ''
 
   /**
    * Description of where the Ref points to.
    *
    * @generated from field: com.seed.documents.v3alpha.RefTarget target = 4;
    */
-  target?: RefTarget;
+  target?: RefTarget
 
   /**
    * Public key used to sign the Ref blob.
    *
    * @generated from field: string signer = 5;
    */
-  signer = "";
+  signer = ''
 
   /**
    * Optional. ID of the Capability attached to this Ref.
    *
    * @generated from field: string capability = 6;
    */
-  capability = "";
+  capability = ''
 
   /**
    * Timestamp of the Ref.
    *
    * @generated from field: google.protobuf.Timestamp timestamp = 7;
    */
-  timestamp?: Timestamp;
+  timestamp?: Timestamp
 
   /**
    * Information about the generation of the Ref.
    *
    * @generated from field: com.seed.documents.v3alpha.GenerationInfo generation_info = 8;
    */
-  generationInfo?: GenerationInfo;
+  generationInfo?: GenerationInfo
 
   constructor(data?: PartialMessage<Ref>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Ref";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Ref'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "target", kind: "message", T: RefTarget },
-    { no: 5, name: "signer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "timestamp", kind: "message", T: Timestamp },
-    { no: 8, name: "generation_info", kind: "message", T: GenerationInfo },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'target', kind: 'message', T: RefTarget},
+    {no: 5, name: 'signer', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'capability', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 7, name: 'timestamp', kind: 'message', T: Timestamp},
+    {no: 8, name: 'generation_info', kind: 'message', T: GenerationInfo},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ref {
-    return new Ref().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Ref {
+    return new Ref().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Ref {
-    return new Ref().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Ref {
+    return new Ref().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Ref {
-    return new Ref().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Ref {
+    return new Ref().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Ref | PlainMessage<Ref> | undefined, b: Ref | PlainMessage<Ref> | undefined): boolean {
-    return proto3.util.equals(Ref, a, b);
+  static equals(
+    a: Ref | PlainMessage<Ref> | undefined,
+    b: Ref | PlainMessage<Ref> | undefined,
+  ): boolean {
+    return proto3.util.equals(Ref, a, b)
   }
 }
 
@@ -3250,64 +4265,98 @@ export class RefTarget extends Message<RefTarget> {
    *
    * @generated from oneof com.seed.documents.v3alpha.RefTarget.target
    */
-  target: {
-    /**
-     * Version target describes genesis + head changes (version).
-     *
-     * @generated from field: com.seed.documents.v3alpha.RefTarget.Version version = 1;
-     */
-    value: RefTarget_Version;
-    case: "version";
-  } | {
-    /**
-     * Redirect target makes a Ref point to a different account + path.
-     * Users must be careful to not create cycles or very deep redirect chains.
-     * Client should be careful not to get stuck in redirects
-     * by tracking visited paths to prevent cycles,
-     * and by limiting the depth of the redirect chains,
-     * while handling redirects.
-     *
-     * @generated from field: com.seed.documents.v3alpha.RefTarget.Redirect redirect = 2;
-     */
-    value: RefTarget_Redirect;
-    case: "redirect";
-  } | {
-    /**
-     * Tombstone Ref indicates the intent to delete the given account + path.
-     *
-     * @generated from field: com.seed.documents.v3alpha.RefTarget.Tombstone tombstone = 3;
-     */
-    value: RefTarget_Tombstone;
-    case: "tombstone";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  target:
+    | {
+        /**
+         * Version target describes genesis + head changes (version).
+         *
+         * @generated from field: com.seed.documents.v3alpha.RefTarget.Version version = 1;
+         */
+        value: RefTarget_Version
+        case: 'version'
+      }
+    | {
+        /**
+         * Redirect target makes a Ref point to a different account + path.
+         * Users must be careful to not create cycles or very deep redirect chains.
+         * Client should be careful not to get stuck in redirects
+         * by tracking visited paths to prevent cycles,
+         * and by limiting the depth of the redirect chains,
+         * while handling redirects.
+         *
+         * @generated from field: com.seed.documents.v3alpha.RefTarget.Redirect redirect = 2;
+         */
+        value: RefTarget_Redirect
+        case: 'redirect'
+      }
+    | {
+        /**
+         * Tombstone Ref indicates the intent to delete the given account + path.
+         *
+         * @generated from field: com.seed.documents.v3alpha.RefTarget.Tombstone tombstone = 3;
+         */
+        value: RefTarget_Tombstone
+        case: 'tombstone'
+      }
+    | {case: undefined; value?: undefined} = {case: undefined}
 
   constructor(data?: PartialMessage<RefTarget>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.RefTarget";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.RefTarget'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "version", kind: "message", T: RefTarget_Version, oneof: "target" },
-    { no: 2, name: "redirect", kind: "message", T: RefTarget_Redirect, oneof: "target" },
-    { no: 3, name: "tombstone", kind: "message", T: RefTarget_Tombstone, oneof: "target" },
-  ]);
+    {
+      no: 1,
+      name: 'version',
+      kind: 'message',
+      T: RefTarget_Version,
+      oneof: 'target',
+    },
+    {
+      no: 2,
+      name: 'redirect',
+      kind: 'message',
+      T: RefTarget_Redirect,
+      oneof: 'target',
+    },
+    {
+      no: 3,
+      name: 'tombstone',
+      kind: 'message',
+      T: RefTarget_Tombstone,
+      oneof: 'target',
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget {
-    return new RefTarget().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RefTarget {
+    return new RefTarget().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget {
-    return new RefTarget().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget {
+    return new RefTarget().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget {
-    return new RefTarget().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget {
+    return new RefTarget().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RefTarget | PlainMessage<RefTarget> | undefined, b: RefTarget | PlainMessage<RefTarget> | undefined): boolean {
-    return proto3.util.equals(RefTarget, a, b);
+  static equals(
+    a: RefTarget | PlainMessage<RefTarget> | undefined,
+    b: RefTarget | PlainMessage<RefTarget> | undefined,
+  ): boolean {
+    return proto3.util.equals(RefTarget, a, b)
   }
 }
 
@@ -3320,7 +4369,7 @@ export class RefTarget_Version extends Message<RefTarget_Version> {
    *
    * @generated from field: string genesis = 1;
    */
-  genesis = "";
+  genesis = ''
 
   /**
    * Required. Version ID (possibly compount).
@@ -3328,34 +4377,46 @@ export class RefTarget_Version extends Message<RefTarget_Version> {
    *
    * @generated from field: string version = 2;
    */
-  version = "";
+  version = ''
 
   constructor(data?: PartialMessage<RefTarget_Version>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Version";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.RefTarget.Version'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'genesis', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Version {
-    return new RefTarget_Version().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RefTarget_Version {
+    return new RefTarget_Version().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Version {
-    return new RefTarget_Version().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Version {
+    return new RefTarget_Version().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Version {
-    return new RefTarget_Version().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Version {
+    return new RefTarget_Version().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined, b: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined): boolean {
-    return proto3.util.equals(RefTarget_Version, a, b);
+  static equals(
+    a: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined,
+    b: RefTarget_Version | PlainMessage<RefTarget_Version> | undefined,
+  ): boolean {
+    return proto3.util.equals(RefTarget_Version, a, b)
   }
 }
 
@@ -3370,7 +4431,7 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path to which the Ref should redirect.
@@ -3379,7 +4440,7 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Optional. If true, the Ref becomes a republishing Ref,
@@ -3388,35 +4449,47 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
    *
    * @generated from field: bool republish = 3;
    */
-  republish = false;
+  republish = false
 
   constructor(data?: PartialMessage<RefTarget_Redirect>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Redirect";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.RefTarget.Redirect'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "republish", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'republish', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Redirect {
-    return new RefTarget_Redirect().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Redirect {
-    return new RefTarget_Redirect().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Redirect {
-    return new RefTarget_Redirect().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Redirect {
+    return new RefTarget_Redirect().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined, b: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined): boolean {
-    return proto3.util.equals(RefTarget_Redirect, a, b);
+  static equals(
+    a: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined,
+    b: RefTarget_Redirect | PlainMessage<RefTarget_Redirect> | undefined,
+  ): boolean {
+    return proto3.util.equals(RefTarget_Redirect, a, b)
   }
 }
 
@@ -3425,29 +4498,39 @@ export class RefTarget_Redirect extends Message<RefTarget_Redirect> {
  */
 export class RefTarget_Tombstone extends Message<RefTarget_Tombstone> {
   constructor(data?: PartialMessage<RefTarget_Tombstone>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.RefTarget.Tombstone";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.RefTarget.Tombstone'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RefTarget_Tombstone {
-    return new RefTarget_Tombstone().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RefTarget_Tombstone {
-    return new RefTarget_Tombstone().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RefTarget_Tombstone {
-    return new RefTarget_Tombstone().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RefTarget_Tombstone {
+    return new RefTarget_Tombstone().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined, b: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined): boolean {
-    return proto3.util.equals(RefTarget_Tombstone, a, b);
+  static equals(
+    a: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined,
+    b: RefTarget_Tombstone | PlainMessage<RefTarget_Tombstone> | undefined,
+  ): boolean {
+    return proto3.util.equals(RefTarget_Tombstone, a, b)
   }
 }
-

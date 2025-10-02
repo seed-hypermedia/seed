@@ -9,12 +9,12 @@ const mockApp = {
   getVersion: () => '2025.1.1-dev.1', // Lower version to trigger update
   getPath: (type) => {
     const paths = {
-      'temp': '/tmp/seed-update-test',
-      'downloads': '/tmp/seed-update-test/downloads'
+      temp: '/tmp/seed-update-test',
+      downloads: '/tmp/seed-update-test/downloads',
     }
     return paths[type] || '/tmp/seed-update-test'
   },
-  quit: () => console.log('🔄 [MOCK] App would quit here')
+  quit: () => console.log('🔄 [MOCK] App would quit here'),
 }
 
 // Test version comparison logic
@@ -61,14 +61,16 @@ console.log('===================================')
 const testCases = [
   ['2025.1.1-dev.1', '2025.12.31-dev.999'], // Should update
   ['2025.12.31-dev.999', '2025.1.1-dev.1'], // Should not update
-  ['2025.1.1', '2025.1.1-dev.1'],           // Should not update (release > dev)
-  ['2025.1.1-dev.1', '2025.1.1'],           // Should update (dev < release)
+  ['2025.1.1', '2025.1.1-dev.1'], // Should not update (release > dev)
+  ['2025.1.1-dev.1', '2025.1.1'], // Should update (dev < release)
 ]
 
 testCases.forEach(([current, latest]) => {
   const result = compareVersions(latest, current)
   const shouldUpdate = result > 0
-  console.log(`  ${current} -> ${latest}: ${shouldUpdate ? '✅ UPDATE' : '❌ NO UPDATE'}`)
+  console.log(
+    `  ${current} -> ${latest}: ${shouldUpdate ? '✅ UPDATE' : '❌ NO UPDATE'}`,
+  )
 })
 
 console.log('\n🔍 Testing Update URL Fetch')
@@ -79,21 +81,21 @@ async function testUpdateCheck(url) {
   try {
     console.log(`📡 Fetching: ${url}`)
     const response = await fetch(url)
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     const updateInfo = await response.json()
     console.log('📦 Update Info:')
     console.log(`   Version: ${updateInfo.name}`)
     console.log(`   Release Notes: ${updateInfo.release_notes}`)
     console.log(`   Assets: ${Object.keys(updateInfo.assets || {}).join(', ')}`)
-    
+
     const currentVersion = mockApp.getVersion()
     const shouldUpdate = compareVersions(updateInfo.name, currentVersion) > 0
     console.log(`🎯 Update needed: ${shouldUpdate}`)
-    
+
     return updateInfo
   } catch (error) {
     console.error(`❌ Error: ${error.message}`)
@@ -104,10 +106,10 @@ async function testUpdateCheck(url) {
 // Test with mock server (if running)
 async function runTests() {
   console.log(`📱 Current app version: ${mockApp.getVersion()}`)
-  
+
   // Test local server
   await testUpdateCheck('http://localhost:3001/latest.json')
-  
+
   console.log('\n🧹 Test Complete')
   console.log('================')
   console.log('To test the full flow:')
@@ -124,5 +126,5 @@ if (require.main === module) {
 module.exports = {
   compareVersions,
   testUpdateCheck,
-  mockApp
+  mockApp,
 }

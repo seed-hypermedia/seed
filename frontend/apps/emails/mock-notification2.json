@@ -36,12 +36,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      5
-                    ],
-                    "ends": [
-                      10
-                    ]
+                    "starts": [5],
+                    "ends": [10]
                   }
                 ],
                 "revision": "b"
@@ -145,9 +141,7 @@
           "name": "Outline"
         },
         "targetId": {
-          "path": [
-            "outline"
-          ],
+          "path": ["outline"],
           "type": "d",
           "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
           "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline",

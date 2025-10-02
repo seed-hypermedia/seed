@@ -12,7 +12,6 @@ The first term of the Hypermedia URL is the only required part: an [Account ID](
 
 A basic Hypermedia URL is `hm://z6MkjPVNrNGA6dYEqkspBvfuTnAddw7hrNc5WM6dQDyuKkY3` which refers to the [Home Document](./concepts.md#home-document) of this Account.
 
-
 ## Path
 
 If the path is missing, the URL will refer to the Home Document of that account.
@@ -29,7 +28,6 @@ Optional query parameters to be specified after the `?` part of the hypermedia U
 This URL parameter will specify the lowest allowed version of the document.
 
 The version is defined as a list of Change CIDs, where the CIDs may be concatenated with a `.` character if there is more than one.
-
 
 ### Latest
 

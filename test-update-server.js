@@ -10,32 +10,32 @@ const mockUpdateInfo = {
     linux: {
       deb: {
         download_url: 'http://localhost:3001/fake-download.deb',
-        size: 1024000
+        size: 1024000,
       },
       rpm: {
-        download_url: 'http://localhost:3001/fake-download.rpm', 
-        size: 1024000
-      }
+        download_url: 'http://localhost:3001/fake-download.rpm',
+        size: 1024000,
+      },
     },
     macos: {
       x64: {
         download_url: 'http://localhost:3001/fake-download-x64.zip',
         zip_url: 'http://localhost:3001/fake-download-x64.zip',
-        size: 1024000
+        size: 1024000,
       },
       arm64: {
         download_url: 'http://localhost:3001/fake-download-arm64.zip',
-        zip_url: 'http://localhost:3001/fake-download-arm64.zip', 
-        size: 1024000
-      }
+        zip_url: 'http://localhost:3001/fake-download-arm64.zip',
+        size: 1024000,
+      },
     },
     windows: {
       exe: {
         download_url: 'http://localhost:3001/fake-download.exe',
-        size: 1024000
-      }
-    }
-  }
+        size: 1024000,
+      },
+    },
+  },
 }
 
 app.get('/latest.json', (req, res) => {
@@ -46,14 +46,17 @@ app.get('/latest.json', (req, res) => {
 // Mock download endpoints that create fake files
 app.get('/fake-download.*', (req, res) => {
   console.log(`Mock download requested: ${req.path}`)
-  
+
   // Create a small fake file content
   const fakeFileContent = Buffer.alloc(1024, 'fake installer data')
-  
+
   res.setHeader('Content-Type', 'application/octet-stream')
   res.setHeader('Content-Length', fakeFileContent.length)
-  res.setHeader('Content-Disposition', `attachment; filename="${req.path.substring(1)}"`)
-  
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${req.path.substring(1)}"`,
+  )
+
   res.send(fakeFileContent)
 })
 

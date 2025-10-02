@@ -155,7 +155,7 @@ export default function HM() {
   }
 
   return (
-    <div className="container overflow-hidden p-4 mx-auto max-w-full">
+    <div className="container mx-auto max-w-full overflow-hidden p-4">
       <Title
         className="mb-4"
         buttons={

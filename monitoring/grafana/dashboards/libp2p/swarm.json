@@ -2598,7 +2598,7 @@
       ],
       "title": "Dial Success Rates",
       "type": "timeseries"
-    },    
+    },
     {
       "datasource": {
         "type": "prometheus",

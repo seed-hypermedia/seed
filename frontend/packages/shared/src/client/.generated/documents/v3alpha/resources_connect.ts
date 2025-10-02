@@ -3,8 +3,8 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, Resource } from "./resources_pb";
-import { MethodKind } from "@bufbuild/protobuf";
+import {GetResourceRequest, Resource} from './resources_pb'
+import {MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Service for querying Hypermedia resources.
@@ -14,7 +14,7 @@ import { MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.documents.v3alpha.Resources
  */
 export const Resources = {
-  typeName: "com.seed.documents.v3alpha.Resources",
+  typeName: 'com.seed.documents.v3alpha.Resources',
   methods: {
     /**
      * Gets a single resource with a URL (technically IRI).
@@ -22,11 +22,10 @@ export const Resources = {
      * @generated from rpc com.seed.documents.v3alpha.Resources.GetResource
      */
     getResource: {
-      name: "GetResource",
+      name: 'GetResource',
       I: GetResourceRequest,
       O: Resource,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

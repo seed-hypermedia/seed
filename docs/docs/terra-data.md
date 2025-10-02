@@ -6,8 +6,6 @@ IPFS supports "permanent" content because Blobs are "immutable" – they cannot 
 
 We use use "Content IDs" or "CIDs" to uniquely identify each piece of content. A Content ID is a cryptographc digest of the content, so it cannot be guessed by your peers.
 
-
-
 # Terra Blobs
 
 Logical content Blobs are encoded as IPLD/CBOR-JSON, and they include a "type" string. The following is an example "type" value of a Terra KeyDelegation blob:
@@ -20,10 +18,8 @@ The "type" field can be split on `:`, into the following namespace:
 
 - `HyperDocs` - Hardcoded Protocol Name
 - `TERRA_BLOB_TYPE` - The purpose of this blob. One of:
-    - `Change`
-    - `KeyDelegation`
-
-
+  - `Change`
+  - `KeyDelegation`
 
 ## Example
 

@@ -4,7 +4,6 @@ A block is a section of a document. Depending on the type of the block, it may h
 
 ## Text | Video | Image | File
 
-
 ## GroupingContent
 
 May have any children blocks
@@ -13,7 +12,6 @@ May have any children blocks
 
 ### OrderedList
 
-
 ### UnorderedList
 
 ## FlowContent
@@ -21,8 +19,11 @@ May have any children blocks
 May have PhrasingContent blocks as children
 
 ### Statement
+
 ### Heading
+
 ### Blockquote
+
 ### Code
 
 ## PhrasingContent
@@ -71,9 +72,6 @@ export interface Text extends Literal {
 > Note: what is the difference between title and name?
 
 > Note: what is defaultOpen
-
-
-
 
 # References
 

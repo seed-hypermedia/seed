@@ -11,8 +11,8 @@
   --color-border: #e2e8f0;
   --color-text: #1e293b;
   --color-text-secondary: #64748b;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
 }
 
 #root {

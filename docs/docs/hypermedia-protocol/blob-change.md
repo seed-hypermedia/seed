@@ -13,7 +13,6 @@ The Change Blob is used to describe how a document changes or is created.
 - `ts` - [Timestamp](./timestamp.md) when this Change was created
 - `sig` - [Hypermedia Signature](./signature.md) of the other fields, signed by the `author`
 
-
 ## Dependencies
 
 Previous Change Blobs of the Document.

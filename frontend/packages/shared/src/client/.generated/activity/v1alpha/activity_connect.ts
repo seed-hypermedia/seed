@@ -3,8 +3,8 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ListEventsRequest, ListEventsResponse } from "./activity_pb";
-import { MethodKind } from "@bufbuild/protobuf";
+import {ListEventsRequest, ListEventsResponse} from './activity_pb'
+import {MethodKind} from '@bufbuild/protobuf'
 
 /**
  * ActivityFeed service provides information about the recent activity events happened in the system.
@@ -12,7 +12,7 @@ import { MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.activity.v1alpha.ActivityFeed
  */
 export const ActivityFeed = {
-  typeName: "com.seed.activity.v1alpha.ActivityFeed",
+  typeName: 'com.seed.activity.v1alpha.ActivityFeed',
   methods: {
     /**
      * Lists the recent activity events,
@@ -21,11 +21,10 @@ export const ActivityFeed = {
      * @generated from rpc com.seed.activity.v1alpha.ActivityFeed.ListEvents
      */
     listEvents: {
-      name: "ListEvents",
+      name: 'ListEvents',
       I: ListEventsRequest,
       O: ListEventsResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

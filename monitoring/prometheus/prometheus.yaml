@@ -4,40 +4,40 @@ global:
 
 scrape_configs:
   # Scrape Prometheus itself.
-  - job_name: "prometheus"
+  - job_name: 'prometheus'
     static_configs:
-      - targets: ["prometheus:9090"]
+      - targets: ['prometheus:9090']
 
   # Scrape Seed Daemon.
-  - job_name: "seed-daemon"
-    metrics_path: "/debug/metrics"
+  - job_name: 'seed-daemon'
+    metrics_path: '/debug/metrics'
     static_configs:
-      - targets: ["host.docker.internal:56001"]
+      - targets: ['host.docker.internal:56001']
         labels:
-          instance: "seed-prod"
-      - targets: ["host.docker.internal:57001"]
+          instance: 'seed-prod'
+      - targets: ['host.docker.internal:57001']
         labels:
-          instance: "seed-dev"
-      - targets: ["host.docker.internal:58001"]
+          instance: 'seed-dev'
+      - targets: ['host.docker.internal:58001']
         labels:
-          instance: "seed-local"
+          instance: 'seed-local'
 
   # Scrape the Electron process.
   - job_name: electron
     metrics_path: /debug/metrics
     static_configs:
-      - targets: ["host.docker.internal:56003"]
+      - targets: ['host.docker.internal:56003']
         labels:
-          instance: "seed-prod"
-      - targets: ["host.docker.internal:57003"]
+          instance: 'seed-prod'
+      - targets: ['host.docker.internal:57003']
         labels:
-          instance: "seed-dev"
-      - targets: ["host.docker.internal:58003"]
+          instance: 'seed-dev'
+      - targets: ['host.docker.internal:58003']
         labels:
-          instance: "seed-local"
-  
+          instance: 'seed-local'
+
   # Scrape Traefik in servers.
   - job_name: traefik
     metrics_path: /metrics
     static_configs:
-      - targets: ["10.0.0.11:8899"]
+      - targets: ['10.0.0.11:8899']

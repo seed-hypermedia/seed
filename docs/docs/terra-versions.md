@@ -1,4 +1,3 @@
-
 # Terra Versions
 
 A Version is a snapshot of a Document state, as defined by one DocumentChange. The referenced Change usually refers to one or more "dependency" Changes, which leads to a whole history graph (technically a DAG) of Changes.

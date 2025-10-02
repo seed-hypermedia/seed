@@ -1,4 +1,4 @@
-import {execSync} from 'child_process'
+import { execSync } from 'child_process'
 let isDry = process.argv[2] == '--dry'
 
 // Get the current year and month
@@ -12,7 +12,8 @@ const commitCount = execSync(
   `git log --since="${year}-${month}-01" --until="${year}-${nextMonth}-01" --oneline | wc -l`,
 )
   .toString()
-  .trim().padStart(2, '0')
+  .trim()
+  .padStart(2, '0')
 
 // Construct the new version string
 const newVersion = `${year}.${month}.${commitCount}`
@@ -23,19 +24,18 @@ if (isDry) {
   pushTag(newVersion)
 }
 
-
 function pushTag(tagName) {
   try {
     // Step 1: Create a lightweight tag
-    execSync(`git tag ${tagName}`);
-  
-    console.log('Tag created:', tagName);
-  
+    execSync(`git tag ${tagName}`)
+
+    console.log('Tag created:', tagName)
+
     // Step 2: Push the tag to remote
-    execSync(`git push origin ${tagName}`);
-  
-    console.log('Tag pushed:', tagName);
+    execSync(`git push origin ${tagName}`)
+
+    console.log('Tag pushed:', tagName)
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', error.message)
   }
 }

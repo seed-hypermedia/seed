@@ -1,19 +1,19 @@
-import react from "@vitejs/plugin-react";
-import autoprefixer from "autoprefixer";
-import tailwindcss from "tailwindcss";
-import {defineConfig} from "vite";
+import react from '@vitejs/plugin-react'
+import autoprefixer from 'autoprefixer'
+import tailwindcss from 'tailwindcss'
+import {defineConfig} from 'vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  publicDir: "public",
+  publicDir: 'public',
   build: {
-    assetsDir: "landing-assets",
+    assetsDir: 'landing-assets',
     rollupOptions: {
       output: {
-        entryFileNames: "landing-assets/[name].[hash].js",
-        chunkFileNames: "landing-assets/[name].[hash].js",
-        assetFileNames: "landing-assets/[name].[hash][extname]",
+        entryFileNames: 'landing-assets/[name].[hash].js',
+        chunkFileNames: 'landing-assets/[name].[hash].js',
+        assetFileNames: 'landing-assets/[name].[hash][extname]',
       },
     },
   },
@@ -22,4 +22,4 @@ export default defineConfig({
       plugins: [tailwindcss, autoprefixer],
     },
   },
-});
+})

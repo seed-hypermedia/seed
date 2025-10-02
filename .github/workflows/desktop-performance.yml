@@ -11,9 +11,9 @@ on:
     # Manual trigger with options
     inputs:
       scenarios:
-        description: "Specific scenarios to run (comma-separated, leave empty for all)"
+        description: 'Specific scenarios to run (comma-separated, leave empty for all)'
         required: false
-        default: ""
+        default: ''
   # pull_request:
   #   branches:
   #     - main
@@ -86,7 +86,7 @@ jobs:
         run: |
           node scripts/set-desktop-version.mjs
         env:
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
 
       - name: Build, package & make (Unix)
         run: |
@@ -95,24 +95,24 @@ jobs:
           timeout-minutes: 10
           DEBUG: electron-*
           NODE_OPTIONS: --max_old_space_size=4096
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          DAEMON_NAME: "x86_64-unknown-linux-gnu"
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_COMMIT_HASH: "${{ github.sha }}"
-          VITE_DESKTOP_P2P_PORT: "59000"
-          VITE_DESKTOP_HTTP_PORT: "59001"
-          VITE_DESKTOP_GRPC_PORT: "59002"
-          VITE_METRIC_SERVER_HTTP_PORT: "59003"
-          VITE_DESKTOP_APPDATA: "Seed-dev"
-          VITE_DESKTOP_HOSTNAME: "http://localhost"
-          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
-          VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
-          VITE_GATEWAY_URL: "https://dev.hyper.media"
-          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
-          SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          DAEMON_NAME: 'x86_64-unknown-linux-gnu'
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VITE_COMMIT_HASH: '${{ github.sha }}'
+          VITE_DESKTOP_P2P_PORT: '59000'
+          VITE_DESKTOP_HTTP_PORT: '59001'
+          VITE_DESKTOP_GRPC_PORT: '59002'
+          VITE_METRIC_SERVER_HTTP_PORT: '59003'
+          VITE_DESKTOP_APPDATA: 'Seed-dev'
+          VITE_DESKTOP_HOSTNAME: 'http://localhost'
+          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
+          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
+          VITE_GATEWAY_URL: 'https://dev.hyper.media'
+          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
+          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
-          SEED_P2P_TESTNET_NAME: "dev"
+          SEED_P2P_TESTNET_NAME: 'dev'
 
       - name: Run performance tests
         run: |
@@ -143,8 +143,8 @@ jobs:
             bash -c "cd frontend/apps/desktop && yarn test:performance:full"
         env:
           NODE_ENV: production
-          DISPLAY: ":99.0"
-          DEBUG: "electron-*,playwright*"
+          DISPLAY: ':99.0'
+          DEBUG: 'electron-*,playwright*'
 
       # Set up AWS credentials for S3 uploads
       - name: Configure AWS credentials

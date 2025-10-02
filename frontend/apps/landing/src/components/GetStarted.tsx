@@ -2,17 +2,17 @@ import {Download} from 'lucide-react'
 
 export default function GetStarted() {
   return (
-    <section className="w-full py-20 bg-white">
-      <div className="max-w-6xl px-6 mx-auto">
+    <section className="w-full bg-white py-20">
+      <div className="mx-auto max-w-6xl px-6">
         {/* Heading and button */}
-        <div className="flex flex-col items-center justify-between gap-4 mb-12 md:flex-row">
-          <h2 className="w-full text-2xl font-bold text-left text-gray-900 md:text-3xl md:w-auto">
+        <div className="mb-12 flex flex-col items-center justify-between gap-4 md:flex-row">
+          <h2 className="w-full text-left text-2xl font-bold text-gray-900 md:w-auto md:text-3xl">
             It's Time To Get Started!
           </h2>
           <a
             href="https://seed.hyper.media/hm/download"
             target="_blank"
-            className={`inline-flex items-center px-5 py-2 bg-brand-4 text-white rounded-md hover:bg-brand-3 transition plausible-event-name=download plausible-event-os=${
+            className={`bg-brand-4 hover:bg-brand-3 plausible-event-name=download inline-flex items-center rounded-md px-5 py-2 text-white transition plausible-event-os=${
               navigator.platform.toLowerCase().includes('mac')
                 ? 'macos'
                 : navigator.platform.toLowerCase().includes('win')

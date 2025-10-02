@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ConnectRequest, ConnectResponse, GetPeerInfoRequest, ListPeersRequest, ListPeersResponse, PeerInfo } from "./networking_pb";
-import { MethodKind } from "@bufbuild/protobuf";
+import {
+  ConnectRequest,
+  ConnectResponse,
+  GetPeerInfoRequest,
+  ListPeersRequest,
+  ListPeersResponse,
+  PeerInfo,
+} from './networking_pb'
+import {MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Networking API service of the Seed daemon.
@@ -12,7 +19,7 @@ import { MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.networking.v1alpha.Networking
  */
 export const Networking = {
-  typeName: "com.seed.networking.v1alpha.Networking",
+  typeName: 'com.seed.networking.v1alpha.Networking',
   methods: {
     /**
      * Lookup details about a known peer.
@@ -20,7 +27,7 @@ export const Networking = {
      * @generated from rpc com.seed.networking.v1alpha.Networking.GetPeerInfo
      */
     getPeerInfo: {
-      name: "GetPeerInfo",
+      name: 'GetPeerInfo',
       I: GetPeerInfoRequest,
       O: PeerInfo,
       kind: MethodKind.Unary,
@@ -31,7 +38,7 @@ export const Networking = {
      * @generated from rpc com.seed.networking.v1alpha.Networking.ListPeers
      */
     listPeers: {
-      name: "ListPeers",
+      name: 'ListPeers',
       I: ListPeersRequest,
       O: ListPeersResponse,
       kind: MethodKind.Unary,
@@ -42,11 +49,10 @@ export const Networking = {
      * @generated from rpc com.seed.networking.v1alpha.Networking.Connect
      */
     connect: {
-      name: "Connect",
+      name: 'Connect',
       I: ConnectRequest,
       O: ConnectResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

@@ -25,6 +25,7 @@ The migration plan in `MONOREPO_MIGRATION.md` needs adjustments because:
 Since Yarn is deeply integrated with your build system, **keep Yarn** but improve the monorepo setup:
 
 ✅ **What we CAN improve:**
+
 - Remove build steps for packages (consume source directly)
 - Consolidate TypeScript configs
 - Remove barrel files
@@ -32,12 +33,14 @@ Since Yarn is deeply integrated with your build system, **keep Yarn** but improv
 - Clearer workspace structure
 
 ❌ **What we should NOT change:**
+
 - Package manager (keep Yarn 3)
 - Nix configuration
 - Please build rules
 - Bazel workspace setup
 
 **Benefits:**
+
 - No breaking changes to build system
 - Still get 80% of desired improvements
 - Compatible with CI/CD
@@ -46,6 +49,7 @@ Since Yarn is deeply integrated with your build system, **keep Yarn** but improv
 ### Option B: Switch to PNPM (Complex, Not Recommended)
 
 Would require updating:
+
 1. `shell.nix` - Replace yarn with pnpm
 2. `BUILD.plz` - Create pnpm_install rule (if possible)
 3. `WORKSPACE.bazel` - Update version checks
@@ -54,6 +58,7 @@ Would require updating:
 6. Bazel tooling
 
 **Risks:**
+
 - Please may not support pnpm
 - Bazel rules may break
 - Significant testing required
@@ -66,6 +71,7 @@ Would require updating:
 #### 1.1 Update shell.nix - No Changes Needed
 
 Keep existing setup:
+
 ```nix
 # shell.nix - NO CHANGES
 yarn  # Keep this
@@ -87,6 +93,7 @@ yarn_install(
 #### 1.3 Verify .envrc Configuration
 
 Your `.envrc` already handles environment variables perfectly! This is better than our proposed .env solution because:
+
 - ✅ Automatically loaded by direnv
 - ✅ Integrated with Nix
 - ✅ No need for dotenv-cli
@@ -130,6 +137,7 @@ Organize root `package.json` with all the dev/prod scenarios.
 Since you're using direnv, create mode-specific configurations:
 
 **File: `/.envrc.development.gateway`** (NEW)
+
 ```bash
 # Source main envrc
 source_env .envrc
@@ -140,6 +148,7 @@ export SEED_IDENTITY_DEFAULT_ORIGIN=http://localhost:3000
 ```
 
 **File: `/.envrc.production`** (NEW)
+
 ```bash
 # Source main envrc
 source_env .envrc
@@ -154,6 +163,7 @@ export VITE_DESKTOP_GRPC_PORT="$SEED_GRPC_PORT"
 ```
 
 **Usage:**
+
 ```bash
 # Load different environment
 direnv allow .envrc.production
@@ -189,6 +199,7 @@ Update root `package.json`:
 ## What We Gain (Even Without PNPM)
 
 ### ✅ Major Improvements
+
 1. **No build steps** - packages consumed from source
 2. **Faster HMR** - direct source watching
 3. **Consolidated configs** - tsconfig.base.json, shared prettier
@@ -197,6 +208,7 @@ Update root `package.json`:
 6. **Type safety** - better because consuming source
 
 ### ✅ Keep What Works
+
 1. **Nix environment** - proven and stable
 2. **Please builds** - no disruption
 3. **Bazel integration** - unchanged
@@ -205,13 +217,13 @@ Update root `package.json`:
 
 ## Migration Timeline (Yarn-Optimized)
 
-| Phase | Duration | Risk |
-|-------|----------|------|
-| 1. TypeScript consolidation | 2-3 hours | Low |
-| 2. Remove package build steps | 1-2 hours | Low |
-| 3. Update npm scripts | 1 hour | Low |
-| 4. Barrel file removal | 2-3 hours | Medium |
-| 5. Testing & validation | 2 hours | Low |
+| Phase                         | Duration  | Risk   |
+| ----------------------------- | --------- | ------ |
+| 1. TypeScript consolidation   | 2-3 hours | Low    |
+| 2. Remove package build steps | 1-2 hours | Low    |
+| 3. Update npm scripts         | 1 hour    | Low    |
+| 4. Barrel file removal        | 2-3 hours | Medium |
+| 5. Testing & validation       | 2 hours   | Low    |
 
 **Total: 8-11 hours** (vs 11-18 with PNPM switch)
 
@@ -230,6 +242,7 @@ Update root `package.json`:
 ## Future: PNPM Migration (If Desired)
 
 If you want PNPM in the future, tackle it as a separate project after:
+
 - Testing that Please supports pnpm_install
 - Verifying Bazel compatibility
 - Planning Nix package update

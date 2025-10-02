@@ -8,7 +8,7 @@ The Ref Blob is used by a document owner or contributer to point to the most rec
 - `space` - The Account ID
 - `path` - The path for this document, within the Space
 - `genesisBlob` - The first Change in the chain of changes for this Document
-- `capability` - Reference to the Capability Blob, 
+- `capability` - Reference to the Capability Blob,
 - `heads` - List of References to Chagne CIDs that represent current Version
 - `author` - [Raw Account ID](./raw-account-id.md) of the creator of the Ref
 - `ts` - [Timestamp](./timestamp.md) when this Ref was created
@@ -16,11 +16,11 @@ The Ref Blob is used by a document owner or contributer to point to the most rec
 
 ## Document Addressing
 
-The Ref is created to show the latest version for a specific document. 
+The Ref is created to show the latest version for a specific document.
 
 ## Capability
 
-If the `author` is not 
+If the `author` is not
 
 ## Heads
 

@@ -1,8 +1,8 @@
 ---
 name: Feature Request
 about: Suggest an idea for this project
-title: "Feature: "
-labels: ["type: enhancement"]
+title: 'Feature: '
+labels: ['type: enhancement']
 assignees: ''
 ---
 
@@ -12,7 +12,7 @@ assignees: ''
 
 ## Solution
 
-<!-- 
+<!--
     Describe the solution you propose to solve the problem.
     If necessary, describe the various alternative solutions you've considered.
     Provide additional context as screenshots, diagrams, etc. as necessary.

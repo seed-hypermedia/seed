@@ -1,5 +1,5 @@
 export default function SeedLogo({
-  className = "w-6 h-6 text-gray-400",
+  className = 'w-6 h-6 text-gray-400',
   ...props
 }) {
   return (
@@ -25,5 +25,5 @@ export default function SeedLogo({
         fill="currentColor"
       />
     </svg>
-  );
+  )
 }

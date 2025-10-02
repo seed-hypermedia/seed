@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, protoInt64, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * The request to list the events.
@@ -17,29 +24,29 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. The page token for requesting next pages.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   /**
    * Optional. If we want events from trusted peers only. All peers by default.
    *
    * @generated from field: bool trusted_only = 3;
    */
-  trustedOnly = false;
+  trustedOnly = false
 
   /**
-   * Optional. If we want events only from specific user accounts. Multiple 
+   * Optional. If we want events only from specific user accounts. Multiple
    * authors are filtered following OR logic.
    *
    * @generated from field: repeated string filter_authors = 4;
    */
-  filterAuthors: string[] = [];
+  filterAuthors: string[] = []
 
   /**
    * Optional. If we want certain types of events.
@@ -47,13 +54,13 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    *   - Capability
    *   - Ref
    *   - Comment
-   *   - DagPB 
+   *   - DagPB
    *   - Profile
    * Multiple types are filtered following OR logic.
    *
    * @generated from field: repeated string filter_event_type = 5;
    */
-  filterEventType: string[] = [];
+  filterEventType: string[] = []
 
   /**
    * Optional. If we want events only from specific resource IDs.
@@ -61,53 +68,88 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    *
    * @generated from field: string filter_resource = 6;
    */
-  filterResource = "";
+  filterResource = ''
 
   /**
    * Optional. If we want to include link events. These blobs (usually documents
    * or comments), link (mention) to another resource (currently only account
-   * mentions supported). We can add these blobs to the feed result by providing a 
-   * list of resources iris we want links to aggregated as a logical OR. 
+   * mentions supported). We can add these blobs to the feed result by providing a
+   * list of resources iris we want links to aggregated as a logical OR.
    * These link events are also treated as logical OR when grouped with other filters,
-   * unlike other filters (authors, event_types) that are grouped under a logic AND. 
-   * Example: filter_authors(u+a1 OR a2 ...) AND filter_event_type(et1 OR et2 ...) OR 
+   * unlike other filters (authors, event_types) that are grouped under a logic AND.
+   * Example: filter_authors(u+a1 OR a2 ...) AND filter_event_type(et1 OR et2 ...) OR
    * add_linked_resource(lr1 OR lr2 ...)
    *
    * @generated from field: repeated string add_linked_resource = 7;
    */
-  addLinkedResource: string[] = [];
+  addLinkedResource: string[] = []
 
   constructor(data?: PartialMessage<ListEventsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.ListEventsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.ListEventsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "trusted_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "filter_authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 5, name: "filter_event_type", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 6, name: "filter_resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "add_linked_resource", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'trusted_only', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {
+      no: 4,
+      name: 'filter_authors',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 5,
+      name: 'filter_event_type',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 6,
+      name: 'filter_resource',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 7,
+      name: 'add_linked_resource',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEventsRequest {
-    return new ListEventsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListEventsRequest {
+    return new ListEventsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListEventsRequest {
-    return new ListEventsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListEventsRequest {
+    return new ListEventsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListEventsRequest {
-    return new ListEventsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListEventsRequest {
+    return new ListEventsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListEventsRequest | PlainMessage<ListEventsRequest> | undefined, b: ListEventsRequest | PlainMessage<ListEventsRequest> | undefined): boolean {
-    return proto3.util.equals(ListEventsRequest, a, b);
+  static equals(
+    a: ListEventsRequest | PlainMessage<ListEventsRequest> | undefined,
+    b: ListEventsRequest | PlainMessage<ListEventsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListEventsRequest, a, b)
   }
 }
 
@@ -122,41 +164,58 @@ export class ListEventsResponse extends Message<ListEventsResponse> {
    *
    * @generated from field: repeated com.seed.activity.v1alpha.Event events = 1;
    */
-  events: Event[] = [];
+  events: Event[] = []
 
   /**
    * The token to request the next page.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListEventsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.ListEventsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.ListEventsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "events", kind: "message", T: Event, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'events', kind: 'message', T: Event, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEventsResponse {
-    return new ListEventsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListEventsResponse {
+    return new ListEventsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListEventsResponse {
-    return new ListEventsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListEventsResponse {
+    return new ListEventsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListEventsResponse {
-    return new ListEventsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListEventsResponse {
+    return new ListEventsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListEventsResponse | PlainMessage<ListEventsResponse> | undefined, b: ListEventsResponse | PlainMessage<ListEventsResponse> | undefined): boolean {
-    return proto3.util.equals(ListEventsResponse, a, b);
+  static equals(
+    a: ListEventsResponse | PlainMessage<ListEventsResponse> | undefined,
+    b: ListEventsResponse | PlainMessage<ListEventsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListEventsResponse, a, b)
   }
 }
 
@@ -172,29 +231,31 @@ export class Event extends Message<Event> {
    *
    * @generated from oneof com.seed.activity.v1alpha.Event.data
    */
-  data: {
-    /**
-     * Event type describing the appearance of a new blob in the system.
-     *
-     * @generated from field: com.seed.activity.v1alpha.NewBlobEvent new_blob = 1;
-     */
-    value: NewBlobEvent;
-    case: "newBlob";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  data:
+    | {
+        /**
+         * Event type describing the appearance of a new blob in the system.
+         *
+         * @generated from field: com.seed.activity.v1alpha.NewBlobEvent new_blob = 1;
+         */
+        value: NewBlobEvent
+        case: 'newBlob'
+      }
+    | {case: undefined; value?: undefined} = {case: undefined}
 
   /**
    * The ID of the user account that has caused the event.
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   /**
    * Timestamp of the event as per the event itself.
    *
    * @generated from field: google.protobuf.Timestamp event_time = 3;
    */
-  eventTime?: Timestamp;
+  eventTime?: Timestamp
 
   /**
    * Locally perceived time of the event.
@@ -202,36 +263,48 @@ export class Event extends Message<Event> {
    *
    * @generated from field: google.protobuf.Timestamp observe_time = 4;
    */
-  observeTime?: Timestamp;
+  observeTime?: Timestamp
 
   constructor(data?: PartialMessage<Event>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.Event";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.Event'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "new_blob", kind: "message", T: NewBlobEvent, oneof: "data" },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "event_time", kind: "message", T: Timestamp },
-    { no: 4, name: "observe_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'new_blob', kind: 'message', T: NewBlobEvent, oneof: 'data'},
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'event_time', kind: 'message', T: Timestamp},
+    {no: 4, name: 'observe_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Event {
-    return new Event().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Event {
+    return new Event().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Event {
-    return new Event().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Event {
+    return new Event().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Event {
-    return new Event().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Event {
+    return new Event().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Event | PlainMessage<Event> | undefined, b: Event | PlainMessage<Event> | undefined): boolean {
-    return proto3.util.equals(Event, a, b);
+  static equals(
+    a: Event | PlainMessage<Event> | undefined,
+    b: Event | PlainMessage<Event> | undefined,
+  ): boolean {
+    return proto3.util.equals(Event, a, b)
   }
 }
 
@@ -246,7 +319,7 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
    *
    * @generated from field: string cid = 1;
    */
-  cid = "";
+  cid = ''
 
   /**
    * The type of the blob that was created.
@@ -259,72 +332,83 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
    *
    * @generated from field: string blob_type = 2;
    */
-  blobType = "";
+  blobType = ''
 
   /**
    * The user account ID that has created the blob.
    *
    * @generated from field: string author = 3;
    */
-  author = "";
+  author = ''
 
   /**
    * The resource ID that the blob is related to.
    *
    * @generated from field: string resource = 4;
    */
-  resource = "";
+  resource = ''
 
   /**
    * Extra attributes of the blob.
    *
    * @generated from field: string extra_attrs = 5;
    */
-  extraAttrs = "";
+  extraAttrs = ''
 
   /**
    * @generated from field: int64 blob_id = 6;
    */
-  blobId = protoInt64.zero;
+  blobId = protoInt64.zero
 
   /**
    * Only relevant for ling events
    *
    * @generated from field: bool is_pinned = 7;
    */
-  isPinned = false;
+  isPinned = false
 
   constructor(data?: PartialMessage<NewBlobEvent>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.activity.v1alpha.NewBlobEvent";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.activity.v1alpha.NewBlobEvent'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "blob_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "extra_attrs", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "blob_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 7, name: "is_pinned", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'cid', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'blob_type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'resource', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'extra_attrs', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'blob_id', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+    {no: 7, name: 'is_pinned', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NewBlobEvent {
-    return new NewBlobEvent().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): NewBlobEvent {
+    return new NewBlobEvent().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): NewBlobEvent {
-    return new NewBlobEvent().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): NewBlobEvent {
+    return new NewBlobEvent().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): NewBlobEvent {
-    return new NewBlobEvent().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): NewBlobEvent {
+    return new NewBlobEvent().fromJsonString(jsonString, options)
   }
 
-  static equals(a: NewBlobEvent | PlainMessage<NewBlobEvent> | undefined, b: NewBlobEvent | PlainMessage<NewBlobEvent> | undefined): boolean {
-    return proto3.util.equals(NewBlobEvent, a, b);
+  static equals(
+    a: NewBlobEvent | PlainMessage<NewBlobEvent> | undefined,
+    b: NewBlobEvent | PlainMessage<NewBlobEvent> | undefined,
+  ): boolean {
+    return proto3.util.equals(NewBlobEvent, a, b)
   }
 }
-

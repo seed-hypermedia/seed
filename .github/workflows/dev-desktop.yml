@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   schedule:
     # Run at 8:00 AM UTC on every weekday (Monday through Friday)
-    - cron: "0 8 * * 1-5"
+    - cron: '0 8 * * 1-5'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -104,7 +104,7 @@ jobs:
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
-          GOOS: "windows"
+          GOOS: 'windows'
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
 
@@ -128,7 +128,7 @@ jobs:
         run: |
           node scripts/set-desktop-version.mjs
         env:
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
@@ -137,27 +137,27 @@ jobs:
           timeout-minutes: 10
           DEBUG: electron-*
           NODE_OPTIONS: --max_old_space_size=4096
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_COMMIT_HASH: "${{ github.sha }}"
-          VITE_DESKTOP_P2P_PORT: "57000"
-          VITE_DESKTOP_HTTP_PORT: "57001"
-          VITE_DESKTOP_GRPC_PORT: "57002"
-          VITE_METRIC_SERVER_HTTP_PORT: "57003"
-          VITE_DESKTOP_APPDATA: "Seed-dev"
-          VITE_DESKTOP_HOSTNAME: "http://localhost"
-          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
-          VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
-          VITE_GATEWAY_URL: "https://dev.hyper.media"
-          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
-          SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VITE_COMMIT_HASH: '${{ github.sha }}'
+          VITE_DESKTOP_P2P_PORT: '57000'
+          VITE_DESKTOP_HTTP_PORT: '57001'
+          VITE_DESKTOP_GRPC_PORT: '57002'
+          VITE_METRIC_SERVER_HTTP_PORT: '57003'
+          VITE_DESKTOP_APPDATA: 'Seed-dev'
+          VITE_DESKTOP_HOSTNAME: 'http://localhost'
+          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
+          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
+          VITE_GATEWAY_URL: 'https://dev.hyper.media'
+          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
+          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          SEED_P2P_TESTNET_NAME: "dev"
+          SEED_P2P_TESTNET_NAME: 'dev'
 
       - name: Clean up problematic RELEASES file (Windows)
         if: startsWith(matrix.config.os, 'windows')
@@ -184,27 +184,27 @@ jobs:
           timeout-minutes: 10
           DEBUG: electron-*
           NODE_OPTIONS: --max_old_space_size=4096
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
-          VITE_COMMIT_HASH: "${{ github.sha }}"
-          VITE_DESKTOP_P2P_PORT: "57000"
-          VITE_DESKTOP_HTTP_PORT: "57001"
-          VITE_DESKTOP_GRPC_PORT: "57002"
-          VITE_METRIC_SERVER_HTTP_PORT: "57003"
-          VITE_DESKTOP_APPDATA: "Seed-dev"
-          VITE_DESKTOP_HOSTNAME: "http://localhost"
-          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
-          VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
-          VITE_GATEWAY_URL: "https://dev.hyper.media"
-          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
-          SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          DAEMON_NAME: '${{ matrix.config.daemon_name }}.exe'
+          VITE_VERSION: '${{ needs.build-info.outputs.version }}'
+          VITE_COMMIT_HASH: '${{ github.sha }}'
+          VITE_DESKTOP_P2P_PORT: '57000'
+          VITE_DESKTOP_HTTP_PORT: '57001'
+          VITE_DESKTOP_GRPC_PORT: '57002'
+          VITE_METRIC_SERVER_HTTP_PORT: '57003'
+          VITE_DESKTOP_APPDATA: 'Seed-dev'
+          VITE_DESKTOP_HOSTNAME: 'http://localhost'
+          VITE_LIGHTNING_API_URL: 'https://ln.testnet.seed.hyper.media'
+          VITE_SEED_HOST_URL: 'https://host-dev.seed.hyper.media'
+          VITE_GATEWAY_URL: 'https://dev.hyper.media'
+          VITE_DESKTOP_SENTRY_DSN: '${{ secrets.DESKTOP_SENTRY_DSN }}'
+          SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}'
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
           S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
           AWS_DEFAULT_REGION: eu-west-2
-          SEED_P2P_TESTNET_NAME: "dev"
+          SEED_P2P_TESTNET_NAME: 'dev'
 
       # - name: Sign Windows application with KeyLocker
       #   if: startsWith(matrix.config.os, 'windows')

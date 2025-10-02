@@ -1,26 +1,26 @@
-import {useSyncExternalStore} from "react";
-import {getApiHost, setApiHost} from "./queryClient";
+import {useSyncExternalStore} from 'react'
+import {getApiHost, setApiHost} from './queryClient'
 
-let currentApiHost = getApiHost();
-const listeners = new Set<() => void>();
+let currentApiHost = getApiHost()
+const listeners = new Set<() => void>()
 
 export function subscribe(listener: () => void) {
-  listeners.add(listener);
+  listeners.add(listener)
   return () => {
-    listeners.delete(listener);
-  };
+    listeners.delete(listener)
+  }
 }
 
 export function getSnapshot() {
-  return currentApiHost;
+  return currentApiHost
 }
 
 export function useApiHost() {
-  return useSyncExternalStore(subscribe, getSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot)
 }
 
 export function updateApiHost(newHost: string) {
-  currentApiHost = newHost;
-  setApiHost(newHost);
-  listeners.forEach((listener) => listener());
+  currentApiHost = newHost
+  setApiHost(newHost)
+  listeners.forEach((listener) => listener())
 }

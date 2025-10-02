@@ -2,12 +2,12 @@ import publishingDemoVideo from '../../public/publishing-demo.mp4'
 
 export default function Publishing() {
   return (
-    <section className="w-full px-4 py-20 text-center bg-[linear-gradient(to_bottom,_#038e7a1a_0%,_#038e7a00_33%)]">
-      <div className="max-w-5xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-left">
+    <section className="w-full bg-[linear-gradient(to_bottom,_#038e7a1a_0%,_#038e7a00_33%)] px-4 py-20 text-center">
+      <div className="mx-auto max-w-5xl">
+        <h2 className="text-left text-3xl font-bold text-gray-900 md:text-4xl">
           Your Publications With No Barriers
         </h2>
-        <p className="mt-4 text-gray-600 text-lg text-left">
+        <p className="mt-4 text-left text-lg text-gray-600">
           Publish your content freely and effortlessly — no barriers, no limits.
         </p>
 
@@ -34,10 +34,10 @@ export default function Publishing() {
           ].map((card, i) => (
             <div
               key={i}
-              className="bg-brand-5 text-white p-6 rounded-xl text-left shadow-md"
+              className="bg-brand-5 rounded-xl p-6 text-left text-white shadow-md"
             >
-              <h3 className="text-lg font-semibold mb-3">{card.title}</h3>
-              <ul className="list-disc list-inside space-y-1 text-sm">
+              <h3 className="mb-3 text-lg font-semibold">{card.title}</h3>
+              <ul className="list-inside list-disc space-y-1 text-sm">
                 {card.points.map((pt, idx) => (
                   <li key={idx}>{pt}</li>
                 ))}
@@ -47,14 +47,14 @@ export default function Publishing() {
         </div>
 
         {/* Demo Video */}
-        <div className="mt-16 w-full mx-auto overflow-hidden rounded-xl shadow-md">
+        <div className="mx-auto mt-16 w-full overflow-hidden rounded-xl shadow-md">
           <video
             src={publishingDemoVideo}
             autoPlay
             muted
             loop
             playsInline
-            className="w-full h-auto"
+            className="h-auto w-full"
           />
         </div>
       </div>

@@ -145,7 +145,6 @@ These are the annotations that can be used for [text blocks](#text-blocks).
 
 `type: "italic"`
 
-
 ### Underline Annotation
 
 `type: "underline"`

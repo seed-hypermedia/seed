@@ -3,8 +3,13 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ListSubscriptionsRequest, ListSubscriptionsResponse, SubscribeRequest, UnsubscribeRequest } from "./subscriptions_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  ListSubscriptionsRequest,
+  ListSubscriptionsResponse,
+  SubscribeRequest,
+  UnsubscribeRequest,
+} from './subscriptions_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Subscriptions service provides subscription capabilities.
@@ -12,7 +17,7 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.activity.v1alpha.Subscriptions
  */
 export const Subscriptions = {
-  typeName: "com.seed.activity.v1alpha.Subscriptions",
+  typeName: 'com.seed.activity.v1alpha.Subscriptions',
   methods: {
     /**
      * Subscribe to a document or space.
@@ -20,7 +25,7 @@ export const Subscriptions = {
      * @generated from rpc com.seed.activity.v1alpha.Subscriptions.Subscribe
      */
     subscribe: {
-      name: "Subscribe",
+      name: 'Subscribe',
       I: SubscribeRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -31,7 +36,7 @@ export const Subscriptions = {
      * @generated from rpc com.seed.activity.v1alpha.Subscriptions.Unsubscribe
      */
     unsubscribe: {
-      name: "Unsubscribe",
+      name: 'Unsubscribe',
       I: UnsubscribeRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -42,11 +47,10 @@ export const Subscriptions = {
      * @generated from rpc com.seed.activity.v1alpha.Subscriptions.ListSubscriptions
      */
     listSubscriptions: {
-      name: "ListSubscriptions",
+      name: 'ListSubscriptions',
       I: ListSubscriptionsRequest,
       O: ListSubscriptionsResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

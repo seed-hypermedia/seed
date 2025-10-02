@@ -14,49 +14,49 @@
  * 4. Create static files for deployment
  */
 
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 
-const REPORTS_DIR = "reports/ts-directives";
-const DASHBOARD_DIR = `${REPORTS_DIR}/dashboard`;
-const EXISTING_DATA_FILE = `${REPORTS_DIR}/existing-data.json`;
-const CURRENT_DATA_FILE = `${REPORTS_DIR}/current.json`;
+const REPORTS_DIR = 'reports/ts-directives'
+const DASHBOARD_DIR = `${REPORTS_DIR}/dashboard`
+const EXISTING_DATA_FILE = `${REPORTS_DIR}/existing-data.json`
+const CURRENT_DATA_FILE = `${REPORTS_DIR}/current.json`
 
 function ensureDirectoryExists(dir) {
   if (!existsSync(dir)) {
-    mkdirSync(dir, {recursive: true});
+    mkdirSync(dir, { recursive: true })
   }
 }
 
 function getCurrentData() {
   try {
-    const data = readFileSync(CURRENT_DATA_FILE, "utf8");
-    return JSON.parse(data);
+    const data = readFileSync(CURRENT_DATA_FILE, 'utf8')
+    return JSON.parse(data)
   } catch (error) {
-    console.error("Error reading current data:", error.message);
-    process.exit(1);
+    console.error('Error reading current data:', error.message)
+    process.exit(1)
   }
 }
 
 function appendToHistoricalData(currentData) {
-  const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+  const date = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
 
   // Read existing historical data
-  let historicalData = [];
+  let historicalData = []
   if (existsSync(EXISTING_DATA_FILE)) {
     try {
-      const existingContent = readFileSync(EXISTING_DATA_FILE, "utf8");
-      historicalData = JSON.parse(existingContent);
+      const existingContent = readFileSync(EXISTING_DATA_FILE, 'utf8')
+      historicalData = JSON.parse(existingContent)
       if (!Array.isArray(historicalData)) {
-        historicalData = [];
+        historicalData = []
       }
     } catch (error) {
-      console.log("📝 Creating new historical data array");
-      historicalData = [];
+      console.log('📝 Creating new historical data array')
+      historicalData = []
     }
   }
 
   // Check if we already have data for today and remove it
-  historicalData = historicalData.filter((entry) => entry.date !== date);
+  historicalData = historicalData.filter((entry) => entry.date !== date)
 
   // Prepare new data entry
   const newEntry = {
@@ -65,29 +65,29 @@ function appendToHistoricalData(currentData) {
     totalDirectives: currentData.totalDirectives,
     filesWithDirectives: currentData.filesWithDirectives,
     totalFiles: currentData.totalFiles,
-    tsExpectError: currentData.byType["@ts-expect-error"],
-    tsNocheck: currentData.byType["@ts-nocheck"],
-    tsIgnore: currentData.byType["@ts-ignore"],
+    tsExpectError: currentData.byType['@ts-expect-error'],
+    tsNocheck: currentData.byType['@ts-nocheck'],
+    tsIgnore: currentData.byType['@ts-ignore'],
     tsFiles: currentData.byExtension.ts || 0,
     tsxFiles: currentData.byExtension.tsx || 0,
     jsFiles: currentData.byExtension.js || 0,
-  };
+  }
 
   // Add new entry and sort by date
-  historicalData.push(newEntry);
-  historicalData.sort((a, b) => new Date(a.date) - new Date(b.date));
+  historicalData.push(newEntry)
+  historicalData.sort((a, b) => new Date(a.date) - new Date(b.date))
 
   // Keep only last 365 days of data to prevent unlimited growth
-  const oneYearAgo = new Date();
-  oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+  const oneYearAgo = new Date()
+  oneYearAgo.setDate(oneYearAgo.getDate() - 365)
   historicalData = historicalData.filter(
-    (entry) => new Date(entry.date) >= oneYearAgo
-  );
+    (entry) => new Date(entry.date) >= oneYearAgo,
+  )
 
   console.log(
-    `✅ Added data for ${date} to historical tracking (${historicalData.length} total entries)`
-  );
-  return historicalData;
+    `✅ Added data for ${date} to historical tracking (${historicalData.length} total entries)`,
+  )
+  return historicalData
 }
 
 function generateDashboardHTML(historicalData, currentData) {
@@ -98,20 +98,20 @@ function generateDashboardHTML(historicalData, currentData) {
     tsIgnore: row.tsIgnore,
     tsNocheck: row.tsNocheck,
     filesWithDirectives: row.filesWithDirectives,
-  }));
+  }))
 
-  const latestData = historicalData[historicalData.length - 1] || {};
-  const previousData = historicalData[historicalData.length - 2] || {};
+  const latestData = historicalData[historicalData.length - 1] || {}
+  const previousData = historicalData[historicalData.length - 2] || {}
 
   const totalChange =
     latestData.totalDirectives && previousData.totalDirectives
       ? latestData.totalDirectives - previousData.totalDirectives
-      : 0;
+      : 0
 
   const filesChange =
     latestData.filesWithDirectives && previousData.filesWithDirectives
       ? latestData.filesWithDirectives - previousData.filesWithDirectives
-      : 0;
+      : 0
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -296,12 +296,12 @@ function generateDashboardHTML(historicalData, currentData) {
                 <div class="stat-label">Total Directives</div>
                 <div class="stat-change ${
                   totalChange > 0
-                    ? "positive"
+                    ? 'positive'
                     : totalChange < 0
-                    ? "negative"
-                    : "neutral"
+                    ? 'negative'
+                    : 'neutral'
                 }">
-                    ${totalChange > 0 ? "+" : ""}${totalChange} from yesterday
+                    ${totalChange > 0 ? '+' : ''}${totalChange} from yesterday
                 </div>
             </div>
             
@@ -312,23 +312,23 @@ function generateDashboardHTML(historicalData, currentData) {
                 <div class="stat-label">Files with Directives</div>
                 <div class="stat-change ${
                   filesChange > 0
-                    ? "positive"
+                    ? 'positive'
                     : filesChange < 0
-                    ? "negative"
-                    : "neutral"
+                    ? 'negative'
+                    : 'neutral'
                 }">
-                    ${filesChange > 0 ? "+" : ""}${filesChange} from yesterday
+                    ${filesChange > 0 ? '+' : ''}${filesChange} from yesterday
                 </div>
             </div>
             
             <div class="stat-card expect-error">
                 <div class="stat-number">${
-                  currentData.byType["@ts-expect-error"]
+                  currentData.byType['@ts-expect-error']
                 }</div>
                 <div class="stat-label">@ts-expect-error</div>
                 <div class="stat-change neutral">
                     ${(
-                      (currentData.byType["@ts-expect-error"] /
+                      (currentData.byType['@ts-expect-error'] /
                         currentData.totalDirectives) *
                       100
                     ).toFixed(1)}% of total
@@ -337,12 +337,12 @@ function generateDashboardHTML(historicalData, currentData) {
             
             <div class="stat-card ignore">
                 <div class="stat-number">${
-                  currentData.byType["@ts-ignore"]
+                  currentData.byType['@ts-ignore']
                 }</div>
                 <div class="stat-label">@ts-ignore</div>
                 <div class="stat-change neutral">
                     ${(
-                      (currentData.byType["@ts-ignore"] /
+                      (currentData.byType['@ts-ignore'] /
                         currentData.totalDirectives) *
                       100
                     ).toFixed(1)}% of total
@@ -376,16 +376,16 @@ function generateDashboardHTML(historicalData, currentData) {
                       .slice(-30)
                       .reverse()
                       .map((row, index, array) => {
-                        const prevRow = array[index + 1];
+                        const prevRow = array[index + 1]
                         const change = prevRow
                           ? row.totalDirectives - prevRow.totalDirectives
-                          : 0;
+                          : 0
                         const changeClass =
                           change > 0
-                            ? "positive"
+                            ? 'positive'
                             : change < 0
-                            ? "negative"
-                            : "neutral";
+                            ? 'negative'
+                            : 'neutral'
 
                         return `
                         <tr>
@@ -396,22 +396,22 @@ function generateDashboardHTML(historicalData, currentData) {
                             <td>${row.tsIgnore}</td>
                             <td>${row.tsNocheck}</td>
                             <td class="stat-change ${changeClass}">${
-                              change > 0 ? "+" : ""
+                              change > 0 ? '+' : ''
                             }${change}</td>
                         </tr>
-                      `;
+                      `
                       })
-                      .join("")}
+                      .join('')}
                 </tbody>
             </table>
         </div>
         
         <div class="footer">
             <p>Last updated: ${new Date(
-              currentData.timestamp
+              currentData.timestamp,
             ).toLocaleString()}</p>
             <p>Generated automatically by GitHub Actions • <a href="https://github.com/${
-              process.env.GITHUB_REPOSITORY || "your-repo"
+              process.env.GITHUB_REPOSITORY || 'your-repo'
             }" target="_blank">View Repository</a></p>
         </div>
     </div>
@@ -500,51 +500,49 @@ function generateDashboardHTML(historicalData, currentData) {
         });
     </script>
 </body>
-</html>`;
+</html>`
 
-  return html;
+  return html
 }
 
 function main() {
-  console.log("🚀 Generating TypeScript directives dashboard...");
+  console.log('🚀 Generating TypeScript directives dashboard...')
 
   // Ensure directories exist
-  ensureDirectoryExists(REPORTS_DIR);
-  ensureDirectoryExists(DASHBOARD_DIR);
+  ensureDirectoryExists(REPORTS_DIR)
+  ensureDirectoryExists(DASHBOARD_DIR)
 
   // Get current data
-  const currentData = getCurrentData();
+  const currentData = getCurrentData()
   console.log(
-    `📊 Current metrics: ${currentData.totalDirectives} directives in ${currentData.filesWithDirectives} files`
-  );
+    `📊 Current metrics: ${currentData.totalDirectives} directives in ${currentData.filesWithDirectives} files`,
+  )
 
   // Append to historical data and get the updated array
-  const historicalData = appendToHistoricalData(currentData);
-  console.log(`📈 Historical data points: ${historicalData.length}`);
+  const historicalData = appendToHistoricalData(currentData)
+  console.log(`📈 Historical data points: ${historicalData.length}`)
 
   // Generate dashboard HTML
-  const dashboardHTML = generateDashboardHTML(historicalData, currentData);
+  const dashboardHTML = generateDashboardHTML(historicalData, currentData)
 
   // Write dashboard files
-  writeFileSync(`${DASHBOARD_DIR}/index.html`, dashboardHTML);
+  writeFileSync(`${DASHBOARD_DIR}/index.html`, dashboardHTML)
 
   // Copy current data for dashboard access
   writeFileSync(
     `${DASHBOARD_DIR}/current-data.json`,
-    JSON.stringify(currentData, null, 2)
-  );
+    JSON.stringify(currentData, null, 2),
+  )
 
   // Copy historical data as JSON for potential API access
   writeFileSync(
     `${DASHBOARD_DIR}/historical-data.json`,
-    JSON.stringify(historicalData, null, 2)
-  );
+    JSON.stringify(historicalData, null, 2),
+  )
 
-  console.log("✅ Dashboard generated successfully!");
-  console.log(`📁 Dashboard files created in: ${DASHBOARD_DIR}/`);
-  console.log(
-    `🌐 Dashboard will be available at GitHub Pages after deployment`
-  );
+  console.log('✅ Dashboard generated successfully!')
+  console.log(`📁 Dashboard files created in: ${DASHBOARD_DIR}/`)
+  console.log(`🌐 Dashboard will be available at GitHub Pages after deployment`)
 }
 
-main();
+main()

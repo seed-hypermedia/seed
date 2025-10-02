@@ -93,12 +93,8 @@
                         "attributes": {
                           "fields": {}
                         },
-                        "starts": [
-                          4
-                        ],
-                        "ends": [
-                          10
-                        ]
+                        "starts": [4],
+                        "ends": [10]
                       }
                     ],
                     "revision": "b"
@@ -118,12 +114,8 @@
                         "attributes": {
                           "fields": {}
                         },
-                        "starts": [
-                          0
-                        ],
-                        "ends": [
-                          23
-                        ]
+                        "starts": [0],
+                        "ends": [23]
                       }
                     ],
                     "revision": "b"
@@ -242,12 +234,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      0
-                    ],
-                    "ends": [
-                      28
-                    ]
+                    "starts": [0],
+                    "ends": [28]
                   }
                 ],
                 "revision": "b"
@@ -433,12 +421,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      0
-                    ],
-                    "ends": [
-                      1
-                    ]
+                    "starts": [0],
+                    "ends": [1]
                   }
                 ],
                 "revision": "b"

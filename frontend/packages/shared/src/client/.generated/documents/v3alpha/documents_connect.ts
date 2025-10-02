@@ -3,8 +3,46 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateDocumentChangeRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  Account,
+  BatchGetAccountsRequest,
+  BatchGetAccountsResponse,
+  BatchGetDocumentInfoRequest,
+  BatchGetDocumentInfoResponse,
+  Contact,
+  CreateAliasRequest,
+  CreateContactRequest,
+  CreateDocumentChangeRequest,
+  CreateRefRequest,
+  DeleteContactRequest,
+  DeleteDocumentRequest,
+  Document,
+  DocumentChangeInfo,
+  DocumentInfo,
+  GetAccountRequest,
+  GetContactRequest,
+  GetDocumentChangeRequest,
+  GetDocumentInfoRequest,
+  GetDocumentRequest,
+  GetRefRequest,
+  ListAccountsRequest,
+  ListAccountsResponse,
+  ListContactsRequest,
+  ListContactsResponse,
+  ListDirectoryRequest,
+  ListDirectoryResponse,
+  ListDocumentChangesRequest,
+  ListDocumentChangesResponse,
+  ListDocumentsRequest,
+  ListDocumentsResponse,
+  ListRootDocumentsRequest,
+  ListRootDocumentsResponse,
+  Ref,
+  UpdateContactRequest,
+  UpdateDocumentReadStatusRequest,
+  UpdateProfileRequest,
+} from './documents_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Documents service provides access to documents.
@@ -12,7 +50,7 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.documents.v3alpha.Documents
  */
 export const Documents = {
-  typeName: "com.seed.documents.v3alpha.Documents",
+  typeName: 'com.seed.documents.v3alpha.Documents',
   methods: {
     /**
      * Retrieves an existing document.
@@ -20,7 +58,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetDocument
      */
     getDocument: {
-      name: "GetDocument",
+      name: 'GetDocument',
       I: GetDocumentRequest,
       O: Document,
       kind: MethodKind.Unary,
@@ -33,7 +71,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetDocumentInfo
      */
     getDocumentInfo: {
-      name: "GetDocumentInfo",
+      name: 'GetDocumentInfo',
       I: GetDocumentInfoRequest,
       O: DocumentInfo,
       kind: MethodKind.Unary,
@@ -44,7 +82,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo
      */
     batchGetDocumentInfo: {
-      name: "BatchGetDocumentInfo",
+      name: 'BatchGetDocumentInfo',
       I: BatchGetDocumentInfoRequest,
       O: BatchGetDocumentInfoResponse,
       kind: MethodKind.Unary,
@@ -55,7 +93,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.CreateDocumentChange
      */
     createDocumentChange: {
-      name: "CreateDocumentChange",
+      name: 'CreateDocumentChange',
       I: CreateDocumentChangeRequest,
       O: Document,
       kind: MethodKind.Unary,
@@ -69,7 +107,7 @@ export const Documents = {
      * @deprecated
      */
     deleteDocument: {
-      name: "DeleteDocument",
+      name: 'DeleteDocument',
       I: DeleteDocumentRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -82,7 +120,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListAccounts
      */
     listAccounts: {
-      name: "ListAccounts",
+      name: 'ListAccounts',
       I: ListAccountsRequest,
       O: ListAccountsResponse,
       kind: MethodKind.Unary,
@@ -93,7 +131,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetAccount
      */
     getAccount: {
-      name: "GetAccount",
+      name: 'GetAccount',
       I: GetAccountRequest,
       O: Account,
       kind: MethodKind.Unary,
@@ -104,7 +142,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.BatchGetAccounts
      */
     batchGetAccounts: {
-      name: "BatchGetAccounts",
+      name: 'BatchGetAccounts',
       I: BatchGetAccountsRequest,
       O: BatchGetAccountsResponse,
       kind: MethodKind.Unary,
@@ -115,7 +153,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateProfile
      */
     updateProfile: {
-      name: "UpdateProfile",
+      name: 'UpdateProfile',
       I: UpdateProfileRequest,
       O: Account,
       kind: MethodKind.Unary,
@@ -126,7 +164,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.CreateAlias
      */
     createAlias: {
-      name: "CreateAlias",
+      name: 'CreateAlias',
       I: CreateAliasRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -137,7 +175,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.CreateContact
      */
     createContact: {
-      name: "CreateContact",
+      name: 'CreateContact',
       I: CreateContactRequest,
       O: Contact,
       kind: MethodKind.Unary,
@@ -148,7 +186,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetContact
      */
     getContact: {
-      name: "GetContact",
+      name: 'GetContact',
       I: GetContactRequest,
       O: Contact,
       kind: MethodKind.Unary,
@@ -159,7 +197,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateContact
      */
     updateContact: {
-      name: "UpdateContact",
+      name: 'UpdateContact',
       I: UpdateContactRequest,
       O: Contact,
       kind: MethodKind.Unary,
@@ -170,7 +208,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.DeleteContact
      */
     deleteContact: {
-      name: "DeleteContact",
+      name: 'DeleteContact',
       I: DeleteContactRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -181,7 +219,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListContacts
      */
     listContacts: {
-      name: "ListContacts",
+      name: 'ListContacts',
       I: ListContactsRequest,
       O: ListContactsResponse,
       kind: MethodKind.Unary,
@@ -192,7 +230,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDirectory
      */
     listDirectory: {
-      name: "ListDirectory",
+      name: 'ListDirectory',
       I: ListDirectoryRequest,
       O: ListDirectoryResponse,
       kind: MethodKind.Unary,
@@ -203,7 +241,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocuments
      */
     listDocuments: {
-      name: "ListDocuments",
+      name: 'ListDocuments',
       I: ListDocumentsRequest,
       O: ListDocumentsResponse,
       kind: MethodKind.Unary,
@@ -214,7 +252,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListRootDocuments
      */
     listRootDocuments: {
-      name: "ListRootDocuments",
+      name: 'ListRootDocuments',
       I: ListRootDocumentsRequest,
       O: ListRootDocumentsResponse,
       kind: MethodKind.Unary,
@@ -225,7 +263,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocumentChanges
      */
     listDocumentChanges: {
-      name: "ListDocumentChanges",
+      name: 'ListDocumentChanges',
       I: ListDocumentChangesRequest,
       O: ListDocumentChangesResponse,
       kind: MethodKind.Unary,
@@ -236,7 +274,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetDocumentChange
      */
     getDocumentChange: {
-      name: "GetDocumentChange",
+      name: 'GetDocumentChange',
       I: GetDocumentChangeRequest,
       O: DocumentChangeInfo,
       kind: MethodKind.Unary,
@@ -247,7 +285,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus
      */
     updateDocumentReadStatus: {
-      name: "UpdateDocumentReadStatus",
+      name: 'UpdateDocumentReadStatus',
       I: UpdateDocumentReadStatusRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -258,7 +296,7 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.CreateRef
      */
     createRef: {
-      name: "CreateRef",
+      name: 'CreateRef',
       I: CreateRefRequest,
       O: Ref,
       kind: MethodKind.Unary,
@@ -269,11 +307,10 @@ export const Documents = {
      * @generated from rpc com.seed.documents.v3alpha.Documents.GetRef
      */
     getRef: {
-      name: "GetRef",
+      name: 'GetRef',
       I: GetRefRequest,
       O: Ref,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

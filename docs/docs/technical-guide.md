@@ -4,7 +4,6 @@
 
 Mintter is a decentralized knowledge collaboration application. It’s built on [IPFS](https://ipfs.tech), it’s peer-to-peer (P2P), and strives to be [local-first](https://www.inkandswitch.com/local-first/). This document assumes that readers are at least somewhat familiar with the mentioned concepts, and with what Mintter is about.
 
-
 ## [HyperDocs](./hyperdocs)
 
 An open protocol for collaboration and sharing permanent knowlege
@@ -26,7 +25,6 @@ The desktop app that the Mintter team develops. Provides the following features
 ## Mintter.Web
 
 The web gateway that the Mintter team develops
-
 
 ## Mintter Documents
 

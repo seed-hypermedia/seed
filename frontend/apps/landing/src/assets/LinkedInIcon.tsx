@@ -1,5 +1,5 @@
 export default function LinkedInIcon({
-  className = "w-6 h-6 text-gray-400",
+  className = 'w-6 h-6 text-gray-400',
   ...props
 }) {
   return (
@@ -16,5 +16,5 @@ export default function LinkedInIcon({
         fill="currentColor"
       />
     </svg>
-  );
+  )
 }

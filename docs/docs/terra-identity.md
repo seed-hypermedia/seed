@@ -16,7 +16,6 @@ The private key is ? bits of data.
 
 BIP-39 is used to display that data in a human readable format- 12 memorable words. Users are encouraged to write these words down in a safe place so they can retain their identity and reset their device IDs.
 
-
 ## Key Delegation
 
 Because the Account Key should not be saved

@@ -1,30 +1,30 @@
-import React, {useEffect, useState} from "react";
-import "../App.css";
-import type {PerformanceReport, ScenarioResult} from "../types";
-import {loadPerformanceReports, loadReportById} from "../utils/data";
+import React, {useEffect, useState} from 'react'
+import '../App.css'
+import type {PerformanceReport, ScenarioResult} from '../types'
+import {loadPerformanceReports, loadReportById} from '../utils/data'
 
 // Type for SVG icon props
 interface IconProps extends React.SVGProps<SVGSVGElement> {
-  size?: number;
+  size?: number
 }
 
 // Utility functions
 // Format bytes into human-readable format
 const formatBytes = (bytes: number, decimals = 2): string => {
-  if (bytes === 0) return "0 Bytes";
+  if (bytes === 0) return '0 Bytes'
 
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
 
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-};
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+}
 
 // Simple icon components with SVG to replace lucide-react
 const Icons = {
   Activity: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -40,10 +40,10 @@ const Icons = {
       >
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
       </svg>
-    );
+    )
   },
   Cpu: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -68,10 +68,10 @@ const Icons = {
         <line x1="1" y1="9" x2="4" y2="9"></line>
         <line x1="1" y1="14" x2="4" y2="14"></line>
       </svg>
-    );
+    )
   },
   HardDrive: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -90,10 +90,10 @@ const Icons = {
         <line x1="6" y1="16" x2="6.01" y2="16"></line>
         <line x1="10" y1="16" x2="10.01" y2="16"></line>
       </svg>
-    );
+    )
   },
   Clock: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -110,10 +110,10 @@ const Icons = {
         <circle cx="12" cy="12" r="10"></circle>
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
-    );
+    )
   },
   Gauge: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -131,10 +131,10 @@ const Icons = {
         <path d="M12 14l4-4"></path>
         <circle cx="12" cy="14" r="8"></circle>
       </svg>
-    );
+    )
   },
   LayoutPanelLeft: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -151,10 +151,10 @@ const Icons = {
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
         <line x1="9" y1="3" x2="9" y2="21"></line>
       </svg>
-    );
+    )
   },
   AlertTriangle: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -172,10 +172,10 @@ const Icons = {
         <line x1="12" y1="9" x2="12" y2="13"></line>
         <line x1="12" y1="17" x2="12.01" y2="17"></line>
       </svg>
-    );
+    )
   },
   Zap: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -191,10 +191,10 @@ const Icons = {
       >
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
       </svg>
-    );
+    )
   },
   Calendar: (props: IconProps) => {
-    const {size = 24, ...rest} = props;
+    const {size = 24, ...rest} = props
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -213,226 +213,226 @@ const Icons = {
         <line x1="8" y1="2" x2="8" y2="6"></line>
         <line x1="3" y1="10" x2="21" y2="10"></line>
       </svg>
-    );
+    )
   },
-};
+}
 
 // MetricHeatmap component to display performance metrics across reports in a heatmap
 const MetricHeatmap = ({
   reports,
   activeReportId,
 }: {
-  reports: PerformanceReport[];
-  activeReportId: string | null;
+  reports: PerformanceReport[]
+  activeReportId: string | null
 }) => {
-  const [reportData, setReportData] = useState<PerformanceReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState<PerformanceReport[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedMetric, setSelectedMetric] =
-    useState<string>("percentCPUUsage");
-  const [scenarioNames, setScenarioNames] = useState<string[]>([]);
+    useState<string>('percentCPUUsage')
+  const [scenarioNames, setScenarioNames] = useState<string[]>([])
   const [metricOptions, setMetricOptions] = useState<
     {name: string; displayName: string}[]
-  >([]);
+  >([])
 
   // Load full report data for all reports
   useEffect(() => {
-    if (!reports || reports.length === 0) return;
+    if (!reports || reports.length === 0) return
 
     const fetchAllReports = async () => {
-      setIsLoading(true);
+      setIsLoading(true)
 
       try {
         // Fetch full report data for each report
         const fullReports = await Promise.all(
           reports.map(async (report) => {
-            const fullReport = await loadReportById(report.id);
-            return fullReport;
-          })
-        );
+            const fullReport = await loadReportById(report.id)
+            return fullReport
+          }),
+        )
 
         // Filter out null reports
-        const validReports = fullReports.filter(Boolean) as PerformanceReport[];
+        const validReports = fullReports.filter(Boolean) as PerformanceReport[]
 
         if (validReports.length > 0) {
           // Get all unique scenario names across all reports
-          const allScenarioNames = new Set<string>();
+          const allScenarioNames = new Set<string>()
 
           // Get all unique metric names for the dropdown
-          const allMetricNames = new Set<string>();
-          const metricDisplayNames: Record<string, string> = {};
+          const allMetricNames = new Set<string>()
+          const metricDisplayNames: Record<string, string> = {}
 
           validReports.forEach((report) => {
             report.scenarios.forEach((scenario) => {
-              allScenarioNames.add(scenario.name);
+              allScenarioNames.add(scenario.name)
 
               scenario.metrics.forEach((metric) => {
-                allMetricNames.add(metric.name);
+                allMetricNames.add(metric.name)
                 // Create a display name from the metric name
                 metricDisplayNames[metric.name] = metric.name
-                  .replace(/([A-Z])/g, " $1")
+                  .replace(/([A-Z])/g, ' $1')
                   .replace(/^./, (str) => str.toUpperCase())
-                  .replace(/([a-z])([A-Z])/g, "$1 $2");
-              });
-            });
-          });
+                  .replace(/([a-z])([A-Z])/g, '$1 $2')
+              })
+            })
+          })
 
-          setScenarioNames(Array.from(allScenarioNames).sort());
+          setScenarioNames(Array.from(allScenarioNames).sort())
 
           // Create metric options for the dropdown
           const options = Array.from(allMetricNames).map((name) => ({
             name,
             displayName: metricDisplayNames[name] || name,
-          }));
+          }))
 
           // Sort options by display name
-          options.sort((a, b) => a.displayName.localeCompare(b.displayName));
+          options.sort((a, b) => a.displayName.localeCompare(b.displayName))
 
-          setMetricOptions(options);
+          setMetricOptions(options)
 
           // If current selected metric is not in the list, set to first available metric
           if (options.length > 0 && !allMetricNames.has(selectedMetric)) {
-            setSelectedMetric(options[0].name);
+            setSelectedMetric(options[0].name)
           }
         }
 
-        setReportData(validReports);
+        setReportData(validReports)
       } catch (error) {
-        console.error("Error loading full report data:", error);
+        console.error('Error loading full report data:', error)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchAllReports();
-  }, [reports, selectedMetric]);
+    fetchAllReports()
+  }, [reports, selectedMetric])
 
   // Get the maximum and minimum values for the selected metric across all reports
   const getMetricMinMax = () => {
-    let min = Number.MAX_VALUE;
-    let max = Number.MIN_VALUE;
+    let min = Number.MAX_VALUE
+    let max = Number.MIN_VALUE
 
     reportData.forEach((report) => {
       report.scenarios.forEach((scenario) => {
-        const metric = scenario.metrics.find((m) => m.name === selectedMetric);
+        const metric = scenario.metrics.find((m) => m.name === selectedMetric)
         if (metric) {
-          min = Math.min(min, metric.value);
-          max = Math.max(max, metric.value);
+          min = Math.min(min, metric.value)
+          max = Math.max(max, metric.value)
         }
-      });
-    });
+      })
+    })
 
     // If we didn't find any metrics, return default values
-    if (min === Number.MAX_VALUE) min = 0;
-    if (max === Number.MIN_VALUE) max = 100;
+    if (min === Number.MAX_VALUE) min = 0
+    if (max === Number.MIN_VALUE) max = 100
 
-    return {min, max};
-  };
+    return {min, max}
+  }
 
   // Calculate color for a metric value
   const getColorForValue = (
     value: number,
     min: number,
     max: number,
-    metricName: string
+    metricName: string,
   ) => {
     // For most metrics, lower is better
-    let normalizedValue = (value - min) / (max - min || 1);
+    let normalizedValue = (value - min) / (max - min || 1)
 
     // For some metrics, higher is better (e.g. performanceScore)
-    const higherIsBetter = ["performanceScore"].includes(metricName);
+    const higherIsBetter = ['performanceScore'].includes(metricName)
     if (higherIsBetter) {
-      normalizedValue = 1 - normalizedValue;
+      normalizedValue = 1 - normalizedValue
     }
 
     // Clamp to [0, 1]
-    normalizedValue = Math.max(0, Math.min(1, normalizedValue));
+    normalizedValue = Math.max(0, Math.min(1, normalizedValue))
 
     // Generate color from green (good) to red (bad)
-    const r = Math.round(255 * normalizedValue);
-    const g = Math.round(255 * (1 - normalizedValue));
-    const b = 0;
+    const r = Math.round(255 * normalizedValue)
+    const g = Math.round(255 * (1 - normalizedValue))
+    const b = 0
 
-    return `rgb(${r}, ${g}, ${b})`;
-  };
+    return `rgb(${r}, ${g}, ${b})`
+  }
 
   // Format metric value for display
   const formatMetricValue = (value: number, unit?: string): string => {
-    if (!unit) return value.toLocaleString();
+    if (!unit) return value.toLocaleString()
 
     // Special case for bytes - convert to KB, MB, GB as appropriate
-    if (unit === "bytes") {
-      return formatBytes(value);
+    if (unit === 'bytes') {
+      return formatBytes(value)
     }
 
     // For percentages, format with fixed decimal places
-    if (unit === "%") {
-      return `${value.toFixed(1)}${unit}`;
+    if (unit === '%') {
+      return `${value.toFixed(1)}${unit}`
     }
 
     // For time measurements (ms), format appropriately
-    if (unit === "ms") {
+    if (unit === 'ms') {
       if (value < 1) {
-        return `${(value * 1000).toFixed(2)}μs`;
+        return `${(value * 1000).toFixed(2)}μs`
       }
       if (value >= 1000) {
-        return `${(value / 1000).toFixed(2)}s`;
+        return `${(value / 1000).toFixed(2)}s`
       }
-      return `${Math.round(value)}${unit}`;
+      return `${Math.round(value)}${unit}`
     }
 
     // Default formatting - add the unit to the value
-    return `${value.toLocaleString()}${unit}`;
-  };
+    return `${value.toLocaleString()}${unit}`
+  }
 
   // Format scenario name for display
   const formatScenarioName = (name: string): string => {
     return name
-      .split("-")
+      .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
+      .join(' ')
+  }
 
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    }).format(date);
-  };
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    }).format(date)
+  }
 
   // Get the unit for the selected metric
   const getMetricUnit = (): string => {
     for (const report of reportData) {
       for (const scenario of report.scenarios) {
-        const metric = scenario.metrics.find((m) => m.name === selectedMetric);
+        const metric = scenario.metrics.find((m) => m.name === selectedMetric)
         if (metric && metric.unit) {
-          return metric.unit;
+          return metric.unit
         }
       }
     }
-    return "";
-  };
+    return ''
+  }
 
   // If loading, show loading indicator
   if (isLoading) {
     return (
       <div className="metrics-heatmap-loading">Loading metrics data...</div>
-    );
+    )
   }
 
   // If no report data, show message
   if (reportData.length === 0) {
     return (
       <div className="metrics-heatmap-empty">No performance data available</div>
-    );
+    )
   }
 
   // Get min and max values for the selected metric
-  const {min, max} = getMetricMinMax();
-  const metricUnit = getMetricUnit();
+  const {min, max} = getMetricMinMax()
+  const metricUnit = getMetricUnit()
 
   return (
     <div className="metrics-heatmap-container">
@@ -456,7 +456,7 @@ const MetricHeatmap = ({
           <div className="legend-gradient"></div>
           <div className="legend-label">Bad</div>
           <div className="legend-value">
-            Range: {formatMetricValue(min, metricUnit)} -{" "}
+            Range: {formatMetricValue(min, metricUnit)} -{' '}
             {formatMetricValue(max, metricUnit)}
           </div>
         </div>
@@ -471,7 +471,7 @@ const MetricHeatmap = ({
                 <th
                   key={report.id}
                   className={`heatmap-date-header ${
-                    report.id === activeReportId ? "active-report" : ""
+                    report.id === activeReportId ? 'active-report' : ''
                   }`}
                 >
                   {formatDate(report.date)}
@@ -487,17 +487,17 @@ const MetricHeatmap = ({
                 </td>
                 {reportData.map((report) => {
                   const scenario = report.scenarios.find(
-                    (s) => s.name === scenarioName
-                  );
+                    (s) => s.name === scenarioName,
+                  )
                   const metric = scenario?.metrics.find(
-                    (m) => m.name === selectedMetric
-                  );
+                    (m) => m.name === selectedMetric,
+                  )
 
                   return (
                     <td
                       key={`${report.id}-${scenarioName}`}
                       className={`heatmap-cell ${
-                        report.id === activeReportId ? "active-report" : ""
+                        report.id === activeReportId ? 'active-report' : ''
                       }`}
                       style={
                         metric
@@ -506,12 +506,12 @@ const MetricHeatmap = ({
                                 metric.value,
                                 min,
                                 max,
-                                selectedMetric
+                                selectedMetric,
                               ),
                               color:
                                 metric.value > (min + max) / 2
-                                  ? "white"
-                                  : "black",
+                                  ? 'white'
+                                  : 'black',
                             }
                           : {}
                       }
@@ -519,17 +519,17 @@ const MetricHeatmap = ({
                         metric
                           ? `${formatScenarioName(scenarioName)}\n${
                               metricOptions.find(
-                                (m) => m.name === selectedMetric
+                                (m) => m.name === selectedMetric,
                               )?.displayName || selectedMetric
                             }: ${formatMetricValue(metric.value, metric.unit)}`
-                          : "No data"
+                          : 'No data'
                       }
                     >
                       {metric
                         ? formatMetricValue(metric.value, metric.unit)
-                        : "N/A"}
+                        : 'N/A'}
                     </td>
-                  );
+                  )
                 })}
               </tr>
             ))}
@@ -537,179 +537,179 @@ const MetricHeatmap = ({
         </table>
       </div>
     </div>
-  );
-};
+  )
+}
 
 // PerformanceChangeDashboard component to display performance changes between reports
 const PerformanceChangeDashboard = ({
   reports,
   activeReportId,
 }: {
-  reports: PerformanceReport[];
-  activeReportId: string | null;
+  reports: PerformanceReport[]
+  activeReportId: string | null
 }) => {
-  const [reportData, setReportData] = useState<PerformanceReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [baselineReportId, setBaselineReportId] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<PerformanceReport[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [baselineReportId, setBaselineReportId] = useState<string | null>(null)
   const [keyMetrics] = useState<string[]>([
-    "percentCPUUsage",
-    "jsHeapUsedSize",
-    "appStartupTime",
-    "timeToInteractive",
-    "scriptDuration",
-    "layoutDuration",
-  ]);
+    'percentCPUUsage',
+    'jsHeapUsedSize',
+    'appStartupTime',
+    'timeToInteractive',
+    'scriptDuration',
+    'layoutDuration',
+  ])
 
   // Load full report data for all reports
   useEffect(() => {
-    if (!reports || reports.length < 2) return;
+    if (!reports || reports.length < 2) return
 
     const fetchAllReports = async () => {
-      setIsLoading(true);
+      setIsLoading(true)
 
       try {
         // Fetch full report data for each report
         const fullReports = await Promise.all(
           reports.map(async (report) => {
-            const fullReport = await loadReportById(report.id);
-            return fullReport;
-          })
-        );
+            const fullReport = await loadReportById(report.id)
+            return fullReport
+          }),
+        )
 
         // Filter out null reports
-        const validReports = fullReports.filter(Boolean) as PerformanceReport[];
+        const validReports = fullReports.filter(Boolean) as PerformanceReport[]
 
         if (validReports.length > 0) {
           // Sort reports by date (newest first)
           validReports.sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-          );
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+          )
 
           // Set a default baseline if needed - pick the next report after the active one
           // or if the active report is the baseline, pick the first non-active report
           if (validReports.length > 1 && !baselineReportId) {
             // Find the index of the active report
             const activeIndex = validReports.findIndex(
-              (r) => r.id === activeReportId
-            );
+              (r) => r.id === activeReportId,
+            )
 
             if (activeIndex === -1 || activeIndex === validReports.length - 1) {
               // If active report not found or is the last one, use the first report as baseline
               setBaselineReportId(
                 validReports[0].id !== activeReportId
                   ? validReports[0].id
-                  : validReports[1].id
-              );
+                  : validReports[1].id,
+              )
             } else {
               // Use the next report in the list as baseline
-              setBaselineReportId(validReports[activeIndex + 1].id);
+              setBaselineReportId(validReports[activeIndex + 1].id)
             }
           }
         }
 
-        setReportData(validReports);
+        setReportData(validReports)
       } catch (error) {
-        console.error("Error loading full report data:", error);
+        console.error('Error loading full report data:', error)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchAllReports();
-  }, [reports, baselineReportId, activeReportId]);
+    fetchAllReports()
+  }, [reports, baselineReportId, activeReportId])
 
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    }).format(date);
-  };
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+    }).format(date)
+  }
 
   // Format scenario name for display
   const formatScenarioName = (name: string): string => {
     return name
-      .split("-")
+      .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
+      .join(' ')
+  }
 
   // Format metric name for display
   const formatMetricName = (name: string): string => {
     // Dictionary of common metric names
     const metricNames: Record<string, string> = {
-      percentCPUUsage: "CPU Usage",
-      jsHeapUsedSize: "Memory Usage",
-      appStartupTime: "App Startup Time",
-      timeToInteractive: "Time to Interactive",
-      scriptDuration: "Script Duration",
-      layoutDuration: "Layout Duration",
-      recalcStyleDuration: "Style Recalc Duration",
-      paintDuration: "Paint Duration",
-    };
+      percentCPUUsage: 'CPU Usage',
+      jsHeapUsedSize: 'Memory Usage',
+      appStartupTime: 'App Startup Time',
+      timeToInteractive: 'Time to Interactive',
+      scriptDuration: 'Script Duration',
+      layoutDuration: 'Layout Duration',
+      recalcStyleDuration: 'Style Recalc Duration',
+      paintDuration: 'Paint Duration',
+    }
 
     return (
       metricNames[name] ||
       name
-        .replace(/([A-Z])/g, " $1")
+        .replace(/([A-Z])/g, ' $1')
         .replace(/^./, (str) => str.toUpperCase())
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-    );
-  };
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+    )
+  }
 
   // Format percent change
   const formatChange = (change: number): string => {
-    const prefix = change > 0 ? "+" : "";
-    return `${prefix}${change.toFixed(1)}%`;
-  };
+    const prefix = change > 0 ? '+' : ''
+    return `${prefix}${change.toFixed(1)}%`
+  }
 
   // Get color based on change value and metric type
   const getChangeColor = (change: number, metricName: string): string => {
     // For most metrics, negative change is good (lower is better)
-    let isImprovement = change < 0;
+    let isImprovement = change < 0
 
     // For some metrics, higher is better
-    const higherIsBetter = ["performanceScore"].includes(metricName);
+    const higherIsBetter = ['performanceScore'].includes(metricName)
     if (higherIsBetter) {
-      isImprovement = change > 0;
+      isImprovement = change > 0
     }
 
     // Determine severity of change
-    const absChange = Math.abs(change);
+    const absChange = Math.abs(change)
 
     if (isImprovement) {
       // Improvement: green with varying intensity
-      if (absChange < 5) return "#4caf50"; // Light green
-      if (absChange < 15) return "#2e7d32"; // Medium green
-      return "#1b5e20"; // Dark green (significant improvement)
+      if (absChange < 5) return '#4caf50' // Light green
+      if (absChange < 15) return '#2e7d32' // Medium green
+      return '#1b5e20' // Dark green (significant improvement)
     } else {
       // Regression: amber to red
-      if (absChange < 5) return "#ffca28"; // Amber (slight regression)
-      if (absChange < 15) return "#f57c00"; // Orange (moderate regression)
-      return "#d32f2f"; // Red (significant regression)
+      if (absChange < 5) return '#ffca28' // Amber (slight regression)
+      if (absChange < 15) return '#f57c00' // Orange (moderate regression)
+      return '#d32f2f' // Red (significant regression)
     }
-  };
+  }
 
   // Calculate change between two values
   const calculateChange = (current: number, baseline: number): number => {
-    if (baseline === 0) return 0;
-    return ((current - baseline) / baseline) * 100;
-  };
+    if (baseline === 0) return 0
+    return ((current - baseline) / baseline) * 100
+  }
 
   // Get the current report based on activeReportId
   const getCurrentReport = (): PerformanceReport | null => {
-    if (!activeReportId || reportData.length === 0) return null;
-    return reportData.find((report) => report.id === activeReportId) || null;
-  };
+    if (!activeReportId || reportData.length === 0) return null
+    return reportData.find((report) => report.id === activeReportId) || null
+  }
 
   // Get the baseline report
   const getBaselineReport = (): PerformanceReport | null => {
-    if (!baselineReportId || reportData.length === 0) return null;
-    return reportData.find((report) => report.id === baselineReportId) || null;
-  };
+    if (!baselineReportId || reportData.length === 0) return null
+    return reportData.find((report) => report.id === baselineReportId) || null
+  }
 
   // If loading, show loading indicator
   if (isLoading) {
@@ -717,7 +717,7 @@ const PerformanceChangeDashboard = ({
       <div className="performance-change-loading">
         Loading performance data...
       </div>
-    );
+    )
   }
 
   // If no report data or insufficient data, show message
@@ -726,31 +726,31 @@ const PerformanceChangeDashboard = ({
       <div className="performance-change-empty">
         Need at least two performance reports to compare changes
       </div>
-    );
+    )
   }
 
-  const currentReport = getCurrentReport();
-  const baselineReport = getBaselineReport();
+  const currentReport = getCurrentReport()
+  const baselineReport = getBaselineReport()
 
   if (!currentReport || !baselineReport) {
     return (
       <div className="performance-change-empty">Unable to compare reports</div>
-    );
+    )
   }
 
   // Get all unique scenario names from both reports
-  const scenarioNames = new Set<string>();
+  const scenarioNames = new Set<string>()
   currentReport.scenarios.forEach((scenario) =>
-    scenarioNames.add(scenario.name)
-  );
+    scenarioNames.add(scenario.name),
+  )
   baselineReport.scenarios.forEach((scenario) =>
-    scenarioNames.add(scenario.name)
-  );
+    scenarioNames.add(scenario.name),
+  )
 
   // Create a list of possible baseline reports (excluding the current report)
   const baselineOptions = reportData.filter(
-    (report) => report.id !== activeReportId
-  );
+    (report) => report.id !== activeReportId,
+  )
 
   return (
     <div className="performance-change-container">
@@ -767,7 +767,7 @@ const PerformanceChangeDashboard = ({
             <label htmlFor="baseline-select">Baseline:</label>
             <select
               id="baseline-select"
-              value={baselineReportId || ""}
+              value={baselineReportId || ''}
               onChange={(e) => setBaselineReportId(e.target.value)}
               className="baseline-select"
             >
@@ -783,21 +783,21 @@ const PerformanceChangeDashboard = ({
           <div className="change-legend-item">
             <span
               className="legend-color"
-              style={{backgroundColor: "#1b5e20"}}
+              style={{backgroundColor: '#1b5e20'}}
             ></span>
             <span className="legend-label">Better</span>
           </div>
           <div className="change-legend-item">
             <span
               className="legend-color"
-              style={{backgroundColor: "#ffca28"}}
+              style={{backgroundColor: '#ffca28'}}
             ></span>
             <span className="legend-label">Slight Regression</span>
           </div>
           <div className="change-legend-item">
             <span
               className="legend-color"
-              style={{backgroundColor: "#d32f2f"}}
+              style={{backgroundColor: '#d32f2f'}}
             ></span>
             <span className="legend-label">Significant Regression</span>
           </div>
@@ -809,14 +809,14 @@ const PerformanceChangeDashboard = ({
           .sort()
           .map((scenarioName) => {
             const currentScenario = currentReport.scenarios.find(
-              (s) => s.name === scenarioName
-            );
+              (s) => s.name === scenarioName,
+            )
             const baselineScenario = baselineReport.scenarios.find(
-              (s) => s.name === scenarioName
-            );
+              (s) => s.name === scenarioName,
+            )
 
             // Skip if scenario doesn't exist in either report
-            if (!currentScenario || !baselineScenario) return null;
+            if (!currentScenario || !baselineScenario) return null
 
             return (
               <div key={scenarioName} className="scenario-change-card">
@@ -826,36 +826,36 @@ const PerformanceChangeDashboard = ({
                 <div className="metric-changes">
                   {keyMetrics.map((metricName) => {
                     const currentMetric = currentScenario.metrics.find(
-                      (m) => m.name === metricName
-                    );
+                      (m) => m.name === metricName,
+                    )
                     const baselineMetric = baselineScenario.metrics.find(
-                      (m) => m.name === metricName
-                    );
+                      (m) => m.name === metricName,
+                    )
 
                     // Skip if metric doesn't exist in either scenario
-                    if (!currentMetric || !baselineMetric) return null;
+                    if (!currentMetric || !baselineMetric) return null
 
                     const change = calculateChange(
                       currentMetric.value,
-                      baselineMetric.value
-                    );
-                    const changeColor = getChangeColor(change, metricName);
+                      baselineMetric.value,
+                    )
+                    const changeColor = getChangeColor(change, metricName)
 
                     // Format the values based on unit
                     const formatValue = (
                       value: number,
-                      unit: string
+                      unit: string,
                     ): string => {
-                      if (unit === "bytes") return formatBytes(value);
-                      if (unit === "%") return `${value.toFixed(1)}${unit}`;
-                      if (unit === "ms") {
-                        if (value < 1) return `${(value * 1000).toFixed(2)}μs`;
+                      if (unit === 'bytes') return formatBytes(value)
+                      if (unit === '%') return `${value.toFixed(1)}${unit}`
+                      if (unit === 'ms') {
+                        if (value < 1) return `${(value * 1000).toFixed(2)}μs`
                         if (value >= 1000)
-                          return `${(value / 1000).toFixed(2)}s`;
-                        return `${Math.round(value)}${unit}`;
+                          return `${(value / 1000).toFixed(2)}s`
+                        return `${Math.round(value)}${unit}`
                       }
-                      return `${value.toLocaleString()}${unit}`;
-                    };
+                      return `${value.toLocaleString()}${unit}`
+                    }
 
                     return (
                       <div key={metricName} className="metric-change-item">
@@ -866,7 +866,7 @@ const PerformanceChangeDashboard = ({
                           <div className="metric-current-value">
                             {formatValue(
                               currentMetric.value,
-                              currentMetric.unit
+                              currentMetric.unit,
                             )}
                           </div>
                           <div
@@ -877,122 +877,122 @@ const PerformanceChangeDashboard = ({
                           </div>
                         </div>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               </div>
-            );
+            )
           })}
       </div>
     </div>
-  );
-};
+  )
+}
 
 function App() {
-  const [reports, setReports] = useState<PerformanceReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [reports, setReports] = useState<PerformanceReport[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeReportId, setActiveReportId] = useState<string | null>(null)
   const [activeReport, setActiveReport] = useState<PerformanceReport | null>(
-    null
-  );
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+    null,
+  )
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<
-    "overview" | "memory" | "performance" | "heatmap" | "changes"
-  >("overview");
+    'overview' | 'memory' | 'performance' | 'heatmap' | 'changes'
+  >('overview')
 
   // Load reports
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        setIsLoading(true);
-        const fetchedReports = await loadPerformanceReports();
-        setReports(fetchedReports);
+        setIsLoading(true)
+        const fetchedReports = await loadPerformanceReports()
+        setReports(fetchedReports)
 
         // Auto-select most recent report
         if (fetchedReports.length > 0) {
-          setActiveReportId(fetchedReports[0].id);
+          setActiveReportId(fetchedReports[0].id)
         }
       } catch (err) {
-        setError("Failed to load performance reports");
-        console.error(err);
+        setError('Failed to load performance reports')
+        console.error(err)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchReports();
-  }, []);
+    fetchReports()
+  }, [])
 
   // Load active report when ID changes
   useEffect(() => {
     const fetchReport = async () => {
-      if (!activeReportId) return;
+      if (!activeReportId) return
 
       try {
-        setIsLoading(true);
-        const report = await loadReportById(activeReportId);
-        setActiveReport(report);
+        setIsLoading(true)
+        const report = await loadReportById(activeReportId)
+        setActiveReport(report)
 
         // Auto-select first scenario
         if (report && report.scenarios.length > 0) {
-          setSelectedScenario(report.scenarios[0].name);
+          setSelectedScenario(report.scenarios[0].name)
         }
       } catch (err) {
-        setError(`Failed to load report ${activeReportId}`);
-        console.error(err);
+        setError(`Failed to load report ${activeReportId}`)
+        console.error(err)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    fetchReport();
-  }, [activeReportId]);
+    fetchReport()
+  }, [activeReportId])
 
   // Format a date in a readable way
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "numeric",
+    const date = new Date(dateString)
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
       hour12: true,
-    }).format(date);
-  };
+    }).format(date)
+  }
 
   // Format metric values with appropriate units
   const formatMetricValue = (value: number, unit: string): string => {
     // Special case for bytes - convert to KB, MB, GB as appropriate
-    if (unit === "bytes") {
-      return formatBytes(value);
+    if (unit === 'bytes') {
+      return formatBytes(value)
     }
 
     // For percentages, format with fixed decimal places
-    if (unit === "%") {
-      return `${value.toFixed(1)}${unit}`;
+    if (unit === '%') {
+      return `${value.toFixed(1)}${unit}`
     }
 
     // For time measurements (ms), format appropriately
-    if (unit === "ms") {
+    if (unit === 'ms') {
       if (value < 1) {
-        return `${(value * 1000).toFixed(2)}μs`;
+        return `${(value * 1000).toFixed(2)}μs`
       }
       if (value >= 1000) {
-        return `${(value / 1000).toFixed(2)}s`;
+        return `${(value / 1000).toFixed(2)}s`
       }
-      return `${Math.round(value)}${unit}`;
+      return `${Math.round(value)}${unit}`
     }
 
     // Default formatting - add the unit to the value
     if (unit) {
-      return `${value.toLocaleString()}${unit}`;
+      return `${value.toLocaleString()}${unit}`
     }
 
     // Just return the value if no unit
-    return value.toLocaleString();
-  };
+    return value.toLocaleString()
+  }
 
   // Helper function to determine if a metric value should be considered concerning
   const isConcerningMetric = (metricName: string, value: number): boolean => {
@@ -1003,11 +1003,11 @@ function App() {
       layoutDuration: 30, // ms
       jsHeapUsedSize: 50 * 1024 * 1024, // 50MB in bytes
       percentCPUUsage: 50, // percent
-    };
+    }
 
-    if (!(metricName in thresholds)) return false;
-    return value > thresholds[metricName];
-  };
+    if (!(metricName in thresholds)) return false
+    return value > thresholds[metricName]
+  }
 
   // Transform metrics data for the dashboard
   const transformMetricsData = () => {
@@ -1016,72 +1016,72 @@ function App() {
       !activeReport.scenarios ||
       activeReport.scenarios.length === 0
     ) {
-      return {sections: [], memoryData: [], cpuData: [], scriptData: []};
+      return {sections: [], memoryData: [], cpuData: [], scriptData: []}
     }
 
-    const sections = activeReport.scenarios.map((scenario) => scenario.name);
+    const sections = activeReport.scenarios.map((scenario) => scenario.name)
 
     // Memory chart data
     const memoryData = activeReport.scenarios.map((scenario) => {
       const heapUsed =
-        scenario.metrics.find((m) => m.name === "jsHeapUsedSize")?.value || 0;
+        scenario.metrics.find((m) => m.name === 'jsHeapUsedSize')?.value || 0
       const heapTotal =
-        scenario.metrics.find((m) => m.name === "jsHeapTotalSize")?.value || 0;
+        scenario.metrics.find((m) => m.name === 'jsHeapTotalSize')?.value || 0
 
       return {
         name: formatScenarioName(scenario.name),
         memory: heapUsed,
         total: heapTotal,
-      };
-    });
+      }
+    })
 
     // CPU chart data
     const cpuData = activeReport.scenarios.map((scenario) => {
       const cpuUsage =
-        scenario.metrics.find((m) => m.name === "percentCPUUsage")?.value || 0;
+        scenario.metrics.find((m) => m.name === 'percentCPUUsage')?.value || 0
 
       return {
         name: formatScenarioName(scenario.name),
         cpu: cpuUsage,
-      };
-    });
+      }
+    })
 
     // Script, layout, and style data
     const scriptData = activeReport.scenarios.map((scenario) => {
       const scriptDuration =
-        scenario.metrics.find((m) => m.name === "scriptDuration")?.value || 0;
+        scenario.metrics.find((m) => m.name === 'scriptDuration')?.value || 0
       const layoutDuration =
-        scenario.metrics.find((m) => m.name === "layoutDuration")?.value || 0;
+        scenario.metrics.find((m) => m.name === 'layoutDuration')?.value || 0
       const styleDuration =
         scenario.metrics.find(
-          (m) => m.name === "recalcStyleDuration" || "styleRecalcDuration"
-        )?.value || 0;
+          (m) => m.name === 'recalcStyleDuration' || 'styleRecalcDuration',
+        )?.value || 0
 
       return {
         name: formatScenarioName(scenario.name),
         script: scriptDuration * 1000, // Convert to ms
         layout: layoutDuration * 1000,
         style: styleDuration * 1000,
-      };
-    });
+      }
+    })
 
-    return {sections, memoryData, cpuData, scriptData};
-  };
+    return {sections, memoryData, cpuData, scriptData}
+  }
 
   // Helper to format scenario names for display
   const formatScenarioName = (name: string): string => {
     return name
-      .split("-")
+      .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
+      .join(' ')
+  }
 
   // Get all metrics for a given scenario
   const getScenarioMetrics = (scenarioName: string): ScenarioResult | null => {
-    if (!activeReport) return null;
+    if (!activeReport) return null
 
-    return activeReport.scenarios.find((s) => s.name === scenarioName) || null;
-  };
+    return activeReport.scenarios.find((s) => s.name === scenarioName) || null
+  }
 
   // Get average values for key metrics across all scenarios
   const getAverageMetrics = () => {
@@ -1096,44 +1096,44 @@ function App() {
         maxMemoryUsage: 0,
         maxTotalMemory: 0,
         avgMemoryPercentage: 0,
-      };
+      }
     }
 
-    let totalMemory = 0;
-    let totalCpu = 0;
-    let maxMemory = 0;
-    let maxTotal = 0;
-    let count = 0;
+    let totalMemory = 0
+    let totalCpu = 0
+    let maxMemory = 0
+    let maxTotal = 0
+    let count = 0
 
     activeReport.scenarios.forEach((scenario) => {
       const memoryMetric = scenario.metrics.find(
-        (m) => m.name === "jsHeapUsedSize"
-      );
+        (m) => m.name === 'jsHeapUsedSize',
+      )
       const totalMemoryMetric = scenario.metrics.find(
-        (m) => m.name === "jsHeapTotalSize"
-      );
+        (m) => m.name === 'jsHeapTotalSize',
+      )
       const cpuMetric = scenario.metrics.find(
-        (m) => m.name === "percentCPUUsage"
-      );
+        (m) => m.name === 'percentCPUUsage',
+      )
 
       if (memoryMetric) {
-        totalMemory += memoryMetric.value;
-        maxMemory = Math.max(maxMemory, memoryMetric.value);
-        count++;
+        totalMemory += memoryMetric.value
+        maxMemory = Math.max(maxMemory, memoryMetric.value)
+        count++
       }
 
       if (totalMemoryMetric) {
-        maxTotal = Math.max(maxTotal, totalMemoryMetric.value);
+        maxTotal = Math.max(maxTotal, totalMemoryMetric.value)
       }
 
       if (cpuMetric) {
-        totalCpu += cpuMetric.value;
+        totalCpu += cpuMetric.value
       }
-    });
+    })
 
-    const avgMemory = count > 0 ? totalMemory / count : 0;
-    const avgCpu = count > 0 ? totalCpu / count : 0;
-    const avgMemoryPercentage = maxTotal > 0 ? (avgMemory / maxTotal) * 100 : 0;
+    const avgMemory = count > 0 ? totalMemory / count : 0
+    const avgCpu = count > 0 ? totalCpu / count : 0
+    const avgMemoryPercentage = maxTotal > 0 ? (avgMemory / maxTotal) * 100 : 0
 
     return {
       avgMemoryUsage: avgMemory,
@@ -1141,41 +1141,41 @@ function App() {
       maxMemoryUsage: maxMemory,
       maxTotalMemory: maxTotal,
       avgMemoryPercentage,
-    };
-  };
+    }
+  }
 
   // Get startup-specific metrics
   const getStartupMetrics = () => {
-    if (!activeReport) return null;
+    if (!activeReport) return null
 
     const startupScenario = activeReport.scenarios.find(
-      (s) => s.name === "app-startup"
-    );
-    if (!startupScenario) return null;
+      (s) => s.name === 'app-startup',
+    )
+    if (!startupScenario) return null
 
     // Map of metric names to values
-    const metrics: Record<string, {value: number; unit: string}> = {};
+    const metrics: Record<string, {value: number; unit: string}> = {}
 
     startupScenario.metrics.forEach((metric) => {
       metrics[metric.name] = {
         value: metric.value,
         unit: metric.unit,
-      };
-    });
+      }
+    })
 
-    return metrics;
-  };
+    return metrics
+  }
 
   // Get concerning metrics across scenarios
   const getConcerningMetrics = () => {
-    if (!activeReport) return [];
+    if (!activeReport) return []
 
     const concerns: {
-      scenario: string;
-      metric: string;
-      value: number;
-      unit: string;
-    }[] = [];
+      scenario: string
+      metric: string
+      value: number
+      unit: string
+    }[] = []
 
     activeReport.scenarios.forEach((scenario) => {
       scenario.metrics.forEach((metric) => {
@@ -1185,13 +1185,13 @@ function App() {
             metric: metric.name,
             value: metric.value,
             unit: metric.unit,
-          });
+          })
         }
-      });
-    });
+      })
+    })
 
-    return concerns;
-  };
+    return concerns
+  }
 
   // Find the most appropriate icon for a metric
   const getMetricIcon = (metricName: string) => {
@@ -1204,88 +1204,88 @@ function App() {
       percentCPUUsage: <Icons.Cpu size={20} />,
       taskDuration: <Icons.Activity size={20} />,
       performanceScore: <Icons.Gauge size={20} />,
-    };
+    }
 
-    return iconMap[metricName] || <Icons.Activity size={20} />;
-  };
+    return iconMap[metricName] || <Icons.Activity size={20} />
+  }
 
   // Get formatted display name for a metric
   const getMetricDisplayName = (metricName: string): string => {
     const displayNames: Record<string, string> = {
-      timeToInteractive: "Time to Interactive",
-      appStartupTime: "App Startup Time",
-      scriptDuration: "Script Duration",
-      layoutDuration: "Layout Duration",
-      jsHeapUsedSize: "JS Heap Used",
-      percentCPUUsage: "CPU Usage",
-      taskDuration: "Task Duration",
-      styleRecalcDuration: "Style Recalc Duration",
-      recalcStyleDuration: "Style Recalc Duration",
-      paintDuration: "Paint Duration",
-      performanceScore: "Performance Score",
-    };
+      timeToInteractive: 'Time to Interactive',
+      appStartupTime: 'App Startup Time',
+      scriptDuration: 'Script Duration',
+      layoutDuration: 'Layout Duration',
+      jsHeapUsedSize: 'JS Heap Used',
+      percentCPUUsage: 'CPU Usage',
+      taskDuration: 'Task Duration',
+      styleRecalcDuration: 'Style Recalc Duration',
+      recalcStyleDuration: 'Style Recalc Duration',
+      paintDuration: 'Paint Duration',
+      performanceScore: 'Performance Score',
+    }
 
     return (
       displayNames[metricName] ||
       metricName
-        .replace(/([A-Z])/g, " $1")
+        .replace(/([A-Z])/g, ' $1')
         .replace(/^./, (str) => str.toUpperCase())
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-    );
-  };
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+    )
+  }
 
   // Render loading state
   if (isLoading && !activeReport) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <div className="text-gray-500">
           Loading Electron performance data...
         </div>
       </div>
-    );
+    )
   }
 
   // Render error state
   if (error && !activeReport) {
     return (
-      <div className="p-4 bg-red-50 rounded-lg">
+      <div className="rounded-lg bg-red-50 p-4">
         <div className="text-red-700">{error}</div>
-        <div className="text-red-600 text-sm mt-1">
+        <div className="mt-1 text-sm text-red-600">
           Check that performance test results exist and are accessible.
         </div>
       </div>
-    );
+    )
   }
 
   // Case where no reports are found
   if (reports.length === 0) {
     return (
-      <div className="p-4 bg-yellow-50 rounded-lg">
+      <div className="rounded-lg bg-yellow-50 p-4">
         <div className="text-yellow-800">
           No electron performance test results found.
         </div>
-        <div className="text-yellow-700 text-sm mt-1">
+        <div className="mt-1 text-sm text-yellow-700">
           Run performance tests to generate data for the dashboard.
         </div>
       </div>
-    );
+    )
   }
 
   // Get our transformed data for the dashboard
-  const {memoryData, cpuData, scriptData} = transformMetricsData();
-  const averages = getAverageMetrics();
-  const startupMetrics = getStartupMetrics();
-  const concerningMetrics = getConcerningMetrics();
+  const {memoryData, cpuData, scriptData} = transformMetricsData()
+  const averages = getAverageMetrics()
+  const startupMetrics = getStartupMetrics()
+  const concerningMetrics = getConcerningMetrics()
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="rounded-lg bg-white p-6 shadow">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900">
               Electron Performance Dashboard
             </h2>
-            <p className="text-gray-500 mb-6">
+            <p className="mb-6 text-gray-500">
               Latest results from {new Date(reports[0].date).toLocaleString()}
             </p>
           </div>
@@ -1296,9 +1296,9 @@ function App() {
               </label>
               <select
                 id="report-select"
-                value={activeReportId || ""}
+                value={activeReportId || ''}
                 onChange={(e) => setActiveReportId(e.target.value)}
-                className="border rounded-md py-1 px-2 text-sm"
+                className="rounded-md border px-2 py-1 text-sm"
               >
                 {reports.map((report) => (
                   <option key={report.id} value={report.id}>
@@ -1315,48 +1315,48 @@ function App() {
             <div className="tabs-header">
               <button
                 className={`tab-button ${
-                  activeTab === "overview" ? "active" : ""
+                  activeTab === 'overview' ? 'active' : ''
                 }`}
-                onClick={() => setActiveTab("overview")}
+                onClick={() => setActiveTab('overview')}
               >
                 Overview
               </button>
               <button
                 className={`tab-button ${
-                  activeTab === "memory" ? "active" : ""
+                  activeTab === 'memory' ? 'active' : ''
                 }`}
-                onClick={() => setActiveTab("memory")}
+                onClick={() => setActiveTab('memory')}
               >
                 Memory
               </button>
               <button
                 className={`tab-button ${
-                  activeTab === "performance" ? "active" : ""
+                  activeTab === 'performance' ? 'active' : ''
                 }`}
-                onClick={() => setActiveTab("performance")}
+                onClick={() => setActiveTab('performance')}
               >
                 Performance
               </button>
               <button
                 className={`tab-button ${
-                  activeTab === "heatmap" ? "active" : ""
+                  activeTab === 'heatmap' ? 'active' : ''
                 }`}
-                onClick={() => setActiveTab("heatmap")}
+                onClick={() => setActiveTab('heatmap')}
               >
                 Heatmap
               </button>
               <button
                 className={`tab-button ${
-                  activeTab === "changes" ? "active" : ""
+                  activeTab === 'changes' ? 'active' : ''
                 }`}
-                onClick={() => setActiveTab("changes")}
+                onClick={() => setActiveTab('changes')}
               >
                 Changes
               </button>
             </div>
 
             {/* Overview Tab */}
-            {activeTab === "overview" && (
+            {activeTab === 'overview' && (
               <div className="tab-content">
                 {/* Key Metrics Card Row */}
                 <div className="metric-summary">
@@ -1379,8 +1379,8 @@ function App() {
                           width: `${Math.min(100, averages.avgCpuUsage)}%`,
                           backgroundColor:
                             averages.avgCpuUsage > 70
-                              ? "var(--color-danger)"
-                              : "var(--color-primary)",
+                              ? 'var(--color-danger)'
+                              : 'var(--color-primary)',
                         }}
                       ></div>
                     </div>
@@ -1394,7 +1394,7 @@ function App() {
                       <div className="metric-card-info">
                         <h3 className="metric-card-title">Memory Usage</h3>
                         <div className="metric-card-value">
-                          {formatBytes(averages.avgMemoryUsage)} /{" "}
+                          {formatBytes(averages.avgMemoryUsage)} /{' '}
                           {formatBytes(averages.maxTotalMemory)}
                         </div>
                       </div>
@@ -1405,12 +1405,12 @@ function App() {
                         style={{
                           width: `${Math.min(
                             100,
-                            averages.avgMemoryPercentage
+                            averages.avgMemoryPercentage,
                           )}%`,
                           backgroundColor:
                             averages.avgMemoryPercentage > 70
-                              ? "var(--color-danger)"
-                              : "var(--color-primary)",
+                              ? 'var(--color-danger)'
+                              : 'var(--color-primary)',
                         }}
                       ></div>
                     </div>
@@ -1427,7 +1427,7 @@ function App() {
                           <div className="metric-card-value">
                             {formatMetricValue(
                               startupMetrics.appStartupTime.value,
-                              startupMetrics.appStartupTime.unit
+                              startupMetrics.appStartupTime.unit,
                             )}
                           </div>
                         </div>
@@ -1438,12 +1438,13 @@ function App() {
                           style={{
                             width: `${Math.min(
                               100,
-                              (startupMetrics.appStartupTime.value / 1000) * 100
+                              (startupMetrics.appStartupTime.value / 1000) *
+                                100,
                             )}%`,
                             backgroundColor:
                               startupMetrics.appStartupTime.value > 500
-                                ? "var(--color-danger)"
-                                : "var(--color-primary)",
+                                ? 'var(--color-danger)'
+                                : 'var(--color-primary)',
                           }}
                         ></div>
                       </div>
@@ -1511,8 +1512,8 @@ function App() {
                             key={scenario.name}
                             className="scenario-card"
                             onClick={() => {
-                              setSelectedScenario(scenario.name);
-                              setActiveTab("performance");
+                              setSelectedScenario(scenario.name)
+                              setActiveTab('performance')
                             }}
                           >
                             <h3 className="scenario-name">
@@ -1536,15 +1537,15 @@ function App() {
                                     className={`scenario-metric-value ${
                                       isConcerningMetric(
                                         metric.name,
-                                        metric.value
+                                        metric.value,
                                       )
-                                        ? "value-danger"
-                                        : ""
+                                        ? 'value-danger'
+                                        : ''
                                     }`}
                                   >
                                     {formatMetricValue(
                                       metric.value,
-                                      metric.unit
+                                      metric.unit,
                                     )}
                                   </span>
                                 </div>
@@ -1559,7 +1560,7 @@ function App() {
             )}
 
             {/* Memory Tab */}
-            {activeTab === "memory" && (
+            {activeTab === 'memory' && (
               <div className="tab-content">
                 <div className="dashboard-card">
                   <h2 className="card-title">
@@ -1645,8 +1646,8 @@ function App() {
                                   width: `${Math.min(100, item.cpu)}%`,
                                   backgroundColor:
                                     item.cpu > 70
-                                      ? "var(--color-danger)"
-                                      : "var(--color-primary)",
+                                      ? 'var(--color-danger)'
+                                      : 'var(--color-primary)',
                                 }}
                               ></div>
                             </div>
@@ -1663,7 +1664,7 @@ function App() {
             )}
 
             {/* Performance Tab */}
-            {activeTab === "performance" && (
+            {activeTab === 'performance' && (
               <div className="tab-content">
                 <div className="dashboard-card">
                   <div className="scenario-selector">
@@ -1673,7 +1674,7 @@ function App() {
                     </h2>
                     <select
                       className="scenario-select"
-                      value={selectedScenario || ""}
+                      value={selectedScenario || ''}
                       onChange={(e) => setSelectedScenario(e.target.value)}
                     >
                       {activeReport &&
@@ -1696,10 +1697,10 @@ function App() {
                                   className={`detailed-metric-card ${
                                     isConcerningMetric(
                                       metric.name,
-                                      metric.value
+                                      metric.value,
                                     )
-                                      ? "metric-concerning"
-                                      : "metric-ok"
+                                      ? 'metric-concerning'
+                                      : 'metric-ok'
                                   }`}
                                 >
                                   <div className="detailed-metric-header">
@@ -1713,7 +1714,7 @@ function App() {
                                   <div className="detailed-metric-value">
                                     {formatMetricValue(
                                       metric.value,
-                                      metric.unit
+                                      metric.unit,
                                     )}
                                   </div>
                                   {metric.description && (
@@ -1722,7 +1723,7 @@ function App() {
                                     </div>
                                   )}
                                 </div>
-                              )
+                              ),
                             )}
                           </div>
                         </div>
@@ -1756,7 +1757,7 @@ function App() {
                                     style={{
                                       width: `${Math.min(
                                         100,
-                                        item.script / 10
+                                        item.script / 10,
                                       )}%`,
                                     }}
                                   ></div>
@@ -1775,7 +1776,7 @@ function App() {
                                     style={{
                                       width: `${Math.min(
                                         100,
-                                        item.layout / 10
+                                        item.layout / 10,
                                       )}%`,
                                     }}
                                   ></div>
@@ -1794,7 +1795,7 @@ function App() {
                                     style={{
                                       width: `${Math.min(
                                         100,
-                                        item.style / 10
+                                        item.style / 10,
                                       )}%`,
                                     }}
                                   ></div>
@@ -1814,7 +1815,7 @@ function App() {
             )}
 
             {/* Heatmap Tab */}
-            {activeTab === "heatmap" && (
+            {activeTab === 'heatmap' && (
               <div className="tab-content">
                 <div className="tab-header">
                   <h2 className="tab-title">Performance Metrics Heatmap</h2>
@@ -1833,7 +1834,7 @@ function App() {
             )}
 
             {/* Changes Tab */}
-            {activeTab === "changes" && (
+            {activeTab === 'changes' && (
               <div className="tab-content">
                 <div className="tab-header">
                   <h2 className="tab-title">Performance Changes Dashboard</h2>
@@ -1861,7 +1862,7 @@ function App() {
         </footer>
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

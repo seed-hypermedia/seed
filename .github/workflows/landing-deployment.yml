@@ -4,10 +4,10 @@ name: Deploy Seed Landing Page
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["main"]
+    branches: ['main']
     paths:
-      - "frontend/apps/landing/**"
-      - ".github/workflows/landing-deployment.yml"
+      - 'frontend/apps/landing/**'
+      - '.github/workflows/landing-deployment.yml'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -20,7 +20,7 @@ permissions:
 
 # Allow one concurrent deployment
 concurrency:
-  group: "pages"
+  group: 'pages'
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "yarn"
+          cache: 'yarn'
       - name: Install Frontend Dependencies
         env:
           YARN_ENABLE_IMMUTABLE_INSTALLS: false

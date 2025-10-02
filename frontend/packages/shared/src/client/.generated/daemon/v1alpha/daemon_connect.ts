@@ -3,8 +3,30 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  CreateDeviceLinkSessionRequest,
+  DeleteAllKeysRequest,
+  DeleteKeyRequest,
+  DeviceLinkSession,
+  ForceReindexRequest,
+  ForceReindexResponse,
+  ForceSyncRequest,
+  GenMnemonicRequest,
+  GenMnemonicResponse,
+  GetDeviceLinkSessionRequest,
+  GetInfoRequest,
+  Info,
+  ListKeysRequest,
+  ListKeysResponse,
+  NamedKey,
+  RegisterKeyRequest,
+  SignDataRequest,
+  SignDataResponse,
+  StoreBlobsRequest,
+  StoreBlobsResponse,
+  UpdateKeyRequest,
+} from './daemon_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Daemon API allows to control and administer the Seed Daemon.
@@ -12,7 +34,7 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.daemon.v1alpha.Daemon
  */
 export const Daemon = {
-  typeName: "com.seed.daemon.v1alpha.Daemon",
+  typeName: 'com.seed.daemon.v1alpha.Daemon',
   methods: {
     /**
      * Generates a set of BIP-39-compatible mnemonic words encoding a cryptographic seed.
@@ -22,7 +44,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.GenMnemonic
      */
     genMnemonic: {
-      name: "GenMnemonic",
+      name: 'GenMnemonic',
       I: GenMnemonicRequest,
       O: GenMnemonicResponse,
       kind: MethodKind.Unary,
@@ -34,7 +56,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.RegisterKey
      */
     registerKey: {
-      name: "RegisterKey",
+      name: 'RegisterKey',
       I: RegisterKeyRequest,
       O: NamedKey,
       kind: MethodKind.Unary,
@@ -45,7 +67,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetInfo
      */
     getInfo: {
-      name: "GetInfo",
+      name: 'GetInfo',
       I: GetInfoRequest,
       O: Info,
       kind: MethodKind.Unary,
@@ -56,7 +78,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.ForceSync
      */
     forceSync: {
-      name: "ForceSync",
+      name: 'ForceSync',
       I: ForceSyncRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -67,7 +89,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.ForceReindex
      */
     forceReindex: {
-      name: "ForceReindex",
+      name: 'ForceReindex',
       I: ForceReindexRequest,
       O: ForceReindexResponse,
       kind: MethodKind.Unary,
@@ -78,7 +100,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.ListKeys
      */
     listKeys: {
-      name: "ListKeys",
+      name: 'ListKeys',
       I: ListKeysRequest,
       O: ListKeysResponse,
       kind: MethodKind.Unary,
@@ -89,7 +111,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.UpdateKey
      */
     updateKey: {
-      name: "UpdateKey",
+      name: 'UpdateKey',
       I: UpdateKeyRequest,
       O: NamedKey,
       kind: MethodKind.Unary,
@@ -100,7 +122,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.DeleteKey
      */
     deleteKey: {
-      name: "DeleteKey",
+      name: 'DeleteKey',
       I: DeleteKeyRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -111,7 +133,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.DeleteAllKeys
      */
     deleteAllKeys: {
-      name: "DeleteAllKeys",
+      name: 'DeleteAllKeys',
       I: DeleteAllKeysRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -123,7 +145,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.StoreBlobs
      */
     storeBlobs: {
-      name: "StoreBlobs",
+      name: 'StoreBlobs',
       I: StoreBlobsRequest,
       O: StoreBlobsResponse,
       kind: MethodKind.Unary,
@@ -140,7 +162,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession
      */
     createDeviceLinkSession: {
-      name: "CreateDeviceLinkSession",
+      name: 'CreateDeviceLinkSession',
       I: CreateDeviceLinkSessionRequest,
       O: DeviceLinkSession,
       kind: MethodKind.Unary,
@@ -151,7 +173,7 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession
      */
     getDeviceLinkSession: {
-      name: "GetDeviceLinkSession",
+      name: 'GetDeviceLinkSession',
       I: GetDeviceLinkSessionRequest,
       O: DeviceLinkSession,
       kind: MethodKind.Unary,
@@ -162,11 +184,10 @@ export const Daemon = {
      * @generated from rpc com.seed.daemon.v1alpha.Daemon.SignData
      */
     signData: {
-      name: "SignData",
+      name: 'SignData',
       I: SignDataRequest,
       O: SignDataResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const
