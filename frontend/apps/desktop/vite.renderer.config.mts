@@ -69,20 +69,17 @@ export default defineConfig(({command, mode}) => {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
-        '@noble/curves/secp256k1': '@noble/curves/secp256k1',
-        '@noble/hashes/utils': '@noble/hashes/utils',
-        '@noble/hashes/sha256': '@noble/hashes/sha256',
-        '@noble/ciphers/chacha': '@noble/ciphers/chacha',
+        '@noble/curves/secp256k1': '@noble/curves/secp256k1.js',
+        '@noble/hashes/utils': '@noble/hashes/utils.js',
+        '@noble/hashes/sha256': '@noble/hashes/sha2.js',
+        '@noble/ciphers/chacha': '@noble/ciphers/chacha.js',
       },
     },
     alias: {
       'react-native': 'react-native-web',
     },
     optimizeDeps: {
-      exclude: [
-        '@date-fns/tz',
-        '@ariakit/core',
-      ],
+      exclude: ['@date-fns/tz', '@ariakit/core'],
       include: [
         '@noble/curves',
         '@noble/hashes',

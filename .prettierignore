@@ -1,0 +1,20 @@
+# Build outputs
+.vite
+build
+dist
+out
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Lockfiles
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+*.min.css
+
+# Cache
+.turbo
+.cache
