@@ -45,7 +45,8 @@ export function DocumentDate({
   if (metadata?.displayPublishTime) {
     content.unshift(
       <SizableText
-        className="text-brand/50"
+        // className="text-brand/50"
+        className="brand"
         size="sm"
         key="original-publish-date"
       >
@@ -59,14 +60,14 @@ export function DocumentDate({
         <SizableText
           size="xs"
           color={metadata?.displayPublishTime ? 'brand' : 'muted'}
-          className="shrink-0 grow-0 cursor-default"
+          className="cursor-default shrink-0 grow-0"
         >
           {displayText}
         </SizableText>
       </HoverCardTrigger>
       {!disableTooltip && (
         <HoverCardContent>
-          <div className="flex flex-col items-center justify-center gap-2">
+          <div className="flex flex-col gap-2 justify-center items-center">
             {content}
           </div>
         </HoverCardContent>
