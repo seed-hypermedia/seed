@@ -1,3 +1,5 @@
+import {UnpackedHypermediaId} from '@shm/shared'
+import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
 import {NavRoute} from '@shm/shared/routes'
@@ -103,4 +105,12 @@ export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
       {formattedDateShort(time)}
     </SizableText>
   )
+}
+
+export function Feed2({docId}: {docId: UnpackedHypermediaId}) {
+  const data = useActivityFeed({docId})
+
+  console.log(`== ~ Feed2 ~ data:`, data)
+
+  return null
 }

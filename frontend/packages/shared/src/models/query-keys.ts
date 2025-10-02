@@ -103,6 +103,9 @@ export const queryKeys = {
   // contacts
   CONTACTS_ACCOUNT: 'CONTACTS_ACCOUNT', // accountUid: string
   CONTACTS_SUBJECT: 'CONTACTS_SUBJECT', // accountUid: string
+
+  // activity
+  ACTIVITY_FEED: 'ACTIVITY_FEED', // pageSize, pageToken, trustedOnly, filterAuthors, filterEventType, filterResource, addLinkedResource
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
@@ -211,6 +214,10 @@ export function labelOfQueryKey(key: QueryKey) {
       return 'Host Info'
     case queryKeys.HOST_ABSORB_SESSION:
       return 'Host Establish Session'
+
+    // activity
+    case queryKeys.ACTIVITY_FEED:
+      return 'Activity Feed'
 
     default:
       // return 'unknown'
