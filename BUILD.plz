@@ -12,9 +12,19 @@ gomod(
     ],
 )
 
-# Installs JS dependencies.
-yarn_install(
+# Installs JS dependencies with PNPM.
+pnpm_install(
+    name = "pnpm",
+    visibility = [
+        "//build/tools/...",
+        "//frontend/...",
+    ],
+)
+
+# Legacy yarn target for backward compatibility (points to pnpm now).
+filegroup(
     name = "yarn",
+    srcs = [":pnpm"],
     visibility = [
         "//build/tools/...",
         "//frontend/...",

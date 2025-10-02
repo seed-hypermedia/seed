@@ -29,10 +29,34 @@ def nixpkgs_binary(
         srcs = [":srcs"],
         outs = [name],
         binary = True,
-        cmd = """
+    cmd = """
 set -e
 HOME=$(eval echo ~$(whoami))
-STORE_PATH="$($HOME/.nix-profile/bin/nix-build --no-out-link $entrypoint -A $nix_attribute)"
+if [ -x "$HOME/.nix-profile/bin/nix-build" ]; then
+  NIX_BUILD="$HOME/.nix-profile/bin/nix-build"
+elif command -v nix-build >/dev/null 2>&1; then
+  NIX_BUILD="$(command -v nix-build)"
+else
+  NIX_BUILD=""
+fi
+
+if [ -n "$NIX_BUILD" ]; then
+  STORE_PATH="$($NIX_BUILD --no-out-link $entrypoint -A $nix_attribute)"
+else
+  NIX_CLI=""
+  if command -v nix >/dev/null 2>&1; then
+    NIX_CLI="$(command -v nix)"
+  elif [ -x "/nix/var/nix/profiles/default/bin/nix" ]; then
+    NIX_CLI="/nix/var/nix/profiles/default/bin/nix"
+  elif [ -x "/run/current-system/sw/bin/nix" ]; then
+    NIX_CLI="/run/current-system/sw/bin/nix"
+  fi
+  if [ -z "$NIX_CLI" ]; then
+    echo "Neither nix-build nor nix found in PATH" >&2
+    exit 1
+  fi
+  STORE_PATH="$("$NIX_CLI" --extra-experimental-features nix-command --extra-experimental-features flakes build --impure --no-link --print-out-paths --file $entrypoint $nix_attribute)"
+fi
 cat > $OUT <<EOF
 #!/bin/sh
 exec $STORE_PATH/bin/$bin $(echo '$@')
@@ -58,6 +82,11 @@ nixpkgs_binary(
 
 nixpkgs_binary(
     name = "yarn",
+)
+
+nixpkgs_binary(
+    name = "pnpm",
+    nix_attribute = "pnpm",
 )
 
 nixpkgs_binary(

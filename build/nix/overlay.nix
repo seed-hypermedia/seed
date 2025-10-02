@@ -16,4 +16,15 @@ self: super: {
     buildGoModule = self.buildGo122Module;
   };
   mkLazyWrapper = super.callPackage ./mk-lazy-wrapper {};
+  pnpm = self.writeShellScriptBin "pnpm" ''
+    set -euo pipefail
+    CACHE_DIR="''${COREPACK_HOME:-$HOME/.cache/corepack}"
+    mkdir -p "$CACHE_DIR"
+    TMP_DIR="''${TMPDIR:-$HOME/.cache/tmp}"
+    mkdir -p "$TMP_DIR"
+    export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    export COREPACK_HOME="$CACHE_DIR"
+    export TMPDIR="$TMP_DIR"
+    exec ${self.nodejs}/bin/corepack pnpm "$@"
+  '';
 }

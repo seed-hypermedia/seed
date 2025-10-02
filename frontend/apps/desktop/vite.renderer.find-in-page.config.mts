@@ -1,4 +1,4 @@
-import {sentryVitePlugin} from '@sentry/vite-plugin'
+// import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
 import react from '@vitejs/plugin-react'
@@ -55,16 +55,16 @@ export default defineConfig(({command, mode}) => {
     },
   }
 
-  if (command == 'build') {
-    config.plugins.push(
-      sentryVitePlugin({
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-        org: 'mintter',
-        project: 'electron',
-        telemetry: false,
-      }),
-    )
-  }
+  // if (command == 'build') {
+  //   config.plugins.push(
+  //     sentryVitePlugin({
+  //       authToken: process.env.SENTRY_AUTH_TOKEN,
+  //       org: 'mintter',
+  //       project: 'electron',
+  //       telemetry: false,
+  //     }),
+  //   )
+  // }
 
   return config
 })

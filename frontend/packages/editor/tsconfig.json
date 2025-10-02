@@ -1,66 +1,23 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    // Language and Environment
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "jsx": "preserve",
-
-    // Module Resolution
+    "composite": false,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "baseUrl": ".",
     "paths": {
-      "@shm/ui/*": ["../ui/src/*"],
-      "@shm/shared/*": ["../shared/src/*"],
-      "@shm/editor/*": ["./src/*"],
       "@/*": ["./src/*"],
-      "@": ["./src/index"]
-    },
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-
-    // Type Checking - Balanced Strictness
-    "strict": true,
-    "noImplicitReturns": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-
-    // Error Prevention (commented out aggressive ones)
-    // "noUnusedLocals": true,           // Can be overwhelming in development
-    // "noUnusedParameters": true,       // Often parameters are kept for interface compliance
-    // "exactOptionalPropertyTypes": true, // Very strict, can be problematic with existing APIs
-    // "verbatimModuleSyntax": true,     // Forces type-only imports, can be disruptive
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-
-    // Best Practices
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "allowJs": true,
-    "checkJs": false,
-
-    // Emit
-    "noEmit": true,
-    "declaration": false,
-    "sourceMap": false,
-
-    // Performance
-    "skipLibCheck": true,
-    "incremental": true,
-
-    // Experimental
-    "plugins": []
+      "@": ["./src/index"],
+      "@shm/ui": ["../ui/src/index.tsx"],
+      "@shm/ui/*": ["../ui/src/*"],
+      "@shm/shared": ["../shared/src/index.ts"],
+      "@shm/shared/*": ["../shared/src/*"],
+      "@shm/editor/*": ["./src/*"]
+    }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/*.spec.ts",
-    "**/*.spec.tsx"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "dist", "node_modules"]
 }

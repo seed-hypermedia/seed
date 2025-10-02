@@ -8,6 +8,7 @@ let
       findutils
       go
       nodejs
+      pnpm
       yarn
       please
       python3

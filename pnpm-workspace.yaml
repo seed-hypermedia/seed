@@ -1,0 +1,7 @@
+packages:
+  # Frontend apps
+  - 'frontend/apps/*'
+  # Frontend packages
+  - 'frontend/packages/*'
+  # Docs
+  - 'docs'

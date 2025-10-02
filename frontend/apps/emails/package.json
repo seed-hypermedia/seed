@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@faire/mjml-react": "^3.5.0",
-    "@shm/shared": "*",
+    "@shm/shared": "workspace:*",
+    "date-fns": "4.1.0",
     "mjml": "^4.15.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

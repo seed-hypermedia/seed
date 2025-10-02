@@ -16,7 +16,7 @@ declare global {
     }
   }
 }
-import * as Sentry from '@sentry/electron/main'
+// import * as Sentry from '@sentry/electron/main'
 import {
   app,
   BrowserWindow,
@@ -68,19 +68,19 @@ const OS_REGISTER_SCHEME = 'hm'
 // @ts-ignore
 global.electronTRPC = {}
 
-Sentry.init({
-  debug: false,
-  release: VERSION,
-  environment: process.env.NODE_ENV || 'development',
-  dsn: process.env.SENTRY_DESKTOP_DSN,
-  transportOptions: {
-    maxQueueAgeDays: 30,
-    maxQueueCount: 30,
-    queuedLengthChanged: (length: number) => {
-      logger.debug('[MAIN]: Sentry queue changed ' + length)
-    },
-  },
-})
+// Sentry.init({
+//   debug: false,
+//   release: VERSION,
+//   environment: process.env.NODE_ENV || 'development',
+//   dsn: process.env.SENTRY_DESKTOP_DSN,
+//   transportOptions: {
+//     maxQueueAgeDays: 30,
+//     maxQueueCount: 30,
+//     queuedLengthChanged: (length: number) => {
+//       logger.debug('[MAIN]: Sentry queue changed ' + length)
+//     },
+//   },
+// })
 
 // Core initialization
 initPaths()
