@@ -83,6 +83,64 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return false
         }
 
+        // Temporary fix to handle lists to prevent infinite nesting
+        const pastedHtml = _event.clipboardData?.getData('text/html') || ''
+        const hasList = pastedHtml.includes('<ul') || pastedHtml.includes('<ol')
+
+        if (hasList) {
+          const firstBlockGroup =
+            slice.content.firstChild?.type.name === 'blockGroup'
+          const nodes = getPastedNodes(
+            firstBlockGroup ? slice.content.firstChild : slice.content,
+            options.editor,
+          )
+
+          if (nodes.length > 0) {
+            let tr = state.tr
+            if (!selection.empty) {
+              tr.delete(selection.from, selection.to)
+            }
+
+            // Insert each normalized node individually
+            let currentPos = selection.from
+            nodes.forEach((node) => {
+              tr.insert(currentPos, node)
+              currentPos += node.nodeSize
+            })
+
+            // Apply link marks to the normalized content
+            slice.content.forEach((node: any) => {
+              if (node.type.name === 'blockGroup') return
+
+              const nodeText = node.textContent || ''
+              const fragmentLinks = find(nodeText) || []
+
+              if (fragmentLinks.length > 0) {
+                const base = selection.from
+                fragmentLinks.forEach((link: any) => {
+                  const from = base + link.start
+                  const to = base + link.end
+
+                  const markType = options.type
+                  const hasMark = tr.doc.rangeHasMark(from, to, markType)
+
+                  if (!hasMark) {
+                    const id = nanoid(8)
+                    tr.addMark(
+                      from,
+                      to,
+                      markType.create({href: link.href, id}),
+                    ).setMeta('hmPlugin:uncheckedLink', id)
+                  }
+                })
+              }
+            })
+
+            view.dispatch(tr)
+            return true
+          }
+        }
+
         const pastedLinkMarks: Mark[] = []
         let textContent = ''
 
@@ -552,8 +610,8 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
 
         // Check if there are any links in the pasted content
         let hasLinksInContent = false
+
         slice.content.forEach((node: any) => {
-          if (node.type.name === 'blockGroup') return
           const nodeText = node.textContent || ''
           const fragmentLinks = find(nodeText) || []
           if (fragmentLinks.length > 0) {
@@ -803,6 +861,53 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
   }
 
   return pastePlugin
+}
+
+// List normalization function
+function getPastedNodes(parent: any, editor: any): any[] {
+  const nodes: any[] = []
+
+  parent.forEach((node: any) => {
+    if (node.type.name === 'blockGroup') {
+      const prevContainer = nodes.pop()
+      if (prevContainer) {
+        // @ts-ignore
+        const container = editor.schema.nodes['blockContainer'].create(
+          prevContainer.attrs,
+          prevContainer.content.addToEnd(node),
+        )
+        nodes.push(container)
+      }
+    } else if (node.type.name !== 'blockContainer') {
+      let nodeToInsert = node
+      if (node.type.name === 'text') {
+        // @ts-ignore
+        nodeToInsert = editor.schema.nodes.paragraph.create({}, node)
+      }
+      // @ts-ignore
+      const container = editor.schema.nodes['blockContainer'].create(
+        null,
+        nodeToInsert,
+      )
+      nodes.push(container)
+    } else if (node.firstChild?.type.name === 'blockGroup') {
+      const prevContainer = nodes.pop()
+      if (prevContainer) {
+        // @ts-ignore
+        const container = editor.schema.nodes['blockContainer'].create(
+          prevContainer.attrs,
+          prevContainer.content.addToEnd(node.firstChild!),
+        )
+        nodes.push(container)
+      } else {
+        nodes.push(node.firstChild!)
+      }
+    } else {
+      nodes.push(node)
+    }
+  })
+
+  return nodes
 }
 
 async function fetchEntityTitle(
