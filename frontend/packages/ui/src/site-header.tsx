@@ -358,9 +358,9 @@ export function SmallSiteHeader({
   siteHost: string
 }) {
   return (
-    <div className="flex w-screen flex-col items-center bg-white p-3 dark:bg-black">
-      <div className="flex w-full max-w-2xl justify-center">
-        <div className="px-4 py-2">
+    <div className="flex w-screen flex-col items-start border-b bg-white px-2 py-4 dark:bg-black">
+      <div className="flex w-full justify-start">
+        <div className="p-2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
         </div>
       </div>
