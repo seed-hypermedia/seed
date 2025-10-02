@@ -1,24 +1,24 @@
-import React from "react";
+import React from 'react'
 
 interface TitleProps {
-  title: string;
-  className?: string;
-  buttons?: React.ReactNode;
+  title: string
+  className?: string
+  buttons?: React.ReactNode
 }
 
 export const Title: React.FC<TitleProps> = ({
   title,
-  className = "",
+  className = '',
   buttons,
 }) => {
   // strip off trailing slash
-  const displayTitle = title.replace(/\/$/, "");
+  const displayTitle = title.replace(/\/$/, '')
   return (
-    <div className={`flex flex-wrap items-center w-full gap-2 ${className}`}>
-      <h1 className="flex-grow min-w-0 overflow-hidden text-2xl font-bold break-words">
+    <div className={`flex w-full flex-wrap items-center gap-2 ${className}`}>
+      <h1 className="min-w-0 flex-grow overflow-hidden text-2xl font-bold break-words">
         {displayTitle}
       </h1>
       {buttons && <div className="flex flex-shrink-0">{buttons}</div>}
     </div>
-  );
-};
+  )
+}

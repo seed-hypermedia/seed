@@ -1,8 +1,6 @@
-
 # HyperDocs Terra - Perma Store
 
 Terra is the "Ground Truth" or "Permanent Layer" of HyperDocs, built on [IPFS](https://ipfs.tech/).
-
 
 ## Terra Core
 

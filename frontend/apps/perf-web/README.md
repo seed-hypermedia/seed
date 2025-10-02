@@ -1,10 +1,14 @@
 # Web Performance Testing Tool
 
-A tool for measuring and monitoring web performance metrics for our web applications.
+A tool for measuring and monitoring web performance metrics for our web
+applications.
 
 ## Overview
 
-This tool uses Lighthouse to measure performance metrics for both our web application and landing page. It focuses on Core Web Vitals and other key performance indicators, running tests against both mobile and desktop configurations.
+This tool uses Lighthouse to measure performance metrics for both our web
+application and landing page. It focuses on Core Web Vitals and other key
+performance indicators, running tests against both mobile and desktop
+configurations.
 
 ## Features
 
@@ -41,6 +45,7 @@ yarn
 ### Running Tests
 
 Test a specific application:
+
 ```bash
 # Test web app
 yarn test web
@@ -50,6 +55,7 @@ yarn test landing
 ```
 
 Test both applications:
+
 ```bash
 # Test both web app and landing page
 yarn test all
@@ -62,27 +68,28 @@ Performance budgets and other settings can be configured in `src/config.ts`:
 ```typescript
 export const performanceBudgets = {
   mobile: {
-    lcp: 2500,    // ms
-    inp: 100,     // ms
-    cls: 0.1,     // score
-    ttfb: 800,    // ms
-    requests: 50,  // count
-    size: 500000  // bytes
+    lcp: 2500, // ms
+    inp: 100, // ms
+    cls: 0.1, // score
+    ttfb: 800, // ms
+    requests: 50, // count
+    size: 500000, // bytes
   },
   desktop: {
-    lcp: 2000,    // ms
-    inp: 80,      // ms
-    cls: 0.1,     // score
-    ttfb: 400,    // ms
-    requests: 50,  // count
-    size: 1000000 // bytes
-  }
-};
+    lcp: 2000, // ms
+    inp: 80, // ms
+    cls: 0.1, // score
+    ttfb: 400, // ms
+    requests: 50, // count
+    size: 1000000, // bytes
+  },
+}
 ```
 
 ### Test Results
 
 Results are stored in the `results` directory:
+
 ```
 results/
 ├── web/
@@ -98,12 +105,14 @@ results/
 Results can be viewed in the performance dashboard:
 
 1. Copy results to the dashboard:
+
    ```bash
    cd ../performance-dashboard
    yarn copy-results
    ```
 
 2. Start the dashboard:
+
    ```bash
    yarn dev
    ```
@@ -131,17 +140,21 @@ The tool is integrated into our CI/CD pipelines:
 ### Common Issues
 
 1. **Chrome not found**: Ensure Chrome/Chromium is installed and accessible
+
    ```bash
    which chrome || which chromium
    ```
 
 2. **Port conflicts**: Default test ports:
+
    - Web app: 3000
    - Landing: 4173
-   
-   Ensure these ports are available or configure different ports in the settings.
+
+   Ensure these ports are available or configure different ports in the
+   settings.
 
 3. **Test failures**: Check that the application is running and accessible:
+
    ```bash
    # Web app
    curl http://localhost:3000
@@ -153,6 +166,7 @@ The tool is integrated into our CI/CD pipelines:
 ### Debug Mode
 
 Run tests with debug output:
+
 ```bash
 DEBUG=* yarn test web
 ```
@@ -164,4 +178,4 @@ When adding new features or metrics:
 1. Update types in `src/types.ts`
 2. Add new metrics to performance budgets
 3. Update the dashboard to display new metrics
-4. Update this documentation 
+4. Update this documentation

@@ -1,4 +1,5 @@
 # Frontend Development Setup
+
 - [Frontend Development Setup](#frontend-development-setup)
   - [TLDR;](#tldr)
   - [Introduction](#introduction)
@@ -57,7 +58,6 @@ Now let's describe each package and what it does
 6. [`packages/eslint-config-custom`](../../frontend/packages/eslint-config-custom): the base eslint config for all the frontend code
 7. [`packages/prettier-config`](../../frontend/packages/prettier-config): the base formatting config for all the frontend code.
 
-
 After you [setup the project](./dev-setup) on your local machine, you should have `yarn` available, so no need to install it globally.
 
 ## Prerequisites
@@ -115,9 +115,11 @@ If you have any issues running the application or building the application local
 ## Sites
 
 TBD
+
 ### Run the Site app locally
 
 TBD (we need to finish the groups setup to see how will be)
+
 ### Build sites locally
 
 TBD (we need to finish the groups setup to see how will be)
@@ -150,7 +152,7 @@ Like I mentioned before, this monorepo does not follow some conventions other mo
       "@mintter/app/*": ["*", "../../packages/app/src/*"],
       "react-native": ["react-native-web"]
     }
-  },
+  }
   // ...
 }
 ```
@@ -158,6 +160,3 @@ Like I mentioned before, this monorepo does not follow some conventions other mo
 Another change that we did is that in each scoped package's `package.json` file, we are not setting anything related to exports nor types. WE found that doing this makes it simple for `tsc` compiler to find the correct files based on the paths set.
 
 You can also see that on each scoped package there's only 2 or 3 scripts set: `lint`, `format` and `test`. While we don't want to build this packages individually, we do want to make sure the code structure and linting follows the project's rules.
-
-
-

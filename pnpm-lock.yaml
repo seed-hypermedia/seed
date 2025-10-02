@@ -37,11 +37,8 @@ overrides:
   remark-rehype: 11.1.1
   rehype-parse: 9.0.1
   parse5: 7.2.1
-  '@noble/curves': 1.6.0
-  '@noble/hashes': 1.5.0
-  '@noble/ciphers': 1.0.0
-  '@scure/bip32': 1.5.0
-  '@scure/bip39': 1.4.0
+  '@scure/base': 1.2.1
+  unified: 11.0.5
 
 importers:
 
@@ -728,8 +725,8 @@ importers:
         specifier: ^1.3.1
         version: 1.4.0
       unified:
-        specifier: 10.1.2
-        version: 10.1.2
+        specifier: 11.0.5
+        version: 11.0.5
       unist-util-is:
         specifier: ^6.0.0
         version: 6.0.0
@@ -1247,8 +1244,8 @@ importers:
         specifier: 2.13.1
         version: 2.13.1(typescript@5.8.3)
       '@scure/base':
-        specifier: ^1.2.4
-        version: 1.2.6
+        specifier: 1.2.1
+        version: 1.2.1
       '@sentry/remix':
         specifier: 8.30.0
         version: 8.30.0(@opentelemetry/api@1.9.0)(@opentelemetry/core@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/instrumentation@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.1.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.37.0)(@remix-run/node@2.13.1(typescript@5.8.3))(@remix-run/react@2.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.8.3))(encoding@0.1.13)(react@18.2.0)
@@ -1494,14 +1491,14 @@ importers:
         specifier: 6.0.13
         version: 6.0.13(react@18.2.0)
       '@noble/ciphers':
-        specifier: 1.0.0
-        version: 1.0.0
+        specifier: 2.0.1
+        version: 2.0.1
       '@noble/curves':
-        specifier: 1.6.0
-        version: 1.6.0
+        specifier: 2.0.1
+        version: 2.0.1
       '@noble/hashes':
-        specifier: 1.5.0
-        version: 1.5.0
+        specifier: 2.0.1
+        version: 2.0.1
       '@radix-ui/primitive':
         specifier: 1.1.3
         version: 1.1.3
@@ -1533,14 +1530,14 @@ importers:
         specifier: 1.2.2
         version: 1.2.2(@types/react@18.2.64)(react@18.2.0)
       '@scure/base':
-        specifier: ^1.2.6
-        version: 1.2.6
+        specifier: 1.2.1
+        version: 1.2.1
       '@scure/bip32':
-        specifier: 1.5.0
-        version: 1.5.0
+        specifier: 2.0.0
+        version: 2.0.0
       '@scure/bip39':
-        specifier: 1.4.0
-        version: 1.4.0
+        specifier: 2.0.0
+        version: 2.0.0
       '@sentry/browser':
         specifier: 10.16.0
         version: 10.16.0
@@ -1728,8 +1725,8 @@ importers:
         specifier: 2.8.1
         version: 2.8.1
       unified:
-        specifier: 10.1.2
-        version: 10.1.2
+        specifier: 11.0.5
+        version: 11.0.5
       unist-util-visit:
         specifier: ^5.0.0
         version: 5.0.0
@@ -4904,17 +4901,51 @@ packages:
     resolution: {integrity: sha512-6vId1C46ra3R1sbJUOFCZnsUIveR9oF20yhPmAFxPm0JfrX3/ZRCgP3YDrBzlGoEppOXnA9czHeYc0T9mB6hbA==}
     engines: {node: '>=16.0.0', npm: '>=7.0.0'}
 
-  '@noble/ciphers@1.0.0':
-    resolution: {integrity: sha512-wH5EHOmLi0rEazphPbecAzmjd12I6/Yv/SiHdkA9LSycsQk7RuuTp7am5/o62qYr0RScE7Pc9icXGBbsr6cesA==}
+  '@noble/ciphers@0.2.0':
+    resolution: {integrity: sha512-6YBxJDAapHSdd3bLDv6x2wRPwq4QFMUaB3HvljNBUTThDd12eSm7/3F+2lnfzx2jvM+S6Nsy0jEt9QbPqSwqRw==}
+
+  '@noble/ciphers@1.3.0':
+    resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
     engines: {node: ^14.21.3 || >=16}
+
+  '@noble/ciphers@2.0.1':
+    resolution: {integrity: sha512-xHK3XHPUW8DTAobU+G0XT+/w+JLM7/8k1UFdB5xg/zTFPnFCobhftzw8wl4Lw2aq/Rvir5pxfZV5fEazmeCJ2g==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/curves@1.1.0':
+    resolution: {integrity: sha512-091oBExgENk/kGj3AZmtBDMpxQPDtxQABR2B9lb1JbVTs6ytdzZNwvhxQ4MWasRNEzlbEH8jCWFCwhF/Obj5AA==}
 
   '@noble/curves@1.6.0':
     resolution: {integrity: sha512-TlaHRXDehJuRNR9TfZDNQ45mMEd5dwUwmicsafcIX4SsNiqnCHKjE/1alYPd/lDRVhxdhUAlv8uEhMCI5zjIJQ==}
     engines: {node: ^14.21.3 || >=16}
 
+  '@noble/curves@2.0.0':
+    resolution: {integrity: sha512-RiwZZeJnsTnhT+/gg2KvITJZhK5oagQrpZo+yQyd3mv3D5NAG2qEeEHpw7IkXRlpkoD45wl2o4ydHAvY9wyEfw==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/curves@2.0.1':
+    resolution: {integrity: sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/hashes@1.3.1':
+    resolution: {integrity: sha512-EbqwksQwz9xDRGfDST86whPBgM65E0OH/pCgqW0GBVzO22bNE+NuIbeTb714+IfSjU3aRk47EUvXIb5bTsenKA==}
+    engines: {node: '>= 16'}
+
   '@noble/hashes@1.5.0':
     resolution: {integrity: sha512-1j6kQFb7QRru7eKN3ZDvRcP13rugwdxZqCjbiAVZfIJwgj2A65UmT4TgARXGlXgnRkORLTDTrO19ZErt7+QXgA==}
     engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@2.0.0':
+    resolution: {integrity: sha512-h8VUBlE8R42+XIDO229cgisD287im3kdY6nbNZJFjc6ZvKIXPYXe6Vc/t+kyjFdMFyt5JpapzTsEg8n63w5/lw==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/hashes@2.0.1':
+    resolution: {integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==}
+    engines: {node: '>= 20.19.0'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -6617,20 +6648,20 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@scure/base@1.1.1':
-    resolution: {integrity: sha512-ZxOhsSyxYwLJj3pLZCefNitxsj093tb2vq90mp2txoYeBqbcjDjqFhyM8eUjq/uFm6zJ+mUuqxlS2FkuSY1MTA==}
+  '@scure/base@1.2.1':
+    resolution: {integrity: sha512-DGmGtC8Tt63J5GfHgfl5CuAXh96VF/LD8K9Hr/Gv0J2lAoRGlPOMpqMpMbCTOoOJMZCk2Xt+DskdDyn6dEFdzQ==}
 
-  '@scure/base@1.1.9':
-    resolution: {integrity: sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==}
+  '@scure/bip32@1.3.1':
+    resolution: {integrity: sha512-osvveYtyzdEVbt3OfwwXFr4P2iVBL5u1Q3q4ONBfDY/UpOuXmOlbgwc1xECEboY8wIays8Yt6onaWMUdUbfl0A==}
 
-  '@scure/base@1.2.6':
-    resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
+  '@scure/bip32@2.0.0':
+    resolution: {integrity: sha512-V24pyBWzKQqhB0CrV3Xz7JZr/cC2Nhp9LuIr9gOHkAKxSGwYqTIs8u0AkZgKA7HFqRiyoNg/PymiXOExm+3KlQ==}
 
-  '@scure/bip32@1.5.0':
-    resolution: {integrity: sha512-8EnFYkqEQdnkuGBVpCzKxyIwDCBLDVj3oiX0EKUFre/tOjL/Hqba1D6n/8RcmaQy4f95qQFrO2A8Sr6ybh4NRw==}
+  '@scure/bip39@1.2.1':
+    resolution: {integrity: sha512-Z3/Fsz1yr904dduJD0NpiyRHhRYHdcnyh73FZWiV+/qhWi83wNJ3NWolYqCEN+ZWsUz2TWwajJggcRE9r1zUYg==}
 
-  '@scure/bip39@1.4.0':
-    resolution: {integrity: sha512-BEEm6p8IueV/ZTfQLp/0vhw4NPnT9oWf5+28nvmeUICjP99f4vr2d+qc7AVGDDtwRep6ifR43Yed9ERVmiITzw==}
+  '@scure/bip39@2.0.0':
+    resolution: {integrity: sha512-F2Tza4KyTSFO/13JymY6a6UHfSLzx0YGbkQGz7wjGx2BYJLyG/qXELKnFFsDfeIK+WfV2v2+5XOQftvL4d8RBA==}
 
   '@sentry-internal/browser-utils@10.16.0':
     resolution: {integrity: sha512-0o6fI2FUPlwa6AyqNY8RfCMhzveVDKW27uFyFXZ6d+tMfnjFO7iRe7UlzM/9cJ6lDiCtjoIXiuttZsMXDlosWg==}
@@ -8485,9 +8516,6 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     peerDependencies:
       '@babel/core': ^7.0.0
-
-  bail@1.0.5:
-    resolution: {integrity: sha512-xFbRxM1tahm08yHBP16MMjVUAvDaBMD38zsM9EMAUN61omwLmKlOpB/Zku5QkjZ8TZ4vn53pj+t518cH0S03RQ==}
 
   bail@2.0.2:
     resolution: {integrity: sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==}
@@ -11506,10 +11534,6 @@ packages:
   is-plain-obj@1.1.0:
     resolution: {integrity: sha512-yvkRyxmFKEOQ4pNXCmJG5AEQNlXJS5LaONXo5/cLdTZdWvsZ1ioJEonLGAosKlMWE8lwUy/bJzMjcw8az73+Fg==}
     engines: {node: '>=0.10.0'}
-
-  is-plain-obj@2.1.0:
-    resolution: {integrity: sha512-YWnfyRwxL/+SsrWYfOpUtz5b3YD+nyfkHvjbcanzk8zgyO4ASD67uVMRt8k5bM4lLMDnXfriRhOpemw+NfT1eA==}
-    engines: {node: '>=8'}
 
   is-plain-obj@3.0.0:
     resolution: {integrity: sha512-gwsOE28k+23GP1B6vFl1oVh/WOzmawBrKwo5Ev6wMKzPkaXaCDIQKzLnvsA42DRlbVTWorkgTKIviAKCWkfUwA==}
@@ -16089,9 +16113,6 @@ packages:
     resolution: {integrity: sha512-aZbgViZrg1QNcG+LULa7nhZpJTZSLm/mXnHXnbAbjmN5aSa0y7V+wvv6+4WaBtpISJzThKy+PIPxc1Nq1EJ9mg==}
     engines: {node: '>= 14.0.0'}
 
-  trough@1.0.5:
-    resolution: {integrity: sha512-rvuRbTarPXmMb79SmzEp8aqXNKcK+y0XaB298IXueQ8I2PsrATcPBCSPyK/dDNa2iWOhKlfNnOjdAOTBU/nkFA==}
-
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
@@ -16354,17 +16375,8 @@ packages:
   unicode-trie@2.0.0:
     resolution: {integrity: sha512-x7bc76x0bm4prf1VLg79uhAzKw8DVboClSN5VxJuQ+LKDOVEW9CdH+VY7SP+vX7xCYQqzzgQpFqz15zeLvAtZQ==}
 
-  unified@10.1.2:
-    resolution: {integrity: sha512-pUSWAi/RAnVy1Pif2kAoeWNBa3JVrx0MId2LASj8G+7AiHWoKZNTomq6LG326T68U7/e263X6fTdcXIy7XnF7Q==}
-
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
-
-  unified@9.2.0:
-    resolution: {integrity: sha512-vx2Z0vY+a3YoTj8+pttM3tiJHCwY5UFbYdiWrwBEbHmK8pvsPj2rtAX2BFfgXen8T39CJWblWRDT4L5WGXtDdg==}
-
-  unified@9.2.2:
-    resolution: {integrity: sha512-Sg7j110mtefBD+qunSLO1lqOEKdrwBFBrR6Qd8f4uwkhWNlbkaqwHse6e7QvD3AP/MNoJdEDLaf8OxYyoWgorQ==}
 
   unique-filename@2.0.1:
     resolution: {integrity: sha512-ODWHtkkdx3IAR+veKxFV+VBkUMcN+FaqzUUd7IZzt+0zhDZFPFxhlqwPF3YQvMHx1TD0tdgYl+kuPnJ8E6ql7A==}
@@ -19152,7 +19164,7 @@ snapshots:
       '@libp2p/crypto': 5.1.12
       '@libp2p/interface': 2.11.0
       '@libp2p/peer-id': 5.1.9
-      '@noble/ciphers': 1.0.0
+      '@noble/ciphers': 1.3.0
       '@noble/curves': 1.6.0
       '@noble/hashes': 1.5.0
       it-length-prefixed: 10.0.1
@@ -19367,7 +19379,7 @@ snapshots:
       remark-emoji: 2.2.0
       stringify-object: 3.3.0
       tslib: 2.8.1
-      unified: 9.2.2
+      unified: 11.0.5
       unist-util-visit: 2.0.3
       url-loader: 4.1.1(file-loader@6.2.0(webpack@5.102.0))(webpack@5.102.0)
       webpack: 5.102.0
@@ -21489,8 +21501,8 @@ snapshots:
   '@libp2p/crypto@5.1.12':
     dependencies:
       '@libp2p/interface': 3.0.2
-      '@noble/curves': 1.6.0
-      '@noble/hashes': 1.5.0
+      '@noble/curves': 2.0.1
+      '@noble/hashes': 2.0.1
       multiformats: 13.4.1
       protons-runtime: 5.6.0
       uint8arraylist: 2.4.8
@@ -21546,7 +21558,7 @@ snapshots:
       '@libp2p/crypto': 5.1.12
       '@libp2p/interface': 2.11.0
       '@libp2p/utils': 6.7.2
-      '@noble/hashes': 1.5.0
+      '@noble/hashes': 1.8.0
       asn1js: 3.0.6
       interface-datastore: 8.3.2
       multiformats: 13.4.1
@@ -21814,7 +21826,7 @@ snapshots:
       remark-parse: 8.0.3
       remark-squeeze-paragraphs: 4.0.0
       style-to-object: 0.3.0
-      unified: 9.2.0
+      unified: 11.0.5
       unist-builder: 2.0.3
       unist-util-visit: 2.0.3
     transitivePeerDependencies:
@@ -21834,7 +21846,7 @@ snapshots:
       remark-mdx: 2.3.0
       remark-parse: 10.0.1
       remark-rehype: 11.1.1
-      unified: 10.1.2
+      unified: 11.0.5
       unist-util-position-from-estree: 1.1.2
       unist-util-stringify-position: 3.0.3
       unist-util-visit: 4.1.2
@@ -21914,13 +21926,37 @@ snapshots:
       multiformats: 13.4.1
       murmurhash3js-revisited: 3.0.0
 
-  '@noble/ciphers@1.0.0': {}
+  '@noble/ciphers@0.2.0': {}
+
+  '@noble/ciphers@1.3.0': {}
+
+  '@noble/ciphers@2.0.1': {}
+
+  '@noble/curves@1.1.0':
+    dependencies:
+      '@noble/hashes': 1.3.1
 
   '@noble/curves@1.6.0':
     dependencies:
       '@noble/hashes': 1.5.0
 
+  '@noble/curves@2.0.0':
+    dependencies:
+      '@noble/hashes': 2.0.0
+
+  '@noble/curves@2.0.1':
+    dependencies:
+      '@noble/hashes': 2.0.1
+
+  '@noble/hashes@1.3.1': {}
+
   '@noble/hashes@1.5.0': {}
+
+  '@noble/hashes@1.8.0': {}
+
+  '@noble/hashes@2.0.0': {}
+
+  '@noble/hashes@2.0.1': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -24095,22 +24131,29 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.44.0':
     optional: true
 
-  '@scure/base@1.1.1': {}
+  '@scure/base@1.2.1': {}
 
-  '@scure/base@1.1.9': {}
-
-  '@scure/base@1.2.6': {}
-
-  '@scure/bip32@1.5.0':
+  '@scure/bip32@1.3.1':
     dependencies:
-      '@noble/curves': 1.6.0
-      '@noble/hashes': 1.5.0
-      '@scure/base': 1.1.9
+      '@noble/curves': 1.1.0
+      '@noble/hashes': 1.3.1
+      '@scure/base': 1.2.1
 
-  '@scure/bip39@1.4.0':
+  '@scure/bip32@2.0.0':
     dependencies:
-      '@noble/hashes': 1.5.0
-      '@scure/base': 1.1.9
+      '@noble/curves': 2.0.0
+      '@noble/hashes': 2.0.0
+      '@scure/base': 1.2.1
+
+  '@scure/bip39@1.2.1':
+    dependencies:
+      '@noble/hashes': 1.3.1
+      '@scure/base': 1.2.1
+
+  '@scure/bip39@2.0.0':
+    dependencies:
+      '@noble/hashes': 2.0.0
+      '@scure/base': 1.2.1
 
   '@sentry-internal/browser-utils@10.16.0':
     dependencies:
@@ -26540,8 +26583,6 @@ snapshots:
       '@babel/core': 7.28.4
       babel-plugin-jest-hoist: 29.6.3
       babel-preset-current-node-syntax: 1.2.0(@babel/core@7.28.4)
-
-  bail@1.0.5: {}
 
   bail@2.0.2: {}
 
@@ -30231,8 +30272,6 @@ snapshots:
 
   is-plain-obj@1.1.0: {}
 
-  is-plain-obj@2.1.0: {}
-
   is-plain-obj@3.0.0: {}
 
   is-plain-obj@4.1.0: {}
@@ -33085,12 +33124,12 @@ snapshots:
 
   nostr-tools@1.16.0(typescript@5.8.3):
     dependencies:
-      '@noble/ciphers': 1.0.0
-      '@noble/curves': 1.6.0
-      '@noble/hashes': 1.5.0
-      '@scure/base': 1.1.1
-      '@scure/bip32': 1.5.0
-      '@scure/bip39': 1.4.0
+      '@noble/ciphers': 0.2.0
+      '@noble/curves': 1.1.0
+      '@noble/hashes': 1.3.1
+      '@scure/base': 1.2.1
+      '@scure/bip32': 1.3.1
+      '@scure/bip39': 1.2.1
     optionalDependencies:
       typescript: 5.8.3
 
@@ -34910,14 +34949,14 @@ snapshots:
     dependencies:
       '@types/hast': 2.3.10
       hast-util-to-html: 8.0.4
-      unified: 10.1.2
+      unified: 11.0.5
 
   rehype@12.0.1:
     dependencies:
       '@types/hast': 2.3.10
       rehype-parse: 9.0.1
       rehype-stringify: 9.0.3
-      unified: 10.1.2
+      unified: 11.0.5
 
   relateurl@0.2.7: {}
 
@@ -34934,14 +34973,14 @@ snapshots:
       '@types/mdast': 3.0.15
       mdast-util-frontmatter: 1.0.1
       micromark-extension-frontmatter: 1.1.1
-      unified: 10.1.2
+      unified: 11.0.5
 
   remark-gfm@3.0.1:
     dependencies:
       '@types/mdast': 3.0.15
       mdast-util-gfm: 2.0.2
       micromark-extension-gfm: 2.0.3
-      unified: 10.1.2
+      unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -34961,7 +35000,7 @@ snapshots:
       '@mdx-js/util': 1.6.22
       is-alphabetical: 1.0.4
       remark-parse: 8.0.3
-      unified: 9.2.0
+      unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -34976,7 +35015,7 @@ snapshots:
     dependencies:
       '@types/mdast': 3.0.15
       mdast-util-from-markdown: 1.3.1
-      unified: 10.1.2
+      unified: 11.0.5
     transitivePeerDependencies:
       - supports-color
 
@@ -35015,7 +35054,7 @@ snapshots:
     dependencies:
       '@types/mdast': 3.0.15
       mdast-util-to-markdown: 1.5.0
-      unified: 10.1.2
+      unified: 11.0.5
 
   remove-accents@0.4.2: {}
 
@@ -36197,8 +36236,6 @@ snapshots:
 
   triple-beam@1.4.1: {}
 
-  trough@1.0.5: {}
-
   trough@2.2.0: {}
 
   truncate-utf8-bytes@1.0.2:
@@ -36463,16 +36500,6 @@ snapshots:
       pako: 0.2.9
       tiny-inflate: 1.0.3
 
-  unified@10.1.2:
-    dependencies:
-      '@types/unist': 2.0.11
-      bail: 2.0.2
-      extend: 3.0.2
-      is-buffer: 2.0.5
-      is-plain-obj: 4.1.0
-      trough: 2.2.0
-      vfile: 5.3.7
-
   unified@11.0.5:
     dependencies:
       '@types/unist': 3.0.3
@@ -36482,26 +36509,6 @@ snapshots:
       is-plain-obj: 4.1.0
       trough: 2.2.0
       vfile: 6.0.3
-
-  unified@9.2.0:
-    dependencies:
-      '@types/unist': 2.0.11
-      bail: 1.0.5
-      extend: 3.0.2
-      is-buffer: 2.0.5
-      is-plain-obj: 2.1.0
-      trough: 1.0.5
-      vfile: 4.2.1
-
-  unified@9.2.2:
-    dependencies:
-      '@types/unist': 2.0.11
-      bail: 1.0.5
-      extend: 3.0.2
-      is-buffer: 2.0.5
-      is-plain-obj: 2.1.0
-      trough: 1.0.5
-      vfile: 4.2.1
 
   unique-filename@2.0.1:
     dependencies:

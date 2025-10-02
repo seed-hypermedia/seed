@@ -31,7 +31,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
   return (
     <div
-      className={`p-4 rounded-lg border ${
+      className={`rounded-lg border p-4 ${
         isOverThreshold ? 'border-red-400 bg-red-50' : 'border-gray-200'
       }`}
     >
@@ -131,7 +131,7 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <div className="text-gray-500">Loading {app} performance data...</div>
       </div>
     )
@@ -139,9 +139,9 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 rounded-lg">
+      <div className="rounded-lg bg-red-50 p-4">
         <div className="text-red-700">{error}</div>
-        <div className="text-red-600 text-sm mt-1">
+        <div className="mt-1 text-sm text-red-600">
           Check that performance test results exist and are accessible.
         </div>
       </div>
@@ -150,11 +150,11 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
   if (results.length === 0) {
     return (
-      <div className="p-4 bg-yellow-50 rounded-lg">
+      <div className="rounded-lg bg-yellow-50 p-4">
         <div className="text-yellow-800">
           No {app} performance test results found.
         </div>
-        <div className="text-yellow-700 text-sm mt-1">
+        <div className="mt-1 text-sm text-yellow-700">
           Run performance tests to generate data for the dashboard.
         </div>
       </div>
@@ -165,13 +165,13 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="rounded-lg bg-white p-6 shadow">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <h2 className="mb-4 text-xl font-semibold text-gray-900">
               {app === 'web' ? 'Web App' : 'Landing Page'} Performance Dashboard
             </h2>
-            <p className="text-gray-500 mb-6">
+            <p className="mb-6 text-gray-500">
               {selectedResult &&
                 `Latest results from ${formatDate(selectedResult.timestamp)}`}
             </p>
@@ -185,7 +185,7 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
                 id="report-select"
                 value={selectedResultTimestamp || ''}
                 onChange={(e) => setSelectedResultTimestamp(e.target.value)}
-                className="border rounded-md py-1 px-2 text-sm"
+                className="rounded-md border px-2 py-1 text-sm"
               >
                 {results.map((result) => (
                   <option key={result.timestamp} value={result.timestamp}>
@@ -198,7 +198,7 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
         </div>
 
         {selectedResult && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {/* Core Web Vitals - Mobile */}
             <MetricCard
               title="Largest Contentful Paint (LCP)"
@@ -291,10 +291,10 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
 
         {report && report.budgetViolations.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-xl font-semibold text-red-600 mb-4">
+            <h2 className="mb-4 text-xl font-semibold text-red-600">
               Performance Budget Violations
             </h2>
-            <div className="bg-red-50 p-4 rounded-lg">
+            <div className="rounded-lg bg-red-50 p-4">
               <ul className="space-y-2">
                 {report.budgetViolations.map((violation, index) => (
                   <li key={index} className="text-red-700">
@@ -309,11 +309,11 @@ export const WebPerformance: React.FC<WebPerformanceProps> = ({app}) => {
       </div>
 
       {/* Historical Trends Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
+      <div className="rounded-lg bg-white p-6 shadow">
+        <h2 className="mb-6 text-xl font-semibold text-gray-900">
           Performance Trends
         </h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Core Web Vitals Trends */}
           <WebPerformanceTrends
             results={results}

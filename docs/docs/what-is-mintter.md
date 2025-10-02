@@ -63,9 +63,9 @@ Hypertext properties essential for human collaboration: distributed storage syst
 - Authorship
 - Distributed file system providing permanent content
 - Better links:
-    - Everything should be linkable at the character level
-    - Bidirectional linking
-    - Unbreakable links
+  - Everything should be linkable at the character level
+  - Bidirectional linking
+  - Unbreakable links
 - Block-based hierarchical document
 - Versionable and editable pages
 - Annotations and discussions

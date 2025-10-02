@@ -32,7 +32,7 @@ Each Change is cryptographically signed by the device key of a [Terra Identity](
 
 Because the state of an Entity is a set of Changes, and because those Changes form a DAG, we can express any given Version of an Entity by specifying a leaf (HEAD in Git terms) Change ID and walking back the dependency link to resolve the full DAG.
 
-A Version could be a single Change ID or multiple Change IDs concatenated with a `.`. 
+A Version could be a single Change ID or multiple Change IDs concatenated with a `.`.
 
 ### Terra Patch
 
@@ -44,15 +44,14 @@ Hence the body of a Terra Change is defined as a special [Patch](./terra-patches
 
 As with any other Terra Blobs, a Change is encoded as a DAG-CBOR structure, and it contains the following fields:
 
- | **field**  | **type** | **description**                                                                                            |
-|------------|----------|------------------------------------------------------------------------------------------------------------|
-| @type      | string   | Constant string "hyperdocs:Change".                                                                        |
-| entity     | string   | Entity ID the Change is applied to.                                                                        |
-| deps       | []CID    | The list of CIDs of dependencies to this Change.                                                           |
-| message    | string   | An optional human-readable description of a Change.                                                        |
-| hlcTime    | int64    | A [Hybrid-Logical-Clock](https://martinfowler.com/articles/patterns-of-distributed-systems/hybrid-clock.html) timestamp of a Change.                                                              |
-| patch      | map      | Terra Merge Patch.                                                                                         |
-| signer     | bytes    | The public key which signs the Change.                                                                     |
-| delegation | CID      | The CID of the KeyDelegation blob that identifies the Account ID on behalf of which the Change is created. |
-| sig        | bytes    | The bytes for a cryptographic signature of the canonical encoding of the rest of the fields.               |
-
+| **field**  | **type** | **description**                                                                                                                      |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| @type      | string   | Constant string "hyperdocs:Change".                                                                                                  |
+| entity     | string   | Entity ID the Change is applied to.                                                                                                  |
+| deps       | []CID    | The list of CIDs of dependencies to this Change.                                                                                     |
+| message    | string   | An optional human-readable description of a Change.                                                                                  |
+| hlcTime    | int64    | A [Hybrid-Logical-Clock](https://martinfowler.com/articles/patterns-of-distributed-systems/hybrid-clock.html) timestamp of a Change. |
+| patch      | map      | Terra Merge Patch.                                                                                                                   |
+| signer     | bytes    | The public key which signs the Change.                                                                                               |
+| delegation | CID      | The CID of the KeyDelegation blob that identifies the Account ID on behalf of which the Change is created.                           |
+| sig        | bytes    | The bytes for a cryptographic signature of the canonical encoding of the rest of the fields.                                         |

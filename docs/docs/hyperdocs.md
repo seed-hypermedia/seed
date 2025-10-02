@@ -1,4 +1,3 @@
-
 # HyperDocs
 
 A web protocol for authenticated and versioned multimedia, with an emphasis on heirarchal text documents.
@@ -20,11 +19,9 @@ Terra is the format of permanent data stored in IPFS.
 - [VI - Document Blocks](./document-blocks)
 - [VII - Linking](./document-linking)
 
-
 ## [Aqua](./hyperdocs-aqua) - Search and Link Sharing
 
 Aqua is a p2p protocol that allows peers to gossip about new versions of data
-
 
 ## [Aer](./hyperdocs-aer) - Web Bridge
 

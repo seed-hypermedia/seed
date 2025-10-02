@@ -3,14 +3,26 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateWalletRequest, ExportWalletResponse, GetDefaultWalletRequest, GetWalletBalanceResponse, ImportWalletRequest, ListWalletsRequest, ListWalletsResponse, SetDefaultWalletRequest, UpdateWalletNameRequest, Wallet, WalletRequest } from "./wallets_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  CreateWalletRequest,
+  ExportWalletResponse,
+  GetDefaultWalletRequest,
+  GetWalletBalanceResponse,
+  ImportWalletRequest,
+  ListWalletsRequest,
+  ListWalletsResponse,
+  SetDefaultWalletRequest,
+  UpdateWalletNameRequest,
+  Wallet,
+  WalletRequest,
+} from './wallets_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * @generated from service com.seed.payments.v1alpha.Wallets
  */
 export const Wallets = {
-  typeName: "com.seed.payments.v1alpha.Wallets",
+  typeName: 'com.seed.payments.v1alpha.Wallets',
   methods: {
     /**
      * CreateWallet Created a seed wallet based on mnemonics.
@@ -18,7 +30,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.CreateWallet
      */
     createWallet: {
-      name: "CreateWallet",
+      name: 'CreateWallet',
       I: CreateWalletRequest,
       O: Wallet,
       kind: MethodKind.Unary,
@@ -30,7 +42,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.RemoveWallet
      */
     removeWallet: {
-      name: "RemoveWallet",
+      name: 'RemoveWallet',
       I: WalletRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -41,7 +53,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.ImportWallet
      */
     importWallet: {
-      name: "ImportWallet",
+      name: 'ImportWallet',
       I: ImportWalletRequest,
       O: Wallet,
       kind: MethodKind.Unary,
@@ -53,7 +65,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.ExportWallet
      */
     exportWallet: {
-      name: "ExportWallet",
+      name: 'ExportWallet',
       I: WalletRequest,
       O: ExportWalletResponse,
       kind: MethodKind.Unary,
@@ -64,7 +76,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.GetWalletBalance
      */
     getWalletBalance: {
-      name: "GetWalletBalance",
+      name: 'GetWalletBalance',
       I: WalletRequest,
       O: GetWalletBalanceResponse,
       kind: MethodKind.Unary,
@@ -75,7 +87,7 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.ListWallets
      */
     listWallets: {
-      name: "ListWallets",
+      name: 'ListWallets',
       I: ListWalletsRequest,
       O: ListWalletsResponse,
       kind: MethodKind.Unary,
@@ -86,19 +98,19 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.GetWallet
      */
     getWallet: {
-      name: "GetWallet",
+      name: 'GetWallet',
       I: WalletRequest,
       O: Wallet,
       kind: MethodKind.Unary,
     },
     /**
      * UpdateWalletName changes the name of the wallet. This does not have any
-     * implications on payments. Name is just for user convenience. 
+     * implications on payments. Name is just for user convenience.
      *
      * @generated from rpc com.seed.payments.v1alpha.Wallets.UpdateWalletName
      */
     updateWalletName: {
-      name: "UpdateWalletName",
+      name: 'UpdateWalletName',
       I: UpdateWalletNameRequest,
       O: Wallet,
       kind: MethodKind.Unary,
@@ -110,23 +122,22 @@ export const Wallets = {
      * @generated from rpc com.seed.payments.v1alpha.Wallets.GetDefaultWallet
      */
     getDefaultWallet: {
-      name: "GetDefaultWallet",
+      name: 'GetDefaultWallet',
       I: GetDefaultWalletRequest,
       O: Wallet,
       kind: MethodKind.Unary,
     },
     /**
-     * SetDefaultWallet changes the default wallet where payments are going 
+     * SetDefaultWallet changes the default wallet where payments are going
      * to be collected at. Also, this wallet will be used to make payments.
      *
      * @generated from rpc com.seed.payments.v1alpha.Wallets.SetDefaultWallet
      */
     setDefaultWallet: {
-      name: "SetDefaultWallet",
+      name: 'SetDefaultWallet',
       I: SetDefaultWalletRequest,
       O: Wallet,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

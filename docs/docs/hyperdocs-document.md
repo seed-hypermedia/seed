@@ -7,4 +7,3 @@ title: HyperDocs Document
 - [IV - The Document Entity](./document-entity)
 - [V - Document Blocks](./document-blocks)
 - [VI - Linking](./document-linking)
-

@@ -6,13 +6,13 @@ Because the Mintter Data structure is not production-ready yet, we are creating 
 - [Technical Guide](./technical-guide.md)
 - [Developer Project Setup](./dev-setup.md)
 
-
 ## [HyperDocs Documentation](/docs/hyperdocs)
 
 ### [Terra](/docs/hyperdocs-terra)
-### [Aqua](/docs/hyperdocs-aqua)
-### [Aer](/docs/hyperdocs-aer)
 
+### [Aqua](/docs/hyperdocs-aqua)
+
+### [Aer](/docs/hyperdocs-aer)
 
 ## Frontend Technical Documentation
 
