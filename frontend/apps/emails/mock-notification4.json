@@ -1,4 +1,5 @@
-{"email": "iskak@mintter.com",
+{
+  "email": "iskak@mintter.com",
   "opts": {
     "adminToken": "531c21368547c2d9ca898a8e8b796226d962bb6e2295c945d8615b1f0436a119",
     "isUnsubscribed": false,
@@ -34,12 +35,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      0
-                    ],
-                    "ends": [
-                      28
-                    ]
+                    "starts": [0],
+                    "ends": [28]
                   }
                 ],
                 "revision": "b"
@@ -215,9 +212,7 @@
           "id": "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ/testing-section-reordering",
           "type": "d",
           "uid": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
-          "path": [
-            "testing-section-reordering"
-          ],
+          "path": ["testing-section-reordering"],
           "version": null,
           "blockRef": null,
           "blockRange": null,

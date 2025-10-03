@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * Indicates connection status of our node with a remote peer.
@@ -50,13 +57,17 @@ export enum ConnectionStatus {
   LIMITED = 4,
 }
 // Retrieve enum metadata with: proto3.getEnumType(ConnectionStatus)
-proto3.util.setEnumType(ConnectionStatus, "com.seed.networking.v1alpha.ConnectionStatus", [
-  { no: 0, name: "NOT_CONNECTED" },
-  { no: 1, name: "CONNECTED" },
-  { no: 2, name: "CAN_CONNECT" },
-  { no: 3, name: "CANNOT_CONNECT" },
-  { no: 4, name: "LIMITED" },
-]);
+proto3.util.setEnumType(
+  ConnectionStatus,
+  'com.seed.networking.v1alpha.ConnectionStatus',
+  [
+    {no: 0, name: 'NOT_CONNECTED'},
+    {no: 1, name: 'CONNECTED'},
+    {no: 2, name: 'CAN_CONNECT'},
+    {no: 3, name: 'CANNOT_CONNECT'},
+    {no: 4, name: 'LIMITED'},
+  ],
+)
 
 /**
  * Request to get peer's addresses.
@@ -69,33 +80,45 @@ export class GetPeerInfoRequest extends Message<GetPeerInfoRequest> {
    *
    * @generated from field: string device_id = 1;
    */
-  deviceId = "";
+  deviceId = ''
 
   constructor(data?: PartialMessage<GetPeerInfoRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.GetPeerInfoRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.GetPeerInfoRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "device_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'device_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPeerInfoRequest {
-    return new GetPeerInfoRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetPeerInfoRequest {
+    return new GetPeerInfoRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPeerInfoRequest {
-    return new GetPeerInfoRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetPeerInfoRequest {
+    return new GetPeerInfoRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPeerInfoRequest {
-    return new GetPeerInfoRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetPeerInfoRequest {
+    return new GetPeerInfoRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetPeerInfoRequest | PlainMessage<GetPeerInfoRequest> | undefined, b: GetPeerInfoRequest | PlainMessage<GetPeerInfoRequest> | undefined): boolean {
-    return proto3.util.equals(GetPeerInfoRequest, a, b);
+  static equals(
+    a: GetPeerInfoRequest | PlainMessage<GetPeerInfoRequest> | undefined,
+    b: GetPeerInfoRequest | PlainMessage<GetPeerInfoRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetPeerInfoRequest, a, b)
   }
 }
 
@@ -110,41 +133,53 @@ export class ListPeersRequest extends Message<ListPeersRequest> {
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtains from a previous response.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListPeersRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.ListPeersRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.ListPeersRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPeersRequest {
-    return new ListPeersRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListPeersRequest {
+    return new ListPeersRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPeersRequest {
-    return new ListPeersRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListPeersRequest {
+    return new ListPeersRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPeersRequest {
-    return new ListPeersRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListPeersRequest {
+    return new ListPeersRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListPeersRequest | PlainMessage<ListPeersRequest> | undefined, b: ListPeersRequest | PlainMessage<ListPeersRequest> | undefined): boolean {
-    return proto3.util.equals(ListPeersRequest, a, b);
+  static equals(
+    a: ListPeersRequest | PlainMessage<ListPeersRequest> | undefined,
+    b: ListPeersRequest | PlainMessage<ListPeersRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListPeersRequest, a, b)
   }
 }
 
@@ -159,41 +194,58 @@ export class ListPeersResponse extends Message<ListPeersResponse> {
    *
    * @generated from field: repeated com.seed.networking.v1alpha.PeerInfo peers = 1;
    */
-  peers: PeerInfo[] = [];
+  peers: PeerInfo[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListPeersResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.ListPeersResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.ListPeersResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "peers", kind: "message", T: PeerInfo, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'peers', kind: 'message', T: PeerInfo, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListPeersResponse {
-    return new ListPeersResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListPeersResponse {
+    return new ListPeersResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListPeersResponse {
-    return new ListPeersResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListPeersResponse {
+    return new ListPeersResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListPeersResponse {
-    return new ListPeersResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListPeersResponse {
+    return new ListPeersResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListPeersResponse | PlainMessage<ListPeersResponse> | undefined, b: ListPeersResponse | PlainMessage<ListPeersResponse> | undefined): boolean {
-    return proto3.util.equals(ListPeersResponse, a, b);
+  static equals(
+    a: ListPeersResponse | PlainMessage<ListPeersResponse> | undefined,
+    b: ListPeersResponse | PlainMessage<ListPeersResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListPeersResponse, a, b)
   }
 }
 
@@ -209,33 +261,51 @@ export class ConnectRequest extends Message<ConnectRequest> {
    *
    * @generated from field: repeated string addrs = 1;
    */
-  addrs: string[] = [];
+  addrs: string[] = []
 
   constructor(data?: PartialMessage<ConnectRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.ConnectRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.ConnectRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-  ]);
+    {
+      no: 1,
+      name: 'addrs',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConnectRequest {
-    return new ConnectRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ConnectRequest {
+    return new ConnectRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ConnectRequest {
-    return new ConnectRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ConnectRequest {
+    return new ConnectRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ConnectRequest {
-    return new ConnectRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ConnectRequest {
+    return new ConnectRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ConnectRequest | PlainMessage<ConnectRequest> | undefined, b: ConnectRequest | PlainMessage<ConnectRequest> | undefined): boolean {
-    return proto3.util.equals(ConnectRequest, a, b);
+  static equals(
+    a: ConnectRequest | PlainMessage<ConnectRequest> | undefined,
+    b: ConnectRequest | PlainMessage<ConnectRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ConnectRequest, a, b)
   }
 }
 
@@ -246,29 +316,40 @@ export class ConnectRequest extends Message<ConnectRequest> {
  */
 export class ConnectResponse extends Message<ConnectResponse> {
   constructor(data?: PartialMessage<ConnectResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.ConnectResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.ConnectResponse'
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConnectResponse {
-    return new ConnectResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ConnectResponse {
+    return new ConnectResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ConnectResponse {
-    return new ConnectResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ConnectResponse {
+    return new ConnectResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ConnectResponse {
-    return new ConnectResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ConnectResponse {
+    return new ConnectResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ConnectResponse | PlainMessage<ConnectResponse> | undefined, b: ConnectResponse | PlainMessage<ConnectResponse> | undefined): boolean {
-    return proto3.util.equals(ConnectResponse, a, b);
+  static equals(
+    a: ConnectResponse | PlainMessage<ConnectResponse> | undefined,
+    b: ConnectResponse | PlainMessage<ConnectResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ConnectResponse, a, b)
   }
 }
 
@@ -283,89 +364,111 @@ export class PeerInfo extends Message<PeerInfo> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Account ID that this peer is bound to.
    *
    * @generated from field: string account_id = 2;
    */
-  accountId = "";
+  accountId = ''
 
   /**
    * List of known multiaddrs of the request peer.
    *
    * @generated from field: repeated string addrs = 3;
    */
-  addrs: string[] = [];
+  addrs: string[] = []
 
   /**
    * Connection status of our node with a remote peer.
    *
    * @generated from field: com.seed.networking.v1alpha.ConnectionStatus connection_status = 4;
    */
-  connectionStatus = ConnectionStatus.NOT_CONNECTED;
+  connectionStatus = ConnectionStatus.NOT_CONNECTED
 
   /**
    * Whether this peer was a direct connection or someone else shared it with us.
    *
    * @generated from field: bool is_direct = 5;
    */
-  isDirect = false;
+  isDirect = false
 
   /**
    * When we first inserted that peer in the database.
    *
    * @generated from field: google.protobuf.Timestamp created_at = 6;
    */
-  createdAt?: Timestamp;
+  createdAt?: Timestamp
 
   /**
    * When the peer updated its addresses for the last time.
    *
    * @generated from field: google.protobuf.Timestamp updated_at = 7;
    */
-  updatedAt?: Timestamp;
+  updatedAt?: Timestamp
 
   /**
    * Seed protocol version the peer talks.
    *
    * @generated from field: string protocol = 9;
    */
-  protocol = "";
+  protocol = ''
 
   constructor(data?: PartialMessage<PeerInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.networking.v1alpha.PeerInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.networking.v1alpha.PeerInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 4, name: "connection_status", kind: "enum", T: proto3.getEnumType(ConnectionStatus) },
-    { no: 5, name: "is_direct", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "created_at", kind: "message", T: Timestamp },
-    { no: 7, name: "updated_at", kind: "message", T: Timestamp },
-    { no: 9, name: "protocol", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'account_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'addrs',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 4,
+      name: 'connection_status',
+      kind: 'enum',
+      T: proto3.getEnumType(ConnectionStatus),
+    },
+    {no: 5, name: 'is_direct', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 6, name: 'created_at', kind: 'message', T: Timestamp},
+    {no: 7, name: 'updated_at', kind: 'message', T: Timestamp},
+    {no: 9, name: 'protocol', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PeerInfo {
-    return new PeerInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): PeerInfo {
+    return new PeerInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PeerInfo {
-    return new PeerInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): PeerInfo {
+    return new PeerInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PeerInfo {
-    return new PeerInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): PeerInfo {
+    return new PeerInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: PeerInfo | PlainMessage<PeerInfo> | undefined, b: PeerInfo | PlainMessage<PeerInfo> | undefined): boolean {
-    return proto3.util.equals(PeerInfo, a, b);
+  static equals(
+    a: PeerInfo | PlainMessage<PeerInfo> | undefined,
+    b: PeerInfo | PlainMessage<PeerInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(PeerInfo, a, b)
   }
 }
-

@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * Describes the state of the discovery task.
@@ -35,11 +42,15 @@ export enum DiscoveryTaskState {
   DISCOVERY_TASK_COMPLETED = 2,
 }
 // Retrieve enum metadata with: proto3.getEnumType(DiscoveryTaskState)
-proto3.util.setEnumType(DiscoveryTaskState, "com.seed.entities.v1alpha.DiscoveryTaskState", [
-  { no: 0, name: "DISCOVERY_TASK_STARTED" },
-  { no: 1, name: "DISCOVERY_TASK_IN_PROGRESS" },
-  { no: 2, name: "DISCOVERY_TASK_COMPLETED" },
-]);
+proto3.util.setEnumType(
+  DiscoveryTaskState,
+  'com.seed.entities.v1alpha.DiscoveryTaskState',
+  [
+    {no: 0, name: 'DISCOVERY_TASK_STARTED'},
+    {no: 1, name: 'DISCOVERY_TASK_IN_PROGRESS'},
+    {no: 2, name: 'DISCOVERY_TASK_COMPLETED'},
+  ],
+)
 
 /**
  * Request to get a change by ID.
@@ -52,33 +63,45 @@ export class GetChangeRequest extends Message<GetChangeRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetChangeRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.GetChangeRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.GetChangeRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetChangeRequest {
-    return new GetChangeRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetChangeRequest {
+    return new GetChangeRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetChangeRequest {
-    return new GetChangeRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetChangeRequest {
+    return new GetChangeRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetChangeRequest {
-    return new GetChangeRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetChangeRequest {
+    return new GetChangeRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetChangeRequest | PlainMessage<GetChangeRequest> | undefined, b: GetChangeRequest | PlainMessage<GetChangeRequest> | undefined): boolean {
-    return proto3.util.equals(GetChangeRequest, a, b);
+  static equals(
+    a: GetChangeRequest | PlainMessage<GetChangeRequest> | undefined,
+    b: GetChangeRequest | PlainMessage<GetChangeRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetChangeRequest, a, b)
   }
 }
 
@@ -93,7 +116,7 @@ export class GetEntityTimelineRequest extends Message<GetEntityTimelineRequest> 
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Flag to include draft changes in the timeline,
@@ -101,34 +124,53 @@ export class GetEntityTimelineRequest extends Message<GetEntityTimelineRequest> 
    *
    * @generated from field: bool include_drafts = 2;
    */
-  includeDrafts = false;
+  includeDrafts = false
 
   constructor(data?: PartialMessage<GetEntityTimelineRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.GetEntityTimelineRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.entities.v1alpha.GetEntityTimelineRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "include_drafts", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'include_drafts', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetEntityTimelineRequest {
-    return new GetEntityTimelineRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetEntityTimelineRequest {
+    return new GetEntityTimelineRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetEntityTimelineRequest {
-    return new GetEntityTimelineRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetEntityTimelineRequest {
+    return new GetEntityTimelineRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetEntityTimelineRequest {
-    return new GetEntityTimelineRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetEntityTimelineRequest {
+    return new GetEntityTimelineRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetEntityTimelineRequest | PlainMessage<GetEntityTimelineRequest> | undefined, b: GetEntityTimelineRequest | PlainMessage<GetEntityTimelineRequest> | undefined): boolean {
-    return proto3.util.equals(GetEntityTimelineRequest, a, b);
+  static equals(
+    a:
+      | GetEntityTimelineRequest
+      | PlainMessage<GetEntityTimelineRequest>
+      | undefined,
+    b:
+      | GetEntityTimelineRequest
+      | PlainMessage<GetEntityTimelineRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetEntityTimelineRequest, a, b)
   }
 }
 
@@ -143,21 +185,21 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. The path of the wanted entity.
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Optional. Version of the entity to discover.
    *
    * @generated from field: string version = 3;
    */
-  version = "";
+  version = ''
 
   /**
    * Optional. If true, we sync the document and the child
@@ -165,36 +207,48 @@ export class DiscoverEntityRequest extends Message<DiscoverEntityRequest> {
    *
    * @generated from field: bool recursive = 4;
    */
-  recursive = false;
+  recursive = false
 
   constructor(data?: PartialMessage<DiscoverEntityRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.DiscoverEntityRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityRequest {
-    return new DiscoverEntityRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DiscoverEntityRequest {
+    return new DiscoverEntityRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoverEntityRequest {
-    return new DiscoverEntityRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoverEntityRequest {
+    return new DiscoverEntityRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoverEntityRequest {
-    return new DiscoverEntityRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoverEntityRequest {
+    return new DiscoverEntityRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DiscoverEntityRequest | PlainMessage<DiscoverEntityRequest> | undefined, b: DiscoverEntityRequest | PlainMessage<DiscoverEntityRequest> | undefined): boolean {
-    return proto3.util.equals(DiscoverEntityRequest, a, b);
+  static equals(
+    a: DiscoverEntityRequest | PlainMessage<DiscoverEntityRequest> | undefined,
+    b: DiscoverEntityRequest | PlainMessage<DiscoverEntityRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DiscoverEntityRequest, a, b)
   }
 }
 
@@ -209,21 +263,21 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
    *
    * @generated from field: string version = 1;
    */
-  version = "";
+  version = ''
 
   /**
    * The state of the discovery task.
    *
    * @generated from field: com.seed.entities.v1alpha.DiscoveryTaskState state = 2;
    */
-  state = DiscoveryTaskState.DISCOVERY_TASK_STARTED;
+  state = DiscoveryTaskState.DISCOVERY_TASK_STARTED
 
   /**
    * The number of times we've called the discovery process for this entity and version so far.
    *
    * @generated from field: int32 call_count = 3;
    */
-  callCount = 0;
+  callCount = 0
 
   /**
    * The timestamp of the last result we've found.
@@ -231,14 +285,14 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
    *
    * @generated from field: google.protobuf.Timestamp last_result_time = 4;
    */
-  lastResultTime?: Timestamp;
+  lastResultTime?: Timestamp
 
   /**
    * The cached error message of the last discovery attempt if it failed.
    *
    * @generated from field: string last_error = 5;
    */
-  lastError = "";
+  lastError = ''
 
   /**
    * The time when the currently cached result will expire, and a new discovery attempt will be made,
@@ -247,46 +301,69 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
    *
    * @generated from field: google.protobuf.Timestamp result_expire_time = 6;
    */
-  resultExpireTime?: Timestamp;
+  resultExpireTime?: Timestamp
 
   /**
    * The progress of the discovery process.
    *
    * @generated from field: com.seed.entities.v1alpha.DiscoveryProgress progress = 7;
    */
-  progress?: DiscoveryProgress;
+  progress?: DiscoveryProgress
 
   constructor(data?: PartialMessage<DiscoverEntityResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.DiscoverEntityResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.DiscoverEntityResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "state", kind: "enum", T: proto3.getEnumType(DiscoveryTaskState) },
-    { no: 3, name: "call_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 4, name: "last_result_time", kind: "message", T: Timestamp },
-    { no: 5, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "result_expire_time", kind: "message", T: Timestamp },
-    { no: 7, name: "progress", kind: "message", T: DiscoveryProgress },
-  ]);
+    {no: 1, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'state',
+      kind: 'enum',
+      T: proto3.getEnumType(DiscoveryTaskState),
+    },
+    {no: 3, name: 'call_count', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 4, name: 'last_result_time', kind: 'message', T: Timestamp},
+    {no: 5, name: 'last_error', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'result_expire_time', kind: 'message', T: Timestamp},
+    {no: 7, name: 'progress', kind: 'message', T: DiscoveryProgress},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoverEntityResponse {
-    return new DiscoverEntityResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DiscoverEntityResponse {
+    return new DiscoverEntityResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoverEntityResponse {
-    return new DiscoverEntityResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoverEntityResponse {
+    return new DiscoverEntityResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoverEntityResponse {
-    return new DiscoverEntityResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoverEntityResponse {
+    return new DiscoverEntityResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DiscoverEntityResponse | PlainMessage<DiscoverEntityResponse> | undefined, b: DiscoverEntityResponse | PlainMessage<DiscoverEntityResponse> | undefined): boolean {
-    return proto3.util.equals(DiscoverEntityResponse, a, b);
+  static equals(
+    a:
+      | DiscoverEntityResponse
+      | PlainMessage<DiscoverEntityResponse>
+      | undefined,
+    b:
+      | DiscoverEntityResponse
+      | PlainMessage<DiscoverEntityResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(DiscoverEntityResponse, a, b)
   }
 }
 
@@ -301,73 +378,100 @@ export class DiscoveryProgress extends Message<DiscoveryProgress> {
    *
    * @generated from field: int32 peers_found = 1;
    */
-  peersFound = 0;
+  peersFound = 0
 
   /**
    * Number of peers we have successfully synced with.
    *
    * @generated from field: int32 peers_synced_ok = 2;
    */
-  peersSyncedOk = 0;
+  peersSyncedOk = 0
 
   /**
    * Number of peers we have failed to sync with.
    *
    * @generated from field: int32 peers_failed = 3;
    */
-  peersFailed = 0;
+  peersFailed = 0
 
   /**
    * Number of blobs we have discovered so far.
    *
    * @generated from field: int32 blobs_discovered = 4;
    */
-  blobsDiscovered = 0;
+  blobsDiscovered = 0
 
   /**
    * Number of blobs we have successfully downloaded.
    *
    * @generated from field: int32 blobs_downloaded = 5;
    */
-  blobsDownloaded = 0;
+  blobsDownloaded = 0
 
   /**
    * Number of blobs we have failed to download.
    *
    * @generated from field: int32 blobs_failed = 6;
    */
-  blobsFailed = 0;
+  blobsFailed = 0
 
   constructor(data?: PartialMessage<DiscoveryProgress>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.DiscoveryProgress";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.DiscoveryProgress'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "peers_found", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "peers_synced_ok", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "peers_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 4, name: "blobs_discovered", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 5, name: "blobs_downloaded", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 6, name: "blobs_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-  ]);
+    {no: 1, name: 'peers_found', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {
+      no: 2,
+      name: 'peers_synced_ok',
+      kind: 'scalar',
+      T: 5 /* ScalarType.INT32 */,
+    },
+    {no: 3, name: 'peers_failed', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {
+      no: 4,
+      name: 'blobs_discovered',
+      kind: 'scalar',
+      T: 5 /* ScalarType.INT32 */,
+    },
+    {
+      no: 5,
+      name: 'blobs_downloaded',
+      kind: 'scalar',
+      T: 5 /* ScalarType.INT32 */,
+    },
+    {no: 6, name: 'blobs_failed', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DiscoveryProgress {
-    return new DiscoveryProgress().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DiscoveryProgress {
+    return new DiscoveryProgress().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DiscoveryProgress {
-    return new DiscoveryProgress().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoveryProgress {
+    return new DiscoveryProgress().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DiscoveryProgress {
-    return new DiscoveryProgress().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DiscoveryProgress {
+    return new DiscoveryProgress().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined, b: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined): boolean {
-    return proto3.util.equals(DiscoveryProgress, a, b);
+  static equals(
+    a: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined,
+    b: DiscoveryProgress | PlainMessage<DiscoveryProgress> | undefined,
+  ): boolean {
+    return proto3.util.equals(DiscoveryProgress, a, b)
   }
 }
 
@@ -382,81 +486,105 @@ export class Change extends Message<Change> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Author of the change.
    *
    * @generated from field: string author = 2;
    */
-  author = "";
+  author = ''
 
   /**
    * Timestamp when the change was created.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 3;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * IDs of other changes this change depends on.
    *
    * @generated from field: repeated string deps = 4;
    */
-  deps: string[] = [];
+  deps: string[] = []
 
   /**
    * IDs of other changes that depend on this change.
    *
    * @generated from field: repeated string children = 6;
    */
-  children: string[] = [];
+  children: string[] = []
 
   /**
    * Indicates whether this changes comes from a trusted peer of ours.
    *
    * @generated from field: bool is_trusted = 5;
    */
-  isTrusted = false;
+  isTrusted = false
 
   /**
    * Indicates whether this change is a draft.
    *
    * @generated from field: bool is_draft = 7;
    */
-  isDraft = false;
+  isDraft = false
 
   constructor(data?: PartialMessage<Change>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.Change";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.Change'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "create_time", kind: "message", T: Timestamp },
-    { no: 4, name: "deps", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 6, name: "children", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 5, name: "is_trusted", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 7, name: "is_draft", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'create_time', kind: 'message', T: Timestamp},
+    {
+      no: 4,
+      name: 'deps',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 6,
+      name: 'children',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 5, name: 'is_trusted', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 7, name: 'is_draft', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Change {
-    return new Change().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Change {
+    return new Change().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Change {
-    return new Change().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Change {
+    return new Change().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Change {
-    return new Change().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Change {
+    return new Change().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Change | PlainMessage<Change> | undefined, b: Change | PlainMessage<Change> | undefined): boolean {
-    return proto3.util.equals(Change, a, b);
+  static equals(
+    a: Change | PlainMessage<Change> | undefined,
+    b: Change | PlainMessage<Change> | undefined,
+  ): boolean {
+    return proto3.util.equals(Change, a, b)
   }
 }
 
@@ -471,28 +599,28 @@ export class EntityTimeline extends Message<EntityTimeline> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Account ID of the owner of the entity.
    *
    * @generated from field: string owner = 2;
    */
-  owner = "";
+  owner = ''
 
   /**
    * The set of changes for the entity keyed by change ID.
    *
    * @generated from field: map<string, com.seed.entities.v1alpha.Change> changes = 3;
    */
-  changes: { [key: string]: Change } = {};
+  changes: {[key: string]: Change} = {}
 
   /**
    * The sorted list of change IDs by time.
    *
    * @generated from field: repeated string changes_by_time = 4;
    */
-  changesByTime: string[] = [];
+  changesByTime: string[] = []
 
   /**
    * The set of changes that has no dependencies.
@@ -501,53 +629,95 @@ export class EntityTimeline extends Message<EntityTimeline> {
    *
    * @generated from field: repeated string roots = 5;
    */
-  roots: string[] = [];
+  roots: string[] = []
 
   /**
    * The set of leaf changes considering the entire DAG.
    *
    * @generated from field: repeated string heads = 6;
    */
-  heads: string[] = [];
+  heads: string[] = []
 
   /**
    * The set of author versions/variants sorted by timestamp.
    *
    * @generated from field: repeated com.seed.entities.v1alpha.AuthorVersion author_versions = 7;
    */
-  authorVersions: AuthorVersion[] = [];
+  authorVersions: AuthorVersion[] = []
 
   constructor(data?: PartialMessage<EntityTimeline>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.EntityTimeline";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.EntityTimeline'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "changes", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "message", T: Change} },
-    { no: 4, name: "changes_by_time", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 5, name: "roots", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 6, name: "heads", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 7, name: "author_versions", kind: "message", T: AuthorVersion, repeated: true },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'owner', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'changes',
+      kind: 'map',
+      K: 9 /* ScalarType.STRING */,
+      V: {kind: 'message', T: Change},
+    },
+    {
+      no: 4,
+      name: 'changes_by_time',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 5,
+      name: 'roots',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 6,
+      name: 'heads',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {
+      no: 7,
+      name: 'author_versions',
+      kind: 'message',
+      T: AuthorVersion,
+      repeated: true,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): EntityTimeline {
-    return new EntityTimeline().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): EntityTimeline {
+    return new EntityTimeline().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): EntityTimeline {
-    return new EntityTimeline().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): EntityTimeline {
+    return new EntityTimeline().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): EntityTimeline {
-    return new EntityTimeline().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): EntityTimeline {
+    return new EntityTimeline().fromJsonString(jsonString, options)
   }
 
-  static equals(a: EntityTimeline | PlainMessage<EntityTimeline> | undefined, b: EntityTimeline | PlainMessage<EntityTimeline> | undefined): boolean {
-    return proto3.util.equals(EntityTimeline, a, b);
+  static equals(
+    a: EntityTimeline | PlainMessage<EntityTimeline> | undefined,
+    b: EntityTimeline | PlainMessage<EntityTimeline> | undefined,
+  ): boolean {
+    return proto3.util.equals(EntityTimeline, a, b)
   }
 }
 
@@ -562,14 +732,14 @@ export class AuthorVersion extends Message<AuthorVersion> {
    *
    * @generated from field: string author = 1;
    */
-  author = "";
+  author = ''
 
   /**
    * The set of leaf changes from that author.
    *
    * @generated from field: repeated string heads = 2;
    */
-  heads: string[] = [];
+  heads: string[] = []
 
   /**
    * The version string corresponding to the author's variant.
@@ -577,7 +747,7 @@ export class AuthorVersion extends Message<AuthorVersion> {
    *
    * @generated from field: string version = 3;
    */
-  version = "";
+  version = ''
 
   /**
    * The timestamp of the author's version.
@@ -585,36 +755,54 @@ export class AuthorVersion extends Message<AuthorVersion> {
    *
    * @generated from field: google.protobuf.Timestamp version_time = 4;
    */
-  versionTime?: Timestamp;
+  versionTime?: Timestamp
 
   constructor(data?: PartialMessage<AuthorVersion>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.AuthorVersion";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.AuthorVersion'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "heads", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 3, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "version_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'heads',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 3, name: 'version', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'version_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuthorVersion {
-    return new AuthorVersion().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): AuthorVersion {
+    return new AuthorVersion().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AuthorVersion {
-    return new AuthorVersion().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): AuthorVersion {
+    return new AuthorVersion().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AuthorVersion {
-    return new AuthorVersion().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): AuthorVersion {
+    return new AuthorVersion().fromJsonString(jsonString, options)
   }
 
-  static equals(a: AuthorVersion | PlainMessage<AuthorVersion> | undefined, b: AuthorVersion | PlainMessage<AuthorVersion> | undefined): boolean {
-    return proto3.util.equals(AuthorVersion, a, b);
+  static equals(
+    a: AuthorVersion | PlainMessage<AuthorVersion> | undefined,
+    b: AuthorVersion | PlainMessage<AuthorVersion> | undefined,
+  ): boolean {
+    return proto3.util.equals(AuthorVersion, a, b)
   }
 }
 
@@ -629,21 +817,21 @@ export class Entity extends Message<Entity> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Blob Id of the resource containing the matching record.
    *
    * @generated from field: string blob_id = 2;
    */
-  blobId = "";
+  blobId = ''
 
   /**
    * The time of the version of the entity.
    *
    * @generated from field: google.protobuf.Timestamp version_time = 3;
    */
-  versionTime?: Timestamp;
+  versionTime?: Timestamp
 
   /**
    * In the case of comments, the document id
@@ -651,7 +839,7 @@ export class Entity extends Message<Entity> {
    *
    * @generated from field: string doc_id = 4;
    */
-  docId = "";
+  docId = ''
 
   /**
    * Content of the entity, depending on the type:
@@ -664,77 +852,95 @@ export class Entity extends Message<Entity> {
    *
    * @generated from field: string content = 5;
    */
-  content = "";
+  content = ''
 
   /**
    * The owner of the entity
    *
    * @generated from field: string owner = 6;
    */
-  owner = "";
+  owner = ''
 
   /**
    * The type of the entity it coud be Title, Document, Comment, ...
    *
    * @generated from field: string type = 7;
    */
-  type = "";
+  type = ''
 
   /**
    * Icon of the document containing that entity
    *
    * @generated from field: string icon = 8;
    */
-  icon = "";
+  icon = ''
 
   /**
    * Parent document names
    *
    * @generated from field: repeated string parent_names = 9;
    */
-  parentNames: string[] = [];
+  parentNames: string[] = []
 
   /**
    * Metadata of the document containing that entity.
    *
    * @generated from field: string metadata = 10;
    */
-  metadata = "";
+  metadata = ''
 
   constructor(data?: PartialMessage<Entity>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.Entity";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.Entity'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "blob_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "version_time", kind: "message", T: Timestamp },
-    { no: 4, name: "doc_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "owner", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "icon", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "parent_names", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 10, name: "metadata", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'blob_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'version_time', kind: 'message', T: Timestamp},
+    {no: 4, name: 'doc_id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'content', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'owner', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 7, name: 'type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 8, name: 'icon', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 9,
+      name: 'parent_names',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
+    {no: 10, name: 'metadata', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Entity {
-    return new Entity().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Entity {
+    return new Entity().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Entity {
-    return new Entity().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Entity {
+    return new Entity().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Entity {
-    return new Entity().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Entity {
+    return new Entity().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Entity | PlainMessage<Entity> | undefined, b: Entity | PlainMessage<Entity> | undefined): boolean {
-    return proto3.util.equals(Entity, a, b);
+  static equals(
+    a: Entity | PlainMessage<Entity> | undefined,
+    b: Entity | PlainMessage<Entity> | undefined,
+  ): boolean {
+    return proto3.util.equals(Entity, a, b)
   }
 }
 
@@ -749,57 +955,74 @@ export class DeletedEntity extends Message<DeletedEntity> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * When the entity was deleted.
    *
    * @generated from field: google.protobuf.Timestamp delete_time = 2;
    */
-  deleteTime?: Timestamp;
+  deleteTime?: Timestamp
 
   /**
    * Reason why this entity was deleted.
    *
    * @generated from field: string deleted_reason = 3;
    */
-  deletedReason = "";
+  deletedReason = ''
 
   /**
    * Further metadata about the deleted entity, title, etc ...
    *
    * @generated from field: string metadata = 4;
    */
-  metadata = "";
+  metadata = ''
 
   constructor(data?: PartialMessage<DeletedEntity>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.DeletedEntity";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.DeletedEntity'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "delete_time", kind: "message", T: Timestamp },
-    { no: 3, name: "deleted_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "metadata", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'delete_time', kind: 'message', T: Timestamp},
+    {
+      no: 3,
+      name: 'deleted_reason',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 4, name: 'metadata', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeletedEntity {
-    return new DeletedEntity().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeletedEntity {
+    return new DeletedEntity().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeletedEntity {
-    return new DeletedEntity().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeletedEntity {
+    return new DeletedEntity().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeletedEntity {
-    return new DeletedEntity().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeletedEntity {
+    return new DeletedEntity().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeletedEntity | PlainMessage<DeletedEntity> | undefined, b: DeletedEntity | PlainMessage<DeletedEntity> | undefined): boolean {
-    return proto3.util.equals(DeletedEntity, a, b);
+  static equals(
+    a: DeletedEntity | PlainMessage<DeletedEntity> | undefined,
+    b: DeletedEntity | PlainMessage<DeletedEntity> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeletedEntity, a, b)
   }
 }
 
@@ -815,7 +1038,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    *
    * @generated from field: string query = 1;
    */
-  query = "";
+  query = ''
 
   /**
    * Whether to look into all content available or just the titles.
@@ -824,7 +1047,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    *
    * @generated from field: bool include_body = 2;
    */
-  includeBody = false;
+  includeBody = false
 
   /**
    * Optional. The size of the text accompanying the search match.
@@ -833,7 +1056,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    *
    * @generated from field: int32 context_size = 3;
    */
-  contextSize = 0;
+  contextSize = 0
 
   /**
    * Optional. The account uid to filter the search by.
@@ -841,7 +1064,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    *
    * @generated from field: string account_uid = 4;
    */
-  accountUid = "";
+  accountUid = ''
 
   /**
    * Optional. The account uid the user is logged in with.
@@ -850,37 +1073,54 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    *
    * @generated from field: string logged_account_uid = 5;
    */
-  loggedAccountUid = "";
+  loggedAccountUid = ''
 
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.SearchEntitiesRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "include_body", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 4, name: "account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "logged_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'query', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'include_body', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 3, name: 'context_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 4, name: 'account_uid', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 5,
+      name: 'logged_account_uid',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
-    return new SearchEntitiesRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SearchEntitiesRequest {
+    return new SearchEntitiesRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchEntitiesRequest {
-    return new SearchEntitiesRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SearchEntitiesRequest {
+    return new SearchEntitiesRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchEntitiesRequest {
-    return new SearchEntitiesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SearchEntitiesRequest {
+    return new SearchEntitiesRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SearchEntitiesRequest | PlainMessage<SearchEntitiesRequest> | undefined, b: SearchEntitiesRequest | PlainMessage<SearchEntitiesRequest> | undefined): boolean {
-    return proto3.util.equals(SearchEntitiesRequest, a, b);
+  static equals(
+    a: SearchEntitiesRequest | PlainMessage<SearchEntitiesRequest> | undefined,
+    b: SearchEntitiesRequest | PlainMessage<SearchEntitiesRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(SearchEntitiesRequest, a, b)
   }
 }
 
@@ -895,41 +1135,64 @@ export class SearchEntitiesResponse extends Message<SearchEntitiesResponse> {
    *
    * @generated from field: repeated com.seed.entities.v1alpha.Entity entities = 1;
    */
-  entities: Entity[] = [];
+  entities: Entity[] = []
 
   /**
    * Token for the next page if there's any.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<SearchEntitiesResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.SearchEntitiesResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.SearchEntitiesResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "entities", kind: "message", T: Entity, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'entities', kind: 'message', T: Entity, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesResponse {
-    return new SearchEntitiesResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SearchEntitiesResponse {
+    return new SearchEntitiesResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchEntitiesResponse {
-    return new SearchEntitiesResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SearchEntitiesResponse {
+    return new SearchEntitiesResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchEntitiesResponse {
-    return new SearchEntitiesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SearchEntitiesResponse {
+    return new SearchEntitiesResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SearchEntitiesResponse | PlainMessage<SearchEntitiesResponse> | undefined, b: SearchEntitiesResponse | PlainMessage<SearchEntitiesResponse> | undefined): boolean {
-    return proto3.util.equals(SearchEntitiesResponse, a, b);
+  static equals(
+    a:
+      | SearchEntitiesResponse
+      | PlainMessage<SearchEntitiesResponse>
+      | undefined,
+    b:
+      | SearchEntitiesResponse
+      | PlainMessage<SearchEntitiesResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(SearchEntitiesResponse, a, b)
   }
 }
 
@@ -945,41 +1208,53 @@ export class DeleteEntityRequest extends Message<DeleteEntityRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Optional. Reason why the user wants to delete that entity.
    *
    * @generated from field: string reason = 2;
    */
-  reason = "";
+  reason = ''
 
   constructor(data?: PartialMessage<DeleteEntityRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.DeleteEntityRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.DeleteEntityRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'reason', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteEntityRequest {
-    return new DeleteEntityRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DeleteEntityRequest {
+    return new DeleteEntityRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteEntityRequest {
-    return new DeleteEntityRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteEntityRequest {
+    return new DeleteEntityRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteEntityRequest {
-    return new DeleteEntityRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DeleteEntityRequest {
+    return new DeleteEntityRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DeleteEntityRequest | PlainMessage<DeleteEntityRequest> | undefined, b: DeleteEntityRequest | PlainMessage<DeleteEntityRequest> | undefined): boolean {
-    return proto3.util.equals(DeleteEntityRequest, a, b);
+  static equals(
+    a: DeleteEntityRequest | PlainMessage<DeleteEntityRequest> | undefined,
+    b: DeleteEntityRequest | PlainMessage<DeleteEntityRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DeleteEntityRequest, a, b)
   }
 }
 
@@ -994,41 +1269,60 @@ export class ListDeletedEntitiesRequest extends Message<ListDeletedEntitiesReque
    *
    * @generated from field: int32 page_size = 1;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Value from next_page_token obtains from a previous response.
    *
    * @generated from field: string page_token = 2;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListDeletedEntitiesRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.ListDeletedEntitiesRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.entities.v1alpha.ListDeletedEntitiesRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 2, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDeletedEntitiesRequest {
-    return new ListDeletedEntitiesRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDeletedEntitiesRequest {
+    return new ListDeletedEntitiesRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDeletedEntitiesRequest {
-    return new ListDeletedEntitiesRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDeletedEntitiesRequest {
+    return new ListDeletedEntitiesRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDeletedEntitiesRequest {
-    return new ListDeletedEntitiesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDeletedEntitiesRequest {
+    return new ListDeletedEntitiesRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDeletedEntitiesRequest | PlainMessage<ListDeletedEntitiesRequest> | undefined, b: ListDeletedEntitiesRequest | PlainMessage<ListDeletedEntitiesRequest> | undefined): boolean {
-    return proto3.util.equals(ListDeletedEntitiesRequest, a, b);
+  static equals(
+    a:
+      | ListDeletedEntitiesRequest
+      | PlainMessage<ListDeletedEntitiesRequest>
+      | undefined,
+    b:
+      | ListDeletedEntitiesRequest
+      | PlainMessage<ListDeletedEntitiesRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDeletedEntitiesRequest, a, b)
   }
 }
 
@@ -1043,41 +1337,71 @@ export class ListDeletedEntitiesResponse extends Message<ListDeletedEntitiesResp
    *
    * @generated from field: repeated com.seed.entities.v1alpha.DeletedEntity deleted_entities = 1;
    */
-  deletedEntities: DeletedEntity[] = [];
+  deletedEntities: DeletedEntity[] = []
 
   /**
    * Token for the next page if there're more results.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListDeletedEntitiesResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.ListDeletedEntitiesResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.entities.v1alpha.ListDeletedEntitiesResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "deleted_entities", kind: "message", T: DeletedEntity, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'deleted_entities',
+      kind: 'message',
+      T: DeletedEntity,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDeletedEntitiesResponse {
-    return new ListDeletedEntitiesResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListDeletedEntitiesResponse {
+    return new ListDeletedEntitiesResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDeletedEntitiesResponse {
-    return new ListDeletedEntitiesResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListDeletedEntitiesResponse {
+    return new ListDeletedEntitiesResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDeletedEntitiesResponse {
-    return new ListDeletedEntitiesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListDeletedEntitiesResponse {
+    return new ListDeletedEntitiesResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListDeletedEntitiesResponse | PlainMessage<ListDeletedEntitiesResponse> | undefined, b: ListDeletedEntitiesResponse | PlainMessage<ListDeletedEntitiesResponse> | undefined): boolean {
-    return proto3.util.equals(ListDeletedEntitiesResponse, a, b);
+  static equals(
+    a:
+      | ListDeletedEntitiesResponse
+      | PlainMessage<ListDeletedEntitiesResponse>
+      | undefined,
+    b:
+      | ListDeletedEntitiesResponse
+      | PlainMessage<ListDeletedEntitiesResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListDeletedEntitiesResponse, a, b)
   }
 }
 
@@ -1093,33 +1417,45 @@ export class UndeleteEntityRequest extends Message<UndeleteEntityRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<UndeleteEntityRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.UndeleteEntityRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.UndeleteEntityRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UndeleteEntityRequest {
-    return new UndeleteEntityRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UndeleteEntityRequest {
+    return new UndeleteEntityRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UndeleteEntityRequest {
-    return new UndeleteEntityRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UndeleteEntityRequest {
+    return new UndeleteEntityRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UndeleteEntityRequest {
-    return new UndeleteEntityRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UndeleteEntityRequest {
+    return new UndeleteEntityRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UndeleteEntityRequest | PlainMessage<UndeleteEntityRequest> | undefined, b: UndeleteEntityRequest | PlainMessage<UndeleteEntityRequest> | undefined): boolean {
-    return proto3.util.equals(UndeleteEntityRequest, a, b);
+  static equals(
+    a: UndeleteEntityRequest | PlainMessage<UndeleteEntityRequest> | undefined,
+    b: UndeleteEntityRequest | PlainMessage<UndeleteEntityRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(UndeleteEntityRequest, a, b)
   }
 }
 
@@ -1134,7 +1470,7 @@ export class ListEntityMentionsRequest extends Message<ListEntityMentionsRequest
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Optional. The size of the page to return by the server.
@@ -1142,14 +1478,14 @@ export class ListEntityMentionsRequest extends Message<ListEntityMentionsRequest
    *
    * @generated from field: int32 page_size = 2;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. The page token to continue the pagination.
    *
    * @generated from field: string page_token = 3;
    */
-  pageToken = "";
+  pageToken = ''
 
   /**
    * Optional. Whether to return the results in descending order (newest-first).
@@ -1163,36 +1499,55 @@ export class ListEntityMentionsRequest extends Message<ListEntityMentionsRequest
    *
    * @generated from field: bool reverse_order = 4;
    */
-  reverseOrder = false;
+  reverseOrder = false
 
   constructor(data?: PartialMessage<ListEntityMentionsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.ListEntityMentionsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.entities.v1alpha.ListEntityMentionsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "reverse_order", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 3, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'reverse_order', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEntityMentionsRequest {
-    return new ListEntityMentionsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListEntityMentionsRequest {
+    return new ListEntityMentionsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListEntityMentionsRequest {
-    return new ListEntityMentionsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListEntityMentionsRequest {
+    return new ListEntityMentionsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListEntityMentionsRequest {
-    return new ListEntityMentionsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListEntityMentionsRequest {
+    return new ListEntityMentionsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListEntityMentionsRequest | PlainMessage<ListEntityMentionsRequest> | undefined, b: ListEntityMentionsRequest | PlainMessage<ListEntityMentionsRequest> | undefined): boolean {
-    return proto3.util.equals(ListEntityMentionsRequest, a, b);
+  static equals(
+    a:
+      | ListEntityMentionsRequest
+      | PlainMessage<ListEntityMentionsRequest>
+      | undefined,
+    b:
+      | ListEntityMentionsRequest
+      | PlainMessage<ListEntityMentionsRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListEntityMentionsRequest, a, b)
   }
 }
 
@@ -1207,41 +1562,65 @@ export class ListEntityMentionsResponse extends Message<ListEntityMentionsRespon
    *
    * @generated from field: repeated com.seed.entities.v1alpha.Mention mentions = 1;
    */
-  mentions: Mention[] = [];
+  mentions: Mention[] = []
 
   /**
    * Optional. Token for the next page if there's any.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListEntityMentionsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.ListEntityMentionsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.entities.v1alpha.ListEntityMentionsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "mentions", kind: "message", T: Mention, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'mentions', kind: 'message', T: Mention, repeated: true},
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEntityMentionsResponse {
-    return new ListEntityMentionsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListEntityMentionsResponse {
+    return new ListEntityMentionsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListEntityMentionsResponse {
-    return new ListEntityMentionsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListEntityMentionsResponse {
+    return new ListEntityMentionsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListEntityMentionsResponse {
-    return new ListEntityMentionsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListEntityMentionsResponse {
+    return new ListEntityMentionsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListEntityMentionsResponse | PlainMessage<ListEntityMentionsResponse> | undefined, b: ListEntityMentionsResponse | PlainMessage<ListEntityMentionsResponse> | undefined): boolean {
-    return proto3.util.equals(ListEntityMentionsResponse, a, b);
+  static equals(
+    a:
+      | ListEntityMentionsResponse
+      | PlainMessage<ListEntityMentionsResponse>
+      | undefined,
+    b:
+      | ListEntityMentionsResponse
+      | PlainMessage<ListEntityMentionsResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListEntityMentionsResponse, a, b)
   }
 }
 
@@ -1258,14 +1637,14 @@ export class Mention extends Message<Mention> {
    *
    * @generated from field: string source = 1;
    */
-  source = "";
+  source = ''
 
   /**
    * Required. The Type of the source where the mention was found.
    *
    * @generated from field: string source_type = 2;
    */
-  sourceType = "";
+  sourceType = ''
 
   /**
    * Required. Context can mean different things depending on the type of the source:
@@ -1274,14 +1653,14 @@ export class Mention extends Message<Mention> {
    *
    * @generated from field: string source_context = 3;
    */
-  sourceContext = "";
+  sourceContext = ''
 
   /**
    * Required. Information about the blob where the mention was found.
    *
    * @generated from field: com.seed.entities.v1alpha.Mention.BlobInfo source_blob = 4;
    */
-  sourceBlob?: Mention_BlobInfo;
+  sourceBlob?: Mention_BlobInfo
 
   /**
    * Required. Specifies whether the link points to the exact/pinned version of the target document,
@@ -1289,14 +1668,14 @@ export class Mention extends Message<Mention> {
    *
    * @generated from field: bool is_exact_version = 5;
    */
-  isExactVersion = false;
+  isExactVersion = false
 
   /**
    * Optional. Specifies the document where the mention was found. Relevant for comments.
    *
    * @generated from field: string source_document = 6;
    */
-  sourceDocument = "";
+  sourceDocument = ''
 
   /**
    * Optional. The version of the target Entity the link points to,
@@ -1304,55 +1683,92 @@ export class Mention extends Message<Mention> {
    *
    * @generated from field: string target_version = 7;
    */
-  targetVersion = "";
+  targetVersion = ''
 
   /**
    * Optional. The fragment portion of the link.
    *
    * @generated from field: string target_fragment = 8;
    */
-  targetFragment = "";
+  targetFragment = ''
 
   /**
    * Optional. The type of mention. Could be embed, link, ...
    *
    * @generated from field: string mention_type = 9;
    */
-  mentionType = "";
+  mentionType = ''
 
   constructor(data?: PartialMessage<Mention>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.Mention";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.Mention'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "source_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "source_context", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "source_blob", kind: "message", T: Mention_BlobInfo },
-    { no: 5, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "source_document", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 9, name: "mention_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'source', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'source_type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'source_context',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 4, name: 'source_blob', kind: 'message', T: Mention_BlobInfo},
+    {
+      no: 5,
+      name: 'is_exact_version',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+    },
+    {
+      no: 6,
+      name: 'source_document',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 7,
+      name: 'target_version',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 8,
+      name: 'target_fragment',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 9, name: 'mention_type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention {
-    return new Mention().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Mention {
+    return new Mention().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Mention {
-    return new Mention().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Mention {
+    return new Mention().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Mention {
-    return new Mention().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Mention {
+    return new Mention().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Mention | PlainMessage<Mention> | undefined, b: Mention | PlainMessage<Mention> | undefined): boolean {
-    return proto3.util.equals(Mention, a, b);
+  static equals(
+    a: Mention | PlainMessage<Mention> | undefined,
+    b: Mention | PlainMessage<Mention> | undefined,
+  ): boolean {
+    return proto3.util.equals(Mention, a, b)
   }
 }
 
@@ -1367,49 +1783,60 @@ export class Mention_BlobInfo extends Message<Mention_BlobInfo> {
    *
    * @generated from field: string cid = 1;
    */
-  cid = "";
+  cid = ''
 
   /**
    * The Account ID of the author of the blob.
    *
    * @generated from field: string author = 2;
    */
-  author = "";
+  author = ''
 
   /**
    * The timestamp of the blob.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 3;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   constructor(data?: PartialMessage<Mention_BlobInfo>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.entities.v1alpha.Mention.BlobInfo";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.entities.v1alpha.Mention.BlobInfo'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "cid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "create_time", kind: "message", T: Timestamp },
-  ]);
+    {no: 1, name: 'cid', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'author', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'create_time', kind: 'message', T: Timestamp},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Mention_BlobInfo {
-    return new Mention_BlobInfo().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Mention_BlobInfo {
+    return new Mention_BlobInfo().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Mention_BlobInfo {
-    return new Mention_BlobInfo().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Mention_BlobInfo {
+    return new Mention_BlobInfo().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Mention_BlobInfo {
-    return new Mention_BlobInfo().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Mention_BlobInfo {
+    return new Mention_BlobInfo().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined, b: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined): boolean {
-    return proto3.util.equals(Mention_BlobInfo, a, b);
+  static equals(
+    a: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined,
+    b: Mention_BlobInfo | PlainMessage<Mention_BlobInfo> | undefined,
+  ): boolean {
+    return proto3.util.equals(Mention_BlobInfo, a, b)
   }
 }
-

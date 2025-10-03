@@ -7,24 +7,24 @@
   },
   "notifications": [
     {
-  "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
-  "accountMeta": {
-    "name": "Iskak Toltay",
-    "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
-  },
-  "notif": {
-    "type": "mention",
-    "comment": {
-      "id": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/z6BrMXZQ9m7K6A",
-      "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-      "targetPath": "/outline-2",
-      "targetVersion": "bafy2bzacedb7mvwn2kvckimsmiqxzzpb4pfhy6i54hfxpzvhs4gtgieo66sje",
-      "threadRoot": "",
-      "threadRootVersion": "",
-      "replyParent": "",
-      "replyParentVersion": "",
-      "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-      "content": [
+      "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
+      "accountMeta": {
+        "name": "Iskak Toltay",
+        "icon": "ipfs://bafkreiaspagizlvvzcqib4p25nryjba5eld7z23y2afw3nma24c5gwsx6e"
+      },
+      "notif": {
+        "type": "mention",
+        "comment": {
+          "id": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/z6BrMXZQ9m7K6A",
+          "targetAccount": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "targetPath": "/outline-2",
+          "targetVersion": "bafy2bzacedb7mvwn2kvckimsmiqxzzpb4pfhy6i54hfxpzvhs4gtgieo66sje",
+          "threadRoot": "",
+          "threadRootVersion": "",
+          "replyParent": "",
+          "replyParentVersion": "",
+          "author": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "content": [
             {
               "block": {
                 "id": "6CxhCOVI",
@@ -38,12 +38,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      0
-                    ],
-                    "ends": [
-                      1
-                    ]
+                    "starts": [0],
+                    "ends": [1]
                   }
                 ],
                 "revision": "b"
@@ -55,31 +51,31 @@
             "seconds": "1749022791",
             "nanos": 529000000
           },
-      "capability": "",
-      "version": "bafy2bzacebfa2lpv44bv5gkpy43am23hniio557b5mlhru37pea7eqhshvfg2"
+          "capability": "",
+          "version": "bafy2bzacebfa2lpv44bv5gkpy43am23hniio557b5mlhru37pea7eqhshvfg2"
+        },
+        "parentComments": [],
+        "commentAuthorMeta": {"name": "Test"},
+        "targetMeta": {"name": "Outline 2"},
+        "targetId": {
+          "path": [],
+          "type": "d",
+          "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
+          "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
+          "version": null,
+          "blockRef": null,
+          "blockRange": null,
+          "hostname": null,
+          "scheme": null,
+          "targetDocUid": null,
+          "targetDocPath": null
+        },
+        "url": "http://192.168.8.28:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
+        "resolvedNames": {
+          "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ": "Iskak Toltay"
+        }
+      }
     },
-    "parentComments": [],
-    "commentAuthorMeta": { "name": "Test" },
-    "targetMeta": { "name": "Outline 2" },
-    "targetId": {
-      "path": [],
-      "type": "d",
-      "uid": "z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS",
-      "id": "hm://z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
-      "version": null,
-      "blockRef": null,
-      "blockRange": null,
-      "hostname": null,
-      "scheme": null,
-      "targetDocUid": null,
-      "targetDocPath": null
-    },
-    "url": "http://192.168.8.28:3000/hm/z6Mko5b8o2uangjKwqJ4s7vPZ7ksKRQzihA7ZTueResDXWdS/outline-2",
-    "resolvedNames": {
-      "hm://z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ": "Iskak Toltay"
-    }
-  }
-},
 
     {
       "accountId": "z6MkqULds7oeqGPgtSpqpisK77FxhwP57ikVNFVfYfsMb2KZ",
@@ -111,12 +107,8 @@
                     "attributes": {
                       "fields": {}
                     },
-                    "starts": [
-                      0
-                    ],
-                    "ends": [
-                      1
-                    ]
+                    "starts": [0],
+                    "ends": [1]
                   }
                 ],
                 "revision": "b"

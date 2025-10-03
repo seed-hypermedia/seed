@@ -1,9 +1,9 @@
-import type {AppBudgets} from "./types.js";
+import type {AppBudgets} from './types.js'
 
 export const PORTS = {
   web: 3000,
   landing: 4173,
-} as const;
+} as const
 
 export const budgets: Record<string, AppBudgets> = {
   web: {
@@ -38,17 +38,17 @@ export const budgets: Record<string, AppBudgets> = {
       pageSize: 8000000, // 7MB
     },
   },
-};
+}
 
 export const LIGHTHOUSE_CONFIG = {
-  extends: "lighthouse:default",
+  extends: 'lighthouse:default',
   settings: {
-    onlyCategories: ["performance"],
-    formFactor: "desktop" as const,
+    onlyCategories: ['performance'],
+    formFactor: 'desktop' as const,
     throttling: {
       rttMs: 40,
       throughputKbps: 10240,
       cpuSlowdownMultiplier: 1,
     },
   },
-};
+}

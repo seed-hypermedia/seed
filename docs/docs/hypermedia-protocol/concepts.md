@@ -52,22 +52,22 @@ A capability gives one account additional priveliges in the context of another a
 }
 ```
 
-## Contributor 
+## Contributor
 
 An Account who has access to contribute to the Document. When they start signing Changes for this Document, they will become an Author.
 
 ## Author
 
-An Account who has created a Change in the 
+An Account who has created a Change in the
 
 ## Refs
 
-The pointer to the current Version of a document. Signed by the Document Owner 
+The pointer to the current Version of a document. Signed by the Document Owner
 
-Saved as [Ref Blobs](./blob-ref.md) and distributed through [IPFS](./ipfs.md) and 
+Saved as [Ref Blobs](./blob-ref.md) and distributed through [IPFS](./ipfs.md) and
 
 ## Capability
 
 ## [Hypermedia URL](./hypermedia-url.md)
 
-The URL format for Hypermedia links. These links generally follow the form `hm://ACCOUNT_ID/PATH?PARAMS`. The params include metadata for referencing 
+The URL format for Hypermedia links. These links generally follow the form `hm://ACCOUNT_ID/PATH?PARAMS`. The params include metadata for referencing

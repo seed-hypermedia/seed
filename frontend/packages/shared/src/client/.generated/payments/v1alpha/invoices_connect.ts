@@ -3,8 +3,20 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateInvoiceRequest, DecodeInvoiceRequest, GetLnAddressRequest, Invoice, InvoiceResponse, ListInvoicesRequest, ListInvoicesResponse, LNAddress, PayInvoiceRequest, RequestLud6InvoiceRequest, UpdateLNAddressRequest } from "./invoices_pb";
-import { Empty, MethodKind } from "@bufbuild/protobuf";
+import {
+  CreateInvoiceRequest,
+  DecodeInvoiceRequest,
+  GetLnAddressRequest,
+  Invoice,
+  InvoiceResponse,
+  ListInvoicesRequest,
+  ListInvoicesResponse,
+  LNAddress,
+  PayInvoiceRequest,
+  RequestLud6InvoiceRequest,
+  UpdateLNAddressRequest,
+} from './invoices_pb'
+import {Empty, MethodKind} from '@bufbuild/protobuf'
 
 /**
  * Invoices service deals with invoices and payments of invoices.
@@ -12,18 +24,18 @@ import { Empty, MethodKind } from "@bufbuild/protobuf";
  * @generated from service com.seed.payments.v1alpha.Invoices
  */
 export const Invoices = {
-  typeName: "com.seed.payments.v1alpha.Invoices",
+  typeName: 'com.seed.payments.v1alpha.Invoices',
   methods: {
     /**
-     * CreateInvoice creates a local invoice. Used to get paid. Typicaly 
+     * CreateInvoice creates a local invoice. Used to get paid. Typicaly
      * seed users will call this remotely bc they don't know the lnaddress
-     * of the receiver, just their seed account. The local node, upon the 
+     * of the receiver, just their seed account. The local node, upon the
      * request, issues an invoice.
      *
      * @generated from rpc com.seed.payments.v1alpha.Invoices.CreateInvoice
      */
     createInvoice: {
-      name: "CreateInvoice",
+      name: 'CreateInvoice',
       I: CreateInvoiceRequest,
       O: InvoiceResponse,
       kind: MethodKind.Unary,
@@ -34,7 +46,7 @@ export const Invoices = {
      * @generated from rpc com.seed.payments.v1alpha.Invoices.PayInvoice
      */
     payInvoice: {
-      name: "PayInvoice",
+      name: 'PayInvoice',
       I: PayInvoiceRequest,
       O: Empty,
       kind: MethodKind.Unary,
@@ -45,7 +57,7 @@ export const Invoices = {
      * @generated from rpc com.seed.payments.v1alpha.Invoices.ListPaidInvoices
      */
     listPaidInvoices: {
-      name: "ListPaidInvoices",
+      name: 'ListPaidInvoices',
       I: ListInvoicesRequest,
       O: ListInvoicesResponse,
       kind: MethodKind.Unary,
@@ -56,7 +68,7 @@ export const Invoices = {
      * @generated from rpc com.seed.payments.v1alpha.Invoices.DecodeInvoice
      */
     decodeInvoice: {
-      name: "DecodeInvoice",
+      name: 'DecodeInvoice',
       I: DecodeInvoiceRequest,
       O: Invoice,
       kind: MethodKind.Unary,
@@ -67,13 +79,13 @@ export const Invoices = {
      * @generated from rpc com.seed.payments.v1alpha.Invoices.ListReceivedInvoices
      */
     listReceivedInvoices: {
-      name: "ListReceivedInvoices",
+      name: 'ListReceivedInvoices',
       I: ListInvoicesRequest,
       O: ListInvoicesResponse,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
+  },
+} as const
 
 /**
  * LNURL service provides LNURL (https://github.com/lnurl) compatibility.
@@ -81,17 +93,17 @@ export const Invoices = {
  * @generated from service com.seed.payments.v1alpha.LNURL
  */
 export const LNURL = {
-  typeName: "com.seed.payments.v1alpha.LNURL",
+  typeName: 'com.seed.payments.v1alpha.LNURL',
   methods: {
     /**
-     * Request an invoice following the LNURL lud6 protocol 
+     * Request an invoice following the LNURL lud6 protocol
      * (https://github.com/lnurl/luds/blob/luds/06.md). This does not require the
      * caller to log in anywhere. Used to pay.
      *
      * @generated from rpc com.seed.payments.v1alpha.LNURL.RequestLud6Invoice
      */
     requestLud6Invoice: {
-      name: "RequestLud6Invoice",
+      name: 'RequestLud6Invoice',
       I: RequestLud6InvoiceRequest,
       O: InvoiceResponse,
       kind: MethodKind.Unary,
@@ -103,7 +115,7 @@ export const LNURL = {
      * @generated from rpc com.seed.payments.v1alpha.LNURL.GetLnAddress
      */
     getLnAddress: {
-      name: "GetLnAddress",
+      name: 'GetLnAddress',
       I: GetLnAddressRequest,
       O: LNAddress,
       kind: MethodKind.Unary,
@@ -115,11 +127,10 @@ export const LNURL = {
      * @generated from rpc com.seed.payments.v1alpha.LNURL.UpdateLNAddress
      */
     updateLNAddress: {
-      name: "UpdateLNAddress",
+      name: 'UpdateLNAddress',
       I: UpdateLNAddressRequest,
       O: LNAddress,
       kind: MethodKind.Unary,
     },
-  }
-} as const;
-
+  },
+} as const

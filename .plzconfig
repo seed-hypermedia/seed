@@ -25,3 +25,4 @@ DirClean = true
 go-tool = //build/nix:go
 md5sum-tool = //build/nix:md5sum
 yarn-tool = //build/nix:yarn
+pnpm-tool = //build/nix:pnpm

@@ -9,16 +9,16 @@ services:
       - seed-daemon
       - seed-web
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
     restart: unless-stopped
     networks:
       - internal_network
     environment:
-      - "SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}"
-      - "SEED_SITE_BACKEND_GRPCWEB_PORT=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
-      - "SEED_SITE_LOCAL_PORT=${SEED_SITE_LOCAL_PORT:-3000}"
+      - 'SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}'
+      - 'SEED_SITE_BACKEND_GRPCWEB_PORT=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
+      - 'SEED_SITE_LOCAL_PORT=${SEED_SITE_LOCAL_PORT:-3000}'
     volumes:
       - ${SEED_SITE_WORKSPACE}/proxy/data:/data
       - ${SEED_SITE_WORKSPACE}/proxy/config:/config
@@ -32,32 +32,32 @@ services:
     networks:
       - internal_network
     ports:
-      - "${SEED_SITE_LOCAL_PORT:-3000}:${SEED_SITE_LOCAL_PORT:-3000}"
+      - '${SEED_SITE_LOCAL_PORT:-3000}:${SEED_SITE_LOCAL_PORT:-3000}'
     restart: unless-stopped
     volumes:
       - ${SEED_SITE_WORKSPACE}/web:/data:rw
     environment:
-      - "SEED_BASE_URL=${SEED_SITE_HOSTNAME}"
-      - "SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}"
-      - "SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}"
-      - "DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}"
-      - "PORT=${SEED_SITE_LOCAL_PORT:-3000}"
-      - "DATA_DIR=/data"
+      - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
+      - 'SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}'
+      - 'SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}'
+      - 'DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
+      - 'PORT=${SEED_SITE_LOCAL_PORT:-3000}'
+      - 'DATA_DIR=/data'
 
   seed-daemon:
     container_name: seed-daemon
     image: seedhypermedia/site:${SEED_SITE_TAG:-latest}
     restart: unless-stopped
     ports:
-      - "56000:56000"
-      - "56000:56000/udp"
+      - '56000:56000'
+      - '56000:56000/udp'
     networks:
       - internal_network
     environment:
-      - "SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}"
-      - "SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}"
-      - "LIGHTNING_API_URL=${SEED_LIGHTNING_URL}"
-      - "SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}"
+      - 'SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}'
+      - 'SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}'
+      - 'LIGHTNING_API_URL=${SEED_LIGHTNING_URL}'
+      - 'SENTRY_DSN=${SEED_SITE_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}'
     volumes:
       - ${SEED_SITE_WORKSPACE}/daemon:/data:rw
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana:/exported_grafana:rw
@@ -66,7 +66,7 @@ services:
       sh -c "rsync -a /monitoring/prometheus/ /exported_prometheus &&
              rsync -a /monitoring/grafana/ /exported_grafana && 
              seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=${SEED_SITE_NO_PULL:-false} -p2p.announce-addrs=/dns4/${SEED_SITE_DNS}/tcp/56000,/dns4/${SEED_SITE_DNS}/udp/56000/quic-v1 ${SEED_SITE_HOSTNAME}"
-    
+
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped
@@ -78,7 +78,7 @@ services:
     networks:
       - internal_network
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     volumes:
       - prometheus-data:/prometheus
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
@@ -99,9 +99,9 @@ services:
       - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/provisioning:/etc/grafana/provisioning:ro
     environment:
       GF_LOG_MODE: console
-      GF_PATHS_PROVISIONING: "/etc/grafana/provisioning"
+      GF_PATHS_PROVISIONING: '/etc/grafana/provisioning'
       GF_SERVER_HTTP_PORT: ${SEED_SITE_MONITORING_PORT:-3001}
-      GF_SERVER_PROTOCOL: "http"
+      GF_SERVER_PROTOCOL: 'http'
       GF_SERVER_DOMAIN: ${SEED_SITE_DNS:-localhost:3001}
       GF_SERVER_ROOT_URL: ${SEED_SITE_HOSTNAME:-http}/.metrics
       GF_SERVER_SERVE_FROM_SUB_PATH: True

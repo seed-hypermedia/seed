@@ -1,6 +1,6 @@
 # Document Entity
 
-A Document is a [Entity](./terra-entities) that enables a *conflict-free merge of a heirarchal document* formed from many "blocks" of content.
+A Document is a [Entity](./terra-entities) that enables a _conflict-free merge of a heirarchal document_ formed from many "blocks" of content.
 
 ### Document ID
 
@@ -84,5 +84,3 @@ The data saved in the raw Entity includes:
     }
 }
 ```
-
-

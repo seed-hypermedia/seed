@@ -85,12 +85,14 @@ You can also run against the production network:
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
 
-In some linux environments, you will require to [increase UDP buffer size](https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes) 
+In some linux environments, you will require to [increase UDP buffer size](https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes)
 for the correct functioning of the app. To do so, just run:
+
 ```bash
 sysctl -w net.core.rmem_max=7500000
 sysctl -w net.core.wmem_max=7500000
 ```
+
 ## Web App Builds
 
 You can build docker images for different modules of the system.
@@ -107,7 +109,6 @@ You can start the daemon go daemon with:
 ```
 go run ./backend/cmd/seed-site -data-dir=~/.mttsite -p2p.port=59000 --http.port=59001 -p2p.no-relay -grpc.port=59002 http://127.0.0.1:59001
 ```
-
 
 ### 2. Start the Frontend Web App
 
