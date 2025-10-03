@@ -2,10 +2,14 @@ import {UnpackedHypermediaId} from '@shm/shared'
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
-import {ListEventsRequest} from '@shm/shared/models/activity-service'
+import {
+  ListEventsRequest,
+  LoadedEvent,
+} from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {formattedDateShort} from '@shm/shared/utils'
+import {useCallback, useEffect, useRef} from 'react'
 import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
 import {HMIcon} from './hm-icon'
@@ -167,48 +171,107 @@ export function Feed2({
   filterResource: ListEventsRequest['filterResource']
   currentAccount: string
 }) {
-  const {data} = useActivityFeed({
+  const observerRef = useRef<IntersectionObserver>()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    error,
+  } = useActivityFeed({
     docId,
 
     filterResource,
     currentAccount,
-    pageSize: 40,
   })
 
-  console.log(`== ~ Feed2 ~ docId,:`, docId)
+  const lastElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      // Disconnect previous observer
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = undefined
+      }
+
+      // Early return if no node or still loading
+      if (!node || isLoading) {
+        return
+      }
+
+      const scrollContainer = scrollContainerRef.current
+
+      // Use the ref container or fallback to default viewport
+      const observerOptions = scrollContainer
+        ? {
+            root: scrollContainer,
+            rootMargin: '100px',
+          }
+        : {
+            rootMargin: '100px',
+          }
+
+      observerRef.current = new IntersectionObserver((entries) => {
+        const entry = entries[0]
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      }, observerOptions)
+
+      observerRef.current.observe(node)
+    },
+    [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage],
+  )
+
+  // Cleanup observer on component unmount
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = undefined
+      }
+    }
+  }, [])
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
 
+  if (error) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <p>Feed error. try again</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <ScrollArea>
-        {allEvents.map((e) => {
+        {allEvents.map((e, index) => {
+          const isLast = index === allEvents.length - 1
           return (
-            <div key={e.id} className="hover:bg-background m-2 rounded">
-              <div className="flex items-start gap-2 p-2">
-                <HMIcon
-                  size={20}
-                  id={e.author.id}
-                  name={e.author.metadata?.name}
-                  icon={e.author.metadata?.icon}
-                />
-                <p>
-                  <span className="text-sm font-bold">
-                    {e.author?.metadata?.name}
-                  </span>{' '}
-                  <span className="text-muted-foreground text-sm">
-                    {/* commented on */}
-                    {e.type}
-                  </span>{' '}
-                  <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-                    this document with a super long name because I want to see
-                    how it overflows
-                  </a>{' '}
-                  <span className="text-muted-foreground ml-2 flex-none text-xs">
-                    aug 24
-                  </span>
-                </p>
+            <div
+              key={e.id}
+              ref={isLast ? lastElementRef : undefined}
+              className="hover:bg-background m-2 flex items-start rounded"
+            >
+              {/* timeline line + point wrapper */}
+              <div className="w-4 p-4">
+                {/* timeline point */}
+                <div className="mx-auto size-3 rounded-full bg-red-500" />
+              </div>
+              <div>
+                <div className="flex items-start gap-2 p-2">
+                  <HMIcon
+                    size={20}
+                    id={e.author.id}
+                    name={e.author.metadata?.name}
+                    icon={e.author.metadata?.icon}
+                  />
+                  <EventHeaderContent event={e} />
+                </div>
               </div>
             </div>
           )
@@ -216,4 +279,87 @@ export function Feed2({
       </ScrollArea>
     </div>
   )
+}
+
+function EventHeaderContent({event}: {event: LoadedEvent}) {
+  if (event.type == 'comment') {
+    return (
+      <p>
+        <span className="text-sm font-bold">
+          {event.author?.metadata?.name}
+        </span>{' '}
+        <span className="text-muted-foreground text-sm">commented on</span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {event.target?.metadata?.name}
+        </a>{' '}
+        <span className="text-muted-foreground ml-2 flex-none text-xs">
+          {formattedDateShort(event.time)}
+        </span>
+      </p>
+    )
+  }
+
+  if (event.type == 'capability') {
+    return (
+      <p>
+        <span className="text-sm font-bold">
+          {event.author?.metadata?.name}
+        </span>{' '}
+        <span className="text-muted-foreground text-sm">added</span>{' '}
+        <span className="text-sm font-bold">
+          {event.delegates[0]?.metadata?.name ||
+            event.delegates[0]?.id?.uid.substring(0, 8)}
+        </span>{' '}
+        <span className="text-muted-foreground text-sm">as Writer in</span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {event.target?.metadata?.name}
+        </a>{' '}
+        <span className="text-muted-foreground ml-2 flex-none text-xs">
+          {formattedDateShort(event.time)}
+        </span>
+      </p>
+    )
+  }
+
+  if (event.type == 'doc-update') {
+    return (
+      <p>
+        <span className="text-sm font-bold">
+          {event.author?.metadata?.name}
+        </span>{' '}
+        <span className="text-muted-foreground text-sm">
+          {event.document.version == event.document.genesis
+            ? 'created'
+            : 'updated'}
+        </span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {event.document.metadata.name}
+        </a>{' '}
+        <span className="text-muted-foreground ml-2 flex-none text-xs">
+          {formattedDateShort(event.time)}
+        </span>
+      </p>
+    )
+  }
+
+  if (event.type == 'contact') {
+    console.log('CONTACT', event)
+    return (
+      <p>
+        <span className="text-sm font-bold">
+          {event.author?.metadata?.name}
+        </span>{' '}
+        <span className="text-muted-foreground text-sm">added</span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {event.contact.metadata?.name}
+        </a>{' '}
+        <span className="text-muted-foreground text-sm">as a Contact</span>{' '}
+        <span className="text-muted-foreground ml-2 flex-none text-xs">
+          {formattedDateShort(event.time)}
+        </span>
+      </p>
+    )
+  }
+
+  return <p>... {event.type}</p>
 }

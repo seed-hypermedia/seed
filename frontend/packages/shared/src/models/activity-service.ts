@@ -66,8 +66,12 @@ export type LoadedCapabilityEvent = {
   delegates: HMContactItem[]
   capabilityId: UnpackedHypermediaId
   capability: HMCapability
-  targetId: UnpackedHypermediaId | null
-  targetMetadata: HMMetadata | null
+  target: {
+    id: UnpackedHypermediaId | null
+    metadata: HMMetadata | null
+  }
+  targetId?: UnpackedHypermediaId | null
+  targetMetadata?: HMMetadata | null
 }
 
 export type LoadedCommentEvent = {
@@ -213,10 +217,6 @@ export async function loadCapabilityEvent(
       currentAccount,
     )
 
-    const grpcCapability = await grpcClient.accessControl.getCapability({
-      id: event.newBlob.resource,
-    })
-
     const capId = unpackHmId(event.newBlob.resource)
 
     if (!capId) {
@@ -228,14 +228,37 @@ export async function loadCapabilityEvent(
       return null
     }
 
+    const grpcCapability = await grpcClient.accessControl.getCapability({
+      id: event.newBlob.cid,
+    })
+
+    console.log(`== ~ loadCapabilityEvent ~ grpcCapability:`, grpcCapability)
+
+    const target = await grpcClient.documents.getDocument({
+      account: grpcCapability.account,
+      path: grpcCapability.path,
+    })
+
+    const delegate = await resolveAccount(
+      grpcClient,
+      grpcCapability.delegate,
+      currentAccount,
+    )
+
     return {
       id: capId?.uid!,
       type: 'capability',
       author,
       targetId: null,
       targetMetadata: null,
+      target: {
+        id: null,
+        metadata:
+          (target.metadata?.toJson({emitDefaultValues: true}) as HMMetadata) ||
+          null,
+      },
       time: event.eventTime!,
-      delegates: [], // TODO: Load actual delegates when capability loading is implemented
+      delegates: delegate ? [delegate] : [],
       capabilityId: capId,
       capability: {
         id: grpcCapability.id,
@@ -266,6 +289,7 @@ export async function loadContactEvent(
       event.newBlob.author,
       currentAccount,
     )
+
     const contact = resourceId
       ? await resolveAccount(grpcClient, resourceId.uid, currentAccount)
       : null
@@ -306,11 +330,17 @@ export async function loadRefEvent(
     )
 
     const docId = unpackHmId(event.newBlob.resource)
+
+    console.log(`== ~ loadRefEvent ~ docId:`, docId)
     const grpcDocument = await grpcClient.documents.getDocument({
       account: docId?.uid,
-      path: docId?.path?.join('') || undefined,
+      path: docId?.path?.length ? `/${docId?.path?.join('')}` : '',
       version: docId?.version || undefined,
     })
+
+    // const change = await grpcClient.entities.getEntityTimeline({
+    //   id: grpcDocument.,
+    // })
 
     return docId
       ? {
