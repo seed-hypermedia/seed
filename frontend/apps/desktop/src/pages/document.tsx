@@ -57,7 +57,6 @@ import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentDate} from '@shm/ui/document-date'
-import {Feed2} from '@shm/ui/feed'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -76,7 +75,9 @@ import {AppDocContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
+
   const activityService = new DesktopActivityService()
+  console.log(`== ~ useActivityFeed ~ commentsService:`, activityService)
   const route = useNavRoute()
 
   const docId = route.key == 'document' && route.id
@@ -196,7 +197,6 @@ export default function DocumentPage() {
               }}
               accessoryOptions={accessoryOptions}
             >
-              <Feed2 docId={route.id} />
               <MainDocumentPage
                 id={route.id}
                 isBlockFocused={route.isBlockFocused || false}

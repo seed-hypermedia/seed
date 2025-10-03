@@ -2,6 +2,7 @@ import {UnpackedHypermediaId} from '@shm/shared'
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
+import {ListEventsRequest} from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {formattedDateShort} from '@shm/shared/utils'
@@ -9,6 +10,54 @@ import {ContactToken} from './contact-token'
 import {ResourceToken} from './resource-token'
 import {SizableText} from './text'
 import {cn} from './utils'
+
+/*
+
+<div className="hover:bg-background m-2 rounded">
+  <div className="flex items-start gap-2 p-2">
+    <UIAvatar size={20} label="foo" className="my-1 flex-none" />
+    <p>
+      <span className="text-sm font-bold">horacio</span>{' '}
+      <span className="text-muted-foreground text-sm">
+        commented on
+      </span>{' '}
+      <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+        this document with a super long name because I want to see how
+        it overflows
+      </a>{' '}
+      <span className="text-muted-foreground ml-2 flex-none text-xs">
+        aug 24
+      </span>
+    </p>
+  </div>
+</div>
+*/
+
+export function FeedItemWrapper({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        'hover:bg-background m-2 rounded transition-colors hover:dark:bg-black',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export function FeedItemHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('flex items-start gap-2 p-2', className)} {...props} />
+  )
+}
+
+// =======================================
 
 export function EventRow({
   children,
@@ -22,7 +71,7 @@ export function EventRow({
   return (
     <div
       className={cn(
-        'hover:bg-background m-2 rounded-md p-2 break-words transition-colors hover:dark:bg-black',
+        'hover:bg-background m-2 rounded transition-colors hover:dark:bg-black',
         className,
       )}
       onClick={onClick}
@@ -66,7 +115,7 @@ export function EventRowInline({
 }) {
   return (
     <RouteEventRow className={className} route={route}>
-      {children}
+      <div className="flex items-start gap-2 p-2">{children}</div>
     </RouteEventRow>
   )
 }
@@ -92,7 +141,7 @@ export function EventContacts({contacts}: {contacts: HMContactItem[]}) {
 
 export function EventDescriptionText({children}: {children: React.ReactNode}) {
   return children ? (
-    <SizableText size="xs" className="truncate overflow-hidden px-1">
+    <SizableText size="sm" className="truncate overflow-hidden px-1">
       {children}
     </SizableText>
   ) : null
@@ -107,10 +156,37 @@ export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
   )
 }
 
-export function Feed2({docId}: {docId: UnpackedHypermediaId}) {
-  const data = useActivityFeed({docId})
+export function Feed2({
+  docId,
+  filterResource,
+  currentAccount,
+}: {
+  docId: UnpackedHypermediaId
+  filterResource: ListEventsRequest['filterResource']
+  currentAccount: string
+}) {
+  const {data} = useActivityFeed({
+    docId,
+    filterResource,
+    currentAccount,
+    pageSize: 40,
+  })
 
-  console.log(`== ~ Feed2 ~ data:`, data)
+  // Flatten all pages into a single array of events
+  const allEvents = data?.pages.flatMap((page) => page.events) || []
 
-  return null
+  return (
+    <div>
+      {allEvents.map((e) => {
+        return (
+          <p key={e.id}>
+            {JSON.stringify({
+              type: e.type,
+              id: e.id,
+            })}
+          </p>
+        )
+      })}
+    </div>
+  )
 }

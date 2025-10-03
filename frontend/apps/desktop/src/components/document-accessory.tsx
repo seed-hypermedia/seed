@@ -1,15 +1,16 @@
 import {draftMachine} from '@/models/draft-machine'
+import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocAccessoryOption} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {Feed2} from '@shm/ui/feed'
 import {ReactNode} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CitationsPanel} from './citations-panel'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {DirectoryPanel} from './directory-panel'
 import {DiscussionsPanel} from './discussions-panel'
-import {FeedPanel} from './feed-panel'
 import {OptionsPanel} from './options-panel'
 import {VersionsPanel} from './versions-panel'
 
@@ -38,6 +39,8 @@ export function useDocumentAccessory({
   const accessoryKey = route.accessory?.key
   const accessoryOptions: Array<DocAccessoryOption> = []
 
+  const selectedAccount = useSelectedAccount()
+
   if (accessoryKey == 'citations') {
     accessory = (
       <CitationsPanel
@@ -52,7 +55,12 @@ export function useDocumentAccessory({
   } else if (accessoryKey === 'versions') {
     accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'activity') {
-    accessory = <FeedPanel filterResource={docId?.id} />
+    accessory = (
+      <Feed2
+        filterResource={docId?.id}
+        currentAccount={selectedAccount?.id.uid || ''}
+      />
+    )
   } else if (accessoryKey === 'collaborators') {
     // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />

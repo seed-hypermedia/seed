@@ -1,5 +1,15 @@
+import {HMContactItem, resolveAccount} from '../account-utils'
+import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
-import {HMTimestamp} from '../hm-types'
+import {
+  HMCapability,
+  HMComment,
+  HMDocument,
+  HMMetadata,
+  HMTimestamp,
+  UnpackedHypermediaId,
+} from '../hm-types'
+import {unpackHmId} from '../utils'
 
 export type ListEventsRequest = {
   pageSize?: number
@@ -17,10 +27,7 @@ export type ListEventsResponse = {
 }
 
 export type Event = {
-  data: {
-    case: 'newBlob'
-    value: NewBlobEvent
-  } | null
+  newBlob: NewBlobEvent
   account: string
   eventTime: HMTimestamp | null
   observeTime: HMTimestamp | null
@@ -36,12 +43,81 @@ export type NewBlobEvent = {
   isPinned: boolean
 }
 
+export type HMResourceItem = {
+  id: UnpackedHypermediaId
+  type: 'contact' | 'capability' | 'comment' | 'document'
+  metadata?: HMMetadata
+}
+
+export type LoadedContactEvent = {
+  id: string
+  type: 'contact'
+  author: HMContactItem
+  time: HMTimestamp
+  contact: HMContactItem
+  //   contactData: HMContact | null
+}
+
+export type LoadedCapabilityEvent = {
+  id: string
+  type: 'capability'
+  author: HMContactItem
+  time: HMTimestamp
+  delegates: HMContactItem[]
+  capabilityId: UnpackedHypermediaId
+  capability: HMCapability
+  targetId: UnpackedHypermediaId | null
+  targetMetadata: HMMetadata | null
+}
+
+export type LoadedCommentEvent = {
+  id: string
+  type: 'comment'
+  author: HMContactItem
+  time: HMTimestamp
+  replyingComment: HMComment | null
+  replyingAuthor: HMContactItem | null
+  comment: HMComment | null
+  commentId: UnpackedHypermediaId
+  // deprecate
+  targetMetadata?: HMMetadata | null
+  // deprecate
+  targetId?: UnpackedHypermediaId | null
+  target: HMContactItem | null
+}
+
+export type LoadedRefEvent = {
+  id: string
+  type: 'doc-update'
+  author: HMContactItem
+  time: HMTimestamp
+  docId: UnpackedHypermediaId
+  document: HMDocument
+}
+
+export type LoadedEvent =
+  | LoadedCommentEvent
+  | LoadedRefEvent
+  | LoadedCapabilityEvent
+  | LoadedContactEvent
+//| LoadedDagPBEvent
+//| LoadedProfileEvent
+
 export interface ActivityService {
   /**
    * Lists recent activity events, sorted by locally observed time (newest first)
    * Used to get activity feed with optional filters for authors, event types, and resources
    */
   listEvents(params: ListEventsRequest): Promise<ListEventsResponse>
+
+  /**
+   * Resolves an event into its loaded form with additional data
+   * Handles all event types internally based on event.data.case
+   */
+  resolveEvent(
+    event: Event,
+    currentAccount: string,
+  ): Promise<LoadedEvent | null>
 }
 
 /**
@@ -63,5 +139,191 @@ export async function listEventsImpl(
     addLinkedResource: params.addLinkedResource || [],
   })
 
-  return response.toJson() as ListEventsResponse
+  return response.toJson({emitDefaultValues: true}) as ListEventsResponse
+}
+
+export async function loadCommentEvent(
+  grpcClient: GRPCClient,
+  event: Event,
+  currentAccount: string,
+): Promise<LoadedCommentEvent | null> {
+  if (event.newBlob.blobType.toLowerCase() != 'comment') {
+    console.error('Event: not a comment event: ', event)
+    return null
+  }
+
+  try {
+    const comment = await grpcClient.comments.getComment({
+      id: event.newBlob.cid,
+    })
+
+    const author = await resolveAccount(
+      grpcClient,
+      comment.author,
+      currentAccount,
+    )
+
+    const replyingComment = comment.replyParent
+      ? await grpcClient.comments.getComment({
+          id: comment.replyParent,
+        })
+      : null
+
+    const replyingAuthor = replyingComment?.author
+      ? await resolveAccount(grpcClient, replyingComment.author, currentAccount)
+      : null
+
+    const targetAccount = await resolveAccount(
+      grpcClient,
+      comment.targetAccount,
+      currentAccount,
+    )
+
+    return {
+      id: comment.id,
+      type: 'comment',
+      author,
+      time: event.eventTime as any,
+      replyingComment: replyingComment
+        ? prepareHMComment(replyingComment)
+        : null,
+      replyingAuthor,
+      comment: comment ? prepareHMComment(comment) : null,
+      commentId: unpackHmId(`hm://${comment.id}`)!,
+      target: targetAccount,
+    }
+  } catch (error) {
+    console.error('Event: catch error:', event, error)
+    return null
+  }
+}
+
+export async function loadCapabilityEvent(
+  grpcClient: GRPCClient,
+  event: Event,
+  currentAccount: string,
+): Promise<LoadedCapabilityEvent | null> {
+  if (event.newBlob.blobType.toLowerCase() != 'capability')
+    throw Error('this is not a capability event.')
+
+  try {
+    const author = await resolveAccount(
+      grpcClient,
+      event.newBlob.author,
+      currentAccount,
+    )
+
+    const grpcCapability = await grpcClient.accessControl.getCapability({
+      id: event.newBlob.resource,
+    })
+
+    const capId = unpackHmId(event.newBlob.resource)
+
+    if (!capId) {
+      console.error(
+        'loadCapabilityEvent Error, unpacking resource id',
+        event.newBlob.resource,
+      )
+
+      return null
+    }
+
+    return {
+      id: capId?.uid!,
+      type: 'capability',
+      author,
+      targetId: null,
+      targetMetadata: null,
+      time: event.eventTime!,
+      delegates: [], // TODO: Load actual delegates when capability loading is implemented
+      capabilityId: capId,
+      capability: {
+        id: grpcCapability.id,
+        accountUid: grpcCapability.account,
+      } as any, // Temporary type assertion until proper capability schema is available
+    }
+  } catch (error) {
+    console.error('Event: catch error:', event, error)
+    return null
+  }
+}
+
+export async function loadContactEvent(
+  grpcClient: GRPCClient,
+  event: Event,
+  currentAccount: string,
+): Promise<LoadedContactEvent | null> {
+  if (event.newBlob.blobType.toLowerCase() != 'contact') {
+    console.error('Event: not a contact event:', event)
+    return null
+  }
+
+  try {
+    const resourceId = unpackHmId(event.newBlob.resource)
+
+    const author = await resolveAccount(
+      grpcClient,
+      event.newBlob.author,
+      currentAccount,
+    )
+    const contact = resourceId
+      ? await resolveAccount(grpcClient, resourceId.uid, currentAccount)
+      : null
+
+    return resourceId
+      ? {
+          type: 'contact',
+          time: event.eventTime || '',
+          author,
+          contact: {
+            id: resourceId,
+            metadata: contact?.metadata,
+          },
+          id: resourceId.uid,
+        }
+      : null
+  } catch (error) {
+    console.error('Event: catch error:', event, error)
+    return null
+  }
+}
+
+export async function loadRefEvent(
+  grpcClient: GRPCClient,
+  event: Event,
+  currentAccount: string,
+): Promise<LoadedRefEvent | null> {
+  if (event.newBlob.blobType.toLowerCase() != 'ref') {
+    console.error('Event: not a ref event:', event)
+    return null
+  }
+
+  try {
+    const author = await resolveAccount(
+      grpcClient,
+      event.account,
+      currentAccount,
+    )
+
+    const docId = unpackHmId(event.newBlob.resource)
+    const grpcDocument = await grpcClient.documents.getDocument({
+      account: docId?.uid,
+      path: docId?.path?.join('') || undefined,
+      version: docId?.version || undefined,
+    })
+
+    return docId
+      ? {
+          id: event.newBlob.resource,
+          type: 'doc-update',
+          time: event.eventTime || '',
+          docId,
+          author,
+          document: prepareHMDocument(grpcDocument),
+        }
+      : null
+  } catch (error) {
+    console.error('Event: catch error:', event, error)
+    return null
+  }
 }

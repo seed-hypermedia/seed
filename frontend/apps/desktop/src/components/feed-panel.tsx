@@ -1,4 +1,5 @@
 import {useDocFeed} from '@/models/feed'
+import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {FeedEvent} from '@shm/ui/feed-items'
 import {useCallback, useEffect, useRef} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
@@ -27,6 +28,15 @@ export function FeedPanel({
     filterResource,
     filterEventType,
   })
+
+  const res = useActivityFeed({
+    pageSize,
+    filterAuthors,
+    filterResource,
+    filterEventType,
+    currentAccount: '',
+  })
+
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 

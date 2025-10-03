@@ -6,6 +6,7 @@ import {
   LoadedFeedEvent,
 } from '@shm/shared/feed-types'
 import {NavRoute} from '@shm/shared/routes'
+import {useRouteLink} from '@shm/shared/routing'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
 import {useCallback} from 'react'
@@ -19,6 +20,8 @@ import {
   EventRow,
   EventRowInline,
   EventTimestamp,
+  FeedItemHeader,
+  FeedItemWrapper,
 } from './feed'
 import {Link} from './icons'
 import {ResourceToken} from './resource-token'
@@ -30,13 +33,16 @@ export function DocUpdateEvent({event}: {event: LoadedDocUpdateEvent}) {
     key: 'document',
     id: event.docId,
   }
+  const linkProps = useRouteLink(route)
   return (
-    <EventRowInline route={route}>
-      <EventContact contact={event.author} />
-      <EventDescriptionText>updated</EventDescriptionText>
-      <ResourceToken id={event.docId} metadata={event.document.metadata} />
-      <EventTimestamp time={event.time} />
-    </EventRowInline>
+    <FeedItemWrapper {...linkProps}>
+      <FeedItemHeader>
+        <EventContact contact={event.author} />
+        <EventDescriptionText>updated</EventDescriptionText>
+        <ResourceToken id={event.docId} metadata={event.document.metadata} />
+        <EventTimestamp time={event.time} />
+      </FeedItemHeader>
+    </FeedItemWrapper>
   )
 }
 
@@ -54,15 +60,17 @@ export function CommentBlobEvent({event}: {event: LoadedCommentEvent}) {
         <Comment
           comment={event.comment}
           heading={
-            <div className="flex w-full items-center overflow-hidden">
-              <EventContact contact={event.author} />
-              <EventDescriptionText>commented on</EventDescriptionText>
-              {event.targetId ? (
-                <ResourceToken
-                  id={event.targetId}
-                  metadata={event.targetMetadata}
-                />
-              ) : null}
+            <div className="flex items-center">
+              <div className="flex w-full flex-1 flex-wrap items-center overflow-hidden">
+                <EventContact contact={event.author} />
+                <EventDescriptionText>commented on</EventDescriptionText>
+                {event.targetId ? (
+                  <ResourceToken
+                    id={event.targetId}
+                    metadata={event.targetMetadata}
+                  />
+                ) : null}
+              </div>
               <EventTimestamp time={event.time} />
               <Tooltip content={tx('Copy Comment Link')}>
                 <Button
