@@ -2,7 +2,7 @@ import {HMMetadata} from '@shm/shared'
 import {useTx, useTxUtils} from '@shm/shared/translation'
 import {SizableText} from './text'
 
-import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 
 export function DocumentDate({
   metadata,
@@ -60,14 +60,14 @@ export function DocumentDate({
         <SizableText
           size="xs"
           color={metadata?.displayPublishTime ? 'brand' : 'muted'}
-          className="cursor-default shrink-0 grow-0"
+          className="shrink-0 grow-0 cursor-default"
         >
           {displayText}
         </SizableText>
       </HoverCardTrigger>
       {!disableTooltip && (
         <HoverCardContent>
-          <div className="flex flex-col gap-2 justify-center items-center">
+          <div className="flex flex-col items-center justify-center gap-2">
             {content}
           </div>
         </HoverCardContent>
