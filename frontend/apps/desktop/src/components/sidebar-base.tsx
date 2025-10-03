@@ -10,14 +10,16 @@ import {
 } from '@shm/ui/components/popover'
 
 import {useAppContext} from '@/app-context'
+import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {useStream} from '@shm/shared/use-stream'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import useMedia from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
-import {Plus, Settings} from 'lucide-react'
+import {KeySquare, Plus, Settings} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
@@ -281,8 +283,47 @@ function IdentitySelector({
           <CreateAccountButton />
         </PopoverContent>
       </Popover>
+      <LinkKeyButton />
       <AppSettingsButton />
     </div>
+  )
+}
+
+function LinkKeyButton() {
+  const {selectedIdentity} = useUniversalAppContext()
+  const myAccounts = useMyAccounts()
+  const linkDevice = useAppDialog(LinkDeviceDialog)
+
+  const selectedAccount = myAccounts?.find(
+    (a) => a.data?.id?.uid === selectedIdentity,
+  )
+  const selectedAccountDoc =
+    selectedAccount?.data?.type === 'document'
+      ? selectedAccount.data.document
+      : undefined
+
+  const accountName = selectedAccountDoc?.metadata?.name || 'Account'
+
+  return (
+    <>
+      <Tooltip content="Link Key">
+        <Button
+          size="icon"
+          className="hover:bg-muted active:bg-muted shrink-none h- flex h-8 w-8 items-center justify-center rounded-md"
+          onClick={() => {
+            if (selectedIdentity) {
+              linkDevice.open({
+                accountUid: selectedIdentity,
+                accountName,
+              })
+            }
+          }}
+        >
+          <KeySquare className="size-4" />
+        </Button>
+      </Tooltip>
+      {linkDevice.content}
+    </>
   )
 }
 
@@ -313,7 +354,7 @@ function AppSettingsButton() {
           navigate({key: 'settings'})
         }}
       >
-        <Settings className="size-3" />
+        <Settings className="size-4" />
       </Button>
     </Tooltip>
   )

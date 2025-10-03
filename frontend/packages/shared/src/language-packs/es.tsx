@@ -111,6 +111,25 @@ const Translations = {
   'Server Error': 'Error del servidor',
   error_no_daemon_connection:
     'No hay conexión con el backend. Seguramente es un bug en nuestro código. Por favor, háznoslo saber!',
+  stay_logged_in:
+    'Vincula tu clave de firma para poder volver a iniciar sesión.',
+  'Link Keys': 'Vincular claves',
+  link_keys_explainer: (_: any) => {
+    return (
+      <>
+        <p>
+          Las cuentas en Hypermedia son basadas en criptografía asimétrica. Tu
+          clave privada está almacenada de forma segura, pero solo es accesible
+          desde este navegador en este dispositivo.
+        </p>
+        <p>
+          Para poder volver a iniciar sesión, vincula esta clave a tu cuenta,
+          utilizando las opciones disponibles abajo.
+        </p>
+      </>
+    )
+  },
+  'Link with Desktop App': 'Vincular con la aplicación desktop',
 
   // I can't figure out how to get the error page translated...
   // "Uh oh, it's not you, it's us...": 'Uh oh, no es tu culpa, es nuestra...',

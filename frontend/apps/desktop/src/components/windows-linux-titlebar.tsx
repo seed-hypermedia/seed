@@ -49,13 +49,13 @@ export function WindowsLinuxTitleBar({
         </TitlebarSection>
       </TitlebarRow>
       <TitlebarRow className="window-drag">
-        <div className="window-drag flex min-w-min flex-1 flex-none items-center">
+        <div className="window-drag flex min-w-min flex-none items-center">
           {left}
         </div>
         <div className="pointer-events-none flex h-full flex-1 items-center justify-center">
           {title}
         </div>
-        <div className="window-drag flex min-w-min flex-1 flex-none items-center justify-end">
+        <div className="window-drag flex min-w-min flex-none items-center justify-end">
           {right}
         </div>
       </TitlebarRow>

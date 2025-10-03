@@ -94,7 +94,7 @@ export default function EmailNotificationsPage() {
             <EmailNotificationsContent />
           </Container>
         </div>
-        <PageFooter />
+        <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>
   )

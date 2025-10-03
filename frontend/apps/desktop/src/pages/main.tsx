@@ -1,8 +1,10 @@
 import {useAppContext, useListen} from '@/app-context'
 
 import {CloseButton} from '@/components/window-controls'
+import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
+import {useMyAccounts} from '@/models/daemon'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -12,13 +14,23 @@ import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {windowContainerStyles} from '@shm/ui/container'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {lazy, ReactElement, ReactNode, useEffect, useMemo, useRef} from 'react'
+import {
+  lazy,
+  ReactElement,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {
   ImperativePanelGroupHandle,
@@ -126,6 +138,7 @@ export default function Main({className}: {className?: string}) {
           <Footer />
           <AutoUpdater />
           <ConfirmConnectionDialog />
+          <DeviceLinkHandler />
           <HypermediaHighlight />
         </ErrorBoundary>
       </SidebarContextProvider>
@@ -267,6 +280,147 @@ function getPageComponent(navRoute: NavRoute) {
         Fallback: BaseLoading,
       }
   }
+}
+
+function DeviceLinkHandler() {
+  const [origin, setOrigin] = useState<string | undefined>(undefined)
+  const [selectedAccount, setSelectedAccount] = useState<{
+    accountUid: string
+    accountName: string
+  } | null>(null)
+  const accountSelectorDialog = useAppDialog(AccountSelectorDialogContent)
+  const linkDeviceDialog = useAppDialog(LinkDeviceDialog)
+
+  useListenAppEvent('deviceLink', (payload) => {
+    setOrigin(payload.origin)
+    setSelectedAccount(null)
+    accountSelectorDialog.open({
+      origin: payload.origin,
+      onAccountSelected: (accountUid: string, accountName: string) => {
+        setSelectedAccount({accountUid, accountName})
+      },
+    })
+  })
+
+  useEffect(() => {
+    if (selectedAccount) {
+      linkDeviceDialog.open({
+        ...selectedAccount,
+        origin,
+      })
+      setSelectedAccount(null)
+    }
+  }, [selectedAccount, origin])
+
+  return (
+    <>
+      {accountSelectorDialog.content}
+      {linkDeviceDialog.content}
+    </>
+  )
+}
+
+function AccountSelectorDialogContent({
+  input,
+  onClose,
+}: {
+  input: {
+    origin?: string
+    onAccountSelected: (accountUid: string, accountName: string) => void
+  }
+  onClose: () => void
+}) {
+  const myAccounts = useMyAccounts()
+  const [selectedAccountUid, setSelectedAccountUid] = useState<string | null>(
+    null,
+  )
+
+  const accountOptions = myAccounts
+    ?.map((a) => {
+      const id = a.data?.id
+      const doc = a.data?.type === 'document' ? a.data.document : undefined
+      if (id) {
+        return {
+          id,
+          metadata: doc?.metadata,
+        }
+      }
+      return null
+    })
+    .filter((d) => {
+      if (!d) return false
+      if (typeof d.metadata === 'undefined') return false
+      return true
+    })
+
+  const selectedAccount = myAccounts?.find(
+    (a) => a.data?.id?.uid === selectedAccountUid,
+  )
+  const selectedAccountDoc =
+    selectedAccount?.data?.type === 'document'
+      ? selectedAccount.data.document
+      : undefined
+
+  return (
+    <>
+      <DialogTitle>Select Account to Link</DialogTitle>
+      {input.origin && (
+        <p className="text-sm font-medium text-gray-600">
+          Origin: {input.origin}
+        </p>
+      )}
+      <p className="text-sm text-gray-600">
+        Choose which account you want to link to the web browser.
+      </p>
+      <ScrollArea className="h-full max-h-[300px] flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-2">
+          {accountOptions?.map((option) =>
+            option ? (
+              <div
+                key={option.id.uid}
+                className={cn(
+                  'hover:bg-sidebar-accent flex cursor-pointer flex-row items-center gap-4 rounded-md p-3',
+                  selectedAccountUid === option.id.uid
+                    ? 'bg-sidebar-accent'
+                    : '',
+                )}
+                onClick={() => setSelectedAccountUid(option.id.uid)}
+              >
+                {option.id ? (
+                  <HMIcon
+                    id={option?.id}
+                    name={option?.metadata?.name}
+                    icon={option?.metadata?.icon}
+                  />
+                ) : null}
+                <span className="flex-1">{option.metadata?.name}</span>
+              </div>
+            ) : null,
+          )}
+        </div>
+      </ScrollArea>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onClose} className="flex-1">
+          Cancel
+        </Button>
+        <Button
+          variant="default"
+          disabled={!selectedAccountUid}
+          onClick={() => {
+            if (selectedAccountUid) {
+              const accountName =
+                selectedAccountDoc?.metadata?.name || 'Account'
+              input.onAccountSelected(selectedAccountUid, accountName)
+              onClose()
+            }
+          }}
+          className="flex-1"
+        >
+          Continue
+        </Button>
+      </div>
+    </>
+  )
 }
 
 function WindowClose() {

@@ -1175,6 +1175,7 @@ export type HMCapability = {
   capabilityId?: string
   grantId: UnpackedHypermediaId
   label?: string | undefined
+  createTime: Date
 }
 
 export const siteDiscoverRequestSchema = z.object({

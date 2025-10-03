@@ -37,7 +37,7 @@ export function useLinkDevice() {
   })
 }
 
-export function useLinkDeviceStatus() {
+export function useLinkDeviceStatus(enabled = false) {
   const devicelinkStatus = useQuery({
     queryKey: ['linkDeviceStatus'],
     queryFn: async () => {
@@ -45,6 +45,7 @@ export function useLinkDeviceStatus() {
       return toPlainMessage(result)
     },
     refetchInterval: 1000,
+    enabled: enabled,
   })
   useEffect(() => {
     if (devicelinkStatus.data?.redeemTime) {

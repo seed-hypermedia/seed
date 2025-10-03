@@ -1,6 +1,7 @@
 import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {IconForm} from '@/components/icon-form'
+import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useAutoUpdatePreference} from '@/models/app-settings'
@@ -19,13 +20,10 @@ import {
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
-import {useLinkDevice, useLinkDeviceStatus} from '@/models/linked-devices'
 import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
-import {zodResolver} from '@hookform/resolvers/zod'
-import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
   COMMIT_HASH,
   LIGHTNING_API_URL,
@@ -33,7 +31,6 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
-import {DeviceLinkSession} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -49,7 +46,6 @@ import {
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
 import {Checkbox} from '@shm/ui/components/checkbox'
-import {DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
@@ -58,10 +54,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
 import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {CopyUrlField} from '@shm/ui/copy-url-field'
 import {Field} from '@shm/ui/form-fields'
-import {FormInput} from '@shm/ui/form-input'
-import {FormField} from '@shm/ui/forms'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
@@ -93,12 +86,7 @@ import {
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
-import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
-import {useForm} from 'react-hook-form'
-import QRCode from 'react-qr-code'
-import {z} from 'zod'
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('accounts')
@@ -634,10 +622,6 @@ function AccountKeys() {
               accountName={getMetadataName(profileDocument?.metadata)}
             />
           </SettingsSection>
-          {/* <EmailNotificationSettings
-            key={selectedAccount}
-            accountUid={selectedAccount}
-          /> */}
         </div>
       </div>
     </div>
@@ -792,19 +776,28 @@ function LinkedDevices({
       {devices?.length ? (
         <div className="flex flex-col gap-2">
           {devices.map((d) => (
-            <Tooltip content={`Copy ID of ${d.label}`} key={d.accountUid}>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  copyTextToClipboard(hmId(d.accountUid).id)
-                  toast('Device ID copied to clipboard')
-                }}
-                className="justify-start"
-              >
-                <SizableText>{d.label}</SizableText>
-              </Button>
-            </Tooltip>
+            <div
+              key={d.accountUid}
+              className="flex flex-row items-center gap-2"
+            >
+              <Tooltip side="left" content={`Copy Account ID of ${d.label}`}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    copyTextToClipboard(d.accountUid)
+                    toast('Device ID copied to clipboard')
+                  }}
+                  className="justify-start"
+                >
+                  <SizableText>{d.label}</SizableText>
+                </Button>
+              </Tooltip>
+              <p className="text-muted-foreground text-sm">
+                {/* Removing the timezone name in the timestamp. */}
+                {d.createTime?.toString().replace(/\s*\(.+\)$/, '')}
+              </p>
+            </div>
           ))}
         </div>
       ) : null}
@@ -820,159 +813,6 @@ function LinkedDevices({
       </div>
       {linkDevice.content}
     </div>
-  )
-}
-
-function LinkDeviceDialog({
-  input,
-  onClose,
-}: {
-  input: {accountUid: string; accountName: string}
-  onClose: () => void
-}) {
-  const [linkDeviceUrl, setLinkDeviceUrl] = useState<null | string>(null)
-  const [linkSession, setLinkSession] = useState<null | DeviceLinkSession>(null)
-  const linkDeviceStatus = useLinkDeviceStatus()
-  const gatewayUrl = useGatewayUrl()
-  if (
-    linkDeviceStatus.data?.redeemTime &&
-    linkSession &&
-    linkDeviceStatus.data?.secretToken === linkSession.secretToken
-  ) {
-    return (
-      <div className="flex flex-col gap-4">
-        <SizableText size="2xl">Device Linked!</SizableText>
-        <p>
-          You have signed in to{' '}
-          <SizableText weight="bold">{input.accountName}</SizableText> in the
-          web browser.
-        </p>
-        <div className="flex justify-center">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              onClose()
-            }}
-          >
-            Close
-            <Check className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <DialogTitle>Link New Web Session</DialogTitle>
-
-      {linkDeviceUrl ? (
-        <p>
-          Open this URL to log in to{' '}
-          <SizableText weight="bold">{input.accountName}</SizableText>
-        </p>
-      ) : (
-        <p>
-          You will sign in to{' '}
-          <SizableText weight="bold">{input.accountName}</SizableText> from a
-          web browser.
-        </p>
-      )}
-      {linkDeviceUrl ? (
-        <div className="flex flex-col gap-4">
-          <CopyUrlField url={linkDeviceUrl} label="Device Login" />
-          {linkDeviceUrl ? (
-            <p>Or, scan this code with your smartphone:</p>
-          ) : null}
-          <ErrorBoundary
-            fallbackRender={(err) => (
-              <SizableText color="destructive">
-                Failed to generate QR code: {err.error.toString()}. It's
-                probably a bug. Try using the URL above.
-              </SizableText>
-            )}
-          >
-            <QRCode value={linkDeviceUrl} size={465} />
-          </ErrorBoundary>
-        </div>
-      ) : (
-        <DeviceLabelForm
-          accountUid={input.accountUid}
-          onSuccess={async (linkSession) => {
-            setLinkSession(linkSession)
-            setLinkDeviceUrl(
-              `${gatewayUrl.data}/hm/device-link#${base58btc.encode(
-                cborEncode(linkSession),
-              )}`,
-            )
-          }}
-        />
-      )}
-    </>
-  )
-}
-
-function DeviceLabelForm({
-  onSuccess,
-  accountUid,
-}: {
-  onSuccess: (linkSession: DeviceLinkSession) => Promise<void>
-  accountUid: string
-}) {
-  const linkDevice = useLinkDevice()
-
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<{label: string}>({
-    resolver: zodResolver(
-      z.object({label: z.string().min(1, 'Device label is required')}),
-    ),
-    defaultValues: {
-      label: `Web Device ${new Date().toLocaleDateString()}`,
-    },
-  })
-
-  useEffect(() => {
-    setFocus('label')
-  }, [setFocus])
-
-  if (linkDevice.isLoading) {
-    return (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
-  return (
-    <form
-      onSubmit={handleSubmit(async (data) => {
-        const linkSession = await linkDevice.mutateAsync({
-          label: data.label,
-          accountUid,
-        })
-        onSuccess(linkSession)
-      })}
-    >
-      <div className="flex flex-col gap-4">
-        {linkDevice.error ? (
-          <p className="text-destructive">
-            Error linking device:{' '}
-            {(linkDevice.error as any)?.message || 'Unknown error'}
-          </p>
-        ) : null}
-        <FormField name="label" label="Device Label" errors={errors}>
-          <FormInput control={control} name="label" placeholder="My Device" />
-        </FormField>
-
-        <Button variant="inverse" type="submit" className="w-full">
-          Link Device
-        </Button>
-      </div>
-    </form>
   )
 }
 

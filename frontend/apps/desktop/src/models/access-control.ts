@@ -113,6 +113,7 @@ function useAccountsCapabilities(accountIds: string[]) {
               grantId: hmId(serverCap.account, {
                 path: entityQueryPathToHmIdPath(serverCap.path),
               }),
+              createTime: serverCap.createTime!.toDate(),
             } satisfies HMCapability
           }),
         }
@@ -201,6 +202,7 @@ export function useSelectedAccountCapability(
       accountUid: id.uid,
       role: 'owner',
       grantId: hmId(id.uid),
+      createTime: new Date(0),
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -231,6 +233,7 @@ export function useMyCapability(
       accountUid: id.uid,
       role: 'owner',
       grantId: hmId(id.uid),
+      createTime: new Date(0),
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -265,6 +268,7 @@ export function useSelectedAccountCapabilities(
             accountUid: id.uid,
             role: 'owner',
             grantId: hmId(id.uid),
+            createTime: new Date(0),
           } satisfies HMCapability,
         ]
       : []
@@ -308,24 +312,25 @@ export function useAllDocumentCapabilities(
         path: hmIdPathToEntityQueryPath(id.path),
         pageSize: BIG_INT,
       })
-      const capabilities = result.capabilities.map(toPlainMessage)
-      const alreadyCapKeys = new Set<string>()
-      const outputCaps: PlainMessage<Capability>[] = []
-      for (const cap of capabilities) {
+      // Not sure why we do this deduplication here. It was here before ¯\_(ツ)_/¯.
+      const visitedCaps = new Set<string>()
+      const grantedCaps: HMCapability[] = []
+      for (const cap of result.capabilities) {
         const key = `${cap.delegate}-${cap.role}`
-        if (alreadyCapKeys.has(key)) continue
-        alreadyCapKeys.add(key)
-        outputCaps.push(cap)
+        if (visitedCaps.has(key)) continue
+        visitedCaps.add(key)
+        grantedCaps.push({
+          id: cap.id,
+          accountUid: cap.delegate,
+          grantId: hmId(cap.account, {
+            path: entityQueryPathToHmIdPath(cap.path),
+          }),
+          role: roleToHMRole(cap.role),
+          label: cap.label,
+          createTime: cap.createTime!.toDate(),
+        })
       }
-      const grantedCaps = outputCaps.map((cap) => ({
-        id: cap.id,
-        accountUid: cap.delegate,
-        grantId: hmId(cap.account, {
-          path: entityQueryPathToHmIdPath(cap.path),
-        }),
-        role: roleToHMRole(cap.role),
-        label: cap.label,
-      })) satisfies HMCapability[]
+
       return [
         ...grantedCaps,
         {
@@ -334,6 +339,7 @@ export function useAllDocumentCapabilities(
           grantId: hmId(id.uid),
           role: 'owner',
           label: 'Owner',
+          createTime: new Date(0),
         },
       ] satisfies HMCapability[]
     },

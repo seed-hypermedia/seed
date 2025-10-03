@@ -24,7 +24,7 @@ import {LogOut, Megaphone, Pencil} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
-import {useEffect, useSyncExternalStore} from 'react'
+import {useEffect, useState, useSyncExternalStore} from 'react'
 import {
   Control,
   FieldValues,
@@ -54,6 +54,7 @@ import {
 } from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
+import {toast} from '@shm/ui/toast'
 
 injectModels()
 
@@ -350,12 +351,7 @@ function EditProfileForm({
   submitLabel?: string
 }) {
   const tx = useTxString()
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<SiteMetaFields>({
+  const form = useForm<SiteMetaFields>({
     resolver: zodResolver(siteMetaSchema),
     defaultValues: defaultValues || {
       name: createDefaultAccountName(),
@@ -364,22 +360,22 @@ function EditProfileForm({
   })
   useEffect(() => {
     setTimeout(() => {
-      setFocus('name', {shouldSelect: true})
+      form.setFocus('name', {shouldSelect: true})
     }, 300) // wait for animation
-  }, [setFocus])
+  }, [form.setFocus])
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <form onSubmit={form.handleSubmit(onSubmit)}>
       <div className="flex flex-col gap-2">
         <Field id="name" label={tx('Account Name')}>
           <FormInput
-            control={control}
+            control={form.control}
             name="name"
             placeholder={tx('My New Public Name')}
           />
         </Field>
         <Field id="icon" label={tx('Profile Icon')}>
           <ImageField
-            control={control}
+            control={form.control}
             name="icon"
             label={tx('Profile Icon')}
           />
@@ -587,12 +583,97 @@ export function EditProfileDialog({
   )
 }
 
-export function AccountFooterActions() {
+function LinkKeysDialog() {
+  const tx = useTx()
+
+  return (
+    <>
+      <DialogTitle>{tx('Link Keys')}</DialogTitle>
+      <DialogDescription>
+        <div className="flex flex-col gap-1">
+          {tx(
+            'link_keys_explainer',
+            () => {
+              return (
+                <>
+                  <p>
+                    Hypermedia accounts are based on public key cryptography.
+                    Your private key is securely stored, but is only available
+                    in this browser, on this device.
+                  </p>
+                  <p>
+                    To stay logged in in the future, you should link this
+                    signing key to your account using one of the options bellow.
+                  </p>
+                </>
+              )
+            },
+            {},
+          )}
+        </div>
+      </DialogDescription>
+      <div className="flex">
+        <Button variant="default" asChild>
+          <a href="/hm/device-link" target="_blank">
+            {tx('Link with Desktop App')}
+          </a>
+        </Button>
+      </div>
+    </>
+  )
+}
+
+export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
+  const linkKeysDialog = useAppDialog(LinkKeysDialog)
+
   const tx = useTx()
+  const myAccount = useAccount(userKeyPair?.id)
+
+  // TODO(burdiyan): this is not a very robust solution to check whether we need to link keys.
+  // For now we request the account info from the backend, which would follow identity redirects to return the final account,
+  // in which case the ID of the final account will be different from the requested ID. When it happens, it means we have already linked this key to some other account.
+  const needsKeyLinking =
+    !props.hideDeviceLinkToast &&
+    userKeyPair &&
+    myAccount?.data?.id?.uid === userKeyPair?.id
+
+  useEffect(() => {
+    if (!needsKeyLinking) {
+      linkKeysDialog.close()
+      return
+    }
+
+    const t = toast.warning(
+      <div className="flex items-center">
+        <SizableText className="p-1">
+          {tx('stay_logged_in', 'Link your identity key to stay logged in.')}
+        </SizableText>
+        <Button
+          size="xs"
+          variant="brand"
+          onClick={() => {
+            linkKeysDialog.open({})
+          }}
+        >
+          {tx('Link Keys')}
+        </Button>
+      </div>,
+      {
+        duration: Infinity,
+        dismissible: true,
+        closeButton: true,
+      },
+    )
+
+    return () => {
+      toast.dismiss(t)
+    }
+  }, [needsKeyLinking, tx])
+
   if (!userKeyPair) return null
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
@@ -616,6 +697,7 @@ export function AccountFooterActions() {
       {logoutDialog.content}
       {editProfileDialog.content}
       {notifSettingsDialog.content}
+      {linkKeysDialog.content}
     </div>
   )
 }

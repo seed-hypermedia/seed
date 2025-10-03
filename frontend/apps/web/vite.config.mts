@@ -14,6 +14,7 @@ export default defineConfig(({isSsrBuild}) => {
   return {
     server: {
       port: 3000,
+      allowedHosts: ['localhost', '127.0.0.1', 'macbook-pro.tail46484.ts.net'],
     },
     clearScreen: false,
     // css: {

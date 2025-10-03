@@ -89,7 +89,7 @@ export default function ConnectPage() {
             <HMConnectPage />
           </div>
         </div>
-        <PageFooter />
+        <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>
   )

@@ -23,3 +23,16 @@ export const WebCommenting = clientLazy<WebCommentingProps>(async () => ({
 export const AccountFooterActionsLazy = clientLazy<{}>(async () => ({
   default: (await import('./auth')).AccountFooterActions,
 }))
+
+// Children of this component will only be rendered on the client side.
+export function ClientOnly({children}: {children: React.ReactNode}) {
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  if (!isClient) return null
+
+  return <>{children}</>
+}

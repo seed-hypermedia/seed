@@ -35,7 +35,7 @@ export function NotFoundPage({id}: SiteDocumentPayload) {
           </SizableText>
         </div>
       </div>
-      <PageFooter id={id} />
+      <PageFooter id={id} hideDeviceLinkToast={true} />
     </div>
   )
 }

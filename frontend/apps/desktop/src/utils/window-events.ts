@@ -14,6 +14,7 @@ export type AppWindowEvent =
   | {type: 'hypermediaHoverIn'; id: string}
   | {type: 'hypermediaHoverOut'; id: string}
   | {type: 'selectedIdentityChanged'; selectedIdentity: string | null}
+  | {type: 'deviceLink'; origin?: string}
 
 // Helper type to extract payload for a given key
 type EventPayload<K extends AppWindowEvent['type']> = Extract<

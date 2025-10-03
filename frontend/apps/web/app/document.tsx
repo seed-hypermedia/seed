@@ -1,5 +1,6 @@
 import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
 import {useLocation, useNavigate} from '@remix-run/react'
+import avatarPlaceholder from '@shm/editor/assets/avatar.png'
 import {
   BlockRange,
   deduplicateCitations,
@@ -736,7 +737,11 @@ function MobileInteractionCardCollapsed({
               size={32}
             />
           ) : (
-            <UIAvatar id="no-account" size={32} />
+            <UIAvatar
+              url={avatarPlaceholder}
+              size={32}
+              className="rounded-full"
+            />
           )}
         </div>
         <span className="bg-background ring-px ring-border ml-1 flex-1 truncate rounded-md px-2 py-1 text-left ring">

@@ -244,7 +244,7 @@ export default function DownloadPage() {
             )}
           </div>
         </Container>
-        <PageFooter />
+        <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>
   )

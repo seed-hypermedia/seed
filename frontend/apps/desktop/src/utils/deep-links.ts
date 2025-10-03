@@ -14,5 +14,16 @@ export function parseDeepLink(url: string): AppWindowEvent | undefined {
     }
   }
 
+  const deviceLinkRegexp = /^hm:\/\/device-link(\?.*)?$/
+  const parsedDeviceLinkUrl = url.match(deviceLinkRegexp)
+  if (parsedDeviceLinkUrl) {
+    const urlObj = new URL(url)
+    const origin = urlObj.searchParams.get('origin') || undefined
+    return {
+      type: 'deviceLink',
+      origin,
+    }
+  }
+
   return undefined
 }
