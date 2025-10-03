@@ -6,7 +6,9 @@ import {ListEventsRequest} from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {formattedDateShort} from '@shm/shared/utils'
+import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
+import {HMIcon} from './hm-icon'
 import {ResourceToken} from './resource-token'
 import {SizableText} from './text'
 import {cn} from './utils'
@@ -167,26 +169,51 @@ export function Feed2({
 }) {
   const {data} = useActivityFeed({
     docId,
+
     filterResource,
     currentAccount,
     pageSize: 40,
   })
 
+  console.log(`== ~ Feed2 ~ docId,:`, docId)
+
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
 
   return (
-    <div>
-      {allEvents.map((e) => {
-        return (
-          <p key={e.id}>
-            {JSON.stringify({
-              type: e.type,
-              id: e.id,
-            })}
-          </p>
-        )
-      })}
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <ScrollArea>
+        {allEvents.map((e) => {
+          return (
+            <div key={e.id} className="hover:bg-background m-2 rounded">
+              <div className="flex items-start gap-2 p-2">
+                <HMIcon
+                  size={20}
+                  id={e.author.id}
+                  name={e.author.metadata?.name}
+                  icon={e.author.metadata?.icon}
+                />
+                <p>
+                  <span className="text-sm font-bold">
+                    {e.author?.metadata?.name}
+                  </span>{' '}
+                  <span className="text-muted-foreground text-sm">
+                    {/* commented on */}
+                    {e.type}
+                  </span>{' '}
+                  <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+                    this document with a super long name because I want to see
+                    how it overflows
+                  </a>{' '}
+                  <span className="text-muted-foreground ml-2 flex-none text-xs">
+                    aug 24
+                  </span>
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </ScrollArea>
     </div>
   )
 }
