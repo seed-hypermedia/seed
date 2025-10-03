@@ -1,4 +1,5 @@
 import type {AppWindowEvent} from '@/utils/window-events'
+import {parseDeepLink} from '@/utils/deep-links'
 import {appRouteOfId} from '@shm/shared/utils/navigation'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
@@ -397,14 +398,10 @@ const trpcHandlers = createIPCHandler({router, windows: []})
 export type AppRouter = typeof router
 
 export async function handleUrlOpen(url: string) {
-  const connectionRegexp = /^hm:\/\/connect\/([\w\-\+]+)$/
-  const parsedConnectUrl = url.match(connectionRegexp)
-  if (parsedConnectUrl) {
+  const deepLinkEvent = parseDeepLink(url)
+  if (deepLinkEvent) {
     ensureFocusedWindowVisible()
-    dispatchFocusedWindowAppEvent({
-      type: 'connectPeer',
-      connectionUrl: url,
-    })
+    dispatchFocusedWindowAppEvent(deepLinkEvent)
     return
   }
 

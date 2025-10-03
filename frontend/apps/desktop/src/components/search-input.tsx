@@ -34,6 +34,8 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useMemo, useRef, useState} from 'react'
+import {parseDeepLink} from '@/utils/deep-links'
+import {useTriggerWindowEvent} from '@/utils/window-events'
 
 export function SearchInput({
   onClose,
@@ -59,6 +61,7 @@ export function SearchInput({
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const selectedAccountId = useSelectedAccountId()
+  const triggerWindowEvent = useTriggerWindowEvent()
 
   const searchResults = useSearch(search, {
     includeBody: true,
@@ -77,6 +80,13 @@ export function SearchInput({
         key: 'mtt-link',
         title: `Query ${search}`,
         onSelect: async () => {
+          const deepLinkEvent = parseDeepLink(search)
+          if (deepLinkEvent) {
+            onClose?.()
+            triggerWindowEvent(deepLinkEvent)
+            return
+          }
+
           const unpacked = unpackHmId(search)
           const appRoute = unpacked ? appRouteOfId(unpacked) : null
 
@@ -94,7 +104,6 @@ export function SearchInput({
             search.includes('.')
           ) {
             if (allowWebURL) {
-              // First call with webUrl
               onSelect({webUrl: search})
             }
 
@@ -103,7 +112,6 @@ export function SearchInput({
                 .then((navRoute) => {
                   if (navRoute) {
                     onClose?.()
-                    // Then call with both webUrl and route
                     onSelect({route: navRoute, webUrl: search})
                   }
                 })
@@ -127,7 +135,7 @@ export function SearchInput({
       }
     }
     return null
-  }, [search])
+  }, [search, triggerWindowEvent])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
