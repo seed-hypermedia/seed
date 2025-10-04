@@ -24,7 +24,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -32,8 +32,6 @@ import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {SmallSiteHeader} from '@shm/ui/site-header'
-import {Text} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {Scanner, type IDetectedBarcode} from '@yudiel/react-qr-scanner'
 import {
@@ -52,7 +50,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import {postCBOR} from '../api'
-import {createAccount, LocalWebIdentity, logout} from '../auth'
+import {LocalWebIdentity} from '../auth'
 import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
 import type {DelegateDevicePayload} from './hm.api.delegate-device'
 import {Spinner} from '@shm/ui/spinner'
