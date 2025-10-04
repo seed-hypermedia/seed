@@ -255,24 +255,20 @@ export function Feed2({
             <div
               key={e.id}
               ref={isLast ? lastElementRef : undefined}
-              className="hover:bg-background m-2 flex items-start rounded"
+              className="hover:bg-background border-border m-2 rounded border"
             >
-              {/* timeline line + point wrapper */}
-              <div className="w-4 p-4">
-                {/* timeline point */}
-                <div className="mx-auto size-3 rounded-full bg-red-500" />
-              </div>
-              <div>
-                <div className="flex items-start gap-2 p-2">
+              <div className="flex items-start gap-2 p-2">
+                {e.author.id ? (
                   <HMIcon
-                    size={20}
+                    size={24}
                     id={e.author.id}
                     name={e.author.metadata?.name}
                     icon={e.author.metadata?.icon}
                   />
-                  <EventHeaderContent event={e} />
-                </div>
+                ) : null}
+                <EventHeaderContent event={e} />
               </div>
+              <EventContent event={e} />
             </div>
           )
         })}
@@ -306,10 +302,19 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.author?.metadata?.name}
         </span>{' '}
         <span className="text-muted-foreground text-sm">added</span>{' '}
-        <span className="text-sm font-bold">
+        {event.delegates[0]?.id ? (
+          <HMIcon
+            className="mx-1 mb-1 inline-block align-middle"
+            id={event.delegates[0]?.id}
+            size={18}
+            icon={event.delegates[0]?.metadata?.icon}
+            name={event.delegates[0]?.metadata?.name}
+          />
+        ) : null}
+        <a className="text-sm font-bold">
           {event.delegates[0]?.metadata?.name ||
             event.delegates[0]?.id?.uid.substring(0, 8)}
-        </span>{' '}
+        </a>{' '}
         <span className="text-muted-foreground text-sm">as Writer in</span>{' '}
         <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.target?.metadata?.name}
@@ -328,6 +333,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.author?.metadata?.name}
         </span>{' '}
         <span className="text-muted-foreground text-sm">
+          {/* TODO: check if this is the correct way of getting the first ref update of a document */}
           {event.document.version == event.document.genesis
             ? 'created'
             : 'updated'}
@@ -361,5 +367,30 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
     )
   }
 
-  return <p>... {event.type}</p>
+  console.error(
+    'EventHeaderContent: We must have ifs for all the event types:',
+    event,
+  )
+
+  return null
+}
+
+function EventContent({event}: {event: LoadedEvent}) {
+  if (event.type == 'comment') {
+    // TODO: show comment content and also reply parent if present
+    return null
+  }
+
+  if (event.type == 'capability') return null
+
+  if (event.type == 'doc-update') {
+    // TODO: return card
+    return null
+  }
+
+  if (event.type == 'contact') {
+    // TODO: show contact card?
+    return null
+  }
+  return null
 }

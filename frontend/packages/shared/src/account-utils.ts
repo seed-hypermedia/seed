@@ -1,7 +1,7 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {GRPCClient} from './grpc-client'
 import {HMMetadata} from './hm-types'
-import {unpackHmId} from './utils'
+import {hmId, unpackHmId} from './utils'
 
 export type HMContactItem = {
   id: ReturnType<typeof unpackHmId>
@@ -60,11 +60,13 @@ export async function resolveAccount(
     (c) => toPlainMessage(c).subject === accountId,
   )
 
+  const id = hmId(accountId)
   // If there's a contact, override the name in metadata
   if (contact) {
     const plainContact = toPlainMessage(contact)
+
     return {
-      id: unpackHmId(accountId)!,
+      id,
       metadata: {
         ...(metadata || {}),
         name: plainContact.name,
@@ -74,7 +76,7 @@ export async function resolveAccount(
 
   // Return the account with its original metadata
   return {
-    id: unpackHmId(accountId)!,
+    id,
     metadata,
   }
 }
