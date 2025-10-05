@@ -39,6 +39,7 @@ import {
   Check,
   KeySquare,
   Link as LinkIcon,
+  Monitor,
   Smartphone,
 } from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
@@ -315,7 +316,7 @@ function LinkingInstructionsView({
                 className="inline-block w-full"
                 onClick={() => setShowDesktopAppLinking(true)}
               >
-                Open Desktop App
+                <Monitor /> Open Desktop App
               </a>
             </Button>
           </div>

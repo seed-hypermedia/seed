@@ -20,11 +20,11 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {LogOut, Megaphone, Pencil} from 'lucide-react'
+import {LogOut, Megaphone, Monitor, Pencil} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
-import {useEffect, useState, useSyncExternalStore} from 'react'
+import {useEffect, useSyncExternalStore} from 'react'
 import {
   Control,
   FieldValues,
@@ -615,7 +615,7 @@ function LinkKeysDialog() {
       <div className="flex">
         <Button variant="default" asChild>
           <a href="/hm/device-link" target="_blank">
-            {tx('Link with Desktop App')}
+            <Monitor /> {tx('Link with Desktop App')}
           </a>
         </Button>
       </div>
@@ -650,7 +650,10 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
     const t = toast.warning(
       <div className="flex items-center">
         <SizableText className="p-1">
-          {tx('stay_logged_in', 'Link your identity key to stay logged in.')}
+          {tx(
+            'stay_logged_in',
+            'Link your identity key to stay logged in! You can dismiss this message and do it later.',
+          )}
         </SizableText>
         <Button
           size="xs"

@@ -112,7 +112,7 @@ const Translations = {
   error_no_daemon_connection:
     'No hay conexión con el backend. Seguramente es un bug en nuestro código. Por favor, háznoslo saber!',
   stay_logged_in:
-    'Vincula tu clave de firma para poder volver a iniciar sesión.',
+    'Vincula tu clave de firma para poder volver a iniciar sesión! Puedes cerrar este mensaje y hacerlo más tarde.',
   'Link Keys': 'Vincular claves',
   link_keys_explainer: (_: any) => {
     return (
