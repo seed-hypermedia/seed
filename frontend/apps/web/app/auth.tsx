@@ -603,7 +603,7 @@ function LinkKeysDialog() {
                   </p>
                   <p>
                     To stay logged in in the future, you should link this
-                    signing key to your account using one of the options bellow.
+                    signing key to your account using one of the options below.
                   </p>
                 </>
               )

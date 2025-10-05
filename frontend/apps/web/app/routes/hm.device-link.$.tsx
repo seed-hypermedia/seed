@@ -337,19 +337,26 @@ function LinkingInstructionsView({
               linking session.
             </li>
             <li>
-              Use the options bellow to connect this browser to your desktop
-              app.
+              Use one of the options below to connect this browser to your
+              desktop app.
             </li>
           </ol>
         </div>
       </div>
 
-      <ScanQRCodeCard onClick={() => setShowCamera(true)} />
-      <CopyPasteSessionCard />
+      <div className="flex flex-col items-stretch gap-1">
+        <ScanQRCodeCard onClick={() => setShowCamera(true)} />
+        <p className="flex-grow-0 text-center text-gray-500">or</p>
+        <CopyPasteSessionCard />
+      </div>
     </div>
   )
 }
 
+/**
+ * This view is displayed when the user clicks the Open Desktop App button
+ * to clean up the page and only show the relevant form.
+ */
 function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
   // This effect handles the browser's back button behavior,
   // to drive the user to the linking instructions view,
@@ -397,7 +404,7 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
       <div className="flex flex-col gap-2 text-gray-800">
         <p>
           Follow the instructions in the Seed desktop app to start the linking
-          process, then copy the session token and paste it in the form bellow.
+          process, then copy the session token and paste it in the form below.
         </p>
 
         <p className="text-sm text-gray-600">
@@ -406,7 +413,6 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
         </p>
       </div>
 
-      {/* Copy-paste card */}
       <CopyPasteSessionCard hideDescription={true} />
     </div>
   )

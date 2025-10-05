@@ -36,7 +36,7 @@ type Document struct {
 	actors    map[unique.Handle[string]]core.ActorID
 	opsToCids map[[2]uint64]cid.Cid
 
-	// Bellow goes the data for the ongoing dirty mutation.
+	// Below goes the data for the ongoing dirty mutation.
 	// Document can only be mutated once, and then must be thrown away.
 
 	dirty bool

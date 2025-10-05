@@ -18,7 +18,7 @@ import (
 
 // ClockPrecision is the default precision we use for our timestaps in permanent data.
 // It corresponds to the precision in the cclock package.
-// This must be the same as precision used in the encoder/decoder transformation bellow.
+// This must be the same as precision used in the encoder/decoder transformation below.
 const ClockPrecision = cclock.DefaultPrecision
 
 func init() {
