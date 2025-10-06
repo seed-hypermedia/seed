@@ -114,9 +114,13 @@ export function calculateInteractionSummary(
 
   const {blocks, citationCount} = calculateBlocksFromCitations(dedupedCitations)
 
+  const externalCommentCitations = dedupedCitations.filter(
+    (citation) => citation.source.type === 'c',
+  )
+
   return {
     citations: citationCount, // Document citations/references to this document
-    comments: comments.length, // Actual comments on this document
+    comments: externalCommentCitations.length, // comment citations include both internal and external comments
     changes: changes.length,
     blocks,
   }

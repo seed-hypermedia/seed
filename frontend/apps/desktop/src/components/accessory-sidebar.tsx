@@ -1,6 +1,5 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSortedCitations} from '@/models/citations'
-import {useAllDiscussions} from '@/models/comments'
 import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {useDocumentChanges} from '@/models/versions'
@@ -136,16 +135,11 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
   const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
-
-  const comments = useAllDiscussions(docId, {
-    enabled: isDocument,
-  })
-
-  const commentCount = comments.data?.length || undefined
   const citations = useSortedCitations(docId, {
     enabled: isDocument,
   })
   const citationCount = citations.docCitations.length || undefined
+  const commentCount = citations.commentCitations.length || undefined
   const childrenActivity = useChildrenActivity(docId, {
     enabled: isDocument,
   })
