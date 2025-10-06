@@ -19,7 +19,7 @@
 
 ## Environment Setup Notes
 
-- macOS/Linux contributors rely on Nix + Direnv; run `direnv allow` after cloning to sync toolchains.
+- macOS/Linux contributors rely on Mise + Direnv; run `direnv allow` after cloning to sync toolchains.
 - The `docs/docs/dev-setup.md` guide stays authoritative—update it whenever tooling or bootstrapping steps change.
 
 ## Extra Rules

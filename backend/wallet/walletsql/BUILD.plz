@@ -15,7 +15,7 @@ cd $PKG
 $TOOLS_GORUN -tags codegen generateQueries
 """,
     tools = [
-        "//build/nix:go",
+        "//build/tools:go",
         "//build/tools:gorun",
     ],
 )

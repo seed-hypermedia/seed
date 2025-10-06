@@ -1,2 +1,0 @@
-# Need this to avoid files being ignored by the parent .gitignore.
-!bazel-*

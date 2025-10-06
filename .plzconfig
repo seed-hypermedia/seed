@@ -9,10 +9,9 @@ BuildFileName = "BUILD.plz"
 GitFunctions = true
 
 [build]
-PassUnsafeEnv = "WORKSPACE" ; This is expected to be set via nix-shell to point to the absolute path to the workspace. Needed to do some nasty but useful work around.
+PassUnsafeEnv = "WORKSPACE" ; This is expected to be set via direnv to point to the absolute path to the workspace. Needed to do some nasty but useful workarounds.
+PassUnsafeEnv = "SEED_MISE_BIN"
 ExitOnError = true
-PassUnsafeEnv = "NIX_SSL_CERT_FILE"
-PassUnsafeEnv = "NIX_PATH"
 Path = "/bin:/usr/bin"
 
 [cache]
@@ -22,6 +21,6 @@ DirCacheLowWaterMark = "5GiB"
 DirClean = true
 
 [buildconfig]
-go-tool = //build/nix:go
-md5sum-tool = //build/nix:md5sum
-yarn-tool = //build/nix:yarn
+go-tool = //build/tools:go
+md5sum-tool = //build/tools:md5sum
+yarn-tool = //build/tools:yarn

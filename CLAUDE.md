@@ -113,7 +113,7 @@ The codebase follows a monorepo structure using Yarn workspaces:
 
 ### Development Tools
 - **`./dev`**: Main development CLI tool for running common tasks
-- Nix and Direnv for environment management
+- Mise and Direnv for environment management
 - Yarn 3 for package management
 - Vite for frontend bundling
 

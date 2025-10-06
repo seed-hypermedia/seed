@@ -26,15 +26,15 @@ Both Bazel and Please share some fundamental ideas:
 
 8. Build results are separate from the source tree. The build process is sandbox and can only see declared inputs, so you can't miss a dependency.
 
-After spending a few years with Please we realized that it has one fundamental problem for us – it doesn't work natively on Windows. Initially we thought we'd only want to target Windows machines, not necessarily develop on Windows. Turned out that cross-compilation is such a mess that you actually do want to be able to develop on the platform you are targeting. That's one of the reason why we don't use our development setup in CI (although one of the main points of our dev setup was to be able to reuse it in CI, not only across developers): we build *for* Windows *on* Windows, so we have to do everything manually, without relying on the scripts we have for local development.
+After spending a few years with Please we realized that it has one fundamental problem for us – it doesn't work natively on Windows. Initially we thought we'd only want to target Windows machines, not necessarily develop on Windows. Turned out that cross-compilation is such a mess that you actually do want to be able to develop on the platform you are targeting. That's one of the reason why we don't use our development setup in CI (although one of the main points of our dev setup was to be able to reuse it in CI, not only across developers): we build _for_ Windows _on_ Windows, so we have to do everything manually, without relying on the scripts we have for local development.
 
-We want to have a superb DX on all the platforms, such that you only need to install one or two tools, run a single command to build/test everything, never have to rebuild things twice, or wait long minutes until your build finishes. We want that on Windows too. So at some point we'll probably switch from Please to Bazel or Buck2 for building, and switch from Nix to Pixi for managing our tools. But refactoring the build system didn't become important enough yet, compared to other things we're trying to build at this time.
+We want to have a superb DX on all the platforms, such that you only need to install one or two tools, run a single command to build/test everything, never have to rebuild things twice, or wait long minutes until your build finishes. We want that on Windows too. So at some point we'll probably switch from Please to Bazel or Buck2 for building, and take advantage of direnv and mise for managing our tools. But refactoring the build system didn't become important enough yet, compared to other things we're trying to build at this time.
 
 ## Seed Specifics
 
 All the devs at Seed use macOS or Linux for development, so most of the scripts, tools, and conveniences only work these. We want to improve the DX on Windows, but we can't invest the time in that just yet.
 
-We do build *for* Windows *on* Windows in CI though, so building everything on Windows is entirely possible, just not as convenient as on Unix-based systems.
+We do build _for_ Windows _on_ Windows in CI though, so building everything on Windows is entirely possible, just not as convenient as on Unix-based systems.
 
 ### Dev CLI
 
@@ -71,8 +71,8 @@ To build the desktop app:
 
 1. Create a directory `plz-out/bin/backend` which is where Electron build system expects the `seed-daemon` binary to be.
 2. Build `seed-daemon` with `go build -o plz-out/bin/backend/seed-daemon-<llvm-platform-triple> ./backend/cmd/seed-daemon`.
-    - Make sure `CGO_ENABLED=1` env variable is set.
-    - The `llvm-platform-triple` depends on the platform you're on. See the values we use in CI here: https://github.com/MintterHypermedia/mintter/blob/d7582fed90840eae953a191b779ef5285b9c21b1/.github/workflows/desktop-release.yml#L63-L79.
-    - On Windows add `.exe` to the output path.
+   - Make sure `CGO_ENABLED=1` env variable is set.
+   - The `llvm-platform-triple` depends on the platform you're on. See the values we use in CI here: https://github.com/MintterHypermedia/mintter/blob/d7582fed90840eae953a191b779ef5285b9c21b1/.github/workflows/desktop-release.yml#L63-L79.
+   - On Windows add `.exe` to the output path.
 3. Run `yarn install`.
 4. Run `yarn desktop` to start the Electron's dev workflow.

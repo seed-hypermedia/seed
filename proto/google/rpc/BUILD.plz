@@ -15,8 +15,7 @@ $SRCS
 """,
     out_dir = "//frontend/packages/shared/src/client/.generated/google/rpc",
     tools = [
-        "//build/nix:protoc",
+        "//build/tools:protoc",
         "//build/tools:protoc-gen-es",
     ],
 )
-

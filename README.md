@@ -33,9 +33,8 @@ and improving the overall stability.
 
 See the [developer setup](./docs/docs/dev-setup.md) page for detailed instructions.
 
-The dev environment on macOS+Linux uses the [Nix Package Manager](https://nixos.org/nix),
-and [Direnv](https://direnv.net). The setup on Linux is a bit more involved due
-to dependencies on system libraries that don't work well on non-NixOS Linux distros.
+The dev environment on macOS+Linux uses the [Mise](https://mise.jdx.dev),
+and [Direnv](https://direnv.net).
 
 The bare minimum required for compilation is to have Go, and NodeJS toolchains
 installed.

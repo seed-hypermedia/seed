@@ -5,7 +5,6 @@
   "recommendations": [
     "npclaudiu.vscode-gn",
     "golang.go",
-    "bbenoist.nix",
     "arcanis.vscode-zipfs",
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",

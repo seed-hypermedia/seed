@@ -51,3 +51,47 @@ go_binary(
     gomod = ":" + tag("gorun", "gomod"),
     workdir = "gorun",
 )
+
+
+def mise_binary(name: str, bin: str = None):
+    """
+    Exposes a binary from mise.
+    """
+
+    if not bin:
+        bin = name
+
+    return build_rule(
+        name = name,
+        srcs = ["//:mise.toml"],
+        outs = [name],
+        binary = True,
+        cmd = """
+cat > $OUT <<EOF
+#!/bin/sh
+export MISE_OVERRIDE_CONFIG_FILENAMES="$WORKSPACE/mise.toml"
+exec $SEED_MISE_BIN x $target_binary -- $target_binary $(echo '$@')
+EOF
+""",
+        env = {
+            "target_binary": bin,
+        },
+        output_is_complete = True,
+        visibility = ["PUBLIC"],
+    )
+
+mise_binary(
+    name = "go"
+)
+
+mise_binary(
+    name = "protoc"
+)
+
+mise_binary(
+    name = "yarn"
+)
+
+mise_binary(
+    name = "md5sum"
+)

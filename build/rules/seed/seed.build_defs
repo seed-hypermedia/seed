@@ -18,7 +18,7 @@ $SRCS
 """,
         out_dir = "//" + package_name().replace("proto", "backend/genproto"),
         tools = [
-            "//build/nix:protoc",
+            "//build/tools:protoc",
             "//build/tools:protoc-gen-go",
             "//build/tools:protoc-gen-go-grpc",
         ],
@@ -42,7 +42,7 @@ $SRCS
 """,
         out_dir = "//" + package_name().replace("proto", "frontend/packages/shared/src/client/.generated"),
         tools = [
-            "//build/nix:protoc",
+            "//build/tools:protoc",
             "//build/tools:protoc-gen-es",
             "//build/tools:protoc-gen-connect-es",
         ],

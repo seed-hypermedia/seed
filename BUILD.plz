@@ -20,3 +20,9 @@ yarn_install(
         "//frontend/...",
     ],
 )
+
+export_file(
+    name = "mise.toml",
+    src = "mise.toml",
+    visibility = ["PUBLIC"]
+)

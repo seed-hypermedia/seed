@@ -1,4 +1,5 @@
 # Frontend Development Setup
+
 - [Frontend Development Setup](#frontend-development-setup)
   - [TLDR;](#tldr)
   - [Introduction](#introduction)
@@ -57,7 +58,6 @@ Now let's describe each package and what it does
 6. [`packages/eslint-config-custom`](../../frontend/packages/eslint-config-custom): the base eslint config for all the frontend code
 7. [`packages/prettier-config`](../../frontend/packages/prettier-config): the base formatting config for all the frontend code.
 
-
 After you [setup the project](./dev-setup) on your local machine, you should have `yarn` available, so no need to install it globally.
 
 ## Prerequisites
@@ -66,7 +66,7 @@ Please make sure that after you enter the repo root path, you see something simi
 
 [![dev setup showcase](https://img.youtube.com/vi/l5smHCf1AYA/0.jpg)](https://www.youtube.com/watch?v=l5smHCf1AYA)
 
-After this is correct, you should run `yarn install` (or `yarn`) to start the dev setup. [Nix](./nix.md) is helping us installing all the necessary tools and setup we need to run every script and app inside the repo. Don't worry of having the exact version of yarn or any other tool, Nix got us covered!
+After this is correct, you should run `yarn install` (or `yarn`) to start the dev setup. [Mise](https://mise.jdx.dev) is helping us installing all the necessary tools and setup we need to run every script and app inside the repo. Don't worry of having the exact version of yarn or any other tool, mise got us covered!
 
 ## ./dev scripts
 
@@ -87,8 +87,6 @@ This application is built with this main tools and frameworks:
 - TRPC
 
 ### Run the desktop app locally
-
-because we are using [Nix](./nix), we are able to create custom orchestrated commands in order to setup everything properly for any situation. To run the desktop app locally, you just need to run:
 
 ```bash
 ./dev run-desktop
@@ -115,9 +113,11 @@ If you have any issues running the application or building the application local
 ## Sites
 
 TBD
+
 ### Run the Site app locally
 
 TBD (we need to finish the groups setup to see how will be)
+
 ### Build sites locally
 
 TBD (we need to finish the groups setup to see how will be)
@@ -150,7 +150,7 @@ Like I mentioned before, this monorepo does not follow some conventions other mo
       "@mintter/app/*": ["*", "../../packages/app/src/*"],
       "react-native": ["react-native-web"]
     }
-  },
+  }
   // ...
 }
 ```
@@ -158,6 +158,3 @@ Like I mentioned before, this monorepo does not follow some conventions other mo
 Another change that we did is that in each scoped package's `package.json` file, we are not setting anything related to exports nor types. WE found that doing this makes it simple for `tsc` compiler to find the correct files based on the paths set.
 
 You can also see that on each scoped package there's only 2 or 3 scripts set: `lint`, `format` and `test`. While we don't want to build this packages individually, we do want to make sure the code structure and linting follows the project's rules.
-
-
-
