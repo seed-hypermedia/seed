@@ -1,5 +1,5 @@
 import {SEED_HOST_URL} from '@shm/shared/constants'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
 import {
@@ -30,6 +30,37 @@ export function SubscribeDialog({
   const [isChecked, setIsChecked] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isMobileKeyboardOpen, setIsMobileKeyboardOpen] = useState(false)
+
+  // Handle mobile keyboard detection
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleResize = () => {
+      // Detect if mobile keyboard is open
+      const initialViewportHeight = window.innerHeight
+      const currentViewportHeight =
+        window.visualViewport?.height || window.innerHeight
+      const heightDifference = initialViewportHeight - currentViewportHeight
+
+      setIsMobileKeyboardOpen(heightDifference > 150)
+    }
+
+    // Listen for viewport changes (mobile keyboard)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize)
+    } else {
+      window.addEventListener('resize', handleResize)
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize)
+      } else {
+        window.removeEventListener('resize', handleResize)
+      }
+    }
+  }, [])
 
   const handleSaveEmail = async () => {
     if (!accountId) {
@@ -83,7 +114,14 @@ export function SubscribeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className={cn(
+          'sm:max-w-md',
+          isMobileKeyboardOpen
+            ? 'max-sm:top-[2vh] max-sm:max-h-[60vh] max-sm:translate-y-0'
+            : 'max-sm:top-[5vh] max-sm:max-h-[90vh] max-sm:translate-y-0',
+        )}
+      >
         <DialogHeader>
           <DialogTitle>Subscribe And Get Notified</DialogTitle>
         </DialogHeader>
