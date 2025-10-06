@@ -169,8 +169,7 @@ export function MentionText(props: any) {
   return (
     <SizableText
       weight="bold"
-      color="brand"
-      className="mention-text inline-block px-0.5 pb-0.5"
+      className="mention-text inline-block px-0.5 pb-0.5 text-blue-600"
       style={{
         fontSize: 'inherit',
         fontFamily: 'inherit',

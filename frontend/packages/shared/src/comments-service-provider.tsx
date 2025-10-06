@@ -84,7 +84,7 @@ export function useDiscussionsService(params: ListDiscussionsRequest) {
     ],
     queryFn: async (): Promise<ListDiscussionsResponse> => {
       if (!context.service) {
-        return {discussions: [], authors: {}}
+        return {discussions: [], authors: {}, citingDiscussions: []}
       }
 
       const res = await context.service.listDiscussions(params)
