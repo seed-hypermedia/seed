@@ -1436,10 +1436,8 @@ function InlineContentView({
   const fSize = fontSize === null ? null : fontSize || textUnit
 
   const getLinkColor = (linkType: LinkType): string => {
-    if (linkType === 'basic')
+    if (linkType == 'basic' || linkType == 'hypermedia')
       return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
-    if (linkType === 'hypermedia')
-      return 'text-primary hover:text-brand-4 dark:text-primary dark:hover:text-brand-6'
     return ''
   }
 

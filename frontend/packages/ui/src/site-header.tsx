@@ -192,6 +192,8 @@ export function SiteHeader({
             docId={docId}
             isCenterLayout={isCenterLayout}
             editNavPane={editNavPane}
+            isMainFeedVisible={isMainFeedVisible}
+            handleToggleFeed={handleToggleFeed}
           />
         </div>
 
@@ -454,11 +456,15 @@ export function SiteHeaderMenu({
   docId,
   isCenterLayout = false,
   editNavPane,
+  isMainFeedVisible = false,
+  handleToggleFeed,
 }: {
   items?: DocNavigationItem[] | null
   docId: UnpackedHypermediaId | null
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
+  isMainFeedVisible?: boolean
+  handleToggleFeed?: () => void
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
 
@@ -491,6 +497,36 @@ export function SiteHeaderMenu({
       reservedWidth,
       gapWidth: 20,
     })
+
+  let feedLinkButton = handleToggleFeed ? (
+    <a
+      className={cn(
+        'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+        isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
+        'hover:text-foreground',
+      )}
+      onClick={handleToggleFeed}
+    >
+      <Sparkle
+        className={cn(
+          'size-4',
+          isMainFeedVisible
+            ? 'text-foreground text-bold'
+            : 'text-muted-foreground',
+        )}
+      />
+      <span
+        className={cn(
+          'hidden md:block',
+          isMainFeedVisible
+            ? 'text-foreground text-bold'
+            : 'text-muted-foreground',
+        )}
+      >
+        Feed
+      </span>
+    </a>
+  ) : null
 
   return (
     <div
@@ -525,6 +561,7 @@ export function SiteHeaderMenu({
             </div>
           )
         })}
+        {feedLinkButton}
       </div>
 
       {/* Visible items */}
@@ -547,6 +584,8 @@ export function SiteHeaderMenu({
           />
         )
       })}
+
+      {feedLinkButton}
 
       {/* Overflow dropdown */}
       {overflowItems.length > 0 && (

@@ -80,11 +80,6 @@
   text-decoration-thickness: 3px;
 }
 
-/* manually sync these values with colors.ts brand5 and brandDark5 */
-.ProseMirror .hm-link {
-  color: var(--brand5);
-}
-
 .ProseMirror .link-placeholder {
   width: 16px;
   height: 16px;
