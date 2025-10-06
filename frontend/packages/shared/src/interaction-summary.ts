@@ -1,5 +1,4 @@
 import {deduplicateCitations} from './citation-deduplication'
-import {ListCommentsResponse} from './client/.generated/documents/v3alpha/comments_pb'
 import {ListDocumentChangesResponse} from './client/.generated/documents/v3alpha/documents_pb'
 import {ListEntityMentionsResponse} from './client/.generated/entities/v1alpha/entities_pb'
 import {HMCitation, UnpackedHypermediaId} from './hm-types'
@@ -104,7 +103,6 @@ function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {
  */
 export function calculateInteractionSummary(
   mentions: ListEntityMentionsResponse['mentions'],
-  comments: ListCommentsResponse['comments'],
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
 ): InteractionSummaryPayload {

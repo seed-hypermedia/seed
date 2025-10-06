@@ -27,14 +27,9 @@ export function useInteractionSummary(
       }
 
       // Fetch all required data in parallel
-      const [mentions, comments, latestDoc] = await Promise.all([
+      const [mentions, latestDoc] = await Promise.all([
         grpcClient.entities.listEntityMentions({
           id: docId.id,
-          pageSize: BIG_INT,
-        }),
-        grpcClient.comments.listComments({
-          targetAccount: docId.uid,
-          targetPath: hmIdPathToEntityQueryPath(docId.path),
           pageSize: BIG_INT,
         }),
         grpcClient.documents.getDocument({
@@ -55,7 +50,6 @@ export function useInteractionSummary(
       // Use the shared calculation function
       return calculateInteractionSummary(
         mentions.mentions,
-        comments.comments,
         changes.changes,
         docId,
       )

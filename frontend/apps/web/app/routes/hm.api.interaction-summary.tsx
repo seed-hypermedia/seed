@@ -36,12 +36,6 @@ export const loader = async ({
     pageSize: BIG_INT,
   })
 
-  const comments = await grpcClient.comments.listComments({
-    targetAccount: id.uid,
-    targetPath: hmIdPathToEntityQueryPath(id.path),
-    pageSize: BIG_INT,
-  })
-
   const latestDoc = await grpcClient.documents.getDocument({
     account: id.uid,
     path: hmIdPathToEntityQueryPath(id.path),
@@ -56,7 +50,6 @@ export const loader = async ({
 
   const summary = calculateInteractionSummary(
     mentions.mentions,
-    comments.comments,
     changes.changes,
     id,
   )
