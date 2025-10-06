@@ -68,6 +68,7 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {PageHeader} from './page-header'
 import {WebSiteProvider} from './providers'
+import {useScrollRestoration} from './use-scroll-restoration'
 import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
 
@@ -136,6 +137,8 @@ function InnerDocumentPage(
     feed,
   } = props
 
+  const mainScrollRef = useScrollRestoration('main-document-scroll')
+  const mobileScrollRef = useScrollRestoration('mobile-panel-scroll')
   const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
 
   useEffect(() => {
@@ -467,7 +470,7 @@ function InnerDocumentPage(
                 </div>
               ) : null}
               <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
-                <ScrollArea onScroll={onScroll}>
+                <ScrollArea ref={mainScrollRef} onScroll={onScroll}>
                   {feed ? (
                     <div
                       {...wrapperProps}
@@ -695,7 +698,9 @@ function InnerDocumentPage(
               </div>
 
               <div className="flex flex-1 flex-col overflow-hidden">
-                <ScrollArea onScroll={onScroll}>{panel}</ScrollArea>
+                <ScrollArea ref={mobileScrollRef} onScroll={onScroll}>
+                  {panel}
+                </ScrollArea>
               </div>
             </div>
           </>
