@@ -44,6 +44,8 @@ export function SiteHeader({
   originHomeId,
   docId,
   items,
+  homeNavigationItems,
+  directoryItems,
   isCenterLayout = false,
   document,
   supportDocuments,
@@ -59,6 +61,8 @@ export function SiteHeader({
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
   items?: DocNavigationItem[] | null
+  homeNavigationItems?: DocNavigationItem[]
+  directoryItems?: DocNavigationItem[]
   isCenterLayout?: boolean
   document?: HMDocument | undefined
   supportDocuments?: HMEntityContent[]
@@ -134,7 +138,9 @@ export function SiteHeader({
     }
   }, [headerRef.current])
 
-  const isHomeDoc = !docId?.path?.length
+  const isHomeDoc = docId?.path?.length == 0
+
+  console.log(`== ~ isHomeDoc:`, isHomeDoc)
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
@@ -224,26 +230,35 @@ export function SiteHeader({
                 }}
               />
 
-              <div className="mt-2.5 mb-4 flex flex-col gap-2.5">
-                {items?.map((item) => {
-                  // Skip items without id or draftId to prevent routing errors
-                  if (!item.id && !item.draftId) return null
-                  return (
-                    <DocumentSmallListItem
-                      onClick={() => {
-                        setIsMobileMenuOpen(false)
-                      }}
-                      key={item.id?.id || item.draftId || ''}
-                      id={item.id}
-                      metadata={item.metadata}
-                      draftId={item.draftId}
-                      isPublished={item.isPublished}
-                    />
-                  )
-                })}
-              </div>
+              {/* Always show home navigation items */}
+              {homeNavigationItems && homeNavigationItems.length > 0 && (
+                <div className="mt-2.5 mb-4">
+                  <NavItems
+                    items={homeNavigationItems}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false)
+                    }}
+                  />
+                </div>
+              )}
 
-              {docId && document && !isHomeDoc && (
+              {/* Show directory items when not on home */}
+              {directoryItems && directoryItems.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-muted-foreground mb-2 px-2 text-xs font-medium uppercase">
+                    Pages
+                  </div>
+                  <NavItems
+                    items={directoryItems}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false)
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Show document outline when available */}
+              {docId && document && (
                 <MobileMenuOutline
                   onActivateBlock={(blockId) => {
                     setIsMobileMenuOpen(false)
@@ -252,14 +267,6 @@ export function SiteHeader({
                   document={document}
                   docId={docId}
                   supportDocuments={supportDocuments}
-                />
-              )}
-              {docId && isHomeDoc && (
-                <NavItems
-                  items={items}
-                  onClick={() => {
-                    setIsMobileMenuOpen(false)
-                  }}
                 />
               )}
             </>

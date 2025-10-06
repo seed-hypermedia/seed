@@ -40,7 +40,9 @@ export function WebSiteHeader(
             !doc.id.path?.length,
         )?.document
   const navigationBlockNode = homeDocument?.detachedBlocks?.navigation
-  const items: DocNavigationItem[] = navigationBlockNode
+
+  // Home navigation items from the navigation block
+  const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
         ?.map((child) => {
           const linkBlock = child.block.type === 'Link' ? child.block : null
@@ -56,7 +58,18 @@ export function WebSiteHeader(
           }
         })
         .filter((item) => !!item) || []
-    : getDirectoryItems(props)
+    : []
+
+  // Directory items for current document (only when not on home)
+  const isHomeDoc = props.docId?.path?.length === 0
+  const directoryItems = isHomeDoc ? [] : getDirectoryItems(props)
+
+  // For header menu: use home nav items if available, otherwise directory items
+  const items: DocNavigationItem[] =
+    homeNavigationItems.length > 0
+      ? homeNavigationItems
+      : getDirectoryItems(props)
+
   return (
     <SiteHeader
       noScroll={props.noScroll}
@@ -64,6 +77,8 @@ export function WebSiteHeader(
       {...props}
       isCenterLayout={isCenterLayout}
       items={items}
+      homeNavigationItems={homeNavigationItems}
+      directoryItems={directoryItems}
       origin={props.origin}
       onBlockFocus={(blockId) => {
         window.location.hash = blockId
