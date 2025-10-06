@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, Timestamp} from '@bufbuild/protobuf'
 
 /**
  * @generated from enum com.seed.documents.v3alpha.Role
@@ -33,11 +40,11 @@ export enum Role {
   AGENT = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(Role)
-proto3.util.setEnumType(Role, "com.seed.documents.v3alpha.Role", [
-  { no: 0, name: "ROLE_UNSPECIFIED" },
-  { no: 2, name: "WRITER" },
-  { no: 3, name: "AGENT" },
-]);
+proto3.util.setEnumType(Role, 'com.seed.documents.v3alpha.Role', [
+  {no: 0, name: 'ROLE_UNSPECIFIED'},
+  {no: 2, name: 'WRITER'},
+  {no: 3, name: 'AGENT'},
+])
 
 /**
  * Request to list capabilities.
@@ -50,7 +57,7 @@ export class ListCapabilitiesRequest extends Message<ListCapabilitiesRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path within the account to list the capabilities for.
@@ -59,7 +66,7 @@ export class ListCapabilitiesRequest extends Message<ListCapabilitiesRequest> {
    *
    * @generated from field: string path = 2;
    */
-  path = "";
+  path = ''
 
   /**
    * Optional. By default all capabilities that match the path are returned,
@@ -68,51 +75,75 @@ export class ListCapabilitiesRequest extends Message<ListCapabilitiesRequest> {
    *
    * @generated from field: bool ignore_inherited = 3;
    */
-  ignoreInherited = false;
+  ignoreInherited = false
 
   /**
    * Optional. Number of capabilities to return in the response.
    *
    * @generated from field: int32 page_size = 4;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Page token to continue listing capabilities.
    *
    * @generated from field: string page_token = 5;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListCapabilitiesRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCapabilitiesRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListCapabilitiesRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "ignore_inherited", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 5, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 3,
+      name: 'ignore_inherited',
+      kind: 'scalar',
+      T: 8 /* ScalarType.BOOL */,
+    },
+    {no: 4, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 5, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCapabilitiesRequest {
-    return new ListCapabilitiesRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCapabilitiesRequest {
+    return new ListCapabilitiesRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCapabilitiesRequest {
-    return new ListCapabilitiesRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesRequest {
+    return new ListCapabilitiesRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCapabilitiesRequest {
-    return new ListCapabilitiesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesRequest {
+    return new ListCapabilitiesRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListCapabilitiesRequest | PlainMessage<ListCapabilitiesRequest> | undefined, b: ListCapabilitiesRequest | PlainMessage<ListCapabilitiesRequest> | undefined): boolean {
-    return proto3.util.equals(ListCapabilitiesRequest, a, b);
+  static equals(
+    a:
+      | ListCapabilitiesRequest
+      | PlainMessage<ListCapabilitiesRequest>
+      | undefined,
+    b:
+      | ListCapabilitiesRequest
+      | PlainMessage<ListCapabilitiesRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCapabilitiesRequest, a, b)
   }
 }
 
@@ -127,41 +158,71 @@ export class ListCapabilitiesResponse extends Message<ListCapabilitiesResponse> 
    *
    * @generated from field: repeated com.seed.documents.v3alpha.Capability capabilities = 1;
    */
-  capabilities: Capability[] = [];
+  capabilities: Capability[] = []
 
   /**
    * Token for the next page, if any.
    *
    * @generated from field: string next_page_token = 2;
    */
-  nextPageToken = "";
+  nextPageToken = ''
 
   constructor(data?: PartialMessage<ListCapabilitiesResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCapabilitiesResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListCapabilitiesResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "capabilities", kind: "message", T: Capability, repeated: true },
-    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'capabilities',
+      kind: 'message',
+      T: Capability,
+      repeated: true,
+    },
+    {
+      no: 2,
+      name: 'next_page_token',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCapabilitiesResponse {
-    return new ListCapabilitiesResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCapabilitiesResponse {
+    return new ListCapabilitiesResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCapabilitiesResponse {
-    return new ListCapabilitiesResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesResponse {
+    return new ListCapabilitiesResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCapabilitiesResponse {
-    return new ListCapabilitiesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesResponse {
+    return new ListCapabilitiesResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListCapabilitiesResponse | PlainMessage<ListCapabilitiesResponse> | undefined, b: ListCapabilitiesResponse | PlainMessage<ListCapabilitiesResponse> | undefined): boolean {
-    return proto3.util.equals(ListCapabilitiesResponse, a, b);
+  static equals(
+    a:
+      | ListCapabilitiesResponse
+      | PlainMessage<ListCapabilitiesResponse>
+      | undefined,
+    b:
+      | ListCapabilitiesResponse
+      | PlainMessage<ListCapabilitiesResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCapabilitiesResponse, a, b)
   }
 }
 
@@ -176,49 +237,71 @@ export class ListCapabilitiesForDelegateRequest extends Message<ListCapabilities
    *
    * @generated from field: string delegate = 1;
    */
-  delegate = "";
+  delegate = ''
 
   /**
    * Optional. Number of capabilities to return in the response.
    *
    * @generated from field: int32 page_size = 2;
    */
-  pageSize = 0;
+  pageSize = 0
 
   /**
    * Optional. Page token to continue listing capabilities.
    *
    * @generated from field: string page_token = 3;
    */
-  pageToken = "";
+  pageToken = ''
 
   constructor(data?: PartialMessage<ListCapabilitiesForDelegateRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.ListCapabilitiesForDelegateRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.ListCapabilitiesForDelegateRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "delegate", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 3, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'delegate', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'page_size', kind: 'scalar', T: 5 /* ScalarType.INT32 */},
+    {no: 3, name: 'page_token', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListCapabilitiesForDelegateRequest {
-    return new ListCapabilitiesForDelegateRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListCapabilitiesForDelegateRequest {
-    return new ListCapabilitiesForDelegateRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListCapabilitiesForDelegateRequest {
-    return new ListCapabilitiesForDelegateRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListCapabilitiesForDelegateRequest {
+    return new ListCapabilitiesForDelegateRequest().fromJsonString(
+      jsonString,
+      options,
+    )
   }
 
-  static equals(a: ListCapabilitiesForDelegateRequest | PlainMessage<ListCapabilitiesForDelegateRequest> | undefined, b: ListCapabilitiesForDelegateRequest | PlainMessage<ListCapabilitiesForDelegateRequest> | undefined): boolean {
-    return proto3.util.equals(ListCapabilitiesForDelegateRequest, a, b);
+  static equals(
+    a:
+      | ListCapabilitiesForDelegateRequest
+      | PlainMessage<ListCapabilitiesForDelegateRequest>
+      | undefined,
+    b:
+      | ListCapabilitiesForDelegateRequest
+      | PlainMessage<ListCapabilitiesForDelegateRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(ListCapabilitiesForDelegateRequest, a, b)
   }
 }
 
@@ -233,21 +316,21 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    *
    * @generated from field: string signing_key_name = 1;
    */
-  signingKeyName = "";
+  signingKeyName = ''
 
   /**
    * Required. Account ID to which this capability is delegated.
    *
    * @generated from field: string delegate = 2;
    */
-  delegate = "";
+  delegate = ''
 
   /**
    * Required. Account ID to which this capability gives access.
    *
    * @generated from field: string account = 3;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Path within the account that this capability grants access to.
@@ -255,7 +338,7 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    *
    * @generated from field: string path = 4;
    */
-  path = "";
+  path = ''
 
   /**
    * Required. Role that this capability grants to the delegate.
@@ -263,7 +346,7 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    *
    * @generated from field: com.seed.documents.v3alpha.Role role = 5;
    */
-  role = Role.ROLE_UNSPECIFIED;
+  role = Role.ROLE_UNSPECIFIED
 
   /**
    * Optional. By default capabilities give access to the path recursively.
@@ -271,7 +354,7 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    *
    * @generated from field: bool no_recursive = 6;
    */
-  noRecursive = false;
+  noRecursive = false
 
   /**
    * Optional. Short, user-provided label for the capability for user's convenience to identify them later.
@@ -279,39 +362,63 @@ export class CreateCapabilityRequest extends Message<CreateCapabilityRequest> {
    *
    * @generated from field: string label = 7;
    */
-  label = "";
+  label = ''
 
   constructor(data?: PartialMessage<CreateCapabilityRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.CreateCapabilityRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.documents.v3alpha.CreateCapabilityRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "delegate", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
-    { no: 6, name: "no_recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 7, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'signing_key_name',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'delegate', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'role', kind: 'enum', T: proto3.getEnumType(Role)},
+    {no: 6, name: 'no_recursive', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 7, name: 'label', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateCapabilityRequest {
-    return new CreateCapabilityRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateCapabilityRequest {
+    return new CreateCapabilityRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateCapabilityRequest {
-    return new CreateCapabilityRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateCapabilityRequest {
+    return new CreateCapabilityRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateCapabilityRequest {
-    return new CreateCapabilityRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateCapabilityRequest {
+    return new CreateCapabilityRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateCapabilityRequest | PlainMessage<CreateCapabilityRequest> | undefined, b: CreateCapabilityRequest | PlainMessage<CreateCapabilityRequest> | undefined): boolean {
-    return proto3.util.equals(CreateCapabilityRequest, a, b);
+  static equals(
+    a:
+      | CreateCapabilityRequest
+      | PlainMessage<CreateCapabilityRequest>
+      | undefined,
+    b:
+      | CreateCapabilityRequest
+      | PlainMessage<CreateCapabilityRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateCapabilityRequest, a, b)
   }
 }
 
@@ -326,33 +433,45 @@ export class GetCapabilityRequest extends Message<GetCapabilityRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetCapabilityRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.GetCapabilityRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.GetCapabilityRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCapabilityRequest {
-    return new GetCapabilityRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetCapabilityRequest {
+    return new GetCapabilityRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCapabilityRequest {
-    return new GetCapabilityRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetCapabilityRequest {
+    return new GetCapabilityRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCapabilityRequest {
-    return new GetCapabilityRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetCapabilityRequest {
+    return new GetCapabilityRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetCapabilityRequest | PlainMessage<GetCapabilityRequest> | undefined, b: GetCapabilityRequest | PlainMessage<GetCapabilityRequest> | undefined): boolean {
-    return proto3.util.equals(GetCapabilityRequest, a, b);
+  static equals(
+    a: GetCapabilityRequest | PlainMessage<GetCapabilityRequest> | undefined,
+    b: GetCapabilityRequest | PlainMessage<GetCapabilityRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetCapabilityRequest, a, b)
   }
 }
 
@@ -367,21 +486,21 @@ export class Capability extends Message<Capability> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * ID of the account that issued the capability.
    *
    * @generated from field: string issuer = 2;
    */
-  issuer = "";
+  issuer = ''
 
   /**
    * ID of the account that the capability is delegated to.
    *
    * @generated from field: string delegate = 3;
    */
-  delegate = "";
+  delegate = ''
 
   /**
    * Account ID that capability grants access to.
@@ -390,21 +509,21 @@ export class Capability extends Message<Capability> {
    *
    * @generated from field: string account = 4;
    */
-  account = "";
+  account = ''
 
   /**
    * Path within the account which the capability grants access to.
    *
    * @generated from field: string path = 5;
    */
-  path = "";
+  path = ''
 
   /**
    * Role that the capability grants to the delegate.
    *
    * @generated from field: com.seed.documents.v3alpha.Role role = 6;
    */
-  role = Role.ROLE_UNSPECIFIED;
+  role = Role.ROLE_UNSPECIFIED
 
   /**
    * Normally capabilities are applied recursively (i.e. path + all the subpaths),
@@ -412,55 +531,66 @@ export class Capability extends Message<Capability> {
    *
    * @generated from field: bool is_exact = 7;
    */
-  isExact = false;
+  isExact = false
 
   /**
    * Timestamp when this capability was issued.
    *
    * @generated from field: google.protobuf.Timestamp create_time = 8;
    */
-  createTime?: Timestamp;
+  createTime?: Timestamp
 
   /**
    * Optional. Short, user-provided label for the capability for user's convenience to identify different capabilities.
    *
    * @generated from field: string label = 9;
    */
-  label = "";
+  label = ''
 
   constructor(data?: PartialMessage<Capability>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.documents.v3alpha.Capability";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.documents.v3alpha.Capability'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "issuer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "delegate", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "role", kind: "enum", T: proto3.getEnumType(Role) },
-    { no: 7, name: "is_exact", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 8, name: "create_time", kind: "message", T: Timestamp },
-    { no: 9, name: "label", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'issuer', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'delegate', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'path', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 6, name: 'role', kind: 'enum', T: proto3.getEnumType(Role)},
+    {no: 7, name: 'is_exact', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 8, name: 'create_time', kind: 'message', T: Timestamp},
+    {no: 9, name: 'label', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Capability {
-    return new Capability().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Capability {
+    return new Capability().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Capability {
-    return new Capability().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Capability {
+    return new Capability().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Capability {
-    return new Capability().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Capability {
+    return new Capability().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Capability | PlainMessage<Capability> | undefined, b: Capability | PlainMessage<Capability> | undefined): boolean {
-    return proto3.util.equals(Capability, a, b);
+  static equals(
+    a: Capability | PlainMessage<Capability> | undefined,
+    b: Capability | PlainMessage<Capability> | undefined,
+  ): boolean {
+    return proto3.util.equals(Capability, a, b)
   }
 }
-

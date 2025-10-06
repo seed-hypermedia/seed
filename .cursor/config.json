@@ -1,3 +1,3 @@
 {
-    "promptSuffix": "Do not make any changes, until you have 90% confidence that you know what to build. Ask me clarifying questions about any uncertainty you have about the codebase or refactoring until you have that level of confidence."
+  "promptSuffix": "Do not make any changes, until you have 90% confidence that you know what to build. Ask me clarifying questions about any uncertainty you have about the codebase or refactoring until you have that level of confidence."
 }

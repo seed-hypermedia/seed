@@ -1,4 +1,4 @@
-import {sentryVitePlugin} from '@sentry/vite-plugin'
+// import {sentryVitePlugin} from '@sentry/vite-plugin'
 import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
@@ -75,37 +75,37 @@ export default defineConfig(({command, mode}) => {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
+        '@noble/curves/secp256k1': '@noble/curves/secp256k1.js',
+        '@noble/hashes/utils': '@noble/hashes/utils.js',
+        '@noble/hashes/sha256': '@noble/hashes/sha2.js',
+        '@noble/ciphers/chacha': '@noble/ciphers/chacha.js',
       },
     },
-    plugins:
-      command == 'build'
-        ? [
-            tsConfigPaths({
-              root: '../../',
-            }),
-            sentryVitePlugin({
-              authToken: process.env.SENTRY_AUTH_TOKEN,
-              org: 'mintter',
-              project: 'electron',
-              telemetry: false,
-            }),
-          ]
-        : [
-            tsConfigPaths({
-              root: '../../',
-            }),
-            // {
-            //   name: 'log-files',
-            //   transform(code, id) {
-            //     console.log('Processing file:', id)
-            //     return code
-            //   },
-            // },
-          ],
+    plugins: [
+      tsConfigPaths({
+        root: '../../',
+      }),
+      // command == 'build'
+      //   ? sentryVitePlugin({
+      //       authToken: process.env.SENTRY_AUTH_TOKEN,
+      //       org: 'mintter',
+      //       project: 'electron',
+      //       telemetry: false,
+      //     })
+      //   : null,
+    ].filter(Boolean),
     alias: {
       'react-native': 'react-native-web',
     },
     optimizeDeps: {
+      exclude: ['@date-fns/tz', '@ariakit/core'],
+      include: [
+        '@noble/curves',
+        '@noble/hashes',
+        '@noble/ciphers',
+        'nostr-tools',
+        'parse5',
+      ],
       esbuildOptions: {
         resolveExtensions: extensions,
       },

@@ -32,13 +32,15 @@ Browse the data on the Hypermedia network
 
 The app uses the following environment variables:
 
-- `VITE_PUBLIC_EXPLORE_API_HOST`: The default API host URL (defaults to http://localhost:3000)
+- `VITE_PUBLIC_EXPLORE_API_HOST`: The default API host URL (defaults to
+  http://localhost:3000)
 
 You can customize these by creating a `.env` file in the root directory.
 
 ## Settings
 
-The app includes a settings panel accessible via the gear icon in the lower left corner. You can configure:
+The app includes a settings panel accessible via the gear icon in the lower left
+corner. You can configure:
 
 - Explore API Host: The URL of the API server
 

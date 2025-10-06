@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, protoInt64} from '@bufbuild/protobuf'
 
 /**
  * Response of the Create invoice.
@@ -13,45 +20,57 @@ import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
  */
 export class InvoiceResponse extends Message<InvoiceResponse> {
   /**
-   * String representation of a bolt11 invoice payment request. 
+   * String representation of a bolt11 invoice payment request.
    *
    * @generated from field: string payreq = 1;
    */
-  payreq = "";
+  payreq = ''
 
   /**
    * Payment Hash of the invoice.
    *
    * @generated from field: string payment_hash = 2;
    */
-  paymentHash = "";
+  paymentHash = ''
 
   constructor(data?: PartialMessage<InvoiceResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.InvoiceResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.InvoiceResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "payreq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "payment_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'payreq', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'payment_hash', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InvoiceResponse {
-    return new InvoiceResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): InvoiceResponse {
+    return new InvoiceResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): InvoiceResponse {
-    return new InvoiceResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): InvoiceResponse {
+    return new InvoiceResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): InvoiceResponse {
-    return new InvoiceResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): InvoiceResponse {
+    return new InvoiceResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined, b: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined): boolean {
-    return proto3.util.equals(InvoiceResponse, a, b);
+  static equals(
+    a: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined,
+    b: InvoiceResponse | PlainMessage<InvoiceResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(InvoiceResponse, a, b)
   }
 }
 
@@ -60,37 +79,49 @@ export class InvoiceResponse extends Message<InvoiceResponse> {
  */
 export class DecodeInvoiceRequest extends Message<DecodeInvoiceRequest> {
   /**
-   * String representation of a bolt11 invoice payment request. 
+   * String representation of a bolt11 invoice payment request.
    *
    * @generated from field: string payreq = 1;
    */
-  payreq = "";
+  payreq = ''
 
   constructor(data?: PartialMessage<DecodeInvoiceRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.DecodeInvoiceRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.DecodeInvoiceRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "payreq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'payreq', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DecodeInvoiceRequest {
-    return new DecodeInvoiceRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DecodeInvoiceRequest {
-    return new DecodeInvoiceRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DecodeInvoiceRequest {
-    return new DecodeInvoiceRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): DecodeInvoiceRequest {
+    return new DecodeInvoiceRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined, b: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined): boolean {
-    return proto3.util.equals(DecodeInvoiceRequest, a, b);
+  static equals(
+    a: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined,
+    b: DecodeInvoiceRequest | PlainMessage<DecodeInvoiceRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(DecodeInvoiceRequest, a, b)
   }
 }
 
@@ -102,64 +133,76 @@ export class DecodeInvoiceRequest extends Message<DecodeInvoiceRequest> {
 export class CreateInvoiceRequest extends Message<CreateInvoiceRequest> {
   /**
    * Optional. The account we are creating the invoice from. The default wallet
-   * from that account will be used to issue the invoice. If the user wants to 
-   * select an espedific wallet, then account must be blank and the user must 
+   * from that account will be used to issue the invoice. If the user wants to
+   * select an espedific wallet, then account must be blank and the user must
    * provide a wallet id.
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Optional. In case account is not provided, the especific walletID
-   * to issue an invoice from. 
+   * to issue an invoice from.
    *
    * @generated from field: string id = 2;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. The amount in satoshis we want the invoice.
    *
    * @generated from field: int64 amount = 3;
    */
-  amount = protoInt64.zero;
+  amount = protoInt64.zero
 
   /**
-   * Optional. Description we want to include in the invoice. 
+   * Optional. Description we want to include in the invoice.
    *
    * @generated from field: string memo = 4;
    */
-  memo = "";
+  memo = ''
 
   constructor(data?: PartialMessage<CreateInvoiceRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.CreateInvoiceRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.CreateInvoiceRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "amount", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 4, name: "memo", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'amount', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+    {no: 4, name: 'memo', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateInvoiceRequest {
-    return new CreateInvoiceRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateInvoiceRequest {
+    return new CreateInvoiceRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateInvoiceRequest {
-    return new CreateInvoiceRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateInvoiceRequest {
+    return new CreateInvoiceRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateInvoiceRequest {
-    return new CreateInvoiceRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateInvoiceRequest {
+    return new CreateInvoiceRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateInvoiceRequest | PlainMessage<CreateInvoiceRequest> | undefined, b: CreateInvoiceRequest | PlainMessage<CreateInvoiceRequest> | undefined): boolean {
-    return proto3.util.equals(CreateInvoiceRequest, a, b);
+  static equals(
+    a: CreateInvoiceRequest | PlainMessage<CreateInvoiceRequest> | undefined,
+    b: CreateInvoiceRequest | PlainMessage<CreateInvoiceRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateInvoiceRequest, a, b)
   }
 }
 
@@ -174,7 +217,7 @@ export class PayInvoiceRequest extends Message<PayInvoiceRequest> {
    *
    * @generated from field: string payreq = 1;
    */
-  payreq = "";
+  payreq = ''
 
   /**
    * Optional. The account used to pay this invoice. The default wallet of this account will
@@ -182,51 +225,63 @@ export class PayInvoiceRequest extends Message<PayInvoiceRequest> {
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   /**
    * Optional. Wallet id to pay the invoice with
    *
    * @generated from field: string id = 3;
    */
-  id = "";
+  id = ''
 
   /**
-   * Optional. Amount in satoshis to pay. This should match the amount in the invoice. 
-   * For zero-amount invoices, the user can put whatever amount it wants.  
+   * Optional. Amount in satoshis to pay. This should match the amount in the invoice.
+   * For zero-amount invoices, the user can put whatever amount it wants.
    *
    * @generated from field: int64 amount = 4;
    */
-  amount = protoInt64.zero;
+  amount = protoInt64.zero
 
   constructor(data?: PartialMessage<PayInvoiceRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.PayInvoiceRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.PayInvoiceRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "payreq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "amount", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-  ]);
+    {no: 1, name: 'payreq', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'amount', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PayInvoiceRequest {
-    return new PayInvoiceRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): PayInvoiceRequest {
+    return new PayInvoiceRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PayInvoiceRequest {
-    return new PayInvoiceRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): PayInvoiceRequest {
+    return new PayInvoiceRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PayInvoiceRequest {
-    return new PayInvoiceRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): PayInvoiceRequest {
+    return new PayInvoiceRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: PayInvoiceRequest | PlainMessage<PayInvoiceRequest> | undefined, b: PayInvoiceRequest | PlainMessage<PayInvoiceRequest> | undefined): boolean {
-    return proto3.util.equals(PayInvoiceRequest, a, b);
+  static equals(
+    a: PayInvoiceRequest | PlainMessage<PayInvoiceRequest> | undefined,
+    b: PayInvoiceRequest | PlainMessage<PayInvoiceRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(PayInvoiceRequest, a, b)
   }
 }
 
@@ -241,57 +296,76 @@ export class RequestLud6InvoiceRequest extends Message<RequestLud6InvoiceRequest
    *
    * @generated from field: string URL = 1;
    */
-  URL = "";
+  URL = ''
 
   /**
    * Required. User to pay.
    *
    * @generated from field: string user = 2;
    */
-  user = "";
+  user = ''
 
   /**
    * Required. Amount in satohis.
    *
    * @generated from field: int64 amount = 3;
    */
-  amount = protoInt64.zero;
+  amount = protoInt64.zero
 
   /**
    * Optional. String to be attached in the invoice.
    *
    * @generated from field: string memo = 4;
    */
-  memo = "";
+  memo = ''
 
   constructor(data?: PartialMessage<RequestLud6InvoiceRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.RequestLud6InvoiceRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.payments.v1alpha.RequestLud6InvoiceRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "URL", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "user", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "amount", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 4, name: "memo", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'URL', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'user', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'amount', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+    {no: 4, name: 'memo', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RequestLud6InvoiceRequest {
-    return new RequestLud6InvoiceRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RequestLud6InvoiceRequest {
+    return new RequestLud6InvoiceRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RequestLud6InvoiceRequest {
-    return new RequestLud6InvoiceRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RequestLud6InvoiceRequest {
+    return new RequestLud6InvoiceRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RequestLud6InvoiceRequest {
-    return new RequestLud6InvoiceRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RequestLud6InvoiceRequest {
+    return new RequestLud6InvoiceRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: RequestLud6InvoiceRequest | PlainMessage<RequestLud6InvoiceRequest> | undefined, b: RequestLud6InvoiceRequest | PlainMessage<RequestLud6InvoiceRequest> | undefined): boolean {
-    return proto3.util.equals(RequestLud6InvoiceRequest, a, b);
+  static equals(
+    a:
+      | RequestLud6InvoiceRequest
+      | PlainMessage<RequestLud6InvoiceRequest>
+      | undefined,
+    b:
+      | RequestLud6InvoiceRequest
+      | PlainMessage<RequestLud6InvoiceRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(RequestLud6InvoiceRequest, a, b)
   }
 }
 
@@ -306,33 +380,45 @@ export class GetLnAddressRequest extends Message<GetLnAddressRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<GetLnAddressRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.GetLnAddressRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.GetLnAddressRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetLnAddressRequest {
-    return new GetLnAddressRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetLnAddressRequest {
+    return new GetLnAddressRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetLnAddressRequest {
-    return new GetLnAddressRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetLnAddressRequest {
+    return new GetLnAddressRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetLnAddressRequest {
-    return new GetLnAddressRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetLnAddressRequest {
+    return new GetLnAddressRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetLnAddressRequest | PlainMessage<GetLnAddressRequest> | undefined, b: GetLnAddressRequest | PlainMessage<GetLnAddressRequest> | undefined): boolean {
-    return proto3.util.equals(GetLnAddressRequest, a, b);
+  static equals(
+    a: GetLnAddressRequest | PlainMessage<GetLnAddressRequest> | undefined,
+    b: GetLnAddressRequest | PlainMessage<GetLnAddressRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(GetLnAddressRequest, a, b)
   }
 }
 
@@ -347,38 +433,50 @@ export class LNAddress extends Message<LNAddress> {
    *
    * @generated from field: string address = 1;
    */
-  address = "";
+  address = ''
 
   constructor(data?: PartialMessage<LNAddress>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.LNAddress";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.LNAddress'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "address", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'address', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LNAddress {
-    return new LNAddress().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): LNAddress {
+    return new LNAddress().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): LNAddress {
-    return new LNAddress().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): LNAddress {
+    return new LNAddress().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): LNAddress {
-    return new LNAddress().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): LNAddress {
+    return new LNAddress().fromJsonString(jsonString, options)
   }
 
-  static equals(a: LNAddress | PlainMessage<LNAddress> | undefined, b: LNAddress | PlainMessage<LNAddress> | undefined): boolean {
-    return proto3.util.equals(LNAddress, a, b);
+  static equals(
+    a: LNAddress | PlainMessage<LNAddress> | undefined,
+    b: LNAddress | PlainMessage<LNAddress> | undefined,
+  ): boolean {
+    return proto3.util.equals(LNAddress, a, b)
   }
 }
 
 /**
- * Changes the lnaddress associated with a wallet. 
+ * Changes the lnaddress associated with a wallet.
  *
  * @generated from message com.seed.payments.v1alpha.UpdateLNAddressRequest
  */
@@ -389,7 +487,7 @@ export class UpdateLNAddressRequest extends Message<UpdateLNAddressRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. The nickname of the new lnadress. The resultin lnaddress would be
@@ -397,39 +495,57 @@ export class UpdateLNAddressRequest extends Message<UpdateLNAddressRequest> {
    *
    * @generated from field: string nickname = 2;
    */
-  nickname = "";
+  nickname = ''
 
   constructor(data?: PartialMessage<UpdateLNAddressRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.UpdateLNAddressRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.UpdateLNAddressRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "nickname", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'nickname', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateLNAddressRequest {
-    return new UpdateLNAddressRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateLNAddressRequest {
+    return new UpdateLNAddressRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateLNAddressRequest {
-    return new UpdateLNAddressRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateLNAddressRequest {
+    return new UpdateLNAddressRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateLNAddressRequest {
-    return new UpdateLNAddressRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateLNAddressRequest {
+    return new UpdateLNAddressRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateLNAddressRequest | PlainMessage<UpdateLNAddressRequest> | undefined, b: UpdateLNAddressRequest | PlainMessage<UpdateLNAddressRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateLNAddressRequest, a, b);
+  static equals(
+    a:
+      | UpdateLNAddressRequest
+      | PlainMessage<UpdateLNAddressRequest>
+      | undefined,
+    b:
+      | UpdateLNAddressRequest
+      | PlainMessage<UpdateLNAddressRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateLNAddressRequest, a, b)
   }
 }
 
 /**
- * List all invoices that has been paid with a wallet 
+ * List all invoices that has been paid with a wallet
  *
  * @generated from message com.seed.payments.v1alpha.ListInvoicesRequest
  */
@@ -439,33 +555,45 @@ export class ListInvoicesRequest extends Message<ListInvoicesRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<ListInvoicesRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ListInvoicesRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ListInvoicesRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListInvoicesRequest {
-    return new ListInvoicesRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListInvoicesRequest {
+    return new ListInvoicesRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListInvoicesRequest {
-    return new ListInvoicesRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListInvoicesRequest {
+    return new ListInvoicesRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListInvoicesRequest {
-    return new ListInvoicesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListInvoicesRequest {
+    return new ListInvoicesRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListInvoicesRequest | PlainMessage<ListInvoicesRequest> | undefined, b: ListInvoicesRequest | PlainMessage<ListInvoicesRequest> | undefined): boolean {
-    return proto3.util.equals(ListInvoicesRequest, a, b);
+  static equals(
+    a: ListInvoicesRequest | PlainMessage<ListInvoicesRequest> | undefined,
+    b: ListInvoicesRequest | PlainMessage<ListInvoicesRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListInvoicesRequest, a, b)
   }
 }
 
@@ -480,150 +608,182 @@ export class Invoice extends Message<Invoice> {
    *
    * @generated from field: string payment_hash = 1;
    */
-  paymentHash = "";
+  paymentHash = ''
 
   /**
    * The string representation of the invoice
    *
    * @generated from field: string payment_request = 2;
    */
-  paymentRequest = "";
+  paymentRequest = ''
 
   /**
    * The description/memo/purpose of the invoice
    *
    * @generated from field: string description = 3;
    */
-  description = "";
+  description = ''
 
   /**
    * The description hash
    *
    * @generated from field: string description_hash = 4;
    */
-  descriptionHash = "";
+  descriptionHash = ''
 
   /**
    * The preimage revealed upon settlement. Proof of payment.
    *
    * @generated from field: string payment_preimage = 5;
    */
-  paymentPreimage = "";
+  paymentPreimage = ''
 
   /**
    * The destination node of the payment.
    *
    * @generated from field: string destination = 6;
    */
-  destination = "";
+  destination = ''
 
   /**
    * The amount in satoshis of the payment.
    *
    * @generated from field: int64 amount = 7;
    */
-  amount = protoInt64.zero;
+  amount = protoInt64.zero
 
   /**
    * The fees paid in satoshis.
    *
    * @generated from field: int64 fee = 8;
    */
-  fee = protoInt64.zero;
+  fee = protoInt64.zero
 
   /**
    * The satus of the invoice.
    *
    * @generated from field: string status = 9;
    */
-  status = "";
+  status = ''
 
   /**
    * The type of invoice.
    *
    * @generated from field: string type = 10;
    */
-  type = "";
+  type = ''
 
   /**
    * Error message (if any) of the transaction.
    *
    * @generated from field: string error_message = 11;
    */
-  errorMessage = "";
+  errorMessage = ''
 
   /**
    * When the invoice was settled
    *
    * @generated from field: string settled_at = 12;
    */
-  settledAt = "";
+  settledAt = ''
 
   /**
    * When the invoice expires (if unpaid).
    *
    * @generated from field: string expires_at = 13;
    */
-  expiresAt = "";
+  expiresAt = ''
 
   /**
    * Whether or not the invoice has been paid.
    *
    * @generated from field: bool is_paid = 14;
    */
-  isPaid = false;
+  isPaid = false
 
   /**
    * Whether or not this is a keysed payment.
    *
    * @generated from field: bool keysend = 15;
    */
-  keysend = false;
+  keysend = false
 
   constructor(data?: PartialMessage<Invoice>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.Invoice";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.Invoice'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "payment_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "payment_request", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "description_hash", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "payment_preimage", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "destination", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "amount", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 8, name: "fee", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 9, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 10, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 11, name: "error_message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 12, name: "settled_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 13, name: "expires_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 14, name: "is_paid", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 15, name: "keysend", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
+    {no: 1, name: 'payment_hash', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 2,
+      name: 'payment_request',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 3, name: 'description', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 4,
+      name: 'description_hash',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 5,
+      name: 'payment_preimage',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 6, name: 'destination', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 7, name: 'amount', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+    {no: 8, name: 'fee', kind: 'scalar', T: 3 /* ScalarType.INT64 */},
+    {no: 9, name: 'status', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 10, name: 'type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {
+      no: 11,
+      name: 'error_message',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 12, name: 'settled_at', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 13, name: 'expires_at', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 14, name: 'is_paid', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+    {no: 15, name: 'keysend', kind: 'scalar', T: 8 /* ScalarType.BOOL */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Invoice {
-    return new Invoice().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Invoice {
+    return new Invoice().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Invoice {
-    return new Invoice().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Invoice {
+    return new Invoice().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Invoice {
-    return new Invoice().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Invoice {
+    return new Invoice().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Invoice | PlainMessage<Invoice> | undefined, b: Invoice | PlainMessage<Invoice> | undefined): boolean {
-    return proto3.util.equals(Invoice, a, b);
+  static equals(
+    a: Invoice | PlainMessage<Invoice> | undefined,
+    b: Invoice | PlainMessage<Invoice> | undefined,
+  ): boolean {
+    return proto3.util.equals(Invoice, a, b)
   }
 }
 
 /**
- * List all invoices that has been paid with a wallet 
+ * List all invoices that has been paid with a wallet
  *
  * @generated from message com.seed.payments.v1alpha.ListInvoicesResponse
  */
@@ -633,33 +793,44 @@ export class ListInvoicesResponse extends Message<ListInvoicesResponse> {
    *
    * @generated from field: repeated com.seed.payments.v1alpha.Invoice invoices = 1;
    */
-  invoices: Invoice[] = [];
+  invoices: Invoice[] = []
 
   constructor(data?: PartialMessage<ListInvoicesResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ListInvoicesResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ListInvoicesResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "invoices", kind: "message", T: Invoice, repeated: true },
-  ]);
+    {no: 1, name: 'invoices', kind: 'message', T: Invoice, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListInvoicesResponse {
-    return new ListInvoicesResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListInvoicesResponse {
+    return new ListInvoicesResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListInvoicesResponse {
-    return new ListInvoicesResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListInvoicesResponse {
+    return new ListInvoicesResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListInvoicesResponse {
-    return new ListInvoicesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListInvoicesResponse {
+    return new ListInvoicesResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListInvoicesResponse | PlainMessage<ListInvoicesResponse> | undefined, b: ListInvoicesResponse | PlainMessage<ListInvoicesResponse> | undefined): boolean {
-    return proto3.util.equals(ListInvoicesResponse, a, b);
+  static equals(
+    a: ListInvoicesResponse | PlainMessage<ListInvoicesResponse> | undefined,
+    b: ListInvoicesResponse | PlainMessage<ListInvoicesResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListInvoicesResponse, a, b)
   }
 }
-

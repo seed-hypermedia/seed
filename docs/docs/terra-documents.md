@@ -7,6 +7,7 @@ The structure of the fully-formed document, at a particular version, after it ha
 ## Document Structure
 
 ### Document ID
+
 ### Title
 
 ### WebURL

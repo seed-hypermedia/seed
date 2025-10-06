@@ -1,6 +1,6 @@
 # Why Hyper Media Does Not Use DID or UCAN
 
-People often ask us whether we use some of the emerging specifications related to our work, such as [DID](https://www.w3.org/TR/did-core/) and [UCAN](https://ucan.xyz). This document aims to explain why we are not *currently* using them.
+People often ask us whether we use some of the emerging specifications related to our work, such as [DID](https://www.w3.org/TR/did-core/) and [UCAN](https://ucan.xyz). This document aims to explain why we are not _currently_ using them.
 
 Seed Hyper Media started in 2019. When we were working on our multi-device identity approach, DID specification was just starting to take form, and UCAN specification didn't exist yet. We briefly described our Identity system in our [IPFS Camp 2022 talk](https://youtu.be/UaK5HRnyCEY?t=388).
 
@@ -20,10 +20,10 @@ We still can be interoperable with many other systems that use BIP-39 spec. If y
 
 It seems like DID is often perceived as something more "magical" than it really is. It of course can be helpful to unify the representation of an identifier or a programming interface for resolving identifiers to documents, but it still requires bespoke implementations for all the different DID Methods.
 
-Often people talk about DID as **THE** specification for "Decentralized *Identity*" when in reality the spec talks about "Decentralized *Identifiers*", explicitly saying that these identifiers could represent any kind of resource. But most projects that adopted DIDs, for some reason, only use them for their Identity system and have some other type of identifier for other resources.
+Often people talk about DID as **THE** specification for "Decentralized _Identity_" when in reality the spec talks about "Decentralized _Identifiers_", explicitly saying that these identifiers could represent any kind of resource. But most projects that adopted DIDs, for some reason, only use them for their Identity system and have some other type of identifier for other resources.
 
 As for UCAN, it's worth mentioning that the main use case for Hyper Media is public information. We don't have requirements for authentication and authorization at the moment, so we haven't really felt the need to adopt UCAN.
 
 On the other hand, we found out that there was existing work from W3C about [Verifiable Credentials](https://www.w3.org/TR/vc-data-model/) and [Authorization Capabilities](https://w3c-ccg.github.io/zcap-spec/) which seem to have overlapping goals with UCAN. All of these specs are quite complex, and still not mature enough to blindly adopt them without a clear understanding, especially for a product like ours that is meant to produce "permanent" and immutable information.
 
-We *do* believe in interoperability, and we would love to be based on the existing standards as much as we can. But sometimes, we need to prioritize moving forward and getting things done, before adopting some specifications without a clear understanding of tangible benefits.
+We _do_ believe in interoperability, and we would love to be based on the existing standards as much as we can. But sometimes, we need to prioritize moving forward and getting things done, before adopting some specifications without a clear understanding of tangible benefits.

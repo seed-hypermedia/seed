@@ -6,10 +6,10 @@ on:
     branches:
       - main
     paths:
-      - "frontend/apps/web/**"
-      - "frontend/packages/**"
-      - "backend/**"
-      - ".github/workflows/dev-docker-images.yml"
+      - 'frontend/apps/web/**'
+      - 'frontend/packages/**'
+      - 'backend/**'
+      - '.github/workflows/dev-docker-images.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,7 +43,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.5"
+          go-version: '1.24.5'
       - run: go test --count 1 ./backend/...
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
@@ -74,7 +74,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "yarn"
+          cache: 'yarn'
 
       - name: Install Dependencies
         run: yarn install

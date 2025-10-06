@@ -1,6 +1,5 @@
 # Linking
 
-
 HyperDocs links, prefixed with `hm://`, take the following form:
 
 ```
@@ -55,7 +54,6 @@ BLOCK_ID:START:END
 The following are real example links:
 
 - TODO
-
 
 ## Web Links
 

@@ -3,8 +3,15 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from '@bufbuild/protobuf'
+import {Message, proto3, protoInt64} from '@bufbuild/protobuf'
 
 /**
  * Representation of a wallet
@@ -17,14 +24,14 @@ export class Wallet extends Message<Wallet> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * The account this wallet belongs to.
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   /**
    * Address of the LND node backing up this wallet. In case lndhub, this will be the
@@ -32,51 +39,63 @@ export class Wallet extends Message<Wallet> {
    *
    * @generated from field: string address = 3;
    */
-  address = "";
+  address = ''
 
   /**
    * The name of the wallet.
    *
    * @generated from field: string name = 4;
    */
-  name = "";
+  name = ''
 
   /**
    * The type of the wallet.
    *
    * @generated from field: string type = 5;
    */
-  type = "";
+  type = ''
 
   constructor(data?: PartialMessage<Wallet>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.Wallet";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.Wallet'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "address", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'address', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 4, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 5, name: 'type', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Wallet {
-    return new Wallet().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Wallet {
+    return new Wallet().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Wallet {
-    return new Wallet().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Wallet {
+    return new Wallet().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Wallet {
-    return new Wallet().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Wallet {
+    return new Wallet().fromJsonString(jsonString, options)
   }
 
-  static equals(a: Wallet | PlainMessage<Wallet> | undefined, b: Wallet | PlainMessage<Wallet> | undefined): boolean {
-    return proto3.util.equals(Wallet, a, b);
+  static equals(
+    a: Wallet | PlainMessage<Wallet> | undefined,
+    b: Wallet | PlainMessage<Wallet> | undefined,
+  ): boolean {
+    return proto3.util.equals(Wallet, a, b)
   }
 }
 
@@ -91,41 +110,53 @@ export class CreateWalletRequest extends Message<CreateWalletRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. Name of the wallet to be created.
    *
    * @generated from field: string name = 2;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<CreateWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.CreateWalletRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.CreateWalletRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateWalletRequest {
-    return new CreateWalletRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateWalletRequest {
+    return new CreateWalletRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateWalletRequest {
-    return new CreateWalletRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateWalletRequest {
+    return new CreateWalletRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateWalletRequest {
-    return new CreateWalletRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateWalletRequest {
+    return new CreateWalletRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: CreateWalletRequest | PlainMessage<CreateWalletRequest> | undefined, b: CreateWalletRequest | PlainMessage<CreateWalletRequest> | undefined): boolean {
-    return proto3.util.equals(CreateWalletRequest, a, b);
+  static equals(
+    a: CreateWalletRequest | PlainMessage<CreateWalletRequest> | undefined,
+    b: CreateWalletRequest | PlainMessage<CreateWalletRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(CreateWalletRequest, a, b)
   }
 }
 
@@ -141,54 +172,71 @@ export class ImportWalletRequest extends Message<ImportWalletRequest> {
    *
    * @generated from field: string credentials_url = 1;
    */
-  credentialsUrl = "";
+  credentialsUrl = ''
 
   /**
    * Required. Account where this wallet will belong to.
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   /**
    * Required. The wallet name to be displayed.
    *
    * @generated from field: string name = 3;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<ImportWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ImportWalletRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ImportWalletRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "credentials_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {
+      no: 1,
+      name: 'credentials_url',
+      kind: 'scalar',
+      T: 9 /* ScalarType.STRING */,
+    },
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 3, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ImportWalletRequest {
-    return new ImportWalletRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ImportWalletRequest {
+    return new ImportWalletRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ImportWalletRequest {
-    return new ImportWalletRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ImportWalletRequest {
+    return new ImportWalletRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ImportWalletRequest {
-    return new ImportWalletRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ImportWalletRequest {
+    return new ImportWalletRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ImportWalletRequest | PlainMessage<ImportWalletRequest> | undefined, b: ImportWalletRequest | PlainMessage<ImportWalletRequest> | undefined): boolean {
-    return proto3.util.equals(ImportWalletRequest, a, b);
+  static equals(
+    a: ImportWalletRequest | PlainMessage<ImportWalletRequest> | undefined,
+    b: ImportWalletRequest | PlainMessage<ImportWalletRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ImportWalletRequest, a, b)
   }
 }
 
 /**
- * Exported credentials. 
+ * Exported credentials.
  *
  * @generated from message com.seed.payments.v1alpha.ExportWalletResponse
  */
@@ -198,33 +246,45 @@ export class ExportWalletResponse extends Message<ExportWalletResponse> {
    *
    * @generated from field: string credentials = 1;
    */
-  credentials = "";
+  credentials = ''
 
   constructor(data?: PartialMessage<ExportWalletResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ExportWalletResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ExportWalletResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "credentials", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'credentials', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ExportWalletResponse {
-    return new ExportWalletResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ExportWalletResponse {
+    return new ExportWalletResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ExportWalletResponse {
-    return new ExportWalletResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ExportWalletResponse {
+    return new ExportWalletResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ExportWalletResponse {
-    return new ExportWalletResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ExportWalletResponse {
+    return new ExportWalletResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ExportWalletResponse | PlainMessage<ExportWalletResponse> | undefined, b: ExportWalletResponse | PlainMessage<ExportWalletResponse> | undefined): boolean {
-    return proto3.util.equals(ExportWalletResponse, a, b);
+  static equals(
+    a: ExportWalletResponse | PlainMessage<ExportWalletResponse> | undefined,
+    b: ExportWalletResponse | PlainMessage<ExportWalletResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ExportWalletResponse, a, b)
   }
 }
 
@@ -239,33 +299,45 @@ export class WalletRequest extends Message<WalletRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   constructor(data?: PartialMessage<WalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.WalletRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.WalletRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WalletRequest {
-    return new WalletRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): WalletRequest {
+    return new WalletRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): WalletRequest {
-    return new WalletRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): WalletRequest {
+    return new WalletRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): WalletRequest {
-    return new WalletRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): WalletRequest {
+    return new WalletRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: WalletRequest | PlainMessage<WalletRequest> | undefined, b: WalletRequest | PlainMessage<WalletRequest> | undefined): boolean {
-    return proto3.util.equals(WalletRequest, a, b);
+  static equals(
+    a: WalletRequest | PlainMessage<WalletRequest> | undefined,
+    b: WalletRequest | PlainMessage<WalletRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(WalletRequest, a, b)
   }
 }
 
@@ -280,33 +352,52 @@ export class GetWalletBalanceResponse extends Message<GetWalletBalanceResponse> 
    *
    * @generated from field: uint64 balance = 1;
    */
-  balance = protoInt64.zero;
+  balance = protoInt64.zero
 
   constructor(data?: PartialMessage<GetWalletBalanceResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.GetWalletBalanceResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName =
+    'com.seed.payments.v1alpha.GetWalletBalanceResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "balance", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
-  ]);
+    {no: 1, name: 'balance', kind: 'scalar', T: 4 /* ScalarType.UINT64 */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWalletBalanceResponse {
-    return new GetWalletBalanceResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWalletBalanceResponse {
-    return new GetWalletBalanceResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWalletBalanceResponse {
-    return new GetWalletBalanceResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetWalletBalanceResponse {
+    return new GetWalletBalanceResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetWalletBalanceResponse | PlainMessage<GetWalletBalanceResponse> | undefined, b: GetWalletBalanceResponse | PlainMessage<GetWalletBalanceResponse> | undefined): boolean {
-    return proto3.util.equals(GetWalletBalanceResponse, a, b);
+  static equals(
+    a:
+      | GetWalletBalanceResponse
+      | PlainMessage<GetWalletBalanceResponse>
+      | undefined,
+    b:
+      | GetWalletBalanceResponse
+      | PlainMessage<GetWalletBalanceResponse>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetWalletBalanceResponse, a, b)
   }
 }
 
@@ -321,33 +412,45 @@ export class ListWalletsRequest extends Message<ListWalletsRequest> {
    *
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   constructor(data?: PartialMessage<ListWalletsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ListWalletsRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ListWalletsRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListWalletsRequest {
-    return new ListWalletsRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListWalletsRequest {
+    return new ListWalletsRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListWalletsRequest {
-    return new ListWalletsRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListWalletsRequest {
+    return new ListWalletsRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListWalletsRequest {
-    return new ListWalletsRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListWalletsRequest {
+    return new ListWalletsRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListWalletsRequest | PlainMessage<ListWalletsRequest> | undefined, b: ListWalletsRequest | PlainMessage<ListWalletsRequest> | undefined): boolean {
-    return proto3.util.equals(ListWalletsRequest, a, b);
+  static equals(
+    a: ListWalletsRequest | PlainMessage<ListWalletsRequest> | undefined,
+    b: ListWalletsRequest | PlainMessage<ListWalletsRequest> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListWalletsRequest, a, b)
   }
 }
 
@@ -362,33 +465,45 @@ export class ListWalletsResponse extends Message<ListWalletsResponse> {
    *
    * @generated from field: repeated com.seed.payments.v1alpha.Wallet wallets = 1;
    */
-  wallets: Wallet[] = [];
+  wallets: Wallet[] = []
 
   constructor(data?: PartialMessage<ListWalletsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.ListWalletsResponse";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.ListWalletsResponse'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "wallets", kind: "message", T: Wallet, repeated: true },
-  ]);
+    {no: 1, name: 'wallets', kind: 'message', T: Wallet, repeated: true},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListWalletsResponse {
-    return new ListWalletsResponse().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ListWalletsResponse {
+    return new ListWalletsResponse().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListWalletsResponse {
-    return new ListWalletsResponse().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ListWalletsResponse {
+    return new ListWalletsResponse().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListWalletsResponse {
-    return new ListWalletsResponse().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ListWalletsResponse {
+    return new ListWalletsResponse().fromJsonString(jsonString, options)
   }
 
-  static equals(a: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined, b: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined): boolean {
-    return proto3.util.equals(ListWalletsResponse, a, b);
+  static equals(
+    a: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined,
+    b: ListWalletsResponse | PlainMessage<ListWalletsResponse> | undefined,
+  ): boolean {
+    return proto3.util.equals(ListWalletsResponse, a, b)
   }
 }
 
@@ -403,41 +518,59 @@ export class UpdateWalletNameRequest extends Message<UpdateWalletNameRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. The new wallet's name.
    *
    * @generated from field: string name = 2;
    */
-  name = "";
+  name = ''
 
   constructor(data?: PartialMessage<UpdateWalletNameRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.UpdateWalletNameRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.UpdateWalletNameRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'name', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateWalletNameRequest {
-    return new UpdateWalletNameRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): UpdateWalletNameRequest {
+    return new UpdateWalletNameRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateWalletNameRequest {
-    return new UpdateWalletNameRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateWalletNameRequest {
+    return new UpdateWalletNameRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateWalletNameRequest {
-    return new UpdateWalletNameRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): UpdateWalletNameRequest {
+    return new UpdateWalletNameRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: UpdateWalletNameRequest | PlainMessage<UpdateWalletNameRequest> | undefined, b: UpdateWalletNameRequest | PlainMessage<UpdateWalletNameRequest> | undefined): boolean {
-    return proto3.util.equals(UpdateWalletNameRequest, a, b);
+  static equals(
+    a:
+      | UpdateWalletNameRequest
+      | PlainMessage<UpdateWalletNameRequest>
+      | undefined,
+    b:
+      | UpdateWalletNameRequest
+      | PlainMessage<UpdateWalletNameRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(UpdateWalletNameRequest, a, b)
   }
 }
 
@@ -450,33 +583,51 @@ export class GetDefaultWalletRequest extends Message<GetDefaultWalletRequest> {
   /**
    * @generated from field: string account = 1;
    */
-  account = "";
+  account = ''
 
   constructor(data?: PartialMessage<GetDefaultWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.GetDefaultWalletRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.GetDefaultWalletRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDefaultWalletRequest {
-    return new GetDefaultWalletRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetDefaultWalletRequest {
+    return new GetDefaultWalletRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDefaultWalletRequest {
-    return new GetDefaultWalletRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetDefaultWalletRequest {
+    return new GetDefaultWalletRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDefaultWalletRequest {
-    return new GetDefaultWalletRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetDefaultWalletRequest {
+    return new GetDefaultWalletRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: GetDefaultWalletRequest | PlainMessage<GetDefaultWalletRequest> | undefined, b: GetDefaultWalletRequest | PlainMessage<GetDefaultWalletRequest> | undefined): boolean {
-    return proto3.util.equals(GetDefaultWalletRequest, a, b);
+  static equals(
+    a:
+      | GetDefaultWalletRequest
+      | PlainMessage<GetDefaultWalletRequest>
+      | undefined,
+    b:
+      | GetDefaultWalletRequest
+      | PlainMessage<GetDefaultWalletRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(GetDefaultWalletRequest, a, b)
   }
 }
 
@@ -491,7 +642,7 @@ export class SetDefaultWalletRequest extends Message<SetDefaultWalletRequest> {
    *
    * @generated from field: string id = 1;
    */
-  id = "";
+  id = ''
 
   /**
    * Required. The account the provided wallet is going to
@@ -499,34 +650,51 @@ export class SetDefaultWalletRequest extends Message<SetDefaultWalletRequest> {
    *
    * @generated from field: string account = 2;
    */
-  account = "";
+  account = ''
 
   constructor(data?: PartialMessage<SetDefaultWalletRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
+    super()
+    proto3.util.initPartial(data, this)
   }
 
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.payments.v1alpha.SetDefaultWalletRequest";
+  static readonly runtime: typeof proto3 = proto3
+  static readonly typeName = 'com.seed.payments.v1alpha.SetDefaultWalletRequest'
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
+    {no: 1, name: 'id', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+    {no: 2, name: 'account', kind: 'scalar', T: 9 /* ScalarType.STRING */},
+  ])
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SetDefaultWalletRequest {
-    return new SetDefaultWalletRequest().fromBinary(bytes, options);
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SetDefaultWalletRequest {
+    return new SetDefaultWalletRequest().fromBinary(bytes, options)
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SetDefaultWalletRequest {
-    return new SetDefaultWalletRequest().fromJson(jsonValue, options);
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SetDefaultWalletRequest {
+    return new SetDefaultWalletRequest().fromJson(jsonValue, options)
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SetDefaultWalletRequest {
-    return new SetDefaultWalletRequest().fromJsonString(jsonString, options);
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SetDefaultWalletRequest {
+    return new SetDefaultWalletRequest().fromJsonString(jsonString, options)
   }
 
-  static equals(a: SetDefaultWalletRequest | PlainMessage<SetDefaultWalletRequest> | undefined, b: SetDefaultWalletRequest | PlainMessage<SetDefaultWalletRequest> | undefined): boolean {
-    return proto3.util.equals(SetDefaultWalletRequest, a, b);
+  static equals(
+    a:
+      | SetDefaultWalletRequest
+      | PlainMessage<SetDefaultWalletRequest>
+      | undefined,
+    b:
+      | SetDefaultWalletRequest
+      | PlainMessage<SetDefaultWalletRequest>
+      | undefined,
+  ): boolean {
+    return proto3.util.equals(SetDefaultWalletRequest, a, b)
   }
 }
-

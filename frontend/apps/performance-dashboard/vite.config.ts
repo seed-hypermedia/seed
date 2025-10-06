@@ -1,18 +1,18 @@
-import react from "@vitejs/plugin-react";
-import {resolve} from "path";
-import {defineConfig} from "vite";
+import react from '@vitejs/plugin-react'
+import {resolve} from 'path'
+import {defineConfig} from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: "./", // Use relative paths
-  publicDir: "public",
+  base: './', // Use relative paths
+  publicDir: 'public',
   build: {
-    outDir: "dist",
+    outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
+        main: resolve(__dirname, 'index.html'),
       },
     },
     // Ensure large performance data files are included
@@ -22,4 +22,4 @@ export default defineConfig({
   server: {
     open: true,
   },
-});
+})
