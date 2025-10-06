@@ -368,6 +368,8 @@ NESTED BLOCKS
 
 /* Unordered */
 /* No list nesting */
+
+/*
 .blockOuter[data-prev-type='bulletListItem'] > .block > .blockContent::before {
   margin-right: 1.2em;
   content: '•';
@@ -380,7 +382,6 @@ NESTED BLOCKS
   content: '•';
 }
 
-/* 1 level of list nesting */
 [data-content-type='bulletListItem']
   ~ .blockGroup
   > .blockOuter[data-prev-type='bulletListItem']
@@ -399,7 +400,6 @@ NESTED BLOCKS
   content: '◦';
 }
 
-/* 2 levels of list nesting */
 [data-content-type='bulletListItem']
   ~ .blockGroup
   [data-content-type='bulletListItem']
@@ -421,6 +421,7 @@ NESTED BLOCKS
   margin-right: 1.2em;
   content: '▪';
 }
+*/
 
 /* PLACEHOLDERS*/
 
@@ -653,4 +654,18 @@ NESTED BLOCKS
 
 [data-text-alignment='justify'] {
   text-align: justify;
+}
+
+/* Mobile list markers */
+@media (max-width: 768px) {
+  :global(.comment-editor) .blockContent {
+    display: flex !important;
+    align-items: flex-start !important;
+  }
+  
+  /* Adjust vertical alignment of text content only inside lists */
+  :global(.comment-editor) ul[data-list-type='Unordered'] .inlineContent,
+  :global(.comment-editor) ol[data-list-type='Ordered'] .inlineContent {
+    margin-top: 3px !important;
+  }
 }
