@@ -11,25 +11,27 @@ import {hydrateRoot} from 'react-dom/client'
 
 console.log('Will initialize Sentry Client. DSN: ', process.env.SITE_SENTRY_DSN)
 
-Sentry.init({
-  dsn: process.env.SITE_SENTRY_DSN,
-  tracesSampleRate: 1,
+if (process.env.NODE_ENV === 'production') {
+  Sentry.init({
+    dsn: process.env.SITE_SENTRY_DSN,
+    tracesSampleRate: 1,
 
-  integrations: [
-    Sentry.browserTracingIntegration({
-      useEffect,
-      useLocation,
-      useMatches,
-    }),
-    Sentry.replayIntegration({
-      maskAllText: true,
-      blockAllMedia: true,
-    }),
-  ],
+    integrations: [
+      Sentry.browserTracingIntegration({
+        useEffect,
+        useLocation,
+        useMatches,
+      }),
+      Sentry.replayIntegration({
+        maskAllText: true,
+        blockAllMedia: true,
+      }),
+    ],
 
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1,
-})
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1,
+  })
+}
 
 startTransition(() => {
   hydrateRoot(

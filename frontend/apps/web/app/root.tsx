@@ -142,8 +142,10 @@ export function ErrorBoundary({}: {}) {
   )
 }
 
-function App(props: any) {
+export default function App(props: any) {
+  if (process.env.NODE_ENV === 'production') {
+    return withSentry(Outlet)
+  }
+
   return <Outlet />
 }
-
-export default withSentry(App)
