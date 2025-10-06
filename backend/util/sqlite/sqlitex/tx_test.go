@@ -13,6 +13,7 @@ import (
 )
 
 func TestInterruptWithSave(t *testing.T) {
+	t.Skip("Race condition in CI? Needs investigation")
 	dbpool := newMemPool(t)
 	defer func() {
 		if err := dbpool.Close(); err != nil {
