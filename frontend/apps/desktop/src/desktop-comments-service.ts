@@ -2,8 +2,11 @@ import {getAccount} from '@/models/entities'
 import {
   getCommentGroups,
   HMComment,
+  HMDocumentMetadataSchema,
+  HMExternalCommentGroup,
   HMMetadataPayload,
   parseFragment,
+  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
@@ -17,8 +20,29 @@ import {
   ListDiscussionsRequest,
   ListDiscussionsResponse,
 } from '@shm/shared/models/comments-service'
+import {documentMetadataParseAdjustments} from '@shm/shared/models/entity'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {grpcClient} from './grpc-client'
+
+export async function getMetadata(
+  id: UnpackedHypermediaId,
+): Promise<HMMetadataPayload> {
+  try {
+    const rawDoc = await grpcClient.documents.getDocument({
+      account: id.uid,
+      path: hmIdPathToEntityQueryPath(id.path),
+      version: id.latest ? undefined : id.version || undefined,
+    })
+    const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
+    documentMetadataParseAdjustments(metadataJSON)
+    return {
+      id,
+      metadata: HMDocumentMetadataSchema.parse(metadataJSON),
+    }
+  } catch (e) {
+    return {id, metadata: {}}
+  }
+}
 
 async function getCommentsAuthors(
   authorUids: Array<string>,
@@ -92,13 +116,57 @@ export class DesktopCommentsService implements CommentsService {
       return c.toJson({emitDefaultValues: true})
     }) as Array<HMComment>
 
+    const discussions = getCommentGroups(comments, params.commentId)
+
+    const citations = await grpcClient.entities.listEntityMentions({
+      id: params.targetId.id,
+      pageSize: BIG_INT,
+    })
+
+    const citingComments = citations.mentions.filter((m) => {
+      if (m.sourceType != 'Comment') return false
+      if (m.sourceDocument === params.targetId.id) return false
+      return true
+    })
+
+    const citingDiscussions: HMExternalCommentGroup[] = await Promise.all(
+      citingComments.map(async (c) => {
+        const targetId = unpackHmId(c.sourceDocument)!
+        const commentsQuery = await grpcClient.comments.listComments({
+          targetAccount: targetId.uid,
+          targetPath: hmIdPathToEntityQueryPath(targetId.path),
+          pageSize: BIG_INT,
+        })
+        const comments = commentsQuery.comments.map((c) =>
+          c.toJson({emitDefaultValues: true}),
+        ) as Array<HMComment>
+        const citingComment = comments.find(
+          (comment) => comment.id === c.source.slice(5),
+        )!
+        authorAccounts.add(citingComment.author)
+        const commentGroups = getCommentGroups(comments, c.source.slice(5))
+        const selectedComments = commentGroups[0]?.comments || []
+        selectedComments.forEach((comment) => {
+          authorAccounts.add(comment.author)
+        })
+
+        return {
+          comments: [citingComment, ...selectedComments],
+          moreCommentsCount: 0,
+          id: c.source,
+          target: await getMetadata(unpackHmId(c.sourceDocument)!),
+          type: 'externalCommentGroup',
+        }
+      }),
+    )
+
     const authorAccountUids = Array.from(authorAccounts)
     const authors = await getCommentsAuthors(authorAccountUids)
-    const discussions = getCommentGroups(comments, params.commentId || '')
 
     return {
       discussions,
       authors,
+      citingDiscussions,
     }
   }
 

@@ -660,6 +660,14 @@ export type HMCommentGroup = {
   type: 'commentGroup'
 }
 
+export type HMExternalCommentGroup = {
+  comments: HMComment[]
+  moreCommentsCount: number
+  id: string
+  target: HMMetadataPayload
+  type: 'externalCommentGroup'
+}
+
 export type HMDraftChange = {
   id: string
   type: 'draftChange'

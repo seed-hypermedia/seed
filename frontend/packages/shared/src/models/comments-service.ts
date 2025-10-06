@@ -1,6 +1,7 @@
 import {
   HMCommentGroup,
   HMCommentsPayload,
+  HMExternalCommentGroup,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '../hm-types'
@@ -27,6 +28,7 @@ export type ListDiscussionsRequest = {
 export type ListDiscussionsResponse = {
   discussions: Array<HMCommentGroup>
   authors: Record<string, HMMetadataPayload>
+  citingDiscussions: Array<HMExternalCommentGroup>
 }
 
 export type ListCommentsByReferenceRequest = {
