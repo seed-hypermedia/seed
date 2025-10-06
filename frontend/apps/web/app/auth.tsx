@@ -20,7 +20,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {LogOut, Megaphone, Monitor, Pencil} from 'lucide-react'
+import {LogOut, Megaphone, Monitor, Pencil, Smartphone} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
@@ -612,11 +612,14 @@ function LinkKeysDialog() {
           )}
         </div>
       </DialogDescription>
-      <div className="flex">
+      <div className="flex flex-wrap gap-2">
         <Button variant="default" asChild>
           <a href="/hm/device-link" target="_blank">
             <Monitor /> {tx('Link with Desktop App')}
           </a>
+        </Button>
+        <Button variant="default" disabled>
+          <Smartphone /> {tx('Link with Mobile App (Soon)')}
         </Button>
       </div>
     </>
