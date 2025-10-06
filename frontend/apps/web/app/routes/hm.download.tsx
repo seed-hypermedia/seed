@@ -278,12 +278,10 @@ function PlatformItem({
             size="sm"
             asChild
           >
-            <Button size="xs" variant="ghost" asChild>
-              <a href={asset.url} style={{textDecoration: 'none'}}>
-                <Download className="size-3" />
-                {asset.label}
-              </a>
-            </Button>
+            <a href={asset.url} style={{textDecoration: 'none'}}>
+              <Download className="size-3" />
+              {asset.label}
+            </a>
           </Button>
         ))}
       </div>
