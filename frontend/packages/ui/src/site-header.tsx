@@ -167,7 +167,19 @@ export function SiteHeader({
           <div className="flex flex-1 justify-center">
             <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
           </div>
-          {isCenterLayout ? headerSearch : null}
+          {isCenterLayout ? (
+            <div className="flex items-center gap-2">
+              {headerSearch}
+              <Button
+                variant="brand"
+                size="sm"
+                className="text-white"
+                onClick={() => setIsSubscribeDialogOpen(true)}
+              >
+                Subscribe
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -183,42 +195,42 @@ export function SiteHeader({
           />
         </div>
 
-        {isCenterLayout ? null : (
-          <div className="flex items-center gap-2">
-            <Tooltip content="toggle Site Feed">
-              <div className={cn('flex items-center gap-1 px-1')}>
-                <a
+        <div className="flex items-center gap-2">
+          <Tooltip content="toggle Site Feed">
+            <div className={cn('flex items-center gap-1 px-1')}>
+              <a
+                className={cn(
+                  'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+                  isMainFeedVisible
+                    ? 'text-foreground'
+                    : 'text-muted-foreground',
+                  'hover:text-foreground',
+                )}
+                onClick={handleToggleFeed}
+              >
+                <Sparkle
                   className={cn(
-                    'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+                    'size-4',
                     isMainFeedVisible
-                      ? 'text-foreground'
+                      ? 'text-foreground text-bold'
                       : 'text-muted-foreground',
-                    'hover:text-foreground',
                   )}
-                  onClick={handleToggleFeed}
+                />
+                <span
+                  className={cn(
+                    'hidden md:block',
+                    isMainFeedVisible
+                      ? 'text-foreground text-bold'
+                      : 'text-muted-foreground',
+                  )}
                 >
-                  <Sparkle
-                    className={cn(
-                      'size-4',
-                      isMainFeedVisible
-                        ? 'text-foreground text-bold'
-                        : 'text-muted-foreground',
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'hidden md:block',
-                      isMainFeedVisible
-                        ? 'text-foreground text-bold'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    Feed
-                  </span>
-                </a>
-              </div>
-            </Tooltip>
-            {headerSearch}
+                  Feed
+                </span>
+              </a>
+            </div>
+          </Tooltip>
+          {!isCenterLayout && headerSearch}
+          {!isCenterLayout && (
             <Button
               variant="brand"
               size="sm"
@@ -227,8 +239,8 @@ export function SiteHeader({
             >
               Subscribe
             </Button>
-          </div>
-        )}
+          )}
+        </div>
         <MobileMenu
           open={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
