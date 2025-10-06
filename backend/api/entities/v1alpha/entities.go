@@ -1015,6 +1015,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 
 	resp := &entities.ListEntityMentionsResponse{}
 	var genesisBlobIDs []string
+	var deletedList []string
 	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
 		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
@@ -1055,6 +1056,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				fragment      = stmt.ColumnText(9)
 				tsid          = blob.TSID(stmt.ColumnText(12))
 				mentionType   = stmt.ColumnText(13)
+				isDeleted     = stmt.ColumnText(15) == "1"
 			)
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(14), 10))
 			lastCursor.BlobID = stmt.ColumnInt64(10)
@@ -1069,6 +1071,9 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 				sourceDoc = source
 				source = "hm://" + author + "/" + tsid.String()
 
+			}
+			if isDeleted {
+				deletedList = append(deletedList, source)
 			}
 
 			resp.Mentions = append(resp.Mentions, &entities.Mention{
@@ -1123,7 +1128,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	uniqueMentions := make([]*entities.Mention, 0, len(resp.Mentions))
 	for _, m := range resp.Mentions {
 		key := fmt.Sprintf("%s|%s|%s|%s|%t", m.Source, m.SourceType, m.TargetVersion, m.TargetFragment, m.IsExactVersion)
-		if !seenMentions[key] {
+		if !seenMentions[key] && !slices.Contains(deletedList, m.Source) {
 			seenMentions[key] = true
 			uniqueMentions = append(uniqueMentions, m)
 		}
@@ -1179,7 +1184,8 @@ SELECT
     resource_links.id AS link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	resource_links.type AS link_type,
-	structural_blobs.genesis_blob
+	structural_blobs.genesis_blob,
+	structural_blobs.extra_attrs->>'deleted' AS is_deleted
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -1206,7 +1212,8 @@ SELECT
     changes.link_id,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	changes.type AS link_type,
-	changes.genesis_blob
+	changes.genesis_blob,
+	structural_blobs.extra_attrs->>'deleted' AS is_deleted
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author

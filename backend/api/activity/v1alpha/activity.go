@@ -11,6 +11,7 @@ import (
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/storage"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -187,7 +188,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}); err != nil {
 		return nil, err
 	}
-
+	var deletedList []string
 	if len(req.AddLinkedResource) > 0 {
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var eids []string
@@ -227,6 +228,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 					tsid        = blob.TSID(stmt.ColumnText(13))
 					extraAttrs  = stmt.ColumnText(14)
+					isDeleted   = stmt.ColumnText(15) == "1"
 				)
 
 				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
@@ -246,7 +248,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 						source = strings.TrimSuffix(source, "/") + "#" + fragment // Remove trailing slash for consistency
 					}
 				}
-
+				if isDeleted {
+					deletedList = append(deletedList, source)
+				}
 				event := activity.Event{
 					Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
 						Cid:        sourceBlob,
@@ -277,19 +281,24 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if len(events) == 0 {
 		return &activity.ListEventsResponse{}, nil
 	}
-
+	nonDeleted := make([]*activity.Event, 0, len(events))
+	for _, e := range events {
+		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
+			nonDeleted = append(nonDeleted, e)
+		}
+	}
 	// Sort by EventTime for display, but paginate using structural ts (ms).
-	idx := make([]int, len(events))
+	idx := make([]int, len(nonDeleted))
 	for i := range idx {
 		idx[i] = i
 	}
 	sort.Slice(idx, func(i, j int) bool {
-		return events[idx[i]].EventTime.AsTime().After(events[idx[j]].EventTime.AsTime())
+		return nonDeleted[idx[i]].EventTime.AsTime().After(nonDeleted[idx[j]].EventTime.AsTime())
 	})
-	sortedEvents := make([]*activity.Event, len(events))
+	sortedEvents := make([]*activity.Event, len(nonDeleted))
 	sortedCursorTS := make([]int64, len(cursorTS))
 	for k, i := range idx {
-		sortedEvents[k] = events[i]
+		sortedEvents[k] = nonDeleted[i]
 		sortedCursorTS[k] = cursorTS[i]
 	}
 	events = sortedEvents
@@ -372,7 +381,8 @@ SELECT distinct
 	blobs.insert_time AS blob_insert_time,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	structural_blobs.extra_attrs,
-	resource_links.id AS link_id
+	resource_links.id AS link_id,
+	structural_blobs.extra_attrs->>'deleted' as is_deleted
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -398,7 +408,8 @@ SELECT distinct
 	blobs.insert_time AS blob_insert_time,
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	structural_blobs.extra_attrs,
-	changes.link_id
+	changes.link_id,
+	structural_blobs.extra_attrs->>'deleted' as is_deleted
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
