@@ -123,42 +123,60 @@ export class DesktopCommentsService implements CommentsService {
       pageSize: BIG_INT,
     })
 
-    const citingComments = citations.mentions.filter((m) => {
+    const commentMentions = citations.mentions.filter((m) => {
       if (m.sourceType != 'Comment') return false
       if (m.sourceDocument === params.targetId.id) return false
       return true
     })
 
-    const citingDiscussions: HMExternalCommentGroup[] = await Promise.all(
-      citingComments.map(async (c) => {
-        const targetId = unpackHmId(c.sourceDocument)!
-        const commentsQuery = await grpcClient.comments.listComments({
-          targetAccount: targetId.uid,
-          targetPath: hmIdPathToEntityQueryPath(targetId.path),
-          pageSize: BIG_INT,
-        })
-        const comments = commentsQuery.comments.map((c) =>
-          c.toJson({emitDefaultValues: true}),
-        ) as Array<HMComment>
-        const citingComment = comments.find(
-          (comment) => comment.id === c.source.slice(5),
-        )!
-        authorAccounts.add(citingComment.author)
-        const commentGroups = getCommentGroups(comments, c.source.slice(5))
-        const selectedComments = commentGroups[0]?.comments || []
-        selectedComments.forEach((comment) => {
-          authorAccounts.add(comment.author)
-        })
+    console.log('=== will get citingDiscussions', commentMentions)
 
-        return {
-          comments: [citingComment, ...selectedComments],
-          moreCommentsCount: 0,
-          id: c.source,
-          target: await getMetadata(unpackHmId(c.sourceDocument)!),
-          type: 'externalCommentGroup',
-        }
-      }),
-    )
+    const possibleCitingDiscussions: (HMExternalCommentGroup | null)[] =
+      await Promise.all(
+        commentMentions.map(async (mention) => {
+          const targetId = unpackHmId(mention.sourceDocument)!
+          const commentsQuery = await grpcClient.comments.listComments({
+            targetAccount: targetId.uid,
+            targetPath: hmIdPathToEntityQueryPath(targetId.path),
+            pageSize: BIG_INT,
+          })
+          const comments = commentsQuery.comments.map((c) =>
+            c.toJson({emitDefaultValues: true}),
+          ) as Array<HMComment>
+          const citingComment = comments.find(
+            (comment) => comment.id === mention.source.slice(5),
+          )
+          if (!citingComment) {
+            console.error('=== failed to load the citing comment!', {
+              citingComment,
+              comments,
+              mention,
+            })
+            return null
+          }
+          authorAccounts.add(citingComment.author)
+          const commentGroups = getCommentGroups(
+            comments,
+            mention.source.slice(5),
+          )
+          const selectedComments = commentGroups[0]?.comments || []
+          selectedComments.forEach((comment) => {
+            authorAccounts.add(comment.author)
+          })
+
+          return {
+            comments: [citingComment, ...selectedComments],
+            moreCommentsCount: 0,
+            id: mention.source,
+            target: await getMetadata(unpackHmId(mention.sourceDocument)!),
+            type: 'externalCommentGroup',
+          }
+        }),
+      )
+
+    const citingDiscussions = possibleCitingDiscussions.filter(
+      Boolean,
+    ) as HMExternalCommentGroup[]
 
     const authorAccountUids = Array.from(authorAccounts)
     const authors = await getCommentsAuthors(authorAccountUids)
