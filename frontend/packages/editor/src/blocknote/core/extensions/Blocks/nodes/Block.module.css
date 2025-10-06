@@ -662,7 +662,7 @@ NESTED BLOCKS
     display: flex !important;
     align-items: flex-start !important;
   }
-  
+
   /* Adjust vertical alignment of text content only inside lists */
   :global(.comment-editor) ul[data-list-type='Unordered'] .inlineContent,
   :global(.comment-editor) ol[data-list-type='Ordered'] .inlineContent {
