@@ -1,3 +1,4 @@
+import {useSearchParams} from '@remix-run/react'
 import {
   HMDocument,
   HMEntityContent,
@@ -10,7 +11,6 @@ import {
 } from '@shm/shared'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
-import {useSearchParams} from '@remix-run/react'
 
 export function WebSiteHeader(
   props: React.PropsWithChildren<{
@@ -72,9 +72,8 @@ export function WebSiteHeader(
 
   return (
     <SiteHeader
-      noScroll={props.noScroll}
-      hideSiteBarClassName={props.hideSiteBarClassName}
       {...props}
+      hideSiteBarClassName={props.hideSiteBarClassName}
       isCenterLayout={isCenterLayout}
       items={items}
       homeNavigationItems={homeNavigationItems}
@@ -107,6 +106,7 @@ export function WebSiteHeader(
         })
       }}
       isMainFeedVisible={searchParams.get('feed') === 'true'}
+      wrapperClassName="fixed sm:static"
     />
   )
 }

@@ -57,6 +57,7 @@ export function SiteHeader({
   editNavPane,
   handleToggleFeed,
   isMainFeedVisible = false,
+  wrapperClassName,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -74,6 +75,7 @@ export function SiteHeader({
   editNavPane?: React.ReactNode
   handleToggleFeed: () => void
   isMainFeedVisible: boolean
+  wrapperClassName?: string
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
@@ -162,6 +164,7 @@ export function SiteHeader({
           },
           hideSiteBarClassName,
           'sm:translate-y-0',
+          wrapperClassName,
         )}
       >
         <div
