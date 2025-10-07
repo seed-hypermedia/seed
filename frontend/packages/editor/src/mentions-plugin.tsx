@@ -30,7 +30,7 @@ function getOrCreatePopupElement() {
   if (!inlineEmbedPopupElement) {
     inlineEmbedPopupElement = document.createElement('div')
     inlineEmbedPopupElement.style.position = 'absolute'
-    inlineEmbedPopupElement.style.pointerEvents = 'none'
+    // inlineEmbedPopupElement.style.pointerEvents = 'none'
     inlineEmbedPopupElement.style.zIndex = '9999'
     document.body.append(inlineEmbedPopupElement)
     popupRoot = ReactDOM.createRoot(inlineEmbedPopupElement)
@@ -101,7 +101,7 @@ export function createInlineEmbedNode(bnEditor: any) {
 }
 
 function InlineEmbedNodeComponent(props: any) {
-  console.log('InlineEmbedNodeComponent props', props)
+  // console.log('InlineEmbedNodeComponent props', props)
   return (
     <NodeViewWrapper
       className={`inline-embed-token ${props.selected ? 'selected' : ''}`}
@@ -113,7 +113,7 @@ function InlineEmbedNodeComponent(props: any) {
 }
 
 export function MentionToken(props: {value: string; selected?: boolean}) {
-  console.log('MentionToken props', props)
+  // console.log('MentionToken props', props)
   const unpackedRef = unpackHmId(props.value)
 
   if (unpackedRef && unpackedRef.path && unpackedRef.path.length > 0) {

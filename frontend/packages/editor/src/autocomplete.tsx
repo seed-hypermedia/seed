@@ -442,8 +442,6 @@ function AutocompletePopupInner(
       ? window.innerHeight - rect.top + popupHeight
       : undefined
 
-  console.log('itemrefs', itemRefs.current)
-
   return (
     <TooltipProvider>
       <div
@@ -508,7 +506,7 @@ function AutocompletePopupInner(
                     return (
                       <div
                         ref={(el: HTMLDivElement | null) => {
-                          console.log('el', el)
+                          // console.log('el', el)
                           itemRefs.current[`${group}-${i}`] = el
                         }}
                       >

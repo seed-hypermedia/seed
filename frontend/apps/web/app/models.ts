@@ -96,17 +96,19 @@ export function searchQuery(
   {
     accountUid,
     includeBody,
-    contextSize, // perspectiveAccountUid,
+    contextSize,
+    perspectiveAccountUid,
   }: {
     accountUid?: string
     includeBody?: boolean
     contextSize?: number
-    // perspectiveAccountUid?: string
+    perspectiveAccountUid?: string
   } = {},
 ) {
-  return queryAPI<SearchPayload>(
-    `/hm/api/search?q=${input}&a=${accountUid}&b=${includeBody}&c=${contextSize}`,
-  )
+  const url = `/hm/api/search?q=${input}&a=${
+    accountUid || ''
+  }&b=${includeBody}&c=${contextSize}&d=${perspectiveAccountUid || ''}`
+  return queryAPI<SearchPayload>(url)
 }
 
 async function accountQuery(accountUid: string) {

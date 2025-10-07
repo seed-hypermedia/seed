@@ -8,7 +8,7 @@ export const loader = async ({request}: {request: Request}) => {
   const searchQuery = url.searchParams.get('q') || ''
   const accountUid = url.searchParams.get('a') || ''
   const includeBody = url.searchParams.get('b') === 'true'
-  // const perspectiveAccountUid = url.searchParams.get('d') || ''
+  const perspectiveAccountUid = url.searchParams.get('d') || ''
 
   const contextSizeRaw = url.searchParams.get('c')
   const contextSize =
@@ -21,7 +21,7 @@ export const loader = async ({request}: {request: Request}) => {
     includeBody,
     contextSize,
     accountUid,
-    // loggedAccountUid: perspectiveAccountUid,
+    loggedAccountUid: perspectiveAccountUid,
   })
 
   return wrapJSON<SearchPayload>({
@@ -38,6 +38,7 @@ export const loader = async ({request}: {request: Request}) => {
             parentNames: entity.parentNames,
             versionTime: entity.versionTime,
             searchQuery: searchQuery,
+            type: entity.type === 'contact' ? 'contact' : 'document',
           }
         )
       })
