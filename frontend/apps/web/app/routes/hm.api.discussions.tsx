@@ -36,8 +36,6 @@ export const loader = async ({
     return true
   })
 
-  console.log('=== citingComments', citingComments)
-
   try {
     const data = await grpcClient.comments.listComments({
       targetAccount: targetId.uid,

@@ -250,7 +250,14 @@ async function loadResourcePayload(
       // @ts-expect-error
       refs.map(async (ref) => {
         try {
-          const doc = await resolveHMDocument(ref.refId)
+          const doc = await resolveHMDocument({
+            ...ref.refId,
+            // removing version from home document to get the latest site navigation all the time
+            version:
+              ref.refId.path && ref.refId.path.length > 0
+                ? ref.refId.version
+                : null,
+          })
           if (!doc) return null
           return {document: doc, id: ref.refId}
         } catch (e) {
@@ -261,8 +268,10 @@ async function loadResourcePayload(
   ).filter((doc) => !!doc)
 
   const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId(docId.uid)
+  const homeId = hmId(docId.uid, {latest: true, version: undefined})
+
   const homeDocument = await getDocument(homeId)
+
   supportDocuments.push({
     id: homeId,
     document: homeDocument,

@@ -3,6 +3,7 @@ import {links as documentLinks, DocumentPage} from '@/document'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
+import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
@@ -17,9 +18,8 @@ import {
   hostnameStripProtocol,
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
-import {SizableText} from '@shm/ui/text'
-import {getOptimizedImageUrl} from '@/providers'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {SizableText} from '@shm/ui/text'
 
 type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
@@ -155,6 +155,7 @@ export const loader = async ({
   request: Request
 }) => {
   const parsedRequest = parseRequest(request)
+
   if (!useFullRender(parsedRequest)) return null
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')

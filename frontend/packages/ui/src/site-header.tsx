@@ -31,6 +31,7 @@ import {
   useNodesOutline,
 } from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
+import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {SubscribeDialog} from './subscribe-dialog'
 import {Tooltip} from './tooltip'
@@ -140,9 +141,6 @@ export function SiteHeader({
     }
   }, [headerRef.current])
 
-  const isHomeDoc = docId?.path?.length == 0
-
-  console.log(`== ~ isHomeDoc:`, isHomeDoc)
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
@@ -247,30 +245,33 @@ export function SiteHeader({
 
               {/* Show directory items when not on home */}
               {directoryItems && directoryItems.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-muted-foreground mb-2 px-2 text-xs font-medium uppercase">
-                    Pages
+                <>
+                  <Separator />
+                  <div className="mb-4">
+                    <NavItems
+                      items={directoryItems}
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                      }}
+                    />
                   </div>
-                  <NavItems
-                    items={directoryItems}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false)
-                    }}
-                  />
-                </div>
+                </>
               )}
 
               {/* Show document outline when available */}
               {docId && document && (
-                <MobileMenuOutline
-                  onActivateBlock={(blockId) => {
-                    setIsMobileMenuOpen(false)
-                    onBlockFocus?.(blockId)
-                  }}
-                  document={document}
-                  docId={docId}
-                  supportDocuments={supportDocuments}
-                />
+                <>
+                  <Separator />
+                  <MobileMenuOutline
+                    onActivateBlock={(blockId) => {
+                      setIsMobileMenuOpen(false)
+                      onBlockFocus?.(blockId)
+                    }}
+                    document={document}
+                    docId={docId}
+                    supportDocuments={supportDocuments}
+                  />
+                </>
               )}
             </>
           )}
