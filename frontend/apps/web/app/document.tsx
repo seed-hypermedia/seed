@@ -500,7 +500,8 @@ function InnerDocumentPage(
                         </Text>
                         <Separator />
                         <div className="-mx-5">
-                          <WebFeedPanel docId={id} />
+                          {/* this should always show the whole site feed with descendants, so no need to pass `filterResource` prop */}
+                          <WebFeedPanel docId={originHomeId} />
                         </div>
                       </Container>
                       {showSidebars ? (

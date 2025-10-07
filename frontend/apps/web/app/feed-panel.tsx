@@ -21,7 +21,12 @@ export function WebFeedPanel({
     isFetchingNextPage,
     isLoading,
     error,
-  } = useDocFeed({docId, filterResource, filterAuthors, filterEventType})
+  } = useDocFeed({
+    docId,
+    filterResource: filterResource || `${docId.id}*`,
+    filterAuthors,
+    filterEventType,
+  })
 
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)

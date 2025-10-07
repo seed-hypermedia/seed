@@ -486,7 +486,7 @@ export function SiteHeaderMenu({
     >
       <Sparkle
         className={cn(
-          'size-4',
+          'size-4 flex-none shrink-0',
           isMainFeedVisible
             ? 'text-foreground text-bold'
             : 'text-muted-foreground',
