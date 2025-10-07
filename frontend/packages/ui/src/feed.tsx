@@ -252,7 +252,7 @@ export function Feed2({
           const isLast = index === allEvents.length - 1
           return (
             <div
-              key={e.id}
+              key={`${e.type}-${e.id}-${e.time}`}
               ref={isLast ? lastElementRef : undefined}
               className="hover:bg-background border-border m-2 rounded border"
             >
@@ -348,7 +348,6 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
   }
 
   if (event.type == 'contact') {
-    console.log('CONTACT', event)
     return (
       <p>
         <span className="text-sm font-bold">
