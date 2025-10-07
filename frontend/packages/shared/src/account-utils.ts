@@ -19,7 +19,7 @@ export type HMContactItem = {
 export async function resolveAccount(
   grpcClient: GRPCClient,
   accountId: string,
-  currentAccount: string,
+  currentAccount?: string,
   maxDepth: number = 10,
 ): Promise<HMContactItem> {
   if (maxDepth === 0) {

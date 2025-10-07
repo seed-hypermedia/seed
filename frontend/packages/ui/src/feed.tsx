@@ -169,7 +169,7 @@ export function Feed2({
 }: {
   docId: UnpackedHypermediaId
   filterResource: ListEventsRequest['filterResource']
-  currentAccount: string
+  currentAccount?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -183,7 +183,6 @@ export function Feed2({
     error,
   } = useActivityFeed({
     docId,
-
     filterResource,
     currentAccount,
   })
@@ -258,7 +257,7 @@ export function Feed2({
               className="hover:bg-background border-border m-2 rounded border"
             >
               <div className="flex items-start gap-2 p-2">
-                {e.author.id ? (
+                {e.author?.id ? (
                   <HMIcon
                     size={24}
                     id={e.author.id}

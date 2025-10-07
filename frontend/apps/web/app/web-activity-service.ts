@@ -3,10 +3,10 @@ import {
   Event,
   ListEventsRequest,
   ListEventsResponse,
-  LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
 import {queryAPI} from './models'
+import {unwrap} from './wrapping'
 
 export class WebActivityService implements ActivityService {
   async listEvents(params: ListEventsRequest): Promise<ListEventsResponse> {
@@ -44,9 +44,24 @@ export class WebActivityService implements ActivityService {
     return await queryAPI<ListEventsResponse>(queryUrl)
   }
 
-  async resolveEvent(event: Event, currentAccount: string): Promise<LoadedEvent> {
-    // TODO: Implement web-specific resolution via API
-    // For now, throw until API endpoints are ready
-    throw new Error('Web resolveEvent not implemented yet')
+  async resolveEvent(
+    event: Event,
+    currentAccount?: string,
+  ): Promise<LoadedEvent | null> {
+    const response = await fetch('/api/activity/resolve-event', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({event, currentAccount}),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to resolve event')
+    }
+
+    const wrappedResult = await response.json()
+    return unwrap<LoadedEvent | null>(wrappedResult)
   }
 }

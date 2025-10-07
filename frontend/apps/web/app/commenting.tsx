@@ -134,13 +134,6 @@ export default function WebCommenting({
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
 
-  console.log(`🔍 LocalWebCommenting ~ myAccount:`, {
-    data: myAccount.data?.metadata,
-    isLoading: myAccount.isLoading,
-    dataUpdatedAt: myAccount.dataUpdatedAt,
-    queryKey: ['ACCOUNT', userKeyPair?.id],
-  })
-
   const {
     content: emailNotificationsPromptContent,
     open: openEmailNotificationsPrompt,

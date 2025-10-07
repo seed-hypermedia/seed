@@ -24,7 +24,6 @@ export function ActivityProvider({
   children,
   service = null,
 }: PropsWithChildren<ActivityProviderValue>) {
-  console.log('useActivityFeed - ActivityProvider', service)
   return (
     <ActivityContext.Provider value={useMemo(() => ({service}), [service])}>
       {children}
@@ -91,8 +90,10 @@ export function useActivityFeed({
         ),
       )
 
+      const filteredEvents = resolvedEvents.filter((e) => !!e) as LoadedEvent[]
+
       return {
-        events: resolvedEvents.filter((e) => !!e),
+        events: filteredEvents,
         nextPageToken: response.nextPageToken,
       }
     },

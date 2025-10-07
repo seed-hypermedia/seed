@@ -120,7 +120,7 @@ export interface ActivityService {
    */
   resolveEvent(
     event: Event,
-    currentAccount: string,
+    currentAccount?: string,
   ): Promise<LoadedEvent | null>
 }
 
@@ -149,7 +149,7 @@ export async function listEventsImpl(
 export async function loadCommentEvent(
   grpcClient: GRPCClient,
   event: Event,
-  currentAccount: string,
+  currentAccount?: string,
 ): Promise<LoadedCommentEvent | null> {
   if (event.newBlob.blobType.toLowerCase() != 'comment') {
     console.error('Event: not a comment event: ', event)
@@ -205,7 +205,7 @@ export async function loadCommentEvent(
 export async function loadCapabilityEvent(
   grpcClient: GRPCClient,
   event: Event,
-  currentAccount: string,
+  currentAccount?: string,
 ): Promise<LoadedCapabilityEvent | null> {
   if (event.newBlob.blobType.toLowerCase() != 'capability')
     throw Error('this is not a capability event.')
@@ -274,7 +274,7 @@ export async function loadCapabilityEvent(
 export async function loadContactEvent(
   grpcClient: GRPCClient,
   event: Event,
-  currentAccount: string,
+  currentAccount?: string,
 ): Promise<LoadedContactEvent | null> {
   if (event.newBlob.blobType.toLowerCase() != 'contact') {
     console.error('Event: not a contact event:', event)
@@ -315,7 +315,7 @@ export async function loadContactEvent(
 export async function loadRefEvent(
   grpcClient: GRPCClient,
   event: Event,
-  currentAccount: string,
+  currentAccount?: string,
 ): Promise<LoadedRefEvent | null> {
   if (event.newBlob.blobType.toLowerCase() != 'ref') {
     console.error('Event: not a ref event:', event)

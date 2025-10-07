@@ -19,7 +19,7 @@ export class DesktopActivityService implements ActivityService {
 
   async resolveEvent(
     event: Event,
-    currentAccount: string,
+    currentAccount?: string,
   ): Promise<LoadedEvent | null> {
     // Determine event type from blobType or other fields
     const blobType = event.newBlob.blobType.toLowerCase()
