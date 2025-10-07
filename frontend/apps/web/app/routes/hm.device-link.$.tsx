@@ -668,7 +668,7 @@ function CompletionView({
           <p className="font-semibold">
             {accountInfo.metadata?.name || 'Unknown Account'}
           </p>
-          <p className="text-xs text-gray-500">{accountInfo.id.uid}</p>
+          <p className="truncate text-xs text-gray-500">{accountInfo.id.uid}</p>
         </div>
       </div>
       <p className="text-center text-sm text-gray-600">
