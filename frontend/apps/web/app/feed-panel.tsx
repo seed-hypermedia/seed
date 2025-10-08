@@ -88,7 +88,6 @@ export function WebFeedPanel({
   return (
     <>
       <div className="flex flex-col">
-        <p>filterResource: {filterResource}</p>
         {allEvents.map((event, index) => {
           if (!event) return null
           const isLast = index === allEvents.length - 1

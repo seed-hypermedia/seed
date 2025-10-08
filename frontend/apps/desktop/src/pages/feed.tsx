@@ -66,9 +66,15 @@ export default function FeedPage() {
   const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
 
-  const docId = route.key == 'feed' && route.id
-  useDocumentRead(docId)
+  const docId: UnpackedHypermediaId | null =
+    route.key == 'feed' ? route.id : null
   if (!docId) throw new Error('Invalid route, no document id')
+  if (route.key != 'feed') throw new Error('Invalid route, key is not feed')
+
+  const homeId = hmId(docId?.uid)
+
+  useDocumentRead(docId)
+
   const accessoryKey = route.accessory?.key
   const replace = useNavigate('replace')
   const push = useNavigate('push')
@@ -152,7 +158,7 @@ export default function FeedPage() {
             accessoryOptions={accessoryOptions}
           >
             <FeedContent
-              id={route.id}
+              id={homeId}
               route={route}
               isBlockFocused={false}
               onScrollParamSet={useCallback((isFrozen) => {
@@ -313,7 +319,7 @@ function _FeedContent({
               </Text>
               <TSeparator />
               <div className="-mx-5">
-                <FeedPanel docId={id} />
+                <FeedPanel filterResource={`${id.id}*`} />
               </div>
             </Container>
             {showSidebars ? (

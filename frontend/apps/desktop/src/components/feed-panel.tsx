@@ -1,17 +1,14 @@
 import {useDocFeed} from '@/models/feed'
-import {UnpackedHypermediaId} from '@shm/shared'
 import {FeedEvent} from '@shm/ui/feed-items'
 import {useCallback, useEffect, useRef} from 'react'
 import {AccessoryContent} from './accessory-sidebar'
 
 export function FeedPanel({
-  docId,
   pageSize,
   filterAuthors,
   filterResource,
   filterEventType,
 }: {
-  docId: UnpackedHypermediaId
   pageSize?: number
   filterAuthors?: string[]
   filterResource?: string
@@ -25,7 +22,6 @@ export function FeedPanel({
     isLoading,
     error,
   } = useDocFeed({
-    docId,
     pageSize,
     filterAuthors,
     filterResource,
