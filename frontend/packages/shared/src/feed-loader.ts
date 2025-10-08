@@ -226,14 +226,12 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   }
 
   async function loadDocumentFeed({
-    docId,
     filterResource,
     filterAuthors,
     filterEventType,
     pageSize = 5,
     pageToken,
   }: {
-    docId: UnpackedHypermediaId
     filterResource?: string
     filterAuthors?: string[]
     filterEventType?: string[]
@@ -241,7 +239,7 @@ export function createFeedLoader(grpcClient: GRPCClient) {
     pageSize?: number
   }) {
     const feedResp = await grpcClient.activityFeed.listEvents({
-      filterResource: filterResource ? filterResource : `${docId.id}*`,
+      filterResource,
       filterAuthors: filterAuthors ? filterAuthors : [],
       filterEventType: filterEventType ? filterEventType : [],
       pageSize,

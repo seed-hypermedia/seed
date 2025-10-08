@@ -21,11 +21,6 @@ export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
 
   // Direct comparison for name and icon props
   if (prevProps.name !== nextProps.name) {
-    console.log('🔄 HMIcon memo: name changed', {
-      prev: prevProps.name,
-      next: nextProps.name,
-      id: prevProps.id?.uid?.slice(0, 8),
-    })
     return false
   }
   if (prevProps.icon !== nextProps.icon) {

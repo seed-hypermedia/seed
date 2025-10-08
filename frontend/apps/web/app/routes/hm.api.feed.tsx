@@ -1,7 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {unpackHmId} from '@shm/shared'
 import {createFeedLoader} from '@shm/shared/feed-loader'
 
 export type HMFeedPayload = {
@@ -20,7 +19,6 @@ export const loader = async ({
 }): Promise<WrappedResponse<HMFeedPayload>> => {
   const url = new URL(request.url)
 
-  const id = unpackHmId(url.searchParams.get('id') || undefined)
   const pageToken = url.searchParams.get('pageToken') || undefined
   const pageSize = parseInt(url.searchParams.get('pageSize') || '10', 10)
   const filterAuthors =
@@ -28,11 +26,10 @@ export const loader = async ({
   const filterResource = url.searchParams.get('filterResource') || undefined
   const filterEventType =
     url.searchParams.get('filterEventType')?.split(',') || undefined
-  if (!id) throw new Error('id is required')
+  if (!filterResource) throw new Error('filterResource is required')
   let result: HMFeedPayload | {error: string}
   try {
     const result = await loadDocumentFeed({
-      docId: id,
       pageToken,
       pageSize,
       filterAuthors,

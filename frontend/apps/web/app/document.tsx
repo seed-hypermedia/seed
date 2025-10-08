@@ -397,7 +397,7 @@ function InnerDocumentPage(
     panelTitle = tx('Discussions')
   }
   if (activityEnabled && activePanel?.type == 'feed') {
-    panel = <WebFeedPanel docId={id} filterResource={id.id} />
+    panel = <WebFeedPanel filterResource={id.id} />
     panelTitle = tx('Feed')
   }
   if (activityEnabled && activePanel?.type == 'versions') {
@@ -501,7 +501,9 @@ function InnerDocumentPage(
                         <Separator />
                         <div className="-mx-5">
                           {/* this should always show the whole site feed with descendants, so no need to pass `filterResource` prop */}
-                          <WebFeedPanel docId={originHomeId} />
+                          <WebFeedPanel
+                            filterResource={`${originHomeId.id}*`}
+                          />
                         </div>
                       </Container>
                       {showSidebars ? (

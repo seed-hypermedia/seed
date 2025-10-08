@@ -1,15 +1,12 @@
-import {UnpackedHypermediaId} from '@shm/shared'
 import {FeedEvent} from '@shm/ui/feed-items'
 import {useCallback, useEffect, useRef} from 'react'
 import {useDocFeed} from './models'
 
 export function WebFeedPanel({
-  docId,
   filterResource,
   filterAuthors,
   filterEventType,
 }: {
-  docId: UnpackedHypermediaId
   filterResource?: string
   filterAuthors?: string[]
   filterEventType?: string[]
@@ -22,8 +19,7 @@ export function WebFeedPanel({
     isLoading,
     error,
   } = useDocFeed({
-    docId,
-    filterResource: filterResource || `${docId.id}*`,
+    filterResource,
     filterAuthors,
     filterEventType,
   })
@@ -92,6 +88,7 @@ export function WebFeedPanel({
   return (
     <>
       <div className="flex flex-col">
+        <p>filterResource: {filterResource}</p>
         {allEvents.map((event, index) => {
           if (!event) return null
           const isLast = index === allEvents.length - 1
