@@ -2,7 +2,6 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
-import {FeedPanel} from '@/components/feed-panel'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {DesktopActivityService} from '@/desktop-activity-service'
 import {DesktopCommentsService} from '@/desktop-comments-service'
@@ -49,6 +48,7 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
+import {Feed2} from '@shm/ui/feed'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -204,6 +204,8 @@ function _FeedContent({
 
   const account = useAccount(id.uid, {enabled: !id.path?.length})
 
+  const homeId = hmId(id.uid)
+
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
@@ -254,22 +256,15 @@ function _FeedContent({
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
-  const isHomeDoc = !id.path?.length
-  const isShowOutline =
-    (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
-    !isHomeDoc
-  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
-
   const {
     showSidebars,
     sidebarProps,
     mainContentProps,
     elementRef,
-    showCollapsed,
     wrapperProps,
   } = useDocumentLayout({
     contentWidth: metadata?.contentWidth,
-    showSidebars: showSidebarOutlineDirectory,
+    showSidebars: false,
   })
 
   if (resource.isInitialLoading) return null
@@ -324,7 +319,7 @@ function _FeedContent({
               </Text>
               <TSeparator />
               <div className="-mx-5">
-                <FeedPanel filterResource={`${id.id}*`} />
+                <Feed2 filterResource={`${homeId.id}*`} />
               </div>
             </Container>
             {showSidebars ? (

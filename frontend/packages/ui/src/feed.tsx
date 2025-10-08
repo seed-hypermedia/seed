@@ -1,4 +1,3 @@
-import {UnpackedHypermediaId} from '@shm/shared'
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
@@ -163,12 +162,14 @@ export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
 }
 
 export function Feed2({
-  docId,
   filterResource,
-  currentAccount,
+  filterAuthors,
+  filterEventType,
+  currentAccount = '',
 }: {
-  docId: UnpackedHypermediaId
   filterResource: ListEventsRequest['filterResource']
+  filterAuthors?: ListEventsRequest['filterAuthors']
+  filterEventType?: ListEventsRequest['filterEventType']
   currentAccount?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
@@ -182,8 +183,9 @@ export function Feed2({
     isLoading,
     error,
   } = useActivityFeed({
-    docId,
     filterResource,
+    filterAuthors,
+    filterEventType,
     currentAccount,
   })
 

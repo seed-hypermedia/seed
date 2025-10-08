@@ -110,7 +110,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     }
   }, [state?.accessoryWidth])
 
-  let accessoryTitle = tx('Activity')
+  let accessoryTitle = tx('Document Activity')
   if (accessoryKey == 'collaborators') {
     accessoryTitle = tx('Collaborators')
   } else if (accessoryKey == 'directory') {
@@ -124,7 +124,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   } else if (accessoryKey == 'citations') {
     accessoryTitle = tx('Citations')
   } else if (accessoryKey == 'activity') {
-    accessoryTitle = tx('All')
+    accessoryTitle = tx('Document Activity')
   }
 
   const resource = useSubscribedResource(docId)
