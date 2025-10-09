@@ -171,6 +171,7 @@ export function useDocFeed({
       return await queryAPI<HMFeedPayload>(url)
     },
     {
+      enabled: !!filterResource,
       getNextPageParam: (lastPage, allPages) => {
         const next = lastPage.nextPageToken
         return next || undefined
