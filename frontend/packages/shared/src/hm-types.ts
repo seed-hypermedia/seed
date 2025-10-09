@@ -1056,7 +1056,7 @@ export const HMDocumentSchema = z.object({
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>
 
-export const HMResourceDocumentSchema = HMDocumentSchema.extend({
+export const HMResourceDocumentSchema = z.object({
   type: z.literal('document'),
   document: HMDocumentSchema,
   id: unpackedHmIdSchema,

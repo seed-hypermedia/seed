@@ -159,12 +159,10 @@ setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
       iri: packHmId(hmId),
     })
     if (resource.kind.case === 'document') {
-      // @ts-expect-error
       return {
         type: 'document',
         id: hmId satisfies UnpackedHypermediaId,
         document: prepareHMDocument(resource.kind.value) satisfies HMDocument,
-        // @ts-expect-error
       } satisfies HMResourceDocument
     }
     if (resource.kind.case === 'comment') {

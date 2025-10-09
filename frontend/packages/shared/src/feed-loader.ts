@@ -12,10 +12,11 @@ import {
 } from './feed-types'
 import {GRPCClient} from './grpc-client'
 import {HMComment, UnpackedHypermediaId} from './hm-types'
-import {loadResource} from './models/entity'
+import {createResourceLoader} from './resource-loader'
 import {entityQueryPathToHmIdPath, hmId, packHmId, unpackHmId} from './utils'
 
 export function createFeedLoader(grpcClient: GRPCClient) {
+  const loadResource = createResourceLoader(grpcClient)
   async function getMetadata(id: UnpackedHypermediaId) {
     const resource = await grpcClient.resources.getResource({
       iri: id.id,
@@ -220,7 +221,7 @@ export function createFeedLoader(grpcClient: GRPCClient) {
           return null
       }
     } catch (error) {
-      console.error('Error loading event:', error)
+      console.error('Error loading event:', event, error)
       return null
     }
   }

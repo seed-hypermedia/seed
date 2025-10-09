@@ -380,7 +380,6 @@ export async function getResource(id: UnpackedHypermediaId) {
         type: 'document',
         id,
         document: prepareHMDocument(resource.kind.value),
-        // @ts-expect-error
       } satisfies HMResourceDocument
     }
     throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
@@ -400,6 +399,7 @@ export async function getResource(id: UnpackedHypermediaId) {
   }
 }
 
+// we should merge this with the createResourceLoader function, but it does a few extra things right now:
 export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
