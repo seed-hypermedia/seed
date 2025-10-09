@@ -27,6 +27,7 @@ export const loader = async ({
 
   const authorAccounts = new Set<string>()
   let commentGroups: any[] = []
+
   let citingDiscussions: HMExternalCommentGroup[] = []
 
   // Fetch direct comments with error handling
@@ -67,55 +68,56 @@ export const loader = async ({
     })
 
     // Process each citing comment independently with error handling
-    const citingDiscussionResults = await Promise.allSettled(
-      citingComments.map(async (c) => {
-        const commentTargetId = unpackHmId(c.sourceDocument)!
-        const commentsQuery = await grpcClient.comments.listComments({
-          targetAccount: commentTargetId.uid,
-          targetPath: hmIdPathToEntityQueryPath(commentTargetId.path),
-          pageSize: BIG_INT,
-        })
-        const comments = commentsQuery.comments.map((c) =>
-          c.toJson({emitDefaultValues: true}),
-        ) as Array<HMComment>
-        const citingComment = comments.find(
-          (comment) => comment.id === c.source.slice(5),
-        )!
+    const possibleCitingDiscussions: (HMExternalCommentGroup | null)[] =
+      await Promise.all(
+        citingComments.map(async (c) => {
+          const commentTargetId = unpackHmId(c.sourceDocument)!
+          const commentsQuery = await grpcClient.comments.listComments({
+            targetAccount: commentTargetId.uid,
+            targetPath: hmIdPathToEntityQueryPath(commentTargetId.path),
+            pageSize: BIG_INT,
+          })
+          const comments = commentsQuery.comments.map((c) =>
+            c.toJson({emitDefaultValues: true}),
+          ) as Array<HMComment>
+          const citingComment = comments.find(
+            (comment) => comment.id === c.source.slice(5),
+          )
 
-        if (citingComment?.author && citingComment.author.trim() !== '') {
-          authorAccounts.add(citingComment.author)
-        }
-
-        const commentGroups = getCommentGroups(comments, c.source.slice(5))
-        const selectedComments = commentGroups[0]?.comments || []
-        selectedComments.forEach((comment) => {
-          if (comment.author && comment.author.trim() !== '') {
-            authorAccounts.add(comment.author)
+          if (!citingComment) {
+            console.error('=== failed to load the citing comment!', {
+              citingComment,
+              comments,
+              mention: c,
+            })
+            return null
           }
-        })
 
-        return {
-          comments: [citingComment, ...selectedComments],
-          moreCommentsCount: 0,
-          id: c.source,
-          target: await getMetadata(unpackHmId(c.sourceDocument)!),
-          type: 'externalCommentGroup',
-        }
-      }),
-    )
-
-    // Extract successful results and log failures
-    citingDiscussions = citingDiscussionResults
-      .filter(
-        (result): result is PromiseFulfilledResult<HMExternalCommentGroup> => {
-          if (result.status === 'rejected') {
-            console.error('Failed to load citing discussion:', result.reason)
-            return false
+          if (citingComment.author && citingComment.author.trim() !== '') {
+            authorAccounts.add(citingComment.author)
           }
-          return true
-        },
+
+          const commentGroups = getCommentGroups(comments, c.source.slice(5))
+          const selectedComments = commentGroups[0]?.comments || []
+          selectedComments.forEach((comment) => {
+            if (comment.author && comment.author.trim() !== '') {
+              authorAccounts.add(comment.author)
+            }
+          })
+
+          return {
+            comments: [citingComment, ...selectedComments],
+            moreCommentsCount: 0,
+            id: c.source,
+            target: await getMetadata(unpackHmId(c.sourceDocument)!),
+            type: 'externalCommentGroup',
+          }
+        }),
       )
-      .map((result) => result.value)
+
+    citingDiscussions = possibleCitingDiscussions.filter(
+      Boolean,
+    ) as HMExternalCommentGroup[]
   } catch (error: any) {
     console.error('Failed to load citing discussions:', error.message)
   }

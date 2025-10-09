@@ -129,8 +129,6 @@ export class DesktopCommentsService implements CommentsService {
       return true
     })
 
-    console.log('=== will get citingDiscussions', commentMentions)
-
     const possibleCitingDiscussions: (HMExternalCommentGroup | null)[] =
       await Promise.all(
         commentMentions.map(async (mention) => {
