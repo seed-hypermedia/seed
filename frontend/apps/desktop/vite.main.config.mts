@@ -86,7 +86,7 @@ export default defineConfig(({command, mode}) => {
             sentryVitePlugin({
               authToken: process.env.SENTRY_AUTH_TOKEN,
               org: 'mintter',
-              project: 'electron',
+              project: 'seed-electron',
               telemetry: false,
             }),
           ]

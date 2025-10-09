@@ -104,6 +104,16 @@ export default defineConfig(({command, mode}) => {
       FIND_IN_PAGE_VITE_NAME: JSON.stringify(
         process.env.FIND_IN_PAGE_VITE_NAME,
       ),
+
+      // Sentry DSN for renderer process
+      'import.meta.env.VITE_DESKTOP_SENTRY_DSN': JSON.stringify(
+        process.env.VITE_DESKTOP_SENTRY_DSN,
+      ),
+      'import.meta.env.VITE_VERSION': JSON.stringify(
+        process.env.npm_package_version,
+      ),
+      'import.meta.env.MODE': JSON.stringify(mode),
+      'import.meta.env.DEV': mode === 'development',
     },
   }
 
@@ -112,7 +122,7 @@ export default defineConfig(({command, mode}) => {
       sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: 'mintter',
-        project: 'electron',
+        project: 'seed-electron',
         telemetry: false,
       }),
     )
