@@ -43,7 +43,7 @@ export const loader = async ({
     commentGroups = getCommentGroups(allComments, undefined)
 
     commentGroups.forEach((group) => {
-      group.comments.forEach((comment) => {
+      group.comments.forEach((comment: HMComment) => {
         if (comment.author && comment.author.trim() !== '') {
           authorAccounts.add(comment.author)
         }
