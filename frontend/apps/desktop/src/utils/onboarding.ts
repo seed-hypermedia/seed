@@ -5,7 +5,7 @@ export function isWordsValid(input: string): string | boolean {
     return `Can't extract words from input. malformed input => ${input}`
   }
   if (res.length == 12) {
-    return false
+    return true
   } else {
     return `input does not have a valid words amount, please add a 12 mnemonics word. current input is ${res.length}`
   }

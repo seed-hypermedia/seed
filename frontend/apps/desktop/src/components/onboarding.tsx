@@ -2,7 +2,7 @@ import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
 import {trpc} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
-import {extractWords} from '@/utils/onboarding'
+import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   eventStream,
@@ -96,7 +96,8 @@ export function OnboardingDialog() {
       <DialogPortal>
         <DialogOverlay />
         <DialogContent
-          className="no-window-drag flex h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px] flex-col overflow-y-scroll p-0"
+          className="no-window-drag h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]"
+          contentClassName="gap-0 p-0"
           showCloseButton={false}
         >
           <Onboarding
@@ -632,71 +633,64 @@ function ExistingStep({
     return extractWords(secretWords)
   }, [secretWords])
 
-  const handleSubmit = async () => {
-    // if (!isWordsValid(secretWords)) {
-    //   toast.error('Invalid mnemonic')
-    //   console.log('Invalid mnemonic', mnemonic)
-    //   return
-    // }
-    // Create the Account
-    let createdAccount
-    // const name = `temp${nanoid(8)}`
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+
     try {
-      console.group('👤 Creating Account')
-      if (!secretWords.trim()) {
-        throw new Error('Mnemonics not found')
+      // Validate mnemonic
+      const validation = isWordsValid(secretWords)
+      if (validation !== true) {
+        toast.error(
+          typeof validation === 'string' ? validation : 'Invalid mnemonic',
+        )
+        console.log('Invalid mnemonic', mnemonic)
+        return
       }
-      // console.log('Using temporary name:', name)
 
-      createdAccount = await register.mutateAsync({
-        // name,
-        mnemonic,
-      })
-      console.log('✅ Account created:', createdAccount)
-      console.groupEnd()
-    } catch (error) {
-      console.error('❌ Failed to create account:', error)
-      throw new Error('Failed to create account: ' + (error as Error).message)
-    }
+      // Create the Account
+      let createdAccount
+      try {
+        console.group('👤 Creating Account from Existing Mnemonics')
+        if (!secretWords.trim()) {
+          throw new Error('Mnemonics not found')
+        }
 
-    // Update account key name
-    // let renamedKey
-    // try {
-    //   console.group('🔑 Updating Account Key')
-    //   console.log('Renaming from', name, 'to', createdAccount.accountId)
-
-    //   renamedKey = await grpcClient.daemon.updateKey({
-    //     currentName: name,
-    //     newName: createdAccount.accountId,
-    //   })
-    //   console.log('✅ Account key updated:', renamedKey)
-    //   console.groupEnd()
-    // } catch (error) {
-    //   console.error('❌ Failed to update account key:', error)
-    //   throw new Error(
-    //     'Failed to update account key: ' + (error as Error).message,
-    //   )
-    // }
-
-    // Save mnemonics to secure storage only if checkbox is checked
-    try {
-      console.group('💾 Saving Mnemonics')
-      console.log('Saving to key:', createdAccount.publicKey)
-      console.log('Should save words:', shouldSaveWords)
-
-      if (shouldSaveWords) {
-        saveWords.mutate({key: createdAccount.publicKey, value: secretWords})
-        console.log('✅ Mnemonics saved')
-      } else {
-        console.log('⏭️ Skipping mnemonic save as per user preference')
+        createdAccount = await register.mutateAsync({
+          mnemonic,
+        })
+        console.log('✅ Account created:', createdAccount)
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to create account:', error)
+        toast.error('Failed to create account: ' + (error as Error).message)
+        return
       }
-      console.groupEnd()
+
+      // Save mnemonics to secure storage only if checkbox is checked
+      try {
+        console.group('💾 Saving Mnemonics')
+        console.log('Saving to key:', createdAccount.publicKey)
+        console.log('Should save words:', shouldSaveWords)
+
+        if (shouldSaveWords) {
+          saveWords.mutate({key: createdAccount.publicKey, value: secretWords})
+          console.log('✅ Mnemonics saved')
+        } else {
+          console.log('⏭️ Skipping mnemonic save as per user preference')
+        }
+        console.groupEnd()
+      } catch (error) {
+        console.error('❌ Failed to save mnemonics:', error)
+        toast.error('Failed to save mnemonics: ' + (error as Error).message)
+        return
+      }
+
+      onAccountCreate(hmId(createdAccount.accountId))
+      onNext()
     } catch (error) {
-      console.error('❌ Failed to save mnemonics:', error)
-      throw new Error('Failed to save mnemonics: ' + (error as Error).message)
+      console.error('❌ Existing account setup failed:', error)
+      toast.error('Failed to setup account: ' + (error as Error).message)
     }
-    onAccountCreate(hmId(createdAccount.accountId))
-    onNext()
   }
 
   return (
@@ -737,9 +731,9 @@ function ExistingStep({
         <div className="flex-1" />
         <div className="no-window-drag mt-8 flex items-center justify-center gap-4">
           <Button
+            type="submit"
             variant="default"
             disabled={!secretWords.trim()}
-            onClick={handleSubmit}
           >
             NEXT
           </Button>
