@@ -33,7 +33,9 @@ export class WebCommentsService implements CommentsService {
   ): Promise<ListDiscussionsResponse> {
     try {
       let queryUrl = `/hm/api/discussions?targetId=${params.targetId.id}`
-      let res = await queryAPI<ListDiscussionsResponse | {error: string}>(queryUrl)
+      let res = await queryAPI<ListDiscussionsResponse | {error: string}>(
+        queryUrl,
+      )
 
       if ('error' in res) {
         console.error('API returned error for discussions:', res.error)

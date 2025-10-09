@@ -106,13 +106,15 @@ export const loader = async ({
 
     // Extract successful results and log failures
     citingDiscussions = citingDiscussionResults
-      .filter((result): result is PromiseFulfilledResult<HMExternalCommentGroup> => {
-        if (result.status === 'rejected') {
-          console.error('Failed to load citing discussion:', result.reason)
-          return false
-        }
-        return true
-      })
+      .filter(
+        (result): result is PromiseFulfilledResult<HMExternalCommentGroup> => {
+          if (result.status === 'rejected') {
+            console.error('Failed to load citing discussion:', result.reason)
+            return false
+          }
+          return true
+        },
+      )
       .map((result) => result.value)
   } catch (error: any) {
     console.error('Failed to load citing discussions:', error.message)

@@ -79,7 +79,10 @@ export const loader = async ({
             authors = await loadBatchAccounts(authorAccountUids)
           }
         } catch (e: any) {
-          console.error('Failed to load authors for block discussions:', e.message)
+          console.error(
+            'Failed to load authors for block discussions:',
+            e.message,
+          )
         }
       } catch (e: any) {
         console.error('Failed to batch get comments:', e.message)
