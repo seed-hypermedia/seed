@@ -3,6 +3,7 @@ import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
 import {
   ListEventsRequest,
+  LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
@@ -219,7 +220,7 @@ export function Feed2({
 
       observerRef.current = new IntersectionObserver((entries) => {
         const entry = entries[0]
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
       }, observerOptions)
@@ -256,45 +257,59 @@ export function Feed2({
         <div className="flex flex-col gap-8">
           {allEvents.map((e, index) => {
             const isLast = index === allEvents.length - 1
-            return [
-              <div
-                key={`${e.type}-${e.id}-${e.time}`}
-                ref={isLast ? lastElementRef : undefined}
-                className={
-                  cn('flex flex-col gap-2')
+            if (e.type == 'comment' && e.replyingComment) {
+              return (
+                <>
+                  <div key={`${e.type}-${e.id}-${e.time}`}>
+                    <EventCommentWithReply event={e} />
+                  </div>
+                  <Separator />
+                  {isLast && <div ref={lastElementRef} />}
+                </>
+              )
+            }
 
-                  // e.type == 'comment' && 'border-border border',
-                }
-              >
-                {/* <div
+            return (
+              <>
+                <div
+                  key={`${e.type}-${e.id}-${e.time}`}
+                  className={
+                    cn('flex flex-col gap-2')
+
+                    // e.type == 'comment' && 'border-border border',
+                  }
+                >
+                  {/* <div
                 className={cn(
                   'absolute inset-y-0 left-0 w-[24px]',
                   !isLast &&
                     "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:content-['']",
                 )}
               /> */}
-                <div className="flex items-start gap-2">
-                  <div className="size-[24px]">
-                    {e.author?.id ? (
-                      <HMIcon
-                        size={24}
-                        id={e.author.id}
-                        name={e.author.metadata?.name}
-                        icon={e.author.metadata?.icon}
-                      />
-                    ) : null}
+                  <div className="flex items-start gap-2">
+                    <div className="size-[24px]">
+                      {e.author?.id ? (
+                        <HMIcon
+                          size={24}
+                          id={e.author.id}
+                          name={e.author.metadata?.name}
+                          icon={e.author.metadata?.icon}
+                        />
+                      ) : null}
+                    </div>
+                    <EventHeaderContent event={e} />
                   </div>
-                  <EventHeaderContent event={e} />
-                </div>
-                <div className="relative flex gap-2">
-                  <div className={cn('w-[24px]')} />
-                  <div className="flex-1">
-                    <EventContent event={e} />
+                  <div className="relative flex gap-2">
+                    <div className={cn('w-[24px]')} />
+                    <div className="flex-1">
+                      <EventContent event={e} />
+                    </div>
                   </div>
                 </div>
-              </div>,
-              <Separator />,
-            ]
+                <Separator />
+                {isLast && <div ref={lastElementRef} />}
+              </>
+            )
           })}
         </div>
       </ScrollArea>
@@ -309,26 +324,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
         <span className="text-sm font-bold">
           {event.author?.metadata?.name}
         </span>{' '}
-        <span className="text-muted-foreground text-sm">
-          {event.replyingComment ? 'replied to' : 'commented on '}
-        </span>{' '}
-        {event.replyingComment && event.replyingAuthor?.id
-          ? [
-              <HMIcon
-                className="mx-1 mb-1 inline-block align-middle"
-                id={event.replyingAuthor?.id}
-                size={18}
-                icon={event.replyingAuthor.metadata?.icon}
-                name={event.replyingAuthor.metadata?.name}
-              />,
-              <a className="text-sm font-bold">
-                {event.replyingAuthor.metadata?.name ||
-                  event.replyingAuthor.id?.uid.substring(0, 8)}
-              </a>,
-
-              <span className="text-muted-foreground text-sm"> on</span>,
-            ]
-          : null}{' '}
+        <span className="text-muted-foreground text-sm">commented on</span>{' '}
         <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.target?.metadata?.name}
         </a>{' '}
@@ -422,16 +418,8 @@ function EventContent({event}: {event: LoadedEvent}) {
   if (event.type == 'comment') {
     console.log('== comment', event.comment?.content)
     return event.comment ? (
-      <div className="flex flex-col gap-4">
-        {event.replyingComment ? (
-          <div className="border-border -ml-4 rounded border">
-            <CommentContent comment={event.replyingComment} />
-          </div>
-        ) : null}
-
-        <div className="border-border -ml-4 rounded border">
-          <CommentContent comment={event.comment} />
-        </div>
+      <div className="-ml-4">
+        <CommentContent comment={event.comment} />
       </div>
     ) : null
   }
@@ -466,4 +454,71 @@ function EventContent({event}: {event: LoadedEvent}) {
     // )
   }
   return null
+}
+
+function EventCommentWithReply({event}: {event: LoadedCommentEvent}) {
+  return (
+    <div key={`${event.type}-${event.id}-${event.time}`}>
+      {/* replying comment */}
+      <div className={cn('flex flex-col')}>
+        <div className="flex items-start gap-2">
+          <div className="size-[24px]">
+            {event.replyingAuthor?.id ? (
+              <HMIcon
+                size={24}
+                id={event.replyingAuthor.id}
+                name={event.replyingAuthor.metadata?.name}
+                icon={event.replyingAuthor.metadata?.icon}
+              />
+            ) : null}
+          </div>
+          <EventHeaderContent
+            event={{
+              ...event,
+              author: event.replyingAuthor!,
+            }}
+          />
+        </div>
+        <div className="relative flex gap-2">
+          <div className={cn('w-[24px]')}>
+            <div
+              className={cn(
+                'absolute inset-y-0 left-0 w-[24px]',
+
+                "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:content-['']",
+              )}
+            />
+          </div>
+          <div className="flex-1 pb-6">
+            <EventContent
+              event={{
+                ...event,
+                comment: event.replyingComment,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <div className="size-[24px]">
+          {event.author?.id ? (
+            <HMIcon
+              size={24}
+              id={event.author.id}
+              name={event.author.metadata?.name}
+              icon={event.author.metadata?.icon}
+            />
+          ) : null}
+        </div>
+        <EventHeaderContent event={event} />
+      </div>
+      <div className="relative flex gap-2">
+        <div className={cn('w-[24px]')} />
+        <div className="flex-1">
+          <EventContent event={event} />
+        </div>
+      </div>
+    </div>
+  )
 }
