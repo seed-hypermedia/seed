@@ -23,9 +23,11 @@ export const loader = async ({
   const url = new URL(request.url)
   const targetId = unpackHmId(url.searchParams.get('targetId') || undefined)
   if (!targetId) throw new Error('targetId is required')
-  // TODO: fix types of comments here
-  let result: any | {error: string}
 
+  let allComments: HMComment[] = []
+  let authors = {}
+
+  // Fetch comments with error handling
   try {
     const data = await grpcClient.comments.listComments({
       targetAccount: targetId.uid,
@@ -33,23 +35,32 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
 
-    const allComments = data.comments.map(
+    allComments = data.comments.map(
       (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
     )
+  } catch (e: any) {
+    console.error('Failed to load comments:', e.message)
+  }
 
+  // Load authors with error handling
+  try {
     const allAccounts = new Set<string>()
     allComments.forEach((comment) => {
-      allAccounts.add(comment.author)
+      if (comment.author && comment.author.trim() !== '') {
+        allAccounts.add(comment.author)
+      }
     })
     const authorAccountUids = Array.from(allAccounts)
-    const authors = await loadBatchAccounts(authorAccountUids)
-
-    result = {
-      comments: allComments,
-      authors,
-    } satisfies ListCommentsResponse
+    if (authorAccountUids.length > 0) {
+      authors = await loadBatchAccounts(authorAccountUids)
+    }
   } catch (e: any) {
-    result = {error: e.message}
+    console.error('Failed to load authors:', e.message)
+  }
+
+  const result: ListCommentsResponse = {
+    comments: allComments,
+    authors,
   }
 
   return wrapJSON(result)

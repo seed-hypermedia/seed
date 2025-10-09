@@ -27,7 +27,7 @@ export const loader = async ({
   const filterEventType =
     url.searchParams.get('filterEventType')?.split(',') || undefined
   if (!filterResource) throw new Error('filterResource is required')
-  let result: HMFeedPayload | {error: string}
+
   try {
     const result = await loadDocumentFeed({
       pageToken,
@@ -41,8 +41,8 @@ export const loader = async ({
     }
     return wrapJSON(result)
   } catch (e: any) {
-    result = {error: e.message}
+    console.error('Failed to load feed:', e.message)
+    // Return empty feed on error to allow graceful degradation
+    return wrapJSON({events: [], nextPageToken: pageToken || ''})
   }
-
-  return wrapJSON(result)
 }

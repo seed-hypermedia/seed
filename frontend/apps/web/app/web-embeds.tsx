@@ -435,25 +435,31 @@ function EmbedDocumentComments(props: EntityComponentProps) {
   if (!unpackedId) {
     return <ErrorBlock message="Invalid embed link" />
   }
-  return (
-    <EmbedWrapper
-      id={unpackedId}
-      parentBlockId={props.parentBlockId}
-      hideBorder
-      noClick
-    >
-      <Discussions
-        commentEditor={
-          <div
-            onClick={(e) => {
-              e.stopPropagation()
-            }}
-          >
-            <WebCommenting docId={unpackedId} />
-          </div>
-        }
-        targetId={unpackedId}
-      />
-    </EmbedWrapper>
-  )
+
+  try {
+    return (
+      <EmbedWrapper
+        id={unpackedId}
+        parentBlockId={props.parentBlockId}
+        hideBorder
+        noClick
+      >
+        <Discussions
+          commentEditor={
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+            >
+              <WebCommenting docId={unpackedId} />
+            </div>
+          }
+          targetId={unpackedId}
+        />
+      </EmbedWrapper>
+    )
+  } catch (error) {
+    console.error('Error rendering embedded comments:', error)
+    return <ErrorBlock message="Failed to load comments" />
+  }
 }

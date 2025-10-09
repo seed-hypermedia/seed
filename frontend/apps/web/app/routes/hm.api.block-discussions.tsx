@@ -20,8 +20,10 @@ export const loader = async ({
   if (!targetId) throw new Error('targetId is required')
   if (!blockId) throw new Error('blockId is required')
 
-  let result: ListCommentsByReferenceResponse | {error: string}
+  let comments: HMComment[] = []
+  let authors = {}
 
+  // Fetch citations and filter for block-specific comments with error handling
   try {
     const citations = await grpcClient.entities.listEntityMentions({
       id: targetId.id,
@@ -43,40 +45,53 @@ export const loader = async ({
       })
       .filter(Boolean) as Array<string>
 
-    const res = await grpcClient.comments.batchGetComments({
-      ids: commentIds,
-    })
+    if (commentIds.length > 0) {
+      try {
+        const res = await grpcClient.comments.batchGetComments({
+          ids: commentIds,
+        })
 
-    const authorAccounts = new Set<string>()
+        const authorAccounts = new Set<string>()
 
-    const comments = res.comments
-      .sort((a, b) => {
-        const aTime =
-          a?.updateTime && typeof a?.updateTime == 'string'
-            ? new Date(a?.updateTime).getTime()
-            : 0
-        const bTime =
-          b?.updateTime && typeof b?.updateTime == 'string'
-            ? new Date(b?.updateTime).getTime()
-            : 1
-        return aTime - bTime // Newest first (descending order)
-      })
-      .map((c) => {
-        if (c.author && c.author.trim() !== '') {
-          authorAccounts.add(c.author)
+        comments = res.comments
+          .sort((a, b) => {
+            const aTime =
+              a?.updateTime && typeof a?.updateTime == 'string'
+                ? new Date(a?.updateTime).getTime()
+                : 0
+            const bTime =
+              b?.updateTime && typeof b?.updateTime == 'string'
+                ? new Date(b?.updateTime).getTime()
+                : 1
+            return aTime - bTime // Newest first (descending order)
+          })
+          .map((c) => {
+            if (c.author && c.author.trim() !== '') {
+              authorAccounts.add(c.author)
+            }
+            return c.toJson({emitDefaultValues: true})
+          }) as Array<HMComment>
+
+        // Load authors with error handling
+        try {
+          const authorAccountUids = Array.from(authorAccounts)
+          if (authorAccountUids.length > 0) {
+            authors = await loadBatchAccounts(authorAccountUids)
+          }
+        } catch (e: any) {
+          console.error('Failed to load authors for block discussions:', e.message)
         }
-        return c.toJson({emitDefaultValues: true})
-      }) as Array<HMComment>
-
-    const authorAccountUids = Array.from(authorAccounts)
-    const authors = await loadBatchAccounts(authorAccountUids)
-
-    result = {
-      comments,
-      authors,
+      } catch (e: any) {
+        console.error('Failed to batch get comments:', e.message)
+      }
     }
   } catch (e: any) {
-    result = {error: e.message}
+    console.error('Failed to load block discussion citations:', e.message)
+  }
+
+  const result: ListCommentsByReferenceResponse = {
+    comments,
+    authors,
   }
 
   return wrapJSON(result)

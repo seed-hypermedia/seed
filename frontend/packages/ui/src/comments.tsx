@@ -80,6 +80,19 @@ export function CommentDiscussions({
     commentId,
   )
 
+  if (commentsService.error) {
+    return (
+      <AccessoryContent>
+        <AccessoryBackButton onClick={onBack} />
+        <div className="flex flex-col items-center gap-2 p-4">
+          <SizableText color="muted" size="sm">
+            Failed to load comment thread
+          </SizableText>
+        </div>
+      </AccessoryContent>
+    )
+  }
+
   return (
     <AccessoryContent>
       <AccessoryBackButton onClick={onBack} />
@@ -164,6 +177,14 @@ export function Discussions({
     panelContent = (
       <div className="flex items-center justify-center">
         <Spinner />
+      </div>
+    )
+  } else if (discussionsService.error) {
+    panelContent = (
+      <div className="flex flex-col items-center gap-2 p-4">
+        <SizableText color="muted" size="sm">
+          Failed to load discussions
+        </SizableText>
       </div>
     )
   } else if (discussionsService.data) {
@@ -252,7 +273,21 @@ export function BlockDiscussions({
     )
   }
 
-  if (
+  if (commentsService.isLoading && !commentsService.data) {
+    panelContent = (
+      <div className="flex items-center justify-center py-4">
+        <Spinner />
+      </div>
+    )
+  } else if (commentsService.error) {
+    panelContent = (
+      <div className="flex flex-col items-center gap-2 p-4">
+        <SizableText color="muted" size="sm">
+          Failed to load block discussions
+        </SizableText>
+      </div>
+    )
+  } else if (
     commentsService.data &&
     commentsService.data.comments &&
     commentsService.data.comments.length

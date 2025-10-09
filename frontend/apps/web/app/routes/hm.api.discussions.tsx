@@ -24,18 +24,12 @@ export const loader = async ({
   const url = new URL(request.url)
   const targetId = unpackHmId(url.searchParams.get('targetId') || undefined)
   if (!targetId) throw new Error('targetId is required')
-  let result: HMDiscussionsPayload | {error: string}
 
-  const citations = await grpcClient.entities.listEntityMentions({
-    id: targetId.id,
-    pageSize: BIG_INT,
-  })
+  const authorAccounts = new Set<string>()
+  let commentGroups: any[] = []
+  let citingDiscussions: HMExternalCommentGroup[] = []
 
-  const citingComments = citations.mentions.filter((m) => {
-    if (m.sourceType != 'Comment') return false
-    return true
-  })
-
+  // Fetch direct comments with error handling
   try {
     const data = await grpcClient.comments.listComments({
       targetAccount: targetId.uid,
@@ -46,16 +40,21 @@ export const loader = async ({
     const allComments = data.comments.map(
       (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
     )
-    const commentGroups = getCommentGroups(allComments, undefined)
-
-    const authorAccounts = new Set<string>()
+    commentGroups = getCommentGroups(allComments, undefined)
 
     commentGroups.forEach((group) => {
       group.comments.forEach((comment) => {
-        authorAccounts.add(comment.author)
+        if (comment.author && comment.author.trim() !== '') {
+          authorAccounts.add(comment.author)
+        }
       })
     })
+  } catch (error: any) {
+    console.error('Failed to load direct discussions:', error.message)
+  }
 
+  // Fetch citing discussions with error handling
+  try {
     const citations = await grpcClient.entities.listEntityMentions({
       id: targetId.id,
       pageSize: BIG_INT,
@@ -67,12 +66,13 @@ export const loader = async ({
       return true
     })
 
-    const citingDiscussions: HMExternalCommentGroup[] = await Promise.all(
+    // Process each citing comment independently with error handling
+    const citingDiscussionResults = await Promise.allSettled(
       citingComments.map(async (c) => {
-        const targetId = unpackHmId(c.sourceDocument)!
+        const commentTargetId = unpackHmId(c.sourceDocument)!
         const commentsQuery = await grpcClient.comments.listComments({
-          targetAccount: targetId.uid,
-          targetPath: hmIdPathToEntityQueryPath(targetId.path),
+          targetAccount: commentTargetId.uid,
+          targetPath: hmIdPathToEntityQueryPath(commentTargetId.path),
           pageSize: BIG_INT,
         })
         const comments = commentsQuery.comments.map((c) =>
@@ -81,11 +81,17 @@ export const loader = async ({
         const citingComment = comments.find(
           (comment) => comment.id === c.source.slice(5),
         )!
-        authorAccounts.add(citingComment.author)
+
+        if (citingComment?.author && citingComment.author.trim() !== '') {
+          authorAccounts.add(citingComment.author)
+        }
+
         const commentGroups = getCommentGroups(comments, c.source.slice(5))
         const selectedComments = commentGroups[0]?.comments || []
         selectedComments.forEach((comment) => {
-          authorAccounts.add(comment.author)
+          if (comment.author && comment.author.trim() !== '') {
+            authorAccounts.add(comment.author)
+          }
         })
 
         return {
@@ -98,17 +104,35 @@ export const loader = async ({
       }),
     )
 
-    const authorAccountUids = Array.from(authorAccounts)
-    const authors = await loadBatchAccounts(authorAccountUids)
-
-    result = {
-      discussions: commentGroups,
-      citingDiscussions,
-      authors,
-    } satisfies ListDiscussionsResponse
+    // Extract successful results and log failures
+    citingDiscussions = citingDiscussionResults
+      .filter((result): result is PromiseFulfilledResult<HMExternalCommentGroup> => {
+        if (result.status === 'rejected') {
+          console.error('Failed to load citing discussion:', result.reason)
+          return false
+        }
+        return true
+      })
+      .map((result) => result.value)
   } catch (error: any) {
-    console.error('=== Discussions API error', error)
-    result = {error: error.message}
+    console.error('Failed to load citing discussions:', error.message)
+  }
+
+  // Load authors with error handling
+  let authors = {}
+  try {
+    const authorAccountUids = Array.from(authorAccounts)
+    if (authorAccountUids.length > 0) {
+      authors = await loadBatchAccounts(authorAccountUids)
+    }
+  } catch (error: any) {
+    console.error('Failed to load authors:', error.message)
+  }
+
+  const result: ListDiscussionsResponse = {
+    discussions: commentGroups,
+    citingDiscussions,
+    authors,
   }
 
   return wrapJSON(result)

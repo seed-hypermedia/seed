@@ -66,10 +66,16 @@ export function useCommentsService(params: ListDiscussionsRequest) {
       if (!context.service) {
         return {comments: [], authors: {}}
       }
-      const res = await context.service.listComments(params)
-      return res
+      try {
+        const res = await context.service.listComments(params)
+        return res
+      } catch (error) {
+        console.error('Error fetching comments:', error)
+        throw error
+      }
     },
     enabled: !!context.service,
+    retry: 1,
   })
 }
 
@@ -87,11 +93,16 @@ export function useDiscussionsService(params: ListDiscussionsRequest) {
         return {discussions: [], authors: {}, citingDiscussions: []}
       }
 
-      const res = await context.service.listDiscussions(params)
-
-      return res
+      try {
+        const res = await context.service.listDiscussions(params)
+        return res
+      } catch (error) {
+        console.error('Error fetching discussions:', error)
+        throw error
+      }
     },
     enabled: !!context.service,
+    retry: 1,
   })
 }
 
@@ -106,14 +117,16 @@ export function useBlockDiscussionsService(
       if (!context.service) {
         return {comments: [], authors: {}}
       }
-      const res = await context.service.listCommentsByReference(params)
-      // console.log(
-      //   `\n\n======================== ~ useBlockDiscussionsService ~ res:`,
-      //   res,
-      // )
-      return res
+      try {
+        const res = await context.service.listCommentsByReference(params)
+        return res
+      } catch (error) {
+        console.error('Error fetching block discussions:', error)
+        throw error
+      }
     },
     enabled: !!context.service,
+    retry: 1,
   })
 }
 
