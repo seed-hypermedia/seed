@@ -60,26 +60,29 @@ export function PageHeader({
           <div className="flex flex-1 flex-wrap items-center gap-4">
             {authors?.length ? (
               <div className="flex max-w-full flex-wrap items-center gap-1">
-                {authors.flatMap((a, index) => [
-                  <a
-                    key={a.id.id}
-                    href={getHref(originHomeId, a.id)}
-                    className="cursor-pointer text-sm font-bold"
-                  >
-                    {getMetadataName(a.metadata)}
-                  </a>,
-                  index !== authors.length - 1 ? (
-                    index === authors.length - 2 ? (
-                      <SizableText key={`${a}-and`} size="xs" weight="bold">
-                        {' & '}
-                      </SizableText>
-                    ) : (
-                      <SizableText size="xs" key={`${a}-comma`} weight="bold">
-                        {', '}
-                      </SizableText>
-                    )
-                  ) : null,
-                ])}
+                {authors.flatMap((a, index) => {
+                  console.log('== a 3', a)
+                  return [
+                    <a
+                      key={a.id.id}
+                      href={getHref(originHomeId, a.id)}
+                      className="cursor-pointer text-sm font-bold"
+                    >
+                      {getMetadataName(a.metadata)}
+                    </a>,
+                    index !== authors.length - 1 ? (
+                      index === authors.length - 2 ? (
+                        <SizableText key={`${a}-and`} size="xs" weight="bold">
+                          {' & '}
+                        </SizableText>
+                      ) : (
+                        <SizableText size="xs" key={`${a}-comma`} weight="bold">
+                          {', '}
+                        </SizableText>
+                      )
+                    ) : null,
+                  ]
+                })}
               </div>
             ) : null}
             {authors?.length ? <div className="bg-border h-6 w-px" /> : null}

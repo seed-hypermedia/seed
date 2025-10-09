@@ -622,6 +622,7 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                   <div className="flex max-w-full flex-wrap items-center gap-1">
                     {authors
                       ?.map((a, index) => {
+                        console.log('== a 1', a)
                         const contact = authorContacts[a]
                         if (!contact) return null
                         return [

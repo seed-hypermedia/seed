@@ -378,7 +378,9 @@ export function CommentGroup({
             }
             key={comment.id}
             comment={comment}
-            authorMetadata={authors?.[comment.author]?.metadata}
+            authorMetadata={
+              comment.author ? authors?.[comment.author]?.metadata : null
+            }
             authorId={comment.author}
             renderCommentContent={renderCommentContent}
             replyCount={
