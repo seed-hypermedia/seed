@@ -196,7 +196,9 @@ def main():
     except ValueError as err:
         print(str(err))
         sys.exit(1)
-    except (subprocess.CalledProcessError, KeyboardInterrupt):
+    except subprocess.CalledProcessError:
+        sys.exit(1)
+    except KeyboardInterrupt:
         return
 
 
