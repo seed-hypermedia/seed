@@ -7,10 +7,10 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {useImageUrl} from './get-file-url'
 import {HTMLAttributes, useMemo} from 'react'
 import {useDocContentContext} from './document-content'
 import {FacePile} from './face-pile'
+import {useImageUrl} from './get-file-url'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -55,7 +55,7 @@ export function DocumentCard({
     <div
       data-docid={docId?.id}
       className={cn(
-        'hover:bg-accent dark:hover:bg-accent @container min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
+        'hover:bg-accent dark:hover:bg-accent @container flex min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
         banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
       )}
       onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
@@ -63,12 +63,12 @@ export function DocumentCard({
       {...(navigate ? linkProps : {})}
       {...props}
     >
-      <div className="flex h-full max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
+      <div className="flex max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
         {coverImage && (
           <div
             className={cn(
-              'relative h-40 w-full shrink-0 @md:min-h-full @md:w-1/2',
-              banner && '@md:h-[280px]',
+              'relative h-40 w-full shrink-0 @md:h-auto @md:w-1/2',
+              banner && '@md:h-auto',
             )}
           >
             <img
@@ -78,7 +78,7 @@ export function DocumentCard({
             />
           </div>
         )}
-        <div className={cn('flex flex-1 flex-col justify-between')}>
+        <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
           <div className="p-4">
             <p
               className={cn(
@@ -97,7 +97,7 @@ export function DocumentCard({
               {textContent}
             </p>
           </div>
-          <div className="flex items-center justify-between py-1 pr-2 pl-4">
+          <div className="flex items-center justify-between py-3 pr-2 pl-4">
             {(entity?.document?.metadata?.displayPublishTime ||
               entity?.document?.updateTime) && (
               <SizableText

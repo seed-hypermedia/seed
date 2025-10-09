@@ -40,7 +40,7 @@ export class WebActivityService implements ActivityService {
       )
     }
 
-    const queryUrl = `/api/feed?${searchParams.toString()}`
+    const queryUrl = `/hm/api/feed?${searchParams.toString()}`
     return await queryAPI<ListEventsResponse>(queryUrl)
   }
 

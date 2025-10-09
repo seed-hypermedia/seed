@@ -1,4 +1,5 @@
 import {draftMachine} from '@/models/draft-machine'
+import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -56,10 +57,17 @@ export function useDocumentAccessory({
     accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
   } else if (accessoryKey === 'activity') {
     accessory = (
-      <Feed2
-        filterResource={docId?.id}
-        currentAccount={selectedAccount?.id.uid || ''}
-      />
+      <AppDocContentProvider
+        docId={docId}
+        comment
+        textUnit={16}
+        layoutUnit={18}
+      >
+        <Feed2
+          filterResource={docId?.id}
+          currentAccount={selectedAccount?.id.uid || ''}
+        />
+      </AppDocContentProvider>
     )
   } else if (accessoryKey === 'collaborators') {
     // @ts-expect-error

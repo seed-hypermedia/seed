@@ -13,7 +13,6 @@ import {Contact} from './client'
 import {UnpackedHypermediaId} from './hm-types'
 
 export type DocContentContextValue = {
-  entityId: UnpackedHypermediaId | undefined
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]

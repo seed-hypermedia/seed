@@ -284,15 +284,6 @@ export function EmbedDocument(props: EntityComponentProps) {
 }
 
 export function EmbedDocumentContent(props: EntityComponentProps) {
-  const {entityId} = useDocContentContext()
-  if (props.id && entityId && props.id === entityId.id) {
-    return (
-      // avoid recursive embeds!
-      <SizableText color="muted" className="text-[length:var(--text-unit)]">
-        Embed: Parent document (skipped)
-      </SizableText>
-    )
-  }
   const resource = useSubscribedResource(props)
   {
   }

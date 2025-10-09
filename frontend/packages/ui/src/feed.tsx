@@ -13,7 +13,9 @@ import {CommentContent} from './comments'
 import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
 import {HMIcon} from './hm-icon'
+import {DocumentCard} from './newspaper'
 import {ResourceToken} from './resource-token'
+import {Separator} from './separator'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -249,33 +251,52 @@ export function Feed2({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden px-3">
       <ScrollArea>
-        {allEvents.map((e, index) => {
-          const isLast = index === allEvents.length - 1
-          return (
-            <div
-              key={`${e.type}-${e.id}-${e.time}`}
-              ref={isLast ? lastElementRef : undefined}
-              className="hover:bg-background border-border m-2 rounded border"
-            >
-              <div className="flex items-start gap-2 p-2">
-                {e.author?.id ? (
-                  <HMIcon
-                    size={24}
-                    id={e.author.id}
-                    name={e.author.metadata?.name}
-                    icon={e.author.metadata?.icon}
-                  />
-                ) : null}
-                <EventHeaderContent event={e} />
-              </div>
-              <div className="pb-4 pl-[32px]">
-                <EventContent event={e} />
-              </div>
-            </div>
-          )
-        })}
+        <div className="flex flex-col gap-8">
+          {allEvents.map((e, index) => {
+            const isLast = index === allEvents.length - 1
+            return [
+              <div
+                key={`${e.type}-${e.id}-${e.time}`}
+                ref={isLast ? lastElementRef : undefined}
+                className={
+                  cn('flex flex-col gap-2')
+
+                  // e.type == 'comment' && 'border-border border',
+                }
+              >
+                {/* <div
+                className={cn(
+                  'absolute inset-y-0 left-0 w-[24px]',
+                  !isLast &&
+                    "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:content-['']",
+                )}
+              /> */}
+                <div className="flex items-start gap-2">
+                  <div className="size-[24px]">
+                    {e.author?.id ? (
+                      <HMIcon
+                        size={24}
+                        id={e.author.id}
+                        name={e.author.metadata?.name}
+                        icon={e.author.metadata?.icon}
+                      />
+                    ) : null}
+                  </div>
+                  <EventHeaderContent event={e} />
+                </div>
+                <div className="relative flex gap-2">
+                  <div className={cn('w-[24px]')} />
+                  <div className="flex-1">
+                    <EventContent event={e} />
+                  </div>
+                </div>
+              </div>,
+              <Separator />,
+            ]
+          })}
+        </div>
       </ScrollArea>
     </div>
   )
@@ -288,7 +309,26 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
         <span className="text-sm font-bold">
           {event.author?.metadata?.name}
         </span>{' '}
-        <span className="text-muted-foreground text-sm">commented on</span>{' '}
+        <span className="text-muted-foreground text-sm">
+          {event.replyingComment ? 'replied to' : 'commented on '}
+        </span>{' '}
+        {event.replyingComment && event.replyingAuthor?.id
+          ? [
+              <HMIcon
+                className="mx-1 mb-1 inline-block align-middle"
+                id={event.replyingAuthor?.id}
+                size={18}
+                icon={event.replyingAuthor.metadata?.icon}
+                name={event.replyingAuthor.metadata?.name}
+              />,
+              <a className="text-sm font-bold">
+                {event.replyingAuthor.metadata?.name ||
+                  event.replyingAuthor.id?.uid.substring(0, 8)}
+              </a>,
+
+              <span className="text-muted-foreground text-sm"> on</span>,
+            ]
+          : null}{' '}
         <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.target?.metadata?.name}
         </a>{' '}
@@ -381,39 +421,49 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
 function EventContent({event}: {event: LoadedEvent}) {
   if (event.type == 'comment') {
     console.log('== comment', event.comment?.content)
-    return (
-      <div className="-ml-2">
-        {event.comment && <CommentContent comment={event.comment} />}
+    return event.comment ? (
+      <div className="flex flex-col gap-4">
+        {event.replyingComment ? (
+          <div className="border-border -ml-4 rounded border">
+            <CommentContent comment={event.replyingComment} />
+          </div>
+        ) : null}
+
+        <div className="border-border -ml-4 rounded border">
+          <CommentContent comment={event.comment} />
+        </div>
       </div>
-    )
+    ) : null
   }
 
-  if (event.type == 'capability')
-    return (
-      <div>
-        <p>capability</p>
-        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
-      </div>
-    )
+  if (event.type == 'capability') return null
+  // return (
+  //   <div>
+  //     <p>capability</p>
+  //     <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+  //   </div>
+  // )
 
   if (event.type == 'doc-update') {
     // TODO: return card
     return (
-      <div>
-        <p>doc update</p>
-        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
-      </div>
+      <DocumentCard
+        docId={event.docId}
+        entity={{id: event.docId, document: event.document}}
+        accountsMetadata={event.author ? ([event.author] as any) : []}
+      />
     )
   }
 
   if (event.type == 'contact') {
     // TODO: show contact card?
-    return (
-      <div>
-        <p>contact</p>
-        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
-      </div>
-    )
+    return null
+    // return (
+    //   <div>
+    //     <p>contact</p>
+    //     <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+    //   </div>
+    // )
   }
   return null
 }

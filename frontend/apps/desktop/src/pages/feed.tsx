@@ -19,7 +19,9 @@ import {
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
+import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
+import {useScrollRestoration} from '@/utils/use-scroll-restoration'
 import '@shm/editor/editor.css'
 import {
   BlockRange,
@@ -206,6 +208,8 @@ function _FeedContent({
 
   const homeId = hmId(id.uid)
 
+  const selectedAccount = useSelectedAccount()
+
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
@@ -267,6 +271,8 @@ function _FeedContent({
     showSidebars: false,
   })
 
+  const scrollRef = useScrollRestoration('feed-scroll')
+
   if (resource.isInitialLoading) return null
 
   if (resource.data?.type === 'redirect') {
@@ -297,7 +303,7 @@ function _FeedContent({
         ref={elementRef}
       >
         <DocInteractionsSummary docId={id} />
-        <ScrollArea>
+        <ScrollArea ref={scrollRef}>
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
               <div
@@ -318,9 +324,20 @@ function _FeedContent({
                 What's New
               </Text>
               <TSeparator />
-              <div className="-mx-5">
-                <Feed2 filterResource={`${homeId.id}*`} />
-              </div>
+
+              <AppDocContentProvider
+                comment
+                routeParams={{
+                  uid: homeId.uid,
+                }}
+                textUnit={16}
+                layoutUnit={18}
+              >
+                <Feed2
+                  filterResource={`${homeId.id}*`}
+                  currentAccount={selectedAccount?.id.uid || ''}
+                />
+              </AppDocContentProvider>
             </Container>
             {showSidebars ? (
               <div

@@ -125,100 +125,102 @@ export default function DocumentPage() {
   return (
     <>
       <ActivityProvider service={activityService}>
-        <CommentsProvider
-          service={commentsService}
-          onReplyClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
+        <AppDocContentProvider>
+          <CommentsProvider
+            service={commentsService}
+            onReplyClick={(replyComment) => {
+              const targetRoute = isRouteEqualToCommentTarget({
+                id: route.id,
+                comment: replyComment,
+              })
 
-            if (targetRoute) {
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              console.log('targetRoute is the same. replacing...')
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-            triggerCommentDraftFocus(docId.id, replyComment.id)
-          }}
-          onReplyCountClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
-            if (targetRoute) {
-              // comment target is not the same as the route, so we need to change the whole route
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              // comment target is the same as the route, so we can replace safely
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-          }}
-        >
-          <div className="flex h-full flex-1 flex-col">
-            <AccessoryLayout
-              mainPanelRef={mainPanelRef}
-              accessory={accessory}
-              accessoryKey={accessoryKey}
-              onAccessorySelect={(key: typeof accessoryKey) => {
-                if (key === accessoryKey || key === undefined)
-                  return replace({...route, accessory: null})
-                replace({...route, accessory: {key}})
-              }}
-              accessoryOptions={accessoryOptions}
-            >
-              <MainDocumentPage
-                id={route.id}
-                isBlockFocused={route.isBlockFocused || false}
-                onScrollParamSet={useCallback((isFrozen) => {
-                  mainPanelRef.current?.style.setProperty(
-                    'overflow',
-                    isFrozen ? 'hidden' : 'auto',
-                  )
-                }, [])}
-                isCommentingPanelOpen={route.accessory?.key === 'discussions'}
-                onAccessory={useCallback(
-                  (accessory) => {
-                    replace({...route, accessory})
+              if (targetRoute) {
+                push({
+                  key: 'document',
+                  id: targetRoute,
+                  accessory: {
+                    key: 'discussions',
+                    openComment: replyComment.id,
+                    isReplying: true,
                   },
-                  [route, replace],
-                )}
-              />
-            </AccessoryLayout>
-          </div>
-          {templateDialogContent}
-          {notifSettingsDialog.content}
-        </CommentsProvider>
+                })
+              } else {
+                console.log('targetRoute is the same. replacing...')
+                replace({
+                  ...route,
+                  accessory: {
+                    key: 'discussions',
+                    openComment: replyComment.id,
+                    isReplying: true,
+                  },
+                })
+              }
+              triggerCommentDraftFocus(docId.id, replyComment.id)
+            }}
+            onReplyCountClick={(replyComment) => {
+              const targetRoute = isRouteEqualToCommentTarget({
+                id: route.id,
+                comment: replyComment,
+              })
+              if (targetRoute) {
+                // comment target is not the same as the route, so we need to change the whole route
+                push({
+                  key: 'document',
+                  id: targetRoute,
+                  accessory: {
+                    key: 'discussions',
+                    openComment: replyComment.id,
+                    isReplying: true,
+                  },
+                })
+              } else {
+                // comment target is the same as the route, so we can replace safely
+                replace({
+                  ...route,
+                  accessory: {
+                    key: 'discussions',
+                    openComment: replyComment.id,
+                    isReplying: true,
+                  },
+                })
+              }
+            }}
+          >
+            <div className="flex h-full flex-1 flex-col">
+              <AccessoryLayout
+                mainPanelRef={mainPanelRef}
+                accessory={accessory}
+                accessoryKey={accessoryKey}
+                onAccessorySelect={(key: typeof accessoryKey) => {
+                  if (key === accessoryKey || key === undefined)
+                    return replace({...route, accessory: null})
+                  replace({...route, accessory: {key}})
+                }}
+                accessoryOptions={accessoryOptions}
+              >
+                <MainDocumentPage
+                  id={route.id}
+                  isBlockFocused={route.isBlockFocused || false}
+                  onScrollParamSet={useCallback((isFrozen) => {
+                    mainPanelRef.current?.style.setProperty(
+                      'overflow',
+                      isFrozen ? 'hidden' : 'auto',
+                    )
+                  }, [])}
+                  isCommentingPanelOpen={route.accessory?.key === 'discussions'}
+                  onAccessory={useCallback(
+                    (accessory) => {
+                      replace({...route, accessory})
+                    },
+                    [route, replace],
+                  )}
+                />
+              </AccessoryLayout>
+            </div>
+            {templateDialogContent}
+            {notifSettingsDialog.content}
+          </CommentsProvider>
+        </AppDocContentProvider>
       </ActivityProvider>
     </>
   )
