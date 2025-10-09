@@ -24,7 +24,6 @@ export const loader = async ({
   const filterEventType =
     url.searchParams.get('filterEventType')?.split(',') || undefined
   if (!filterResource) throw new Error('filterResource is required')
-
   try {
     const result = await listEventsImpl(grpcClient, {
       pageToken,

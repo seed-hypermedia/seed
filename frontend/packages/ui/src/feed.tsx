@@ -9,6 +9,7 @@ import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {formattedDateShort} from '@shm/shared/utils'
 import {useCallback, useEffect, useRef} from 'react'
+import {CommentContent} from './comments'
 import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
 import {HMIcon} from './hm-icon'
@@ -269,7 +270,9 @@ export function Feed2({
                 ) : null}
                 <EventHeaderContent event={e} />
               </div>
-              <EventContent event={e} />
+              <div className="pb-4 pl-[32px]">
+                <EventContent event={e} />
+              </div>
             </div>
           )
         })}
@@ -377,20 +380,40 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
 
 function EventContent({event}: {event: LoadedEvent}) {
   if (event.type == 'comment') {
-    // TODO: show comment content and also reply parent if present
-    return null
+    console.log('== comment', event.comment?.content)
+    return (
+      <div className="-ml-2">
+        {event.comment && <CommentContent comment={event.comment} />}
+      </div>
+    )
   }
 
-  if (event.type == 'capability') return null
+  if (event.type == 'capability')
+    return (
+      <div>
+        <p>capability</p>
+        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+      </div>
+    )
 
   if (event.type == 'doc-update') {
     // TODO: return card
-    return null
+    return (
+      <div>
+        <p>doc update</p>
+        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+      </div>
+    )
   }
 
   if (event.type == 'contact') {
     // TODO: show contact card?
-    return null
+    return (
+      <div>
+        <p>contact</p>
+        <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+      </div>
+    )
   }
   return null
 }

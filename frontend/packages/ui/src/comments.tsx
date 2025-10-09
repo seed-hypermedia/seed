@@ -437,6 +437,7 @@ export function Comment({
     renderContent = (comment) => (
       <DocContentProvider
         entityId={hmId(comment.id)}
+        // TODO: implement a service for the document content to to get rid of this entityComponents
         entityComponents={{
           Document: () => null,
           Inline: () => null,
@@ -637,6 +638,36 @@ export function Comment({
         )}
       </div>
     </div>
+  )
+}
+
+export function CommentContent({comment}: {comment: HMComment}) {
+  return (
+    <DocContentProvider
+      entityId={hmId(comment.id)}
+      entityComponents={{
+        Document: () => null,
+        Inline: () => null,
+        Query: () => null,
+        Comment: () => null,
+      }}
+      onBlockCopy={() => {}}
+      onBlockReply={() => {}}
+      onBlockCommentClick={() => {}}
+      onBlockCitationClick={() => {}}
+      layoutUnit={24}
+      textUnit={24}
+      comment
+      debug={false}
+      collapsedBlocks={new Set()}
+      setCollapsedBlocks={() => {}}
+    >
+      <BlocksContent
+        hideCollapseButtons
+        blocks={comment.content}
+        parentBlockId={null}
+      />
+    </DocContentProvider>
   )
 }
 
