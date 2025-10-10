@@ -179,16 +179,6 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
       },
     }
 
-    console.log('[FEED DEBUG] Comment Event Route:', {
-      eventId: event.id,
-      commentId: event.comment.id,
-      targetId: event.target.id,
-      targetAccount: event.comment.targetAccount,
-      targetPath: event.comment.targetPath,
-      targetVersion: event.comment.targetVersion,
-      route,
-    })
-
     return route
   }
 
@@ -202,13 +192,6 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
       },
     }
 
-    console.log('[FEED DEBUG] Doc Update Event Route:', {
-      eventId: event.id,
-      docId: event.docId,
-      documentVersion: event.document.version,
-      route,
-    })
-
     return route
   }
 
@@ -221,12 +204,6 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
       id: event.target.id,
     }
 
-    console.log('[FEED DEBUG] Capability Event Route:', {
-      eventId: event.id,
-      targetId: event.target.id,
-      route,
-    })
-
     return route
   }
 
@@ -238,12 +215,6 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
       key: 'contact' as const,
       id: event.contact.id,
     }
-
-    console.log('[FEED DEBUG] Contact Event Route:', {
-      eventId: event.id,
-      contactId: event.contact.id,
-      route,
-    })
 
     return route
   }
@@ -260,18 +231,10 @@ function EventItem({
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
 
-  useEffect(() => {
-    if (event.type == 'comment') {
-      console.log('COMMENT', event.comment)
-    }
-  }, [])
-
   return (
     <div
       className={cn('flex flex-col gap-2 rounded-lg p-2 transition-colors')}
-      onClick={() => {
-        console.log('== CLICK ON EVENT', route)
-      }}
+      {...(route ? linkProps : {})}
     >
       <div className="flex items-start gap-2">
         <div className="size-[24px]">
@@ -519,7 +482,6 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
 
 function EventContent({event}: {event: LoadedEvent}) {
   if (event.type == 'comment') {
-    console.log('== comment', event.comment?.content)
     return event.comment ? (
       <div className="-ml-4">
         <CommentContent comment={event.comment} />
