@@ -1,9 +1,12 @@
 import {
   ActivityService,
+  Event,
   ListEventsRequest,
   ListEventsResponse,
+  LoadedEvent,
 } from '@shm/shared/models/activity-service'
 import {queryAPI} from './models'
+import {unwrap} from './wrapping'
 
 export class WebActivityService implements ActivityService {
   async listEvents(params: ListEventsRequest): Promise<ListEventsResponse> {
@@ -37,7 +40,28 @@ export class WebActivityService implements ActivityService {
       )
     }
 
-    const queryUrl = `/api/feed?${searchParams.toString()}`
+    const queryUrl = `/hm/api/feed?${searchParams.toString()}`
     return await queryAPI<ListEventsResponse>(queryUrl)
+  }
+
+  async resolveEvent(
+    event: Event,
+    currentAccount?: string,
+  ): Promise<LoadedEvent | null> {
+    const response = await fetch('/api/activity/resolve-event', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({event, currentAccount}),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to resolve event')
+    }
+
+    const wrappedResult = await response.json()
+    return unwrap<LoadedEvent | null>(wrappedResult)
   }
 }

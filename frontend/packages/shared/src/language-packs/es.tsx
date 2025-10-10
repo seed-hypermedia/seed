@@ -22,7 +22,7 @@ const Translations = {
     `${args.count} ${pluralS(args.count, 'comentario', 'comentarios')}`,
   citation_count: (args: {count: number}) =>
     `${args.count} ${pluralS(args.count, 'cita', 'citas')}`,
-  Activity: 'Actividad',
+  'Document Activity': 'Actividad del Documento',
   Discussions: 'Discusiones',
   'Start a Comment': 'Inicia un debate',
   Reply: 'Responder',

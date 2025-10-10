@@ -1,9 +1,9 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {triggerCommentDraftFocus} from '@/components/commenting'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
-import {FeedPanel} from '@/components/feed-panel'
 import {ImportDropdownButton} from '@/components/import-doc-button'
+import {DesktopActivityService} from '@/desktop-activity-service'
 import {DesktopCommentsService} from '@/desktop-comments-service'
 import {
   roleCanWrite,
@@ -19,6 +19,8 @@ import {
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
+import {useSelectedAccount} from '@/selected-account'
+import {useScrollRestoration} from '@/utils/use-scroll-restoration'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -34,6 +36,7 @@ import {
   HMResource,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -47,6 +50,7 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
+import {Feed2} from '@shm/ui/feed'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -64,6 +68,7 @@ import {AppDocContentProvider} from './document-content-provider'
 
 export default function FeedPage() {
   const commentsService = new DesktopCommentsService()
+  const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
   const docId: UnpackedHypermediaId | null =
@@ -85,99 +90,101 @@ export default function FeedPage() {
 
   return (
     <>
-      <CommentsProvider
-        service={commentsService}
-        onReplyClick={(replyComment) => {
-          const targetRoute = isRouteEqualToCommentTarget({
-            id: route.id,
-            comment: replyComment,
-          })
+      <ActivityProvider service={activityService}>
+        <CommentsProvider
+          service={commentsService}
+          onReplyClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
 
-          if (targetRoute) {
-            push({
-              key: route.key,
-              id: targetRoute,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          } else {
-            console.log('targetRoute is the same. replacing...')
-            replace({
-              ...route,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          }
-          triggerCommentDraftFocus(docId.id, replyComment.id)
-        }}
-        onReplyCountClick={(replyComment) => {
-          const targetRoute = isRouteEqualToCommentTarget({
-            id: route.id,
-            comment: replyComment,
-          })
-          if (targetRoute) {
-            // comment target is not the same as the route, so we need to change the whole route
-            push({
-              key: route.key,
-              id: targetRoute,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          } else {
-            // comment target is the same as the route, so we can replace safely
-            replace({
-              ...route,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          }
-        }}
-      >
-        <div className="flex h-full flex-1 flex-col">
-          <AccessoryLayout
-            mainPanelRef={mainPanelRef}
-            accessory={accessory}
-            accessoryKey={accessoryKey}
-            onAccessorySelect={(key: typeof accessoryKey) => {
-              if (key === accessoryKey || key === undefined)
-                return replace({...route, accessory: null})
-              replace({...route, accessory: {key}})
-            }}
-            accessoryOptions={accessoryOptions}
-          >
-            <FeedContent
-              id={homeId}
-              route={route}
-              isBlockFocused={false}
-              onScrollParamSet={useCallback((isFrozen) => {
-                mainPanelRef.current?.style.setProperty(
-                  'overflow',
-                  isFrozen ? 'hidden' : 'auto',
-                )
-              }, [])}
-              isCommentingPanelOpen={route.accessory?.key === 'discussions'}
-              onAccessory={useCallback(
-                (accessory) => {
-                  replace({...route, accessory})
+            if (targetRoute) {
+              push({
+                key: route.key,
+                id: targetRoute,
+                accessory: {
+                  key: 'activity',
+                  openComment: replyComment.id,
+                  isReplying: true,
                 },
-                [route, replace],
-              )}
-            />
-          </AccessoryLayout>
-        </div>
-      </CommentsProvider>
+              })
+            } else {
+              console.log('targetRoute is the same. replacing...')
+              replace({
+                ...route,
+                accessory: {
+                  key: 'activity',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+            triggerCommentDraftFocus(docId.id, replyComment.id)
+          }}
+          onReplyCountClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
+            if (targetRoute) {
+              // comment target is not the same as the route, so we need to change the whole route
+              push({
+                key: route.key,
+                id: targetRoute,
+                accessory: {
+                  key: 'activity',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            } else {
+              // comment target is the same as the route, so we can replace safely
+              replace({
+                ...route,
+                accessory: {
+                  key: 'activity',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+          }}
+        >
+          <div className="flex h-full flex-1 flex-col">
+            <AccessoryLayout
+              mainPanelRef={mainPanelRef}
+              accessory={accessory}
+              accessoryKey={accessoryKey}
+              onAccessorySelect={(key: typeof accessoryKey) => {
+                if (key === accessoryKey || key === undefined)
+                  return replace({...route, accessory: null})
+                replace({...route, accessory: {key}})
+              }}
+              accessoryOptions={accessoryOptions}
+            >
+              <FeedContent
+                id={homeId}
+                route={route}
+                isBlockFocused={false}
+                onScrollParamSet={useCallback((isFrozen) => {
+                  mainPanelRef.current?.style.setProperty(
+                    'overflow',
+                    isFrozen ? 'hidden' : 'auto',
+                  )
+                }, [])}
+                isCommentingPanelOpen={route.accessory?.key === 'activity'}
+                onAccessory={useCallback(
+                  (accessory) => {
+                    replace({...route, accessory})
+                  },
+                  [route, replace],
+                )}
+              />
+            </AccessoryLayout>
+          </div>
+        </CommentsProvider>
+      </ActivityProvider>
     </>
   )
 }
@@ -198,6 +205,10 @@ function _FeedContent({
   const replace = useNavigate('replace')
 
   const account = useAccount(id.uid, {enabled: !id.path?.length})
+
+  const homeId = hmId(id.uid)
+
+  const selectedAccount = useSelectedAccount()
 
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
@@ -228,7 +239,7 @@ function _FeedContent({
         replace({
           key: route.key,
           id: targetDocId,
-          accessory: {key: 'discussions', openComment: comment.id},
+          accessory: {key: 'activity', openComment: comment.id},
         })
       }
     }
@@ -249,23 +260,18 @@ function _FeedContent({
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
-  const isHomeDoc = !id.path?.length
-  const isShowOutline =
-    (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
-    !isHomeDoc
-  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
-
   const {
     showSidebars,
     sidebarProps,
     mainContentProps,
     elementRef,
-    showCollapsed,
     wrapperProps,
   } = useDocumentLayout({
     contentWidth: metadata?.contentWidth,
-    showSidebars: showSidebarOutlineDirectory,
+    showSidebars: false,
   })
+
+  const scrollRef = useScrollRestoration('feed-scroll')
 
   if (resource.isInitialLoading) return null
 
@@ -297,7 +303,7 @@ function _FeedContent({
         ref={elementRef}
       >
         <DocInteractionsSummary docId={id} />
-        <ScrollArea>
+        <ScrollArea ref={scrollRef}>
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
               <div
@@ -318,9 +324,21 @@ function _FeedContent({
                 What's New
               </Text>
               <TSeparator />
-              <div className="-mx-5">
-                <FeedPanel filterResource={`${id.id}*`} />
-              </div>
+
+              <AppDocContentProvider
+                comment
+                routeParams={{
+                  uid: homeId.uid,
+                }}
+                textUnit={16}
+                layoutUnit={18}
+              >
+                <Feed2
+                  commentEditor={homeId ? <CommentBox docId={homeId} /> : null}
+                  filterResource={`${homeId.id}*`}
+                  currentAccount={selectedAccount?.id.uid || ''}
+                />
+              </AppDocContentProvider>
             </Container>
             {showSidebars ? (
               <div
@@ -362,7 +380,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
           label="comment"
           count={interactionSummary.data?.comments || 0}
           onPress={() => {
-            replace({...docRoute, accessory: {key: 'discussions'}})
+            replace({...docRoute, accessory: {key: 'activity'}})
           }}
           icon={<MessageSquare className="size-3" />}
         />
@@ -759,8 +777,8 @@ function DocPageContent({
             blockRange: null,
           },
           accessory: {
-            key: 'citations',
-            openBlockId: blockId || null,
+            key: 'activity',
+            openBlockId: blockId || undefined,
           },
         })
       }}
@@ -782,7 +800,7 @@ function DocPageContent({
             blockRange,
           },
           accessory: {
-            key: 'discussions',
+            key: 'activity',
             openBlockId: blockId,
             blockRange,
             autoFocus: true,

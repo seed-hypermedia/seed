@@ -144,7 +144,7 @@ export function DocContentProvider({
       value={{
         ...docContextContent,
         layoutUnit: lUnit,
-        textUnit: comment ? 14 : tUnit,
+        textUnit: tUnit,
         debug,
         ffSerif,
         comment,

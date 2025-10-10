@@ -17,26 +17,11 @@ export const contactRouteSchema = z.object({
 })
 export type ContactRoute = z.infer<typeof contactRouteSchema>
 
-export const documentVersionsAccessorySchema = z.object({
-  key: z.literal('versions'),
-})
-export type DocumentVersionsAccessory = z.infer<
-  typeof documentVersionsAccessorySchema
->
-
 export const documentDirectoryAccessorySchema = z.object({
   key: z.literal('directory'),
 })
 export type DocumentDirectoryAccessory = z.infer<
   typeof documentDirectoryAccessorySchema
->
-
-export const documentCitationsAccessorySchema = z.object({
-  key: z.literal('citations'),
-  openBlockId: z.string().nullable().optional(),
-})
-export type DocumentCitationsAccessory = z.infer<
-  typeof documentCitationsAccessorySchema
 >
 
 export const documentContactsAccessorySchema = z.object({
@@ -60,19 +45,6 @@ export type DocumentSuggestedChangesAccessory = z.infer<
   typeof documentSuggestedChangesAccessorySchema
 >
 
-export const documentDiscussionsAccessorySchema = z.object({
-  key: z.literal('discussions'),
-  width: z.number().optional(),
-  openComment: z.string().optional(),
-  openBlockId: z.string().optional(),
-  blockRange: BlockRangeSchema.nullable().optional(),
-  autoFocus: z.boolean().optional(),
-  isReplying: z.boolean().optional(),
-})
-export type DocumentDiscussionsAccessory = z.infer<
-  typeof documentDiscussionsAccessorySchema
->
-
 export const documentOptionsAccessorySchema = z.object({
   key: z.literal('options'),
 })
@@ -82,6 +54,13 @@ export type DocumentOptionsAccessory = z.infer<
 
 export const documentActivityAccessorySchema = z.object({
   key: z.literal('activity'),
+  width: z.number().optional(),
+  openComment: z.string().optional(),
+  openBlockId: z.string().optional(),
+  blockRange: BlockRangeSchema.nullable().optional(),
+  autoFocus: z.boolean().optional(),
+  isReplying: z.boolean().optional(),
+  filterEventType: z.array(z.string()).optional(),
 })
 export type DocumentActivityAccessory = z.infer<
   typeof documentActivityAccessorySchema
@@ -89,12 +68,8 @@ export type DocumentActivityAccessory = z.infer<
 
 const documentAccessorySchema = z.discriminatedUnion('key', [
   documentActivityAccessorySchema,
-  documentVersionsAccessorySchema,
   documentDirectoryAccessorySchema,
-  documentCitationsAccessorySchema,
   documentCollaboratorsAccessorySchema,
-  documentSuggestedChangesAccessorySchema,
-  documentDiscussionsAccessorySchema,
   documentContactsAccessorySchema,
   documentOptionsAccessorySchema,
 ])

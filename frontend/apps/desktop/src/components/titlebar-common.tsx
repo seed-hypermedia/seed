@@ -644,7 +644,7 @@ function AccessorySidebarToggle() {
       route.key == 'feed'
     ) {
       if (typeof route.accessory == 'undefined' || route.accessory == null) {
-        return {key: 'discussions'}
+        return {key: 'activity'}
       } else {
         return route.accessory
       }

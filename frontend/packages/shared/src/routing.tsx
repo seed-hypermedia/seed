@@ -136,7 +136,7 @@ export function routeToHref(
       ? route.id
       : null
   const activeCommentId =
-    docRoute?.accessory?.key == 'discussions'
+    docRoute?.accessory?.key == 'activity'
       ? docRoute.accessory?.openComment
       : null
   let href: string | undefined = undefined

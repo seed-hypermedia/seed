@@ -15,15 +15,14 @@ import {
   setAppNavDispatch,
   useNavRoute,
 } from '@shm/shared/utils/navigation'
-import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
-import {ReactNode, useEffect, useMemo, useState, useCallback} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
 import {useAppContext, useIPC} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
-import {AppWindowEvent} from './window-events'
-import {useListenAppEvent} from './window-events'
+import {AppWindowEvent, useListenAppEvent} from './window-events'
 
 export function NavigationContainer({
   children,
@@ -120,6 +119,7 @@ export function NavigationContainer({
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
       openRoute={(route: NavRoute, replace?: boolean) => {
+        console.log('== OPEN ROUTE', route)
         if (replace) {
           navigation.dispatch({type: 'replace', route})
         } else {

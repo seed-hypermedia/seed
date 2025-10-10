@@ -26,6 +26,8 @@ export function WebDocContentProvider({
   onBlockCommentClick,
   onHoverIn,
   onHoverOut,
+  layoutUnit,
+  textUnit,
 }: {
   siteHost: string | undefined
   id?: UnpackedHypermediaId | undefined
@@ -47,6 +49,8 @@ export function WebDocContentProvider({
       comments: number
     }
   >
+  layoutUnit?: number
+  textUnit?: number
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (blockId?: string | null) => void
   onHoverIn?: (id: UnpackedHypermediaId) => void
@@ -123,8 +127,8 @@ export function WebDocContentProvider({
       onBlockCommentClick={onBlockCommentClick}
       onBlockCitationClick={onBlockCitationClick}
       routeParams={routeParams}
-      textUnit={18}
-      layoutUnit={24}
+      textUnit={textUnit || 18}
+      layoutUnit={layoutUnit || 24}
       debug={false}
       comment={comment}
       blockCitations={blockCitations}

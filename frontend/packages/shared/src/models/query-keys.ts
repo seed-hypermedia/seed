@@ -51,6 +51,7 @@ export const queryKeys = {
 
   // comments
   COMMENT: 'COMMENT', //, commentId: string
+  COMMENTS_BY_IDS: 'COMMENTS_BY_IDS', //, commentIds: string[]
 
   // web-links
   GET_URL: 'GET_URL',

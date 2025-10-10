@@ -46,10 +46,9 @@ export function AppDocContentProvider({
     <>
       <DocContentProvider
         showDevMenu={experiments.data?.pubContentDevMenu}
-        layoutUnit={contentLayoutUnit}
+        layoutUnit={overrides.layoutUnit || contentLayoutUnit}
         importWebFile={importWebFile}
-        textUnit={contentTextUnit}
-        entityId={docId}
+        textUnit={overrides.textUnit || contentTextUnit}
         debug={false}
         contacts={contacts.data}
         entityComponents={{

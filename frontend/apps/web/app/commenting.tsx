@@ -28,7 +28,7 @@ import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -119,6 +119,9 @@ export default function WebCommenting({
       queryClient.invalidateQueries({
         queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
       })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
+      })
     },
   })
 
@@ -126,20 +129,23 @@ export default function WebCommenting({
 
   if (!docVersion) return null
 
+  const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null)
+
   const {
     content: createAccountContent,
     userKeyPair,
     createAccount,
-  } = useCreateAccount()
+  } = useCreateAccount({
+    onClose: () => {
+      // After account creation, retry pending submission
+      if (pendingSubmitRef.current) {
+        pendingSubmitRef.current()
+        pendingSubmitRef.current = null
+      }
+    },
+  })
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
-
-  console.log(`🔍 LocalWebCommenting ~ myAccount:`, {
-    data: myAccount.data?.metadata,
-    isLoading: myAccount.isLoading,
-    dataUpdatedAt: myAccount.dataUpdatedAt,
-    queryKey: ['ACCOUNT', userKeyPair?.id],
-  })
 
   const {
     content: emailNotificationsPromptContent,
@@ -174,7 +180,11 @@ export default function WebCommenting({
   ) => {
     if (isSubmitting) return // Prevent double submission
 
-    if (!userKeyPair || !myAccount.data) {
+    if (!userKeyPair) {
+      // Store the pending submission to retry after account creation
+      pendingSubmitRef.current = async () => {
+        await handleSubmit(getContent, reset)
+      }
       createAccount()
       return
     }

@@ -14,6 +14,7 @@ import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
+import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
@@ -26,7 +27,6 @@ import {
   handleDragMedia,
   serverBlockNodesFromEditorBlocks,
 } from './utils'
-import avatarPlaceholder from './assets/avatar.png'
 
 function crawlEditorBlocks(
   blocks: EditorBlock[],
@@ -175,7 +175,6 @@ export function CommentEditor({
   onAvatarPress?: () => void
 }) {
   // Debug logging for account updates
-  console.log('🔍 CommentEditor render - account metadata:', account?.metadata)
 
   const {editor} = useCommentEditor(perspectiveAccountUid)
   // Check if we have non-empty draft content

@@ -1,14 +1,12 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {createFeedLoader} from '@shm/shared/feed-loader'
+import {listEventsImpl} from '@shm/shared/models/activity-service'
 
 export type HMFeedPayload = {
   events: any[]
   nextPageToken: string
 }
-
-const {loadDocumentFeed} = createFeedLoader(grpcClient)
 
 export const loader = async ({
   request,
@@ -18,7 +16,6 @@ export const loader = async ({
   params: Params
 }): Promise<WrappedResponse<HMFeedPayload>> => {
   const url = new URL(request.url)
-
   const pageToken = url.searchParams.get('pageToken') || undefined
   const pageSize = parseInt(url.searchParams.get('pageSize') || '10', 10)
   const filterAuthors =
@@ -27,22 +24,16 @@ export const loader = async ({
   const filterEventType =
     url.searchParams.get('filterEventType')?.split(',') || undefined
   if (!filterResource) throw new Error('filterResource is required')
-
   try {
-    const result = await loadDocumentFeed({
+    const result = await listEventsImpl(grpcClient, {
       pageToken,
       pageSize,
       filterAuthors,
       filterResource,
       filterEventType,
     })
-    if (result.nextPageToken === pageToken) {
-      return wrapJSON({events: [], nextPageToken: pageToken})
-    }
     return wrapJSON(result)
-  } catch (e: any) {
-    console.error('Failed to load feed:', e.message)
-    // Return empty feed on error to allow graceful degradation
-    return wrapJSON({events: [], nextPageToken: pageToken || ''})
+  } catch (error: any) {
+    return wrapJSON({error: error.message})
   }
 }

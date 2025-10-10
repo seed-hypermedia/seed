@@ -130,6 +130,30 @@ export function useBlockDiscussionsService(
   })
 }
 
+export function useCommentsByIds(commentIds: string[]) {
+  const context = useCommentsServiceContext()
+
+  return useQuery({
+    queryKey: [queryKeys.COMMENTS_BY_IDS, commentIds],
+    queryFn: async (): Promise<ListCommentsResponse> => {
+      if (!context.service) {
+        return {comments: [], authors: {}}
+      }
+      try {
+        const res = await context.service.listCommentsById({
+          commentsIds: commentIds,
+        })
+        return res
+      } catch (error) {
+        console.error('Error fetching comments by IDs:', error)
+        throw error
+      }
+    },
+    enabled: !!context.service && commentIds.length > 0,
+    retry: 1,
+  })
+}
+
 export function isRouteEqualToCommentTarget({
   id,
   comment,

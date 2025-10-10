@@ -216,14 +216,9 @@ export function EmbedDocumentContent(props: EntityComponentProps) {
   const doc = useResource(props)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const comment = doc.data?.type === 'comment' ? doc.data.comment : undefined
-  const {entityId} = useDocContentContext()
+
   const author = useResource(comment?.author ? hmId(comment?.author) : null)
-  if (props.id && entityId && props.id === entityId.id) {
-    return (
-      // avoid recursive embeds!
-      <SizableText color="muted">Embed: Parent document (skipped)</SizableText>
-    )
-  }
+
   if (comment) {
     return (
       <CommentContentEmbed
@@ -274,7 +269,7 @@ export function QueryBlockWeb({
 }) {
   const ctx = useDocContentContext()
   // const query
-  const {supportQueries, supportDocuments} = ctx || {}
+  const {supportQueries} = ctx || {}
   const includes = block.attributes.query.includes || []
   if (includes.length == 0) return null
   const queryInclude = includes[0]

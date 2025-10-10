@@ -166,7 +166,7 @@ export default function PublishDraftButton() {
             navigate({
               key: 'document',
               accessory:
-                route.key == 'draft' && route.accessory?.key == 'versions'
+                route.key == 'draft' && route.accessory?.key == 'activity'
                   ? route.accessory
                   : null,
               id: resultDocId,

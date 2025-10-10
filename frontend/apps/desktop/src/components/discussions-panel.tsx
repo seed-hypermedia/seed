@@ -3,7 +3,7 @@ import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DocumentDiscussionsAccessory} from '@shm/shared/routes'
+import {DocumentActivityAccessory} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   BlockDiscussions,
@@ -18,8 +18,8 @@ export const DiscussionsPanel = memo(_DiscussionsPanel)
 
 function _DiscussionsPanel(props: {
   docId: UnpackedHypermediaId
-  accessory: DocumentDiscussionsAccessory
-  onAccessory: (acc: DocumentDiscussionsAccessory) => void
+  accessory: DocumentActivityAccessory
+  onAccessory: (acc: DocumentActivityAccessory) => void
 }) {
   const {docId, accessory, onAccessory} = props
   const selectedAccount = useSelectedAccount()
@@ -114,7 +114,7 @@ function _DiscussionsPanel(props: {
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
-          onBack={() => onAccessory({key: 'discussions'})}
+          onBack={() => onAccessory({key: 'activity'})}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           renderCommentContent={renderCommentContent}
@@ -125,10 +125,10 @@ function _DiscussionsPanel(props: {
 
   if (accessory.openComment) {
     return (
-      <>
+      <AppDocContentProvider docId={docId}>
         {deleteCommentDialog.content}
         <CommentDiscussions
-          onBack={() => onAccessory({key: 'discussions'})}
+          onBack={() => onAccessory({key: 'activity'})}
           commentId={accessory.openComment}
           commentEditor={commentEditor}
           targetId={docId}
@@ -137,12 +137,12 @@ function _DiscussionsPanel(props: {
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
         />
-      </>
+      </AppDocContentProvider>
     )
   }
 
   return (
-    <>
+    <AppDocContentProvider docId={docId}>
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
@@ -152,6 +152,6 @@ function _DiscussionsPanel(props: {
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
       />
-    </>
+    </AppDocContentProvider>
   )
 }

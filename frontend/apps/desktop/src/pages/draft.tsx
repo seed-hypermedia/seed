@@ -193,7 +193,7 @@ export default function DraftPage() {
               key: 'document',
               id: targetRoute,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -203,7 +203,7 @@ export default function DraftPage() {
             replace({
               ...route,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -222,7 +222,7 @@ export default function DraftPage() {
               key: 'document',
               id: targetRoute,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -232,7 +232,7 @@ export default function DraftPage() {
             replace({
               ...route,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -624,12 +624,10 @@ function DraftAppHeader({
       items={displayNavItems}
       docId={docId}
       document={document}
-      // @ts-expect-error
       draftMetadata={draftMetadata}
       isCenterLayout={
-        siteHomeEntity.document?.metadata.theme?.headerLayout === 'Center' ||
-        siteHomeEntity.document?.metadata.layout ===
-          'Seed/Experimental/Newspaper'
+        draftMetadata.theme?.headerLayout === 'Center' ||
+        draftMetadata.layout === 'Seed/Experimental/Newspaper'
       }
       editNavPane={
         isEditingHomeDoc ? (
@@ -649,13 +647,9 @@ function DraftAppHeader({
           />
         ) : null
       }
-      supportQueries={[
-        {
-          in: siteHomeEntity.id,
-          results: dir.data || [],
-        },
-      ]}
       supportDocuments={[siteHomeEntity]}
+      handleToggleFeed={() => {}}
+      isMainFeedVisible={false}
     />
   )
 }

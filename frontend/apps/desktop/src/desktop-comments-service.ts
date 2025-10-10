@@ -77,6 +77,8 @@ export class DesktopCommentsService implements CommentsService {
       pageSize: BIG_INT,
     })
 
+    console.log(`== ~ listComments ~ res:`, res)
+
     const comments = res.comments.map((c) =>
       c.toJson({emitDefaultValues: true}),
     ) as Array<HMComment>

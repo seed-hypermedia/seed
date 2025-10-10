@@ -179,6 +179,9 @@ function _CommentBox(props: {
             queryClient.invalidateQueries({
               queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
             })
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
+            })
           }}
         />
       )

@@ -69,8 +69,11 @@ export function CommentDiscussions({
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
-  const commentsService = useCommentsService({targetId})
   if (!commentId) return null
+
+  // Fetch all comments for the document
+  const commentsService = useCommentsService({targetId} as any)
+
   const parentThread = useCommentParents(
     commentsService.data?.comments,
     commentId,
@@ -80,6 +83,10 @@ export function CommentDiscussions({
     commentId,
   )
 
+  const commentFound = commentsService.data?.comments?.some(
+    (c) => c.id === commentId,
+  )
+
   if (commentsService.error) {
     return (
       <AccessoryContent>
@@ -87,6 +94,31 @@ export function CommentDiscussions({
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
+          </SizableText>
+        </div>
+      </AccessoryContent>
+    )
+  }
+
+  if (commentsService.isLoading && !commentsService.data) {
+    return (
+      <AccessoryContent>
+        <AccessoryBackButton onClick={onBack} />
+        <div className="flex items-center justify-center">
+          <Spinner />
+        </div>
+      </AccessoryContent>
+    )
+  }
+
+  // If comment not found in the list, show a message
+  if (!commentFound && commentsService.data) {
+    return (
+      <AccessoryContent>
+        <AccessoryBackButton onClick={onBack} />
+        <div className="flex flex-col items-center gap-2 p-4">
+          <SizableText color="muted" size="sm">
+            This comment is not available in the current document version
           </SizableText>
         </div>
       </AccessoryContent>
@@ -436,7 +468,7 @@ export function Comment({
   if (!renderContent) {
     renderContent = (comment) => (
       <DocContentProvider
-        entityId={hmId(comment.id)}
+        // TODO: implement a service for the document content to to get rid of this entityComponents
         entityComponents={{
           Document: () => null,
           Inline: () => null,
@@ -640,6 +672,16 @@ export function Comment({
   )
 }
 
+export function CommentContent({comment}: {comment: HMComment}) {
+  return (
+    <BlocksContent
+      hideCollapseButtons
+      blocks={comment.content}
+      parentBlockId={null}
+    />
+  )
+}
+
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   const link = useRouteLink(
@@ -647,7 +689,7 @@ function CommentDate({comment}: {comment: HMComment}) {
       key: 'document',
       id: targetId!,
       accessory: {
-        key: 'discussions',
+        key: 'activity',
         openComment: comment.id,
       },
     },
