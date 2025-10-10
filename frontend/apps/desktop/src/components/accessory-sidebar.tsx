@@ -2,7 +2,6 @@ import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSortedCitations} from '@/models/citations'
 import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
-import {useDocumentChanges} from '@/models/versions'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {
@@ -20,16 +19,14 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
-import {BlockQuote} from '@shm/ui/icons'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
 import {
   ChevronDown,
-  Clock,
   Folder,
-  MessageSquare,
+  ListFilter,
   Pencil,
   Sparkle,
   Users,
@@ -115,14 +112,8 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('Collaborators')
   } else if (accessoryKey == 'directory') {
     accessoryTitle = tx('Directory')
-  } else if (accessoryKey == 'discussions') {
-    accessoryTitle = tx('Discussions')
   } else if (accessoryKey == 'options') {
     accessoryTitle = tx('Draft Options')
-  } else if (accessoryKey == 'versions') {
-    accessoryTitle = tx('Versions')
-  } else if (accessoryKey == 'citations') {
-    accessoryTitle = tx('Citations')
   } else if (accessoryKey == 'activity') {
     accessoryTitle = tx('Document Activity')
   }
@@ -134,11 +125,9 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
-  const activeChangeCount = useDocumentChanges(docId).data?.length || undefined
   const citations = useSortedCitations(docId, {
     enabled: isDocument,
   })
-  const citationCount = citations.docCitations.length || undefined
   const commentCount = citations.commentCitations.length || undefined
   const childrenActivity = useChildrenActivity(docId, {
     enabled: isDocument,
@@ -183,16 +172,19 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               onAccessorySelect={onAccessorySelect}
               tabNumbers={{
                 collaborators: collaboratorCount,
-                versions: activeChangeCount,
-                discussions: commentCount,
-                citations: citationCount,
                 directory: directoryCount,
               }}
             />
-            <div className="border-border border-b px-5 py-3">
-              <Text weight="semibold" size="lg">
+            <div className="border-border flex items-center border-b px-5 py-3">
+              <Text weight="semibold" size="lg" className="flex-1">
                 {accessoryTitle}
               </Text>
+              {accessoryKey == 'activity' ? (
+                <Button size="icon">
+                  <ListFilter className="size-3" />
+                  <span className="text-xs">3</span>
+                </Button>
+              ) : null}
             </div>
             {accessory}
           </div>
@@ -232,15 +224,10 @@ export function AccessoryContent({
 }
 
 const iconNames = {
-  activity: Sparkle,
   collaborators: Users,
   directory: Folder,
-  discussions: MessageSquare,
+  activity: Sparkle,
   options: Pencil,
-  versions: Clock,
-  citations: BlockQuote,
-  'suggested-changes': Sparkle,
-  contacts: Sparkle,
 } as const
 
 // Stable width estimator function

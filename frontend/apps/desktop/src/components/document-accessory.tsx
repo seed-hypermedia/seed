@@ -8,12 +8,10 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Feed2} from '@shm/ui/feed'
 import {ReactNode} from 'react'
 import {ActorRefFrom} from 'xstate'
-import {CitationsPanel} from './citations-panel'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {DirectoryPanel} from './directory-panel'
 import {DiscussionsPanel} from './discussions-panel'
 import {OptionsPanel} from './options-panel'
-import {VersionsPanel} from './versions-panel'
 
 export function useDocumentAccessory({
   docId,
@@ -42,47 +40,9 @@ export function useDocumentAccessory({
 
   const selectedAccount = useSelectedAccount()
 
-  if (accessoryKey == 'citations') {
-    accessory = (
-      <CitationsPanel
-        entityId={docId}
-        // @ts-expect-error
-        accessory={route.accessory}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
-  } else if (accessoryKey === 'versions') {
-    accessory = <VersionsPanel docId={docId as UnpackedHypermediaId} />
-  } else if (accessoryKey === 'activity') {
-    accessory = (
-      <AppDocContentProvider
-        docId={docId}
-        comment
-        textUnit={16}
-        layoutUnit={18}
-      >
-        <Feed2
-          filterResource={docId?.id}
-          currentAccount={selectedAccount?.id.uid || ''}
-        />
-      </AppDocContentProvider>
-    )
-  } else if (accessoryKey === 'collaborators') {
+  if (accessoryKey === 'collaborators') {
     // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />
-  } else if (route.accessory?.key === 'discussions') {
-    accessory = (
-      <DiscussionsPanel
-        // @ts-expect-error
-        docId={docId}
-        accessory={route.accessory}
-        onAccessory={(acc) => {
-          replace({...route, accessory: acc})
-        }}
-      />
-    )
   } else if (accessoryKey === 'directory') {
     accessory = docId ? <DirectoryPanel docId={docId} /> : null
   } else if (accessoryKey === 'options' || isNewDraft) {
@@ -102,6 +62,52 @@ export function useDocumentAccessory({
           }}
         />
       ) : null
+  } else {
+    let filterEventType: Array<string> = []
+
+    if (accessoryKey == 'activity') {
+      filterEventType.push('Ref')
+    }
+
+    if (accessoryKey == 'contacts') {
+      filterEventType.push('Contact', 'Profile')
+    }
+
+    if (accessoryKey == 'activity') {
+      filterEventType = []
+    }
+
+    accessory = (
+      <AppDocContentProvider
+        docId={docId}
+        comment
+        textUnit={16}
+        layoutUnit={18}
+      >
+        <Feed2
+          filterResource={docId?.id}
+          currentAccount={selectedAccount?.id.uid || ''}
+          filterEventType={filterEventType}
+        />
+      </AppDocContentProvider>
+    )
+
+    if (accessoryKey == 'activity') {
+      filterEventType.push('Comment')
+
+      if (route.accessory?.openComment || route.accessory?.openBlockId) {
+        accessory = (
+          <DiscussionsPanel
+            // @ts-expect-error
+            docId={docId}
+            accessory={route.accessory}
+            onAccessory={(acc) => {
+              replace({...route, accessory: acc})
+            }}
+          />
+        )
+      }
+    }
   }
 
   if (route.key == 'draft') {
@@ -115,21 +121,6 @@ export function useDocumentAccessory({
     accessoryOptions.push({
       key: 'activity',
       label: 'Feed',
-    })
-
-    accessoryOptions.push({
-      key: 'versions',
-      label: 'Versions',
-    })
-
-    accessoryOptions.push({
-      key: 'citations',
-      label: 'Citations',
-    })
-
-    accessoryOptions.push({
-      key: 'discussions',
-      label: 'Discussions',
     })
 
     accessoryOptions.push({

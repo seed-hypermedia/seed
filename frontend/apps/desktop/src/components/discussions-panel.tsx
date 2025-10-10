@@ -114,7 +114,7 @@ function _DiscussionsPanel(props: {
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
-          onBack={() => onAccessory({key: 'discussions'})}
+          onBack={() => onAccessory({key: 'activity'})}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           renderCommentContent={renderCommentContent}
@@ -128,7 +128,7 @@ function _DiscussionsPanel(props: {
       <AppDocContentProvider docId={docId}>
         {deleteCommentDialog.content}
         <CommentDiscussions
-          onBack={() => onAccessory({key: 'discussions'})}
+          onBack={() => onAccessory({key: 'activity'})}
           commentId={accessory.openComment}
           commentEditor={commentEditor}
           targetId={docId}

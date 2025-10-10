@@ -78,16 +78,16 @@ export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 
 type WebAccessory =
   | {
-      type: 'citations'
+      type: 'activity'
       blockId?: string
     }
   | {
-      type: 'discussions'
+      type: 'activity'
       blockId?: string
       comment?: HMComment
     }
   | {
-      type: 'versions'
+      type: 'activity'
     }
   | {
       type: 'feed'
@@ -226,7 +226,7 @@ function InnerDocumentPage(
       replace: true,
     })
     setActivePanel({
-      type: 'discussions',
+      type: 'activity',
       comment: comment,
     })
     setMobilePanelOpen(true)
@@ -325,7 +325,7 @@ function InnerDocumentPage(
         key: 'document',
         id,
         accessory: {
-          key: 'discussions',
+          key: 'activity',
           openComment: comment.id,
         },
       } as NavRoute
@@ -351,7 +351,7 @@ function InnerDocumentPage(
       changes={interactionSummary.data?.changes}
       onCommentsOpen={() => {
         setDocumentPanel({
-          type: 'discussions',
+          type: 'activity',
           blockId: undefined,
         })
         if (!media.gtSm) {
@@ -381,7 +381,7 @@ function InnerDocumentPage(
       />
     ) : null
 
-  if (activityEnabled && activePanel?.type == 'discussions') {
+  if (activityEnabled && activePanel?.type == 'activity') {
     panel = (
       <WebDiscussionsPanel
         commentEditor={commentEditor}
@@ -389,7 +389,7 @@ function InnerDocumentPage(
         comment={activePanel.comment}
         handleBack={() => {
           setDocumentPanel({
-            type: 'discussions',
+            type: 'activity',
           })
         }}
         setBlockId={onBlockCommentClick}
@@ -425,7 +425,7 @@ function InnerDocumentPage(
         blockId={activePanel.blockId}
         handleBack={() => {
           setDocumentPanel({
-            type: 'citations',
+            type: 'activity',
           })
         }}
       />
@@ -905,7 +905,7 @@ function _DocInteractionsSummary({
               count: comments || 0,
             },
           )}
-          active={activePanel?.type === 'discussions'}
+          active={activePanel?.type === 'activity'}
           count={comments || 0}
           onClick={onCommentsOpen}
           // @ts-ignore

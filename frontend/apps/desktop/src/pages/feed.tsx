@@ -104,7 +104,7 @@ export default function FeedPage() {
                 key: route.key,
                 id: targetRoute,
                 accessory: {
-                  key: 'discussions',
+                  key: 'activity',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -114,7 +114,7 @@ export default function FeedPage() {
               replace({
                 ...route,
                 accessory: {
-                  key: 'discussions',
+                  key: 'activity',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -133,7 +133,7 @@ export default function FeedPage() {
                 key: route.key,
                 id: targetRoute,
                 accessory: {
-                  key: 'discussions',
+                  key: 'activity',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -143,7 +143,7 @@ export default function FeedPage() {
               replace({
                 ...route,
                 accessory: {
-                  key: 'discussions',
+                  key: 'activity',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -379,7 +379,7 @@ function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
           label="comment"
           count={interactionSummary.data?.comments || 0}
           onPress={() => {
-            replace({...docRoute, accessory: {key: 'discussions'}})
+            replace({...docRoute, accessory: {key: 'activity'}})
           }}
           icon={<MessageSquare className="size-3" />}
         />

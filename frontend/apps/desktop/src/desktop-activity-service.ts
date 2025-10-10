@@ -24,8 +24,6 @@ export class DesktopActivityService implements ActivityService {
     // Determine event type from blobType or other fields
     const blobType = event.newBlob.blobType.toLowerCase()
 
-    console.log(`== RESOLVE EVENTS ~ blobType:`, blobType)
-
     switch (blobType) {
       case 'comment':
         let res = await loadCommentEvent(grpcClient, event, currentAccount)

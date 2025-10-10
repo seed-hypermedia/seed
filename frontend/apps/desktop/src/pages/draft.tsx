@@ -193,7 +193,7 @@ export default function DraftPage() {
               key: 'document',
               id: targetRoute,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -203,7 +203,7 @@ export default function DraftPage() {
             replace({
               ...route,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -222,7 +222,7 @@ export default function DraftPage() {
               key: 'document',
               id: targetRoute,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },
@@ -232,7 +232,7 @@ export default function DraftPage() {
             replace({
               ...route,
               accessory: {
-                key: 'discussions',
+                key: 'activity',
                 openComment: replyComment.id,
                 isReplying: true,
               },

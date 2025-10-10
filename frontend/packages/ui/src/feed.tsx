@@ -8,12 +8,16 @@ import {
 } from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
+import {useTx} from '@shm/shared/translation'
 import {formattedDateShort} from '@shm/shared/utils'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback, useEffect, useRef} from 'react'
+import {Button} from './button'
 import {CommentContent} from './comments'
 import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
 import {HMIcon} from './hm-icon'
+import {ReplyArrow} from './icons'
 import {DocumentCard} from './newspaper'
 import {ResourceToken} from './resource-token'
 import {Separator} from './separator'
@@ -167,14 +171,14 @@ export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
 
 function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
-    // Navigate to the target document with discussions open and the comment focused
+    // Navigate to the target document with activity open and the comment focused
     if (!event.target?.id || !event.comment) return null
 
     const route = {
       key: 'document' as const,
       id: event.target.id,
       accessory: {
-        key: 'discussions' as const,
+        key: 'activity' as const,
         openComment: event.comment.id,
       },
     }
@@ -230,7 +234,7 @@ function EventItem({
   route: NavRoute | null
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
-
+  const tx = useTx()
   return (
     <div
       className={cn('flex flex-col gap-2 rounded-lg p-2 transition-colors')}
@@ -251,8 +255,17 @@ function EventItem({
       </div>
       <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />
-        <div className="flex-1">
+        <div className="flex flex-1 flex-col gap-3">
           <EventContent event={event} />
+          <div className="-ml-3">
+            <Button
+              size="xs"
+              className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+            >
+              <ReplyArrow className="size-3" />
+              {tx('Reply')}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -272,6 +285,7 @@ export function Feed2({
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const route = useNavRoute()
 
   const {
     data,
@@ -347,6 +361,13 @@ export function Feed2({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden px-3">
+      <p>
+        accessory:{' '}
+        {route.key == 'document' && route.accessory
+          ? JSON.stringify({accessory: route.accessory})
+          : 'NO ACCESSORY'}
+      </p>
+      <p>filterEventType: {JSON.stringify(filterEventType)}</p>
       <ScrollArea>
         <div className="flex flex-col gap-8">
           {allEvents.map((e, index) => {
@@ -529,6 +550,7 @@ function EventCommentWithReply({
   route: NavRoute | null
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
+  const tx = useTx()
 
   return (
     <div
@@ -592,8 +614,17 @@ function EventCommentWithReply({
       </div>
       <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />
-        <div className="flex-1">
+        <div className="flex flex-1 flex-col gap-3">
           <EventContent event={event} />
+          <div className="-ml-3">
+            <Button
+              size="xs"
+              className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+            >
+              <ReplyArrow className="size-3" />
+              {tx('Reply')}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

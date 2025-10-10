@@ -74,12 +74,6 @@ export function CommentDiscussions({
   // Fetch all comments for the document
   const commentsService = useCommentsService({targetId} as any)
 
-  console.log(
-    `== ~ CommentDiscussions ~ commentsService:`,
-    commentId,
-    commentsService,
-  )
-
   const parentThread = useCommentParents(
     commentsService.data?.comments,
     commentId,
@@ -704,7 +698,7 @@ function CommentDate({comment}: {comment: HMComment}) {
       key: 'document',
       id: targetId!,
       accessory: {
-        key: 'discussions',
+        key: 'activity',
         openComment: comment.id,
       },
     },
