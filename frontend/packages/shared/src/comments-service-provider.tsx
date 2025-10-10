@@ -140,7 +140,9 @@ export function useCommentsByIds(commentIds: string[]) {
         return {comments: [], authors: {}}
       }
       try {
-        const res = await context.service.listCommentsById({commentsIds: commentIds})
+        const res = await context.service.listCommentsById({
+          commentsIds: commentIds,
+        })
         return res
       } catch (error) {
         console.error('Error fetching comments by IDs:', error)

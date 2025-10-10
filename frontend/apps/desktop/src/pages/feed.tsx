@@ -173,7 +173,7 @@ export default function FeedPage() {
                     isFrozen ? 'hidden' : 'auto',
                   )
                 }, [])}
-                isCommentingPanelOpen={route.accessory?.key === 'discussions'}
+                isCommentingPanelOpen={route.accessory?.key === 'activity'}
                 onAccessory={useCallback(
                   (accessory) => {
                     replace({...route, accessory})
@@ -239,7 +239,7 @@ function _FeedContent({
         replace({
           key: route.key,
           id: targetDocId,
-          accessory: {key: 'discussions', openComment: comment.id},
+          accessory: {key: 'activity', openComment: comment.id},
         })
       }
     }
@@ -776,8 +776,8 @@ function DocPageContent({
             blockRange: null,
           },
           accessory: {
-            key: 'citations',
-            openBlockId: blockId || null,
+            key: 'activity',
+            openBlockId: blockId || undefined,
           },
         })
       }}
@@ -799,7 +799,7 @@ function DocPageContent({
             blockRange,
           },
           accessory: {
-            key: 'discussions',
+            key: 'activity',
             openBlockId: blockId,
             blockRange,
             autoFocus: true,

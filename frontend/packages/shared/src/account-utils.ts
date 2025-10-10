@@ -1,6 +1,6 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {GRPCClient} from './grpc-client'
-import {HMMetadata, UnpackedHypermediaId} from './hm-types'
+import {HMMetadata} from './hm-types'
 import {hmId, unpackHmId} from './utils'
 
 export type HMContactItem = {

@@ -87,15 +87,6 @@ export function CommentDiscussions({
     (c) => c.id === commentId,
   )
 
-  console.log('== CommentDiscussions:', {
-    targetId,
-    commentId,
-    commentFound,
-    totalComments: commentsService.data?.comments?.length,
-    parentThread,
-    commentGroupReplies,
-  })
-
   if (commentsService.error) {
     return (
       <AccessoryContent>

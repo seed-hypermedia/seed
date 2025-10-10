@@ -61,7 +61,6 @@ export function PageHeader({
             {authors?.length ? (
               <div className="flex max-w-full flex-wrap items-center gap-1">
                 {authors.flatMap((a, index) => {
-                  console.log('== a 3', a)
                   return [
                     <a
                       key={a.id.id}

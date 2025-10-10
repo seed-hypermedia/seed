@@ -257,15 +257,17 @@ function EventItem({
         <div className={cn('w-[24px]')} />
         <div className="flex flex-1 flex-col gap-3">
           <EventContent event={event} />
-          <div className="-ml-3">
-            <Button
-              size="xs"
-              className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
-            >
-              <ReplyArrow className="size-3" />
-              {tx('Reply')}
-            </Button>
-          </div>
+          {event.type == 'comment' ? (
+            <div className="-ml-3">
+              <Button
+                size="xs"
+                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+              >
+                <ReplyArrow className="size-3" />
+                {tx('Reply')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

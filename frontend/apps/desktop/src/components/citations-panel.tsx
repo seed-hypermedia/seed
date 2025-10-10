@@ -3,7 +3,7 @@ import {useComment, useCommentReplies} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {
-  DocumentCitationsAccessory,
+  DocumentActivityAccessory,
   deduplicateCitations,
   hmId,
   unpackHmId,
@@ -33,8 +33,8 @@ export function CitationsPanel({
   onAccessory,
 }: {
   entityId?: UnpackedHypermediaId
-  accessory: DocumentCitationsAccessory
-  onAccessory: (accessory: DocumentCitationsAccessory) => void
+  accessory: DocumentActivityAccessory
+  onAccessory: (accessory: DocumentActivityAccessory) => void
 }) {
   const citations = useDocumentCitations(entityId)
   if (!entityId) return null
@@ -77,7 +77,7 @@ export function CitationsPanel({
         {accessory.openBlockId ? (
           <AccessoryBackButton
             label="All Citations"
-            onClick={() => onAccessory({...accessory, openBlockId: null})}
+            onClick={() => onAccessory({...accessory, openBlockId: undefined})}
           />
         ) : null}
         {distinctCitations?.map((citation, index) => {

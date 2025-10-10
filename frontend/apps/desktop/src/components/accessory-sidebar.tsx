@@ -228,6 +228,7 @@ const iconNames = {
   directory: Folder,
   activity: Sparkle,
   options: Pencil,
+  contacts: Users,
 } as const
 
 // Stable width estimator function

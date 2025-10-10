@@ -647,13 +647,9 @@ function DraftAppHeader({
           />
         ) : null
       }
-      supportQueries={[
-        {
-          in: siteHomeEntity.id,
-          results: dir.data || [],
-        },
-      ]}
       supportDocuments={[siteHomeEntity]}
+      handleToggleFeed={() => {}}
+      isMainFeedVisible={false}
     />
   )
 }

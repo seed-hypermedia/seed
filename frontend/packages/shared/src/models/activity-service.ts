@@ -184,13 +184,17 @@ export async function loadCommentEvent(
     })
 
     const targetId = hmId(comment.targetAccount, {
-      path: comment.targetPath ? comment.targetPath.split('/').filter(Boolean) : null,
+      path: comment.targetPath
+        ? comment.targetPath.split('/').filter(Boolean)
+        : null,
       version: comment.targetVersion || null,
     })
 
     const target: HMContactItem = {
       id: targetId,
-      metadata: targetDoc.metadata?.toJson({emitDefaultValues: true}) as HMMetadata | undefined,
+      metadata: targetDoc.metadata?.toJson({emitDefaultValues: true}) as
+        | HMMetadata
+        | undefined,
     }
 
     return {
