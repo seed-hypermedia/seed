@@ -624,12 +624,10 @@ function DraftAppHeader({
       items={displayNavItems}
       docId={docId}
       document={document}
-      // @ts-expect-error
       draftMetadata={draftMetadata}
       isCenterLayout={
-        siteHomeEntity.document?.metadata.theme?.headerLayout === 'Center' ||
-        siteHomeEntity.document?.metadata.layout ===
-          'Seed/Experimental/Newspaper'
+        draftMetadata.theme?.headerLayout === 'Center' ||
+        draftMetadata.layout === 'Seed/Experimental/Newspaper'
       }
       editNavPane={
         isEditingHomeDoc ? (

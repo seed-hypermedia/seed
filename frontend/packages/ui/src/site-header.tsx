@@ -49,6 +49,7 @@ export function SiteHeader({
   directoryItems,
   isCenterLayout = false,
   document,
+  draftMetadata,
   supportDocuments,
   onBlockFocus,
   onShowMobileMenu,
@@ -67,6 +68,7 @@ export function SiteHeader({
   directoryItems?: DocNavigationItem[]
   isCenterLayout?: boolean
   document?: HMDocument | undefined
+  draftMetadata?: HMMetadata
   supportDocuments?: HMEntityContent[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
@@ -167,15 +169,18 @@ export function SiteHeader({
       >
         <div
           className={cn('flex shrink-0 items-center self-stretch', {
-            'justify-center': isCenterLayout,
+            'justify-center md:relative': isCenterLayout,
             'flex-start': !isCenterLayout,
           })}
         >
           <div className="flex flex-1 justify-center">
-            <SiteLogo id={headerHomeId} metadata={homeDoc.document?.metadata} />
+            <SiteLogo
+              id={headerHomeId}
+              metadata={draftMetadata || homeDoc.document?.metadata}
+            />
           </div>
           {isCenterLayout ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
               <Button
                 variant="brand"
@@ -445,11 +450,15 @@ export function SiteHeaderMenu({
   handleToggleFeed?: () => void
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
+  const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
 
-  // Calculate reserved width for the dropdown button and edit pane
+  // Calculate reserved width for the dropdown button, edit pane, and feed button
   const editNavPaneWidth =
     editNavPaneRef.current?.getBoundingClientRect().width || 0
-  const reservedWidth = editNavPaneWidth + 8 + 32 + 20 // padding + button + gap
+  const feedLinkButtonWidth =
+    feedLinkButtonRef.current?.getBoundingClientRect().width || 0
+  const reservedWidth = editNavPaneWidth + feedLinkButtonWidth + 8 + 32 + 40 // padding + button + gaps
 
   // Determine active key based on current docId
   const activeKey = useMemo(() => {
@@ -476,34 +485,60 @@ export function SiteHeaderMenu({
       gapWidth: 20,
     })
 
+  // Track container width for responsive Feed button
+  useIsomorphicLayoutEffect(() => {
+    if (!containerRef.current) return
+
+    const updateWidth = () => {
+      setContainerWidth(containerRef.current?.offsetWidth || 0)
+    }
+
+    updateWidth()
+
+    const resizeObserver = new ResizeObserver(updateWidth)
+    resizeObserver.observe(containerRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [containerRef])
+
+  // Show text only when container is larger than 500px
+  const showFeedText = containerWidth > 500
+
   let feedLinkButton = handleToggleFeed ? (
-    <a
-      className={cn(
-        'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
-        isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
-        'hover:text-foreground',
-      )}
-      onClick={handleToggleFeed}
-    >
-      <Sparkle
+    <Tooltip content="Site Feed">
+      <a
+        ref={feedLinkButtonRef}
         className={cn(
-          'size-4 flex-none shrink-0',
-          isMainFeedVisible
-            ? 'text-foreground text-bold'
-            : 'text-muted-foreground',
+          'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+          isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
+          'hover:text-foreground',
         )}
-      />
-      <span
-        className={cn(
-          'hidden md:block',
-          isMainFeedVisible
-            ? 'text-foreground text-bold'
-            : 'text-muted-foreground',
-        )}
+        onClick={handleToggleFeed}
       >
-        Feed
-      </span>
-    </a>
+        <Sparkle
+          className={cn(
+            'size-4 flex-none shrink-0',
+            isMainFeedVisible
+              ? 'text-foreground text-bold'
+              : 'text-muted-foreground',
+          )}
+        />
+
+        {showFeedText && (
+          <span
+            className={cn(
+              isMainFeedVisible
+                ? 'text-foreground text-bold'
+                : 'text-muted-foreground',
+            )}
+          >
+            Feed
+          </span>
+        )}
+      </a>
+    </Tooltip>
   ) : null
 
   return (
@@ -563,8 +598,6 @@ export function SiteHeaderMenu({
         )
       })}
 
-      {feedLinkButton}
-
       {/* Overflow dropdown */}
       {overflowItems.length > 0 && (
         <Tooltip content="More Menu items">
@@ -586,6 +619,7 @@ export function SiteHeaderMenu({
           </DropdownMenu>
         </Tooltip>
       )}
+      {feedLinkButton}
     </div>
   )
 }
