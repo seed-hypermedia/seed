@@ -128,7 +128,11 @@ export async function createAccount({
   }
   const existingKeyPair = await getStoredLocalKeys()
   if (existingKeyPair) {
-    throw new Error('Account already exists')
+    const id = await preparePublicKey(existingKeyPair.publicKey)
+    return {
+      ...existingKeyPair,
+      id: base58btc.encode(id),
+    }
   }
   const keyPair = await generateAndStoreKeyPair()
   const genesisChange = await createDocumentGenesisChange({
@@ -287,9 +291,11 @@ export async function updateProfile({
   await postCBOR('/hm/api/document-update', updateData)
 }
 
-export function useCreateAccount() {
+export function useCreateAccount(options?: {onClose?: () => void}) {
   const userKeyPair = useLocalKeyPair()
-  const createAccountDialog = useAppDialog(CreateAccountDialog)
+  const createAccountDialog = useAppDialog(CreateAccountDialog, {
+    onClose: options?.onClose,
+  })
   return {
     canCreateAccount: !userKeyPair,
     createAccount: () => createAccountDialog.open({}),

@@ -419,6 +419,7 @@ function InnerDocumentPage(
       // Otherwise show the feed
       panel = (
         <Feed2
+          commentEditor={<WebCommenting docId={id} />}
           filterResource={id.id}
           currentAccount={currentAccount.data?.id.uid}
         />
@@ -517,6 +518,7 @@ function InnerDocumentPage(
                             <Separator />
 
                             <Feed2
+                              commentEditor={<WebCommenting docId={id} />}
                               filterResource={`${originHomeId.id}*`}
                               currentAccount={currentAccount.data?.id.uid}
                             />

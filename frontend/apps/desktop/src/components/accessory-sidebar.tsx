@@ -1,5 +1,4 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {useSortedCitations} from '@/models/citations'
 import {useSubscribedResource} from '@/models/entities'
 import {useChildrenActivity} from '@/models/library'
 import {DocAccessoryOption} from '@shm/shared'
@@ -125,10 +124,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
-  const citations = useSortedCitations(docId, {
-    enabled: isDocument,
-  })
-  const commentCount = citations.commentCitations.length || undefined
+
   const childrenActivity = useChildrenActivity(docId, {
     enabled: isDocument,
   })
@@ -180,10 +176,12 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
                 {accessoryTitle}
               </Text>
               {accessoryKey == 'activity' ? (
-                <Button size="icon">
-                  <ListFilter className="size-3" />
-                  <span className="text-xs">3</span>
-                </Button>
+                <Tooltip content="coming soon!...">
+                  <Button size="icon">
+                    <ListFilter className="size-3" />
+                    {/* <span className="text-xs">3</span> */}
+                  </Button>
+                </Tooltip>
               ) : null}
             </div>
             {accessory}

@@ -16,17 +16,12 @@ import {
 } from '@shm/shared/models/entity'
 import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
 import {SearchPayload} from '@shm/shared/models/search'
-import {
-  useInfiniteQuery,
-  useQuery,
-  UseQueryOptions,
-} from '@tanstack/react-query'
+import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {serverOnly$} from 'vite-env-only/macros'
 import {grpcClient} from './client.server'
 import {deleteRecent, getRecents} from './local-db-recents'
 import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
-import {HMFeedPayload} from './routes/hm.api.feed'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
@@ -137,47 +132,6 @@ export function useCitations(
   })
 
   return response
-}
-
-export function useDocFeed({
-  pageSize,
-  filterAuthors,
-  filterResource,
-  filterEventType,
-}: {
-  pageSize?: number
-  filterAuthors?: string[]
-  filterResource?: string
-  filterEventType?: string[]
-}) {
-  return useInfiniteQuery(
-    [queryKeys.FEED, filterResource, filterAuthors, filterEventType],
-    async ({pageParam}) => {
-      if (!filterResource) throw Error('No filterResource on Feed API')
-
-      let url = `/hm/api/feed?filterResource=${filterResource}`
-      if (pageSize) {
-        url += `&pageSize=${pageSize}`
-      }
-      if (filterAuthors) {
-        url += `&filterAuthors=${filterAuthors.join(',')}`
-      }
-      if (filterEventType) {
-        url += `&filterEventType=${filterEventType.join(',')}`
-      }
-      if (pageParam) {
-        url += `&pageToken=${pageParam}`
-      }
-      return await queryAPI<HMFeedPayload>(url)
-    },
-    {
-      enabled: !!filterResource,
-      getNextPageParam: (lastPage, allPages) => {
-        const next = lastPage.nextPageToken
-        return next || undefined
-      },
-    },
-  )
 }
 
 export function useInteractionSummary(

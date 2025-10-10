@@ -1,5 +1,5 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {triggerCommentDraftFocus} from '@/components/commenting'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
@@ -20,8 +20,8 @@ import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
-import {useNavigate} from '@/utils/useNavigate'
 import {useScrollRestoration} from '@/utils/use-scroll-restoration'
+import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
   BlockRange,
@@ -334,6 +334,7 @@ function _FeedContent({
                 layoutUnit={18}
               >
                 <Feed2
+                  commentEditor={homeId ? <CommentBox docId={homeId} /> : null}
                   filterResource={`${homeId.id}*`}
                   currentAccount={selectedAccount?.id.uid || ''}
                 />

@@ -10,11 +10,10 @@ import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx} from '@shm/shared/translation'
 import {formattedDateShort} from '@shm/shared/utils'
-import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback, useEffect, useRef} from 'react'
+import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {CommentContent} from './comments'
-import {ScrollArea} from './components/scroll-area'
 import {ContactToken} from './contact-token'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
@@ -279,7 +278,9 @@ export function Feed2({
   filterAuthors,
   filterEventType,
   currentAccount = '',
+  commentEditor,
 }: {
+  commentEditor: any
   filterResource: ListEventsRequest['filterResource']
   filterAuthors?: ListEventsRequest['filterAuthors']
   filterEventType?: ListEventsRequest['filterEventType']
@@ -287,7 +288,6 @@ export function Feed2({
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const route = useNavRoute()
 
   const {
     data,
@@ -360,49 +360,57 @@ export function Feed2({
       </div>
     )
   }
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
+    return <div>Error loading feed</div>
+  }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden px-3">
-      <p>
-        accessory:{' '}
-        {route.key == 'document' && route.accessory
-          ? JSON.stringify({accessory: route.accessory})
-          : 'NO ACCESSORY'}
-      </p>
-      <p>filterEventType: {JSON.stringify(filterEventType)}</p>
-      <ScrollArea>
-        <div className="flex flex-col gap-8">
-          {allEvents.map((e, index) => {
-            const isLast = index === allEvents.length - 1
-            const route = getEventRoute(e)
+    <AccessoryContent header={commentEditor}>
+      <div className="mt-4 flex flex-col gap-8">
+        {allEvents.map((e, index) => {
+          const isLast = index === allEvents.length - 1
+          const route = getEventRoute(e)
 
-            if (e.type == 'comment' && e.replyingComment) {
-              return (
-                <>
-                  <div key={`${e.type}-${e.id}-${e.time}`}>
-                    <EventCommentWithReply event={e} route={route} />
-                  </div>
-                  <Separator />
-                  {isLast && <div ref={lastElementRef} />}
-                </>
-              )
-            }
-
+          if (e.type == 'comment' && e.replyingComment) {
             return (
               <>
-                <EventItem
-                  key={`${e.type}-${e.id}-${e.time}`}
-                  event={e}
-                  route={route}
-                />
+                <div key={`${e.type}-${e.id}-${e.time}`}>
+                  <EventCommentWithReply event={e} route={route} />
+                </div>
                 <Separator />
                 {isLast && <div ref={lastElementRef} />}
               </>
             )
-          })}
+          }
+
+          return (
+            <>
+              <EventItem
+                key={`${e.type}-${e.id}-${e.time}`}
+                event={e}
+                route={route}
+              />
+              <Separator />
+              {isLast && <div ref={lastElementRef} />}
+            </>
+          )
+        })}
+      </div>
+      {isFetchingNextPage && (
+        <div className="text-muted-foreground py-3 text-center">
+          Loading more...
         </div>
-      </ScrollArea>
-    </div>
+      )}
+      {!hasNextPage && allEvents.length > 0 && (
+        <div className="text-muted-foreground py-3 text-center">
+          No more events
+        </div>
+      )}
+    </AccessoryContent>
   )
 }
 

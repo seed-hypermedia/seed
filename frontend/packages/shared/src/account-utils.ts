@@ -27,9 +27,22 @@ export async function resolveAccount(
   }
 
   // Fetch the account document to get metadata and check for alias
-  const grpcAccount = await grpcClient.documents.getAccount({
-    id: accountId,
-  })
+  let grpcAccount
+  try {
+    grpcAccount = await grpcClient.documents.getAccount({
+      id: accountId,
+    })
+  } catch (error) {
+    // If account is not found, return minimal contact item with just the ID
+    // This can happen for web-created accounts that haven't synced yet
+    const id = hmId(accountId)
+    return {
+      id,
+      metadata: {
+        name: accountId.slice(0, 8) + '...',
+      },
+    }
+  }
 
   // Check if it's an alias account - if so, recursively resolve
   if (grpcAccount.aliasAccount) {

@@ -9,6 +9,7 @@ import {Feed2} from '@shm/ui/feed'
 import {ReactNode} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
+import {CommentBox} from './commenting'
 import {DirectoryPanel} from './directory-panel'
 import {DiscussionsPanel} from './discussions-panel'
 import {OptionsPanel} from './options-panel'
@@ -85,6 +86,7 @@ export function useDocumentAccessory({
         layoutUnit={18}
       >
         <Feed2
+          commentEditor={docId ? <CommentBox docId={docId} /> : null}
           filterResource={docId?.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={filterEventType}
