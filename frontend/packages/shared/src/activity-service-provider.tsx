@@ -83,8 +83,6 @@ export function useActivityFeed({
         pageToken: pageParam as string | undefined,
       })
 
-      console.log(`== ~ useActivityFeed ~ response:`, response)
-
       // Resolve all events in this page
       const resolvedEvents = await Promise.all(
         response.events.map((event) =>

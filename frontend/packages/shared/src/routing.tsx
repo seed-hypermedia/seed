@@ -201,6 +201,7 @@ export function useRouteLink(
         }
         e.preventDefault()
         opts?.onPress?.(e)
+        console.log('CLICKED', route)
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {

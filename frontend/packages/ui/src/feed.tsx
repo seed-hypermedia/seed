@@ -99,7 +99,7 @@ export function RouteEventRow({
   route: NavRoute | null
   className?: string
 }) {
-  const linkProps = useRouteLink(route)
+  const linkProps = useRouteLink(route, {handler: 'onClick'})
   return (
     <div
       className={cn(
@@ -162,6 +162,137 @@ export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
     <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
       {formattedDateShort(time)}
     </SizableText>
+  )
+}
+
+function getEventRoute(event: LoadedEvent): NavRoute | null {
+  if (event.type == 'comment') {
+    // Navigate to the target document with discussions open and the comment focused
+    if (!event.target?.id || !event.comment) return null
+
+    const route = {
+      key: 'document' as const,
+      id: event.target.id,
+      accessory: {
+        key: 'discussions' as const,
+        openComment: event.comment.id,
+      },
+    }
+
+    console.log('[FEED DEBUG] Comment Event Route:', {
+      eventId: event.id,
+      commentId: event.comment.id,
+      targetId: event.target.id,
+      targetAccount: event.comment.targetAccount,
+      targetPath: event.comment.targetPath,
+      targetVersion: event.comment.targetVersion,
+      route,
+    })
+
+    return route
+  }
+
+  if (event.type == 'doc-update') {
+    // Navigate to the document
+    const route = {
+      key: 'document' as const,
+      id: {
+        ...event.docId,
+        version: event.document.version,
+      },
+    }
+
+    console.log('[FEED DEBUG] Doc Update Event Route:', {
+      eventId: event.id,
+      docId: event.docId,
+      documentVersion: event.document.version,
+      route,
+    })
+
+    return route
+  }
+
+  if (event.type == 'capability') {
+    // Navigate to the target document if available
+    if (!event.target?.id) return null
+
+    const route = {
+      key: 'document' as const,
+      id: event.target.id,
+    }
+
+    console.log('[FEED DEBUG] Capability Event Route:', {
+      eventId: event.id,
+      targetId: event.target.id,
+      route,
+    })
+
+    return route
+  }
+
+  if (event.type == 'contact') {
+    // Navigate to the contact page
+    if (!event.contact.id) return null
+
+    const route = {
+      key: 'contact' as const,
+      id: event.contact.id,
+    }
+
+    console.log('[FEED DEBUG] Contact Event Route:', {
+      eventId: event.id,
+      contactId: event.contact.id,
+      route,
+    })
+
+    return route
+  }
+
+  return null
+}
+
+function EventItem({
+  event,
+  route,
+}: {
+  event: LoadedEvent
+  route: NavRoute | null
+}) {
+  const linkProps = useRouteLink(route, {handler: 'onClick'})
+
+  useEffect(() => {
+    if (event.type == 'comment') {
+      console.log('COMMENT', event.comment)
+    }
+  }, [])
+
+  return (
+    <div
+      className={cn('flex flex-col gap-2 rounded-lg p-2 transition-colors')}
+      onClick={() => {
+        console.log('== CLICK ON EVENT', route)
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <div className="size-[24px]">
+          {event.author?.id ? (
+            <HMIcon
+              size={24}
+              id={event.author.id}
+              name={event.author.metadata?.name}
+              icon={event.author.metadata?.icon}
+            />
+          ) : null}
+        </div>
+        <EventHeaderContent event={event} />
+      </div>
+      <div className="relative flex gap-2">
+        <div className={cn('w-[24px]')} />
+        <div className="flex-1">
+          <EventContent event={event} />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -257,11 +388,13 @@ export function Feed2({
         <div className="flex flex-col gap-8">
           {allEvents.map((e, index) => {
             const isLast = index === allEvents.length - 1
+            const route = getEventRoute(e)
+
             if (e.type == 'comment' && e.replyingComment) {
               return (
                 <>
                   <div key={`${e.type}-${e.id}-${e.time}`}>
-                    <EventCommentWithReply event={e} />
+                    <EventCommentWithReply event={e} route={route} />
                   </div>
                   <Separator />
                   {isLast && <div ref={lastElementRef} />}
@@ -271,41 +404,11 @@ export function Feed2({
 
             return (
               <>
-                <div
+                <EventItem
                   key={`${e.type}-${e.id}-${e.time}`}
-                  className={
-                    cn('flex flex-col gap-2')
-
-                    // e.type == 'comment' && 'border-border border',
-                  }
-                >
-                  {/* <div
-                className={cn(
-                  'absolute inset-y-0 left-0 w-[24px]',
-                  !isLast &&
-                    "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:content-['']",
-                )}
-              /> */}
-                  <div className="flex items-start gap-2">
-                    <div className="size-[24px]">
-                      {e.author?.id ? (
-                        <HMIcon
-                          size={24}
-                          id={e.author.id}
-                          name={e.author.metadata?.name}
-                          icon={e.author.metadata?.icon}
-                        />
-                      ) : null}
-                    </div>
-                    <EventHeaderContent event={e} />
-                  </div>
-                  <div className="relative flex gap-2">
-                    <div className={cn('w-[24px]')} />
-                    <div className="flex-1">
-                      <EventContent event={e} />
-                    </div>
-                  </div>
-                </div>
+                  event={e}
+                  route={route}
+                />
                 <Separator />
                 {isLast && <div ref={lastElementRef} />}
               </>
@@ -456,9 +559,21 @@ function EventContent({event}: {event: LoadedEvent}) {
   return null
 }
 
-function EventCommentWithReply({event}: {event: LoadedCommentEvent}) {
+function EventCommentWithReply({
+  event,
+  route,
+}: {
+  event: LoadedCommentEvent
+  route: NavRoute | null
+}) {
+  const linkProps = useRouteLink(route, {handler: 'onClick'})
+
   return (
-    <div key={`${event.type}-${event.id}-${event.time}`}>
+    <div
+      key={`${event.type}-${event.id}-${event.time}`}
+      className={cn('rounded-lg p-2 transition-colors')}
+      {...(route ? linkProps : {})}
+    >
       {/* replying comment */}
       <div className={cn('flex flex-col')}>
         <div className="flex items-start gap-2">

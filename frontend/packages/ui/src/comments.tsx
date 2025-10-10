@@ -69,8 +69,17 @@ export function CommentDiscussions({
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
-  const commentsService = useCommentsService({targetId})
   if (!commentId) return null
+
+  // Fetch all comments for the document
+  const commentsService = useCommentsService({targetId} as any)
+
+  console.log(
+    `== ~ CommentDiscussions ~ commentsService:`,
+    commentId,
+    commentsService,
+  )
+
   const parentThread = useCommentParents(
     commentsService.data?.comments,
     commentId,
@@ -80,6 +89,19 @@ export function CommentDiscussions({
     commentId,
   )
 
+  const commentFound = commentsService.data?.comments?.some(
+    (c) => c.id === commentId,
+  )
+
+  console.log('== CommentDiscussions:', {
+    targetId,
+    commentId,
+    commentFound,
+    totalComments: commentsService.data?.comments?.length,
+    parentThread,
+    commentGroupReplies,
+  })
+
   if (commentsService.error) {
     return (
       <AccessoryContent>
@@ -87,6 +109,31 @@ export function CommentDiscussions({
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
+          </SizableText>
+        </div>
+      </AccessoryContent>
+    )
+  }
+
+  if (commentsService.isLoading && !commentsService.data) {
+    return (
+      <AccessoryContent>
+        <AccessoryBackButton onClick={onBack} />
+        <div className="flex items-center justify-center">
+          <Spinner />
+        </div>
+      </AccessoryContent>
+    )
+  }
+
+  // If comment not found in the list, show a message
+  if (!commentFound && commentsService.data) {
+    return (
+      <AccessoryContent>
+        <AccessoryBackButton onClick={onBack} />
+        <div className="flex flex-col items-center gap-2 p-4">
+          <SizableText color="muted" size="sm">
+            This comment is not available in the current document version
           </SizableText>
         </div>
       </AccessoryContent>

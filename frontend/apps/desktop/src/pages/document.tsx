@@ -77,7 +77,6 @@ export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
 
   const activityService = new DesktopActivityService()
-  console.log(`== ~ useActivityFeed ~ commentsService:`, activityService)
   const route = useNavRoute()
 
   const docId = route.key == 'document' && route.id

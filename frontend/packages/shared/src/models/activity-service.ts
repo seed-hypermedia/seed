@@ -9,7 +9,7 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '../hm-types'
-import {unpackHmId} from '../utils'
+import {hmId, unpackHmId} from '../utils'
 
 export type ListEventsRequest = {
   pageSize?: number
@@ -177,11 +177,21 @@ export async function loadCommentEvent(
       ? await resolveAccount(grpcClient, replyingComment.author, currentAccount)
       : null
 
-    const targetAccount = await resolveAccount(
-      grpcClient,
-      comment.targetAccount,
-      currentAccount,
-    )
+    const targetDoc = await grpcClient.documents.getDocument({
+      account: comment.targetAccount,
+      version: comment.targetVersion,
+      path: comment.targetPath,
+    })
+
+    const targetId = hmId(comment.targetAccount, {
+      path: comment.targetPath ? comment.targetPath.split('/').filter(Boolean) : null,
+      version: comment.targetVersion || null,
+    })
+
+    const target: HMContactItem = {
+      id: targetId,
+      metadata: targetDoc.metadata?.toJson({emitDefaultValues: true}) as HMMetadata | undefined,
+    }
 
     return {
       id: comment.id,
@@ -194,7 +204,7 @@ export async function loadCommentEvent(
       replyingAuthor,
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
-      target: targetAccount,
+      target,
     }
   } catch (error) {
     console.error('Event: catch error:', event, error)
@@ -328,6 +338,8 @@ export async function loadRefEvent(
       event.account,
       currentAccount,
     )
+
+    console.log('== REF EVENT', event)
 
     const docId = unpackHmId(event.newBlob.resource)
 
