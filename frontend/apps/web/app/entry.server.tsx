@@ -278,7 +278,9 @@ async function handleOptionsRequest(request: Request) {
       if (doc) {
         headers['X-Hypermedia-Id'] = hmId.id
         headers['X-Hypermedia-Version'] = doc.version
-        headers['X-Hypermedia-Title'] = doc.metadata.name || ''
+        headers['X-Hypermedia-Title'] = encodeURIComponent(
+          doc.metadata.name || '',
+        )
       }
       return new Response(null, {
         status: 200,
