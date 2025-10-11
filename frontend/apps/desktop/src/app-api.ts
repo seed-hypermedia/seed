@@ -19,6 +19,7 @@ import {createIPCHandler} from 'electron-trpc/main'
 import {writeFile} from 'fs-extra'
 import path from 'path'
 import z from 'zod'
+import {deleteAccount} from './app-account-management'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
@@ -246,6 +247,11 @@ export const router = t.router({
     closeAppWindow(input)
     return null
   }),
+  deleteAccount: t.procedure
+    .input(z.string())
+    .mutation(async ({input: accountId}) => {
+      return await deleteAccount(accountId)
+    }),
   createAppWindow: t.procedure
     .input(
       z.object({

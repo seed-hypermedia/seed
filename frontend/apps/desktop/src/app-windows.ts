@@ -201,7 +201,7 @@ function setWindowState(windowId: string, window: AppWindow) {
   newWindows[windowId] = window
   setWindowsState(newWindows)
 }
-function updateWindowState(
+export function updateWindowState(
   windowId: string,
   updater: (window: AppWindow) => AppWindow,
 ) {

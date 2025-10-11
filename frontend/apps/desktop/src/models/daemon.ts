@@ -166,20 +166,19 @@ export function useRegisterKey(
 export function useDeleteKey(
   opts?: UseMutationOptions<any, unknown, {accountId: string}>,
 ) {
-  const deleteWords = trpc.secureStorage.delete.useMutation()
+  const deleteAccount = trpc.deleteAccount.useMutation()
   return useMutation({
     mutationFn: async ({accountId}) => {
-      const keys = await grpcClient.daemon.listKeys({})
-      const keyToDelete = keys.keys.find((key) => accountId == key.publicKey)
-      if (!keyToDelete) throw new Error('Key not found')
-      const deletedKey = await grpcClient.daemon.deleteKey({
-        name: keyToDelete.name,
-      })
-      await deleteWords.mutateAsync(keyToDelete.name)
-      return deletedKey
+      // Use TRPC to handle the entire deletion process on the backend
+      return await deleteAccount.mutateAsync(accountId)
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables, context) => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
+
+      // Call the original onSuccess if provided
+      if (opts?.onSuccess) {
+        opts.onSuccess(data, variables, context)
+      }
     },
     ...opts,
   })

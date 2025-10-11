@@ -75,8 +75,18 @@ export function NavigationContainer({
       if (event.type === 'forward') {
         navigation.dispatch({type: 'forward'})
       }
+      if (event.type === 'selectedIdentityChanged') {
+        // Update the navigation state with the new selected identity
+        navigation.dispatch({
+          type: 'selectedIdentity',
+          value: event.selectedIdentity,
+        })
+        console.log('Selected identity changed externally:', {
+          newSelectedIdentity: event.selectedIdentity,
+        })
+      }
     })
-  }, [])
+  }, [navigation])
 
   useEffect(() => {
     setAppNavDispatch(navigation.dispatch)
