@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import React, {memo} from 'react'
 import {GenericSidebarContainer} from './sidebar-base'
+import {SidebarFooter} from './sidebar-footer'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -33,7 +34,9 @@ export function MainAppSidebar() {
   const selectedAccountId = useSelectedAccountId()
 
   return (
-    <GenericSidebarContainer>
+    <GenericSidebarContainer
+      footer={({isVisible}) => <SidebarFooter isSidebarVisible={isVisible} />}
+    >
       <CreateDocumentButton />
       <SmallListItem
         active={
