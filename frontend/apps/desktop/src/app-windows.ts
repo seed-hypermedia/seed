@@ -140,6 +140,7 @@ const appWindowSchema = z.object({
   sidebarLocked: z.boolean(),
   sidebarWidth: z.number(),
   accessoryWidth: z.number(),
+  selectedIdentity: z.string().nullable().optional(),
 })
 
 type AppWindow = z.infer<typeof appWindowSchema>
@@ -392,6 +393,7 @@ export function createAppWindow(
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
+    selectedIdentity: input.selectedIdentity || null,
   }
   windowNavState[windowId] = windValue
 
@@ -447,6 +449,7 @@ export function createAppWindow(
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
+    selectedIdentity: input.selectedIdentity || null,
     bounds: null,
   })
 
@@ -466,6 +469,7 @@ export function createAppWindow(
         sidebarLocked,
         sidebarWidth,
         accessoryWidth,
+        selectedIdentity,
       }: NavState,
     ) => {
       windowNavState[windowId] = {
@@ -475,6 +479,7 @@ export function createAppWindow(
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
         accessoryWidth: accessoryWidth || 20,
+        selectedIdentity: selectedIdentity || null,
       }
       updateWindowState(windowId, (window) => ({
         ...window,
@@ -484,6 +489,7 @@ export function createAppWindow(
           typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
         sidebarWidth: sidebarWidth || 15,
         accessoryWidth: accessoryWidth || 20,
+        selectedIdentity: selectedIdentity || null,
       }))
       // @ts-ignore
       updateRecentRoute(routes[routeIndex])

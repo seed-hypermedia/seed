@@ -1,6 +1,7 @@
 import {useMyAccounts} from '@/models/daemon'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
+import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
 import {
   Popover,
@@ -24,7 +25,7 @@ export function SidebarFooter({
   isSidebarVisible?: boolean
 }) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
-  const selectedIdentityValue = selectedIdentity
+  const selectedIdentityValue = useStream(selectedIdentity)
   const myAccounts = useMyAccounts()
   const accountOptions = myAccounts
     ?.map((a) => {
@@ -153,11 +154,12 @@ export function SidebarFooter({
 
 function LinkKeyButton() {
   const {selectedIdentity} = useUniversalAppContext()
+  const selectedIdentityValue = useStream(selectedIdentity)
   const myAccounts = useMyAccounts()
   const linkDevice = useAppDialog(LinkDeviceDialog)
 
   const selectedAccount = myAccounts?.find(
-    (a) => a.data?.id?.uid === selectedIdentity,
+    (a) => a.data?.id?.uid === selectedIdentityValue,
   )
   const selectedAccountDoc =
     selectedAccount?.data?.type === 'document'
@@ -173,9 +175,9 @@ function LinkKeyButton() {
           size="icon"
           className="hover:bg-muted active:bg-muted shrink-none h- flex h-8 w-8 items-center justify-center rounded-md"
           onClick={() => {
-            if (selectedIdentity) {
+            if (selectedIdentityValue) {
               linkDevice.open({
-                accountUid: selectedIdentity,
+                accountUid: selectedIdentityValue,
                 accountName,
               })
             }

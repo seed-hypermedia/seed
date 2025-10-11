@@ -4,6 +4,7 @@ import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
+import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -25,7 +26,7 @@ type UniversalAppContextValue = {
   hmUrlHref?: boolean
 
   languagePack?: LanguagePack
-  selectedIdentity?: string | null
+  selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
 }
 
@@ -48,7 +49,7 @@ export function UniversalAppProvider(props: {
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   hmUrlHref?: boolean
   languagePack?: LanguagePack
-  selectedIdentity?: string | null
+  selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
 }) {
   return (

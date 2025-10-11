@@ -157,16 +157,8 @@ export function useRegisterKey(
         })
       return registration
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: () => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-      // Update available keys - the new account will be auto-selected
-      // if there's no current selection, or you can force select it
-      // @ts-expect-error
-      await window.selectedIdentityAPI?.updateKeys?.()
-      // Call the original onSuccess if provided
-      if (opts?.onSuccess) {
-        opts.onSuccess(data, variables, context)
-      }
     },
   })
 }
@@ -176,46 +168,20 @@ export function useDeleteKey(
 ) {
   const deleteWords = trpc.secureStorage.delete.useMutation()
   return useMutation({
-    ...opts,
     mutationFn: async ({accountId}) => {
       const keys = await grpcClient.daemon.listKeys({})
       const keyToDelete = keys.keys.find((key) => accountId == key.publicKey)
       if (!keyToDelete) throw new Error('Key not found')
-
-      // Store the accountId that's being deleted for use in onSuccess
-      const deletedAccountId = keyToDelete.accountId || keyToDelete.publicKey
-
       const deletedKey = await grpcClient.daemon.deleteKey({
         name: keyToDelete.name,
       })
       await deleteWords.mutateAsync(keyToDelete.name)
-
-      // Return both the deleted key and the account ID
-      return {deletedKey, deletedAccountId}
+      return deletedKey
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: () => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
-
-      // Check if the deleted account was the selected one
-      // @ts-expect-error
-      const currentSelectedId = await window.selectedIdentityAPI?.get?.()
-      if (currentSelectedId === data.deletedAccountId) {
-        // The deleted account was selected, so we need to update selection
-        // updateKeys will handle selecting the first available account
-        // @ts-expect-error
-        await window.selectedIdentityAPI?.updateKeys?.()
-      } else {
-        // Different account was deleted, just update the available keys list
-        // without changing selection
-        // @ts-expect-error
-        await window.selectedIdentityAPI?.updateKeys?.()
-      }
-
-      // Call the original onSuccess if provided
-      if (opts?.onSuccess) {
-        opts.onSuccess(data.deletedKey, variables, context)
-      }
     },
+    ...opts,
   })
 }
 

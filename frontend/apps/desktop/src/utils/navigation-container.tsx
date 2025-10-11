@@ -15,14 +15,14 @@ import {
   setAppNavDispatch,
   useNavRoute,
 } from '@shm/shared/utils/navigation'
-import {writeableStateStream} from '@shm/shared/utils/stream'
+import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
 import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
-import {ReactNode, useCallback, useEffect, useMemo, useState} from 'react'
+import {ReactNode, useEffect, useMemo} from 'react'
 import {useAppContext, useIPC} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
-import {AppWindowEvent, useListenAppEvent} from './window-events'
+import {AppWindowEvent} from './window-events'
 
 export function NavigationContainer({
   children,
@@ -37,33 +37,6 @@ export function NavigationContainer({
   initialNav?: NavState
 }) {
   const {externalOpen} = useAppContext()
-
-  // Use global selected identity from main process
-  const [selectedIdentity, setSelectedIdentityState] = useState<string | null>(
-    null,
-  )
-
-  // Load initial selected identity
-  useEffect(() => {
-    // @ts-expect-error
-    window.selectedIdentityAPI?.get().then(setSelectedIdentityState)
-  }, [])
-
-  // Listen for selected identity changes from other windows
-  useListenAppEvent('selectedIdentityChanged', (event) => {
-    if (typeof event === 'object' && 'selectedIdentity' in event) {
-      setSelectedIdentityState(event.selectedIdentity)
-    }
-  })
-
-  // Function to update selected identity globally
-  const setSelectedIdentity = useCallback((newIdentity: string | null) => {
-    // @ts-expect-error
-    window.selectedIdentityAPI?.set(newIdentity)
-  }, [])
-
-  // No need for stream - just pass the state directly
-
   const navigation = useMemo(() => {
     const [updateNavState, navState] = writeableStateStream(initialNav)
 
@@ -79,6 +52,10 @@ export function NavigationContainer({
         }
       },
       state: navState,
+      selectedIdentity: streamSelector<NavState, string | null>(
+        navState,
+        (state) => state.selectedIdentity || null,
+      ),
     }
   }, [])
   const {send} = useIPC()
@@ -138,8 +115,10 @@ export function NavigationContainer({
         onCopyReference(hmId)
       }}
       hmUrlHref={true}
-      selectedIdentity={selectedIdentity}
-      setSelectedIdentity={setSelectedIdentity}
+      selectedIdentity={navigation.selectedIdentity}
+      setSelectedIdentity={(keyId: string | null) => {
+        navigation.dispatch({type: 'selectedIdentity', value: keyId})
+      }}
     >
       <NavContextProvider value={navigation}>
         {children}

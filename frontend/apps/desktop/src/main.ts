@@ -46,8 +46,12 @@ import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
-import {initializeSelectedIdentity} from './app-selected-identity'
-import {deleteWindowsState, getFocusedWindow} from './app-windows'
+import {
+  deleteWindowsState,
+  getAllWindows,
+  getFocusedWindow,
+  getWindowsState,
+} from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import * as logger from './logger'
@@ -123,9 +127,6 @@ app.on('will-finish-launching', () => {
 
 app.whenReady().then(() => {
   logger.debug('[MAIN]: Seed ready')
-
-  // Initialize global selected identity
-  initializeSelectedIdentity()
 
   // Check if app was launched after update
   const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
@@ -264,7 +265,25 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    trpc.createAppWindow({routes: [defaultRoute]})
+    // Get the focused window's selected identity to copy it to the new window
+    const focusedWindow = getFocusedWindow()
+    let selectedIdentity: string | null = null
+
+    if (focusedWindow) {
+      const focusedWindowId = Array.from(getAllWindows().entries()).find(
+        ([_, window]) => window === focusedWindow,
+      )?.[0]
+
+      if (focusedWindowId) {
+        const focusedWindowState = getWindowsState()[focusedWindowId]
+        selectedIdentity = focusedWindowState?.selectedIdentity || null
+      }
+    }
+
+    trpc.createAppWindow({
+      routes: [defaultRoute],
+      selectedIdentity,
+    })
   })
 
   ipcMain.on('minimize_window', (_event, _info) => {
