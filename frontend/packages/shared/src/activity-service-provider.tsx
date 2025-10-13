@@ -90,7 +90,11 @@ export function useActivityFeed({
         ),
       )
 
+      console.log('== RESOLVED EVENTS', resolvedEvents)
+
       const filteredEvents = resolvedEvents.filter((e) => !!e) as LoadedEvent[]
+
+      console.log(`== ~ useActivityFeed ~ filteredEvents:`, filteredEvents)
 
       return {
         events: filteredEvents,

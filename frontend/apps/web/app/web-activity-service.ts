@@ -1,15 +1,15 @@
 import {
   ActivityService,
-  Event,
-  ListEventsRequest,
-  ListEventsResponse,
+  HMEvent,
+  HMListEventsRequest,
+  HMListEventsResponse,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
 import {queryAPI} from './models'
 import {unwrap} from './wrapping'
 
 export class WebActivityService implements ActivityService {
-  async listEvents(params: ListEventsRequest): Promise<ListEventsResponse> {
+  async listEvents(params: HMListEventsRequest): Promise<HMListEventsResponse> {
     const searchParams = new URLSearchParams()
 
     if (params.pageSize) {
@@ -41,11 +41,11 @@ export class WebActivityService implements ActivityService {
     }
 
     const queryUrl = `/hm/api/feed?${searchParams.toString()}`
-    return await queryAPI<ListEventsResponse>(queryUrl)
+    return await queryAPI<HMListEventsResponse>(queryUrl)
   }
 
   async resolveEvent(
-    event: Event,
+    event: HMEvent,
     currentAccount?: string,
   ): Promise<LoadedEvent | null> {
     const response = await fetch('/api/activity/resolve-event', {
@@ -53,7 +53,9 @@ export class WebActivityService implements ActivityService {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({event, currentAccount}),
+      body: JSON.stringify({event, currentAccount}, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value,
+      ),
     })
 
     if (!response.ok) {

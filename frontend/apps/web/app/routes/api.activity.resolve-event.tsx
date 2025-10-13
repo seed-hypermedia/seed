@@ -2,8 +2,9 @@ import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {json} from '@remix-run/node'
 import {
-  Event,
+  HMEvent,
   loadCapabilityEvent,
+  loadCitationEvent,
   loadCommentEvent,
   loadContactEvent,
   LoadedEvent,
@@ -11,7 +12,7 @@ import {
 } from '@shm/shared/models/activity-service'
 
 export type ResolveEventRequest = {
-  event: Event
+  event: HMEvent
   currentAccount?: string
 }
 
@@ -49,6 +50,9 @@ export const action = async ({
         break
       case 'contact':
         result = await loadContactEvent(grpcClient, event, currentAccount)
+        break
+      case 'citation':
+        result = await loadCitationEvent(grpcClient, event, currentAccount)
         break
       case 'profile':
       case 'dagpb':

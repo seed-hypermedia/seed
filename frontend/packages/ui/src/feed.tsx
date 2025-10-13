@@ -2,7 +2,7 @@ import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {HMTimestamp} from '@shm/shared/hm-types'
 import {
-  ListEventsRequest,
+  HMListEventsRequest,
   LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
@@ -222,6 +222,36 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
     return route
   }
 
+  if (event.type == 'citation') {
+    // Navigate to the target document (the document being cited)
+    if (!event.source?.id) return null
+
+    // For comment citations, open the comment
+    if (event.citationType === 'c' && event.comment) {
+      const route = {
+        key: 'document' as const,
+        id: event.source.id,
+        accessory: {
+          key: 'activity' as const,
+          openComment: event.comment.id,
+        },
+      }
+      return route
+    }
+
+    // For document citations, navigate to the target document
+    // If there's a target fragment (block ID), include it in the URL
+    const route = {
+      key: 'document' as const,
+      id: event.source.id,
+      ...(event.targetFragment && {
+        fragment: event.targetFragment,
+      }),
+    }
+
+    return route
+  }
+
   return null
 }
 
@@ -256,7 +286,8 @@ function EventItem({
         <div className={cn('w-[24px]')} />
         <div className="flex flex-1 flex-col gap-3">
           <EventContent event={event} />
-          {event.type == 'comment' ? (
+          {event.type == 'comment' ||
+          (event.type == 'citation' && event.comment) ? (
             <div className="-ml-3">
               <Button
                 size="xs"
@@ -281,9 +312,9 @@ export function Feed2({
   commentEditor,
 }: {
   commentEditor: any
-  filterResource: ListEventsRequest['filterResource']
-  filterAuthors?: ListEventsRequest['filterAuthors']
-  filterEventType?: ListEventsRequest['filterEventType']
+  filterResource: HMListEventsRequest['filterResource']
+  filterAuthors?: HMListEventsRequest['filterAuthors']
+  filterEventType?: HMListEventsRequest['filterEventType']
   currentAccount?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
@@ -367,6 +398,8 @@ export function Feed2({
   if (error) {
     return <div>Error loading feed</div>
   }
+
+  console.log('-== ALL EVENTS', filterResource, allEvents)
 
   return (
     <AccessoryContent header={commentEditor}>
@@ -503,6 +536,35 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
     )
   }
 
+  if (event.type == 'citation') {
+    console.log('== CITATION', event)
+
+    const authorName = event.author?.metadata?.name || 'Someone'
+    const targetName = event.target?.metadata?.name || 'this document'
+    const sourceName = event.source?.metadata?.name || 'a document'
+
+    return (
+      <p>
+        <span className="text-sm font-bold">{authorName}</span>{' '}
+        <span className="text-muted-foreground text-sm">
+          {event.citationType === 'c' ? 'mentioned' : 'cited'}
+        </span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {targetName}
+        </a>{' '}
+        <span className="text-muted-foreground text-sm">
+          {event.citationType === 'c' ? 'in a comment on' : 'in'}
+        </span>{' '}
+        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {sourceName}
+        </a>{' '}
+        <span className="text-muted-foreground ml-2 flex-none text-xs">
+          {formattedDateShort(event.time)}
+        </span>
+      </p>
+    )
+  }
+
   console.error(
     'EventHeaderContent: We must have ifs for all the event types:',
     event,
@@ -520,6 +582,21 @@ function EventContent({event}: {event: LoadedEvent}) {
     ) : null
   }
 
+  if (event.type == 'citation') {
+    console.log(`== ~ loadCitationEvent ~ comment:`, event)
+    // Render comment content for comment citations
+    if (event.citationType === 'c' && event.comment) {
+      return (
+        <div className="-ml-4">
+          <CommentContent comment={event.comment} />
+        </div>
+      )
+    } else {
+      console.log('--- CITATION DOC', event)
+    }
+    // Don't show content for document citations
+    return null
+  }
   if (event.type == 'capability') return null
   // return (
   //   <div>

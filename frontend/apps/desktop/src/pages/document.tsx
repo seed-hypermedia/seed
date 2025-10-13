@@ -87,7 +87,6 @@ export default function DocumentPage() {
   const push = useNavigate('push')
 
   const {accessory, accessoryOptions} = useDocumentAccessory({docId})
-
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const immediatePromptNotifs =
     route.immediatelyPromptNotifs && !route.id?.path?.length
@@ -796,6 +795,9 @@ function DocPageContent({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
+
+  console.log(`== ~ DocPageContent ~ citations:`, citations)
+
   const docRoute = route.key === 'document' ? route : null
   if (!docRoute) return null
   if (resource?.type !== 'document') return null

@@ -7,6 +7,7 @@ export * from './editor-types'
 export * from './grpc-client'
 // @ts-expect-error - DeviceLinkSession naming conflict between modules
 export * from './hm-types'
+export * from './models/activity-service'
 export * from './models/payment-allocations'
 export * from './models/payments'
 export * from './models/query-client'

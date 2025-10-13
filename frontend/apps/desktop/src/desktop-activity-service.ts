@@ -1,11 +1,12 @@
 import {
   ActivityService,
-  Event,
-  ListEventsRequest,
-  ListEventsResponse,
+  HMEvent,
+  HMListEventsRequest,
+  HMListEventsResponse,
   LoadedEvent,
-  listEventsImpl,
+  listEventsWithCitationsImpl,
   loadCapabilityEvent,
+  loadCitationEvent,
   loadCommentEvent,
   loadContactEvent,
   loadRefEvent,
@@ -13,12 +14,12 @@ import {
 import {grpcClient} from './grpc-client'
 
 export class DesktopActivityService implements ActivityService {
-  async listEvents(params: ListEventsRequest): Promise<ListEventsResponse> {
-    return listEventsImpl(grpcClient, params)
+  async listEvents(params: HMListEventsRequest): Promise<HMListEventsResponse> {
+    return listEventsWithCitationsImpl(grpcClient, params)
   }
 
   async resolveEvent(
-    event: Event,
+    event: HMEvent,
     currentAccount?: string,
   ): Promise<LoadedEvent | null> {
     // Determine event type from blobType or other fields
@@ -34,6 +35,8 @@ export class DesktopActivityService implements ActivityService {
         return loadCapabilityEvent(grpcClient, event, currentAccount)
       case 'contact':
         return loadContactEvent(grpcClient, event, currentAccount)
+      case 'citation':
+        return loadCitationEvent(grpcClient, event, currentAccount)
       case 'dagpb':
       case 'profile':
         return null
