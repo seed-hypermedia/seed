@@ -27,11 +27,6 @@ export function processMentionsToCitations(
 ): HMCitation[] {
   return mentions
     .map((mention) => {
-      console.log(
-        `== ~ processMentionsToCitations ~ mention:`,
-        mention.mentionType,
-      )
-
       const sourceId = unpackHmId(mention.source)
       if (!sourceId) return null
 

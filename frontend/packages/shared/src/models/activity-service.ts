@@ -57,7 +57,11 @@ export type LoadedContactEvent = {
   type: 'contact'
   author: HMContactItem
   time: HMTimestamp
-  contact: HMContactItem
+  contact: {
+    id: UnpackedHypermediaId
+    name: string
+    subject: HMContactItem
+  }
   //   contactData: HMContact | null
 }
 
@@ -383,7 +387,7 @@ export async function loadCommentEvent(
     }
 
     return {
-      id: comment.id,
+      id: event.newBlob.cid,
       type: 'comment',
       author,
       time: event.eventTime as any,
@@ -445,7 +449,7 @@ export async function loadCapabilityEvent(
     )
 
     return {
-      id: capId?.uid!,
+      id: event.newBlob.cid,
       type: 'capability',
       author,
       targetId: null,
@@ -481,7 +485,28 @@ export async function loadContactEvent(
   }
 
   try {
-    const resourceId = unpackHmId(event.newBlob.resource)
+    // Parse extraAttrs to get tsid and name
+    let extraAttrs: {tsid?: string; name?: string} = {}
+    try {
+      extraAttrs = JSON.parse(event.newBlob.extraAttrs)
+    } catch (error) {
+      console.error('Failed to parse extraAttrs:', error)
+    }
+
+    // Construct contact ID: author + tsid
+    if (!extraAttrs.tsid) {
+      console.error('Missing tsid for contact event:', event)
+      return null
+    }
+
+    const contactId = `${event.newBlob.author}/${extraAttrs.tsid}`
+
+    // Get contact from API
+    const grpcContact = await grpcClient.documents.getContact({
+      id: contactId,
+    })
+
+    const subject = await resolveAccount(grpcClient, grpcContact.subject)
 
     const author = await resolveAccount(
       grpcClient,
@@ -489,22 +514,24 @@ export async function loadContactEvent(
       currentAccount,
     )
 
-    const contact = resourceId
-      ? await resolveAccount(grpcClient, resourceId.uid, currentAccount)
-      : null
+    // Construct contact item
+    const contactUnpackedId = unpackHmId(`hm://${contactId}`)
+    if (!contactUnpackedId) {
+      console.error('Failed to unpack contact ID:', contactId)
+      return null
+    }
 
-    return resourceId
-      ? {
-          type: 'contact',
-          time: event.eventTime || '',
-          author,
-          contact: {
-            id: resourceId,
-            metadata: contact?.metadata,
-          },
-          id: resourceId.uid,
-        }
-      : null
+    return {
+      type: 'contact',
+      time: event.eventTime || '',
+      author,
+      contact: {
+        id: contactUnpackedId,
+        name: extraAttrs.name || '',
+        subject,
+      },
+      id: event.newBlob.cid,
+    }
   } catch (error) {
     console.error('Event: catch error:', event, error)
     return null
@@ -544,7 +571,7 @@ export async function loadRefEvent(
 
     return docId
       ? {
-          id: event.newBlob.resource,
+          id: event.newBlob.cid,
           type: 'doc-update',
           time: event.eventTime || '',
           docId,

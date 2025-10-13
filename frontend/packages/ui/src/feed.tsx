@@ -572,10 +572,22 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.author?.metadata?.name}
         </span>{' '}
         <span className="text-muted-foreground text-sm">added</span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {event.contact.metadata?.name}
+        {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
+          <HMIcon
+            className="mx-1 mb-1 inline-block align-middle"
+            id={event.contact.subject.id}
+            size={18}
+            icon={event.contact.subject.metadata.icon}
+            name={event.contact.subject.metadata.name}
+          />
+        ) : null}
+        <a className="text-sm font-bold">
+          {event.contact.subject?.metadata?.name}
         </a>{' '}
-        <span className="text-muted-foreground text-sm">as a Contact</span>{' '}
+        <span className="text-muted-foreground text-sm">as</span>{' '}
+        <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+          {event.contact.name}
+        </span>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
           {formattedDateShort(event.time)}
         </span>
