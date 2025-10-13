@@ -1,11 +1,16 @@
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
-import {HMTimestamp} from '@shm/shared/hm-types'
+import {
+  HMBlockNode,
+  HMTimestamp,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {
   HMListEventsRequest,
   LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
+import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx} from '@shm/shared/translation'
@@ -15,6 +20,7 @@ import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {CommentContent} from './comments'
 import {ContactToken} from './contact-token'
+import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {DocumentCard} from './newspaper'
@@ -44,6 +50,57 @@ import {cn} from './utils'
   </div>
 </div>
 */
+
+// Helper function to find a block by ID in the content tree
+function findContentBlock(
+  content: HMBlockNode[],
+  blockRef: string,
+): HMBlockNode | null {
+  let block: HMBlockNode | null = null
+  content.find((node) => {
+    if (node.block.id === blockRef) {
+      block = node
+      return true
+    } else if (node.children) {
+      block = findContentBlock(node.children, blockRef)
+      return !!block
+    }
+    return false
+  })
+  return block
+}
+
+// Component to render a source block for document citations
+function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
+  const resource = useResource(sourceId)
+
+  if (resource.isLoading) {
+    return <div className="text-muted-foreground text-xs">Loading block...</div>
+  }
+
+  if (resource.error || !resource.data) {
+    return null
+  }
+
+  const content =
+    resource.data.type === 'document'
+      ? resource.data.document?.content
+      : resource.data.type === 'comment'
+      ? resource.data.comment?.content
+      : undefined
+
+  if (!content || !sourceId.blockRef) {
+    return null
+  }
+
+  const blockNode = findContentBlock(content, sourceId.blockRef)
+
+  if (!blockNode) {
+    return null
+  }
+
+  return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
+}
 
 export function FeedItemWrapper({
   className,
@@ -318,7 +375,7 @@ export function Feed2({
   currentAccount?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const lastElementNodeRef = useRef<HTMLDivElement | null>(null)
 
   const {
     data,
@@ -334,52 +391,46 @@ export function Feed2({
     currentAccount,
   })
 
-  const lastElementRef = useCallback(
-    (node: HTMLDivElement) => {
-      // Disconnect previous observer
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-        observerRef.current = undefined
-      }
+  const lastElementRef = useCallback((node: HTMLDivElement) => {
+    lastElementNodeRef.current = node
+  }, [])
 
-      // Early return if no node or still loading
-      if (!node || isLoading) {
-        return
-      }
+  // Setup and cleanup observer whenever dependencies change
+  useEffect(() => {
+    // Disconnect previous observer
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = undefined
+    }
 
-      const scrollContainer = scrollContainerRef.current
+    const node = lastElementNodeRef.current
 
-      // Use the ref container or fallback to default viewport
-      const observerOptions = scrollContainer
-        ? {
-            root: scrollContainer,
-            rootMargin: '100px',
-          }
-        : {
-            rootMargin: '100px',
-          }
+    // Early return if no node or still loading
+    if (!node || isLoading) {
+      return
+    }
 
-      observerRef.current = new IntersectionObserver((entries) => {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
         const entry = entries[0]
         if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
-      }, observerOptions)
+      },
+      {
+        rootMargin: '100px',
+      },
+    )
 
-      observerRef.current.observe(node)
-    },
-    [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage],
-  )
+    observerRef.current.observe(node)
 
-  // Cleanup observer on component unmount
-  useEffect(() => {
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect()
         observerRef.current = undefined
       }
     }
-  }, [])
+  }, [isLoading, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
@@ -399,13 +450,10 @@ export function Feed2({
     return <div>Error loading feed</div>
   }
 
-  console.log('-== ALL EVENTS', filterResource, allEvents)
-
   return (
     <AccessoryContent header={commentEditor}>
       <div className="mt-4 flex flex-col gap-8">
-        {allEvents.map((e, index) => {
-          const isLast = index === allEvents.length - 1
+        {allEvents.map((e) => {
           const route = getEventRoute(e)
 
           if (e.type == 'comment' && e.replyingComment) {
@@ -415,7 +463,6 @@ export function Feed2({
                   <EventCommentWithReply event={e} route={route} />
                 </div>
                 <Separator />
-                {isLast && <div ref={lastElementRef} />}
               </>
             )
           }
@@ -428,10 +475,10 @@ export function Feed2({
                 route={route}
               />
               <Separator />
-              {isLast && <div ref={lastElementRef} />}
             </>
           )
         })}
+        {!isLoading && <div className="h-20 bg-red-500" ref={lastElementRef} />}
       </div>
       {isFetchingNextPage && (
         <div className="text-muted-foreground py-3 text-center">
@@ -591,10 +638,53 @@ function EventContent({event}: {event: LoadedEvent}) {
           <CommentContent comment={event.comment} />
         </div>
       )
-    } else {
-      console.log('--- CITATION DOC', event)
     }
-    // Don't show content for document citations
+
+    // For document citations, show source block or document info
+    if (event.citationType === 'd' && event.source.id && event.target.id) {
+      // If we have a blockRef, render the actual block content
+      if (event.source.id.blockRef) {
+        return (
+          <div className="flex flex-col gap-2">
+            <CitationSourceBlock sourceId={event.source.id} />
+          </div>
+        )
+      }
+
+      // Otherwise, show source and target document info
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">
+              Source Document:
+            </span>
+            <div className="text-sm">
+              <ResourceToken
+                id={event.source.id}
+                metadata={event.source.metadata}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">
+              Target Document:
+            </span>
+            <div className="text-sm">
+              <ResourceToken
+                id={event.target.id}
+                metadata={event.target.metadata}
+              />
+              {event.targetFragment && (
+                <span className="text-muted-foreground ml-1 text-xs">
+                  (Block: {event.targetFragment})
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return null
   }
   if (event.type == 'capability') return null
