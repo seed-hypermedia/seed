@@ -1,4 +1,8 @@
-import {IS_PROD_DESKTOP, IS_PROD_DEV} from '@shm/shared/constants'
+import {
+  AVOID_UPDATES,
+  IS_PROD_DESKTOP,
+  IS_PROD_DEV,
+} from '@shm/shared/constants'
 import {app, BrowserWindow, ipcMain, session} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -33,7 +37,7 @@ export default function autoUpdate() {
     BrowserWindow.getFocusedWindow()?.id,
   )
 
-  if (!IS_PROD_DESKTOP) {
+  if (!IS_PROD_DESKTOP || AVOID_UPDATES) {
     log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
     return
   }

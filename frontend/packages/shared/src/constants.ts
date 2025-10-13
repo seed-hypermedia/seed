@@ -68,6 +68,9 @@ export const COMMIT_HASH =
 export const IS_PROD_DESKTOP =
   !!IME.PROD || process.env.NODE_ENV === 'production'
 
+export const AVOID_UPDATES =
+  !!IME.VITE_AVOID_UPDATES || process.env.VITE_AVOID_UPDATES == 'true' || false
+
 export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
 
