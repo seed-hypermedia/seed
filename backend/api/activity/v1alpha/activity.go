@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -144,6 +145,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if len(req.AddLinkedResource) > 0 {
 		pageSize = req.PageSize * 2
 	}
+	var refIDs []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
 			id := stmt.ColumnInt64(0)
@@ -160,6 +162,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			extraAttrs := stmt.ColumnText(9)
 			accountID := core.Principal(author).String()
 			cID := cid.NewCidV1(uint64(codec), mhash)
+			if eventType == "Ref" {
+				refIDs = append(refIDs, strconv.FormatInt(id, 10))
+			}
 			if eventType == "Comment" {
 				resource = "hm://" + accountID + "/" + tsid.String()
 				eventTime = timestamppb.New(tsid.Timestamp())
@@ -187,6 +192,40 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+	refsJson := "[" + strings.Join(refIDs, ",") + "]"
+	var versions = map[int64]string{}
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+
+		if err := sqlitex.Exec(conn, qGetChangesFromRefs(), func(stmt *sqlite.Stmt) error {
+
+			mhBinary, err := hex.DecodeString(stmt.ColumnText(0))
+			if err != nil {
+				return err
+			}
+			cid := cid.NewCidV1(uint64(stmt.ColumnInt64(1)), mhBinary)
+			version := docmodel.NewVersion(cid).String()
+			seenRefID := stmt.ColumnInt64(2)
+			versions[seenRefID] = version
+			return nil
+
+		}, refsJson); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	for _, e := range events {
+		if e.Data.(*activity.Event_NewBlob).NewBlob.BlobType == "Ref" {
+			version, ok := versions[e.Data.(*activity.Event_NewBlob).NewBlob.BlobId]
+			if !ok {
+				srv.log.Warn("Missing version for Ref blob", zap.Int64("blob_id", e.Data.(*activity.Event_NewBlob).NewBlob.BlobId))
+				continue
+			}
+			e.Data.(*activity.Event_NewBlob).NewBlob.Resource += "?v=" + version
+		}
 	}
 	var deletedList []string
 	if len(req.AddLinkedResource) > 0 {
@@ -332,6 +371,21 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		NextPageToken: nextPageToken,
 	}, err
 }
+
+var qGetChangesFromRefs = dqb.Str(`
+WITH ids AS (
+  SELECT value AS ref_id
+  FROM json_each(:refBlobsJson)
+)
+SELECT
+  hex(b.multihash) AS mh,
+  b.codec,
+  bl.source        AS ref_id,
+  b.id             AS change_id
+FROM blob_links bl
+JOIN ids          ON ids.ref_id = bl.source
+JOIN blobs b      ON b.id = bl.target;
+`)
 
 var qEntitiesLookupID = dqb.Str(`
 	SELECT resources.id
