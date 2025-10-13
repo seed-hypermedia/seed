@@ -64,39 +64,13 @@ export function useDocumentAccessory({
         />
       ) : null
   } else {
-    let filterEventType: Array<string> = []
-
-    if (accessoryKey == 'activity') {
-      filterEventType.push('Ref')
-    }
+    let filterEventType: Array<string> | undefined = undefined
 
     if (accessoryKey == 'contacts') {
-      filterEventType.push('Contact', 'Profile')
+      filterEventType = ['Contact', 'Profile']
     }
 
     if (accessoryKey == 'activity') {
-      filterEventType = []
-    }
-
-    accessory = (
-      <AppDocContentProvider
-        docId={docId}
-        comment
-        textUnit={16}
-        layoutUnit={18}
-      >
-        <Feed2
-          commentEditor={docId ? <CommentBox docId={docId} /> : null}
-          filterResource={docId?.id}
-          currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={filterEventType}
-        />
-      </AppDocContentProvider>
-    )
-
-    if (accessoryKey == 'activity') {
-      filterEventType.push('Comment')
-
       if (route.accessory?.openComment || route.accessory?.openBlockId) {
         accessory = (
           <DiscussionsPanel
@@ -108,7 +82,39 @@ export function useDocumentAccessory({
             }}
           />
         )
+      } else {
+        accessory = (
+          <AppDocContentProvider
+            docId={docId}
+            comment
+            textUnit={16}
+            layoutUnit={18}
+          >
+            <Feed2
+              commentEditor={docId ? <CommentBox docId={docId} /> : null}
+              filterResource={docId?.id}
+              currentAccount={selectedAccount?.id.uid || ''}
+              filterEventType={filterEventType}
+            />
+          </AppDocContentProvider>
+        )
       }
+    } else {
+      accessory = (
+        <AppDocContentProvider
+          docId={docId}
+          comment
+          textUnit={16}
+          layoutUnit={18}
+        >
+          <Feed2
+            commentEditor={docId ? <CommentBox docId={docId} /> : null}
+            filterResource={docId?.id}
+            currentAccount={selectedAccount?.id.uid || ''}
+            filterEventType={filterEventType}
+          />
+        </AppDocContentProvider>
+      )
     }
   }
 
