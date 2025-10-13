@@ -267,7 +267,9 @@ export default function DraftPage() {
                     isEditingHomeDoc={isEditingHomeDoc}
                     docId={headerDocId}
                     document={homeDocument}
-                    draftMetadata={state.context.metadata}
+                    draftMetadata={
+                      isEditingHomeDoc ? state.context.metadata : undefined
+                    }
                     onDocNav={(navigation) => {
                       send({
                         type: 'change.navigation',
@@ -590,7 +592,7 @@ function DraftAppHeader({
   siteHomeEntity: HMEntityContent | undefined | null
   docId: UnpackedHypermediaId
   document?: HMDocument
-  draftMetadata: HMMetadata
+  draftMetadata?: HMMetadata
   isEditingHomeDoc: boolean
   onDocNav: (navigation: HMNavigationItem[]) => void
   actor: any // TODO: proper type
@@ -626,8 +628,8 @@ function DraftAppHeader({
       document={document}
       draftMetadata={draftMetadata}
       isCenterLayout={
-        draftMetadata.theme?.headerLayout === 'Center' ||
-        draftMetadata.layout === 'Seed/Experimental/Newspaper'
+        draftMetadata?.theme?.headerLayout === 'Center' ||
+        draftMetadata?.layout === 'Seed/Experimental/Newspaper'
       }
       editNavPane={
         isEditingHomeDoc ? (
