@@ -90,7 +90,11 @@ export function SiteHeader({
   const homeDoc = !docId?.path?.length
     ? {document, id: docId}
     : supportDocuments?.find(
-        (doc) => doc.id.uid === docId?.uid && !doc.id.path?.length,
+        (doc) =>
+          doc.id.uid === docId?.uid &&
+          !doc.id.path?.length &&
+          !doc.id.blockRef &&
+          doc.id.latest,
       )
   const headerSearch = (
     <>
