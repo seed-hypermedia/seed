@@ -43,7 +43,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.5"
+          go-version: "1.24.8"
       - run: go test --count 1 ./backend/...
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
