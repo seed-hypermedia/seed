@@ -50,6 +50,7 @@ export const action = async ({
       case 'contact':
         result = await loadContactEvent(grpcClient, event, currentAccount)
         break
+      case 'profile':
       case 'dagpb':
         result = null
         break

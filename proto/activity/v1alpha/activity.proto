@@ -31,7 +31,7 @@ message ListEventsRequest {
   // Optional. If we want certain types of events.
   // Currently supported event types are:
   //   - Ref: any document change
-  //   - Capability: obcious
+  //   - Capability: obvious
   //   - Comment: obvious
   //   - DagPB: 
   //   - Profile: 

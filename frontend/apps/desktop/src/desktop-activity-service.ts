@@ -35,10 +35,8 @@ export class DesktopActivityService implements ActivityService {
       case 'contact':
         return loadContactEvent(grpcClient, event, currentAccount)
       case 'dagpb':
+      case 'profile':
         return null
-
-      //  return loadDagpbEvent(grpcClient, event, currentAccount)
-      // Add more cases as needed
       default:
         // Fallback for unknown types
         throw new Error(`Unknown event type: ${blobType}`)

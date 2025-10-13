@@ -350,7 +350,7 @@ export async function loadRefEvent(
     console.log(`== ~ loadRefEvent ~ docId:`, docId)
     const grpcDocument = await grpcClient.documents.getDocument({
       account: docId?.uid,
-      path: docId?.path?.length ? `/${docId?.path?.join('')}` : '',
+      path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
       version: docId?.version || undefined,
     })
 
