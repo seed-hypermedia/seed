@@ -395,6 +395,7 @@ export function createAppWindow(
     accessoryWidth: input.accessoryWidth || 20,
     selectedIdentity: input.selectedIdentity || null,
   }
+
   windowNavState[windowId] = windValue
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
@@ -442,23 +443,15 @@ export function createAppWindow(
   })
   allWindows.set(windowId, browserWindow)
 
+  // Set the persistent window state - this should match the windValue above
   setWindowState(windowId, {
-    routes: initRoutes,
+    ...windValue,
     routeIndex: input.routeIndex || 0,
-    sidebarLocked:
-      typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
-    sidebarWidth: input.sidebarWidth || 15,
-    accessoryWidth: input.accessoryWidth || 20,
-    selectedIdentity: input.selectedIdentity || null,
     bounds: null,
   })
 
-  browserWindow.webContents.send('initWindow', {
-    routes: initRoutes,
-    routeIndex: input.routeIndex,
-    daemonState: getDaemonState(),
-    windowId,
-  })
+  // Note: The initWindow data is sent via the synchronous IPC handler above, not via send()
+  // browserWindow.webContents.send('initWindow', ...) - removed duplicate send
   browserWindow.webContents.ipc.addListener(
     'windowNavState',
     (

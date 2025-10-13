@@ -37,19 +37,6 @@ const AppInfo = {
 export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
-// let windowId: string | null = null
-// console.log('---preloooadddd')
-// ipcRenderer.addListener('initWindow', (info, event) => {
-//   console.log('💡 Init Window', event)
-//   windowId = event.windowId
-//   updateInitNavState({
-//     routes: event.routes,
-//     routeIndex: event.routeIndex,
-//     lastAction: 'replace',
-//   })
-//   updateDaemonState(event.daemonState)
-// })
-
 const windowInfo = ipcRenderer.sendSync('initWindow')
 
 contextBridge.exposeInMainWorld('windowId', windowInfo.windowId)
