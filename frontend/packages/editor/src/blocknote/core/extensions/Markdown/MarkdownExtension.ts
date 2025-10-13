@@ -175,8 +175,6 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
                 ? true
                 : false
 
-              console.log('is markdown and has list', isMarkdown, hasList)
-
               // console.log('pasted text and html', pastedText, pastedHtml)
 
               if (!isMarkdown) {

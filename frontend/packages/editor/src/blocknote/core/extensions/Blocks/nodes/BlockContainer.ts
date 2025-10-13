@@ -233,11 +233,16 @@ export const BlockContainer = Node.create<{
   parseHTML() {
     return [
       {
+        tag: 'li',
+        priority: 300,
+        getAttrs: (element) => {
+          return null
+        },
+      },
+      {
         tag: 'div',
         getAttrs: (element) => {
-          if (typeof element === 'string') {
-            return false
-          }
+          if (typeof element === 'string') return false
 
           const attrs: Record<string, string> = {}
           for (const [nodeAttr, HTMLAttr] of Object.entries(BlockAttributes)) {
@@ -246,12 +251,11 @@ export const BlockContainer = Node.create<{
             }
           }
 
-          if (element.getAttribute('data-node-type') === 'blockContainer') {
-            return attrs
-          }
-
-          return false
+          return element.getAttribute('data-node-type') === 'blockContainer'
+            ? attrs
+            : false
         },
+        priority: 200,
       },
     ]
   },

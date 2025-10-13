@@ -83,64 +83,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return false
         }
 
-        // Temporary fix to handle lists to prevent infinite nesting
-        const pastedHtml = _event.clipboardData?.getData('text/html') || ''
-        const hasList = pastedHtml.includes('<ul') || pastedHtml.includes('<ol')
-
-        if (hasList) {
-          const firstBlockGroup =
-            slice.content.firstChild?.type.name === 'blockGroup'
-          const nodes = getPastedNodes(
-            firstBlockGroup ? slice.content.firstChild : slice.content,
-            options.editor,
-          )
-
-          if (nodes.length > 0) {
-            let tr = state.tr
-            if (!selection.empty) {
-              tr.delete(selection.from, selection.to)
-            }
-
-            // Insert each normalized node individually
-            let currentPos = selection.from
-            nodes.forEach((node) => {
-              tr.insert(currentPos, node)
-              currentPos += node.nodeSize
-            })
-
-            // Apply link marks to the normalized content
-            slice.content.forEach((node: any) => {
-              if (node.type.name === 'blockGroup') return
-
-              const nodeText = node.textContent || ''
-              const fragmentLinks = find(nodeText) || []
-
-              if (fragmentLinks.length > 0) {
-                const base = selection.from
-                fragmentLinks.forEach((link: any) => {
-                  const from = base + link.start
-                  const to = base + link.end
-
-                  const markType = options.type
-                  const hasMark = tr.doc.rangeHasMark(from, to, markType)
-
-                  if (!hasMark) {
-                    const id = nanoid(8)
-                    tr.addMark(
-                      from,
-                      to,
-                      markType.create({href: link.href, id}),
-                    ).setMeta('hmPlugin:uncheckedLink', id)
-                  }
-                })
-              }
-            })
-
-            view.dispatch(tr)
-            return true
-          }
-        }
-
         const pastedLinkMarks: Mark[] = []
         let textContent = ''
 

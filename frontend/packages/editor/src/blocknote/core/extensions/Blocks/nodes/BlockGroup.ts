@@ -1,5 +1,7 @@
 import {HMBlockChildrenType} from '@shm/shared'
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
+import {Fragment, Slice} from '@tiptap/pm/model'
+import {Plugin} from '@tiptap/pm/state'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
@@ -179,6 +181,131 @@ export const BlockGroup = Node.create<{
         HTMLAttributes,
       ),
       0,
+    ]
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          transformPasted: (slice, view) => {
+            const schema = view.state.schema
+
+            // Transform pasted content to ensure all nodes are properly wrapped
+            const transformFragment = (fragment: any, schema: any): any => {
+              const nodes: any[] = []
+
+              fragment.forEach((node: any, index: number) => {
+                if (node.type.name === 'blockGroup') {
+                  const prevNode = nodes[nodes.length - 1]
+
+                  if (prevNode && prevNode.type.name === 'blockContainer') {
+                    // Merge blockGroup into previous blockContainer as 2nd child
+                    const mergedContainer = schema.nodes[
+                      'blockContainer'
+                    ].create(prevNode.attrs, [prevNode.firstChild, node])
+                    nodes[nodes.length - 1] = mergedContainer
+                  } else {
+                    // First node is blockGroup or no previous blockContainer
+                    // Mark with special attribute so handlePaste can detect it
+                    const dummyParagraph = schema.nodes['paragraph'].create()
+                    const blockContainer = schema.nodes[
+                      'blockContainer'
+                    ].create({__isListPaste: true}, [dummyParagraph, node])
+                    nodes.push(blockContainer)
+                  }
+                } else if (node.type.name === 'blockContainer') {
+                  nodes.push(node)
+                } else {
+                  // Wrap content nodes in blockContainer
+                  const blockContainer = schema.nodes['blockContainer'].create(
+                    null,
+                    node,
+                  )
+                  nodes.push(blockContainer)
+                }
+              })
+
+              return Fragment.from(nodes)
+            }
+
+            const transformedContent = transformFragment(slice.content, schema)
+
+            return new Slice(transformedContent, slice.openStart, slice.openEnd)
+          },
+
+          handlePaste: (view, event, slice) => {
+            // Check if first node is a blockContainer with dummy paragraph
+            const firstNode = slice.content.firstChild
+
+            if (
+              firstNode &&
+              firstNode.type.name === 'blockContainer' &&
+              firstNode.attrs.__isListPaste &&
+              firstNode.content.childCount === 2 &&
+              firstNode.firstChild?.type.name === 'paragraph' &&
+              firstNode.firstChild?.content.size === 0 &&
+              firstNode.lastChild?.type.name === 'blockGroup'
+            ) {
+              const {state} = view
+              const {selection} = state
+              const {$from} = selection
+
+              // Get the previous blockContainer
+              const currentDepth = $from.depth
+              let blockContainerDepth = -1
+
+              for (let d = currentDepth; d > 0; d--) {
+                if ($from.node(d).type.name === 'blockContainer') {
+                  blockContainerDepth = d
+                  break
+                }
+              }
+
+              if (blockContainerDepth > 0) {
+                const blockContainer = $from.node(blockContainerDepth)
+                const blockContainerPos = $from.start(blockContainerDepth) - 1
+                const blockGroup = firstNode.lastChild!
+
+                // Ensure blockContainer has content
+                if (!blockContainer.firstChild) {
+                  return false
+                }
+
+                // Create new blockContainer with current content + pasted blockGroup
+                const newBlockContainer = state.schema.nodes[
+                  'blockContainer'
+                ]!.create(blockContainer.attrs, [
+                  blockContainer.firstChild,
+                  blockGroup,
+                ])
+
+                // Create transaction to replace current block with merged version
+                let tr = state.tr
+                tr.replaceRangeWith(
+                  blockContainerPos,
+                  blockContainerPos + blockContainer.nodeSize,
+                  newBlockContainer,
+                )
+
+                // Insert remaining pasted content (if any)
+                if (slice.content.childCount > 1) {
+                  const remainingContent = slice.content.cut(firstNode.nodeSize)
+                  tr.insert(
+                    blockContainerPos + newBlockContainer.nodeSize,
+                    remainingContent,
+                  )
+                }
+
+                view.dispatch(tr)
+                return true
+              }
+            }
+
+            return false
+          },
+        },
+      }),
     ]
   },
 })
