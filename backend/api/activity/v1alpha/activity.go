@@ -4,6 +4,7 @@ package activity
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -43,6 +44,11 @@ type Server struct {
 	clean     *cleanup.Stack
 	log       *zap.Logger
 	syncer    syncer
+}
+
+type head struct {
+	Multihash string `json:"multihash"`
+	Codec     uint64 `json:"codec"`
 }
 
 var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`)
@@ -145,7 +151,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if len(req.AddLinkedResource) > 0 {
 		pageSize = req.PageSize * 2
 	}
-	var refIDs []string
+	var refIDs, resources []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
 			id := stmt.ColumnInt64(0)
@@ -164,6 +170,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			cID := cid.NewCidV1(uint64(codec), mhash)
 			if eventType == "Ref" {
 				refIDs = append(refIDs, strconv.FormatInt(id, 10))
+				resources = append(resources, resource)
 			}
 			if eventType == "Comment" {
 				resource = "hm://" + accountID + "/" + tsid.String()
@@ -217,12 +224,47 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return nil, err
 	}
 
+	var heads []head
+	var latestVersions = map[string]string{}
+	resourcesJson := "[\"" + strings.Join(resources, "\",\"") + "\"]"
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, qGetLatestVersions(), func(stmt *sqlite.Stmt) error {
+			resource := stmt.ColumnText(0)
+			if err := json.Unmarshal(stmt.ColumnBytes(1), &heads); err != nil {
+				return err
+			}
+
+			cids := make([]cid.Cid, len(heads))
+			for i, h := range heads {
+				mhBinary, err := hex.DecodeString(h.Multihash)
+				if err != nil {
+					return err
+				}
+				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
+			}
+			latestVersion := docmodel.NewVersion(cids...).String()
+			latestVersions[resource] = latestVersion
+			return nil
+
+		}, resourcesJson); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 	for _, e := range events {
 		if e.Data.(*activity.Event_NewBlob).NewBlob.BlobType == "Ref" {
 			version, ok := versions[e.Data.(*activity.Event_NewBlob).NewBlob.BlobId]
 			if !ok {
 				srv.log.Warn("Missing version for Ref blob", zap.Int64("blob_id", e.Data.(*activity.Event_NewBlob).NewBlob.BlobId))
 				continue
+			}
+
+			if latest, ok := latestVersions[e.Data.(*activity.Event_NewBlob).NewBlob.Resource]; ok {
+				if latest == version {
+					version += "&l"
+				}
 			}
 			e.Data.(*activity.Event_NewBlob).NewBlob.Resource += "?v=" + version
 		}
@@ -372,6 +414,24 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}, err
 }
 
+var qGetLatestVersions = dqb.Str(`
+SELECT
+resources.iri,
+(
+    SELECT json_group_array(
+             json_object(
+               'codec',    b2.codec,
+               'multihash', hex(b2.multihash)
+             )
+           )
+    FROM json_each(document_generations.heads) AS a
+      JOIN blobs AS b2
+        ON b2.id = a.value
+) AS heads
+FROM document_generations
+JOIN resources ON resources.id = document_generations.resource
+WHERE resources.iri in (SELECT value from json_each(:resources_json))
+`)
 var qGetChangesFromRefs = dqb.Str(`
 WITH ids AS (
   SELECT value AS ref_id
