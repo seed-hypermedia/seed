@@ -478,7 +478,7 @@ export function Feed2({
             </>
           )
         })}
-        {!isLoading && <div className="h-20 bg-red-500" ref={lastElementRef} />}
+        {!isLoading && <div className="h-20" ref={lastElementRef} />}
       </div>
       {isFetchingNextPage && (
         <div className="text-muted-foreground py-3 text-center">
