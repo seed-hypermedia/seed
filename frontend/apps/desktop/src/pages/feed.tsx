@@ -17,7 +17,6 @@ import {
   useSiteNavigationItems,
 } from '@/models/documents'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
-import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {useScrollRestoration} from '@/utils/use-scroll-restoration'
@@ -62,7 +61,7 @@ import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, FilePlus, MessageSquare, Sparkle} from 'lucide-react'
+import {AlertCircle, FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -302,7 +301,6 @@ function _FeedContent({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        <DocInteractionsSummary docId={id} />
         <ScrollArea ref={scrollRef}>
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
@@ -354,40 +352,6 @@ function _FeedContent({
 }
 const FeedContent = React.memo(_FeedContent)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
-
-const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
-
-function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
-  const interactionSummary = useInteractionSummary(docId)
-
-  const route = useNavRoute()
-  const docRoute = route.key == 'document' || route.key == 'feed' ? route : null
-  const replace = useNavigate('replace')
-  if (!docRoute) return null
-  if (docRoute.accessory) return null
-  return (
-    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
-      <div className="flex">
-        <InteractionSummaryItem
-          label="activity"
-          count={interactionSummary.data?.changes || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'activity'}})
-          }}
-          icon={<Sparkle className="size-3" color="currentColor" />}
-        />
-        <InteractionSummaryItem
-          label="comment"
-          count={interactionSummary.data?.comments || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'activity'}})
-          }}
-          icon={<MessageSquare className="size-3" />}
-        />
-      </div>
-    </div>
-  )
-}
 
 function InteractionSummaryItem({
   label,
@@ -453,6 +417,7 @@ function _AppDocSiteHeader({
         replace({
           ...route,
           key: route.key == 'document' ? 'feed' : 'document',
+          accessory: route.key == 'document' ? null : route.accessory,
         })
       }}
     />
