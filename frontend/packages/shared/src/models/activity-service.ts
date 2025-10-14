@@ -310,17 +310,43 @@ export async function listEventsWithCitationsImpl(
 
   // Merge and sort by date (newest first)
   const allEvents = [...events, ...citationEvents].sort((a, b) => {
-    const getTime = (time: HMTimestamp | null): bigint => {
-      if (!time) return BigInt(0)
-      if (typeof time === 'string') return BigInt(0)
-      return typeof time.seconds === 'bigint'
-        ? time.seconds
-        : BigInt(time.seconds)
+    const getTime = (
+      time: HMTimestamp | null,
+    ): {
+      seconds: bigint
+      nanos: number
+    } => {
+      if (!time) return {seconds: BigInt(0), nanos: 0}
+      if (typeof time === 'string') return {seconds: BigInt(0), nanos: 0}
+      const seconds =
+        typeof time.seconds === 'bigint' ? time.seconds : BigInt(time.seconds)
+      const nanos = time.nanos || 0
+      return {seconds, nanos}
     }
 
     const timeA = getTime(a.eventTime)
     const timeB = getTime(b.eventTime)
-    return timeA > timeB ? -1 : timeA < timeB ? 1 : 0
+
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      const aType = a.newBlob.blobType
+      const bType = b.newBlob.blobType
+      if (timeA.seconds === timeB.seconds && timeA.nanos !== timeB.nanos) {
+        console.log(
+          `⚠️ Same second, different nanos: ${aType} (${timeA.seconds}.${timeA.nanos}) vs ${bType} (${timeB.seconds}.${timeB.nanos})`,
+        )
+      }
+    }
+
+    // Compare seconds first
+    if (timeA.seconds > timeB.seconds) return -1
+    if (timeA.seconds < timeB.seconds) return 1
+
+    // If seconds are equal, compare nanos for proper microsecond ordering
+    if (timeA.nanos > timeB.nanos) return -1
+    if (timeA.nanos < timeB.nanos) return 1
+
+    return 0
   })
 
   // Create composite next page token
