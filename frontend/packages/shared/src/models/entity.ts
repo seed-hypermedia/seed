@@ -184,7 +184,7 @@ export function getResourceQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMResource | null>,
 ): UseQueryOptions<HMResource | null> {
-  const version = id?.latest ? undefined : id?.version || undefined
+  const version = id?.version || undefined
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
@@ -215,7 +215,7 @@ export function getResolvedResourceQuery(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMResolvedResource | null>,
 ): UseQueryOptions<HMResolvedResource | null> {
-  const version = id?.latest ? undefined : id?.version || undefined
+  const version = id?.version || undefined
   return {
     ...options,
     enabled: options?.enabled ?? !!id,
