@@ -410,7 +410,7 @@ function BreadcrumbTitle({
               navigate({
                 key: 'feed',
                 id: route.id,
-                accessory: route.accessory,
+                accessory: null,
               })
             } else if (route.key == 'feed') {
               navigate({
