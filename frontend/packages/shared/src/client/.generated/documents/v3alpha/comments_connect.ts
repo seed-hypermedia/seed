@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, UpdateCommentRequest } from "./comments_pb";
+import { BatchGetCommentsRequest, BatchGetCommentsResponse, Comment, CreateCommentRequest, DeleteCommentRequest, GetCommentReplyCountRequest, GetCommentReplyCountResponse, GetCommentRequest, ListCommentsByAuthorRequest, ListCommentsRequest, ListCommentsResponse, UpdateCommentRequest } from "./comments_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -89,6 +89,17 @@ export const Comments = {
       name: "DeleteComment",
       I: DeleteCommentRequest,
       O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets a single comment by ID.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Comments.GetCommentReplyCount
+     */
+    getCommentReplyCount: {
+      name: "GetCommentReplyCount",
+      I: GetCommentReplyCountRequest,
+      O: GetCommentReplyCountResponse,
       kind: MethodKind.Unary,
     },
   }

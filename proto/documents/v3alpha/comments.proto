@@ -30,6 +30,9 @@ service Comments {
 
   // Deletes a comment.
   rpc DeleteComment(DeleteCommentRequest) returns (google.protobuf.Empty);
+
+  // Gets a single comment by ID.
+  rpc GetCommentReplyCount(GetCommentReplyCountRequest) returns (GetCommentReplyCountResponse);
 }
 
 // Request to create a comment.
@@ -180,4 +183,17 @@ message DeleteCommentRequest {
 
   // Required. Name of the key to use for signing the comment deletion.
   string signing_key_name = 2;
+}
+
+// Request to get the number of replies for a given comment.
+message GetCommentReplyCountRequest {
+  // Required. ID of the comment to get replies for.
+  // The ID must be a record ID (`{publicKey}/{tsid}`) of the comment.
+  string id = 1;
+}
+
+// Response with the reply count for a comment.
+message GetCommentReplyCountResponse {
+  // The number of replies to the comment.
+  int64 reply_count = 1;
 }

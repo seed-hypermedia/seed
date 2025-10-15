@@ -491,6 +491,21 @@ var qGetCommentByCID = dqb.Str(`
 	WHERE (codec, multihash) = (:codec, :multihash)
 `)
 
+var qGetReplyCountByID = dqb.Str(`
+SELECT count(distinct source)
+FROM  blob_links bl
+WHERE bl.target = (
+   SELECT id
+   FROM structural_blobs sb
+   WHERE sb.type = 'Comment'
+   AND sb.extra_attrs->>'deleted' is not true 
+   AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
+   AND sb.extra_attrs->>'tsid' = :tsid
+)
+AND bl.type IN ('comment/reply-parent', 'comment/thread-root')
+AND (SELECT sb.extra_attrs->>'deleted' FROM structural_blobs sb WHERE id = source) is not true
+`)
+
 func commentToProto(lookup *blob.LookupCache, c cid.Cid, cmt *blob.Comment, tsid blob.TSID) (*documents.Comment, error) {
 	var content []*documents.BlockNode
 	var err error
@@ -734,4 +749,27 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// GetCommentReplyCount implements Comments API.
+func (srv *Server) GetCommentReplyCount(ctx context.Context, in *documents.GetCommentReplyCountRequest) (out *documents.GetCommentReplyCountResponse, err error) {
+	resp := &documents.GetCommentReplyCountResponse{}
+	rid, err := blob.DecodeRecordID(in.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode comment ID: %v", err)
+	}
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, qGetReplyCountByID(), func(stmt *sqlite.Stmt) error {
+			resp.ReplyCount = stmt.ColumnInt64(0)
+			return nil
+
+		}, rid.Authority, rid.TSID.String()); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }

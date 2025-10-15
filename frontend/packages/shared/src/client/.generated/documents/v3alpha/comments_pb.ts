@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
 import { BlockNode } from "./documents_pb";
 
 /**
@@ -639,6 +639,89 @@ export class DeleteCommentRequest extends Message<DeleteCommentRequest> {
 
   static equals(a: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined, b: DeleteCommentRequest | PlainMessage<DeleteCommentRequest> | undefined): boolean {
     return proto3.util.equals(DeleteCommentRequest, a, b);
+  }
+}
+
+/**
+ * Request to get the number of replies for a given comment.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetCommentReplyCountRequest
+ */
+export class GetCommentReplyCountRequest extends Message<GetCommentReplyCountRequest> {
+  /**
+   * Required. ID of the comment to get replies for.
+   * The ID must be a record ID (`{publicKey}/{tsid}`) of the comment.
+   *
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  constructor(data?: PartialMessage<GetCommentReplyCountRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetCommentReplyCountRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommentReplyCountRequest {
+    return new GetCommentReplyCountRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommentReplyCountRequest {
+    return new GetCommentReplyCountRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommentReplyCountRequest {
+    return new GetCommentReplyCountRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommentReplyCountRequest | PlainMessage<GetCommentReplyCountRequest> | undefined, b: GetCommentReplyCountRequest | PlainMessage<GetCommentReplyCountRequest> | undefined): boolean {
+    return proto3.util.equals(GetCommentReplyCountRequest, a, b);
+  }
+}
+
+/**
+ * Response with the reply count for a comment.
+ *
+ * @generated from message com.seed.documents.v3alpha.GetCommentReplyCountResponse
+ */
+export class GetCommentReplyCountResponse extends Message<GetCommentReplyCountResponse> {
+  /**
+   * The number of replies to the comment.
+   *
+   * @generated from field: int64 reply_count = 1;
+   */
+  replyCount = protoInt64.zero;
+
+  constructor(data?: PartialMessage<GetCommentReplyCountResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.GetCommentReplyCountResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "reply_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCommentReplyCountResponse {
+    return new GetCommentReplyCountResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetCommentReplyCountResponse {
+    return new GetCommentReplyCountResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetCommentReplyCountResponse {
+    return new GetCommentReplyCountResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetCommentReplyCountResponse | PlainMessage<GetCommentReplyCountResponse> | undefined, b: GetCommentReplyCountResponse | PlainMessage<GetCommentReplyCountResponse> | undefined): boolean {
+    return proto3.util.equals(GetCommentReplyCountResponse, a, b);
   }
 }
 
