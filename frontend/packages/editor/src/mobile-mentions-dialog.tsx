@@ -88,7 +88,7 @@ export function MobileMentionsDialog({
         <div className="flex h-full flex-col">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
-              <DialogTitle>Mention Someone</DialogTitle>
+              <DialogTitle>Mention Contact, Site, or Document</DialogTitle>
               <Button
                 size="icon"
                 variant="ghost"

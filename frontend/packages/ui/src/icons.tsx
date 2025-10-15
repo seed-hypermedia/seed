@@ -86,6 +86,7 @@ export {
   Settings2,
   Share,
   ShieldX,
+  SlashSquareIcon,
   Smile,
   Sparkles,
   // AsteriskSquare as SquareAsterisk,

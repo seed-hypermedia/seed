@@ -1,11 +1,4 @@
 import {
-  BlockNoteEditor,
-  BlockSpec,
-  insertOrUpdateBlock,
-  PartialBlock,
-  PropSchema,
-} from './blocknote/core'
-import {
   RiArticleFill,
   RiCodeBoxFill,
   RiFile2Fill,
@@ -17,6 +10,13 @@ import {
   RiText,
   RiVideoAddFill,
 } from 'react-icons/ri'
+import {
+  BlockNoteEditor,
+  BlockSpec,
+  insertOrUpdateBlock,
+  PartialBlock,
+  PropSchema,
+} from './blocknote/core'
 import {HMBlockSchema} from './schema'
 
 export function getSlashMenuItems() {
@@ -200,6 +200,7 @@ export function getSlashMenuItems() {
             type: 'button',
             props: {
               url: '',
+              name: 'Button',
             },
           } as PartialBlock<HMBlockSchema>,
           true,

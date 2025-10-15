@@ -8,7 +8,7 @@ import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AtSignIcon, ImageIcon, Trash} from '@shm/ui/icons'
+import {AtSignIcon, ImageIcon, SlashSquareIcon, Trash} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useEffect, useRef, useState} from 'react'
@@ -18,6 +18,7 @@ import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
 import {MobileMentionsDialog} from './mobile-mentions-dialog'
+import {MobileSlashDialog} from './mobile-slash-dialog'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {
@@ -80,6 +81,7 @@ export function MobileCommentEditor({
   const {openUrl, handleFileAttachment} = useDocContentContext()
   const [isDragging, setIsDragging] = useState(false)
   const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
+  const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
@@ -206,6 +208,10 @@ export function MobileCommentEditor({
     setIsMentionsDialogOpen(true)
   }
 
+  const handleSlashCommandsClick = () => {
+    setIsSlashDialogOpen(true)
+  }
+
   const handleMentionSelect = (mention: {
     id: UnpackedHypermediaId
     label: string
@@ -292,11 +298,6 @@ export function MobileCommentEditor({
     }
 
     input.click()
-  }
-
-  const handleSlashCommandsClick = () => {
-    // TODO: Open full-screen slash commands dialog
-    console.log('Open slash commands dialog')
   }
 
   // Drag & drop logic
@@ -529,14 +530,14 @@ export function MobileCommentEditor({
                       <ImageIcon className="h-4 w-4" />
                     </Button>
 
-                    {/* <Button
+                    <Button
                       size="icon"
                       variant="ghost"
                       className="h-8 w-8"
                       onClick={handleSlashCommandsClick}
                     >
-                      <Code className="h-4 w-4" />
-                    </Button> */}
+                      <SlashSquareIcon className="h-4 w-4" />
+                    </Button>
                   </div>
 
                   {/* Right side buttons */}
@@ -574,6 +575,11 @@ export function MobileCommentEditor({
           onClose={() => setIsMentionsDialogOpen(false)}
           onSelect={handleMentionSelect}
           perspectiveAccountUid={perspectiveAccountUid}
+        />
+        <MobileSlashDialog
+          isOpen={isSlashDialogOpen}
+          onClose={() => setIsSlashDialogOpen(false)}
+          editor={editor}
         />
       </>
     )
