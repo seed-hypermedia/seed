@@ -14,6 +14,8 @@ export {
   ArrowRightFromLine,
   ArrowUpRight,
   ArrowUpRightSquare,
+  AtSign,
+  AtSignIcon,
   ChevronLeft as Back,
   Quote as BlockQuote,
   Book,

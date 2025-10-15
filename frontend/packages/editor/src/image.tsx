@@ -208,20 +208,43 @@ const display = ({
       const url = block.props.url
       // @ts-ignore
       if (isValidUrl(url)) {
-        timeoutPromise(importWebFile.mutateAsync(url), 5000, {
-          reason: 'Error fetching the image.',
-        })
-          .then((imageData) => {
-            if (imageData?.cid) {
-              if (!imageData.type.includes('image')) {
-                return
+        // Check if importWebFile has mutateAsync (desktop) or is a direct function (web)
+        if (typeof importWebFile?.mutateAsync === 'function') {
+          timeoutPromise(importWebFile.mutateAsync(url), 5000, {
+            reason: 'Error fetching the image.',
+          })
+            .then((imageData) => {
+              if (imageData?.cid) {
+                if (!imageData.type.includes('image')) {
+                  return
+                }
+                assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
               }
-              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
-            }
-          })
-          .catch((e) => {
-            console.error(e)
-          })
+            })
+            .catch((e) => {
+              console.error(e)
+            })
+        } else if (typeof importWebFile === 'function') {
+          importWebFile(url)
+            // @ts-expect-error
+            .then((imageData) => {
+              if (imageData?.displaySrc && imageData?.fileBinary) {
+                if (!imageData.type.includes('image')) {
+                  return
+                }
+                assign({
+                  props: {
+                    fileBinary: imageData.fileBinary,
+                    displaySrc: imageData.displaySrc,
+                  },
+                } as MediaType)
+              }
+            })
+            // @ts-expect-error
+            .catch((e) => {
+              console.error('Could not fetch image from URL:', e)
+            })
+        }
       }
     }
   }, [])

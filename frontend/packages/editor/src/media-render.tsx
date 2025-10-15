@@ -130,20 +130,44 @@ export const MediaRender: React.FC<RenderProps> = ({
       }
       setUploading(true)
 
-      importWebFile
-        .mutateAsync(block.props.src)
-        .then(({cid, size}: {cid: string; size: number}) => {
-          setUploading(false)
-          editor.updateBlock(block, {
-            props: {
-              url: `ipfs://${cid}`,
-              size: size.toString(),
-              src: '',
-            },
+      // Check if importWebFile has mutateAsync (desktop) or is a direct function (web)
+      if (typeof importWebFile?.mutateAsync === 'function') {
+        importWebFile
+          .mutateAsync(block.props.src)
+          .then(({cid, size}: {cid: string; size: number}) => {
+            setUploading(false)
+            editor.updateBlock(block, {
+              props: {
+                url: `ipfs://${cid}`,
+                size: size.toString(),
+                src: '',
+              },
+            })
           })
-        })
+          .catch((e: any) => {
+            console.error('Failed to import web file (desktop):', e)
+            setUploading(false)
+          })
+      } else if (typeof importWebFile === 'function') {
+        importWebFile(block.props.src)
+          .then((data: any) => {
+            setUploading(false)
+            editor.updateBlock(block, {
+              props: {
+                displaySrc: data.displaySrc,
+                fileBinary: data.fileBinary,
+                size: data.size?.toString() || '',
+                src: '',
+              },
+            })
+          })
+          .catch((e: any) => {
+            console.error('Failed to import web file (web):', e)
+            setUploading(false)
+          })
+      }
     }
-  }, [hasSrc, block, uploading, editor])
+  }, [hasSrc, block, uploading, editor, importWebFile])
 
   const assignMedia = (props: MediaType) => {
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs

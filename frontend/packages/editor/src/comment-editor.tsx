@@ -10,6 +10,7 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
@@ -18,6 +19,7 @@ import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
+import {MobileCommentEditor} from './mobile-comment-editor'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
 import {
@@ -174,8 +176,82 @@ export function CommentEditor({
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
 }) {
-  // Debug logging for account updates
+  const media = useMedia()
 
+  if (media.xs) {
+    return (
+      <MobileCommentEditor
+        submitButton={submitButton}
+        handleSubmit={handleSubmit}
+        account={account}
+        autoFocus={autoFocus}
+        perspectiveAccountUid={perspectiveAccountUid}
+        onDiscardDraft={onDiscardDraft}
+        initialBlocks={initialBlocks}
+        onContentChange={onContentChange}
+        onAvatarPress={onAvatarPress}
+      />
+    )
+  }
+
+  return (
+    <DesktopCommentEditor
+      submitButton={submitButton}
+      handleSubmit={handleSubmit}
+      account={account}
+      autoFocus={autoFocus}
+      perspectiveAccountUid={perspectiveAccountUid}
+      onDiscardDraft={onDiscardDraft}
+      initialBlocks={initialBlocks}
+      onContentChange={onContentChange}
+      onAvatarPress={onAvatarPress}
+    />
+  )
+}
+
+function DesktopCommentEditor({
+  submitButton,
+  handleSubmit,
+  account,
+  autoFocus,
+  perspectiveAccountUid,
+  onDiscardDraft,
+  initialBlocks,
+  onContentChange,
+  onAvatarPress,
+}: {
+  submitButton: (opts: {
+    reset: () => void
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>
+  }) => JSX.Element
+  handleSubmit: (
+    getContent: (
+      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+        blobs: {cid: string; data: Uint8Array}[]
+        resultCIDs: string[]
+      }>,
+    ) => Promise<{
+      blockNodes: HMBlockNode[]
+      blobs: {cid: string; data: Uint8Array}[]
+    }>,
+    reset: () => void,
+  ) => void
+  account?: ReturnType<typeof useAccount>['data']
+  autoFocus?: boolean
+  perspectiveAccountUid?: string | null | undefined
+  onDiscardDraft?: () => void
+  initialBlocks?: HMBlockNode[]
+  onContentChange?: (blocks: HMBlockNode[]) => void
+  onAvatarPress?: () => void
+}) {
   const {editor} = useCommentEditor(perspectiveAccountUid)
   // Check if we have non-empty draft content
   const hasDraftContent =
