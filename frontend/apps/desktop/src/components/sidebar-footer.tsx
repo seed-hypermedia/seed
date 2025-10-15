@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
+import {useEffect, useState} from 'react'
 
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -16,7 +17,6 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare, Plus, Settings} from 'lucide-react'
-import {useEffect, useState} from 'react'
 import {dispatchOnboardingDialog} from './onboarding'
 
 export function SidebarFooter({
@@ -44,25 +44,6 @@ export function SidebarFooter({
       if (typeof d.metadata === 'undefined') return false
       return true
     })
-
-  useEffect(() => {
-    // Check if current selected account is valid (exists in accountOptions)
-    const isSelectedAccountValid = accountOptions?.some(
-      (option) => option?.id.uid === selectedIdentityValue,
-    )
-
-    // Get the first valid account from the filtered options
-    const firstValidAccount = accountOptions?.[0]?.id.uid
-
-    // Set selected identity if:
-    // 1. No account is selected, OR
-    // 2. The selected account is not in the valid options list
-    if (setSelectedIdentity && firstValidAccount) {
-      if (!selectedIdentityValue || !isSelectedAccountValid) {
-        setSelectedIdentity(firstValidAccount)
-      }
-    }
-  }, [setSelectedIdentity, selectedIdentityValue, accountOptions])
   const selectedAccount = myAccounts?.find(
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
@@ -213,7 +194,7 @@ function AppSettingsButton() {
       <Button
         size="icon"
         className="hover:bg-muted active:bg-muted shrink-none flex h-8 w-8 items-center justify-center rounded-md"
-        onClick={(e) => {
+        onClick={(e: React.MouseEvent) => {
           e.preventDefault()
           navigate({key: 'settings'})
         }}
