@@ -481,8 +481,19 @@ function _AppDocSiteHeader({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
+
   if (!siteHomeEntity) return null
   if (route.key !== 'document' && route.key != 'feed') return null
+
+  // Prepare supportDocuments with siteHomeEntity that has the latest flag set
+  const supportDocsWithHome = [
+    ...(supportDocuments || []),
+    {
+      ...siteHomeEntity,
+      id: {...siteHomeEntity.id, latest: true},
+    },
+  ]
+
   return (
     <SiteHeader
       originHomeId={hmId(siteHomeEntity.id.uid)}
@@ -497,7 +508,7 @@ function _AppDocSiteHeader({
       onBlockFocus={(blockId) => {
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
-      supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
+      supportDocuments={supportDocsWithHome}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}
