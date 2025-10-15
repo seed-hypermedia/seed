@@ -4,6 +4,7 @@ import {appRouteOfId} from '@shm/shared/utils/navigation'
 
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
+import {grpcClient} from '@/grpc-client'
 import {SiteDiscoverRequest} from '@shm/shared'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -128,7 +129,7 @@ ipcMain.on('find_in_page_cancel', () => {
 
 log.info('App User Data', {path: userDataPath})
 
-export function openInitialWindows() {
+export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
   const validWindowEntries = Object.entries(windowsState).filter(
@@ -140,8 +141,12 @@ export function openInitialWindows() {
       })
     },
   )
+  const defaultSelectedIdentity = await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
-    trpc.createAppWindow({routes: [defaultRoute]})
+    trpc.createAppWindow({
+      routes: [defaultRoute],
+      selectedIdentity: defaultSelectedIdentity,
+    })
     return
   }
   try {
@@ -149,7 +154,7 @@ export function openInitialWindows() {
       trpc.createAppWindow({
         routes: window.routes,
         routeIndex: window.routeIndex,
-        selectedIdentity: window.selectedIdentity,
+        selectedIdentity: window.selectedIdentity || defaultSelectedIdentity,
         sidebarLocked: window.sidebarLocked,
         sidebarWidth: window.sidebarWidth,
         bounds: window.bounds,
@@ -159,7 +164,8 @@ export function openInitialWindows() {
   } catch (error: unknown) {
     const e = error as Error
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
-    trpc.createAppWindow({routes: [defaultRoute]})
+    const selectedIdentity = await getFirstAvailableAccount()
+    trpc.createAppWindow({routes: [defaultRoute], selectedIdentity})
     return
   }
 }
@@ -171,12 +177,24 @@ export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
   }
 }
 
-export function openRoute(route: NavRoute) {
+export async function openRoute(route: NavRoute) {
   const focusedWindow = getFocusedWindow()
   if (focusedWindow) {
     focusedWindow.webContents.send('open_route', route)
   } else {
-    trpc.createAppWindow({routes: [route], routeIndex: 0})
+    const selectedIdentity = await getFirstAvailableAccount()
+    trpc.createAppWindow({routes: [route], routeIndex: 0, selectedIdentity})
+  }
+}
+
+// Helper function to get first available account
+async function getFirstAvailableAccount(): Promise<string | null> {
+  try {
+    const keys = await grpcClient.daemon.listKeys({})
+    return keys.keys.length > 0 ? keys.keys[0].publicKey : null
+  } catch (error) {
+    log.error('Failed to get available accounts:', {error})
+    return null
   }
 }
 

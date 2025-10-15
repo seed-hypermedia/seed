@@ -161,7 +161,7 @@ app.whenReady().then(() => {
           logger.error('InitAccountSubscriptionsError ' + e.message)
         })
 
-      grpcClient.daemon.listKeys({}).then((response) => {
+      grpcClient.daemon.listKeys({}).then(async (response) => {
         const onboardingState = getOnboardingState()
         setInitialAccountIdCount(response.keys.length)
         if (
@@ -173,7 +173,7 @@ app.whenReady().then(() => {
             trpc.createAppWindow({routes: [defaultRoute]})
           })
         } else {
-          openInitialWindows()
+          await openInitialWindows()
         }
       })
 

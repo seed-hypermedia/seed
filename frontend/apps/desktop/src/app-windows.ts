@@ -145,7 +145,7 @@ const appWindowSchema = z.object({
 
 type AppWindow = z.infer<typeof appWindowSchema>
 
-const WINDOW_STATE_STORAGE_KEY = 'WindowState-v005'
+const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
 
 let windowsState =
   (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) ||
