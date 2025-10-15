@@ -344,7 +344,12 @@ const SearchInput = ({
           key: packHmId(item.id),
           searchQuery: item.searchQuery,
           versionTime: item.versionTime
-            ? item.versionTime.toDate().toLocaleString()
+            ? typeof item.versionTime.toDate === 'function'
+              ? item.versionTime.toDate().toLocaleString()
+              : typeof item.versionTime === 'string' ||
+                typeof item.versionTime === 'number'
+              ? new Date(item.versionTime).toLocaleString()
+              : ''
             : '',
           onFocus: () => {},
           onMouseEnter: () => {},
