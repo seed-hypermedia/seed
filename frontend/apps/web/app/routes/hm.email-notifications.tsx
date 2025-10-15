@@ -88,6 +88,7 @@ export default function EmailNotificationsPage() {
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
           origin={origin}
+          handleToggleFeed={() => {}}
         />
         <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
           <Container className="flex-1 gap-4 overflow-y-auto px-6 py-8">

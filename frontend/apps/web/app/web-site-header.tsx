@@ -24,9 +24,10 @@ export function WebSiteHeader(
     origin?: string
     isLatest?: boolean
     hideSiteBarClassName?: AutoHideSiteHeaderClassName
+    handleToggleFeed: () => void
   }>,
 ) {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
@@ -93,18 +94,7 @@ export function WebSiteHeader(
           document.body.style.overflow = 'auto'
         }
       }}
-      handleToggleFeed={() => {
-        const currentFeed = searchParams.get('feed') === 'true'
-        setSearchParams((prev) => {
-          const newParams = new URLSearchParams(prev)
-          if (currentFeed) {
-            newParams.delete('feed')
-          } else {
-            newParams.set('feed', 'true')
-          }
-          return newParams
-        })
-      }}
+      handleToggleFeed={props.handleToggleFeed}
       isMainFeedVisible={searchParams.get('feed') === 'true'}
       wrapperClassName="fixed sm:static"
     />

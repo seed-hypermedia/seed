@@ -1,5 +1,5 @@
 import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
-import {useLocation, useNavigate} from '@remix-run/react'
+import {useLocation, useNavigate, useSearchParams} from '@remix-run/react'
 import avatarPlaceholder from '@shm/editor/assets/avatar.png'
 import {
   BlockRange,
@@ -137,6 +137,23 @@ function InnerDocumentPage(
   const currentAccount = useAccount(keyPair?.id || undefined)
 
   const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isFeedActive = useMemo(() => {
+    return searchParams.get('feed') === 'true'
+  }, [searchParams])
+  const handleToggleFeed = useCallback(() => {
+    const currentFeed = searchParams.get('feed') === 'true'
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      if (currentFeed) {
+        newParams.delete('feed')
+      } else {
+        newParams.set('feed', 'true')
+      }
+      return newParams
+    })
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     if (!id) return
@@ -459,6 +476,7 @@ function InnerDocumentPage(
             supportQueries={supportQueries}
             origin={origin}
             isLatest={isLatest}
+            handleToggleFeed={handleToggleFeed}
           />
           <WebDocContentProvider
             siteHost={siteHost}
@@ -696,9 +714,11 @@ function InnerDocumentPage(
                 <MobileInteractionCardCollapsed
                   onClick={() => {
                     setDocumentPanel({type: 'activity'})
-                    setMobilePanelOpen(true)
+                    // setMobilePanelOpen(true)
                   }}
                   commentsCount={interactionSummary.data?.comments || 0}
+                  handleToggleFeed={handleToggleFeed}
+                  isFeedActive={isFeedActive}
                 />
 
                 <div
@@ -740,52 +760,68 @@ function InnerDocumentPage(
 function MobileInteractionCardCollapsed({
   onClick,
   commentsCount = 0,
+  isFeedActive = false,
+  handleToggleFeed,
 }: {
   onClick: () => void
   commentsCount: number
+  handleToggleFeed: () => void
+  isFeedActive: boolean
 }) {
   const keyPair = useLocalKeyPair()
   const myAccount = useAccount(keyPair?.id || undefined)
 
-  const tx = useTx()
   return (
     <div
-      className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex rounded-t-md border bg-white p-2"
+      className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2"
       style={{
         boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
       }}
+      onClick={(e) => {
+        // Prevent clicks on the container from passing through to elements behind
+        e.stopPropagation()
+      }}
     >
+      <div className="shrink-0">
+        {myAccount.data?.id ? (
+          <HMIcon
+            id={myAccount.data.id}
+            name={myAccount.data?.metadata?.name}
+            icon={myAccount.data?.metadata?.icon}
+            size={32}
+          />
+        ) : (
+          <UIAvatar
+            url={avatarPlaceholder}
+            size={32}
+            className="rounded-full"
+          />
+        )}
+      </div>
+
+      <Button
+        onClick={(e) => {
+          e.stopPropagation()
+          handleToggleFeed()
+        }}
+      >
+        <Sparkle
+          className={cn('size-4', !isFeedActive && 'text-muted-foreground')}
+        />
+      </Button>
+
       <Button
         variant="ghost"
-        className="flex min-w-0 flex-1 items-center justify-start p-1"
-        onClick={onClick}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
       >
-        <div className="shrink-0">
-          {myAccount.data?.id ? (
-            <HMIcon
-              id={myAccount.data.id}
-              name={myAccount.data?.metadata?.name}
-              icon={myAccount.data?.metadata?.icon}
-              size={32}
-            />
-          ) : (
-            <UIAvatar
-              url={avatarPlaceholder}
-              size={32}
-              className="rounded-full"
-            />
-          )}
-        </div>
-        <span className="bg-background ring-px ring-border ml-1 flex-1 truncate rounded-md px-2 py-1 text-left ring">
-          {tx('Start a Discussion')}
-        </span>
-      </Button>
-      {commentsCount ? (
-        <Button variant="ghost" onClick={onClick}>
-          <MessageSquare className="size-4 opacity-50" />
+        <MessageSquare className="size-4 opacity-50" />
+        {commentsCount ? (
           <span className="text-xs opacity-50">{commentsCount}</span>
-        </Button>
-      ) : null}
+        ) : null}
+      </Button>
     </div>
   )
 }
