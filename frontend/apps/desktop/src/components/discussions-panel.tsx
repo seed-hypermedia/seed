@@ -109,7 +109,7 @@ function _DiscussionsPanel(props: {
       blockRef: accessory.openBlockId,
     })
     return (
-      <AppDocContentProvider docId={targetId}>
+      <AppDocContentProvider docId={targetId} textUnit={14} layoutUnit={16}>
         {deleteCommentDialog.content}
         <BlockDiscussions
           targetId={targetId}
@@ -125,7 +125,7 @@ function _DiscussionsPanel(props: {
 
   if (accessory.openComment) {
     return (
-      <AppDocContentProvider docId={docId}>
+      <AppDocContentProvider docId={docId} textUnit={14} layoutUnit={16}>
         {deleteCommentDialog.content}
         <CommentDiscussions
           onBack={() => onAccessory({key: 'activity'})}
@@ -142,7 +142,7 @@ function _DiscussionsPanel(props: {
   }
 
   return (
-    <AppDocContentProvider docId={docId}>
+    <AppDocContentProvider docId={docId} textUnit={14} layoutUnit={16}>
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}

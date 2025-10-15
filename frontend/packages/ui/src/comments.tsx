@@ -479,8 +479,8 @@ export function Comment({
         onBlockReply={() => {}}
         onBlockCommentClick={() => {}}
         onBlockCitationClick={() => {}}
-        layoutUnit={14}
         textUnit={14}
+        layoutUnit={16}
         comment
         debug={false}
         collapsedBlocks={new Set()}

@@ -87,8 +87,8 @@ export function useDocumentAccessory({
           <AppDocContentProvider
             docId={docId}
             comment
-            textUnit={16}
-            layoutUnit={18}
+            textUnit={14}
+            layoutUnit={16}
           >
             <Feed2
               commentEditor={docId ? <CommentBox docId={docId} /> : null}

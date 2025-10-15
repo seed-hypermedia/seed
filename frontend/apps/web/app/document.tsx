@@ -464,8 +464,8 @@ function InnerDocumentPage(
             siteHost={siteHost}
             originHomeId={originHomeId}
             comment
-            textUnit={16}
-            layoutUnit={18}
+            textUnit={14}
+            layoutUnit={16}
           >
             <PanelGroup
               direction="horizontal"

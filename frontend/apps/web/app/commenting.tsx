@@ -244,8 +244,8 @@ export default function WebCommenting({
         comment
         entityId={docId}
         onBlockCopy={null}
-        layoutUnit={18}
-        textUnit={12}
+        layoutUnit={16}
+        textUnit={14}
         collapsedBlocks={new Set()}
         setCollapsedBlocks={() => {}}
       >

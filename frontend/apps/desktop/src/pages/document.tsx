@@ -328,11 +328,20 @@ function _MainDocumentPage({
   if (loadedCommentResource) {
     return null
   }
+
+  // Only pass siteHomeEntity if it's loaded and is a document type
+  const siteHomeEntityData =
+    !siteHomeEntity.isLoading &&
+    // @ts-ignore
+    siteHomeEntity.data?.type === 'document'
+      ? // @ts-ignore
+        siteHomeEntity.data
+      : null
+
   return (
     <div className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
-        // @ts-ignore
-        siteHomeEntity={siteHomeEntity.data}
+        siteHomeEntity={siteHomeEntityData}
         docId={id}
         document={document}
         supportDocuments={[]} // todo: handle embeds for outline!!

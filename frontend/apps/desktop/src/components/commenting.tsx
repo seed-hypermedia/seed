@@ -57,7 +57,7 @@ export function renderCommentContent(comment: HMComment) {
   }, [comment])
 
   return (
-    <AppDocContentProvider comment>
+    <AppDocContentProvider comment textUnit={14} layoutUnit={16}>
       <div className="flex w-full flex-col">
         <CommentReference reference={data.reference} />
         <BlocksContent blocks={data.content} parentBlockId={null} />
@@ -305,7 +305,7 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <AppDocContentProvider comment>
+        <AppDocContentProvider comment textUnit={14} layoutUnit={16}>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
         </AppDocContentProvider>
       </div>
@@ -448,7 +448,12 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        <AppDocContentProvider {...context} comment>
+        <AppDocContentProvider
+          {...context}
+          comment
+          textUnit={14}
+          layoutUnit={16}
+        >
           <BlocksContent
             blocks={referenceContent}
             parentBlockId={null}

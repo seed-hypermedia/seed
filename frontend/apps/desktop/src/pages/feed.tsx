@@ -9,7 +9,6 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
@@ -23,8 +22,6 @@ import {useScrollRestoration} from '@/utils/use-scroll-restoration'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
-  BlockRange,
-  calculateBlockCitations,
   DocumentRoute,
   FeedRoute,
   getCommentTargetId,
@@ -32,7 +29,6 @@ import {
   HMDocument,
   HMEntityContent,
   hmId,
-  HMResource,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
@@ -47,7 +43,6 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
-import {DocContent} from '@shm/ui/document-content'
 import {DocumentDate} from '@shm/ui/document-date'
 import {Feed2} from '@shm/ui/feed'
 import {SeedHeading} from '@shm/ui/heading'
@@ -328,8 +323,8 @@ function _FeedContent({
                 routeParams={{
                   uid: homeId.uid,
                 }}
-                textUnit={16}
-                layoutUnit={18}
+                textUnit={14}
+                layoutUnit={16}
               >
                 <Feed2
                   commentEditor={homeId ? <CommentBox docId={homeId} /> : null}
@@ -698,97 +693,5 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
     >
       {siteUrl}
     </SizableText>
-  )
-}
-
-function DocPageContent({
-  resource,
-  isBlockFocused,
-  blockRef,
-  blockRange,
-}: {
-  resource: HMResource | null | undefined
-  blockId?: string
-  isBlockFocused: boolean
-  blockRef?: string | null
-  blockRange?: BlockRange | null
-}) {
-  const replace = useNavigate('replace')
-  const route = useNavRoute()
-  const citations = useDocumentCitations(resource?.id)
-  const docRoute = route.key === 'document' ? route : null
-  if (!docRoute) return null
-  if (resource?.type !== 'document') return null
-  const document = resource.document
-  return (
-    <AppDocContentProvider
-      routeParams={{
-        uid: docRoute.id?.uid || undefined,
-        version: docRoute.id?.version || undefined,
-        blockRef: blockRef || undefined,
-        blockRange: blockRange || undefined,
-      }}
-      blockCitations={useMemo(() => {
-        if (!citations.data) return {}
-        return calculateBlockCitations(citations.data)
-      }, [citations.data])}
-      onBlockCitationClick={(blockId) => {
-        if (!docRoute) return
-        replace({
-          ...docRoute,
-          id: {
-            ...docRoute.id,
-            blockRef: blockId || null,
-            blockRange: null,
-          },
-          accessory: {
-            key: 'activity',
-            openBlockId: blockId || undefined,
-          },
-        })
-      }}
-      docId={resource.id}
-      onBlockCommentClick={(blockId, blockRangeInput) => {
-        if (route.key !== 'document') return
-        if (!blockId) return
-        const blockRange =
-          blockRangeInput &&
-          'start' in blockRangeInput &&
-          'end' in blockRangeInput
-            ? blockRangeInput
-            : null
-        replace({
-          ...route,
-          id: {
-            ...route.id,
-            blockRef: blockId,
-            blockRange,
-          },
-          accessory: {
-            key: 'activity',
-            openBlockId: blockId,
-            blockRange,
-            autoFocus: true,
-          },
-        })
-      }}
-      isBlockFocused={isBlockFocused}
-    >
-      <DocContent
-        document={document}
-        focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
-        handleBlockReplace={() => {
-          if (route.key === 'document') {
-            // Remove block ref and range from the route.
-            replace({
-              ...route,
-              id: {...route.id, blockRef: null, blockRange: null},
-            })
-            return true
-          }
-          return false
-        }}
-      />
-    </AppDocContentProvider>
   )
 }
