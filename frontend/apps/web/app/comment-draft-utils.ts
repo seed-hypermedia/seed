@@ -85,7 +85,9 @@ export function useCommentDraftPersistence(
           timestamp: Date.now(),
         }
         localStorage.setItem(draftKey, JSON.stringify(draft))
-        setDraftState(draft)
+        // Updating state here caused unnecessary rerenders that caused cursor jumping
+        // The draft state is only needed for initial load so no need to update it
+        // setDraftState(draft)
       } catch (error) {
         console.error('Failed to save comment draft:', error)
       }

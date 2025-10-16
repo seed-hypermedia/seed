@@ -28,7 +28,7 @@ import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
 import {EmailNotificationsForm} from './email-notifications'
 import {useEmailNotifications} from './email-notifications-models'
@@ -166,61 +166,94 @@ export default function WebCommenting({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (
-    getContent: (
-      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+  const handleSubmit = useCallback(
+    async (
+      getContent: (
+        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+          blobs: {cid: string; data: Uint8Array}[]
+          resultCIDs: string[]
+        }>,
+      ) => Promise<{
+        blockNodes: HMBlockNode[]
         blobs: {cid: string; data: Uint8Array}[]
-        resultCIDs: string[]
       }>,
-    ) => Promise<{
-      blockNodes: HMBlockNode[]
-      blobs: {cid: string; data: Uint8Array}[]
-    }>,
-    reset: () => void,
-  ) => {
-    if (isSubmitting) return // Prevent double submission
+      reset: () => void,
+    ) => {
+      if (isSubmitting) return // Prevent double submission
 
-    if (!userKeyPair) {
-      // Store the pending submission to retry after account creation
-      pendingSubmitRef.current = async () => {
-        await handleSubmit(getContent, reset)
+      if (!userKeyPair) {
+        // Store the pending submission to retry after account creation
+        pendingSubmitRef.current = async () => {
+          await handleSubmit(getContent, reset)
+        }
+        createAccount()
+        return
       }
-      createAccount()
-      return
-    }
 
-    try {
-      setIsSubmitting(true)
-      const commentPayload = await prepareComment(
-        getContent,
-        {
-          docId,
-          docVersion,
-          keyPair: userKeyPair,
-          replyCommentVersion,
-          rootReplyCommentVersion,
-          quotingBlockId,
-        },
-        commentingOriginUrl,
-      )
-      await postComment.mutateAsync(commentPayload)
-      reset()
-      removeDraft() // Remove draft after successful submission
-      onDiscardDraft?.()
-      await promptEmailNotifications()
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+      try {
+        setIsSubmitting(true)
+        const commentPayload = await prepareComment(
+          getContent,
+          {
+            docId,
+            docVersion,
+            keyPair: userKeyPair,
+            replyCommentVersion,
+            rootReplyCommentVersion,
+            quotingBlockId,
+          },
+          commentingOriginUrl,
+        )
+        await postComment.mutateAsync(commentPayload)
+        reset()
+        removeDraft() // Remove draft after successful submission
+        onDiscardDraft?.()
+        await promptEmailNotifications()
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [
+      isSubmitting,
+      userKeyPair,
+      docId,
+      docVersion,
+      replyCommentVersion,
+      rootReplyCommentVersion,
+      quotingBlockId,
+      commentingOriginUrl,
+      createAccount,
+      postComment,
+      removeDraft,
+      onDiscardDraft,
+      promptEmailNotifications,
+    ],
+  )
 
-  const onAvatarPress = async () => {
+  const onAvatarPress = useCallback(async () => {
     if (!userKeyPair) {
       createAccount()
       return
     }
     editProfileDialog.open({accountUid: userKeyPair.id})
     return
-  }
+  }, [userKeyPair, createAccount, editProfileDialog])
+
+  const handleDiscardDraft = useCallback(() => {
+    removeDraft()
+    onDiscardDraft?.()
+  }, [removeDraft, onDiscardDraft])
+
+  // Memoize entity components to prevent recreating on every render
+  const entityComponents = useMemo(
+    () => ({
+      Document: EmbedDocument,
+      Comment: () => null,
+      Inline: EmbedInline,
+      Query: QueryBlockWeb,
+    }),
+    [],
+  )
 
   // Don't render until draft is loaded
   if (isDraftLoading) {
@@ -230,13 +263,8 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <DocContentProvider
-        entityComponents={{
-          Document: EmbedDocument,
-          Comment: () => null,
-          // @ts-expect-error
-          Inline: EmbedInline,
-          Query: QueryBlockWeb,
-        }}
+        // @ts-expect-error - EmbedInline has incompatible prop types
+        entityComponents={entityComponents}
         importWebFile={importWebFile}
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}
@@ -255,10 +283,7 @@ export default function WebCommenting({
           initialBlocks={draft || undefined}
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
-          onDiscardDraft={() => {
-            removeDraft()
-            onDiscardDraft?.()
-          }}
+          onDiscardDraft={handleDiscardDraft}
           submitButton={({getContent, reset}) => {
             return (
               <Tooltip
