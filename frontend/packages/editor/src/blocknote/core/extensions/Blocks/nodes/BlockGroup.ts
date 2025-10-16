@@ -191,6 +191,34 @@ export const BlockGroup = Node.create<{
           transformPasted: (slice, view) => {
             const schema = view.state.schema
 
+            // Check if the slice already has valid structure
+            // A valid internal slice will have blockGroup or blockContainer as top-level nodes
+            let needsTransformation = false
+            slice.content.forEach((node: any) => {
+              if (node.type.name === 'blockGroup') {
+                // Check if this blockGroup is from our editor
+                if (node.content && node.content.childCount > 0) {
+                  const firstChild = node.firstChild
+                  // If blockGroup contains blockContainers, it's from our editor
+                  if (
+                    !(firstChild && firstChild.type.name === 'blockContainer')
+                  ) {
+                    needsTransformation = true
+                  }
+                }
+              } else if (node.type.name !== 'blockContainer') {
+                // Top-level nodes that aren't blockContainer or blockGroup need wrapping
+                needsTransformation = true
+              }
+            })
+
+            if (
+              !needsTransformation &&
+              (slice.openStart > 0 || slice.openEnd > 0)
+            ) {
+              return slice
+            }
+
             // Transform pasted content to ensure all nodes are properly wrapped
             const transformFragment = (fragment: any, schema: any): any => {
               const nodes: any[] = []
@@ -203,22 +231,22 @@ export const BlockGroup = Node.create<{
                     // Merge blockGroup into previous blockContainer as 2nd child
                     const mergedContainer = schema.nodes[
                       'blockContainer'
-                    ].create(prevNode.attrs, [prevNode.firstChild, node])
+                    ]!.create(prevNode.attrs, [prevNode.firstChild, node])
                     nodes[nodes.length - 1] = mergedContainer
                   } else {
                     // First node is blockGroup or no previous blockContainer
                     // Mark with special attribute so handlePaste can detect it
-                    const dummyParagraph = schema.nodes['paragraph'].create()
+                    const dummyParagraph = schema.nodes['paragraph']!.create()
                     const blockContainer = schema.nodes[
                       'blockContainer'
-                    ].create({__isListPaste: true}, [dummyParagraph, node])
+                    ]!.create({__isListPaste: true}, [dummyParagraph, node])
                     nodes.push(blockContainer)
                   }
                 } else if (node.type.name === 'blockContainer') {
                   nodes.push(node)
                 } else {
                   // Wrap content nodes in blockContainer
-                  const blockContainer = schema.nodes['blockContainer'].create(
+                  const blockContainer = schema.nodes['blockContainer']!.create(
                     null,
                     node,
                   )
@@ -231,7 +259,29 @@ export const BlockGroup = Node.create<{
 
             const transformedContent = transformFragment(slice.content, schema)
 
-            return new Slice(transformedContent, slice.openStart, slice.openEnd)
+            // Adjust openStart and openEnd for the transformed structure
+            // When we wrap nodes in new containers, we create closed boundaries
+            let newOpenStart = slice.openStart
+            let newOpenEnd = slice.openEnd
+
+            // Check if the first node in original slice was a blockGroup that we wrapped in blockContainer
+            if (
+              slice.content.firstChild?.type.name === 'blockGroup' &&
+              transformedContent.firstChild?.type.name === 'blockContainer' &&
+              transformedContent.firstChild?.attrs?.__isListPaste
+            ) {
+              newOpenStart = 0
+            }
+
+            if (
+              slice.content.lastChild?.type.name === 'blockGroup' &&
+              transformedContent.lastChild?.type.name === 'blockContainer' &&
+              transformedContent.lastChild?.attrs?.__isListPaste
+            ) {
+              newOpenEnd = 0
+            }
+
+            return new Slice(transformedContent, newOpenStart, newOpenEnd)
           },
 
           handlePaste: (view, event, slice) => {
