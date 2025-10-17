@@ -168,7 +168,7 @@ p.block-paragraph.is-comment *:not(.text-code) {
 }
 
 .hm-embed-range-wrapper span.hm-embed-range {
-  font-size: 1.2em !important;
+  /* font-size: 1.2em !important; */
   font-weight: lighter !important;
   font-style: italic !important;
 }
