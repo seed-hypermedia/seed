@@ -34,6 +34,7 @@ function _DiscussionsPanel(props: {
       docId={docId}
       commentId={accessory.openComment}
       quotingBlockId={accessory.openBlockId}
+      context="accessory"
     />
   )
 

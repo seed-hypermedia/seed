@@ -91,7 +91,9 @@ export function useDocumentAccessory({
             layoutUnit={16}
           >
             <Feed2
-              commentEditor={docId ? <CommentBox docId={docId} /> : null}
+              commentEditor={
+                docId ? <CommentBox docId={docId} context="accessory" /> : null
+              }
               filterResource={docId?.id}
               currentAccount={selectedAccount?.id.uid || ''}
               filterEventType={filterEventType}
@@ -108,7 +110,9 @@ export function useDocumentAccessory({
           layoutUnit={18}
         >
           <Feed2
-            commentEditor={docId ? <CommentBox docId={docId} /> : null}
+            commentEditor={
+              docId ? <CommentBox docId={docId} context="accessory" /> : null
+            }
             filterResource={docId?.id}
             currentAccount={selectedAccount?.id.uid || ''}
             filterEventType={filterEventType}

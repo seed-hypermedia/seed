@@ -92,6 +92,7 @@ function _CommentBox(props: {
   quotingBlockId?: string
   commentId?: string
   autoFocus?: boolean
+  context?: 'accessory' | 'feed' | 'document-content'
 }) {
   const {
     docId,
@@ -99,12 +100,15 @@ function _CommentBox(props: {
     quotingBlockId,
     commentId,
     autoFocus,
+    context,
   } = props
 
   const account = useSelectedAccount()
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
     commentId,
+    quotingBlockId,
+    context,
   )
   const [isStartingComment, setIsStartingComment] = useState(false)
   function focusEditor() {
@@ -138,6 +142,7 @@ function _CommentBox(props: {
           initCommentDraft={draft.data}
           quotingBlockId={quotingBlockId}
           commentId={commentId}
+          context={context}
           onDiscardDraft={() => {
             setIsStartingComment(false)
           }}
@@ -242,6 +247,7 @@ function _CommentDraftEditor({
   initCommentDraft,
   onSuccess,
   quotingBlockId,
+  context,
 }: {
   docId: UnpackedHypermediaId
   onDiscardDraft?: () => void
@@ -250,6 +256,7 @@ function _CommentDraftEditor({
   initCommentDraft?: HMCommentDraft | null | undefined
   onSuccess?: (commentId: {id: string}) => void
   quotingBlockId?: string
+  context?: 'accessory' | 'feed' | 'document-content'
 }) {
   const [isHorizontal, setIsHorizontal] = useState(false)
   const sizeObserverdRef = useSizeObserver((rect) => {
@@ -263,6 +270,7 @@ function _CommentDraftEditor({
       initCommentDraft,
       onSuccess,
       quotingBlockId,
+      context,
     })
   const openUrl = useOpenUrl()
   useEffect(() => {

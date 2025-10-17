@@ -58,12 +58,16 @@ export function useCommentReplies(
 export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
   commentId: string | undefined,
+  quotingBlockId: string | undefined,
+  context: 'accessory' | 'feed' | 'document-content' | undefined,
   opts?: Parameters<typeof trpc.comments.getCommentDraft.useQuery>[1],
 ) {
   const comment = trpc.comments.getCommentDraft.useQuery(
     {
       targetDocId: targetDocId.id,
       replyCommentId: commentId,
+      quotingBlockId: quotingBlockId,
+      context: context,
     },
     opts,
   )
@@ -188,12 +192,14 @@ export function useCommentEditor(
     initCommentDraft,
     onSuccess,
     quotingBlockId,
+    context,
   }: {
     initCommentDraft?: HMCommentDraft | null | undefined
     onDiscardDraft?: () => void
     commentId?: string
     onSuccess?: (commentId: {id: string}) => void
     quotingBlockId?: string
+    context?: 'accessory' | 'feed' | 'document-content'
   } = {},
 ) {
   const selectedAccount = useSelectedAccount()
@@ -201,6 +207,12 @@ export function useCommentEditor(
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
   const write = trpc.comments.writeCommentDraft.useMutation({
+    onSuccess: () => {
+      // Invalidate the drafts list so it shows up in the drafts page
+      invalidateQueries(['trpc.comments.listCommentDrafts'])
+      // Invalidate the specific draft query so it refetches when you navigate back
+      invalidateQueries(['trpc.comments.getCommentDraft'])
+    },
     onError: (err) => {
       toast.error(err.message)
     },
@@ -212,6 +224,8 @@ export function useCommentEditor(
       // Clear the editor immediately when discarding
       editor.removeBlocks(editor.topLevelBlocks)
       onDiscardDraft?.()
+      // Invalidate the drafts list to update the drafts page
+      invalidateQueries(['trpc.comments.listCommentDrafts'])
       // Don't invalidate queries immediately - the draft is already removed
       // Invalidating would cause a refetch which might get stale data
       // Only invalidate if this was triggered by successful comment publication
@@ -257,6 +271,8 @@ export function useCommentEditor(
       blocks,
       targetDocId: targetDocId.id,
       replyCommentId: commentId,
+      quotingBlockId: quotingBlockId,
+      context: context,
     })
     // Don't invalidate queries during active editing - this causes re-renders
     // The draft is already saved, no need to refetch it
@@ -345,6 +361,12 @@ export function useCommentEditor(
     }
   }, [initCommentDraft])
 
+  // Reset initialization flag when navigation context changes (docId or commentId)
+  // This ensures drafts are properly loaded when returning to a comment editor
+  useEffect(() => {
+    hasInitializedDraft.current = false
+  }, [targetDocId.id, commentId, quotingBlockId])
+
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
       if (event.key == 'a' && event.metaKey) {
@@ -427,6 +449,8 @@ export function useCommentEditor(
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
       })
       pushComments.mutate({
         targetDocId,
@@ -473,6 +497,8 @@ export function useCommentEditor(
           {
             targetDocId: targetDocId.id,
             replyCommentId: commentId,
+            quotingBlockId: quotingBlockId,
+            context: context,
           },
         ],
         null,
@@ -480,6 +506,8 @@ export function useCommentEditor(
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
       })
     }
 

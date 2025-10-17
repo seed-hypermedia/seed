@@ -595,9 +595,25 @@ export type HMChangeInfo = HMDocumentChangeInfo
 
 export const HMCommentDraftSchema = z.object({
   blocks: z.array(HMBlockNodeSchema),
+  targetDocId: z.string().optional(),
+  replyCommentId: z.string().optional(),
+  quotingBlockId: z.string().optional(),
+  context: z.enum(['accessory', 'feed', 'document-content']).optional(),
+  lastUpdateTime: z.number().optional(),
 })
 
 export type HMCommentDraft = z.infer<typeof HMCommentDraftSchema>
+
+export const HMListedCommentDraftSchema = z.object({
+  id: z.string(),
+  targetDocId: z.string(),
+  replyCommentId: z.string().optional(),
+  quotingBlockId: z.string().optional(),
+  context: z.enum(['accessory', 'feed', 'document-content']).optional(),
+  lastUpdateTime: z.number(),
+})
+
+export type HMListedCommentDraft = z.infer<typeof HMListedCommentDraftSchema>
 
 export const HMNavigationItemSchema = z.object({
   type: z.literal('Link'),

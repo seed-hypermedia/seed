@@ -344,6 +344,8 @@ function MainApp({}: {}) {
           utils.recentSigners.get.invalidate()
         } else if (queryKey[0] === 'trpc.comments.getCommentDraft') {
           utils.comments.getCommentDraft.invalidate()
+        } else if (queryKey[0] === 'trpc.comments.listCommentDrafts') {
+          utils.comments.listCommentDrafts.invalidate()
         } else if (queryKey[0] === 'trpc.gatewaySettings.getGatewayUrl') {
           utils.gatewaySettings.getGatewayUrl.invalidate()
         } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnCopy') {
@@ -369,7 +371,7 @@ function MainApp({}: {}) {
 
           utils.secureStorage.read.invalidate()
         } else {
-          queryClient.invalidateQueries(queryKey)
+          queryClient.invalidateQueries({queryKey})
         }
       },
     })

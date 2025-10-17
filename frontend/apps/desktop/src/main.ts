@@ -61,6 +61,7 @@ import {saveMarkdownFile} from './save-markdown-file'
 import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
 import {initDrafts} from './app-drafts'
+import {initCommentDrafts} from './app-comments'
 import {
   getOnboardingState,
   setInitialAccountIdCount,
@@ -146,9 +147,14 @@ app.whenReady().then(() => {
   startMainDaemon()
     .then(() => {
       logger.info('DaemonStarted')
-      return initDrafts().then(() => {
-        logger.info('Drafts ready')
-      })
+      return Promise.all([
+        initDrafts().then(() => {
+          logger.info('Drafts ready')
+        }),
+        initCommentDrafts().then(() => {
+          logger.info('Comment Drafts ready')
+        }),
+      ])
     })
     .then(() => {
       // Initialize IPC handlers after the app is ready

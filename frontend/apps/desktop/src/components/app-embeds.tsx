@@ -679,7 +679,9 @@ function EmbedDocumentComments(props: EntityComponentProps) {
       hideBorder
     >
       <Discussions
-        commentEditor={<CommentBox docId={unpackedId} />}
+        commentEditor={
+          <CommentBox docId={unpackedId} context="document-content" />
+        }
         targetId={unpackedId}
       />
     </EmbedWrapper>

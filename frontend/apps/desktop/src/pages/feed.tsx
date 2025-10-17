@@ -327,7 +327,9 @@ function _FeedContent({
                 layoutUnit={16}
               >
                 <Feed2
-                  commentEditor={homeId ? <CommentBox docId={homeId} /> : null}
+                  commentEditor={
+                    homeId ? <CommentBox docId={homeId} context="feed" /> : null
+                  }
                   filterResource={`${homeId.id}*`}
                   currentAccount={selectedAccount?.id.uid || ''}
                 />
