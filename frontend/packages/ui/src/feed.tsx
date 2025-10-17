@@ -14,8 +14,12 @@ import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx} from '@shm/shared/translation'
-import {formattedDateShort} from '@shm/shared/utils'
-import {useCallback, useEffect, useRef} from 'react'
+import {
+  AnyTimestamp,
+  formattedDateShort,
+  normalizeDate,
+} from '@shm/shared/utils'
+import {memo, useCallback, useEffect, useRef} from 'react'
 import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {CommentContent} from './comments'
@@ -28,6 +32,7 @@ import {ResourceToken} from './resource-token'
 import {Separator} from './separator'
 import {SizableText} from './text'
 import {cn} from './utils'
+import {Tooltip} from './tooltip'
 
 /*
 
@@ -216,13 +221,52 @@ export function EventDescriptionText({children}: {children: React.ReactNode}) {
   ) : null
 }
 
-export function EventTimestamp({time}: {time: HMTimestamp | undefined}) {
+export const EventTimestamp = memo(function EventTimestamp({
+  time,
+}: {
+  time: HMTimestamp | undefined
+}) {
   if (!time) return null
+
+  const date = normalizeDate(time)
+
+  if (!date) return null
+
   return (
     <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
-      {formattedDateShort(time)}
+      <EventTimestampWithTooltip time={time} />
     </SizableText>
   )
+})
+
+const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({
+  time,
+}: {
+  time: AnyTimestamp
+}) {
+  if (!time) return null
+
+  const date = normalizeDate(time)
+
+  if (!date) return null
+
+  return (
+    <Tooltip side="top" delay={400} content={formatUTC(date)}>
+      {formattedDateShort(time)}
+    </Tooltip>
+  )
+})
+
+function formatUTC(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  const year = date.getUTCFullYear()
+  const month = pad(date.getUTCMonth() + 1) // Months are 0-based.
+  const day = pad(date.getUTCDate())
+  const hours = pad(date.getUTCHours())
+  const minutes = pad(date.getUTCMinutes())
+
+  return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
 function getEventRoute(event: LoadedEvent): NavRoute | null {
@@ -506,7 +550,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.target?.metadata?.name}
         </a>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
-          {formattedDateShort(event.time)}
+          <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
     )
@@ -537,7 +581,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.target?.metadata?.name}
         </a>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
-          {formattedDateShort(event.time)}
+          <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
     )
@@ -559,7 +603,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.document.metadata.name}
         </a>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
-          {formattedDateShort(event.time)}
+          <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
     )
@@ -589,7 +633,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {event.contact.name}
         </span>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
-          {formattedDateShort(event.time)}
+          <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
     )
@@ -618,7 +662,7 @@ function EventHeaderContent({event}: {event: LoadedEvent}) {
           {sourceName}
         </a>{' '}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
-          {formattedDateShort(event.time)}
+          <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
     )
