@@ -1546,7 +1546,8 @@ function InlineContentView({
               onClick={onPress}
               className={cn(
                 'cursor-pointer break-all transition-colors',
-                isHmScheme ? 'hm-link' : 'link',
+                // link colors
+                'link text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
               )}
               target={isHmScheme ? undefined : '_blank'}
               onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
@@ -2496,7 +2497,7 @@ export function InlineEmbedButton({
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}
       onMouseLeave={() => props.onHoverOut?.(entityId)}
-      className="hm-link text-primary font-bold"
+      className="text-primary font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
       data-blockid={entityId.blockRef}

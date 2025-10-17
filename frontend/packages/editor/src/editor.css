@@ -67,18 +67,16 @@
 }
 
 /* recommendation from Haz: https://twitter.com/diegohaz/status/1591829631811846147 */
-.link,
-.hm-link {
+.link {
   text-decoration-line: underline;
   text-decoration-color: currentColor;
   text-underline-offset: 0.2em;
   text-decoration-skip-ink: none;
 }
 
-.link:hover,
-.hm-link:hover {
-  text-decoration-thickness: 3px;
-}
+/* .link:hover {
+  text-decoration-thickness: 2px;
+} */
 
 .ProseMirror .link-placeholder {
   width: 16px;
