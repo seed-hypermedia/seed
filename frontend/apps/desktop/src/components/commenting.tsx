@@ -271,6 +271,7 @@ function _CommentDraftEditor({
       onSuccess,
       quotingBlockId,
       context,
+      autoFocus,
     })
   const openUrl = useOpenUrl()
   useEffect(() => {

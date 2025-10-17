@@ -92,7 +92,17 @@ export function useDocumentAccessory({
           >
             <Feed2
               commentEditor={
-                docId ? <CommentBox docId={docId} context="accessory" /> : null
+                docId ? (
+                  <CommentBox
+                    docId={docId}
+                    context="accessory"
+                    autoFocus={
+                      route.accessory?.key === 'activity'
+                        ? route.accessory?.autoFocus
+                        : undefined
+                    }
+                  />
+                ) : null
               }
               filterResource={docId?.id}
               currentAccount={selectedAccount?.id.uid || ''}

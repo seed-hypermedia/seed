@@ -1,3 +1,4 @@
+import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useCreateDraft, useDraftList} from '@/models/documents'
@@ -275,15 +276,33 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
       onClick={() => {
         // Navigate to the target document with the comment editor focused
         if (targetDocId) {
-          navigate({
-            key: 'document',
-            id: targetDocId,
-            accessory: {
-              key: 'activity',
-              openComment: item.replyCommentId,
-              openBlockId: item.quotingBlockId,
-            },
-          })
+          // Only open activity accessory if the draft was created in accessory context
+          const shouldOpenAccessory = item.context === 'accessory'
+
+          const navParams = shouldOpenAccessory
+            ? {
+                key: 'document' as const,
+                id: targetDocId,
+                accessory: {
+                  key: 'activity' as const,
+                  openComment: item.replyCommentId,
+                  openBlockId: item.quotingBlockId,
+                  autoFocus: true,
+                },
+              }
+            : {
+                key: 'document' as const,
+                id: targetDocId,
+              }
+
+          navigate(navParams)
+
+          // For non-accessory drafts, use the focus trigger mechanism after navigation
+          if (!shouldOpenAccessory) {
+            setTimeout(() => {
+              triggerCommentDraftFocus(targetDocId.id, item.replyCommentId)
+            }, 300)
+          }
         }
       }}
     >

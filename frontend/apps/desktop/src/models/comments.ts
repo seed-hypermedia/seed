@@ -193,6 +193,7 @@ export function useCommentEditor(
     onSuccess,
     quotingBlockId,
     context,
+    autoFocus,
   }: {
     initCommentDraft?: HMCommentDraft | null | undefined
     onDiscardDraft?: () => void
@@ -200,6 +201,7 @@ export function useCommentEditor(
     onSuccess?: (commentId: {id: string}) => void
     quotingBlockId?: string
     context?: 'accessory' | 'feed' | 'document-content'
+    autoFocus?: boolean
   } = {},
 ) {
   const selectedAccount = useSelectedAccount()
@@ -312,6 +314,18 @@ export function useCommentEditor(
       if (!hasInitializedDraft.current) {
         hasInitializedDraft.current = true
         initDraft()
+      }
+      // Focus editor after initialization if autoFocus is true AND context matches
+      // This ensures we only focus the editor in the same context where the draft was created
+      const shouldFocus =
+        autoFocus &&
+        (!initCommentDraft?.context || initCommentDraft.context === context)
+      if (shouldFocus) {
+        setTimeout(() => {
+          alert('About to focus the editor!')
+          e._tiptapEditor.commands.focus()
+        }, 100)
+      } else if (autoFocus) {
       }
     },
     blockSchema: getCommentEditorSchema(hmBlockSchema),

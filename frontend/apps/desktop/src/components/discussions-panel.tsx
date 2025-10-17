@@ -35,6 +35,7 @@ function _DiscussionsPanel(props: {
       commentId={accessory.openComment}
       quotingBlockId={accessory.openBlockId}
       context="accessory"
+      autoFocus={accessory.autoFocus}
     />
   )
 
