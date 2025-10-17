@@ -34,11 +34,6 @@ export class WebActivityService implements ActivityService {
     if (params.filterResource) {
       searchParams.set('filterResource', params.filterResource)
     }
-    if (params.addLinkedResource) {
-      params.addLinkedResource.forEach((r) =>
-        searchParams.append('addLinkedResource', r),
-      )
-    }
 
     const queryUrl = `/hm/api/feed?${searchParams.toString()}`
     return await queryAPI<HMListEventsResponse>(queryUrl)

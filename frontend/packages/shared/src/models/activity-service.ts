@@ -19,7 +19,6 @@ export type HMListEventsRequest = {
   filterAuthors?: string[]
   filterEventType?: string[]
   filterResource?: string
-  addLinkedResource?: string[]
 }
 
 export type HMListEventsResponse = {
@@ -160,7 +159,6 @@ export async function listEventsImpl(
     filterAuthors: params.filterAuthors || [],
     filterEventType: params.filterEventType || [],
     filterResource: params.filterResource || '',
-    addLinkedResource: params.addLinkedResource || [],
   })
 
   return response.toJson({
@@ -209,7 +207,6 @@ export async function listEventsWithCitationsImpl(
             filterAuthors: params.filterAuthors || [],
             filterEventType: params.filterEventType || [],
             filterResource: params.filterResource || '',
-            addLinkedResource: params.addLinkedResource || [],
           })
           .then(
             (r) =>
