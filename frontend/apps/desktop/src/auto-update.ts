@@ -3,7 +3,7 @@ import {
   IS_PROD_DESKTOP,
   IS_PROD_DEV,
 } from '@shm/shared/constants'
-import {app, BrowserWindow, ipcMain, session} from 'electron'
+import {app, BrowserWindow, ipcMain, session, shell} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as log from './logger'
@@ -39,6 +39,28 @@ export default function autoUpdate() {
 
   if (!IS_PROD_DESKTOP || AVOID_UPDATES) {
     log.debug('[MAIN][AUTO-UPDATE]: Not available in development')
+    return
+  }
+
+  // Check if running inside Flatpak
+  if (isRunningInFlatpak()) {
+    log.info(
+      '[AUTO-UPDATE] Running inside Flatpak - skipping custom auto-update setup',
+    )
+    setTimeout(() => {
+      handleFlatpakUpdates()
+    }, 2000) // Brief delay to ensure UI is ready
+    return
+  }
+
+  // Check if running as AppImage
+  if (isRunningInAppImage()) {
+    log.info(
+      '[AUTO-UPDATE] Running as AppImage - skipping custom auto-update setup',
+    )
+    setTimeout(() => {
+      handleAppImageUpdates()
+    }, 2000) // Brief delay to ensure UI is ready
     return
   }
 
@@ -128,7 +150,65 @@ function setup() {
   })
 }
 
+function isRunningInFlatpak(): boolean {
+  // Check for Flatpak environment indicators
+  return (
+    process.env.FLATPAK_ID !== undefined ||
+    process.env.FLATPAK_SANDBOX_DIR !== undefined ||
+    fs.existsSync('/.flatpak-info')
+  )
+}
+
+function isRunningInAppImage(): boolean {
+  // Check for AppImage environment indicator
+  return process.env.APPIMAGE !== undefined
+}
+
+function handleFlatpakUpdates() {
+  log.info(
+    '[AUTO-UPDATE] Running inside Flatpak - using native update mechanism',
+  )
+
+  // Send notification to user about Flatpak updates
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    win.webContents.send('auto-update:status', {
+      type: 'flatpak-info',
+      message:
+        'Updates are handled by your system package manager. Use "flatpak update" or your software center.',
+    })
+  }
+}
+
+function handleAppImageUpdates() {
+  log.info(
+    '[AUTO-UPDATE] Running as AppImage - using AppImage update mechanism',
+  )
+
+  // Send notification to user about AppImage updates
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    win.webContents.send('auto-update:status', {
+      type: 'appimage-info',
+      message:
+        'AppImage updates: Download the latest version from our website or use AppImageUpdate tool for efficient delta updates.',
+    })
+  }
+}
+
 export function customAutoUpdates() {
+  // Check if running inside Flatpak
+  if (isRunningInFlatpak()) {
+    handleFlatpakUpdates()
+    return
+  }
+
+  // Check if running as AppImage
+  if (isRunningInAppImage()) {
+    handleAppImageUpdates()
+    return
+  }
+
   // if (!isAutoUpdateSupported()) {
   //   log.debug('[AUTO-UPDATE]: Auto-Update is not supported')
   //   return
@@ -158,6 +238,16 @@ export class AutoUpdater {
     ipcMain.on('auto-update:download-and-install', () => {
       log.info('[AUTO-UPDATE] Received download and install request')
       if (this.currentUpdateInfo) {
+        // For Linux, open GitHub release page instead of downloading
+        if (process.platform === 'linux') {
+          const githubReleaseUrl = `https://github.com/seed-hypermedia/seed/releases/tag/${this.currentUpdateInfo.tag_name}`
+          log.info(
+            `[AUTO-UPDATE] Opening GitHub release page: ${githubReleaseUrl}`,
+          )
+          shell.openExternal(githubReleaseUrl)
+          return
+        }
+
         const asset = this.getAssetForCurrentPlatform(this.currentUpdateInfo)
         if (process.platform === 'darwin') {
           if (asset?.zip_url) {
@@ -344,12 +434,8 @@ export class AutoUpdater {
 
   private async handleUpdate(updateInfo: UpdateInfo): Promise<void> {
     log.info('[AUTO-UPDATE] Handling update process')
-    const asset = this.getAssetForCurrentPlatform(updateInfo)
-    if (!asset?.download_url) {
-      log.error('[AUTO-UPDATE] No compatible update found')
-      return
-    }
 
+    // For all platforms, send update info to renderer to show the popup
     log.info('[AUTO-UPDATE] Sending event to renderer')
     const win = BrowserWindow.getFocusedWindow()
     if (!win) {

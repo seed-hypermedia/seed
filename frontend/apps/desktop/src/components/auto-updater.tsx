@@ -52,9 +52,7 @@ export function AutoUpdater() {
       <SizableText>{getUpdateStatusLabel(updateStatus)}</SizableText>
       {updateStatus?.type == 'update-available' && updateStatus.updateInfo ? (
         <div className="flex gap-2">
-          <Button variant="default" onClick={handleDownloadAndInstall}>
-            Download and Update
-          </Button>
+          <Button variant="default" onClick={handleDownloadAndInstall}></Button>
           <Button
             variant="ghost"
             className="text-muted-foreground"

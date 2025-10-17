@@ -1,5 +1,7 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
+// Temporarily disabled - focusing on flatpak first
+// import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
@@ -57,6 +59,68 @@ const commonLinuxConfig = {
   },
 }
 
+// const flatpakConfig = {
+//   options: {
+//     ...commonLinuxConfig.options,
+//     id: IS_PROD_DEV ? 'media.hyper.seed' : 'media.hyper.seed.dev',
+//     runtime: 'org.freedesktop.Platform',
+//     runtimeVersion: '24.08', // Updated to match working Nextcloud config
+//     sdk: 'org.freedesktop.Sdk',
+//     base: 'org.electronjs.Electron2.BaseApp',
+//     baseVersion: '24.08', // Updated to match working Nextcloud config
+//     branch: 'stable',
+//     modules: [
+//       {
+//         name: 'zypak',
+//         sources: [
+//           {
+//             type: 'git',
+//             url: 'https://github.com/refi64/zypak',
+//             tag: 'v2024.01.17', // Updated to match working Nextcloud config
+//           },
+//         ],
+//       },
+//     ],
+//     files: [], // No additional files needed - main app is handled by @electron/packager automatically
+//     finishArgs: [
+//       '--share=ipc',
+//       '--socket=x11',
+//       '--socket=wayland',
+//       '--socket=pulseaudio',
+//       '--share=network',
+//       '--device=dri',
+//       '--filesystem=home',
+//       '--talk-name=org.freedesktop.Notifications',
+//       '--talk-name=org.kde.StatusNotifierWatcher',
+//       '--own-name=media.hyper.seed.*',
+//     ],
+//   },
+// }
+
+// Temporarily disabled - focusing on flatpak first
+// const snapConfig = {
+//   options: {
+//     name: IS_PROD_DEV ? 'seed-dev' : 'seed',
+//     summary: 'Seed: a hyper.media protocol client',
+//     description: 'Seed: a hyper.media protocol client',
+//     grade: 'stable',
+//     confinement: 'strict',
+//     base: 'core18', // Using core18 with snapcraft 7.x for compatibility
+//     plugs: {
+//       'browser-support': null,
+//       network: null,
+//       home: null,
+//       opengl: null,
+//       pulseaudio: null,
+//       unity7: null,
+//       x11: null,
+//       wayland: null,
+//       desktop: null,
+//       'desktop-legacy': null,
+//     },
+//   },
+// }
+
 const config: ForgeConfig = {
   packagerConfig: {
     appVersion: process.env.VITE_VERSION,
@@ -64,7 +128,7 @@ const config: ForgeConfig = {
     darwinDarkModeSupport: true,
     icon: iconsPath,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
-    appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    appBundleId: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
@@ -117,7 +181,10 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    // new MakerFlatpak(commonLinuxConfig as unknown as MakerFlatpakConfig),
+    // new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
+    // new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
+    // Temporarily disabled - focusing on flatpak first
+    // new MakerSnap(snapConfig as MakerSnapConfig),
   ],
   plugins: [
     // {

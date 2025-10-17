@@ -60,6 +60,14 @@ function transformRelease(release) {
           download_url: assets.find((a) => a.name.includes(".deb"))
             ?.browser_download_url,
         },
+        app_image: {
+          download_url: assets.find((a) => a.name.includes(".AppImage"))
+            ?.browser_download_url,
+        },
+        flatpak: {
+          download_url: assets.find((a) => a.name.includes(".flatpak"))
+            ?.browser_download_url,
+        },
       },
     },
   };

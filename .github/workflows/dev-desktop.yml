@@ -8,6 +8,9 @@ on:
   schedule:
     # Run at 8:00 AM UTC on every weekday (Monday through Friday)
     - cron: "0 8 * * 1-5"
+  push:
+    branches:
+      - feat/flatpak
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -135,9 +138,10 @@ jobs:
           yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
-          DEBUG: electron-*
+          DEBUG: electron-*,electron-installer-flatpak*,@malept/flatpak-bundler
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          FLATPAK_BUILDER_VERBOSE: "1"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
           VITE_VERSION: "${{ needs.build-info.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"
@@ -361,6 +365,12 @@ jobs:
                 },
                 "rpm": {
                   "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/seed-dev-${VERSION}-1.x86_64.rpm"
+                },
+                "app_image": {
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/SeedDev-${VERSION}-x64.AppImage"
+                },
+                "flatpak": {
+                  "download_url": "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/com.seed.app.dev_stable_x86_64.flatpak"
                 }
               },
               "macos": {
