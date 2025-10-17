@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Seed
+GenericName=Hypermedia Client
+Comment=A hyper.media protocol client
+Exec=media.hyper.seed %U
+Icon=media.hyper.seed
+Terminal=false
+Type=Application
+Categories=Development;Utility;Office;
+MimeType=x-scheme-handler/hm;
+Keywords=hypermedia;p2p;peer-to-peer;decentralized;collaboration;documents;editor;
+StartupNotify=true
+StartupWMClass=Seed

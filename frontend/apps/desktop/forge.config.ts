@@ -5,9 +5,9 @@ import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 // import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
 import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
-import {MakerAppImage, MakerAppImageConfig} from '@reforged/maker-appimage'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
+import {MakerAppImage, MakerAppImageConfig} from '@reforged/maker-appimage'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
 import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
@@ -64,7 +64,7 @@ const commonLinuxConfig = {
 const flatpakConfig = {
   options: {
     ...commonLinuxConfig.options,
-    id: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    id: IS_PROD_DEV ? 'media.hyper.seed' : 'media.hyper.seed.dev',
     runtime: 'org.freedesktop.Platform',
     runtimeVersion: '24.08', // Updated to match working Nextcloud config
     sdk: 'org.freedesktop.Sdk',
@@ -94,7 +94,7 @@ const flatpakConfig = {
       '--filesystem=home',
       '--talk-name=org.freedesktop.Notifications',
       '--talk-name=org.kde.StatusNotifierWatcher',
-      '--own-name=com.seed.*',
+      '--own-name=media.hyper.seed.*',
     ],
   },
 }
@@ -130,7 +130,7 @@ const config: ForgeConfig = {
     darwinDarkModeSupport: true,
     icon: iconsPath,
     name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
-    appBundleId: IS_PROD_DEV ? 'com.seed.app.dev' : 'com.seed.app',
+    appBundleId: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
