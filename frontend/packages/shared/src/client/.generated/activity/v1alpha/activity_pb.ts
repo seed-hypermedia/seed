@@ -27,6 +27,13 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
   pageToken = "";
 
   /**
+   * Optional. If we want events from trusted peers only. All peers by default.
+   *
+   * @generated from field: bool trusted_only = 3;
+   */
+  trustedOnly = false;
+
+  /**
    * Optional. If we want events only from specific user accounts. Multiple 
    * authors are filtered following OR logic.
    *
@@ -72,6 +79,7 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "trusted_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 4, name: "filter_authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "filter_event_type", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 6, name: "filter_resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },

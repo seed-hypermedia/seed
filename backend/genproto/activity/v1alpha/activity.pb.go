@@ -29,6 +29,8 @@ type ListEventsRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Optional. The page token for requesting next pages.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// Optional. If we want events from trusted peers only. All peers by default.
+	TrustedOnly bool `protobuf:"varint,3,opt,name=trusted_only,json=trustedOnly,proto3" json:"trusted_only,omitempty"`
 	// Optional. If we want events only from specific user accounts. Multiple
 	// authors are filtered following OR logic.
 	FilterAuthors []string `protobuf:"bytes,4,rep,name=filter_authors,json=filterAuthors,proto3" json:"filter_authors,omitempty"`
@@ -97,6 +99,13 @@ func (x *ListEventsRequest) GetPageToken() string {
 		return x.PageToken
 	}
 	return ""
+}
+
+func (x *ListEventsRequest) GetTrustedOnly() bool {
+	if x != nil {
+		return x.TrustedOnly
+	}
+	return false
 }
 
 func (x *ListEventsRequest) GetFilterAuthors() []string {
@@ -383,11 +392,12 @@ var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
-	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x01\n" +
+	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\xee\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12%\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12!\n" +
+	"\ftrusted_only\x18\x03 \x01(\bR\vtrustedOnly\x12%\n" +
 	"\x0efilter_authors\x18\x04 \x03(\tR\rfilterAuthors\x12*\n" +
 	"\x11filter_event_type\x18\x05 \x03(\tR\x0ffilterEventType\x12'\n" +
 	"\x0ffilter_resource\x18\x06 \x01(\tR\x0efilterResource\"v\n" +
