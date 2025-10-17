@@ -1,5 +1,4 @@
 import {MakerDeb, MakerDebConfig} from '@electron-forge/maker-deb'
-import {MakerFlatpak, MakerFlatpakConfig} from '@electron-forge/maker-flatpak'
 import {MakerRpm, MakerRpmConfig} from '@electron-forge/maker-rpm'
 // Temporarily disabled - focusing on flatpak first
 // import {MakerSnap, MakerSnapConfig} from '@electron-forge/maker-snap'
@@ -7,7 +6,6 @@ import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
-import {MakerAppImage, MakerAppImageConfig} from '@reforged/maker-appimage'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
 import {VitePlugin} from '@electron-forge/plugin-vite'
 import path from 'node:path'
@@ -61,43 +59,43 @@ const commonLinuxConfig = {
   },
 }
 
-const flatpakConfig = {
-  options: {
-    ...commonLinuxConfig.options,
-    id: IS_PROD_DEV ? 'media.hyper.seed' : 'media.hyper.seed.dev',
-    runtime: 'org.freedesktop.Platform',
-    runtimeVersion: '24.08', // Updated to match working Nextcloud config
-    sdk: 'org.freedesktop.Sdk',
-    base: 'org.electronjs.Electron2.BaseApp',
-    baseVersion: '24.08', // Updated to match working Nextcloud config
-    branch: 'stable',
-    modules: [
-      {
-        name: 'zypak',
-        sources: [
-          {
-            type: 'git',
-            url: 'https://github.com/refi64/zypak',
-            tag: 'v2024.01.17', // Updated to match working Nextcloud config
-          },
-        ],
-      },
-    ],
-    files: [], // No additional files needed - main app is handled by @electron/packager automatically
-    finishArgs: [
-      '--share=ipc',
-      '--socket=x11',
-      '--socket=wayland',
-      '--socket=pulseaudio',
-      '--share=network',
-      '--device=dri',
-      '--filesystem=home',
-      '--talk-name=org.freedesktop.Notifications',
-      '--talk-name=org.kde.StatusNotifierWatcher',
-      '--own-name=media.hyper.seed.*',
-    ],
-  },
-}
+// const flatpakConfig = {
+//   options: {
+//     ...commonLinuxConfig.options,
+//     id: IS_PROD_DEV ? 'media.hyper.seed' : 'media.hyper.seed.dev',
+//     runtime: 'org.freedesktop.Platform',
+//     runtimeVersion: '24.08', // Updated to match working Nextcloud config
+//     sdk: 'org.freedesktop.Sdk',
+//     base: 'org.electronjs.Electron2.BaseApp',
+//     baseVersion: '24.08', // Updated to match working Nextcloud config
+//     branch: 'stable',
+//     modules: [
+//       {
+//         name: 'zypak',
+//         sources: [
+//           {
+//             type: 'git',
+//             url: 'https://github.com/refi64/zypak',
+//             tag: 'v2024.01.17', // Updated to match working Nextcloud config
+//           },
+//         ],
+//       },
+//     ],
+//     files: [], // No additional files needed - main app is handled by @electron/packager automatically
+//     finishArgs: [
+//       '--share=ipc',
+//       '--socket=x11',
+//       '--socket=wayland',
+//       '--socket=pulseaudio',
+//       '--share=network',
+//       '--device=dri',
+//       '--filesystem=home',
+//       '--talk-name=org.freedesktop.Notifications',
+//       '--talk-name=org.kde.StatusNotifierWatcher',
+//       '--own-name=media.hyper.seed.*',
+//     ],
+//   },
+// }
 
 // Temporarily disabled - focusing on flatpak first
 // const snapConfig = {
@@ -183,8 +181,8 @@ const config: ForgeConfig = {
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
     new MakerRpm(commonLinuxConfig as MakerRpmConfig),
-    new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
-    new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
+    // new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
+    // new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
     // Temporarily disabled - focusing on flatpak first
     // new MakerSnap(snapConfig as MakerSnapConfig),
   ],
