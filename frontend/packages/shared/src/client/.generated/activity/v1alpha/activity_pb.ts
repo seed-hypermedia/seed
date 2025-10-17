@@ -27,13 +27,6 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
   pageToken = "";
 
   /**
-   * Optional. If we want events from trusted peers only. All peers by default.
-   *
-   * @generated from field: bool trusted_only = 3;
-   */
-  trustedOnly = false;
-
-  /**
    * Optional. If we want events only from specific user accounts. Multiple 
    * authors are filtered following OR logic.
    *
@@ -50,6 +43,11 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    *   - DagPB: 
    *   - Profile: 
    *   - Contact: create a contact for a specific resource
+   *   - comment/Target: a link from a comment
+   *   - comment/Embed: was embeded on a comment
+   *   - doc/Embed: was embeded in a document
+   *   - doc/Link: was linked in a document
+   *   - doc/Button: was added as a button in a document
    * Multiple types are filtered following OR logic.
    *
    * @generated from field: repeated string filter_event_type = 5;
@@ -64,20 +62,6 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
    */
   filterResource = "";
 
-  /**
-   * Optional. If we want to include link events. These blobs (usually documents
-   * or comments), link (mention) to another resource (currently only account
-   * mentions supported). We can add these blobs to the feed result by providing a 
-   * list of resources iris we want links to aggregated as a logical OR. 
-   * These link events are also treated as logical OR when grouped with other filters,
-   * unlike other filters (authors, event_types) that are grouped under a logic AND. 
-   * Example: filter_authors(u+a1 OR a2 ...) AND filter_event_type(et1 OR et2 ...) OR 
-   * add_linked_resource(lr1 OR lr2 ...)
-   *
-   * @generated from field: repeated string add_linked_resource = 7;
-   */
-  addLinkedResource: string[] = [];
-
   constructor(data?: PartialMessage<ListEventsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -88,11 +72,9 @@ export class ListEventsRequest extends Message<ListEventsRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 2, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "trusted_only", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 4, name: "filter_authors", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 5, name: "filter_event_type", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 6, name: "filter_resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "add_linked_resource", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListEventsRequest {

@@ -29,8 +29,6 @@ type ListEventsRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// Optional. The page token for requesting next pages.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Optional. If we want events from trusted peers only. All peers by default.
-	TrustedOnly bool `protobuf:"varint,3,opt,name=trusted_only,json=trustedOnly,proto3" json:"trusted_only,omitempty"`
 	// Optional. If we want events only from specific user accounts. Multiple
 	// authors are filtered following OR logic.
 	FilterAuthors []string `protobuf:"bytes,4,rep,name=filter_authors,json=filterAuthors,proto3" json:"filter_authors,omitempty"`
@@ -42,23 +40,19 @@ type ListEventsRequest struct {
 	//   - DagPB:
 	//   - Profile:
 	//   - Contact: create a contact for a specific resource
+	//   - comment/Target: a link from a comment
+	//   - comment/Embed: was embeded on a comment
+	//   - doc/Embed: was embeded in a document
+	//   - doc/Link: was linked in a document
+	//   - doc/Button: was added as a button in a document
 	//
 	// Multiple types are filtered following OR logic.
 	FilterEventType []string `protobuf:"bytes,5,rep,name=filter_event_type,json=filterEventType,proto3" json:"filter_event_type,omitempty"`
 	// Optional. If we want events only from specific resource IDs.
 	// It admits wildards, i.e. we can filter by path prefixes.
 	FilterResource string `protobuf:"bytes,6,opt,name=filter_resource,json=filterResource,proto3" json:"filter_resource,omitempty"`
-	// Optional. If we want to include link events. These blobs (usually documents
-	// or comments), link (mention) to another resource (currently only account
-	// mentions supported). We can add these blobs to the feed result by providing a
-	// list of resources iris we want links to aggregated as a logical OR.
-	// These link events are also treated as logical OR when grouped with other filters,
-	// unlike other filters (authors, event_types) that are grouped under a logic AND.
-	// Example: filter_authors(u+a1 OR a2 ...) AND filter_event_type(et1 OR et2 ...) OR
-	// add_linked_resource(lr1 OR lr2 ...)
-	AddLinkedResource []string `protobuf:"bytes,7,rep,name=add_linked_resource,json=addLinkedResource,proto3" json:"add_linked_resource,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ListEventsRequest) Reset() {
@@ -105,13 +99,6 @@ func (x *ListEventsRequest) GetPageToken() string {
 	return ""
 }
 
-func (x *ListEventsRequest) GetTrustedOnly() bool {
-	if x != nil {
-		return x.TrustedOnly
-	}
-	return false
-}
-
 func (x *ListEventsRequest) GetFilterAuthors() []string {
 	if x != nil {
 		return x.FilterAuthors
@@ -131,13 +118,6 @@ func (x *ListEventsRequest) GetFilterResource() string {
 		return x.FilterResource
 	}
 	return ""
-}
-
-func (x *ListEventsRequest) GetAddLinkedResource() []string {
-	if x != nil {
-		return x.AddLinkedResource
-	}
-	return nil
 }
 
 // The response with the list of events.
@@ -403,16 +383,14 @@ var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
-	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x02\n" +
+	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12!\n" +
-	"\ftrusted_only\x18\x03 \x01(\bR\vtrustedOnly\x12%\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12%\n" +
 	"\x0efilter_authors\x18\x04 \x03(\tR\rfilterAuthors\x12*\n" +
 	"\x11filter_event_type\x18\x05 \x03(\tR\x0ffilterEventType\x12'\n" +
-	"\x0ffilter_resource\x18\x06 \x01(\tR\x0efilterResource\x12.\n" +
-	"\x13add_linked_resource\x18\a \x03(\tR\x11addLinkedResource\"v\n" +
+	"\x0ffilter_resource\x18\x06 \x01(\tR\x0efilterResource\"v\n" +
 	"\x12ListEventsResponse\x128\n" +
 	"\x06events\x18\x01 \x03(\v2 .com.seed.activity.v1alpha.EventR\x06events\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xe9\x01\n" +

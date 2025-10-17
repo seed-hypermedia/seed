@@ -21,9 +21,6 @@ message ListEventsRequest {
   // Optional. The page token for requesting next pages.
   string page_token = 2;
 
-  // Optional. If we want events from trusted peers only. All peers by default.
-  bool trusted_only = 3;
-
   // Optional. If we want events only from specific user accounts. Multiple 
   // authors are filtered following OR logic.
   repeated string filter_authors = 4;
@@ -36,22 +33,17 @@ message ListEventsRequest {
   //   - DagPB: 
   //   - Profile: 
   //   - Contact: create a contact for a specific resource
+  //   - comment/Target: a link from a comment
+  //   - comment/Embed: was embeded on a comment
+  //   - doc/Embed: was embeded in a document
+  //   - doc/Link: was linked in a document
+  //   - doc/Button: was added as a button in a document
   // Multiple types are filtered following OR logic.
   repeated string filter_event_type = 5;
 
   // Optional. If we want events only from specific resource IDs.
   // It admits wildards, i.e. we can filter by path prefixes.
   string filter_resource = 6;
-
-  // Optional. If we want to include link events. These blobs (usually documents
-  // or comments), link (mention) to another resource (currently only account
-  // mentions supported). We can add these blobs to the feed result by providing a 
-  // list of resources iris we want links to aggregated as a logical OR. 
-  // These link events are also treated as logical OR when grouped with other filters,
-  // unlike other filters (authors, event_types) that are grouped under a logic AND. 
-  // Example: filter_authors(u+a1 OR a2 ...) AND filter_event_type(et1 OR et2 ...) OR 
-  // add_linked_resource(lr1 OR lr2 ...)
-  repeated string add_linked_resource = 7;
 }
 
 // The response with the list of events.

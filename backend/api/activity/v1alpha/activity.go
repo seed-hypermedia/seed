@@ -28,8 +28,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -88,8 +86,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var cursorTS []int64
 	srv.log.Info("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
+	var authorsJSON, linkTypesJSON string
 	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
+		authorsJSON = "["
 		for i, user := range req.FilterAuthors {
 			if i > 0 {
 				filtersStr += ", "
@@ -98,23 +98,45 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			if err != nil {
 				return nil, fmt.Errorf("Invalid user filter [%s]: %w", user, err)
 			}
-			filtersStr += "unhex('" + strings.ToUpper(hex.EncodeToString(principal)) + "')"
+			principalHex := strings.ToUpper(hex.EncodeToString(principal))
+			authorsJSON += "\"" + principalHex + "\", "
+			filtersStr += "unhex('" + principalHex + "')"
 		}
+		if len(authorsJSON) > 1 {
+			authorsJSON = strings.TrimSuffix(authorsJSON, ", ")
+		}
+		authorsJSON += "]"
 		filtersStr += ") AND "
 	}
 
 	if len(req.FilterEventType) > 0 {
 		filtersStr += "lower(" + storage.StructuralBlobsType.String() + ") in ("
+		linkTypesJSON = "["
 		for i, eventType := range req.FilterEventType {
 			// Hardcode this to prevent injection attacks
-			if strings.ToLower(eventType) != "capability" && strings.ToLower(eventType) != "ref" && strings.ToLower(eventType) != "comment" && strings.ToLower(eventType) != "dagpb" && strings.ToLower(eventType) != "profile" && strings.ToLower(eventType) != "contact" {
-				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile | Contact are supported at the moment", eventType)
+			if strings.ToLower(eventType) != "capability" &&
+				strings.ToLower(eventType) != "ref" &&
+				strings.ToLower(eventType) != "comment" &&
+				strings.ToLower(eventType) != "dagpb" &&
+				strings.ToLower(eventType) != "profile" &&
+				strings.ToLower(eventType) != "contact" &&
+				strings.ToLower(eventType) != "comment/target" &&
+				strings.ToLower(eventType) != "comment/embed" &&
+				strings.ToLower(eventType) != "doc/embed" &&
+				strings.ToLower(eventType) != "doc/link" &&
+				strings.ToLower(eventType) != "doc/button" {
+				return nil, fmt.Errorf("Invalid event type filter [%s]: Only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button are supported at the moment", eventType)
 			}
 			if i > 0 {
 				filtersStr += ", "
 			}
 			filtersStr += "'" + strings.ToLower(eventType) + "'"
+			linkTypesJSON += "\"" + strings.ToLower(eventType) + "\", "
 		}
+		if len(linkTypesJSON) > 1 {
+			linkTypesJSON = strings.TrimSuffix(linkTypesJSON, ", ")
+		}
+		linkTypesJSON += "]"
 		filtersStr += ") AND "
 	}
 	if len(req.FilterResource) > 0 {
@@ -147,10 +169,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		WHERE %s %s;
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
 
-	pageSize := req.PageSize
-	if len(req.AddLinkedResource) > 0 {
-		pageSize = req.PageSize * 2
-	}
 	var refIDs, resources []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
@@ -192,7 +210,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			events = append(events, &event)
 			cursorTS = append(cursorTS, structTsMillis)
 			return nil
-		}, cursorBlobID, pageSize)
+		}, cursorBlobID, req.PageSize)
 		if err != nil {
 			return fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
 		}
@@ -270,26 +288,47 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		}
 	}
 	var deletedList []string
-	if len(req.AddLinkedResource) > 0 {
-		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			var eids []string
-			if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
-				eid := stmt.ColumnInt64(0)
-				if eid == 0 {
-					return nil
-				}
-				eids = append(eids, strconv.FormatInt(eid, 10))
+	filterResource := req.FilterResource
+	if len(req.FilterResource) == 0 {
+		filterResource = "*"
+	}
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		var eids []string
+		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+			eid := stmt.ColumnInt64(0)
+			if eid == 0 {
 				return nil
-
-			}, strings.Join(req.AddLinkedResource, ",")); err != nil {
-				return err
 			}
+			eids = append(eids, strconv.FormatInt(eid, 10))
+			return nil
 
-			if len(eids) == 0 {
-				return status.Errorf(codes.NotFound, "none of the entities provided were found '%s'", req.AddLinkedResource)
+		}, filterResource); err != nil {
+			return err
+		}
+
+		if len(eids) > 0 {
+			eidsJSON := "[" + strings.Join(eids, ",") + "]"
+			args := []interface{}{eidsJSON, cursorBlobID}
+			queryStr := listMentionsCore
+			if len(authorsJSON) > 2 {
+				queryStr += authorsFilterMentions
+				args = append(args, authorsJSON)
 			}
-			if err := sqlitex.Exec(conn, qListMentions(), func(stmt *sqlite.Stmt) error {
-
+			if len(linkTypesJSON) > 2 {
+				queryStr += linkTypesFilterMentions
+				args = append(args, linkTypesJSON)
+			}
+			queryStr += pagingMentions
+			if len(authorsJSON) > 2 {
+				queryStr += authorsFilterMentions
+			}
+			if len(linkTypesJSON) > 2 {
+				queryStr += linkTypesFilterMentions
+			}
+			queryStr += limitMentions
+			args = append(args, req.PageSize)
+			fmt.Println("Mentions query:", queryStr, args)
+			if err := sqlitex.Exec(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
 				var (
 					source     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
@@ -349,14 +388,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				events = append(events, &event)
 				cursorTS = append(cursorTS, structTsMillis)
 				return nil
-			}, strings.Join(eids, ","), cursorBlobID, req.PageSize); err != nil {
+			}, args...); err != nil {
 				return err
 			}
-
-			return nil
-		}); err != nil {
-			return nil, err
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	if len(events) == 0 {
@@ -450,8 +488,7 @@ JOIN blobs b      ON b.id = bl.target;
 var qEntitiesLookupID = dqb.Str(`
 	SELECT resources.id
 	FROM resources
-	WHERE resources.iri = :entities_eid
-	LIMIT 1
+	WHERE resources.iri GLOB :filter_resource
 `)
 
 var qListMentions = dqb.Str(`
@@ -475,7 +512,7 @@ WITH changes AS (
 	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 	JOIN public_keys ON public_keys.id = structural_blobs.author
 	LEFT JOIN resources ON resources.id = structural_blobs.resource
-	WHERE resource_links.target IN (:targets)
+	WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
 	AND structural_blobs.type IN ('Change')
 	AND structural_blobs.ts <= :idx
 )
@@ -502,7 +539,9 @@ JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE resource_links.target IN (:targets)
+WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
+AND hex(public_keys.principal) IN (SELECT value from json_each(:authors_json))
+AND lower(resource_links.type) IN (SELECT value from json_each(:link_types_json))
 AND structural_blobs.ts <= :idx
 AND structural_blobs.type IN ('Comment')
 UNION ALL
@@ -530,7 +569,100 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN resources ON resources.id = structural_blobs.resource
 JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
 WHERE structural_blobs.ts <= :idx
+AND hex(public_keys.principal) IN (SELECT value from json_each(:authors_json))
+AND lower(changes.link_type) IN (SELECT value from json_each(:link_types_json))
 GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY structural_blobs.ts DESC
 LIMIT :page_size;
 `)
+
+var listMentionsCore string = `
+WITH changes AS (
+	SELECT distinct
+	    structural_blobs.genesis_blob,
+	    resource_links.id AS link_id,
+	    resource_links.is_pinned,
+	    blobs.codec,
+	    blobs.multihash,
+		blobs.id,
+		structural_blobs.ts,
+		public_keys.principal AS main_author,
+	    resource_links.extra_attrs->>'a' AS anchor,
+		resource_links.extra_attrs->>'v' AS target_version,
+		resource_links.extra_attrs->>'f' AS target_fragment,
+		resource_links.type AS link_type,
+		structural_blobs.extra_attrs->>'tsid' AS tsid
+	FROM resource_links
+	JOIN structural_blobs ON structural_blobs.id = resource_links.source
+	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+	JOIN public_keys ON public_keys.id = structural_blobs.author
+	LEFT JOIN resources ON resources.id = structural_blobs.resource
+	WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
+	AND structural_blobs.type IN ('Change')
+	AND structural_blobs.ts <= :idx
+)
+SELECT distinct
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+	public_keys.principal AS main_author,
+    structural_blobs.ts,
+    structural_blobs.type AS blob_type,
+    resource_links.is_pinned,
+    resource_links.extra_attrs->>'a' AS anchor,
+	resource_links.extra_attrs->>'v' AS target_version,
+	resource_links.extra_attrs->>'f' AS target_fragment,
+	resource_links.type AS link_type,
+    blobs.id AS blob_id,
+	blobs.insert_time AS blob_insert_time,
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	structural_blobs.extra_attrs,
+	resource_links.id AS link_id,
+	structural_blobs.extra_attrs->>'deleted' as is_deleted
+FROM resource_links
+JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
+`
+var authorsFilterMentions = `
+AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
+`
+var linkTypesFilterMentions = `
+AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
+`
+var pagingMentions = `
+AND structural_blobs.ts <= :idx
+AND structural_blobs.type IN ('Comment')
+UNION ALL
+SELECT distinct
+    resources.iri,
+    blobs.codec,
+    blobs.multihash,
+    public_keys.principal AS main_author,
+    changes.ts,
+    'Ref' AS blob_type,
+    changes.is_pinned,
+    changes.anchor,
+	changes.target_version,
+	changes.target_fragment,
+	changes.link_type AS link_type,
+    blobs.id AS blob_id,
+	blobs.insert_time AS blob_insert_time,
+	structural_blobs.extra_attrs->>'tsid' AS tsid,
+	structural_blobs.extra_attrs,
+	changes.link_id,
+	structural_blobs.extra_attrs->>'deleted' as is_deleted
+FROM structural_blobs
+JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+JOIN public_keys ON public_keys.id = structural_blobs.author
+LEFT JOIN resources ON resources.id = structural_blobs.resource
+JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
+WHERE structural_blobs.ts <= :idx
+`
+var limitMentions = `
+GROUP BY resources.iri, changes.link_id, target_version, target_fragment
+ORDER BY structural_blobs.ts DESC
+LIMIT :page_size;
+`
