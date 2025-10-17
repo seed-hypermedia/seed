@@ -228,8 +228,16 @@ export async function listEventsWithCitationsImpl(
       : Promise.resolve({mentions: [], nextPageToken: ''}),
   ])
 
+  console.log(
+    '== EVENTS RAW',
+    eventsResponse.status === 'fulfilled' ? eventsResponse.value.events : [],
+  )
+
   const events =
-    eventsResponse.status === 'fulfilled' ? eventsResponse.value.events : []
+    eventsResponse.status === 'fulfilled'
+      ? filterUnresolvedEvents(eventsResponse.value.events)
+      : []
+  console.log('== EVENTS FILTERED', events)
   const eventsNextToken =
     eventsResponse.status === 'fulfilled'
       ? eventsResponse.value.nextPageToken
@@ -578,8 +586,6 @@ export async function loadRefEvent(
       currentAccount,
     )
 
-    console.log('== REF EVENT', event)
-
     const docId = unpackHmId(event.newBlob.resource)
 
     const grpcDocument = await grpcClient.documents.getDocument({
@@ -760,4 +766,22 @@ export async function loadCitationEvent(
     console.error('Event: catch error loading citation:', event, error)
     return null
   }
+}
+
+/**
+ * DEPRECATE ME LATER. this is a temporary function until @julio finishes an issue with moved documents.
+ * @param events
+ * @returns
+ */
+function filterUnresolvedEvents(events: Array<HMEvent>) {
+  return events.filter((event) => {
+    return ![
+      'comment/target',
+      'comment/Embed',
+      'comment/Link',
+      'doc/Embed',
+      'doc/Link',
+      'doc/Button',
+    ].includes(event.newBlob.blobType)
+  })
 }
