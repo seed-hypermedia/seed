@@ -110,20 +110,36 @@ function _CommentBox(props: {
     quotingBlockId,
     context,
   )
-  const [isStartingComment, setIsStartingComment] = useState(false)
-  function focusEditor() {
-    setIsStartingComment(true)
-  }
+  const [showEditor, setShowEditor] = useState(false)
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
 
   useEffect(() => {
     const focusKey = `${docId.id}-${commentId || quotingBlockId}`
     const subscribers = focusSubscribers.get(focusKey)
+    const focusEditor = () => setShowEditor(true)
     if (subscribers) {
       subscribers.add(focusEditor)
     } else {
       focusSubscribers.set(focusKey, new Set([focusEditor]))
     }
   }, [docId.id, commentId])
+
+  // Clear autoFocus from route after it's been used
+  useEffect(() => {
+    if (autoFocus && route.key === 'document' && route.accessory?.key === 'activity') {
+      const accessory = route.accessory
+      if (accessory.autoFocus) {
+        setTimeout(() => {
+          const {autoFocus: _, ...restAccessory} = accessory
+          navigate({
+            ...route,
+            accessory: restAccessory,
+          })
+        }, 150)
+      }
+    }
+  }, [autoFocus])
 
   if (draft.isInitialLoading) return null
 
@@ -134,58 +150,40 @@ function _CommentBox(props: {
       <span className="text-sm font-thin italic">No account is loaded</span>
     )
   } else {
-    if (draft.data || isStartingComment || autoFocus) {
+    if (draft.data || showEditor || autoFocus) {
       content = (
         <CommentDraftEditor
           docId={docId}
-          autoFocus={isStartingComment || autoFocus}
+          autoFocus={showEditor || autoFocus}
           initCommentDraft={draft.data}
           quotingBlockId={quotingBlockId}
           commentId={commentId}
           context={context}
           onDiscardDraft={() => {
-            setIsStartingComment(false)
+            setShowEditor(false)
           }}
           onSuccess={({id}) => {
-            setIsStartingComment(false)
-            // if (route.key === 'document' && !!id) {
-            //   const accessory = route.accessory
-            //   const discussionsAccessory =
-            //     accessory?.key === 'discussions' ? accessory : null
-            //   replace({
-            //     ...route,
-            //     id: {
-            //       ...route.id,
-            //     },
-            //     accessory: discussionsAccessory
-            //       ? {
-            //           ...discussionsAccessory,
-            //           openComment: id,
-            //         }
-            //       : undefined,
-            //   })
-            // }
+            setShowEditor(false)
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_ACTIVITY], // all docs
+              queryKey: [queryKeys.DOCUMENT_ACTIVITY],
             })
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_DISCUSSION], // all docs
+              queryKey: [queryKeys.DOCUMENT_DISCUSSION],
             })
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_COMMENTS], // all docs
+              queryKey: [queryKeys.DOCUMENT_COMMENTS],
             })
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY], // all docs
+              queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
             })
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOC_CITATIONS], // all docs
-            })
-
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.BLOCK_DISCUSSIONS], // all docs
+              queryKey: [queryKeys.DOC_CITATIONS],
             })
             queryClient.invalidateQueries({
-              queryKey: [queryKeys.ACTIVITY_FEED], // all Feed
+              queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+            })
+            queryClient.invalidateQueries({
+              queryKey: [queryKeys.ACTIVITY_FEED],
             })
           }}
         />
@@ -197,7 +195,7 @@ function _CommentBox(props: {
           className="bg-background ring-px ring-border ml-1 w-full flex-1 items-center justify-start truncate rounded-md px-2 py-1 text-left ring"
           style={{backgroundColor: backgroundColor}}
           onClick={() => {
-            setIsStartingComment(true)
+            setShowEditor(true)
           }}
         >
           <span className="text-sm italic opacity-50">
@@ -274,17 +272,6 @@ function _CommentDraftEditor({
       autoFocus,
     })
   const openUrl = useOpenUrl()
-  useEffect(() => {
-    if (autoFocus) {
-      editor._tiptapEditor.commands.focus()
-    }
-  }, [
-    autoFocus,
-    editor,
-    // include this because if autoFocus is true when the reply commentID or docId changes, we should focus again
-    docId.id,
-    commentId,
-  ])
 
   if (!account) return null
 

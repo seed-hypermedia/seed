@@ -208,61 +208,65 @@ export function useCommentEditor(
   const targetEntity = useResource(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const pushComments = usePushComments()
+  const openUrl = useOpenUrl()
+  const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
+  const isDeletingDraft = useRef<boolean>(false)
+
+  const selectedAccountId = useSelectedAccountId()
+  const {onMentionsQuery} = useInlineMentions(selectedAccountId)
+
   const write = trpc.comments.writeCommentDraft.useMutation({
     onSuccess: () => {
-      // Invalidate the drafts list so it shows up in the drafts page
       invalidateQueries(['trpc.comments.listCommentDrafts'])
-      // Invalidate the specific draft query so it refetches when you navigate back
-      invalidateQueries(['trpc.comments.getCommentDraft'])
     },
     onError: (err) => {
       toast.error(err.message)
     },
   })
+
   const removeDraft = trpc.comments.removeCommentDraft.useMutation({
+    onMutate: async () => {
+      isDeletingDraft.current = true
+      clearTimeout(saveTimeoutRef.current)
+
+      await queryClient.cancelQueries([
+        'trpc.comments.getCommentDraft',
+        {
+          targetDocId: targetDocId.id,
+          replyCommentId: commentId,
+          quotingBlockId: quotingBlockId,
+          context: context,
+        },
+      ])
+
+      queryClient.setQueryData(
+        [
+          'trpc.comments.getCommentDraft',
+          {
+            targetDocId: targetDocId.id,
+            replyCommentId: commentId,
+            quotingBlockId: quotingBlockId,
+            context: context,
+          },
+        ],
+        null,
+      )
+    },
     onSuccess: () => {
-      // Reset the initialization flag when draft is removed
-      hasInitializedDraft.current = false
-      // Clear the editor immediately when discarding
-      editor.removeBlocks(editor.topLevelBlocks)
-      onDiscardDraft?.()
-      // Invalidate the drafts list to update the drafts page
       invalidateQueries(['trpc.comments.listCommentDrafts'])
-      // Don't invalidate queries immediately - the draft is already removed
-      // Invalidating would cause a refetch which might get stale data
-      // Only invalidate if this was triggered by successful comment publication
-      if (shouldClearEditorRef.current) {
-        shouldClearEditorRef.current = false
-        // After publishing, we can safely invalidate
-        setTimeout(() => {
-          invalidateQueries(['trpc.comments.getCommentDraft'])
-        }, 100)
-      }
+      onDiscardDraft?.()
+      isDeletingDraft.current = false
+    },
+    onError: () => {
+      isDeletingDraft.current = false
     },
   })
-  const pushComments = usePushComments()
-  const openUrl = useOpenUrl()
-  const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
-  const readyEditor = useRef<BlockNoteEditor>()
-  const shouldClearEditorRef = useRef<boolean>(false)
 
-  const selectedAccountId = useSelectedAccountId()
-  const {onMentionsQuery} = useInlineMentions(selectedAccountId)
-  const hasInitializedDraft = useRef(false)
-
-  function initDraft() {
-    if (!readyEditor.current || !initCommentDraft) return
-    const editor = readyEditor.current
-    const editorBlocks = hmBlocksToEditorContent(initCommentDraft.blocks, {
-      childrenType: 'Group',
-    })
-    editor.removeBlocks(editor.topLevelBlocks)
-    editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
-    // @ts-expect-error
-    setGroupTypes(editor._tiptapEditor, editorBlocks)
-  }
   async function writeDraft() {
+    if (isDeletingDraft.current) return
+
     setIsSaved(false)
     const blocks = serverBlockNodesFromEditorBlocks(
       editor,
@@ -276,27 +280,18 @@ export function useCommentEditor(
       quotingBlockId: quotingBlockId,
       context: context,
     })
-    // Don't invalidate queries during active editing - this causes re-renders
-    // The draft is already saved, no need to refetch it
-    // invalidateQueries(['trpc.comments.getCommentDraft'])
     setIsSaved(true)
   }
-
-  const commentsSchema = {
-    ...hmBlockSchema,
-  }
-
-  delete commentsSchema.query
 
   const gwUrl = useGatewayUrlStream()
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
+      if (isDeletingDraft.current) return
+
       setIsSaved(false)
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(() => {
-        writeDraft().then(() => {
-          clearTimeout(saveTimeoutRef.current)
-        })
+        writeDraft()
       }, 500)
     },
     linkExtensionOptions: {
@@ -308,31 +303,30 @@ export function useCommentEditor(
       gwUrl,
       checkWebUrl: checkWebUrl.mutateAsync,
     },
-
     onEditorReady: (e) => {
-      readyEditor.current = e
-      if (!hasInitializedDraft.current) {
-        hasInitializedDraft.current = true
-        initDraft()
+      // Load draft content if it exists
+      if (initCommentDraft) {
+        const editorBlocks = hmBlocksToEditorContent(initCommentDraft.blocks, {
+          childrenType: 'Group',
+        })
+        // @ts-expect-error
+        e.replaceBlocks(e.topLevelBlocks, editorBlocks)
+        // @ts-expect-error
+        setGroupTypes(e._tiptapEditor, editorBlocks)
       }
-      // Focus editor after initialization if autoFocus is true AND context matches
-      // This ensures we only focus the editor in the same context where the draft was created
-      const shouldFocus =
-        autoFocus &&
-        (!initCommentDraft?.context || initCommentDraft.context === context)
-      if (shouldFocus) {
+
+      // Auto-focus if requested and context matches
+      if (autoFocus && (!initCommentDraft?.context || initCommentDraft.context === context)) {
         setTimeout(() => {
-          alert('About to focus the editor!')
           e._tiptapEditor.commands.focus()
         }, 100)
-      } else if (autoFocus) {
       }
     },
     blockSchema: getCommentEditorSchema(hmBlockSchema),
     getSlashMenuItems: () =>
       getSlashMenuItems({
         showNostr,
-        docId: targetDocId, // in theory this should be the comment ID but it doesn't really matter here
+        docId: targetDocId,
         showQuery: false,
       }),
     onMentionsQuery,
@@ -352,34 +346,9 @@ export function useCommentEditor(
     const commentsSchema = {
       ...schema,
     }
-
-    // remove query block from schema on comments
     delete commentsSchema.query
     return commentsSchema
   }
-
-  useEffect(() => {
-    // Only initialize draft once when it first loads and editor is ready
-    // Don't reinitialize during editing as this causes cursor position loss
-    if (
-      readyEditor.current &&
-      initCommentDraft &&
-      !hasInitializedDraft.current
-    ) {
-      hasInitializedDraft.current = true
-      initDraft()
-    }
-    // Reset the flag when draft is cleared (null)
-    if (!initCommentDraft && hasInitializedDraft.current) {
-      hasInitializedDraft.current = false
-    }
-  }, [initCommentDraft])
-
-  // Reset initialization flag when navigation context changes (docId or commentId)
-  // This ensures drafts are properly loaded when returning to a comment editor
-  useEffect(() => {
-    hasInitializedDraft.current = false
-  }, [targetDocId.id, commentId, quotingBlockId])
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -447,6 +416,24 @@ export function useCommentEditor(
     },
     onSuccess: (newComment: HMComment) => {
       setIsSubmitting(false)
+      clearTimeout(saveTimeoutRef.current)
+
+      // Clear the editor
+      editor.removeBlocks(editor.topLevelBlocks)
+
+      // Remove the draft
+      removeDraft.mutate({
+        targetDocId: targetDocId.id,
+        replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
+      })
+
+      pushComments.mutate({
+        targetDocId,
+      })
+
+      // Invalidate all relevant queries
       invalidateQueries([
         queryKeys.DOCUMENT_DISCUSSION,
         targetDocId.uid,
@@ -457,18 +444,7 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])
-      clearTimeout(saveTimeoutRef.current)
-      // Set flag to indicate we should clear editor after draft removal
-      shouldClearEditorRef.current = true
-      removeDraft.mutate({
-        targetDocId: targetDocId.id,
-        replyCommentId: commentId,
-        quotingBlockId: quotingBlockId,
-        context: context,
-      })
-      pushComments.mutate({
-        targetDocId,
-      })
+
       onSuccess?.({id: newComment.id})
     },
     onError: (err: {message: string}) => {
@@ -504,19 +480,9 @@ export function useCommentEditor(
     }
     function onDiscard() {
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
-      // Clear the query cache immediately to prevent stale data on refresh
-      queryClient.setQueryData(
-        [
-          'trpc.comments.getCommentDraft',
-          {
-            targetDocId: targetDocId.id,
-            replyCommentId: commentId,
-            quotingBlockId: quotingBlockId,
-            context: context,
-          },
-        ],
-        null,
-      )
+
+      editor.removeBlocks(editor.topLevelBlocks)
+
       removeDraft.mutate({
         targetDocId: targetDocId.id,
         replyCommentId: commentId,
