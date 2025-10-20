@@ -247,7 +247,7 @@ SELECT
   ORDER BY ts ASC
 `)
 
-var qGetMovedBlocks = dqb.Str(`
+var QGetMovedBlocks = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
@@ -420,11 +420,19 @@ type searchResult struct {
 	isDeleted     bool
 }
 
-type movedResource struct {
-	newIri        string
-	oldIri        string
-	isDeleted     bool
-	latestVersion string
+// MovedResource represents a resource that has been relocated.
+type MovedResource struct {
+	// NewIri is the IRI of the new location of the resource.
+	NewIri string
+
+	// OldIri is the IRI of the old location of the resource.
+	OldIri string
+
+	// IsDeleted indicates whether the resource has been deleted.
+	IsDeleted bool
+
+	// LatestVersion is the latest version of the moved resource.
+	LatestVersion string
 }
 
 // SearchEntities implements the Fuzzy search of entities.
@@ -666,11 +674,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(searchResults[match.Index].genesisBlobID, 10))
 	}
 
-	var movedResources []movedResource
+	var movedResources []MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
@@ -684,11 +692,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				}
 				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 			}
-			movedResources = append(movedResources, movedResource{
-				newIri:        stmt.ColumnText(0),
-				oldIri:        stmt.ColumnText(1),
-				isDeleted:     stmt.ColumnInt(2) == 1,
-				latestVersion: docmodel.NewVersion(cids...).String(),
+			movedResources = append(movedResources, MovedResource{
+				NewIri:        stmt.ColumnText(0),
+				OldIri:        stmt.ColumnText(1),
+				IsDeleted:     stmt.ColumnInt(2) == 1,
+				LatestVersion: docmodel.NewVersion(cids...).String(),
 			})
 			return nil
 		}, genesisBlobJson)
@@ -698,13 +706,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	for _, movedResource := range movedResources {
 		for i, result := range searchResults {
-			if result.iri == movedResource.oldIri {
-				if movedResource.isDeleted {
+			if result.iri == movedResource.OldIri {
+				if movedResource.IsDeleted {
 					searchResults[i].isDeleted = true
 				} else {
-					searchResults[i].iri = movedResource.newIri
+					searchResults[i].iri = movedResource.NewIri
 				}
-				searchResults[i].latestVersion = movedResource.latestVersion
+				searchResults[i].latestVersion = movedResource.LatestVersion
 			}
 		}
 	}
@@ -1102,13 +1110,13 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		return nil, err
 	}
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	var movedResources []movedResource
+	var movedResources []MovedResource
 	err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
-			movedResources = append(movedResources, movedResource{
-				newIri:    stmt.ColumnText(0),
-				oldIri:    stmt.ColumnText(1),
-				isDeleted: stmt.ColumnInt(2) == 1,
+		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+			movedResources = append(movedResources, MovedResource{
+				NewIri:    stmt.ColumnText(0),
+				OldIri:    stmt.ColumnText(1),
+				IsDeleted: stmt.ColumnInt(2) == 1,
 			})
 			return nil
 		}, genesisBlobJson)
@@ -1118,8 +1126,8 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	}
 	for _, movedResource := range movedResources {
 		for i, result := range resp.Mentions {
-			if result.Source == movedResource.oldIri {
-				resp.Mentions[i].Source = movedResource.newIri
+			if result.Source == movedResource.OldIri {
+				resp.Mentions[i].Source = movedResource.NewIri
 			}
 		}
 	}

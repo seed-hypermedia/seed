@@ -9,6 +9,7 @@ import (
 	"math"
 	"regexp"
 	"seed/backend/api/documents/v3alpha/docmodel"
+	entities "seed/backend/api/entities/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -84,7 +85,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var events []*activity.Event
 	// Track the structural timestamp (ms) used for DB paging, aligned with events slice.
 	var cursorTS []int64
-	srv.log.Info("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
+	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	var authorsJSON, linkTypesJSON string
 	if len(req.FilterAuthors) > 0 {
@@ -147,7 +148,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		filtersStr += " AND "
 	}
 	var (
-		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs"
+		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
 		tableStr             = "FROM " + storage.T_StructuralBlobs
 		joinIDStr            = "JOIN " + storage.Blobs.String() + " ON " + storage.BlobsID.String() + "=" + storage.StructuralBlobsID.String()
 		joinpkStr            = "JOIN " + storage.PublicKeys.String() + " ON " + storage.StructuralBlobsAuthor.String() + "=" + storage.PublicKeysID.String()
@@ -168,8 +169,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		%s
 		WHERE %s %s;
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
-
-	var refIDs, resources []string
+	var refIDs, resources, genesisBlobIDs []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
 			id := stmt.ColumnInt64(0)
@@ -209,10 +209,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			events = append(events, &event)
 			cursorTS = append(cursorTS, structTsMillis)
+			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(10), 10))
 			return nil
 		}, cursorBlobID, req.PageSize)
 		if err != nil {
-			return fmt.Errorf("Problem collecting activity feed, Probably no feed or token out of range: %w", err)
+			return fmt.Errorf("Problem collecting activity feed, Probably token out of range or no feed at all: %w", err)
 		}
 		return nil
 	}); err != nil {
@@ -399,6 +400,47 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if len(events) == 0 {
 		return &activity.ListEventsResponse{}, nil
 	}
+
+	var movedResources []entities.MovedResource
+	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
+
+	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+			var heads []head
+			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
+				return err
+			}
+
+			cids := make([]cid.Cid, len(heads))
+			for i, h := range heads {
+				mhBinary, err := hex.DecodeString(h.Multihash)
+				if err != nil {
+					return err
+				}
+				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
+			}
+			movedResources = append(movedResources, entities.MovedResource{
+				NewIri:    stmt.ColumnText(0),
+				OldIri:    stmt.ColumnText(1),
+				IsDeleted: stmt.ColumnInt(2) == 1,
+			})
+			return nil
+		}, genesisBlobJson)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, movedResource := range movedResources {
+		for i, e := range events {
+			if e.Data.(*activity.Event_NewBlob).NewBlob.Resource == movedResource.OldIri {
+				if movedResource.IsDeleted {
+					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
+				} else {
+					events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = movedResource.NewIri
+				}
+			}
+		}
+	}
 	nonDeleted := make([]*activity.Event, 0, len(events))
 	for _, e := range events {
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
@@ -429,7 +471,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	// Next page token based on the minimum structural ts (ms) in the returned page.
 	var nextPageToken string
-	var err error
 	if pageLen > 0 && int(req.PageSize) == pageLen {
 		minTS := cursorTS[0]
 		for _, ts := range cursorTS[1:] {
