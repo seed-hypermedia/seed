@@ -1,3 +1,4 @@
+import {EditProfileDialog, useCreateAccount} from '@/auth'
 import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
 import {useLocation, useNavigate, useSearchParams} from '@remix-run/react'
 import avatarPlaceholder from '@shm/editor/assets/avatar.png'
@@ -48,6 +49,7 @@ import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Sparkle} from 'lucide-react'
@@ -769,60 +771,94 @@ function MobileInteractionCardCollapsed({
   isFeedActive: boolean
 }) {
   const keyPair = useLocalKeyPair()
-  const myAccount = useAccount(keyPair?.id || undefined)
+  // Use retry and disable refetchOnWindowFocus to avoid 404 errors while account is being created
+  const myAccount = useAccount(keyPair?.id || undefined, {
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    refetchOnWindowFocus: false,
+  })
+
+  const {content: createAccountContent, createAccount} = useCreateAccount({
+    onClose: () => {
+      // Add a small delay before refetching to give the backend time to process
+      setTimeout(() => {
+        myAccount.refetch()
+      }, 500)
+    },
+  })
+  const editProfileDialog = useAppDialog(EditProfileDialog)
+
+  const handleAvatarClick = useCallback(() => {
+    if (!keyPair || !myAccount.data) {
+      createAccount()
+      return
+    }
+    editProfileDialog.open({accountUid: keyPair.id})
+  }, [keyPair, myAccount.data, createAccount, editProfileDialog])
 
   return (
-    <div
-      className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2"
-      style={{
-        boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
-      }}
-      onClick={(e) => {
-        // Prevent clicks on the container from passing through to elements behind
-        e.stopPropagation()
-      }}
-    >
-      <div className="shrink-0">
-        {myAccount.data?.id ? (
-          <HMIcon
-            id={myAccount.data.id}
-            name={myAccount.data?.metadata?.name}
-            icon={myAccount.data?.metadata?.icon}
-            size={32}
+    <>
+      <div
+        className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2"
+        style={{
+          boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
+        }}
+        onClick={(e) => {
+          // Prevent clicks on the container from passing through to elements behind
+          e.stopPropagation()
+        }}
+      >
+        <Button
+          variant="ghost"
+          className="min-w-20 shrink-0 cursor-pointer"
+          onClick={handleAvatarClick}
+          type="button"
+        >
+          {myAccount.data?.id ? (
+            <HMIcon
+              id={myAccount.data.id}
+              name={myAccount.data?.metadata?.name}
+              icon={myAccount.data?.metadata?.icon}
+              size={32}
+            />
+          ) : (
+            <UIAvatar
+              url={avatarPlaceholder}
+              size={32}
+              className="rounded-full"
+            />
+          )}
+        </Button>
+
+        <Button
+          variant={isFeedActive ? 'inverse' : 'ghost'}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleToggleFeed()
+          }}
+        >
+          <Sparkle
+            className={cn('size-4', !isFeedActive && 'text-muted-foreground')}
           />
-        ) : (
-          <UIAvatar
-            url={avatarPlaceholder}
-            size={32}
-            className="rounded-full"
-          />
-        )}
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="min-w-20 shrink-0 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick()
+          }}
+        >
+          <MessageSquare className="size-4 opacity-50" />
+          {commentsCount ? (
+            <span className="text-xs opacity-50">{commentsCount}</span>
+          ) : null}
+        </Button>
       </div>
-
-      <Button
-        onClick={(e) => {
-          e.stopPropagation()
-          handleToggleFeed()
-        }}
-      >
-        <Sparkle
-          className={cn('size-4', !isFeedActive && 'text-muted-foreground')}
-        />
-      </Button>
-
-      <Button
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick()
-        }}
-      >
-        <MessageSquare className="size-4 opacity-50" />
-        {commentsCount ? (
-          <span className="text-xs opacity-50">{commentsCount}</span>
-        ) : null}
-      </Button>
-    </div>
+      {createAccountContent}
+      {editProfileDialog.content}
+    </>
   )
 }
 
