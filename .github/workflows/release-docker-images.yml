@@ -76,7 +76,7 @@ jobs:
         run: yarn web:prod
 
       - name: Build Notify App
-        run: yarn notify:prod
+        run: yarn notify:build
 
       - name: Start Web Server
         run: |
