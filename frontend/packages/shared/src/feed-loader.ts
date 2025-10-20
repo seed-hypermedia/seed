@@ -153,6 +153,7 @@ export function createFeedLoader(grpcClient: GRPCClient) {
       targetId: targetId ?? null,
       replyingComment: null,
       replyingAuthor: null,
+      replyCount: 0,
       // targetMetadata: await getMetadata(resourceId),
       // targetId: resourceId,
     }
