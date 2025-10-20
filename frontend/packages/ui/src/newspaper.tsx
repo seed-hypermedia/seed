@@ -88,7 +88,6 @@ export function DocumentCard({
             >
               {entity?.document?.metadata?.name}
             </p>
-            <p className="w-full break-all">{docId?.id}</p>
             <p
               className={cn(
                 'text-muted-foreground mt-2 line-clamp-3 font-sans',
