@@ -94,6 +94,7 @@ export type LoadedCommentEvent = {
   // deprecate
   targetId?: UnpackedHypermediaId | null
   target: HMContactItem | null
+  replyCount: number
 }
 
 export type LoadedRefEvent = {
@@ -115,6 +116,7 @@ export type LoadedCitationEvent = {
   target: HMContactItem // The document being cited (with fragment)
   targetFragment?: string // Block ID or fragment being cited
   comment?: HMComment | null // The comment content (when citationType === 'c')
+  replyCount?: number // Reply count for comment citations (when citationType === 'c')
 }
 
 export type LoadedEvent =
@@ -403,6 +405,10 @@ export async function loadCommentEvent(
       path: comment.targetPath,
     })
 
+    const replyCountResponse = await grpcClient.comments.getCommentReplyCount({
+      id: comment.id,
+    })
+
     const targetId = hmId(comment.targetAccount, {
       path: comment.targetPath
         ? comment.targetPath.split('/').filter(Boolean)
@@ -429,6 +435,7 @@ export async function loadCommentEvent(
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
       target,
+      replyCount: Number(replyCountResponse.replyCount),
     }
   } catch (error) {
     console.error('Event: catch error:', event, error)
@@ -733,6 +740,7 @@ export async function loadCitationEvent(
 
     // Fetch comment content if this is a comment citation
     let comment: HMComment | null = null
+    let replyCount: number | undefined = undefined
     if (citationType === 'c') {
       try {
         // The comment CID is in mention.sourceBlob.cid
@@ -744,6 +752,12 @@ export async function loadCitationEvent(
             id: commentCid,
           })
           comment = prepareHMComment(grpcComment)
+
+          // Fetch reply count for the comment
+          const replyCountResponse = await grpcClient.comments.getCommentReplyCount({
+            id: commentCid,
+          })
+          replyCount = Number(replyCountResponse.replyCount)
         }
       } catch (error) {
         console.error('Failed to load comment for citation:', error)
@@ -761,6 +775,7 @@ export async function loadCitationEvent(
       target,
       targetFragment: mention.targetFragment || undefined,
       comment,
+      replyCount,
     }
   } catch (error) {
     console.error('Event: catch error loading citation:', event, error)

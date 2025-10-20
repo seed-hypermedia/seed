@@ -602,7 +602,7 @@ export function Comment({
             <div className="flex items-center gap-2">
               <Tooltip content={tx('Copy Comment Link')}>
                 <Button
-                  size="iconSm"
+                  size="icon"
                   variant="ghost"
                   className="text-muted-foreground transition-opacity duration-200 ease-in-out group-hover:opacity-100 sm:opacity-0"
                   onClick={() => {
@@ -634,24 +634,6 @@ export function Comment({
               !heading && 'mb-2',
             )}
           >
-            {replyCount ? (
-              <Button
-                variant="ghost"
-                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
-                size="xs"
-                onClick={() => {
-                  commentsContext.onReplyCountClick(comment)
-                }}
-              >
-                <ChevronRight className="size-3" />
-
-                {tx(
-                  'replies_count',
-                  (args: {count: number}) => `Replies (${args.count})`,
-                  {count: replyCount},
-                )}
-              </Button>
-            ) : null}
             {enableReplies || commentsContext.onReplyClick ? (
               <Button
                 variant="ghost"
@@ -660,12 +642,14 @@ export function Comment({
                 onClick={() => {
                   if (commentsContext.onReplyClick) {
                     commentsContext.onReplyClick(comment)
+                  } else if (replyCount && commentsContext.onReplyCountClick) {
+                    commentsContext.onReplyCountClick(comment)
                   }
                 }}
               >
                 <ReplyArrow className="size-3" />
-
                 {tx('Reply')}
+                {replyCount && replyCount > 0 ? ` (${replyCount})` : ''}
               </Button>
             ) : null}
           </div>

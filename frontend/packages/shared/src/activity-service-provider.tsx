@@ -92,8 +92,6 @@ export function useActivityFeed({
 
       const filteredEvents = resolvedEvents.filter((e) => !!e) as LoadedEvent[]
 
-      console.log(`== ~ useActivityFeed ~ filteredEvents:`, filteredEvents)
-
       return {
         events: filteredEvents,
         nextPageToken: response.nextPageToken,

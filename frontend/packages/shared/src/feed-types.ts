@@ -50,6 +50,7 @@ export type LoadedCommentEvent = {
   commentId: UnpackedHypermediaId
   targetMetadata: HMMetadata | null
   targetId: UnpackedHypermediaId | null
+  replyCount: number
 }
 
 export type LoadedDocUpdateEvent = {

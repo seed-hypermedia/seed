@@ -413,6 +413,12 @@ function EventItem({
               >
                 <ReplyArrow className="size-3" />
                 {tx('Reply')}
+                {(event.type == 'comment' && event.replyCount > 0) ||
+                (event.type == 'citation' &&
+                  event.replyCount !== undefined &&
+                  event.replyCount > 0)
+                  ? ` (${event.replyCount})`
+                  : ''}
               </Button>
             </div>
           ) : null}
@@ -950,6 +956,7 @@ function EventCommentWithReply({
             >
               <ReplyArrow className="size-3" />
               {tx('Reply')}
+              {event.replyCount > 0 ? ` (${event.replyCount})` : ''}
             </Button>
           </div>
         </div>
