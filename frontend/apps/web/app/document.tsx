@@ -240,10 +240,12 @@ function InnerDocumentPage(
   }
 
   // if the server is providing a comment, use it as default, but allow local state to override
-  // if feed is open, activePanel should always be null
-  const activePanel: WebAccessory | null = feed
-    ? null
-    : _activePanel || (comment ? {type: 'activity', comment} : null)
+  // On mobile, activePanel can be set independently from feed state
+  // On desktop, if feed is open in main view, activePanel should be null
+  const activePanel: WebAccessory | null =
+    feed && media.gtSm
+      ? null
+      : _activePanel || (comment ? {type: 'activity', comment} : null)
 
   // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
   const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)
