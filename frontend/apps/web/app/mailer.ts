@@ -6,10 +6,7 @@ import {
   NOTIFY_SMTP_PORT,
   NOTIFY_SMTP_USER,
 } from '@shm/shared/constants'
-import dotenv from 'dotenv'
 import nodemailer from 'nodemailer'
-
-dotenv.config()
 
 const transporter =
   ENABLE_EMAIL_NOTIFICATIONS &&

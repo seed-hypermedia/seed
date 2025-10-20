@@ -75,6 +75,9 @@ jobs:
       - name: Build Web App
         run: yarn web:prod
 
+      - name: Build Notify App
+        run: yarn notify:prod
+
       - name: Start Web Server
         run: |
           yarn web:start &
@@ -107,6 +110,19 @@ jobs:
           push: true
           file: frontend/apps/web/Dockerfile
           tags: seedhypermedia/web:latest
+          build-args: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+
+      - name: DockerHub Release seedhypermedia/notify:latest
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: frontend/apps/notify/Dockerfile
+          tags: seedhypermedia/notify:latest
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}

@@ -18,6 +18,9 @@
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace @shm/site dev",
     "web:test": "yarn workspace @shm/web test",
     "web:perf": "yarn workspace @shm/perf-web start --url http://localhost:3000 --app web",
+    "notify": "cd frontend/apps/notify && yarn dev",
+    "notify:build": "cd frontend/apps/notify && yarn build",
+    "notify:prod": "cd frontend/apps/notify && yarn start:prod",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
     "types:suppress": "node scripts/suppress-ts-errors.mjs",
     "types:count": "node scripts/count-ts-directives.mjs",
@@ -99,5 +102,8 @@
     "prettier-plugin-tailwindcss": "^0.6.13",
     "ts-node": "10.9.1",
     "vitest": "^3.0.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

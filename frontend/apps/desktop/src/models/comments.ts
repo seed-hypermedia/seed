@@ -316,7 +316,10 @@ export function useCommentEditor(
       }
 
       // Auto-focus if requested and context matches
-      if (autoFocus && (!initCommentDraft?.context || initCommentDraft.context === context)) {
+      if (
+        autoFocus &&
+        (!initCommentDraft?.context || initCommentDraft.context === context)
+      ) {
         setTimeout(() => {
           e._tiptapEditor.commands.focus()
         }, 100)

@@ -1,0 +1,82 @@
+:root {
+  --site-header-h: 60px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* .mobile-menu .mobile-menu-item-label {
+  font-size: 20px !important;
+  line-height: 1.5 !important;
+}
+
+.mobile-menu .mobile-menu-item .avatar {
+  margin-top: 5px !important;
+} */
+
+/* @media (min-width: 768px) {
+  .mobile-menu .mobile-menu-item-label {
+    font-size: inherit !important;
+  }
+
+  .mobile-menu .mobile-menu-item .avatar {
+    margin-top: 0 !important;
+  }
+} */
+
+.panel-resize-handle {
+  width: 2px;
+  /* background-color: var(--color7); */
+  position: relative;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 100%;
+  background: transparent;
+  z-index: 900;
+  pointer-events: auto;
+  cursor: col-resize !important;
+}
+
+.panel-resize-handle:hover {
+  background-color: var(--color8);
+}
+
+.bottom-gradient {
+  position: relative;
+}
+
+.bottom-gradient:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 1000;
+  background: var(--color-secondary);
+  background: linear-gradient(
+    0deg,
+    var(--color-secondary) 5%,
+    var(--color-secondary) 100%
+  );
+}

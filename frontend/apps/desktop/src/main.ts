@@ -123,6 +123,7 @@ if (!gotTheLock) {
 }
 
 app.on('will-finish-launching', () => {
+  app.on('open-url', (_event, url) => handleUrlOpen(url))
   logger.info(`[APP-EVENT]: will-finish-launching`)
 })
 
@@ -216,7 +217,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('second-instance', handleSecondInstance)
-app.on('open-url', (_event, url) => handleUrlOpen(url))
 
 async function initAccountSubscriptions() {
   logger.info('InitAccountSubscriptions')

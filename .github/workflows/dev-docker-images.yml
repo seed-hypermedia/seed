@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "frontend/apps/web/**"
+      - "frontend/apps/notify/**"
       - "frontend/packages/**"
       - "backend/**"
       - ".github/workflows/dev-docker-images.yml"
@@ -82,6 +83,9 @@ jobs:
       - name: Build Web App
         run: yarn web:prod
 
+      - name: Build Notify App
+        run: yarn notify:prod
+
       - name: Start Web Server
         run: |
           yarn web:start &
@@ -108,6 +112,20 @@ jobs:
           push: true
           file: frontend/apps/web/Dockerfile
           tags: seedhypermedia/web:dev
+          build-args: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+            SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}
+            COMMIT_HASH=${{ github.sha }}
+            BRANCH=${{ github.ref }}
+            DATE=${{ env.COMMIT_DATE }}
+
+      - name: DockerHub Release seedhypermedia/notify:dev
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: frontend/apps/notify/Dockerfile
+          tags: seedhypermedia/notify:dev
           build-args: |
             SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
             SITE_SENTRY_DSN=${{ secrets.SITE_SENTRY_DSN }}

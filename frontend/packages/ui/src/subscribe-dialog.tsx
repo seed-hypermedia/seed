@@ -1,4 +1,4 @@
-import {SEED_HOST_URL} from '@shm/shared/constants'
+import {NOTIFY_SERVICE_HOST, SEED_HOST_URL} from '@shm/shared/constants'
 import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
@@ -72,11 +72,8 @@ export function SubscribeDialog({
     setError(null)
 
     try {
-      const apiUrl = siteUrl
-        ? `${siteUrl}/hm/api/public-subscribe`
-        : typeof window !== 'undefined' && window.location.port !== '3000'
-        ? `${SEED_HOST_URL}/hm/api/public-subscribe`
-        : '/hm/api/public-subscribe'
+      const apiHost = NOTIFY_SERVICE_HOST || siteUrl || SEED_HOST_URL
+      const apiUrl = `${apiHost}/hm/api/public-subscribe`
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -148,7 +145,9 @@ export function SubscribeDialog({
           <CheckboxField
             id="notifications"
             checked={isChecked}
-            onCheckedChange={(checked) => setIsChecked(checked === true)}
+            onCheckedChange={(checked: boolean) =>
+              setIsChecked(checked === true)
+            }
             variant="primary"
           >
             Get notified about site activity (discussions, document changes) and

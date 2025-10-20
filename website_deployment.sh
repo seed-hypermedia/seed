@@ -22,6 +22,7 @@ auto_update=0
 profile=""
 enable_traffic_stats="false"
 lightning_url="https://ln.seed.hyper.media"
+notify_service_host="https://notify.seed.hyper.media"
 is_gateway="false"
 clean_images_cron="0 0,4,8,12,16,20 * * * docker image prune -a -f # prune all unused images"
 testnet_name=""
@@ -137,7 +138,7 @@ fi
 # this user and group ID align with the ones in /frontend/apps/web/Dockerfile, so web app is allowed to write to the volume
 sudo chown -R 1001:1001 "${workspace}/web"
 
-SEED_P2P_TESTNET_NAME="$testnet_name" SEED_LIGHTNING_URL="$lightning_url" SEED_LOG_LEVEL="$log_level" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_IS_GATEWAY="$is_gateway" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" SEED_ENABLE_STATISTICS="$enable_traffic_stats" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
+NOTIFY_SERVICE_HOST="$notify_service_host" SEED_P2P_TESTNET_NAME="$testnet_name" SEED_LIGHTNING_URL="$lightning_url" SEED_LOG_LEVEL="$log_level" SEED_SITE_DNS="$dns" SEED_SITE_TAG="$tag" SEED_SITE_WORKSPACE="${workspace}" SEED_IS_GATEWAY="$is_gateway" SEED_SITE_HOSTNAME="$hostname" SEED_SITE_MONITORING_WORKDIR="${workspace}/monitoring" SEED_SITE_MONITORING_PORT="$SEED_SITE_MONITORING_PORT" SEED_ENABLE_STATISTICS="$enable_traffic_stats" docker compose -f ${workspace}/hmsite.yml --profile "$profile" up -d --pull always --quiet-pull 2> ${workspace}/deployment.log || true
 
 echo "===================="
 echo "Deployment done."

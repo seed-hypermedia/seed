@@ -1,8 +1,5 @@
-import dotenv from 'dotenv'
 import nodemailer from 'nodemailer'
 import {createNotificationsEmail, FullNotification} from './notifier'
-
-dotenv.config()
 
 const transporter = nodemailer.createTransport({
   host: process.env.NOTIFY_SMTP_HOST,
