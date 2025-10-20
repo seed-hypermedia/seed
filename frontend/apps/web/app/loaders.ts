@@ -771,8 +771,39 @@ export async function loadSiteResource<T>(
       }
     }
 
+    // Load home document and directory for the header to render properly
+    let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] =
+      []
+    let supportQueries: HMQueryResult[] = []
+    if (config.registeredAccountUid) {
+      try {
+        const homeId = hmId(config.registeredAccountUid, {
+          latest: true,
+          version: undefined,
+        })
+        const homeDocument = await getDocument(homeId)
+        supportDocuments.push({
+          id: homeId,
+          document: homeDocument,
+        })
+        const homeDirectoryResults = await getDirectory(homeId, 'Children')
+        supportQueries.push({in: homeId, results: homeDirectoryResults})
+      } catch (homeError) {
+        console.error('Error loading home document for error page', homeError)
+      }
+    }
+
     return wrapJSON(
-      {homeMetadata, origin, originHomeId, daemonError, ...(extraData || {})},
+      {
+        id,
+        homeMetadata,
+        origin,
+        originHomeId,
+        daemonError,
+        supportDocuments,
+        supportQueries,
+        ...(extraData || {}),
+      },
       {status: id ? 200 : 404},
     )
   }

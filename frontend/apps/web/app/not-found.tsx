@@ -1,12 +1,32 @@
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import type {SiteDocumentPayload} from './loaders'
-import {PageFooter} from './page-footer'
+import {WebSiteHeader} from './web-site-header'
 
-export function NotFoundPage({id}: SiteDocumentPayload) {
+export function NotFoundPage({
+  id,
+  homeMetadata,
+  originHomeId,
+  supportDocuments,
+  supportQueries,
+  origin,
+  isLatest,
+}: SiteDocumentPayload) {
   const tx = useTx()
+
   return (
     <div className="flex h-screen w-screen flex-col">
+      <WebSiteHeader
+        noScroll={false}
+        homeMetadata={homeMetadata}
+        originHomeId={originHomeId}
+        docId={id}
+        supportDocuments={supportDocuments}
+        supportQueries={supportQueries}
+        origin={origin}
+        isLatest={isLatest}
+        handleToggleFeed={() => {}}
+      />
       <div className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
@@ -35,7 +55,6 @@ export function NotFoundPage({id}: SiteDocumentPayload) {
           </SizableText>
         </div>
       </div>
-      <PageFooter id={id} hideDeviceLinkToast={true} />
     </div>
   )
 }
