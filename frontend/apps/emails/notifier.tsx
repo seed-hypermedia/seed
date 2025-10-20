@@ -12,7 +12,7 @@ import {
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {SITE_BASE_URL} from '@shm/shared/constants'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
@@ -83,10 +83,7 @@ export async function createNotificationsEmail(
     // @ts-ignore
     notifications?.[0].accountMeta,
   )
-  const notifSettingsUrl = `${SITE_BASE_URL.replace(
-    /\/$/,
-    '',
-  )}/hm/email-notifications?token=${opts.adminToken}` // Remove trailing slash if SITE_BASE_URL has one
+  const notifSettingsUrl = `${NOTIFY_SERVICE_HOST}/hm/email-notifications?token=${opts.adminToken}` // Remove trailing slash if SITE_BASE_URL has one
 
   // @ts-ignore
   const text = `${baseNotifsSubject}

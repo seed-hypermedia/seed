@@ -1,9 +1,10 @@
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {cborEncode, postCBOR, signObject} from './api'
 import {useLocalKeyPair} from './auth'
 import {preparePublicKey} from './auth-utils'
-import type {EmailNotifierAction} from './routes/hm.api.email-notifier.$.tsx'
+import type {EmailNotifierAction} from './routes/hm.api.email-notifier.$'
 
 export function useEmailNotifications() {
   const keyPair = useLocalKeyPair()
@@ -23,7 +24,7 @@ export function useEmailNotifications() {
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(
-        `/hm/api/email-notifier/${account.data?.id.uid}`,
+        `${NOTIFY_SERVICE_HOST}/hm/api/email-notifier/${account.data?.id.uid}`,
         cborEncode({
           ...payload,
           sig: new Uint8Array(sig),
@@ -77,7 +78,7 @@ export function useSetEmailNotifications() {
       } as const
       const sig = await signObject(keyPair, payload)
       const result = await postCBOR(
-        `/hm/api/email-notifier/${account.data?.id.uid}`,
+        `${NOTIFY_SERVICE_HOST}/hm/api/email-notifier/${account.data?.id.uid}`,
         cborEncode({
           ...payload,
           sig: new Uint8Array(sig),

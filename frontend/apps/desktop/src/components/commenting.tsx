@@ -127,7 +127,11 @@ function _CommentBox(props: {
 
   // Clear autoFocus from route after it's been used
   useEffect(() => {
-    if (autoFocus && route.key === 'document' && route.accessory?.key === 'activity') {
+    if (
+      autoFocus &&
+      route.key === 'document' &&
+      route.accessory?.key === 'activity'
+    ) {
       const accessory = route.accessory
       if (accessory.autoFocus) {
         setTimeout(() => {

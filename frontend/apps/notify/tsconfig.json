@@ -1,0 +1,58 @@
+{
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "app/**/.server/**/*.ts",
+    "app/**/.server/**/*.tsx",
+    "app/**/.client/**/*.ts",
+    "app/**/.client/**/*.tsx"
+  ],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["vite/client"],
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "strict": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "disableSourceOfProjectReferenceRedirect": true,
+    "noResolve": false,
+
+    // Enhanced Strictness - Industry Standard
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Error Prevention
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./app/*"],
+      "@shm/editor/*": ["../../packages/editor/src/*"],
+      "@shm/shared": ["../../packages/shared/src/index.ts"],
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@shm/ui/*": ["../../packages/ui/src/*"]
+    },
+    "noEmit": true
+  },
+  "exclude": [
+    "node_modules",
+    "../../packages/**/*",
+    "../desktop/**/*",
+    "../emails/**/*",
+    "../explore/**/*",
+    "../landing/**/*",
+    "../performance/**/*",
+    "../performance-dashboard/**/*",
+    "../perf-web/**/*"
+  ],
+  "references": []
+}

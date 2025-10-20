@@ -84,7 +84,8 @@ export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 export const DAEMON_FILE_URL = `${DAEMON_HTTP_URL}/ipfs`
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
-export const SITE_BASE_URL = WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL
+export const SITE_BASE_URL =
+  WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL || 'https://hyper.media'
 
 export const LIGHTNING_API_URL =
   WEB_ENV.LIGHTNING_API_URL ||
@@ -137,3 +138,8 @@ export const ENABLE_EMAIL_NOTIFICATIONS =
     NOTIFY_SMTP_PASSWORD &&
     NOTIFY_SENDER
   )
+
+export const NOTIFY_SERVICE_HOST =
+  WEB_ENV.NOTIFY_SERVICE_HOST ||
+  process.env.NOTIFY_SERVICE_HOST ||
+  'http://localhost:3060'
