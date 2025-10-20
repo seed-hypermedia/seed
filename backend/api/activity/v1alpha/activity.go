@@ -348,9 +348,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 					tsid        = blob.TSID(stmt.ColumnText(13))
 					extraAttrs  = stmt.ColumnText(14)
-					isDeleted   = stmt.ColumnText(15) == "1"
+					isDeleted   = stmt.ColumnText(16) == "1"
 				)
-
+				genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
 				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
 				if source == "" && blobType != "Comment" {
 					return fmt.Errorf("BUG: missing source for link of type '%s'", blobType)
@@ -403,7 +403,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	var movedResources []entities.MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
@@ -432,15 +431,16 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 	for _, movedResource := range movedResources {
 		for i, e := range events {
-			if e.Data.(*activity.Event_NewBlob).NewBlob.Resource == movedResource.OldIri {
+			if strings.Contains(e.Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri) {
 				if movedResource.IsDeleted {
 					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
 				} else {
-					events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = movedResource.NewIri
+					events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = strings.ReplaceAll(events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri, movedResource.NewIri)
 				}
 			}
 		}
 	}
+
 	nonDeleted := make([]*activity.Event, 0, len(events))
 	for _, e := range events {
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
@@ -531,91 +531,6 @@ var qEntitiesLookupID = dqb.Str(`
 	WHERE resources.iri GLOB :filter_resource
 `)
 
-var qListMentions = dqb.Str(`
-WITH changes AS (
-	SELECT distinct
-	    structural_blobs.genesis_blob,
-	    resource_links.id AS link_id,
-	    resource_links.is_pinned,
-	    blobs.codec,
-	    blobs.multihash,
-		blobs.id,
-		structural_blobs.ts,
-		public_keys.principal AS author,
-	    resource_links.extra_attrs->>'a' AS anchor,
-		resource_links.extra_attrs->>'v' AS target_version,
-		resource_links.extra_attrs->>'f' AS target_fragment,
-		resource_links.type AS link_type,
-		structural_blobs.extra_attrs->>'tsid' AS tsid
-	FROM resource_links
-	JOIN structural_blobs ON structural_blobs.id = resource_links.source
-	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-	JOIN public_keys ON public_keys.id = structural_blobs.author
-	LEFT JOIN resources ON resources.id = structural_blobs.resource
-	WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
-	AND structural_blobs.type IN ('Change')
-	AND structural_blobs.ts <= :idx
-)
-SELECT distinct
-    resources.iri,
-    blobs.codec,
-    blobs.multihash,
-	public_keys.principal AS author,
-    structural_blobs.ts,
-    structural_blobs.type AS blob_type,
-    resource_links.is_pinned,
-    resource_links.extra_attrs->>'a' AS anchor,
-	resource_links.extra_attrs->>'v' AS target_version,
-	resource_links.extra_attrs->>'f' AS target_fragment,
-	resource_links.type AS link_type,
-    blobs.id AS blob_id,
-	blobs.insert_time AS blob_insert_time,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs,
-	resource_links.id AS link_id,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
-AND hex(public_keys.principal) IN (SELECT value from json_each(:authors_json))
-AND lower(resource_links.type) IN (SELECT value from json_each(:link_types_json))
-AND structural_blobs.ts <= :idx
-AND structural_blobs.type IN ('Comment')
-UNION ALL
-SELECT distinct
-    resources.iri,
-    blobs.codec,
-    blobs.multihash,
-    public_keys.principal AS author,
-    changes.ts,
-    'Ref' AS blob_type,
-    changes.is_pinned,
-    changes.anchor,
-	changes.target_version,
-	changes.target_fragment,
-	changes.link_type link_type,
-    blobs.id AS blob_id,
-	blobs.insert_time AS blob_insert_time,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs,
-	changes.link_id,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted
-FROM structural_blobs
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
-WHERE structural_blobs.ts <= :idx
-AND hex(public_keys.principal) IN (SELECT value from json_each(:authors_json))
-AND lower(changes.link_type) IN (SELECT value from json_each(:link_types_json))
-GROUP BY resources.iri, changes.link_id, target_version, target_fragment
-ORDER BY structural_blobs.ts DESC
-LIMIT :page_size;
-`)
-
 var listMentionsCore string = `
 WITH changes AS (
 	SELECT distinct
@@ -658,7 +573,8 @@ SELECT distinct
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	structural_blobs.extra_attrs,
 	resource_links.id AS link_id,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted
+	structural_blobs.extra_attrs->>'deleted' as is_deleted,
+	structural_blobs.genesis_blob
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
@@ -693,7 +609,8 @@ SELECT distinct
 	structural_blobs.extra_attrs->>'tsid' AS tsid,
 	structural_blobs.extra_attrs,
 	changes.link_id,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted
+	structural_blobs.extra_attrs->>'deleted' as is_deleted,
+	changes.genesis_blob
 FROM structural_blobs
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
