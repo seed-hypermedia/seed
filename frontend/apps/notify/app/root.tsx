@@ -10,6 +10,15 @@ import {
   useRouteError,
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+import {
+  ENABLE_EMAIL_NOTIFICATIONS,
+  LIGHTNING_API_URL,
+  NOTIFY_SERVICE_HOST,
+  SEED_ASSET_HOST,
+  SITE_BASE_URL,
+  WEB_IDENTITY_ENABLED,
+  WEB_IDENTITY_ORIGIN,
+} from '@shm/shared/constants'
 import {SizableText} from '@shm/ui/text'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
@@ -59,19 +68,36 @@ export async function loader({request}: LoaderFunctionArgs) {
 
   const domain = process.env.MONITORING_DOMAIN || runtimeDomain
 
-  const result = {isProd, enableStats, domain}
+  // Get siteHost for window.ENV injection
+  const siteHost = url.hostname
+
+  const result = {isProd, enableStats, domain, siteHost}
 
   return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
-  const {isProd, enableStats, domain} = useLoaderData<typeof loader>()
+  const {isProd, enableStats, domain, siteHost} = useLoaderData<typeof loader>()
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
+        {/* Inject environment variables BEFORE JS bundles load */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.ENV = ${JSON.stringify({
+              LIGHTNING_API_URL,
+              SITE_BASE_URL: siteHost || SITE_BASE_URL,
+              WEB_IDENTITY_ORIGIN,
+              WEB_IDENTITY_ENABLED,
+              ENABLE_EMAIL_NOTIFICATIONS,
+              SEED_ASSET_HOST,
+              NOTIFY_SERVICE_HOST,
+            })}`,
+          }}
+        />
         <Links />
         {/* Put Plausible in <head> so it loads ASAP */}
         {isProd && enableStats ? (
