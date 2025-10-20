@@ -20,12 +20,18 @@ export function useDocumentAccessory({
   actor,
   isEditingHomeDoc,
   isNewDraft = false,
+  onCommentDelete,
+  deleteCommentDialogContent,
+  targetDomain,
 }: {
   docId?: UnpackedHypermediaId
   state?: any // TODO: fix this type
   actor?: ActorRefFrom<typeof draftMachine>
   isEditingHomeDoc?: boolean
   isNewDraft?: boolean
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  deleteCommentDialogContent?: ReactNode
+  targetDomain?: string
 }): {
   accessory: ReactNode | null
   accessoryOptions: Array<DocAccessoryOption>
@@ -90,6 +96,7 @@ export function useDocumentAccessory({
             textUnit={14}
             layoutUnit={16}
           >
+            {deleteCommentDialogContent}
             <Feed2
               commentEditor={
                 docId ? (
@@ -107,6 +114,8 @@ export function useDocumentAccessory({
               filterResource={docId?.id}
               currentAccount={selectedAccount?.id.uid || ''}
               filterEventType={filterEventType}
+              onCommentDelete={onCommentDelete}
+              targetDomain={targetDomain}
             />
           </AppDocContentProvider>
         )
@@ -119,6 +128,7 @@ export function useDocumentAccessory({
           textUnit={16}
           layoutUnit={18}
         >
+          {deleteCommentDialogContent}
           <Feed2
             commentEditor={
               docId ? <CommentBox docId={docId} context="accessory" /> : null
@@ -126,6 +136,8 @@ export function useDocumentAccessory({
             filterResource={docId?.id}
             currentAccount={selectedAccount?.id.uid || ''}
             filterEventType={filterEventType}
+            onCommentDelete={onCommentDelete}
+            targetDomain={targetDomain}
           />
         </AppDocContentProvider>
       )

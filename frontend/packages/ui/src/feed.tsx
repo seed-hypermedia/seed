@@ -13,26 +13,32 @@ import {
 import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
-import {useTx} from '@shm/shared/translation'
+import {useTx, useTxString} from '@shm/shared/translation'
+import {useResourceUrl} from '@shm/shared/url'
 import {
   AnyTimestamp,
   formattedDateShort,
   normalizeDate,
 } from '@shm/shared/utils'
-import {memo, useCallback, useEffect, useRef} from 'react'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Link, Trash2} from 'lucide-react'
+import {memo, useEffect, useRef} from 'react'
+import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {CommentContent} from './comments'
 import {ContactToken} from './contact-token'
+import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {DocumentCard} from './newspaper'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {ResourceToken} from './resource-token'
 import {Separator} from './separator'
 import {SizableText} from './text'
-import {cn} from './utils'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 /*
 
@@ -359,9 +365,15 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
 function EventItem({
   event,
   route,
+  onCommentDelete,
+  currentAccount,
+  targetDomain,
 }: {
   event: LoadedEvent
   route: NavRoute | null
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  currentAccount?: string
+  targetDomain?: string
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
   const tx = useTx()
@@ -381,7 +393,12 @@ function EventItem({
             />
           ) : null}
         </div>
-        <EventHeaderContent event={event} />
+        <EventHeaderContent
+          event={event}
+          onCommentDelete={onCommentDelete}
+          currentAccount={currentAccount}
+          targetDomain={targetDomain}
+        />
       </div>
       <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />
@@ -411,15 +428,19 @@ export function Feed2({
   filterEventType,
   currentAccount = '',
   commentEditor,
+  onCommentDelete,
+  targetDomain,
 }: {
   commentEditor: any
   filterResource: HMListEventsRequest['filterResource']
   filterAuthors?: HMListEventsRequest['filterAuthors']
   filterEventType?: HMListEventsRequest['filterEventType']
   currentAccount?: string
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  targetDomain?: string
 }) {
   const observerRef = useRef<IntersectionObserver>()
-  const lastElementNodeRef = useRef<HTMLDivElement | null>(null)
+  const lastElementNodeRef = useRef<HTMLDivElement>(null)
 
   const {
     data,
@@ -434,10 +455,6 @@ export function Feed2({
     filterEventType,
     currentAccount,
   })
-
-  const lastElementRef = useCallback((node: HTMLDivElement) => {
-    lastElementNodeRef.current = node
-  }, [])
 
   // Setup and cleanup observer whenever dependencies change
   useEffect(() => {
@@ -504,7 +521,13 @@ export function Feed2({
             return (
               <>
                 <div key={`${e.type}-${e.id}-${e.time}`}>
-                  <EventCommentWithReply event={e} route={route} />
+                  <EventCommentWithReply
+                    event={e}
+                    route={route}
+                    onCommentDelete={onCommentDelete}
+                    currentAccount={currentAccount}
+                    targetDomain={targetDomain}
+                  />
                 </div>
                 <Separator />
               </>
@@ -517,12 +540,15 @@ export function Feed2({
                 key={`${e.type}-${e.id}-${e.time}`}
                 event={e}
                 route={route}
+                onCommentDelete={onCommentDelete}
+                currentAccount={currentAccount}
+                targetDomain={targetDomain}
               />
               <Separator />
             </>
           )
         })}
-        {!isLoading && <div className="h-20" ref={lastElementRef} />}
+        {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
       {isFetchingNextPage && (
         <div className="text-muted-foreground py-3 text-center">
@@ -538,21 +564,75 @@ export function Feed2({
   )
 }
 
-function EventHeaderContent({event}: {event: LoadedEvent}) {
+function EventHeaderContent({
+  event,
+  onCommentDelete,
+  currentAccount,
+  targetDomain,
+}: {
+  event: LoadedEvent
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  currentAccount?: string
+  targetDomain?: string
+}) {
+  const tx = useTxString()
+  const getUrl = useResourceUrl(targetDomain)
+
   if (event.type == 'comment') {
+    const options: MenuItemType[] = []
+    if (
+      onCommentDelete &&
+      event.comment &&
+      currentAccount == event.comment.author
+    ) {
+      options.push({
+        icon: <Trash2 className="size-4" />,
+        label: 'Delete',
+        onClick: () => {
+          onCommentDelete(event.comment!.id, currentAccount)
+        },
+        key: 'delete',
+      })
+    }
+
     return (
-      <p>
-        <span className="text-sm font-bold">
-          {event.author?.metadata?.name}
-        </span>{' '}
-        <span className="text-muted-foreground text-sm">commented on</span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {event.target?.metadata?.name}
-        </a>{' '}
-        <span className="text-muted-foreground ml-2 flex-none text-xs">
-          <EventTimestampWithTooltip time={event.time} />
-        </span>
-      </p>
+      <div className="group flex w-full items-start justify-between gap-2">
+        <p className="flex-1 overflow-hidden">
+          <span className="text-sm font-bold">
+            {event.author?.metadata?.name}
+          </span>{' '}
+          <span className="text-muted-foreground text-sm">commented on</span>{' '}
+          <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+            {event.target?.metadata?.name}
+          </a>{' '}
+          <span className="text-muted-foreground ml-2 flex-none text-xs">
+            <EventTimestampWithTooltip time={event.time} />
+          </span>
+        </p>
+        {event.comment && (
+          <div className="flex items-center">
+            <Tooltip content={tx('Copy Comment Link')}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const url = getUrl(hmId(event.comment!.id))
+                  copyTextToClipboard(url)
+                  toast.success('Copied Comment URL')
+                }}
+              >
+                <Link className="size-3" />
+              </Button>
+            </Tooltip>
+            {options.length > 0 && (
+              <OptionsDropdown side="bottom" align="end" menuItems={options} />
+            )}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -778,9 +858,15 @@ function EventContent({event}: {event: LoadedEvent}) {
 function EventCommentWithReply({
   event,
   route,
+  onCommentDelete,
+  currentAccount,
+  targetDomain,
 }: {
   event: LoadedCommentEvent
   route: NavRoute | null
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  currentAccount?: string
+  targetDomain?: string
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
   const tx = useTx()
@@ -809,6 +895,9 @@ function EventCommentWithReply({
               ...event,
               author: event.replyingAuthor!,
             }}
+            onCommentDelete={onCommentDelete}
+            currentAccount={currentAccount}
+            targetDomain={targetDomain}
           />
         </div>
         <div className="relative flex gap-2">
@@ -843,7 +932,12 @@ function EventCommentWithReply({
             />
           ) : null}
         </div>
-        <EventHeaderContent event={event} />
+        <EventHeaderContent
+          event={event}
+          onCommentDelete={onCommentDelete}
+          currentAccount={currentAccount}
+          targetDomain={targetDomain}
+        />
       </div>
       <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />

@@ -1,5 +1,6 @@
 import {
   CommentsService,
+  DeleteCommentRequest,
   ListCommentsByIdRequest,
   ListCommentsByReferenceRequest,
   ListCommentsRequest,
@@ -72,5 +73,12 @@ export class WebCommentsService implements CommentsService {
       console.error('Failed to load block discussions:', error)
       return {comments: [], authors: {}}
     }
+  }
+
+  async deleteComment(params: DeleteCommentRequest): Promise<void> {
+    // TODO: Implement when web API endpoint is available
+    // Would be something like:
+    // await fetch(`/hm/api/comments/${params.commentId}`, { method: 'DELETE' })
+    throw new Error('Delete comment not yet implemented for web')
   }
 }

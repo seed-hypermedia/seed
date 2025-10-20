@@ -31,6 +31,7 @@ import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
+  AccessoryOptions,
   BlockRange,
   calculateBlockCitations,
   DocumentRoute,
@@ -46,12 +47,14 @@ import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
+  useDeleteComment,
 } from '@shm/shared/comments-service-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {pluralS} from '@shm/shared/utils/language'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -82,11 +85,12 @@ export default function DocumentPage() {
   const docId = route.key == 'document' && route.id
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
-  const accessoryKey = route.accessory?.key
+  const accessoryKey: AccessoryOptions | undefined = route.accessory?.key as
+    | AccessoryOptions
+    | undefined
   const replace = useNavigate('replace')
   const push = useNavigate('push')
 
-  const {accessory, accessoryOptions} = useDocumentAccessory({docId})
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const immediatePromptNotifs =
     route.immediatelyPromptNotifs && !route.id?.path?.length
@@ -184,43 +188,108 @@ export default function DocumentPage() {
               }
             }}
           >
-            <div className="flex h-full flex-1 flex-col">
-              <AccessoryLayout
-                mainPanelRef={mainPanelRef}
-                accessory={accessory}
-                accessoryKey={accessoryKey}
-                onAccessorySelect={(key: typeof accessoryKey) => {
-                  if (key === accessoryKey || key === undefined)
-                    return replace({...route, accessory: null})
-                  replace({...route, accessory: {key}})
-                }}
-                accessoryOptions={accessoryOptions}
-              >
-                <MainDocumentPage
-                  id={route.id}
-                  isBlockFocused={route.isBlockFocused || false}
-                  onScrollParamSet={useCallback((isFrozen) => {
-                    mainPanelRef.current?.style.setProperty(
-                      'overflow',
-                      isFrozen ? 'hidden' : 'auto',
-                    )
-                  }, [])}
-                  isCommentingPanelOpen={route.accessory?.key === 'activity'}
-                  onAccessory={useCallback(
-                    (accessory) => {
-                      replace({...route, accessory})
-                    },
-                    [route, replace],
-                  )}
-                />
-              </AccessoryLayout>
-            </div>
-            {templateDialogContent}
-            {notifSettingsDialog.content}
+            <DocumentPageContent
+              docId={docId}
+              route={route}
+              replace={replace}
+              push={push}
+              mainPanelRef={mainPanelRef}
+              accessoryKey={accessoryKey}
+              templateDialogContent={templateDialogContent}
+              notifSettingsDialogContent={notifSettingsDialog.content}
+            />
           </CommentsProvider>
         </AppDocContentProvider>
       </ActivityProvider>
     </>
+  )
+}
+
+function DocumentPageContent({
+  docId,
+  route,
+  replace,
+  push,
+  mainPanelRef,
+  accessoryKey,
+  templateDialogContent,
+  notifSettingsDialogContent,
+}: {
+  docId: UnpackedHypermediaId
+  route: any
+  replace: any
+  push: any
+  mainPanelRef: React.RefObject<HTMLDivElement>
+  accessoryKey: string | undefined
+  templateDialogContent: ReactNode
+  notifSettingsDialogContent: ReactNode
+}) {
+  const deleteComment = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
+  const homeDoc = useResource(hmId(docId.uid))
+  const targetDomain =
+    homeDoc.data?.type === 'document'
+      ? homeDoc.data.document.metadata.siteUrl
+      : undefined
+
+  const onCommentDelete = useCallback(
+    (commentId: string, signingAccountId?: string) => {
+      if (!signingAccountId || !docId) return
+      console.log('-=- DELETE COMMENT', commentId, signingAccountId)
+      deleteCommentDialog.open({
+        onConfirm: () => {
+          deleteComment.mutate({
+            commentId,
+            targetDocId: docId,
+            signingAccountId,
+          })
+        },
+      })
+    },
+    [docId, deleteComment, deleteCommentDialog],
+  )
+
+  const {accessory, accessoryOptions} = useDocumentAccessory({
+    docId,
+    onCommentDelete,
+    deleteCommentDialogContent: deleteCommentDialog.content,
+    targetDomain,
+  })
+
+  return (
+    <div className="flex h-full flex-1 flex-col">
+      <AccessoryLayout
+        mainPanelRef={mainPanelRef}
+        accessory={accessory}
+        accessoryKey={accessoryKey as any}
+        onAccessorySelect={(key: AccessoryOptions | undefined) => {
+          if (key === accessoryKey || key === undefined)
+            return replace({...route, accessory: null})
+          replace({...route, accessory: {key}})
+        }}
+        accessoryOptions={accessoryOptions}
+      >
+        <MainDocumentPage
+          id={route.id}
+          isBlockFocused={route.isBlockFocused || false}
+          onScrollParamSet={useCallback((isFrozen) => {
+            mainPanelRef.current?.style.setProperty(
+              'overflow',
+              isFrozen ? 'hidden' : 'auto',
+            )
+          }, [])}
+          isCommentingPanelOpen={route.accessory?.key === 'activity'}
+          onAccessory={useCallback(
+            (accessory) => {
+              replace({...route, accessory})
+            },
+            [route, replace],
+          )}
+        />
+      </AccessoryLayout>
+      {templateDialogContent}
+      {notifSettingsDialogContent}
+    </div>
   )
 }
 

@@ -37,6 +37,12 @@ export type ListCommentsByReferenceRequest = {
 
 export type ListCommentsByReferenceResponse = ListCommentsResponse
 
+export type DeleteCommentRequest = {
+  commentId: string
+  targetDocId: UnpackedHypermediaId
+  signingAccountId: string
+}
+
 export interface CommentsService {
   /**
    * Raw comment operations - returns flat list of comments
@@ -81,4 +87,11 @@ export interface CommentsService {
   listCommentsByReference(
     params: ListCommentsByReferenceRequest,
   ): Promise<ListCommentsByReferenceResponse>
+
+  /**
+   * Delete a comment
+   * Desktop: Uses gRPC deleteComment
+   * Web: Would call DELETE /hm/api/comments/:id
+   */
+  deleteComment(params: DeleteCommentRequest): Promise<void>
 }

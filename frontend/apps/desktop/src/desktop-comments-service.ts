@@ -12,6 +12,7 @@ import {
 import {BIG_INT} from '@shm/shared/constants'
 import {
   CommentsService,
+  DeleteCommentRequest,
   ListCommentsByIdRequest,
   ListCommentsByReferenceRequest,
   ListCommentsByReferenceResponse,
@@ -250,5 +251,12 @@ export class DesktopCommentsService implements CommentsService {
       comments,
       authors,
     }
+  }
+
+  async deleteComment(params: DeleteCommentRequest): Promise<void> {
+    await grpcClient.comments.deleteComment({
+      id: params.commentId,
+      signingKeyName: params.signingAccountId,
+    })
   }
 }

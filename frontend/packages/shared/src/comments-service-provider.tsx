@@ -1,8 +1,10 @@
+import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {useQuery} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
 import {HMComment, UnpackedHypermediaId} from './hm-types'
 import {
   CommentsService,
+  DeleteCommentRequest,
   ListCommentsByReferenceRequest,
   ListCommentsByReferenceResponse,
   ListCommentsResponse,
@@ -179,4 +181,36 @@ export function isRouteEqualToCommentTarget({
   }
 
   return targetRoute
+}
+
+export function useDeleteComment() {
+  const context = useCommentsServiceContext()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (params: DeleteCommentRequest) => {
+      if (!context.service) {
+        throw new Error('CommentsService not available')
+      }
+      await context.service.deleteComment(params)
+    },
+    onSuccess: () => {
+      // Invalidate all comment-related queries to refresh the UI
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_DISCUSSION],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_COMMENTS],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.COMMENTS_BY_IDS],
+      })
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.ACTIVITY_FEED],
+      })
+    },
+  })
 }

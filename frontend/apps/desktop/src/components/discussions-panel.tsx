@@ -1,6 +1,6 @@
-import {useDeleteComment} from '@/models/comments'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
+import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {DocumentActivityAccessory} from '@shm/shared/routes'
@@ -119,6 +119,7 @@ function _DiscussionsPanel(props: {
           onBack={() => onAccessory({key: 'activity'})}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
+          onCommentDelete={onCommentDelete}
           renderCommentContent={renderCommentContent}
         />
       </AppDocContentProvider>

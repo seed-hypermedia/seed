@@ -274,6 +274,7 @@ export function BlockDiscussions({
   onBack,
   targetDomain,
   currentAccountId,
+  onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
   renderCommentContent?: (comment: HMComment) => ReactNode
@@ -281,6 +282,7 @@ export function BlockDiscussions({
   onBack?: () => void
   targetDomain?: string
   currentAccountId?: string
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -341,6 +343,7 @@ export function BlockDiscussions({
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
                 renderCommentContent={renderCommentContent}
+                onCommentDelete={onCommentDelete}
               />
             </div>
           )
