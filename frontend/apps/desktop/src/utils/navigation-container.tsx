@@ -106,7 +106,6 @@ export function NavigationContainer({
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
       openRoute={(route: NavRoute, replace?: boolean) => {
-        console.log('== OPEN ROUTE', route)
         if (replace) {
           navigation.dispatch({type: 'replace', route})
         } else {

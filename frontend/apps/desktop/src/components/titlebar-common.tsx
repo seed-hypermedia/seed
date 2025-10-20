@@ -480,11 +480,17 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
   const latestDoc = useSubscribedResource(latestId(id))
+
+  // Determine if we're viewing the latest version
+  // Only consider it "latest" if we can confirm it (to avoid button flashing during load)
   const isLatest =
     !route.id.version ||
     route.id.latest ||
-    // @ts-ignore
-    latestDoc.data?.id?.version == route.id.version
+    // Only hide the button if we've loaded the latest doc and versions match
+    (latestDoc.data?.id?.version != null &&
+      // @ts-ignore
+      latestDoc.data?.id?.version == route.id.version)
+
   const publishSite = usePublishSite()
   const isHomeDoc = !id.path?.length
   const capability = useSelectedAccountCapability(id)

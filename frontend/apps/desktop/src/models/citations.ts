@@ -22,8 +22,6 @@ export function useDocumentCitations(
         pageSize: BIG_INT,
       })
 
-      console.log(`== ~ useDocumentCitations ~ results:`, results)
-
       return processMentionsToCitations(results.mentions, docId)
     },
   })

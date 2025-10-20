@@ -82,12 +82,13 @@ export function DocumentCard({
           <div className="p-4">
             <p
               className={cn(
-                'text-foreground block font-sans leading-tight! font-bold',
+                'text-foreground block w-full font-sans leading-tight! font-bold',
                 banner ? 'text-2xl' : 'text-lg',
               )}
             >
               {entity?.document?.metadata?.name}
             </p>
+            <p className="w-full break-all">{docId?.id}</p>
             <p
               className={cn(
                 'text-muted-foreground mt-2 line-clamp-3 font-sans',

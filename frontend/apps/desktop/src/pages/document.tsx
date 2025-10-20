@@ -711,7 +711,6 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
                   <div className="flex max-w-full flex-wrap items-center gap-1">
                     {authors
                       ?.map((a, index) => {
-                        console.log('== a 1', a)
                         const contact = authorContacts[a]
                         if (!contact) return null
                         return [
@@ -884,8 +883,6 @@ function DocPageContent({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
-
-  console.log(`== ~ DocPageContent ~ citations:`, citations)
 
   const docRoute = route.key === 'document' ? route : null
   if (!docRoute) return null

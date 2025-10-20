@@ -230,16 +230,10 @@ export async function listEventsWithCitationsImpl(
       : Promise.resolve({mentions: [], nextPageToken: ''}),
   ])
 
-  console.log(
-    '== EVENTS RAW',
-    eventsResponse.status === 'fulfilled' ? eventsResponse.value.events : [],
-  )
-
   const events =
     eventsResponse.status === 'fulfilled'
       ? filterUnresolvedEvents(eventsResponse.value.events)
       : []
-  console.log('== EVENTS FILTERED', events)
   const eventsNextToken =
     eventsResponse.status === 'fulfilled'
       ? eventsResponse.value.nextPageToken
@@ -679,7 +673,6 @@ export async function loadCitationEvent(
         path: sourceId.path?.length ? `/${sourceId.path.join('/')}` : '',
         version: sourceId.version || undefined,
       })
-      console.log('=== DOC CITATION', mention)
     }
 
     // Build source ID with blockRef from sourceContext (the block ID where the citation appears)
@@ -754,9 +747,10 @@ export async function loadCitationEvent(
           comment = prepareHMComment(grpcComment)
 
           // Fetch reply count for the comment
-          const replyCountResponse = await grpcClient.comments.getCommentReplyCount({
-            id: commentCid,
-          })
+          const replyCountResponse =
+            await grpcClient.comments.getCommentReplyCount({
+              id: commentCid,
+            })
           replyCount = Number(replyCountResponse.replyCount)
         }
       } catch (error) {

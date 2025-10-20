@@ -460,6 +460,7 @@ export function latestId(id: UnpackedHypermediaId): UnpackedHypermediaId {
   return {
     ...id,
     latest: true,
+    version: null,
   }
 }
 

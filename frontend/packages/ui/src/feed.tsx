@@ -293,13 +293,16 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
   }
 
   if (event.type == 'doc-update') {
-    // Navigate to the document
+    // Navigate to the document at the version from the ref event
+    // Reconstruct the ID properly using hmId to ensure the id field is the base ID
+    if (!event.docId?.uid) return null
+
     const route = {
       key: 'document' as const,
-      id: {
-        ...event.docId,
+      id: hmId(event.docId.uid, {
+        path: event.docId.path,
         version: event.document.version,
-      },
+      }),
     }
 
     return route
@@ -376,6 +379,7 @@ function EventItem({
   targetDomain?: string
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
+
   const tx = useTx()
   return (
     <div
@@ -726,8 +730,6 @@ function EventHeaderContent({
   }
 
   if (event.type == 'citation') {
-    console.log('== CITATION', event)
-
     const authorName = event.author?.metadata?.name || 'Someone'
     const targetName = event.target?.metadata?.name || 'this document'
     const sourceName = event.source?.metadata?.name || 'a document'
@@ -772,7 +774,6 @@ function EventContent({event}: {event: LoadedEvent}) {
   }
 
   if (event.type == 'citation') {
-    console.log(`== ~ loadCitationEvent ~ comment:`, event)
     // Render comment content for comment citations
     if (event.citationType === 'c' && event.comment) {
       return (
@@ -838,11 +839,16 @@ function EventContent({event}: {event: LoadedEvent}) {
   // )
 
   if (event.type == 'doc-update') {
-    // TODO: return card
+    // Use the versioned docId for proper navigation
+    // Reconstruct the ID properly using hmId to ensure the id field is the base ID
+    const versionedDocId = hmId(event.docId.uid, {
+      path: event.docId.path,
+      version: event.document.version,
+    })
     return (
       <DocumentCard
-        docId={event.docId}
-        entity={{id: event.docId, document: event.document}}
+        docId={versionedDocId}
+        entity={{id: versionedDocId, document: event.document}}
         accountsMetadata={event.author ? ([event.author] as any) : []}
       />
     )
