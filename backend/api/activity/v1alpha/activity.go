@@ -327,7 +327,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			queryStr += limitMentions
 			args = append(args, req.PageSize)
-			fmt.Println("Mentions query:", queryStr, args)
 			if err := sqlitex.Exec(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
 				var (
 					source     = stmt.ColumnText(0)
@@ -353,7 +352,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
 				if source == "" && blobType != "Comment" {
-					return fmt.Errorf("BUG: missing source for mention of type '%s'", blobType)
+					return fmt.Errorf("BUG: missing source for link of type '%s'", blobType)
 				}
 
 				if blobType == "Comment" {
