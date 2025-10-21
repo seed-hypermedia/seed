@@ -45,7 +45,10 @@ export function MobileSlashDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="h-full max-h-full w-full max-w-full rounded-none p-0">
+      <DialogContent
+        className="h-full max-h-full w-full max-w-full rounded-none p-0"
+        showCloseButton={false}
+      >
         <div className="flex h-full flex-col">
           <DialogHeader className="border-b p-4">
             <div className="flex items-center justify-between">
