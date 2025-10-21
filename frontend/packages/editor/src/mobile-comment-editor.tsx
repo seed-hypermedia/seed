@@ -468,16 +468,6 @@ export function MobileCommentEditor({
                 e.stopPropagation()
                 editor._tiptapEditor.commands.focus()
               }}
-              onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  editor._tiptapEditor.commands.blur()
-                  handleSubmit(getContent, reset)
-                  return true
-                }
-                return false
-              }}
               onDragStart={() => setIsDragging(true)}
               onDragEnd={() => setIsDragging(false)}
               onDragOver={(event) => {

@@ -216,6 +216,11 @@ export function useCommentEditor(
 
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
+  const [submitTrigger, setSubmitTrigger] = useState(0)
+
+  // Use a ref so the extension can access the latest setSubmitTrigger
+  const setSubmitTriggerRef = useRef(setSubmitTrigger)
+  setSubmitTriggerRef.current = setSubmitTrigger
 
   const write = trpc.comments.writeCommentDraft.useMutation({
     onSuccess: () => {
@@ -341,6 +346,21 @@ export function useCommentEditor(
             return [createHypermediaDocLinkPlugin({}).plugin]
           },
         }),
+        Extension.create({
+          name: 'comment-submit-shortcut',
+          priority: 1000,
+          addKeyboardShortcuts() {
+            return {
+              'Mod-Enter': () => {
+                // Prevent the default Enter behavior
+                // and trigger the submit by incrementing counter
+                const setter = setSubmitTriggerRef.current
+                setter((prev: number) => prev + 1)
+                return true
+              },
+            }
+          },
+        }),
       ],
     },
   })
@@ -457,30 +477,44 @@ export function useCommentEditor(
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  return useMemo(() => {
-    function onSubmit() {
-      if (!targetDocId.id) throw new Error('no targetDocId.id')
-      // remove trailing blocks
-      // @ts-expect-error
-      const editorBlocks = removeTrailingBlocks(editor.topLevelBlocks)
-      const content = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
-      // const contentWithoutLastEmptyBlock = content.filter((block, index) => {
-      //   const isLast = index === content.length - 1
-      //   if (!isLast) return true
-      //   if (
-      //     block.type === 'paragraph' &&
-      //     block.text === '' &&
-      //     block.children.length === 0
-      //   )
-      //     return false
-      //   return true
-      // })
-      setIsSubmitting(true)
-      publishComment.mutate({
-        content,
-        signingKeyName: selectedAccount?.id.uid!,
-      })
+  const onSubmitRef = useRef<(() => void) | null>(null)
+
+  const onSubmit = () => {
+    if (!targetDocId.id) throw new Error('no targetDocId.id')
+    // remove trailing blocks
+    // @ts-expect-error
+    const editorBlocks = removeTrailingBlocks(editor.topLevelBlocks)
+    const content = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
+    // const contentWithoutLastEmptyBlock = content.filter((block, index) => {
+    //   const isLast = index === content.length - 1
+    //   if (!isLast) return true
+    //   if (
+    //     block.type === 'paragraph' &&
+    //     block.text === '' &&
+    //     block.children.length === 0
+    //   )
+    //     return false
+    //   return true
+    // })
+    setIsSubmitting(true)
+    publishComment.mutate({
+      content,
+      signingKeyName: selectedAccount?.id.uid!,
+    })
+  }
+
+  // Keep onSubmit ref updated so the keyboard shortcut can access it
+  onSubmitRef.current = onSubmit
+
+  // Handle submit triggered by keyboard shortcut
+  useEffect(() => {
+    if (submitTrigger > 0) {
+      editor._tiptapEditor.commands.blur()
+      onSubmitRef.current?.()
     }
+  }, [submitTrigger, editor])
+
+  return useMemo(() => {
     function onDiscard() {
       if (!targetDocId.id) throw new Error('no comment targetDocId.id')
 
@@ -502,7 +536,14 @@ export function useCommentEditor(
       account: selectedAccount,
       isSubmitting,
     }
-  }, [targetDocId, selectedAccount?.id.uid])
+  }, [
+    targetDocId,
+    selectedAccount?.id.uid,
+    onSubmit,
+    isSaved,
+    selectedAccount,
+    isSubmitting,
+  ])
 }
 
 function usePushComments() {

@@ -293,16 +293,6 @@ function _CommentDraftEditor({
         e.stopPropagation()
         editor._tiptapEditor.commands.focus()
       }}
-      // @ts-ignore
-      onKeyDownCapture={(e: React.KeyboardEvent<HTMLDivElement>) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-          e.preventDefault()
-          e.stopPropagation()
-          editor._tiptapEditor.commands.blur()
-          onSubmit()
-          return true
-        }
-      }}
     >
       <div className="flex-1">
         <AppDocContentProvider comment textUnit={14} layoutUnit={16}>

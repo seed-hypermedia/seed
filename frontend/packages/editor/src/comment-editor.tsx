@@ -46,8 +46,13 @@ const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
 
 export function useCommentEditor(
   perspectiveAccountUid?: string | null | undefined,
+  onSubmit?: () => void,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
+
+  // Use ref so the extension can access the latest onSubmit
+  const onSubmitRef = useRef<(() => void) | undefined>(onSubmit)
+  onSubmitRef.current = onSubmit
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -76,6 +81,23 @@ export function useCommentEditor(
           name: 'hypermedia-link',
           addProseMirrorPlugins() {
             return [createHypermediaDocLinkPlugin({}).plugin]
+          },
+        }),
+        Extension.create({
+          name: 'comment-submit-shortcut',
+          priority: 1000,
+          addKeyboardShortcuts() {
+            return {
+              'Mod-Enter': () => {
+                // Prevent the default Enter behavior
+                // and trigger the submit callback
+                if (onSubmitRef.current) {
+                  onSubmitRef.current()
+                  return true
+                }
+                return false
+              },
+            }
           },
         }),
       ],
@@ -252,7 +274,12 @@ function DesktopCommentEditor({
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
 }) {
-  const {editor} = useCommentEditor(perspectiveAccountUid)
+  const [submitTrigger, setSubmitTrigger] = useState(0)
+  const submitCallbackRef = useRef<(() => void) | null>(null)
+
+  const {editor} = useCommentEditor(perspectiveAccountUid, () => {
+    setSubmitTrigger((prev) => prev + 1)
+  })
   // Check if we have non-empty draft content
   const hasDraftContent =
     initialBlocks &&
@@ -379,6 +406,19 @@ function DesktopCommentEditor({
       blobs,
     }
   }
+
+  // Keep callback ref updated with latest getContent and reset
+  submitCallbackRef.current = () => {
+    editor._tiptapEditor.commands.blur()
+    handleSubmit(getContent, reset)
+  }
+
+  // Handle submit triggered by keyboard shortcut
+  useEffect(() => {
+    if (submitTrigger > 0) {
+      submitCallbackRef.current?.()
+    }
+  }, [submitTrigger])
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
@@ -566,16 +606,6 @@ function DesktopCommentEditor({
             }
             e.stopPropagation()
             editor._tiptapEditor.commands.focus()
-          }}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault()
-              e.stopPropagation()
-              editor._tiptapEditor.commands.blur()
-              handleSubmit(getContent, reset)
-              return true
-            }
-            return false
           }}
           onDragStart={() => {
             setIsDragging(true)
