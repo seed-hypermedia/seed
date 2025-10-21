@@ -88,6 +88,51 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	srv.log.Debug("Listing events", zap.Int64("cursor_blob_id", cursorBlobID))
 	var filtersStr string
 	var authorsJSON, linkTypesJSON string
+
+	filterResource := "*"
+	if len(req.FilterResource) > 0 {
+		if !resourcePattern.MatchString(req.FilterResource) {
+			return nil, fmt.Errorf("Invalid resource format [%s]", req.FilterResource)
+		}
+		filterResource = req.FilterResource
+	}
+	var initialMovedResources map[string]string = make(map[string]string)
+	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetMovedBlocksByResourceID(), func(stmt *sqlite.Stmt) error {
+			isDeleted := stmt.ColumnInt(2) == 1
+			if !isDeleted {
+				initialMovedResources[stmt.ColumnText(0)] = stmt.ColumnText(1)
+			}
+			return nil
+		}, filterResource)
+	})
+	if err != nil {
+		return nil, err
+	}
+	var initialIris []string
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+			if stmt.ColumnInt64(0) == 0 {
+				return nil
+			}
+			initialIris = append(initialIris, stmt.ColumnText(1))
+			return nil
+
+		}, filterResource); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	var initialEidsUpdated []string
+	for _, iri := range initialIris {
+		oldIri, ok := initialMovedResources[iri]
+		initialEidsUpdated = append(initialEidsUpdated, iri)
+		if ok {
+			initialEidsUpdated = append(initialEidsUpdated, oldIri)
+		}
+	}
 	if len(req.FilterAuthors) > 0 {
 		filtersStr = storage.PublicKeysPrincipal.String() + " in ("
 		authorsJSON = "["
@@ -140,13 +185,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		linkTypesJSON += "]"
 		filtersStr += ") AND "
 	}
-	if len(req.FilterResource) > 0 {
-		if !resourcePattern.MatchString(req.FilterResource) {
-			return nil, fmt.Errorf("Invalid resource format [%s]", req.FilterResource)
-		}
-		filtersStr += storage.ResourcesIRI.String() + " GLOB '" + strings.TrimSuffix(req.FilterResource, "/") + "'"
-		filtersStr += " AND "
+	if len(initialEidsUpdated) == 0 {
+		return &activity.ListEventsResponse{}, nil
 	}
+	filtersStr += storage.ResourcesIRI.String() + " IN ('" + strings.Join(initialEidsUpdated, "', '") + "')"
+	filtersStr += " AND "
 	var (
 		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
 		tableStr             = "FROM " + storage.T_StructuralBlobs
@@ -288,14 +331,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			e.Data.(*activity.Event_NewBlob).NewBlob.Resource += "?v=" + version
 		}
 	}
+
 	var deletedList []string
-	filterResource := req.FilterResource
-	if len(req.FilterResource) == 0 {
-		filterResource = "*"
-	}
+
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eids []string
-		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+		irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
+		if err := sqlitex.Exec(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
 			eid := stmt.ColumnInt64(0)
 			if eid == 0 {
 				return nil
@@ -303,7 +345,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			eids = append(eids, strconv.FormatInt(eid, 10))
 			return nil
 
-		}, filterResource); err != nil {
+		}, irisJSON); err != nil {
 			return err
 		}
 
@@ -351,7 +393,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					isDeleted   = stmt.ColumnText(16) == "1"
 				)
 				genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
-				//srv.log.Info("Processing mention", zap.Bool("isPinned", isPinned), zap.String("anchor", anchor), zap.String("targetVersion", targetVersion), zap.String("fragment", fragment))
 				if source == "" && blobType != "Comment" {
 					return fmt.Errorf("BUG: missing source for link of type '%s'", blobType)
 				}
@@ -403,20 +444,11 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	var movedResources []entities.MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
-			}
-
-			cids := make([]cid.Cid, len(heads))
-			for i, h := range heads {
-				mhBinary, err := hex.DecodeString(h.Multihash)
-				if err != nil {
-					return err
-				}
-				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 			}
 			movedResources = append(movedResources, entities.MovedResource{
 				NewIri:    stmt.ColumnText(0),
@@ -447,6 +479,24 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			nonDeleted = append(nonDeleted, e)
 		}
 	}
+
+	//TODO: remove duplicates based on resource, type, author, eventtime
+	seen := make(map[string]struct{})
+	for i := 0; i < len(nonDeleted); i++ {
+		e := nonDeleted[i]
+		key := fmt.Sprintf("%s:%s:%s:%d",
+			e.Data.(*activity.Event_NewBlob).NewBlob.Resource,
+			e.Data.(*activity.Event_NewBlob).NewBlob.BlobType,
+			e.Account,
+			e.EventTime.AsTime().UnixNano())
+		if _, ok := seen[key]; ok {
+			nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+			i--
+		} else {
+			seen[key] = struct{}{}
+		}
+	}
+
 	// Sort by EventTime for display, but paginate using structural ts (ms).
 	idx := make([]int, len(nonDeleted))
 	for i := range idx {
@@ -526,9 +576,31 @@ JOIN blobs b      ON b.id = bl.target;
 `)
 
 var qEntitiesLookupID = dqb.Str(`
+	SELECT resources.id, 
+	resources.iri
+	FROM resources
+	JOIN document_generations dg ON dg.resource = resources.id
+	WHERE resources.iri GLOB :filter_resource
+	AND dg.is_deleted = 0;
+`)
+
+var qGetIdsFromIris = dqb.Str(`
 	SELECT resources.id
 	FROM resources
-	WHERE resources.iri GLOB :filter_resource
+	WHERE resources.iri IN (SELECT value from json_each(:iris_json))
+`)
+
+var qGetMovedBlocksByResourceID = dqb.Str(`
+SELECT
+  sb.extra_attrs->>'redirect' AS redirect,
+  r.iri,
+  dg.is_deleted
+  from structural_blobs sb
+  JOIN resources r ON r.id = sb.resource
+  JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
+  WHERE sb.type = 'Ref'
+  AND sb.extra_attrs->>'redirect' != ''
+  AND sb.genesis_blob IN (SELECT sb2.genesis_blob FROM structural_blobs sb2 JOIN resources r2 ON r2.id = sb2.resource WHERE r2.iri GLOB :filter_resource);
 `)
 
 var listMentionsCore string = `
