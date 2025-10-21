@@ -146,6 +146,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.comment-editor [data-list-type='Blockquote'] {
+  border-left: 3px solid rgb(0 0 0 / 0.2) !important;
+  padding-left: 15px;
+  margin: 1em 0;
+}
+
+.dark .comment-editor [data-list-type='Blockquote'] {
+  border-left: 3px solid rgb(255 255 255 / 0.3) !important;
+}
+
 .editor code {
   background-color: var(--muted);
   font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
