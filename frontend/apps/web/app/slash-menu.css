@@ -1,0 +1,107 @@
+/* Slash menu styles - static CSS fallback for Mantine/Emotion SSR issues */
+
+.mantine-Menu-dropdown {
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 2px;
+}
+
+.dark .mantine-Menu-dropdown {
+  background-color: #25262b;
+  border-color: #373a40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.mantine-Menu-label {
+  color: #868e96;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  cursor: default;
+  user-select: none;
+}
+
+.dark .mantine-Menu-label {
+  color: #909296;
+}
+
+.mantine-Menu-item {
+  background-color: #ffffff;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
+  user-select: none;
+}
+
+.dark .mantine-Menu-item {
+  background-color: #25262b;
+  color: #c1c2c5;
+}
+
+.mantine-Menu-item[data-hovered='true'] {
+  background-color: #f1f3f5;
+}
+
+.dark .mantine-Menu-item[data-hovered='true'] {
+  background-color: #2c2e33;
+}
+
+.mantine-Menu-itemIcon {
+  background-color: #f1f3f5;
+  border-radius: 2px;
+  color: #000000;
+  padding: 8px;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark .mantine-Menu-itemIcon {
+  background-color: #2c2e33;
+  color: #c1c2c5;
+}
+
+.mantine-Menu-itemLabel {
+  flex: 1;
+  overflow: hidden;
+}
+
+.mantine-Stack-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mantine-Text-root {
+  margin: 0;
+}
+
+.mantine-SlashMenu-root {
+  min-width: 280px;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+/* Hide scrollbar but keep functionality */
+.mantine-SlashMenu-root::-webkit-scrollbar {
+  display: none;
+}
+
+.mantine-SlashMenu-root {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+

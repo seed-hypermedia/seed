@@ -22,6 +22,7 @@ import {
 import {SizableText} from '@shm/ui/text'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
+import slashMenuStyles from './slash-menu.css?url'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 
@@ -30,6 +31,7 @@ export const links: LinksFunction = () => {
     {rel: 'stylesheet', href: globalStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
     {rel: 'stylesheet', href: sonnerStyles},
+    {rel: 'stylesheet', href: slashMenuStyles},
   ]
 }
 
