@@ -124,11 +124,6 @@
   display: list-item;
 }
 
-.comment-editor [data-content-type='code-block'] {
-  background-color: var(--color6) !important;
-  border: 1px solid var(--color6) !important;
-}
-
 .comment-editor,
 .comment-editor .ProseMirror {
   font-family:
@@ -152,7 +147,7 @@
 }
 
 .editor code {
-  background-color: var(--color5);
+  background-color: var(--muted);
   font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
     'Liberation Mono', monospace;
   overflow: hidden;

@@ -33,10 +33,6 @@ BASIC STYLES
   */
 }
 
-:global(.comment-editor) .blockContent {
-  padding: 3px 0;
-}
-
 .blockContent::before {
   /* content: ""; */
   transition: all 0.2s;
@@ -65,7 +61,7 @@ NESTED BLOCKS
 }
 
 .blockGroup[data-list-type='Blockquote'] {
-  border-left: 3px solid var(--color8);
+  border-left: 3px solid var(--border);
   padding-left: 15px;
   margin: 1em 0;
   /* font-style: italic; */
@@ -299,8 +295,8 @@ NESTED BLOCKS
 
 /* IMAGE PLACEHOLDER */
 .blockContent[data-content-type='imagePlaceholder'] {
-  background-color: var(--color4);
-  border-color: var(--color4);
+  background-color: var(--muted);
+  border-color: var(--muted);
   border-width: 2px;
   border-radius: 5px;
   overflow: 'hidden';
@@ -315,7 +311,7 @@ NESTED BLOCKS
 
 /* CODE BLOCK */
 .blockContent[data-content-type='code-block'] {
-  background-color: var(--color4);
+  background-color: var(--muted);
   border-radius: 6px;
   padding: 10px 16px;
   overflow: auto;
@@ -330,10 +326,6 @@ NESTED BLOCKS
   font-size: 0.85em;
   white-space: pre;
   padding: 0;
-}
-
-:global(.comment-editor) .blockContent[data-content-type='code-block'] code {
-  font-size: 1em;
 }
 
 /* LISTS */
@@ -466,10 +458,6 @@ NESTED BLOCKS
     'Helvetica Neue',
     sans-serif;
   content: "Enter text or type '/' for commands";
-}
-
-:global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
-  font-size: 1em !important;
 }
 
 .blockContent.isFilter.hasAnchor .inlineContent:before {
@@ -654,6 +642,40 @@ NESTED BLOCKS
 
 [data-text-alignment='justify'] {
   text-align: justify;
+}
+
+/* Global comment editor styles */
+:global(.comment-editor) .blockContent {
+  padding: 3px 0;
+}
+
+:global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
+  font-size: 1em !important;
+}
+
+:global(.comment-editor) .blockContent[data-content-type='code-block'] {
+  background-color: rgb(0 0 0 / 0.05);
+  border: 1px solid var(--border);
+}
+
+:global(.dark)
+  :global(.comment-editor)
+  .blockContent[data-content-type='code-block'] {
+  background-color: rgb(255 255 255 / 0.1);
+}
+
+:global(.comment-editor) .blockContent[data-content-type='code-block'] code {
+  font-size: 1em;
+}
+
+:global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
+  border-left: 3px solid rgb(0 0 0 / 0.2) !important;
+  padding-left: 15px;
+  margin: 1em 0;
+}
+
+:global(.dark) :global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
+  border-left: 3px solid rgb(255 255 255 / 0.3) !important;
 }
 
 /* Mobile list markers */

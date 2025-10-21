@@ -66,7 +66,7 @@ export const CodeBlockView = ({
           </div>
         </div>
       )}
-      <pre className="bg-muted rounded-md p-3">
+      <pre className="rounded-md bg-transparent p-3">
         <code className={`hljs language-${language}`}>
           <NodeViewContent />
         </code>
