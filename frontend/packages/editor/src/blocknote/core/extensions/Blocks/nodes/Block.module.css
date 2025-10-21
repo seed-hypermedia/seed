@@ -674,7 +674,9 @@ NESTED BLOCKS
   margin: 1em 0;
 }
 
-:global(.dark) :global(.comment-editor) .blockGroup[data-list-type='Blockquote'] {
+:global(.dark)
+  :global(.comment-editor)
+  .blockGroup[data-list-type='Blockquote'] {
   border-left: 3px solid rgb(255 255 255 / 0.3) !important;
 }
 

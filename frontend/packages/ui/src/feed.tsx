@@ -371,12 +371,14 @@ function EventItem({
   onCommentDelete,
   currentAccount,
   targetDomain,
+  isSingleResource,
 }: {
   event: LoadedEvent
   route: NavRoute | null
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   currentAccount?: string
   targetDomain?: string
+  isSingleResource?: boolean
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
 
@@ -402,6 +404,7 @@ function EventItem({
           onCommentDelete={onCommentDelete}
           currentAccount={currentAccount}
           targetDomain={targetDomain}
+          isSingleResource={isSingleResource}
         />
       </div>
       <div className="relative flex gap-2">
@@ -506,6 +509,9 @@ export function Feed2({
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
 
+  const isSingleResource =
+    filterResource && !filterResource.endsWith('*') ? true : false
+
   if (error) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -532,6 +538,7 @@ export function Feed2({
               <>
                 <div key={`${e.type}-${e.id}-${e.time}`}>
                   <EventCommentWithReply
+                    isSingleResource={isSingleResource}
                     event={e}
                     route={route}
                     onCommentDelete={onCommentDelete}
@@ -547,6 +554,7 @@ export function Feed2({
           return (
             <>
               <EventItem
+                isSingleResource={isSingleResource}
                 key={`${e.type}-${e.id}-${e.time}`}
                 event={e}
                 route={route}
@@ -579,11 +587,13 @@ function EventHeaderContent({
   onCommentDelete,
   currentAccount,
   targetDomain,
+  isSingleResource,
 }: {
   event: LoadedEvent
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   currentAccount?: string
   targetDomain?: string
+  isSingleResource?: boolean
 }) {
   const tx = useTxString()
   const getUrl = useResourceUrl(targetDomain)
@@ -611,10 +621,16 @@ function EventHeaderContent({
           <span className="text-sm font-bold">
             {event.author?.metadata?.name}
           </span>{' '}
-          <span className="text-muted-foreground text-sm">commented on</span>{' '}
-          <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-            {event.target?.metadata?.name}
-          </a>{' '}
+          {!isSingleResource ? (
+            <>
+              <span className="text-muted-foreground text-sm">
+                commented on
+              </span>{' '}
+              <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+                {event.target?.metadata?.name}
+              </a>{' '}
+            </>
+          ) : null}
           <span className="text-muted-foreground ml-2 flex-none text-xs">
             <EventTimestampWithTooltip time={event.time} />
           </span>
@@ -666,10 +682,18 @@ function EventHeaderContent({
           {event.delegates[0]?.metadata?.name ||
             event.delegates[0]?.id?.uid.substring(0, 8)}
         </a>{' '}
-        <span className="text-muted-foreground text-sm">as Writer in</span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {event.target?.metadata?.name}
-        </a>{' '}
+        {!isSingleResource ? (
+          <>
+            <span className="text-muted-foreground text-sm">as Writer in</span>{' '}
+            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+              {event.target?.metadata?.name}
+            </a>{' '}
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground text-sm">as a Writer</span>{' '}
+          </>
+        )}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
@@ -683,15 +707,28 @@ function EventHeaderContent({
         <span className="text-sm font-bold">
           {event.author?.metadata?.name}
         </span>{' '}
-        <span className="text-muted-foreground text-sm">
-          {/* TODO: check if this is the correct way of getting the first ref update of a document */}
-          {event.document.version == event.document.genesis
-            ? 'created'
-            : 'updated'}
-        </span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {event.document.metadata.name}
-        </a>{' '}
+        {!isSingleResource ? (
+          <>
+            <span className="text-muted-foreground text-sm">
+              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+              {event.document.version == event.document.genesis
+                ? 'created'
+                : 'updated'}
+            </span>{' '}
+            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+              {event.document.metadata.name}
+            </a>{' '}
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground text-sm">
+              {/* TODO: check if this is the correct way of getting the first ref update of a document */}
+              {event.document.version == event.document.genesis
+                ? 'create the document'
+                : 'update the document'}
+            </span>{' '}
+          </>
+        )}
         <span className="text-muted-foreground ml-2 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
@@ -740,9 +777,17 @@ function EventHeaderContent({
         <span className="text-muted-foreground text-sm">
           {event.citationType === 'c' ? 'mentioned' : 'cited'}
         </span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {targetName}
-        </a>{' '}
+        {!isSingleResource ? (
+          <>
+            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
+              {targetName}
+            </a>{' '}
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground text-sm">this document</span>{' '}
+          </>
+        )}
         <span className="text-muted-foreground text-sm">
           {event.citationType === 'c' ? 'in a comment on' : 'in'}
         </span>{' '}
@@ -764,11 +809,17 @@ function EventHeaderContent({
   return null
 }
 
-function EventContent({event}: {event: LoadedEvent}) {
+function EventContent({
+  event,
+  size = 'md',
+}: {
+  event: LoadedEvent
+  size?: 'sm' | 'md'
+}) {
   if (event.type == 'comment') {
     return event.comment ? (
       <div className="-ml-4">
-        <CommentContent comment={event.comment} />
+        <CommentContent comment={event.comment} size={size} />
       </div>
     ) : null
   }
@@ -778,7 +829,7 @@ function EventContent({event}: {event: LoadedEvent}) {
     if (event.citationType === 'c' && event.comment) {
       return (
         <div className="-ml-4">
-          <CommentContent comment={event.comment} />
+          <CommentContent comment={event.comment} size={size} />
         </div>
       )
     }
@@ -788,7 +839,7 @@ function EventContent({event}: {event: LoadedEvent}) {
       // If we have a blockRef, render the actual block content
       if (event.source.id.blockRef) {
         return (
-          <div className="flex flex-col gap-2">
+          <div className="-ml-3 flex flex-col gap-2">
             <CitationSourceBlock sourceId={event.source.id} />
           </div>
         )
@@ -873,12 +924,14 @@ function EventCommentWithReply({
   onCommentDelete,
   currentAccount,
   targetDomain,
+  isSingleResource,
 }: {
   event: LoadedCommentEvent
   route: NavRoute | null
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   currentAccount?: string
   targetDomain?: string
+  isSingleResource?: boolean
 }) {
   const linkProps = useRouteLink(route, {handler: 'onClick'})
   const tx = useTx()
@@ -890,40 +943,41 @@ function EventCommentWithReply({
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
-      <div className={cn('flex flex-col')}>
+      <div
+        className={cn(
+          'flex flex-col gap-2',
+          'before:border-border relative before:absolute before:top-[9px] before:left-[12px] before:h-[calc(100%-10px)] before:w-[16px] before:rounded-tl-lg before:border-t-1 before:border-l-1',
+        )}
+      >
         <div className="flex items-start gap-2">
-          <div className="size-[24px]">
+          <div className={cn('h-[18px] w-[24px]')} />
+          <div className="size-[18px]">
             {event.replyingAuthor?.id ? (
               <HMIcon
-                size={24}
+                size={18}
                 id={event.replyingAuthor.id}
                 name={event.replyingAuthor.metadata?.name}
                 icon={event.replyingAuthor.metadata?.icon}
               />
             ) : null}
           </div>
-          <EventHeaderContent
-            event={{
-              ...event,
-              author: event.replyingAuthor!,
-            }}
-            onCommentDelete={onCommentDelete}
-            currentAccount={currentAccount}
-            targetDomain={targetDomain}
-          />
+          <div className="group flex w-full items-start justify-between gap-2">
+            <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
+              <span className="text-[11px] font-bold">
+                {event.author?.metadata?.name}
+              </span>{' '}
+              <span className="text-muted-foreground ml-2 flex-none text-[11px]">
+                <EventTimestampWithTooltip time={event.time} />
+              </span>
+            </p>
+          </div>
         </div>
         <div className="relative flex gap-2">
-          <div className={cn('w-[24px]')}>
-            <div
-              className={cn(
-                'absolute inset-y-0 left-0 w-[24px]',
+          <div className={cn('w-[50px]')} />
 
-                "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:content-['']",
-              )}
-            />
-          </div>
           <div className="flex-1 pb-6">
             <EventContent
+              size="sm"
               event={{
                 ...event,
                 comment: event.replyingComment,
@@ -945,6 +999,7 @@ function EventCommentWithReply({
           ) : null}
         </div>
         <EventHeaderContent
+          isSingleResource={isSingleResource}
           event={event}
           onCommentDelete={onCommentDelete}
           currentAccount={currentAccount}

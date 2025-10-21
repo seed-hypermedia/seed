@@ -37,6 +37,7 @@ import {
   BlocksContent,
   DocContentProvider,
   getBlockNodeById,
+  useDocContentContext,
 } from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
@@ -659,14 +660,32 @@ export function Comment({
   )
 }
 
-export function CommentContent({comment}: {comment: HMComment}) {
-  return (
+export function CommentContent({
+  comment,
+  size = 'md',
+}: {
+  comment: HMComment
+  size?: 'sm' | 'md'
+}) {
+  const docContext = useDocContentContext()
+
+  const content = (
     <BlocksContent
       hideCollapseButtons
       blocks={comment.content}
       parentBlockId={null}
     />
   )
+
+  if (size != 'md') {
+    return (
+      <DocContentProvider {...docContext} textUnit={10} layoutUnit={14}>
+        {content}
+      </DocContentProvider>
+    )
+  } else {
+    return content
+  }
 }
 
 function CommentDate({comment}: {comment: HMComment}) {
