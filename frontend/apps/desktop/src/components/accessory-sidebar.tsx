@@ -295,7 +295,7 @@ function AccessoryTabs({
           const isActive = accessoryKey === option.key
           const Icon = iconNames[option.key]
           return (
-            <Tooltip content={option.label} key={option.key}>
+            <Tooltip content={option.label} key={option.key} side="bottom">
               <span>
                 <Button
                   size="sm"
