@@ -679,7 +679,7 @@ export function CommentContent({
 
   if (size != 'md') {
     return (
-      <DocContentProvider {...docContext} textUnit={10} layoutUnit={14}>
+      <DocContentProvider {...docContext} textUnit={12} layoutUnit={14}>
         {content}
       </DocContentProvider>
     )
