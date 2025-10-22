@@ -851,7 +851,7 @@ export function BlockNodeContent({
 
   return (
     <div
-      id={comment ? undefined : blockNode.block?.id}
+      id={blockNode.block?.id}
       ref={elm}
       data-node-type="blockContainer"
       data-block-type={blockNode.block?.type}
