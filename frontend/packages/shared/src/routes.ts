@@ -55,19 +55,29 @@ export type DocumentOptionsAccessory = z.infer<
 export const documentActivityAccessorySchema = z.object({
   key: z.literal('activity'),
   width: z.number().optional(),
-  openComment: z.string().optional(),
-  openBlockId: z.string().optional(),
-  blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
-  isReplying: z.boolean().optional(),
   filterEventType: z.array(z.string()).optional(),
 })
 export type DocumentActivityAccessory = z.infer<
   typeof documentActivityAccessorySchema
 >
 
+export const documentDiscussionsAccessorySchema = z.object({
+  key: z.literal('discussions'),
+  width: z.number().optional(),
+  openComment: z.string().optional(),
+  openBlockId: z.string().optional(),
+  blockRange: BlockRangeSchema.nullable().optional(),
+  autoFocus: z.boolean().optional(),
+  isReplying: z.boolean().optional(),
+})
+export type DocumentDiscussionsAccessory = z.infer<
+  typeof documentDiscussionsAccessorySchema
+>
+
 const documentAccessorySchema = z.discriminatedUnion('key', [
   documentActivityAccessorySchema,
+  documentDiscussionsAccessorySchema,
   documentDirectoryAccessorySchema,
   documentCollaboratorsAccessorySchema,
   documentContactsAccessorySchema,

@@ -2,12 +2,11 @@ import {useDocumentCitations} from '@/models/citations'
 import {useComment, useCommentReplies} from '@/models/comments'
 import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {deduplicateCitations, hmId, unpackHmId} from '@shm/shared'
 import {
-  DocumentActivityAccessory,
-  deduplicateCitations,
-  hmId,
-  unpackHmId,
-} from '@shm/shared'
+  DocumentAccessory,
+  DocumentDiscussionsAccessory,
+} from '@shm/shared/routes'
 import {
   HMAccountsMetadata,
   HMBlock,
@@ -33,8 +32,8 @@ export function CitationsPanel({
   onAccessory,
 }: {
   entityId?: UnpackedHypermediaId
-  accessory: DocumentActivityAccessory
-  onAccessory: (accessory: DocumentActivityAccessory) => void
+  accessory: DocumentDiscussionsAccessory
+  onAccessory: (accessory: DocumentDiscussionsAccessory) => void
 }) {
   const citations = useDocumentCitations(entityId)
   if (!entityId) return null

@@ -277,14 +277,14 @@ function formatUTC(date: Date) {
 
 function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
-    // Navigate to the target document with activity open and the comment focused
+    // Navigate to the target document with discussions open and the comment focused
     if (!event.target?.id || !event.comment) return null
 
     const route = {
       key: 'document' as const,
       id: event.target.id,
       accessory: {
-        key: 'activity' as const,
+        key: 'discussions' as const,
         openComment: event.comment.id,
       },
     }
@@ -336,13 +336,13 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
     // Navigate to the target document (the document being cited)
     if (!event.source?.id) return null
 
-    // For comment citations, open the comment
+    // For comment citations, open the comment in discussions panel
     if (event.citationType === 'c' && event.comment) {
       const route = {
         key: 'document' as const,
         id: event.source.id,
         accessory: {
-          key: 'activity' as const,
+          key: 'discussions' as const,
           openComment: event.comment.id,
         },
       }

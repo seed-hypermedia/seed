@@ -695,7 +695,7 @@ function CommentDate({comment}: {comment: HMComment}) {
       key: 'document',
       id: targetId!,
       accessory: {
-        key: 'activity',
+        key: 'discussions',
         openComment: comment.id,
       },
     },

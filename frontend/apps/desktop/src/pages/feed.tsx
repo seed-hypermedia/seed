@@ -98,7 +98,7 @@ export default function FeedPage() {
                 key: route.key,
                 id: targetRoute,
                 accessory: {
-                  key: 'activity',
+                  key: 'discussions',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -108,7 +108,7 @@ export default function FeedPage() {
               replace({
                 ...route,
                 accessory: {
-                  key: 'activity',
+                  key: 'discussions',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -127,7 +127,7 @@ export default function FeedPage() {
                 key: route.key,
                 id: targetRoute,
                 accessory: {
-                  key: 'activity',
+                  key: 'discussions',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -137,7 +137,7 @@ export default function FeedPage() {
               replace({
                 ...route,
                 accessory: {
-                  key: 'activity',
+                  key: 'discussions',
                   openComment: replyComment.id,
                   isReplying: true,
                 },
@@ -233,7 +233,7 @@ function _FeedContent({
         replace({
           key: route.key,
           id: targetDocId,
-          accessory: {key: 'activity', openComment: comment.id},
+          accessory: {key: 'discussions', openComment: comment.id},
         })
       }
     }

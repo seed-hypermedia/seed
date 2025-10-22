@@ -77,11 +77,15 @@ import {WebSiteHeader} from './web-site-header'
 
 export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 
-type WebAccessory = {
-  type: 'activity'
-  blockId?: string
-  comment?: HMComment
-}
+type WebAccessory =
+  | {
+      type: 'activity'
+    }
+  | {
+      type: 'discussions'
+      blockId?: string
+      comment?: HMComment
+    }
 const DEFAULT_MAIN_PANEL_SIZE = 65
 
 export function DocumentPage(
@@ -133,6 +137,10 @@ function InnerDocumentPage(
 
   const mainScrollRef = useScrollRestoration('main-document-scroll')
   const mobileScrollRef = useScrollRestoration('mobile-panel-scroll')
+  const activityFeedScrollRef = useScrollRestoration('activity-feed-scroll')
+  const discussionsPanelScrollRef = useScrollRestoration(
+    'discussions-panel-scroll',
+  )
   const activityService = useMemo(() => new WebActivityService(), [])
 
   const keyPair = useLocalKeyPair()
@@ -211,8 +219,22 @@ function InnerDocumentPage(
   function setDocumentPanel(panel: WebAccessory | null) {
     setActivePanel(panel)
     setMobilePanelOpen(!!panel)
-    // Don't navigate when setting panel - just update the state
-    // The URL navigation should only happen when explicitly navigating to different content
+
+    // Update URL to reflect panel state
+    // If closing discussions panel (going to activity or null), navigate back to document URL
+    if (panel?.type === 'activity' || panel === null) {
+      const route: NavRoute = {
+        key: 'document',
+        id,
+      }
+      const href = routeToHref(route, {
+        hmUrlHref: context.hmUrlHref,
+        originHomeId: context.originHomeId,
+      })
+      if (href) {
+        replace(href, {replace: true})
+      }
+    }
   }
 
   function setCommentPanel(comment: HMComment) {
@@ -233,7 +255,7 @@ function InnerDocumentPage(
       replace: true,
     })
     setActivePanel({
-      type: 'activity',
+      type: 'discussions',
       comment: comment,
     })
     setMobilePanelOpen(true)
@@ -245,7 +267,7 @@ function InnerDocumentPage(
   const activePanel: WebAccessory | null =
     feed && media.gtSm
       ? null
-      : _activePanel || (comment ? {type: 'activity', comment} : null)
+      : _activePanel || (comment ? {type: 'discussions', comment} : null)
 
   // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
   const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)
@@ -256,19 +278,19 @@ function InnerDocumentPage(
       // If URL has a comment and it's different from current activePanel, update it
       if (
         !_activePanel ||
-        _activePanel.type !== 'activity' ||
-        (_activePanel.type === 'activity' &&
+        _activePanel.type !== 'discussions' ||
+        (_activePanel.type === 'discussions' &&
           _activePanel.comment?.id !== comment.id)
       ) {
-        setActivePanel({type: 'activity', comment})
+        setActivePanel({type: 'discussions', comment})
         setMobilePanelOpen(true)
       }
     } else if (
-      _activePanel?.type === 'activity' &&
+      _activePanel?.type === 'discussions' &&
       _activePanel.comment &&
       !comment
     ) {
-      // If URL no longer has a comment but activePanel does, clear it
+      // If URL no longer has a comment but activePanel does, clear it to activity
       setActivePanel({type: 'activity'})
     }
   }, [comment?.id])
@@ -320,7 +342,7 @@ function InnerDocumentPage(
 
   const onBlockCitationClick = useCallback(
     (blockId?: string) => {
-      setDocumentPanel({type: 'activity', blockId: blockId})
+      setDocumentPanel({type: 'discussions', blockId: blockId})
 
       if (!media.gtSm) {
         const mainPanel = mainPanelRef.current
@@ -339,7 +361,7 @@ function InnerDocumentPage(
       range?: BlockRange | ExpandedBlockRange | undefined,
       startCommentingNow?: boolean,
     ) => {
-      setDocumentPanel({type: 'activity', blockId: blockId || undefined})
+      setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
       if (!media.gtSm) {
         setMobilePanelOpen(true)
       }
@@ -385,7 +407,7 @@ function InnerDocumentPage(
       changes={interactionSummary.data?.changes}
       onCommentsOpen={() => {
         setDocumentPanel({
-          type: 'activity',
+          type: 'discussions',
           blockId: undefined,
         })
         if (!media.gtSm) {
@@ -402,7 +424,7 @@ function InnerDocumentPage(
   )
 
   const commentEditor =
-    activePanel?.type === 'activity' ? (
+    activePanel?.type === 'discussions' ? (
       <WebCommenting
         autoFocus={editorAutoFocus}
         docId={id}
@@ -413,12 +435,13 @@ function InnerDocumentPage(
         }
         quotingBlockId={activePanel.blockId}
       />
+    ) : activePanel?.type === 'activity' ? (
+      <WebCommenting docId={id} />
     ) : null
 
-  if (activityEnabled && activePanel?.type === 'activity') {
-    // If we have a comment or blockId, show the discussions panel
-    if (activePanel.comment || activePanel.blockId) {
-      console.log('== RENDER DISCUSSION PANEL', activePanel)
+  if (activityEnabled && activePanel) {
+    if (activePanel.type === 'discussions') {
+      // Show the discussions panel with focused comment or block
       panelTitle = tx('Thread')
       panel = (
         <WebDiscussionsPanel
@@ -438,11 +461,11 @@ function InnerDocumentPage(
           siteHost={siteHost}
         />
       )
-    } else {
-      // Otherwise show the feed
+    } else if (activePanel.type === 'activity') {
+      // Show the activity feed
       panel = (
         <Feed2
-          commentEditor={<WebCommenting docId={id} />}
+          commentEditor={commentEditor}
           filterResource={id.id}
           currentAccount={currentAccount.data?.id.uid}
         />
@@ -697,8 +720,7 @@ function InnerDocumentPage(
                           size="icon"
                           className="flex-none"
                           onClick={() => {
-                            setActivePanel(null)
-                            setMobilePanelOpen(false)
+                            setDocumentPanel(null)
                           }}
                         >
                           <Close className="size-4" />
@@ -706,7 +728,17 @@ function InnerDocumentPage(
                       </Tooltip>
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      <ScrollArea>{panel}</ScrollArea>
+                      <ScrollArea
+                        ref={
+                          activePanel?.type === 'activity'
+                            ? activityFeedScrollRef
+                            : activePanel?.type === 'discussions'
+                            ? discussionsPanelScrollRef
+                            : undefined
+                        }
+                      >
+                        {panel}
+                      </ScrollArea>
                     </div>
                   </Panel>
                 </>
@@ -749,7 +781,18 @@ function InnerDocumentPage(
                   </div>
 
                   <div className="flex flex-1 flex-col overflow-hidden">
-                    <ScrollArea onScroll={onScroll}>{panel}</ScrollArea>
+                    <ScrollArea
+                      onScroll={onScroll}
+                      ref={
+                        activePanel?.type === 'activity'
+                          ? activityFeedScrollRef
+                          : activePanel?.type === 'discussions'
+                          ? discussionsPanelScrollRef
+                          : undefined
+                      }
+                    >
+                      {panel}
+                    </ScrollArea>
                   </div>
                 </div>
               </>
@@ -961,14 +1004,23 @@ function _DocInteractionsSummary({
 }) {
   const tx = useTxString()
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center justify-center gap-1">
       {onFeedOpen && (
         <InteractionSummaryItem
           label={tx('Feed')}
-          active={activePanel?.type == 'activity'}
+          active={activePanel?.type === 'activity'}
           onClick={onFeedOpen}
           // @ts-ignore
           icon={<Sparkle className="size-4" />}
+        />
+      )}
+      {onCommentsOpen && (
+        <InteractionSummaryItem
+          label={tx('Discussions')}
+          active={activePanel?.type === 'discussions'}
+          onClick={onCommentsOpen}
+          // @ts-ignore
+          icon={<MessageSquare className="size-4" />}
         />
       )}
     </div>

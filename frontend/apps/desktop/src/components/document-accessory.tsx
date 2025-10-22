@@ -69,79 +69,70 @@ export function useDocumentAccessory({
           }}
         />
       ) : null
-  } else {
-    let filterEventType: Array<string> | undefined = undefined
-
-    if (accessoryKey == 'contacts') {
-      filterEventType = ['Contact', 'Profile']
-    }
-
-    if (accessoryKey == 'activity') {
-      if (route.accessory?.openComment || route.accessory?.openBlockId) {
-        accessory = (
-          <DiscussionsPanel
-            // @ts-expect-error
-            docId={docId}
-            accessory={route.accessory}
-            onAccessory={(acc) => {
-              replace({...route, accessory: acc})
-            }}
-          />
-        )
-      } else {
-        accessory = (
-          <AppDocContentProvider
-            docId={docId}
-            comment
-            textUnit={14}
-            layoutUnit={16}
-          >
-            {deleteCommentDialogContent}
-            <Feed2
-              commentEditor={
-                docId ? (
-                  <CommentBox
-                    docId={docId}
-                    context="accessory"
-                    autoFocus={
-                      route.accessory?.key === 'activity'
-                        ? route.accessory?.autoFocus
-                        : undefined
-                    }
-                  />
-                ) : null
-              }
-              filterResource={docId?.id}
-              currentAccount={selectedAccount?.id.uid || ''}
-              filterEventType={filterEventType}
-              onCommentDelete={onCommentDelete}
-              targetDomain={targetDomain}
-            />
-          </AppDocContentProvider>
-        )
-      }
-    } else {
+  } else if (accessoryKey === 'discussions') {
+    if (route.accessory?.key === 'discussions' && docId) {
       accessory = (
-        <AppDocContentProvider
+        <DiscussionsPanel
           docId={docId}
-          comment
-          textUnit={16}
-          layoutUnit={18}
-        >
-          {deleteCommentDialogContent}
-          <Feed2
-            commentEditor={
-              docId ? <CommentBox docId={docId} context="accessory" /> : null
-            }
-            filterResource={docId?.id}
-            currentAccount={selectedAccount?.id.uid || ''}
-            filterEventType={filterEventType}
-            onCommentDelete={onCommentDelete}
-            targetDomain={targetDomain}
-          />
-        </AppDocContentProvider>
+          accessory={route.accessory}
+          onAccessory={(acc) => {
+            replace({...route, accessory: acc})
+          }}
+        />
       )
     }
+  } else if (accessoryKey === 'activity') {
+    accessory = (
+      <AppDocContentProvider
+        docId={docId}
+        comment
+        textUnit={14}
+        layoutUnit={16}
+      >
+        {deleteCommentDialogContent}
+        <Feed2
+          commentEditor={
+            docId ? (
+              <CommentBox
+                docId={docId}
+                context="accessory"
+                autoFocus={
+                  route.accessory?.key === 'activity'
+                    ? route.accessory?.autoFocus
+                    : undefined
+                }
+              />
+            ) : null
+          }
+          filterResource={docId?.id}
+          currentAccount={selectedAccount?.id.uid || ''}
+          filterEventType={undefined}
+          onCommentDelete={onCommentDelete}
+          targetDomain={targetDomain}
+        />
+      </AppDocContentProvider>
+    )
+  } else if (accessoryKey === 'contacts') {
+    accessory = (
+      <AppDocContentProvider
+        docId={docId}
+        comment
+        textUnit={16}
+        layoutUnit={18}
+      >
+        {deleteCommentDialogContent}
+        <Feed2
+          commentEditor={
+            docId ? <CommentBox docId={docId} context="accessory" /> : null
+          }
+          filterResource={docId?.id}
+          currentAccount={selectedAccount?.id.uid || ''}
+          filterEventType={['Contact', 'Profile']}
+          onCommentDelete={onCommentDelete}
+          targetDomain={targetDomain}
+        />
+      </AppDocContentProvider>
+    )
   }
 
   if (route.key == 'draft') {
@@ -155,6 +146,11 @@ export function useDocumentAccessory({
     accessoryOptions.push({
       key: 'activity',
       label: 'Feed',
+    })
+
+    accessoryOptions.push({
+      key: 'discussions',
+      label: 'Discussions',
     })
 
     accessoryOptions.push({

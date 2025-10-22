@@ -26,6 +26,7 @@ import {
   ChevronDown,
   Folder,
   ListFilter,
+  MessageSquare,
   Pencil,
   Sparkle,
   Users,
@@ -115,6 +116,8 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('Draft Options')
   } else if (accessoryKey == 'activity') {
     accessoryTitle = tx('Document Activity')
+  } else if (accessoryKey == 'discussions') {
+    accessoryTitle = tx('Discussions')
   }
 
   const resource = useSubscribedResource(docId)
@@ -225,6 +228,7 @@ const iconNames = {
   collaborators: Users,
   directory: Folder,
   activity: Sparkle,
+  discussions: MessageSquare,
   options: Pencil,
   contacts: Users,
 } as const

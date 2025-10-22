@@ -274,22 +274,16 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
   }
 
   // Step 3: Clean up openComment and openBlockId if navigating to a different document
-  if (resultAccessory?.key === 'activity' && prevRoute) {
+  if (resultAccessory?.key === 'discussions' && prevRoute) {
     const isNavigatingToDifferentDoc =
       prevRoute.key === 'document' &&
       nextRoute.key === 'document' &&
       prevRoute.id.id !== nextRoute.id.id
 
     if (isNavigatingToDifferentDoc) {
-      // Remove openComment and openBlockId when switching documents
+      // Remove openComment and openBlockId when switching documents - switch to activity
       resultAccessory = {
         key: 'activity',
-        ...(resultAccessory.width !== undefined && {
-          width: resultAccessory.width,
-        }),
-        ...(resultAccessory.filterEventType !== undefined && {
-          filterEventType: resultAccessory.filterEventType,
-        }),
       }
     }
   }

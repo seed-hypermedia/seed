@@ -141,7 +141,7 @@ export default function DocumentPage() {
                   key: 'document',
                   id: targetRoute,
                   accessory: {
-                    key: 'activity',
+                    key: 'discussions',
                     openComment: replyComment.id,
                     isReplying: true,
                   },
@@ -151,7 +151,7 @@ export default function DocumentPage() {
                 replace({
                   ...route,
                   accessory: {
-                    key: 'activity',
+                    key: 'discussions',
                     openComment: replyComment.id,
                     isReplying: true,
                   },
@@ -170,7 +170,7 @@ export default function DocumentPage() {
                   key: 'document',
                   id: targetRoute,
                   accessory: {
-                    key: 'activity',
+                    key: 'discussions',
                     openComment: replyComment.id,
                     isReplying: true,
                   },
@@ -180,7 +180,7 @@ export default function DocumentPage() {
                 replace({
                   ...route,
                   accessory: {
-                    key: 'activity',
+                    key: 'discussions',
                     openComment: replyComment.id,
                     isReplying: true,
                   },
@@ -337,7 +337,7 @@ function _MainDocumentPage({
         replace({
           key: 'document',
           id: targetDocId,
-          accessory: {key: 'activity', openComment: comment.id},
+          accessory: {key: 'discussions', openComment: comment.id},
         })
       }
     }
@@ -910,7 +910,7 @@ function DocPageContent({
             blockRange: null,
           },
           accessory: {
-            key: 'activity',
+            key: 'discussions',
             openBlockId: blockId || undefined,
           },
         })
@@ -933,7 +933,7 @@ function DocPageContent({
             blockRange,
           },
           accessory: {
-            key: 'activity',
+            key: 'discussions',
             openBlockId: blockId,
             blockRange,
             autoFocus: true,

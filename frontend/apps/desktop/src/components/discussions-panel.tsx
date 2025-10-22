@@ -3,7 +3,10 @@ import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DocumentActivityAccessory} from '@shm/shared/routes'
+import {
+  DocumentAccessory,
+  DocumentDiscussionsAccessory,
+} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   BlockDiscussions,
@@ -18,8 +21,8 @@ export const DiscussionsPanel = memo(_DiscussionsPanel)
 
 function _DiscussionsPanel(props: {
   docId: UnpackedHypermediaId
-  accessory: DocumentActivityAccessory
-  onAccessory: (acc: DocumentActivityAccessory) => void
+  accessory: DocumentDiscussionsAccessory
+  onAccessory: (acc: DocumentAccessory) => void
 }) {
   const {docId, accessory, onAccessory} = props
   const selectedAccount = useSelectedAccount()
