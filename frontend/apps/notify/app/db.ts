@@ -50,9 +50,10 @@ export async function initDatabase(): Promise<void> {
     process.env.DATA_DIR || process.cwd(),
     'web-db.sqlite',
   )
+  console.log('Init DB data file:', dbFilePath)
   db = new Database(dbFilePath)
   let version: number = db.pragma('user_version', {simple: true}) as number
-  console.log('init db', dbFilePath, version)
+  console.log('Init DB at version:', version)
   if (version === 0) {
     // Initial migration.
     db.exec(`
@@ -242,6 +243,37 @@ export function setNotifierLastProcessedBlobCid(cid: string): void {
     INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
   `)
   stmt.run('last_processed_blob_cid', cid)
+}
+
+export function getBatchNotifierLastProcessedBlobCid(): string | undefined {
+  const stmt = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = 'last_processed_batch_blob_cid'
+  `)
+  const result = stmt.get() as {value: string} | undefined
+  return result?.value
+}
+
+export function setBatchNotifierLastProcessedBlobCid(cid: string): void {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  `)
+  stmt.run('last_processed_batch_blob_cid', cid)
+}
+
+export function getBatchNotifierLastSendTime(): Date | undefined {
+  const stmt = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = 'batch_notifier_last_send_time'
+  `)
+  const result = stmt.get() as {value: string} | undefined
+  if (!result?.value) return undefined
+  return new Date(result.value)
+}
+
+export function setBatchNotifierLastSendTime(time: Date): void {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  `)
+  stmt.run('batch_notifier_last_send_time', time.toISOString())
 }
 
 export function updateSubscription(

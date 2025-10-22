@@ -19,64 +19,107 @@ import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
 import {grpcClient} from './client.server'
 import {
   getAllEmails,
+  getBatchNotifierLastProcessedBlobCid,
+  getBatchNotifierLastSendTime,
   getNotifierLastProcessedBlobCid,
+  setBatchNotifierLastProcessedBlobCid,
+  setBatchNotifierLastSendTime,
   setNotifierLastProcessedBlobCid,
 } from './db'
 import {getAccount, getComment, getDocument, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
 
-// Lock to prevent concurrent processing
-let isProcessing = false
+let currentNotifProcessing: Promise<void> | undefined = undefined
+let currentBatchNotifProcessing: Promise<void> | undefined = undefined
+
+const emailBatchNotifIntervalHours = 4
+const emailBatchNotifIntervalSeconds = emailBatchNotifIntervalHours * 60 * 60
+// const emailBatchNotifIntervalSeconds = 120 // 2 minutes for testing
+
+const handleEmailNotificationsIntervalSeconds = 15
+
+type NotifReason = 'mention' | 'reply' | 'site-content'
+
+const notifReasonsImmediate = new Set<NotifReason>(['mention', 'reply'])
+const notifReasonsBatch = new Set<NotifReason>(['site-content'])
 
 export async function initEmailNotifier() {
   console.log('Email Notifications Enabled')
 
-  await handleEmailNotifications()
-
-  const handleEmailNotificationsIntervalSeconds = 10
+  currentNotifProcessing = handleEmailNotifications()
+  await currentNotifProcessing
+  currentNotifProcessing.finally(() => {
+    currentNotifProcessing = undefined
+  })
 
   setInterval(() => {
-    handleEmailNotifications()
+    if (currentNotifProcessing) return
+    currentNotifProcessing = handleEmailNotifications()
+
+    currentNotifProcessing
       .then(() => {
         // console.log('Email notifications handled')
       })
       .catch((err) => {
         console.error('Error handling email notifications', err)
       })
+      .finally(() => {
+        currentNotifProcessing = undefined
+      })
   }, 1000 * handleEmailNotificationsIntervalSeconds)
+
+  setInterval(() => {
+    if (currentBatchNotifProcessing) return
+    currentBatchNotifProcessing = handleBatchNotifications()
+
+    currentBatchNotifProcessing
+      .then(() => {
+        // console.log('Batch email notifications handled')
+      })
+      .catch((err) => {
+        console.error('Error handling batch email notifications', err)
+      })
+      .finally(() => {
+        currentBatchNotifProcessing = undefined
+      })
+  }, 1000)
+}
+
+async function handleBatchNotifications() {
+  const lastSendTime = getBatchNotifierLastSendTime()
+  const lastProcessedBlobCid = getBatchNotifierLastProcessedBlobCid()
+  const lastBlobCid = await getLastEventBlobCid()
+  if (!lastSendTime || !lastProcessedBlobCid) {
+    // we refuse to send all notifications for the whole historical feed. so if we haven't sent any notifications yet, we will do so after the first interval elapses
+    setBatchNotifierLastSendTime(new Date())
+    if (!lastBlobCid) {
+      throw new Error('Could not reset batch notifier: no last blob CID found')
+    }
+    setBatchNotifierLastProcessedBlobCid(lastBlobCid)
+    return
+  }
+  if (
+    lastBlobCid &&
+    lastSendTime.getTime() + emailBatchNotifIntervalSeconds * 1000 < Date.now()
+  ) {
+    setBatchNotifierLastSendTime(new Date())
+    setBatchNotifierLastProcessedBlobCid(lastBlobCid)
+    await sendBatchNotifications(lastProcessedBlobCid)
+  }
 }
 
 async function handleEmailNotifications() {
-  // Prevent concurrent processing
-  if (isProcessing) {
-    console.log('~~ skipping - already processing notifications')
-    return
+  const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
+  if (lastProcessedBlobCid) {
+    await handleImmediateNotificationsAfterBlobCid(lastProcessedBlobCid)
+  } else {
+    await resetNotifierLastProcessedBlobCid()
   }
 
-  isProcessing = true
-  try {
-    const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
-    console.log(
-      '~~ handleEmailNotifications lastProcessedBlobCid',
-      lastProcessedBlobCid,
-    )
-    if (lastProcessedBlobCid) {
-      await handleEmailNotificationsAfterBlobCid(lastProcessedBlobCid)
-    } else {
-      await resetNotifierLastProcessedBlobCid()
-    }
-
-    const newLastProcessedBlobCid = getNotifierLastProcessedBlobCid()
-    console.log(
-      '~~ handleEmailNotifications newLastProcessedBlobCid',
-      newLastProcessedBlobCid,
-    )
-  } finally {
-    isProcessing = false
-  }
+  const newLastProcessedBlobCid = getNotifierLastProcessedBlobCid()
 }
 
-async function resetNotifierLastProcessedBlobCid() {
+async function getLastEventBlobCid(): Promise<string | undefined> {
   const {events} = await grpcClient.activityFeed.listEvents({
     pageToken: undefined,
     pageSize: 5,
@@ -88,26 +131,35 @@ async function resetNotifierLastProcessedBlobCid() {
       ? event.data.value.cid
       : undefined
   if (!lastBlobCid) return
+  return lastBlobCid
+}
+
+async function sendBatchNotifications(lastProcessedBlobCid: string) {
+  const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
+  if (eventsToProcess.length === 0) return
+  await handleEmailNotifs(eventsToProcess, notifReasonsBatch)
+}
+
+async function resetNotifierLastProcessedBlobCid() {
+  const lastBlobCid = await getLastEventBlobCid()
+  if (!lastBlobCid) return
   setNotifierLastProcessedBlobCid(lastBlobCid)
 }
 
-async function handleEmailNotificationsAfterBlobCid(
+async function handleImmediateNotificationsAfterBlobCid(
   lastProcessedBlobCid: string,
 ) {
   const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
-  console.log(
-    '~~ handleEmailNotificationsAfterBlobCid eventsToProcess',
-    eventsToProcess.length,
-  )
   if (eventsToProcess.length === 0) return
-  await handleEventsForEmailNotifications(eventsToProcess)
+  await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
   await markEventsAsProcessed(eventsToProcess)
 }
 
-async function handleEventsForEmailNotifications(
+async function handleEmailNotifs(
   events: PlainMessage<Event>[],
+  includedNotifReasons: Set<'mention' | 'reply' | 'site-content'>,
 ) {
-  console.log('~~ handleEventsForEmailNotifications', events.length)
+  console.log('~~ handleEmailNotifs', events.length, includedNotifReasons)
   const allEmails = getAllEmails()
   const accountNotificationOptions: Record<
     string,
@@ -499,36 +551,28 @@ async function handleEventsForEmailNotifications(
     for (const accountId in accountNotificationOptions) {
       const account = accountNotificationOptions[accountId]
 
-      const isNewDiscussion =
-        (!comment.threadRoot || comment.threadRoot === '') &&
-        (!comment.replyParent || comment.replyParent === '')
-
       let shouldNotify = false
-      let notificationReason = ''
+      let notificationReason: NotifReason | null = null
 
-      // Notify users subscribed to this site
-      if (
+      if (mentionedUsers.has(accountId) && account?.notifyAllMentions) {
+        shouldNotify = true
+        notificationReason = 'mention'
+      } else if (
+        parentCommentAuthor === accountId &&
+        account?.notifyAllReplies
+      ) {
+        shouldNotify = true
+        notificationReason = 'reply'
+      } else if (
         accountId === comment.targetAccount &&
         account?.notifySiteDiscussions
       ) {
         shouldNotify = true
-        notificationReason = 'site discussion'
+        notificationReason = 'site-content'
       }
 
-      // Notify users subscribed to the comment author
-
-      // Notify users subscribed to mentioned users
-      if (mentionedUsers.has(accountId) && account?.notifyAllMentions) {
-        shouldNotify = true
-        notificationReason = 'mention'
-      }
-
-      // Notify users subscribed to the parent comment author
-      if (parentCommentAuthor === accountId && account?.notifyAllReplies) {
-        shouldNotify = true
-        notificationReason = 'reply'
-      }
-
+      if (!notificationReason || !includedNotifReasons.has(notificationReason))
+        continue
       if (!shouldNotify || !account) continue
 
       // Send notification to all emails subscribed to this account
@@ -565,7 +609,7 @@ async function handleEventsForEmailNotifications(
               newComment.comment.content.map((n) => new BlockNode(n)),
             ),
           })
-        } else {
+        } else if (notificationReason === 'site-content') {
           // Site discussion or user comment
           await appendNotification(email, accountId, {
             type: 'comment',
