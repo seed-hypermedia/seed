@@ -52,6 +52,12 @@ export const action = async ({
         result = await loadContactEvent(grpcClient, event, currentAccount)
         break
       case 'citation':
+      case 'comment/target':
+      case 'comment/embed':
+      case 'comment/link':
+      case 'doc/embed':
+      case 'doc/link':
+      case 'doc/button':
         result = await loadCitationEvent(grpcClient, event, currentAccount)
         break
       case 'profile':

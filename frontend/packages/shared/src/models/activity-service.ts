@@ -159,193 +159,31 @@ export async function listEventsImpl(
     pageToken: params.pageToken || '',
     trustedOnly: params.trustedOnly || false,
     filterAuthors: params.filterAuthors || [],
-    filterEventType: params.filterEventType || [],
+    filterEventType: params.filterEventType || [
+      "Ref",
+      "Capability", 
+      "Comment",
+      "DagPB",
+      "Profile",
+      "Contact",
+      // "comment/Target",
+      "comment/Embed", 
+      "doc/Embed",
+      "doc/Link",
+      "doc/Button"
+    ],
     filterResource: params.filterResource || '',
   })
 
-  return response.toJson({
+  
+
+  let res = response.toJson({
     emitDefaultValues: true,
   }) as unknown as HMListEventsResponse
-}
 
-type CompositePageToken = {
-  eventsToken: string
-  mentionsToken: string
-}
+  console.log(`== ~ listEventsImpl ~ res:`, res)
 
-function encodePageToken(token: CompositePageToken): string {
-  if (!token.eventsToken && !token.mentionsToken) return ''
-  return Buffer.from(JSON.stringify(token)).toString('base64')
-}
-
-function decodePageToken(token: string): CompositePageToken {
-  if (!token) return {eventsToken: '', mentionsToken: ''}
-  try {
-    return JSON.parse(Buffer.from(token, 'base64').toString())
-  } catch {
-    return {eventsToken: '', mentionsToken: ''}
-  }
-}
-
-/**
- * Unified implementation that merges listEvents and listEntityMentions
- * Citations are wrapped as events with blobType: 'Citation'
- */
-export async function listEventsWithCitationsImpl(
-  grpcClient: GRPCClient,
-  params: HMListEventsRequest & {filterResource?: string},
-): Promise<HMListEventsResponse> {
-  const {eventsToken, mentionsToken} = decodePageToken(params.pageToken || '')
-  const pageSize = params.pageSize || 20
-
-  // Fetch both APIs in parallel
-  const [eventsResponse, mentionsResponse] = await Promise.allSettled([
-    eventsToken !== null
-      ? grpcClient.activityFeed
-          .listEvents({
-            pageSize,
-            pageToken: eventsToken,
-            trustedOnly: params.trustedOnly || false,
-            filterAuthors: params.filterAuthors || [],
-            filterEventType: params.filterEventType || [],
-            filterResource: params.filterResource || '',
-          })
-          .then(
-            (r) =>
-              r.toJson({
-                emitDefaultValues: true,
-              }) as unknown as HMListEventsResponse,
-          )
-          .catch(() => ({events: [], nextPageToken: ''}))
-      : Promise.resolve({events: [], nextPageToken: ''}),
-    mentionsToken !== null && params.filterResource
-      ? grpcClient.entities
-          .listEntityMentions({
-            id: params.filterResource,
-            pageSize,
-            pageToken: mentionsToken,
-            reverseOrder: true, // newest first
-          })
-          .catch(() => ({mentions: [], nextPageToken: ''}))
-      : Promise.resolve({mentions: [], nextPageToken: ''}),
-  ])
-
-  const events =
-    eventsResponse.status === 'fulfilled'
-      ? filterUnresolvedEvents(eventsResponse.value.events)
-      : []
-
-  console.log(`== ~ listEventsWithCitationsImpl ~ events:`, events)
-  const eventsNextToken =
-    eventsResponse.status === 'fulfilled'
-      ? eventsResponse.value.nextPageToken
-      : ''
-
-  const mentions =
-    mentionsResponse.status === 'fulfilled'
-      ? mentionsResponse.value.mentions
-      : []
-
-  console.log(`== ~ listEventsWithCitationsImpl ~ mentions:`, mentions)
-  const mentionsNextToken =
-    mentionsResponse.status === 'fulfilled'
-      ? mentionsResponse.value.nextPageToken
-      : ''
-
-  // Wrap citations as events
-  const citationEvents: HMEvent[] = []
-
-  mentions.forEach((mention: Mention) => {
-    // FILTER 1: Only include comments (not document references)
-    // if (mention.sourceType !== 'Comment') {
-    //   console.log('Skipping non-comment mention:', mention.sourceType)
-    //   return
-    // }
-
-    // FILTER 2: EXCLUDE comments that directly target filterResource
-    // (those are already returned by listEvents API)
-    if (mention.sourceDocument) {
-      const sourceDocId = unpackHmId(mention.sourceDocument)
-      const targetDocId = unpackHmId(params.filterResource || '')
-
-      if (sourceDocId && targetDocId) {
-        // Check if the comment's document matches our target
-        const isSameAccount = sourceDocId.uid === targetDocId.uid
-        const isSamePath =
-          (sourceDocId.path?.join('/') || '') ===
-          (targetDocId.path?.join('/') || '')
-
-        if (isSameAccount && isSamePath) {
-          console.log(
-            'Skipping comment directly on target document:',
-            mention.sourceDocument,
-          )
-          return // Skip comments that are ON the target document
-        }
-      }
-    }
-
-    const createTime = mention.sourceBlob?.createTime
-    const seconds =
-      typeof createTime?.seconds === 'bigint'
-        ? createTime.seconds
-        : BigInt(createTime?.seconds || 0)
-
-    citationEvents.push({
-      newBlob: {
-        cid: mention.sourceBlob?.cid || '',
-        blobType: 'Citation',
-        author: mention.sourceBlob?.author || '',
-        resource: mention.source, // The source (document/comment with the citation)
-        extraAttrs: params.filterResource || '', // Store target ID here
-        blobId: mention.sourceBlob?.cid || '',
-        isPinned: false,
-        mention,
-      },
-      account: mention.sourceBlob?.author || '',
-      eventTime: createTime
-        ? {
-            seconds,
-            nanos: createTime.nanos,
-          }
-        : null,
-      observeTime: null,
-    })
-  })
-
-  // Merge and sort by date (newest first)
-  const allEvents = [...events, ...citationEvents].sort((a, b) => {
-    const getTime = (time: HMTimestamp | null): number => {
-      if (!time) return 0
-      if (typeof time === 'string') {
-        return new Date(time).getTime()
-      }
-      // Convert Timestamp object to milliseconds
-      const seconds =
-        typeof time.seconds === 'bigint'
-          ? Number(time.seconds)
-          : Number(time.seconds || 0)
-      const nanos = time.nanos || 0
-      return seconds * 1000 + Math.floor(nanos / 1000000)
-    }
-
-    const timeA = getTime(a.eventTime)
-    const timeB = getTime(b.eventTime)
-
-    // Sort newest first
-    return timeB - timeA
-  })
-
-  // Create composite next page token
-  const nextPageToken = encodePageToken({
-    eventsToken: eventsNextToken,
-    mentionsToken: mentionsNextToken,
-  })
-
-  return {
-    events: allEvents,
-    nextPageToken,
-  }
+  return res
 }
 
 export async function loadCommentEvent(
@@ -452,8 +290,6 @@ export async function loadCapabilityEvent(
     const grpcCapability = await grpcClient.accessControl.getCapability({
       id: event.newBlob.cid,
     })
-
-    console.log(`== ~ loadCapabilityEvent ~ grpcCapability:`, grpcCapability)
 
     const target = await grpcClient.documents.getDocument({
       account: grpcCapability.account,
@@ -606,43 +442,114 @@ export async function loadCitationEvent(
   event: HMEvent,
   currentAccount?: string,
 ): Promise<LoadedCitationEvent | null> {
-  if (event.newBlob.blobType.toLowerCase() != 'citation') {
+
+  console.log('=== CITATION-EVENT', event)
+  const blobType = event.newBlob.blobType.toLowerCase()
+  const validCitationTypes = [
+    'citation',
+    'comment/target',
+    'comment/embed',
+    'comment/link',
+    'doc/embed',
+    'doc/link',
+    'doc/button',
+  ]
+
+  if (!validCitationTypes.includes(blobType)) {
     console.error('Event: not a citation event:', event)
     return null
   }
 
+
+
   const mention = event.newBlob.mention
   if (!mention) {
-    console.error('Event: citation event missing mention data:', event)
-    return null
+    // If the Activity API hasn't populated the mention field yet,
+    // we need to fetch it manually using listEntityMentions
+    console.warn('Citation event missing mention data, attempting to fetch:', {
+      blobType: event.newBlob.blobType,
+      cid: event.newBlob.cid,
+    })
+
+    // Try to extract target from extraAttrs
+    let targetId: string | null = null
+    try {
+      const extraAttrs = JSON.parse(event.newBlob.extraAttrs)
+      if (extraAttrs.tsid) {
+        // Construct target ID from resource author + tsid
+        const resourceId = unpackHmId(event.newBlob.resource)
+        if (resourceId) {
+          targetId = `hm://${resourceId.uid}/${extraAttrs.tsid}`
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse extraAttrs for citation:', e)
+    }
+
+    if (!targetId) {
+      console.error('Cannot resolve citation without target ID', {
+        resource: event.newBlob.resource,
+        extraAttrs: event.newBlob.extraAttrs,
+      })
+      return null
+    }
+
+    // Fetch mentions for this target to find the matching citation
+    try {
+      console.log('Fetching mentions for target:', targetId)
+      const mentionsResponse = await grpcClient.entities.listEntityMentions({
+        id: targetId,
+        pageSize: 100,
+        reverseOrder: true,
+      })
+
+      // Find the mention that matches this event's CID
+      const matchingMention = mentionsResponse.mentions.find(
+        (m) => m.sourceBlob?.cid === event.newBlob.cid
+      )
+
+      if (!matchingMention) {
+        console.error('Could not find matching mention for citation event:', event.newBlob.cid)
+        return null
+      }
+
+      // Attach the mention to the event for processing below
+      event.newBlob.mention = matchingMention
+    } catch (e) {
+      console.error('Failed to fetch mentions for citation:', e)
+      return null
+    }
   }
+
+  // At this point, mention should be populated (either from API or fetched manually)
+  const citationMention = event.newBlob.mention!
 
   try {
     // Determine citation type: 'd' = document reference, 'c' = comment reference
     const citationType =
-      mention.sourceType === 'Ref'
+      citationMention.sourceType === 'Ref'
         ? 'd'
-        : mention.sourceType === 'Comment'
+        : citationMention.sourceType === 'Comment'
         ? 'c'
         : null
     if (!citationType) return null
 
     // Parse source ID (the document/comment containing the citation)
-    const sourceId = unpackHmId(mention.source)
+    const sourceId = unpackHmId(citationMention.source)
     if (!sourceId) return null
 
     // Resolve author
     const author = await resolveAccount(
       grpcClient,
-      mention.sourceBlob?.author || '',
+      citationMention.sourceBlob?.author || '',
       currentAccount,
     )
 
     // Fetch source document/comment metadata
     let sourceDocument
-    if (citationType === 'c' && mention.sourceDocument) {
+    if (citationType === 'c' && citationMention.sourceDocument) {
       // For comments, use sourceDocument field to get the document it's in
-      const sourceDocId = unpackHmId(mention.sourceDocument)
+      const sourceDocId = unpackHmId(citationMention.sourceDocument)
       if (sourceDocId) {
         sourceDocument = await grpcClient.documents.getDocument({
           account: sourceDocId.uid,
@@ -663,20 +570,20 @@ export async function loadCitationEvent(
 
     // Build source ID with blockRef from sourceContext (the block ID where the citation appears)
     let sourceIdWithBlock: UnpackedHypermediaId
-    if (citationType === 'c' && mention.sourceDocument) {
+    if (citationType === 'c' && citationMention.sourceDocument) {
       // For comments, use the sourceDocument as the base
-      const sourceDocId = unpackHmId(mention.sourceDocument)!
+      const sourceDocId = unpackHmId(citationMention.sourceDocument)!
       sourceIdWithBlock = hmId(sourceDocId.uid, {
         path: sourceDocId.path,
         version: sourceDocId.version,
-        blockRef: mention.sourceContext || null, // Block ID where comment appears
+        blockRef: citationMention.sourceContext || null, // Block ID where comment appears
       })
     } else {
       // For documents, use the source with sourceContext as blockRef
       sourceIdWithBlock = hmId(sourceId.uid, {
         path: sourceId.path,
         version: sourceId.version,
-        blockRef: mention.sourceContext || null, // Block ID where citation appears
+        blockRef: citationMention.sourceContext || null, // Block ID where citation appears
       })
     }
 
@@ -699,13 +606,13 @@ export async function loadCitationEvent(
     const targetDocument = await grpcClient.documents.getDocument({
       account: targetId.uid,
       path: targetId.path?.length ? `/${targetId.path.join('/')}` : '',
-      version: mention.targetVersion || undefined,
+      version: citationMention.targetVersion || undefined,
     })
 
     const target: HMContactItem = {
       id: hmId(targetId.uid, {
         path: targetId.path,
-        version: mention.targetVersion || null,
+        version: citationMention.targetVersion || null,
       }),
       metadata: targetDocument?.metadata?.toJson({emitDefaultValues: true}) as
         | HMMetadata
@@ -713,17 +620,17 @@ export async function loadCitationEvent(
     }
 
     // Generate ID from target + fragment for uniqueness
-    const eventId = mention.targetFragment
-      ? `${mention.sourceBlob?.cid}-${mention.targetFragment}`
-      : mention.sourceBlob?.cid || ''
+    const eventId = citationMention.targetFragment
+      ? `${citationMention.sourceBlob?.cid}-${citationMention.targetFragment}`
+      : citationMention.sourceBlob?.cid || ''
 
     // Fetch comment content if this is a comment citation
     let comment: HMComment | null = null
     let replyCount: number | undefined = undefined
     if (citationType === 'c') {
       try {
-        // The comment CID is in mention.sourceBlob.cid
-        const commentCid = mention.sourceBlob?.cid
+        // The comment CID is in citationMention.sourceBlob.cid
+        const commentCid = citationMention.sourceBlob?.cid
         if (!commentCid) {
           console.error('Citation missing comment CID in sourceBlob')
         } else {
@@ -753,7 +660,7 @@ export async function loadCitationEvent(
       time: event.eventTime || '',
       source,
       target,
-      targetFragment: mention.targetFragment || undefined,
+      targetFragment: citationMention.targetFragment || undefined,
       comment,
       replyCount,
     }
@@ -763,20 +670,3 @@ export async function loadCitationEvent(
   }
 }
 
-/**
- * DEPRECATE ME LATER. this is a temporary function until @julio finishes an issue with moved documents.
- * @param events
- * @returns
- */
-function filterUnresolvedEvents(events: Array<HMEvent>) {
-  return events.filter((event) => {
-    return ![
-      'comment/target',
-      'comment/Embed',
-      'comment/Link',
-      'doc/Embed',
-      'doc/Link',
-      'doc/Button',
-    ].includes(event.newBlob.blobType)
-  })
-}

@@ -4,7 +4,7 @@ import {
   HMListEventsRequest,
   HMListEventsResponse,
   LoadedEvent,
-  listEventsWithCitationsImpl,
+  listEventsImpl,
   loadCapabilityEvent,
   loadCitationEvent,
   loadCommentEvent,
@@ -15,7 +15,7 @@ import {grpcClient} from './grpc-client'
 
 export class DesktopActivityService implements ActivityService {
   async listEvents(params: HMListEventsRequest): Promise<HMListEventsResponse> {
-    return listEventsWithCitationsImpl(grpcClient, params)
+    return listEventsImpl(grpcClient, params)
   }
 
   async resolveEvent(
@@ -36,6 +36,12 @@ export class DesktopActivityService implements ActivityService {
       case 'contact':
         return loadContactEvent(grpcClient, event, currentAccount)
       case 'citation':
+      case 'comment/target':
+      case 'comment/embed':
+      case 'comment/link':
+      case 'doc/embed':
+      case 'doc/link':
+      case 'doc/button':
         return loadCitationEvent(grpcClient, event, currentAccount)
       case 'dagpb':
       case 'profile':

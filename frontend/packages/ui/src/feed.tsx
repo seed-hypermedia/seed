@@ -945,7 +945,7 @@ function EventCommentWithReply({
       {/* replying comment */}
       <div
         className={cn(
-          'flex flex-col gap-2',
+          'flex flex-col',
           'before:border-border relative before:absolute before:top-[9px] before:left-[12px] before:h-[calc(100%-10px)] before:w-[16px] before:rounded-tl-lg before:border-t-1 before:border-l-1',
         )}
       >
