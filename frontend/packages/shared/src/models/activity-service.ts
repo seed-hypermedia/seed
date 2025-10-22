@@ -234,6 +234,8 @@ export async function listEventsWithCitationsImpl(
     eventsResponse.status === 'fulfilled'
       ? filterUnresolvedEvents(eventsResponse.value.events)
       : []
+
+  console.log(`== ~ listEventsWithCitationsImpl ~ events:`, events)
   const eventsNextToken =
     eventsResponse.status === 'fulfilled'
       ? eventsResponse.value.nextPageToken
@@ -243,6 +245,8 @@ export async function listEventsWithCitationsImpl(
     mentionsResponse.status === 'fulfilled'
       ? mentionsResponse.value.mentions
       : []
+
+  console.log(`== ~ listEventsWithCitationsImpl ~ mentions:`, mentions)
   const mentionsNextToken =
     mentionsResponse.status === 'fulfilled'
       ? mentionsResponse.value.nextPageToken
@@ -311,43 +315,25 @@ export async function listEventsWithCitationsImpl(
 
   // Merge and sort by date (newest first)
   const allEvents = [...events, ...citationEvents].sort((a, b) => {
-    const getTime = (
-      time: HMTimestamp | null,
-    ): {
-      seconds: bigint
-      nanos: number
-    } => {
-      if (!time) return {seconds: BigInt(0), nanos: 0}
-      if (typeof time === 'string') return {seconds: BigInt(0), nanos: 0}
+    const getTime = (time: HMTimestamp | null): number => {
+      if (!time) return 0
+      if (typeof time === 'string') {
+        return new Date(time).getTime()
+      }
+      // Convert Timestamp object to milliseconds
       const seconds =
-        typeof time.seconds === 'bigint' ? time.seconds : BigInt(time.seconds)
+        typeof time.seconds === 'bigint'
+          ? Number(time.seconds)
+          : Number(time.seconds || 0)
       const nanos = time.nanos || 0
-      return {seconds, nanos}
+      return seconds * 1000 + Math.floor(nanos / 1000000)
     }
 
     const timeA = getTime(a.eventTime)
     const timeB = getTime(b.eventTime)
 
-    // Debug logging
-    if (process.env.NODE_ENV === 'development') {
-      const aType = a.newBlob.blobType
-      const bType = b.newBlob.blobType
-      if (timeA.seconds === timeB.seconds && timeA.nanos !== timeB.nanos) {
-        console.log(
-          `⚠️ Same second, different nanos: ${aType} (${timeA.seconds}.${timeA.nanos}) vs ${bType} (${timeB.seconds}.${timeB.nanos})`,
-        )
-      }
-    }
-
-    // Compare seconds first
-    if (timeA.seconds > timeB.seconds) return -1
-    if (timeA.seconds < timeB.seconds) return 1
-
-    // If seconds are equal, compare nanos for proper microsecond ordering
-    if (timeA.nanos > timeB.nanos) return -1
-    if (timeA.nanos < timeB.nanos) return 1
-
-    return 0
+    // Sort newest first
+    return timeB - timeA
   })
 
   // Create composite next page token
