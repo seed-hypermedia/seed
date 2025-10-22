@@ -4,7 +4,6 @@ import {
   HMListEventsRequest,
   HMListEventsResponse,
   LoadedEvent,
-  getEventType,
   listEventsImpl,
   loadCapabilityEvent,
   loadCitationEvent,
