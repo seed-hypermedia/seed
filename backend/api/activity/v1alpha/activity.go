@@ -361,13 +361,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 				queryStr += linkTypesFilterMentions
 				args = append(args, linkTypesJSON)
 			}
-			queryStr += pagingMentions
-			if len(authorsJSON) > 2 {
-				queryStr += authorsFilterMentions
-			}
-			if len(linkTypesJSON) > 2 {
-				queryStr += linkTypesFilterMentions
-			}
 			queryStr += limitMentions
 			args = append(args, req.PageSize)
 			if err := sqlitex.Exec(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
@@ -462,13 +455,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		return nil, err
 	}
 	for _, movedResource := range movedResources {
-		for i, e := range events {
+		for _, e := range events {
 			if strings.Contains(e.Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri) {
 				if movedResource.IsDeleted {
 					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
-				} else {
+				} /* else {
 					events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = strings.ReplaceAll(events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri, movedResource.NewIri)
-				}
+				}*/
 			}
 		}
 	}
@@ -604,30 +597,6 @@ SELECT
 `)
 
 var listMentionsCore string = `
-WITH changes AS (
-	SELECT distinct
-	    structural_blobs.genesis_blob,
-	    resource_links.id AS link_id,
-	    resource_links.is_pinned,
-	    blobs.codec,
-	    blobs.multihash,
-		blobs.id,
-		structural_blobs.ts,
-		public_keys.principal AS main_author,
-	    resource_links.extra_attrs->>'a' AS anchor,
-		resource_links.extra_attrs->>'v' AS target_version,
-		resource_links.extra_attrs->>'f' AS target_fragment,
-		resource_links.type AS link_type,
-		structural_blobs.extra_attrs->>'tsid' AS tsid
-	FROM resource_links
-	JOIN structural_blobs ON structural_blobs.id = resource_links.source
-	JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-	JOIN public_keys ON public_keys.id = structural_blobs.author
-	LEFT JOIN resources ON resources.id = structural_blobs.resource
-	WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
-	AND structural_blobs.type IN ('Change')
-	AND structural_blobs.ts <= :idx
-)
 SELECT distinct
     resources.iri,
     blobs.codec,
@@ -651,8 +620,9 @@ FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
+JOIN resources ON resources.id = resource_links.target
 WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
+AND structural_blobs.ts <= :idx
 `
 var authorsFilterMentions = `
 AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
@@ -660,38 +630,8 @@ AND upper(hex(main_author)) IN (SELECT value from json_each(:authors_json))
 var linkTypesFilterMentions = `
 AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
 `
-var pagingMentions = `
-AND structural_blobs.ts <= :idx
-AND structural_blobs.type IN ('Comment')
-UNION ALL
-SELECT distinct
-    resources.iri,
-    blobs.codec,
-    blobs.multihash,
-    public_keys.principal AS main_author,
-    changes.ts,
-    'Ref' AS blob_type,
-    changes.is_pinned,
-    changes.anchor,
-	changes.target_version,
-	changes.target_fragment,
-	changes.link_type AS link_type,
-    blobs.id AS blob_id,
-	blobs.insert_time AS blob_insert_time,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs,
-	changes.link_id,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted,
-	changes.genesis_blob
-FROM structural_blobs
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources ON resources.id = structural_blobs.resource
-JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
-WHERE structural_blobs.ts <= :idx
-`
 var limitMentions = `
-GROUP BY resources.iri, changes.link_id, target_version, target_fragment
+GROUP BY resources.iri, target_version, target_fragment
 ORDER BY structural_blobs.ts DESC
 LIMIT :page_size;
 `
