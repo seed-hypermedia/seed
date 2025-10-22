@@ -5,6 +5,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
+import { Mention } from "../../entities/v1alpha/entities_pb";
 
 /**
  * The request to list the events.
@@ -171,6 +172,12 @@ export class Event extends Message<Event> {
      */
     value: NewBlobEvent;
     case: "newBlob";
+  } | {
+    /**
+     * @generated from field: com.seed.entities.v1alpha.Mention new_mention = 5;
+     */
+    value: Mention;
+    case: "newMention";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   /**
@@ -204,6 +211,7 @@ export class Event extends Message<Event> {
   static readonly typeName = "com.seed.activity.v1alpha.Event";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "new_blob", kind: "message", T: NewBlobEvent, oneof: "data" },
+    { no: 5, name: "new_mention", kind: "message", T: Mention, oneof: "data" },
     { no: 2, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "event_time", kind: "message", T: Timestamp },
     { no: 4, name: "observe_time", kind: "message", T: Timestamp },

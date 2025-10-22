@@ -3,6 +3,7 @@ syntax = "proto3";
 package com.seed.activity.v1alpha;
 
 import "google/protobuf/timestamp.proto";
+import "entities/v1alpha/entities.proto";
 
 option go_package = "seed/backend/genproto/activity/v1alpha;activity";
 
@@ -65,6 +66,8 @@ message Event {
   oneof data {
     // Event type describing the appearance of a new blob in the system.
     NewBlobEvent new_blob = 1;
+
+    entities.v1alpha.Mention new_mention = 5;
   }
 
   // The ID of the user account that has caused the event.
