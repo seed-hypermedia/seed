@@ -534,7 +534,7 @@ function InnerDocumentPage(
                     </div>
                   ) : null}
                   <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
-                    <ScrollArea onScroll={onScroll}>
+                    <ScrollArea ref={mainScrollRef} onScroll={onScroll}>
                       {feed ? (
                         <div
                           {...wrapperProps}
@@ -566,7 +566,7 @@ function InnerDocumentPage(
 
                             <Feed
                               commentEditor={<WebCommenting docId={id} />}
-                              filterResource={`${originHomeId.id}*`}
+                              filterResource={`${id.id}*`}
                               currentAccount={currentAccount.data?.id.uid}
                             />
                           </Container>
