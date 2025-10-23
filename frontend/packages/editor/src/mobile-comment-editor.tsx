@@ -77,11 +77,17 @@ export function MobileCommentEditor({
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
 }) {
-  const {editor} = useCommentEditor(perspectiveAccountUid)
-  const {openUrl, handleFileAttachment} = useDocContentContext()
-  const [isDragging, setIsDragging] = useState(false)
   const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
   const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
+
+  const {editor} = useCommentEditor(
+    perspectiveAccountUid,
+    () => setIsSlashDialogOpen(true),
+    () => setIsMentionsDialogOpen(true),
+  )
+
+  const {openUrl, handleFileAttachment} = useDocContentContext()
+  const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout>()
@@ -604,6 +610,8 @@ function crawlEditorBlocks(
 
 export function useCommentEditor(
   perspectiveAccountUid?: string | null | undefined,
+  onSlashTrigger?: () => void,
+  onMentionTrigger?: () => void,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
@@ -628,6 +636,65 @@ export function useCommentEditor(
             return [createHypermediaDocLinkPlugin({}).plugin]
           },
         }),
+        // Mobile-specific keyboard intercepts
+        ...(onSlashTrigger || onMentionTrigger
+          ? [
+              Extension.create({
+                name: 'mobile-dialog-triggers',
+                priority: 1000,
+                addKeyboardShortcuts() {
+                  return {
+                    '/': ({editor}) => {
+                      if (!onSlashTrigger) return false
+
+                      const {state, view} = editor
+                      const {selection} = state
+
+                      const textBeforeCursor =
+                        selection.$from.parent.textContent.substring(
+                          0,
+                          selection.$from.parentOffset,
+                        )
+
+                      // Only open dialog if at start or after space
+                      const isAtStart = textBeforeCursor.length === 0
+                      const isAfterSpace = textBeforeCursor.endsWith(' ')
+
+                      if (isAtStart || isAfterSpace) {
+                        view.dispatch(state.tr.insertText('/'))
+                        setTimeout(() => onSlashTrigger(), 10)
+                        return true
+                      }
+                      return false
+                    },
+                    '@': ({editor}) => {
+                      if (!onMentionTrigger) return false
+
+                      const {state, view} = editor
+                      const {selection} = state
+
+                      const textBeforeCursor =
+                        selection.$from.parent.textContent.substring(
+                          0,
+                          selection.$from.parentOffset,
+                        )
+
+                      // Only open dialog if at start or after space
+                      const isAtStart = textBeforeCursor.length === 0
+                      const isAfterSpace = textBeforeCursor.endsWith(' ')
+
+                      if (isAtStart || isAfterSpace) {
+                        view.dispatch(state.tr.insertText('@'))
+                        setTimeout(() => onMentionTrigger(), 10)
+                        return true
+                      }
+                      return false
+                    },
+                  }
+                },
+              }),
+            ]
+          : []),
       ],
     },
   })
