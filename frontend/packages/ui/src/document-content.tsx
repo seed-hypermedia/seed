@@ -435,7 +435,7 @@ export function BlockNodeList({
         'my-4',
       )
     } else {
-      classes.push('pl-6')
+      classes.push('pl-3')
     }
 
     return classes.join(' ')
