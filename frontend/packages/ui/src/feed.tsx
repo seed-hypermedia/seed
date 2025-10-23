@@ -1,5 +1,4 @@
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
-import {HMContactItem, HMResourceItem} from '@shm/shared/feed-types'
 import {
   HMBlockNode,
   HMTimestamp,
@@ -19,15 +18,15 @@ import {
   AnyTimestamp,
   formattedDateShort,
   normalizeDate,
-} from '@shm/shared/utils'
+} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {Link, Trash2} from 'lucide-react'
+import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {CommentContent} from './comments'
-import {ContactToken} from './contact-token'
+import {SizableText} from './components/text'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
@@ -36,31 +35,9 @@ import {DocumentCard} from './newspaper'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {ResourceToken} from './resource-token'
 import {Separator} from './separator'
-import {SizableText} from './text'
+import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-
-/*
-
-<div className="hover:bg-background m-2 rounded">
-  <div className="flex items-start gap-2 p-2">
-    <UIAvatar size={20} label="foo" className="my-1 flex-none" />
-    <p>
-      <span className="text-sm font-bold">horacio</span>{' '}
-      <span className="text-muted-foreground text-sm">
-        commented on
-      </span>{' '}
-      <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-        this document with a super long name because I want to see how
-        it overflows
-      </a>{' '}
-      <span className="text-muted-foreground ml-2 flex-none text-xs">
-        aug 24
-      </span>
-    </p>
-  </div>
-</div>
-*/
 
 // Helper function to find a block by ID in the content tree
 function findContentBlock(
@@ -111,120 +88,6 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   }
 
   return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
-}
-
-export function FeedItemWrapper({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        'hover:bg-background m-2 rounded transition-colors hover:dark:bg-black',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
-
-export function FeedItemHeader({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn('flex items-start gap-2 p-2', className)} {...props} />
-  )
-}
-
-// =======================================
-
-export function EventRow({
-  children,
-  onClick,
-  className,
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        'hover:bg-background m-2 rounded transition-colors hover:dark:bg-black',
-        className,
-      )}
-      onClick={onClick}
-    >
-      {children}
-    </div>
-  )
-}
-
-export function RouteEventRow({
-  children,
-  route,
-  className,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-  className?: string
-}) {
-  const linkProps = useRouteLink(route, {handler: 'onClick'})
-  return (
-    <div
-      className={cn(
-        'hover:bg-background m-2 flex items-center rounded-md p-2 break-words hover:dark:bg-black',
-        className,
-      )}
-      {...linkProps}
-    >
-      {children}
-    </div>
-  )
-}
-
-export function EventRowInline({
-  children,
-  route,
-  className,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-  className?: string
-}) {
-  return (
-    <RouteEventRow className={className} route={route}>
-      <div className="flex items-start gap-2 p-2">{children}</div>
-    </RouteEventRow>
-  )
-}
-
-export function EventContact({contact}: {contact?: HMContactItem}) {
-  if (!contact) return null
-  return <ContactToken id={contact.id} metadata={contact.metadata} />
-}
-
-export function EventResource({resource}: {resource: HMResourceItem}) {
-  return <ResourceToken id={resource.id} metadata={resource.metadata} />
-}
-
-export function EventContacts({contacts}: {contacts: HMContactItem[]}) {
-  return (
-    <div>
-      {contacts.map((contact) => {
-        return <ContactToken id={contact.id} metadata={contact.metadata} />
-      })}
-    </div>
-  )
-}
-
-export function EventDescriptionText({children}: {children: React.ReactNode}) {
-  return children ? (
-    <SizableText size="sm" className="truncate overflow-hidden px-1">
-      {children}
-    </SizableText>
-  ) : null
 }
 
 export const EventTimestamp = memo(function EventTimestamp({
@@ -407,30 +270,32 @@ function EventItem({
           isSingleResource={isSingleResource}
         />
       </div>
-      <div className="relative flex gap-2">
-        <div className={cn('w-[24px]')} />
-        <div className="flex flex-1 flex-col gap-3">
-          <EventContent event={event} />
-          {event.type == 'comment' ||
-          (event.type == 'citation' && event.comment) ? (
-            <div className="-ml-3">
-              <Button
-                size="xs"
-                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
-              >
-                <ReplyArrow className="size-3" />
-                {tx('Reply')}
-                {(event.type == 'comment' && event.replyCount > 0) ||
-                (event.type == 'citation' &&
-                  event.replyCount !== undefined &&
-                  event.replyCount > 0)
-                  ? ` (${event.replyCount})`
-                  : ''}
-              </Button>
-            </div>
-          ) : null}
+      {isSingleResource && event.type == 'doc-update' ? null : (
+        <div className="relative flex gap-2">
+          <div className={cn('w-[24px]')} />
+          <div className="flex flex-1 flex-col gap-3">
+            <EventContent isSingleResource={isSingleResource} event={event} />
+            {event.type == 'comment' ||
+            (event.type == 'citation' && event.comment) ? (
+              <div className="-ml-3">
+                <Button
+                  size="xs"
+                  className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+                >
+                  <ReplyArrow className="size-3" />
+                  {tx('Reply')}
+                  {(event.type == 'comment' && event.replyCount > 0) ||
+                  (event.type == 'citation' &&
+                    event.replyCount !== undefined &&
+                    event.replyCount > 0)
+                    ? ` (${event.replyCount})`
+                    : ''}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -462,6 +327,7 @@ export function Feed({
     isFetchingNextPage,
     isLoading,
     error,
+    refetch,
   } = useActivityFeed({
     filterResource,
     filterAuthors,
@@ -520,16 +386,33 @@ export function Feed({
     )
   }
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+      <div className="flex items-center justify-center p-3">
+        <Spinner />
+      </div>
+    )
   }
 
   if (error) {
-    return <div>Error loading feed</div>
+    return (
+      <div className="m-4 flex flex-col items-center justify-center gap-2 p-3">
+        <CircleAlert className="text-muted-foreground size-7" />
+        <p className="text-muted-foreground text-sm">Error Loading Feed</p>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() => refetch()}
+          className="mt-2"
+        >
+          retry
+        </Button>
+      </div>
+    )
   }
 
   return (
     <AccessoryContent header={commentEditor}>
-      <div className="mt-4 flex flex-col gap-8">
+      <div className="mt-4 flex flex-col gap-5">
         {allEvents.map((e) => {
           const route = getEventRoute(e)
 
@@ -631,7 +514,7 @@ function EventHeaderContent({
               </a>{' '}
             </>
           ) : null}
-          <span className="text-muted-foreground ml-2 flex-none text-xs">
+          <span className="text-muted-foreground ml-0.5 flex-none text-xs">
             <EventTimestampWithTooltip time={event.time} />
           </span>
         </p>
@@ -694,7 +577,7 @@ function EventHeaderContent({
             <span className="text-muted-foreground text-sm">as a Writer</span>{' '}
           </>
         )}
-        <span className="text-muted-foreground ml-2 flex-none text-xs">
+        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
@@ -729,7 +612,7 @@ function EventHeaderContent({
             </span>{' '}
           </>
         )}
-        <span className="text-muted-foreground ml-2 flex-none text-xs">
+        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
@@ -759,7 +642,7 @@ function EventHeaderContent({
         <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.contact.name}
         </span>{' '}
-        <span className="text-muted-foreground ml-2 flex-none text-xs">
+        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
@@ -794,7 +677,7 @@ function EventHeaderContent({
         <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {sourceName}
         </a>{' '}
-        <span className="text-muted-foreground ml-2 flex-none text-xs">
+        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
           <EventTimestampWithTooltip time={event.time} />
         </span>
       </p>
@@ -812,9 +695,11 @@ function EventHeaderContent({
 function EventContent({
   event,
   size = 'md',
+  isSingleResource = false,
 }: {
   event: LoadedEvent
   size?: 'sm' | 'md'
+  isSingleResource?: boolean
 }) {
   if (event.type == 'comment') {
     return event.comment ? (
@@ -890,6 +775,7 @@ function EventContent({
   // )
 
   if (event.type == 'doc-update') {
+    if (isSingleResource) return null
     // Use the versioned docId for proper navigation
     // Reconstruct the ID properly using hmId to ensure the id field is the base ID
     const versionedDocId = hmId(event.docId.uid, {
@@ -945,7 +831,7 @@ function EventCommentWithReply({
       {/* replying comment */}
       <div
         className={cn(
-          'flex flex-col gap-2',
+          'flex flex-col',
           'before:border-border relative before:absolute before:top-[9px] before:left-[12px] before:h-[calc(100%-10px)] before:w-[16px] before:rounded-tl-lg before:border-t-1 before:border-l-1',
         )}
       >
@@ -966,7 +852,7 @@ function EventCommentWithReply({
               <span className="text-[11px] font-bold">
                 {event.replyParentAuthor?.metadata?.name}
               </span>{' '}
-              <span className="text-muted-foreground ml-2 flex-none text-[11px]">
+              <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
                 <EventTimestampWithTooltip time={event.time} />
               </span>
             </p>
