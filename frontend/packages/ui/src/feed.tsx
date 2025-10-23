@@ -435,7 +435,7 @@ function EventItem({
   )
 }
 
-export function Feed2({
+export function Feed({
   filterResource,
   filterAuthors,
   filterEventType,

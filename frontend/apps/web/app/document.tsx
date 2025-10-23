@@ -35,7 +35,7 @@ import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
-import {Feed2} from '@shm/ui/feed'
+import {Feed} from '@shm/ui/feed'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -464,7 +464,7 @@ function InnerDocumentPage(
     } else if (activePanel.type === 'activity') {
       // Show the activity feed
       panel = (
-        <Feed2
+        <Feed
           commentEditor={commentEditor}
           filterResource={id.id}
           currentAccount={currentAccount.data?.id.uid}
@@ -564,7 +564,7 @@ function InnerDocumentPage(
                             </Text>
                             <Separator />
 
-                            <Feed2
+                            <Feed
                               commentEditor={<WebCommenting docId={id} />}
                               filterResource={`${originHomeId.id}*`}
                               currentAccount={currentAccount.data?.id.uid}

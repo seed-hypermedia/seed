@@ -5,7 +5,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocAccessoryOption} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {Feed2} from '@shm/ui/feed'
+import {Feed} from '@shm/ui/feed'
 import {ReactNode} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
@@ -90,7 +90,7 @@ export function useDocumentAccessory({
         layoutUnit={16}
       >
         {deleteCommentDialogContent}
-        <Feed2
+        <Feed
           commentEditor={
             docId ? (
               <CommentBox
@@ -121,7 +121,7 @@ export function useDocumentAccessory({
         layoutUnit={18}
       >
         {deleteCommentDialogContent}
-        <Feed2
+        <Feed
           commentEditor={
             docId ? <CommentBox docId={docId} context="accessory" /> : null
           }

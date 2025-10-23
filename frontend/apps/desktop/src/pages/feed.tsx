@@ -44,7 +44,7 @@ import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentDate} from '@shm/ui/document-date'
-import {Feed2} from '@shm/ui/feed'
+import {Feed} from '@shm/ui/feed'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -326,7 +326,7 @@ function _FeedContent({
                 textUnit={14}
                 layoutUnit={16}
               >
-                <Feed2
+                <Feed
                   commentEditor={
                     homeId ? <CommentBox docId={homeId} context="feed" /> : null
                   }
