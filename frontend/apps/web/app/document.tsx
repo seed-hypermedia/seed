@@ -35,7 +35,6 @@ import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
-import {Feed} from '@shm/ui/feed'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
@@ -53,7 +52,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Sparkle} from 'lucide-react'
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
@@ -62,7 +61,6 @@ import {
 } from 'react-resizable-panels'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
-import {WebDiscussionsPanel} from './discussions-panel'
 import {WebDocContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
@@ -74,6 +72,10 @@ import {useScrollRestoration} from './use-scroll-restoration'
 import {WebActivityService} from './web-activity-service'
 import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
+
+// Lazy load components for better initial page load performance
+const Feed = lazy(() => import('@shm/ui/feed').then(m => ({default: m.Feed})))
+const WebDiscussionsPanel = lazy(() => import('./discussions-panel').then(m => ({default: m.WebDiscussionsPanel})))
 
 export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 
@@ -444,31 +446,35 @@ function InnerDocumentPage(
       // Show the discussions panel with focused comment or block
       panelTitle = tx('Thread')
       panel = (
-        <WebDiscussionsPanel
-          commentEditor={commentEditor}
-          blockId={activePanel.blockId}
-          comment={activePanel.comment}
-          handleBack={() => {
-            setDocumentPanel({
-              type: 'activity',
-            })
-          }}
-          setBlockId={onBlockCommentClick}
-          docId={id}
-          homeId={originHomeId}
-          document={document}
-          originHomeId={originHomeId}
-          siteHost={siteHost}
-        />
+        <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
+          <WebDiscussionsPanel
+            commentEditor={commentEditor}
+            blockId={activePanel.blockId}
+            comment={activePanel.comment}
+            handleBack={() => {
+              setDocumentPanel({
+                type: 'activity',
+              })
+            }}
+            setBlockId={onBlockCommentClick}
+            docId={id}
+            homeId={originHomeId}
+            document={document}
+            originHomeId={originHomeId}
+            siteHost={siteHost}
+          />
+        </Suspense>
       )
     } else if (activePanel.type === 'activity') {
       // Show the activity feed
       panel = (
-        <Feed
-          commentEditor={commentEditor}
-          filterResource={id.id}
-          currentAccount={currentAccount.data?.id.uid}
-        />
+        <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
+          <Feed
+            commentEditor={commentEditor}
+            filterResource={id.id}
+            currentAccount={currentAccount.data?.id.uid}
+          />
+        </Suspense>
       )
       panelTitle = tx('Document Activity')
     }
@@ -484,14 +490,19 @@ function InnerDocumentPage(
         homeMetadata={homeMetadata}
       />
     )
+
+  // Only initialize activity/comments services when needed (activity is enabled)
+  const shouldInitializeActivity = activityEnabled
+
   return (
-    <ActivityProvider service={activityService}>
-      <CommentsProvider
-        service={commentsService}
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
-      >
-        <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Spinner /></div>}>
+      <ActivityProvider service={shouldInitializeActivity ? activityService : null}>
+        <CommentsProvider
+          service={shouldInitializeActivity ? commentsService : null}
+          onReplyClick={onReplyClick}
+          onReplyCountClick={onReplyCountClick}
+        >
+          <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
           <WebSiteHeader
             hideSiteBarClassName={hideSiteBarClassName}
             noScroll={!!panel}
@@ -564,11 +575,13 @@ function InnerDocumentPage(
                             </Text>
                             <Separator />
 
-                            <Feed
-                              commentEditor={<WebCommenting docId={id} />}
-                              filterResource={`${id.id}*`}
-                              currentAccount={currentAccount.data?.id.uid}
-                            />
+                            <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
+                              <Feed
+                                commentEditor={<WebCommenting docId={id} />}
+                                filterResource={`${id.id}*`}
+                                currentAccount={currentAccount.data?.id.uid}
+                              />
+                            </Suspense>
                           </Container>
                           {showSidebars ? (
                             <div
@@ -799,8 +812,9 @@ function InnerDocumentPage(
             )}
           </WebDocContentProvider>
         </div>
-      </CommentsProvider>
-    </ActivityProvider>
+        </CommentsProvider>
+      </ActivityProvider>
+    </Suspense>
   )
 }
 
@@ -881,6 +895,10 @@ function MobileInteractionCardCollapsed({
             e.stopPropagation()
             handleToggleFeed()
           }}
+          onMouseEnter={() => {
+            // Prefetch the feed component when user hovers
+            import('@shm/ui/feed').catch(() => {})
+          }}
         >
           <Sparkle
             className={cn('size-4', !isFeedActive && 'text-muted-foreground')}
@@ -893,6 +911,11 @@ function MobileInteractionCardCollapsed({
           onClick={(e) => {
             e.stopPropagation()
             onClick()
+          }}
+          onMouseEnter={() => {
+            // Prefetch discussions panel and feed when user hovers
+            import('./discussions-panel').catch(() => {})
+            import('@shm/ui/feed').catch(() => {})
           }}
         >
           <MessageSquare className="size-4 opacity-50" />
@@ -1010,6 +1033,10 @@ function _DocInteractionsSummary({
           label={tx('Feed')}
           active={activePanel?.type === 'activity'}
           onClick={onFeedOpen}
+          onMouseEnter={() => {
+            // Prefetch the feed component when user hovers
+            import('@shm/ui/feed').catch(() => {})
+          }}
           // @ts-ignore
           icon={<Sparkle className="size-4" />}
         />
@@ -1019,6 +1046,10 @@ function _DocInteractionsSummary({
           label={tx('Discussions')}
           active={activePanel?.type === 'discussions'}
           onClick={onCommentsOpen}
+          onMouseEnter={() => {
+            // Prefetch the discussions panel when user hovers
+            import('./discussions-panel').catch(() => {})
+          }}
           // @ts-ignore
           icon={<MessageSquare className="size-4" />}
         />
@@ -1033,17 +1064,20 @@ function InteractionSummaryItem({
   onClick,
   icon,
   active,
+  onMouseEnter,
 }: {
   label: string
   count?: number | null
   onClick: () => void
   icon: React.ReactNode
   active: boolean
+  onMouseEnter?: () => void
 }) {
   return (
     <Tooltip content={label}>
       <Button
         onClick={onClick}
+        onMouseEnter={onMouseEnter}
         variant="ghost"
         className={cn('p-0', active && 'bg-accent')}
         size="sm"
