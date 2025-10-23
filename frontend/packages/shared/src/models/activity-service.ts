@@ -86,7 +86,7 @@ export type LoadedCommentEvent = {
   author: HMContactItem
   time: HMTimestamp
   replyingComment: HMComment | null
-  replyingAuthor: HMContactItem | null
+  replyParentAuthor: HMContactItem | null
   comment: HMComment | null
   commentId: UnpackedHypermediaId
   // deprecate
@@ -375,7 +375,7 @@ export async function loadCommentEvent(
         })
       : null
 
-    const replyingAuthor = replyingComment?.author
+    const replyParentAuthor = replyingComment?.author
       ? await resolveAccount(grpcClient, replyingComment.author, currentAccount)
       : null
 
@@ -411,7 +411,7 @@ export async function loadCommentEvent(
       replyingComment: replyingComment
         ? prepareHMComment(replyingComment)
         : null,
-      replyingAuthor,
+      replyParentAuthor,
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
       target,

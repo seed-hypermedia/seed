@@ -952,19 +952,19 @@ function EventCommentWithReply({
         <div className="flex items-start gap-2">
           <div className={cn('h-[18px] w-[24px]')} />
           <div className="size-[18px]">
-            {event.replyingAuthor?.id ? (
+            {event.replyParentAuthor?.id ? (
               <HMIcon
                 size={18}
-                id={event.replyingAuthor.id}
-                name={event.replyingAuthor.metadata?.name}
-                icon={event.replyingAuthor.metadata?.icon}
+                id={event.replyParentAuthor.id}
+                name={event.replyParentAuthor.metadata?.name}
+                icon={event.replyParentAuthor.metadata?.icon}
               />
             ) : null}
           </div>
           <div className="group flex w-full items-start justify-between gap-2">
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
               <span className="text-[11px] font-bold">
-                {event.author?.metadata?.name}
+                {event.replyParentAuthor?.metadata?.name}
               </span>{' '}
               <span className="text-muted-foreground ml-2 flex-none text-[11px]">
                 <EventTimestampWithTooltip time={event.time} />
