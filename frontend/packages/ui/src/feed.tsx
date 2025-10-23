@@ -90,6 +90,39 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
 }
 
+function RouteEventRow({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  const linkProps = useRouteLink(route, {handler: 'onClick'})
+  return (
+    <div className="break-words" {...linkProps}>
+      {children}
+    </div>
+  )
+}
+
+export function EventRowInline({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  return <RouteEventRow route={route}>{children}</RouteEventRow>
+}
+
+export function EventDescriptionText({children}: {children: React.ReactNode}) {
+  return (
+    <SizableText size="sm" className="px-2">
+      {children}
+    </SizableText>
+  )
+}
+
 export const EventTimestamp = memo(function EventTimestamp({
   time,
 }: {
