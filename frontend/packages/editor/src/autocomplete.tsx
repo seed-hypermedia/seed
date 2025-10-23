@@ -442,6 +442,12 @@ function AutocompletePopupInner(
       ? window.innerHeight - rect.top + popupHeight
       : undefined
 
+  // Calculate left position to prevent overflow
+  const popupWidth = 320
+  const viewportWidth = window.innerWidth
+  const maxLeft = viewportWidth - popupWidth - 8 // 8px padding from edge
+  const leftValue = Math.min(rect.left, maxLeft)
+
   return (
     <TooltipProvider>
       <div
@@ -449,7 +455,7 @@ function AutocompletePopupInner(
           position: 'fixed',
           top: topValue,
           bottom: bottomValue,
-          left: rect.left,
+          left: leftValue,
           zIndex: 9999,
         }}
       >
