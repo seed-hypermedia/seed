@@ -478,7 +478,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		ppalHex := hex.EncodeToString(ppal)
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, qGetAccountID(), func(stmt *sqlite.Stmt) error {
+			return sqlitex.ExecTransient(conn, qGetAccountID(), func(stmt *sqlite.Stmt) error {
 				loggedAccountID = stmt.ColumnInt64(0)
 				return nil
 			}, strings.ToUpper(ppalHex))
@@ -507,7 +507,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	var numResults int = 0
 	//before := time.Now()
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var res searchResult
 			var icon icon
 			var heads []head
@@ -644,7 +644,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		var parentTitles []string
 		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
+			return sqlitex.ExecTransient(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
 				var title title
 				iri := stmt.ColumnText(1)
 				if _, ok := parents[iri]; !ok {
@@ -678,7 +678,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
@@ -757,7 +757,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				//prevIter = iter
 				relatedFound := false
 				err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-					return sqlitex.Exec(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
+					return sqlitex.ExecTransient(conn, qGetLatestBlockChange(), func(stmt *sqlite.Stmt) error {
 						iter++
 						ts := hlc.Timestamp(stmt.ColumnInt64(3) * 1000).Time()
 						blockID := stmt.ColumnText(2)
@@ -815,7 +815,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		} else if searchResults[match.Index].contentType == "comment" {
 			var isDeleted bool
 			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-				return sqlitex.Exec(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
+				return sqlitex.ExecTransient(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
 					isDeleted = stmt.ColumnInt(0) == 1
 					return nil
 				}, strconv.FormatInt(searchResults[match.Index].commentKey.authorID, 10), searchResults[match.Index].commentKey.tsid)
@@ -892,7 +892,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 // 	eid := hyper.EntityID(in.Id)
 
 // 	err := api.blobs.Query(ctx, func(conn *sqlite.Conn) error {
-// 		return sqlitex.Exec(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
+// 		return sqlitex.ExecTransient(conn, qGetResourceMetadata(), func(stmt *sqlite.Stmt) error {
 // 			meta = stmt.ColumnText(0)
 // 			return nil
 // 		}, in.Id)
@@ -1026,7 +1026,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	var deletedList []string
 	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eid int64
-		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
 			eid = stmt.ColumnInt64(0)
 			return nil
 
@@ -1041,7 +1041,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 		var lastCursor mentionsCursor
 
 		var count int32
-		if err := sqlitex.Exec(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qListMentions(in.ReverseOrder), func(stmt *sqlite.Stmt) error {
 			// We query for pageSize + 1 items to know if there's more items on the next page,
 			// because if not we don't need to return the page token in the response.
 			if count == in.PageSize {
@@ -1112,7 +1112,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	var movedResources []MovedResource
 	err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			movedResources = append(movedResources, MovedResource{
 				NewIri:    stmt.ColumnText(0),
 				OldIri:    stmt.ColumnText(1),

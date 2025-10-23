@@ -98,7 +98,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 	var initialMovedResources map[string]string = make(map[string]string)
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetMovedBlocksByResourceID(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, qGetMovedBlocksByResourceID(), func(stmt *sqlite.Stmt) error {
 			isDeleted := stmt.ColumnInt(2) == 1
 			if !isDeleted {
 				initialMovedResources[stmt.ColumnText(0)] = stmt.ColumnText(1)
@@ -111,7 +111,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 	var initialIris []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.Exec(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qEntitiesLookupID(), func(stmt *sqlite.Stmt) error {
 			if stmt.ColumnInt64(0) == 0 {
 				return nil
 			}
@@ -214,7 +214,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
 	var refIDs, resources, genesisBlobIDs []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		err := sqlitex.Exec(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
+		err := sqlitex.ExecTransient(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
 			id := stmt.ColumnInt64(0)
 			eventType := stmt.ColumnText(1)
 			author := stmt.ColumnBytes(2)
@@ -266,7 +266,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var versions = map[int64]string{}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 
-		if err := sqlitex.Exec(conn, qGetChangesFromRefs(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qGetChangesFromRefs(), func(stmt *sqlite.Stmt) error {
 
 			mhBinary, err := hex.DecodeString(stmt.ColumnText(0))
 			if err != nil {
@@ -290,7 +290,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var latestVersions = map[string]string{}
 	resourcesJson := "[\"" + strings.Join(resources, "\",\"") + "\"]"
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		if err := sqlitex.Exec(conn, qGetLatestVersions(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qGetLatestVersions(), func(stmt *sqlite.Stmt) error {
 			resource := stmt.ColumnText(0)
 			if err := json.Unmarshal(stmt.ColumnBytes(1), &heads); err != nil {
 				return err
@@ -337,7 +337,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eids []string
 		irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
-		if err := sqlitex.Exec(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
+		if err := sqlitex.ExecTransient(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
 			eid := stmt.ColumnInt64(0)
 			if eid == 0 {
 				return nil
@@ -363,7 +363,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			queryStr += limitMentions
 			args = append(args, req.PageSize)
-			if err := sqlitex.Exec(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
+			if err := sqlitex.ExecTransient(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
 				var (
 					source     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
@@ -438,7 +438,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	var movedResources []entities.MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.ExecTransient(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
 			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
 				return err
@@ -569,7 +569,7 @@ JOIN blobs b      ON b.id = bl.target;
 `)
 
 var qEntitiesLookupID = dqb.Str(`
-	SELECT resources.id, 
+	SELECT resources.id,
 	resources.iri
 	FROM resources
 	JOIN document_generations dg ON dg.resource = resources.id
