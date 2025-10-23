@@ -3,6 +3,7 @@ export * from './client'
 export * from './interaction-summary'
 export * from './comments'
 export * from './content'
+export * from './document-to-text'
 export * from './editor-types'
 export * from './grpc-client'
 // @ts-expect-error - DeviceLinkSession naming conflict between modules

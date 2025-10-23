@@ -357,7 +357,6 @@ function _MainDocumentPage({
   const metadata = document?.metadata
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
-
   const isHomeDoc = !id.path?.length
   const isShowOutline =
     (typeof metadata?.showOutline == 'undefined' || metadata?.showOutline) &&
