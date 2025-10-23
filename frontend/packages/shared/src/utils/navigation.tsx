@@ -276,11 +276,17 @@ function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
   // Step 3: Clean up openComment and openBlockId if navigating to a different document
   if (resultAccessory?.key === 'discussions' && prevRoute) {
     const isNavigatingToDifferentDoc =
-      prevRoute.key === 'document' &&
-      nextRoute.key === 'document' &&
-      prevRoute.id.id !== nextRoute.id.id
+      prevRoute.key == 'document' &&
+      nextRoute.key == 'document' &&
+      prevRoute.id.id != nextRoute.id.id
 
-    if (isNavigatingToDifferentDoc) {
+    // If the next route explicitly has an openComment, keep discussions panel
+    const hasExplicitComment =
+      'accessory' in nextRoute &&
+      nextRoute.accessory?.key == 'discussions' &&
+      nextRoute.accessory?.openComment
+
+    if (isNavigatingToDifferentDoc && !hasExplicitComment) {
       // Remove openComment and openBlockId when switching documents - switch to activity
       resultAccessory = {
         key: 'activity',
