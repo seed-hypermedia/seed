@@ -61,17 +61,53 @@ export function getCommentGroups(
     group.moreCommentsCount = moreComments.size - 1
   })
 
-  // Sort groups by first comment's updateTime (newest first)
+  // Sort groups by latest activity (newest first)
   const sortedGroups = groups.sort((a, b) => {
-    const aTime =
-      a.comments[0]?.updateTime && typeof a.comments[0]?.updateTime == 'string'
-        ? new Date(a.comments[0]?.updateTime).getTime()
-        : 0
-    const bTime =
-      b.comments[0]?.updateTime && typeof b.comments[0]?.updateTime == 'string'
-        ? new Date(b.comments[0]?.updateTime).getTime()
-        : 1
-    return bTime - aTime // Newest first (descending order)
+    // Get the latest update time from all comments in group A
+    const aLatestTime = Math.max(
+      ...a.comments
+        .map((c) =>
+          c.updateTime && typeof c.updateTime === 'string'
+            ? new Date(c.updateTime).getTime()
+            : 0,
+        )
+        .filter((t) => t > 0),
+      0,
+    )
+
+    // Get the latest update time from all comments in group B
+    const bLatestTime = Math.max(
+      ...b.comments
+        .map((c) =>
+          c.updateTime && typeof c.updateTime === 'string'
+            ? new Date(c.updateTime).getTime()
+            : 0,
+        )
+        .filter((t) => t > 0),
+      0,
+    )
+
+    console.log('Comment group sorting:', {
+      groupA: {
+        id: a.id,
+        commentsCount: a.comments.length,
+        latestActivity: aLatestTime
+          ? new Date(aLatestTime).toISOString()
+          : 'none',
+        latestTimestamp: aLatestTime,
+      },
+      groupB: {
+        id: b.id,
+        commentsCount: b.comments.length,
+        latestActivity: bLatestTime
+          ? new Date(bLatestTime).toISOString()
+          : 'none',
+        latestTimestamp: bLatestTime,
+      },
+      result: bLatestTime - aLatestTime > 0 ? 'B first' : 'A first',
+    })
+
+    return bLatestTime - aLatestTime // Newest first (descending order)
   })
 
   return sortedGroups
