@@ -52,7 +52,15 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Sparkle} from 'lucide-react'
-import React, {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
@@ -74,8 +82,10 @@ import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
 
 // Lazy load components for better initial page load performance
-const Feed = lazy(() => import('@shm/ui/feed').then(m => ({default: m.Feed})))
-const WebDiscussionsPanel = lazy(() => import('./discussions-panel').then(m => ({default: m.WebDiscussionsPanel})))
+const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
+const WebDiscussionsPanel = lazy(() =>
+  import('./discussions-panel').then((m) => ({default: m.WebDiscussionsPanel})),
+)
 
 export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 
@@ -446,7 +456,13 @@ function InnerDocumentPage(
       // Show the discussions panel with focused comment or block
       panelTitle = tx('Thread')
       panel = (
-        <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center p-3">
+              <Spinner />
+            </div>
+          }
+        >
           <WebDiscussionsPanel
             commentEditor={commentEditor}
             blockId={activePanel.blockId}
@@ -468,7 +484,13 @@ function InnerDocumentPage(
     } else if (activePanel.type === 'activity') {
       // Show the activity feed
       panel = (
-        <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center p-3">
+              <Spinner />
+            </div>
+          }
+        >
           <Feed
             commentEditor={commentEditor}
             filterResource={id.id}
@@ -495,253 +517,326 @@ function InnerDocumentPage(
   const shouldInitializeActivity = activityEnabled
 
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Spinner /></div>}>
-      <ActivityProvider service={shouldInitializeActivity ? activityService : null}>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <Spinner />
+        </div>
+      }
+    >
+      <ActivityProvider
+        service={shouldInitializeActivity ? activityService : null}
+      >
         <CommentsProvider
           service={shouldInitializeActivity ? commentsService : null}
           onReplyClick={onReplyClick}
           onReplyCountClick={onReplyCountClick}
         >
           <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
-          <WebSiteHeader
-            hideSiteBarClassName={hideSiteBarClassName}
-            noScroll={!!panel}
-            homeMetadata={homeMetadata}
-            originHomeId={originHomeId}
-            docId={id}
-            document={document}
-            supportDocuments={supportDocuments}
-            supportQueries={supportQueries}
-            origin={origin}
-            isLatest={isLatest}
-            handleToggleFeed={handleToggleFeed}
-          />
-          <WebDocContentProvider
-            siteHost={siteHost}
-            originHomeId={originHomeId}
-            comment
-            textUnit={14}
-            layoutUnit={16}
-          >
-            <PanelGroup
-              direction="horizontal"
-              autoSaveId="web-document"
-              className="dark:bg-background flex flex-1 overflow-hidden bg-white"
+            <WebSiteHeader
+              hideSiteBarClassName={hideSiteBarClassName}
+              noScroll={!!panel}
+              homeMetadata={homeMetadata}
+              originHomeId={originHomeId}
+              docId={id}
+              document={document}
+              supportDocuments={supportDocuments}
+              supportQueries={supportQueries}
+              origin={origin}
+              isLatest={isLatest}
+              handleToggleFeed={handleToggleFeed}
+            />
+            <WebDocContentProvider
+              siteHost={siteHost}
+              originHomeId={originHomeId}
+              comment
+              textUnit={14}
+              layoutUnit={16}
             >
-              <Panel
-                ref={mainPanelRef}
-                collapsible
-                id="main-panel"
-                className="h-full"
+              <PanelGroup
+                direction="horizontal"
+                autoSaveId="web-document"
+                className="dark:bg-background flex flex-1 overflow-hidden bg-white"
               >
-                <div className="relative flex h-full flex-col" ref={elementRef}>
-                  {media.gtSm ? (
-                    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
-                      {!activePanel &&
-                      activityEnabled &&
-                      interactionSummary.data ? (
-                        <>{activitySummary}</>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
-                    <ScrollArea ref={mainScrollRef} onScroll={onScroll}>
-                      {feed ? (
-                        <div
-                          {...wrapperProps}
-                          className={cn(
-                            wrapperProps.className,
-                            'flex pt-[var(--site-header-h)]',
-                          )}
-                        >
-                          {showSidebars ? (
-                            <div
-                              {...sidebarProps}
-                              className={`${
-                                sidebarProps.className || ''
-                              } flex flex-col`}
-                            />
-                          ) : null}
-                          <Container
-                            clearVerticalSpace
-                            {...mainContentProps}
+                <Panel
+                  ref={mainPanelRef}
+                  collapsible
+                  id="main-panel"
+                  className="h-full"
+                >
+                  <div
+                    className="relative flex h-full flex-col"
+                    ref={elementRef}
+                  >
+                    {media.gtSm ? (
+                      <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
+                        {!activePanel &&
+                        activityEnabled &&
+                        interactionSummary.data ? (
+                          <>{activitySummary}</>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
+                      <ScrollArea ref={mainScrollRef} onScroll={onScroll}>
+                        {feed ? (
+                          <div
+                            {...wrapperProps}
                             className={cn(
-                              mainContentProps.className,
-                              'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                              wrapperProps.className,
+                              'flex pt-[var(--site-header-h)]',
                             )}
                           >
-                            <Text weight="bold" size="3xl">
-                              What's New
-                            </Text>
-                            <Separator />
-
-                            <Suspense fallback={<div className="flex items-center justify-center p-3"><Spinner /></div>}>
-                              <Feed
-                                commentEditor={<WebCommenting docId={id} />}
-                                filterResource={`${id.id}*`}
-                                currentAccount={currentAccount.data?.id.uid}
+                            {showSidebars ? (
+                              <div
+                                {...sidebarProps}
+                                className={`${
+                                  sidebarProps.className || ''
+                                } flex flex-col`}
                               />
-                            </Suspense>
-                          </Container>
-                          {showSidebars ? (
-                            <div
-                              {...sidebarProps}
-                              className={`${
-                                sidebarProps.className || ''
-                              } flex flex-col`}
-                            />
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
-                          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                            <DocumentCover cover={document.metadata.cover} />
-
-                            <div
-                              {...wrapperProps}
+                            ) : null}
+                            <Container
+                              clearVerticalSpace
+                              {...mainContentProps}
                               className={cn(
-                                'flex flex-1',
-                                wrapperProps.className,
+                                mainContentProps.className,
+                                'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
                               )}
                             >
-                              {showSidebars ? (
-                                <div
-                                  className={cn(
-                                    sidebarProps.className,
-                                    'hide-scrollbar overflow-y-scroll pb-6',
-                                  )}
-                                  style={{
-                                    ...sidebarProps.style,
-                                    marginTop: document.metadata?.cover
-                                      ? 152
-                                      : 220,
-                                  }}
-                                >
-                                  <div className="hide-scrollbar h-full overflow-scroll pb-6">
-                                    <WebDocumentOutline
-                                      showCollapsed={showCollapsed}
-                                      supportDocuments={props.supportDocuments}
-                                      onActivateBlock={onActivateBlock}
-                                      id={id}
-                                      document={document}
-                                    />
+                              <Text weight="bold" size="3xl">
+                                What's New
+                              </Text>
+                              <Separator />
+
+                              <Suspense
+                                fallback={
+                                  <div className="flex items-center justify-center p-3">
+                                    <Spinner />
                                   </div>
-                                </div>
-                              ) : null}
-                              <div {...mainContentProps}>
-                                {isHomeDoc ? null : (
-                                  <PageHeader
-                                    originHomeId={originHomeId}
-                                    breadcrumbs={props.breadcrumbs}
-                                    docMetadata={document.metadata}
-                                    docId={id}
-                                    // @ts-expect-error
-                                    authors={document.authors.map(
-                                      (author) => accountsMetadata[author],
-                                    )}
-                                    updateTime={document.updateTime}
-                                  />
-                                )}
-                                <WebDocContentProvider
-                                  // @ts-expect-error
-                                  onBlockCitationClick={
-                                    activityEnabled
-                                      ? onBlockCitationClick
-                                      : undefined
-                                  }
-                                  onBlockCommentClick={
-                                    activityEnabled
-                                      ? onBlockCommentClick
-                                      : undefined
-                                  }
-                                  originHomeId={originHomeId}
-                                  id={{...id, version: document.version}}
-                                  siteHost={siteHost}
-                                  supportDocuments={supportDocuments}
-                                  supportQueries={supportQueries}
-                                  blockCitations={
-                                    interactionSummary.data?.blocks
-                                  }
-                                  routeParams={{
-                                    uid: id.uid,
-                                    version: id.version || undefined,
-                                    blockRef: blockRef,
-                                    blockRange: blockRange,
-                                  }}
-                                >
-                                  <DocContent
-                                    document={document}
-                                    handleBlockReplace={() => {
-                                      // setDocumentPanel(null)
-                                      return true
-                                      // const route = {
-                                      //   key: 'document',
-                                      //   id: {
-                                      //     uid: id.uid,
-                                      //     path: id.path,
-                                      //     version: id.version,
-                                      //     blockRef: id.blockRef,
-                                      //     blockRange: id.blockRange,
-                                      //   },
-                                      // } as NavRoute
-                                      // const href = routeToHref(route, context)
-                                      // if (!href) return false
-                                      // replace(href, {
-                                      //   replace: true,
-                                      //   preventScrollReset: true,
-                                      // })
-                                      // return true
-                                    }}
-                                  />
-                                </WebDocContentProvider>
-                              </div>
-                              {showSidebars ? (
-                                <div
-                                  className={cn(sidebarProps.className)}
-                                  style={sidebarProps.style}
+                                }
+                              >
+                                <Feed
+                                  commentEditor={<WebCommenting docId={id} />}
+                                  filterResource={`${id.id}*`}
+                                  currentAccount={currentAccount.data?.id.uid}
                                 />
-                              ) : null}
+                              </Suspense>
+                            </Container>
+                            {showSidebars ? (
+                              <div
+                                {...sidebarProps}
+                                className={`${
+                                  sidebarProps.className || ''
+                                } flex flex-col`}
+                              />
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
+                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                              <DocumentCover cover={document.metadata.cover} />
+
+                              <div
+                                {...wrapperProps}
+                                className={cn(
+                                  'flex flex-1',
+                                  wrapperProps.className,
+                                )}
+                              >
+                                {showSidebars ? (
+                                  <div
+                                    className={cn(
+                                      sidebarProps.className,
+                                      'hide-scrollbar overflow-y-scroll pb-6',
+                                    )}
+                                    style={{
+                                      ...sidebarProps.style,
+                                      marginTop: document.metadata?.cover
+                                        ? 152
+                                        : 220,
+                                    }}
+                                  >
+                                    <div className="hide-scrollbar h-full overflow-scroll pb-6">
+                                      <WebDocumentOutline
+                                        showCollapsed={showCollapsed}
+                                        supportDocuments={
+                                          props.supportDocuments
+                                        }
+                                        onActivateBlock={onActivateBlock}
+                                        id={id}
+                                        document={document}
+                                      />
+                                    </div>
+                                  </div>
+                                ) : null}
+                                <div {...mainContentProps}>
+                                  {isHomeDoc ? null : (
+                                    <PageHeader
+                                      originHomeId={originHomeId}
+                                      breadcrumbs={props.breadcrumbs}
+                                      docMetadata={document.metadata}
+                                      docId={id}
+                                      // @ts-expect-error
+                                      authors={document.authors.map(
+                                        (author) => accountsMetadata[author],
+                                      )}
+                                      updateTime={document.updateTime}
+                                    />
+                                  )}
+                                  <WebDocContentProvider
+                                    // @ts-expect-error
+                                    onBlockCitationClick={
+                                      activityEnabled
+                                        ? onBlockCitationClick
+                                        : undefined
+                                    }
+                                    onBlockCommentClick={
+                                      activityEnabled
+                                        ? onBlockCommentClick
+                                        : undefined
+                                    }
+                                    originHomeId={originHomeId}
+                                    id={{...id, version: document.version}}
+                                    siteHost={siteHost}
+                                    supportDocuments={supportDocuments}
+                                    supportQueries={supportQueries}
+                                    blockCitations={
+                                      interactionSummary.data?.blocks
+                                    }
+                                    routeParams={{
+                                      uid: id.uid,
+                                      version: id.version || undefined,
+                                      blockRef: blockRef,
+                                      blockRange: blockRange,
+                                    }}
+                                  >
+                                    <DocContent
+                                      document={document}
+                                      handleBlockReplace={() => {
+                                        // setDocumentPanel(null)
+                                        return true
+                                        // const route = {
+                                        //   key: 'document',
+                                        //   id: {
+                                        //     uid: id.uid,
+                                        //     path: id.path,
+                                        //     version: id.version,
+                                        //     blockRef: id.blockRef,
+                                        //     blockRange: id.blockRange,
+                                        //   },
+                                        // } as NavRoute
+                                        // const href = routeToHref(route, context)
+                                        // if (!href) return false
+                                        // replace(href, {
+                                        //   replace: true,
+                                        //   preventScrollReset: true,
+                                        // })
+                                        // return true
+                                      }}
+                                    />
+                                  </WebDocContentProvider>
+                                </div>
+                                {showSidebars ? (
+                                  <div
+                                    className={cn(sidebarProps.className)}
+                                    style={sidebarProps.style}
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
+                              <PageFooter id={id} />
                             </div>
                           </div>
-                          <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
-                            <PageFooter id={id} />
-                          </div>
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </div>
-                </div>
-              </Panel>
-              {!media.gtSm ? null : panel ? (
-                <>
-                  <PanelResizeHandle className="panel-resize-handle" />
-                  <Panel
-                    defaultSize={
-                      media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
-                    }
-                    maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
-                    minSize={media.gtSm ? 20 : 100}
-                    className="border-sidebar-border flex h-full flex-1 flex-col border-l"
-                  >
-                    <div className="dark:bg-background border-border flex items-center border-b bg-white p-3">
-                      <Text weight="bold" size="md" className="flex-1">
-                        {panelTitle}
-                      </Text>
-                      <Tooltip content={tx('Close')}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="flex-none"
-                          onClick={() => {
-                            setDocumentPanel(null)
-                          }}
-                        >
-                          <Close className="size-4" />
-                        </Button>
-                      </Tooltip>
+                        )}
+                      </ScrollArea>
                     </div>
-                    <div className="flex-1 overflow-hidden">
+                  </div>
+                </Panel>
+                {!media.gtSm ? null : panel ? (
+                  <>
+                    <PanelResizeHandle className="panel-resize-handle" />
+                    <Panel
+                      defaultSize={
+                        media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
+                      }
+                      maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                      minSize={media.gtSm ? 20 : 100}
+                      className="border-sidebar-border flex h-full flex-1 flex-col border-l"
+                    >
+                      <div className="dark:bg-background border-border flex items-center border-b bg-white p-3">
+                        <Text weight="bold" size="md" className="flex-1">
+                          {panelTitle}
+                        </Text>
+                        <Tooltip content={tx('Close')}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="flex-none"
+                            onClick={() => {
+                              setDocumentPanel(null)
+                            }}
+                          >
+                            <Close className="size-4" />
+                          </Button>
+                        </Tooltip>
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <ScrollArea
+                          ref={
+                            activePanel?.type === 'activity'
+                              ? activityFeedScrollRef
+                              : activePanel?.type === 'discussions'
+                              ? discussionsPanelScrollRef
+                              : undefined
+                          }
+                        >
+                          {panel}
+                        </ScrollArea>
+                      </div>
+                    </Panel>
+                  </>
+                ) : null}
+              </PanelGroup>
+
+              {media.gtSm || !activityEnabled ? null : (
+                <>
+                  <MobileInteractionCardCollapsed
+                    onClick={() => {
+                      setDocumentPanel({type: 'activity'})
+                      // setMobilePanelOpen(true)
+                    }}
+                    commentsCount={interactionSummary.data?.comments || 0}
+                    handleToggleFeed={handleToggleFeed}
+                    isFeedActive={isFeedActive}
+                  />
+
+                  <div
+                    className={cn(
+                      'bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
+                      isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
+                    )}
+                  >
+                    {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
+                    <div className="relative flex items-center p-3">
+                      <div className="flex-1 items-center justify-center">
+                        {activitySummary}
+                      </div>
+                      <Button
+                        size="icon"
+                        onClick={() => setMobilePanelOpen(false)}
+                        className="flex-0 shrink-0 grow-0"
+                      >
+                        <Close className="size-4" />
+                      </Button>
+                    </div>
+                    <div className="border-border border-b px-5 py-2 text-left">
+                      <Text weight="semibold">{panelTitle}</Text>
+                    </div>
+
+                    <div className="flex flex-1 flex-col overflow-hidden">
                       <ScrollArea
+                        onScroll={onScroll}
                         ref={
                           activePanel?.type === 'activity'
                             ? activityFeedScrollRef
@@ -753,65 +848,11 @@ function InnerDocumentPage(
                         {panel}
                       </ScrollArea>
                     </div>
-                  </Panel>
+                  </div>
                 </>
-              ) : null}
-            </PanelGroup>
-
-            {media.gtSm || !activityEnabled ? null : (
-              <>
-                <MobileInteractionCardCollapsed
-                  onClick={() => {
-                    setDocumentPanel({type: 'activity'})
-                    // setMobilePanelOpen(true)
-                  }}
-                  commentsCount={interactionSummary.data?.comments || 0}
-                  handleToggleFeed={handleToggleFeed}
-                  isFeedActive={isFeedActive}
-                />
-
-                <div
-                  className={cn(
-                    'bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
-                    isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
-                  )}
-                >
-                  {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
-                  <div className="relative flex items-center p-3">
-                    <div className="flex-1 items-center justify-center">
-                      {activitySummary}
-                    </div>
-                    <Button
-                      size="icon"
-                      onClick={() => setMobilePanelOpen(false)}
-                      className="flex-0 shrink-0 grow-0"
-                    >
-                      <Close className="size-4" />
-                    </Button>
-                  </div>
-                  <div className="border-border border-b px-5 py-2 text-left">
-                    <Text weight="semibold">{panelTitle}</Text>
-                  </div>
-
-                  <div className="flex flex-1 flex-col overflow-hidden">
-                    <ScrollArea
-                      onScroll={onScroll}
-                      ref={
-                        activePanel?.type === 'activity'
-                          ? activityFeedScrollRef
-                          : activePanel?.type === 'discussions'
-                          ? discussionsPanelScrollRef
-                          : undefined
-                      }
-                    >
-                      {panel}
-                    </ScrollArea>
-                  </div>
-                </div>
-              </>
-            )}
-          </WebDocContentProvider>
-        </div>
+              )}
+            </WebDocContentProvider>
+          </div>
         </CommentsProvider>
       </ActivityProvider>
     </Suspense>
