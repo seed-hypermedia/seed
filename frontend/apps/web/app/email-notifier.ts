@@ -14,7 +14,11 @@ import {
   HMMetadataPayload,
   unpackHmId,
 } from '@shm/shared'
-import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
+import {
+  DAEMON_HTTP_URL,
+  ENABLE_EMAIL_NOTIFICATIONS,
+  SITE_BASE_URL,
+} from '@shm/shared/constants'
 // import {CID} from 'multiformats/cid'
 import {grpcClient} from './client.server'
 import {
@@ -36,7 +40,7 @@ const emailBatchNotifIntervalHours = 4
 const emailBatchNotifIntervalSeconds = emailBatchNotifIntervalHours * 60 * 60
 // const emailBatchNotifIntervalSeconds = 120 // 2 minutes for testing
 
-const handleEmailNotificationsIntervalSeconds = 15
+const handleEmailNotificationsIntervalSeconds = 30
 
 type NotifReason = 'mention' | 'reply' | 'site-content'
 
@@ -44,7 +48,12 @@ const notifReasonsImmediate = new Set<NotifReason>(['mention', 'reply'])
 const notifReasonsBatch = new Set<NotifReason>(['site-content'])
 
 export async function initEmailNotifier() {
-  console.log('Email Notifications Enabled')
+  if (!ENABLE_EMAIL_NOTIFICATIONS) {
+    console.log('Email Notifications DISABLED')
+    return
+  }
+
+  console.log('Email Notifications ENABLED')
 
   currentNotifProcessing = handleEmailNotifications()
   await currentNotifProcessing
@@ -113,10 +122,11 @@ async function handleEmailNotifications() {
   if (lastProcessedBlobCid) {
     await handleImmediateNotificationsAfterBlobCid(lastProcessedBlobCid)
   } else {
+    console.log(
+      'No last processed blob CID found. Resetting last processed blob CID',
+    )
     await resetNotifierLastProcessedBlobCid()
   }
-
-  const newLastProcessedBlobCid = getNotifierLastProcessedBlobCid()
 }
 
 async function getLastEventBlobCid(): Promise<string | undefined> {
@@ -142,6 +152,7 @@ async function sendBatchNotifications(lastProcessedBlobCid: string) {
 
 async function resetNotifierLastProcessedBlobCid() {
   const lastBlobCid = await getLastEventBlobCid()
+  console.log('Resetting notifier last processed blob CID to', lastBlobCid)
   if (!lastBlobCid) return
   setNotifierLastProcessedBlobCid(lastBlobCid)
 }

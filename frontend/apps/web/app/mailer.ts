@@ -1,5 +1,4 @@
 import {
-  ENABLE_EMAIL_NOTIFICATIONS,
   NOTIFY_SENDER,
   NOTIFY_SMTP_HOST,
   NOTIFY_SMTP_PASSWORD,
@@ -9,10 +8,7 @@ import {
 import nodemailer from 'nodemailer'
 
 const transporter =
-  ENABLE_EMAIL_NOTIFICATIONS &&
-  NOTIFY_SMTP_HOST &&
-  NOTIFY_SMTP_USER &&
-  NOTIFY_SMTP_PASSWORD
+  NOTIFY_SMTP_HOST && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD
     ? nodemailer.createTransport({
         host: NOTIFY_SMTP_HOST as string,
         port: NOTIFY_SMTP_PORT ? parseInt(NOTIFY_SMTP_PORT, 10) : 587,
@@ -31,7 +27,9 @@ export async function sendEmail(
   senderLabel?: string,
 ) {
   if (!transporter) {
-    console.error('Email notifier is not enabled')
+    console.error(
+      `Email notifier is not enabled. Failed to send email to ${to} with subject ${subject}`,
+    )
     return
   }
   console.log(`Sending email to ${to} with subject ${subject}`)

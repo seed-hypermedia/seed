@@ -27,7 +27,9 @@ export async function sendEmail(
   senderLabel?: string,
 ) {
   if (!transporter) {
-    console.error('Email notifier is not enabled')
+    console.error(
+      `Email notifier is not enabled. Failed to send email to ${to} with subject ${subject}`,
+    )
     return
   }
   console.log(`Sending email to ${to} with subject ${subject}`)

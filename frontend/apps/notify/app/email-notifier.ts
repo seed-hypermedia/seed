@@ -113,10 +113,11 @@ async function handleEmailNotifications() {
   if (lastProcessedBlobCid) {
     await handleImmediateNotificationsAfterBlobCid(lastProcessedBlobCid)
   } else {
+    console.log(
+      'No last processed blob CID found. Resetting last processed blob CID',
+    )
     await resetNotifierLastProcessedBlobCid()
   }
-
-  const newLastProcessedBlobCid = getNotifierLastProcessedBlobCid()
 }
 
 async function getLastEventBlobCid(): Promise<string | undefined> {
@@ -142,6 +143,7 @@ async function sendBatchNotifications(lastProcessedBlobCid: string) {
 
 async function resetNotifierLastProcessedBlobCid() {
   const lastBlobCid = await getLastEventBlobCid()
+  console.log('Resetting notifier last processed blob CID to', lastBlobCid)
   if (!lastBlobCid) return
   setNotifierLastProcessedBlobCid(lastBlobCid)
 }
