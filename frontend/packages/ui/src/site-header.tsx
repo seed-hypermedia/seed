@@ -521,8 +521,7 @@ export function SiteHeaderMenu({
         )}
         onClick={handleToggleFeed}
         onMouseEnter={() => {
-          // Prefetch the feed component when user hovers
-          import('@shm/ui/feed').catch(() => {})
+          import('./feed').catch(() => {})
         }}
       >
         <Sparkle
