@@ -28,6 +28,7 @@ export const loader = async ({request}: {request: Request}) => {
     searchQuery,
     // @ts-expect-error
     entities: result.entities
+      .filter((entity) => entity.type !== 'contact') // Filter out contacts on web
       .map((entity) => {
         const id = unpackHmId(entity.id)
         return (
@@ -38,7 +39,7 @@ export const loader = async ({request}: {request: Request}) => {
             parentNames: entity.parentNames,
             versionTime: entity.versionTime,
             searchQuery: searchQuery,
-            type: entity.type === 'contact' ? 'contact' : 'document',
+            type: 'document',
           }
         )
       })
