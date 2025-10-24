@@ -87,26 +87,6 @@ export function getCommentGroups(
       0,
     )
 
-    console.log('Comment group sorting:', {
-      groupA: {
-        id: a.id,
-        commentsCount: a.comments.length,
-        latestActivity: aLatestTime
-          ? new Date(aLatestTime).toISOString()
-          : 'none',
-        latestTimestamp: aLatestTime,
-      },
-      groupB: {
-        id: b.id,
-        commentsCount: b.comments.length,
-        latestActivity: bLatestTime
-          ? new Date(bLatestTime).toISOString()
-          : 'none',
-        latestTimestamp: bLatestTime,
-      },
-      result: bLatestTime - aLatestTime > 0 ? 'B first' : 'A first',
-    })
-
     return bLatestTime - aLatestTime // Newest first (descending order)
   })
 

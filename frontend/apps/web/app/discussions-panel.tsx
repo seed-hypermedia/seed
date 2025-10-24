@@ -46,6 +46,8 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
             originHomeId={homeId}
             siteHost={siteHost}
             comment
+            textUnit={14}
+            layoutUnit={16}
           >
             <BlocksContent
               hideCollapseButtons
@@ -65,7 +67,12 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       blockRef: blockId,
     })
     return (
-      <WebDocContentProvider originHomeId={homeId} siteHost={siteHost}>
+      <WebDocContentProvider
+        originHomeId={homeId}
+        siteHost={siteHost}
+        textUnit={14}
+        layoutUnit={16}
+      >
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
@@ -79,25 +86,35 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
   if (comment) {
     return (
-      <CommentDiscussions
-        onBack={handleBack}
-        commentId={comment.id}
-        commentEditor={commentEditor}
-        targetId={props.docId}
-        renderCommentContent={renderCommentContent}
-        targetDomain={targetDomain}
-      />
+      <WebDocContentProvider
+        originHomeId={homeId}
+        siteHost={siteHost}
+        textUnit={14}
+      >
+        <CommentDiscussions
+          onBack={handleBack}
+          commentId={comment.id}
+          commentEditor={commentEditor}
+          targetId={props.docId}
+          renderCommentContent={renderCommentContent}
+          targetDomain={targetDomain}
+        />
+      </WebDocContentProvider>
     )
   }
 
   return (
-    <>
+    <WebDocContentProvider
+      originHomeId={homeId}
+      siteHost={siteHost}
+      textUnit={14}
+    >
       <Discussions
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
       />
-    </>
+    </WebDocContentProvider>
   )
 }
