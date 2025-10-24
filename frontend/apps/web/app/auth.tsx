@@ -18,6 +18,7 @@ import {FormInput} from '@shm/ui/form-input'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {LogOut, Megaphone, Monitor, Pencil, Smartphone} from 'lucide-react'
@@ -54,7 +55,6 @@ import {
 } from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
-import {toast} from '@shm/ui/toast'
 
 injectModels()
 
@@ -336,7 +336,10 @@ function CreateAccountDialog({
         )}
       </DialogDescription>
       <EditProfileForm
-        onSubmit={onSubmit}
+        onSubmit={(values) => {
+          onClose()
+          onSubmit(values)
+        }}
         submitLabel={tx(
           'create_account_submit',
           ({siteName}: {siteName: string}) => `Create ${siteName} Account`,
