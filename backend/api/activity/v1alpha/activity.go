@@ -203,7 +203,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if req.PageSize <= 0 {
 		req.PageSize = 30
 	}
-	var getEventsStr = fmt.Sprintf(`
+	var getEventsStr = strings.TrimSpace(fmt.Sprintf(`
 		%s
 		%s
 		%s
@@ -211,7 +211,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		%s
 		%s
 		WHERE %s %s;
-	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
+	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr))
 	var refIDs, resources, genesisBlobIDs []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		err := sqlitex.ExecTransient(conn, getEventsStr, func(stmt *sqlite.Stmt) error {
@@ -363,6 +363,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			queryStr += limitMentions
 			args = append(args, req.PageSize)
+			queryStr = strings.TrimSpace(queryStr)
 			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
 				var (
 					source     = stmt.ColumnText(0)
