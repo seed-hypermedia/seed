@@ -214,7 +214,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	`, selectStr, tableStr, joinIDStr, joinpkStr, joinLinksStr, leftjoinResourcesStr, filtersStr, pageTokenStr)
 	var refIDs, resources, genesisBlobIDs []string
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		err := sqlitex.ExecTransient(conn, dqb.Str(getEventsStr)(), func(stmt *sqlite.Stmt) error {
+		err := sqlitex.ExecTransient(conn, getEventsStr, func(stmt *sqlite.Stmt) error {
 			id := stmt.ColumnInt64(0)
 			eventType := stmt.ColumnText(1)
 			author := stmt.ColumnBytes(2)
@@ -363,7 +363,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 			queryStr += limitMentions
 			args = append(args, req.PageSize)
-			if err := sqlitex.ExecTransient(conn, dqb.Str(queryStr)(), func(stmt *sqlite.Stmt) error {
+			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
 				var (
 					source     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
