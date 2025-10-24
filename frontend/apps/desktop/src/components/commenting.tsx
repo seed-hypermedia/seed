@@ -4,6 +4,12 @@ import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
+import {
+  chromiumSupportedImageMimeTypes,
+  chromiumSupportedVideoMimeTypes,
+  generateBlockId,
+  handleDragMedia,
+} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {queryClient, queryKeys} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -261,6 +267,7 @@ function _CommentDraftEditor({
   context?: 'accessory' | 'feed' | 'document-content'
 }) {
   const [isHorizontal, setIsHorizontal] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const sizeObserverdRef = useSizeObserver((rect) => {
     setIsHorizontal(rect.width > 322)
   })
@@ -279,10 +286,80 @@ function _CommentDraftEditor({
 
   if (!account) return null
 
+  function onDrop(event: React.DragEvent) {
+    if (!isDragging) return
+    const dataTransfer = event.dataTransfer
+
+    if (dataTransfer?.files && dataTransfer.files.length > 0) {
+      event.preventDefault()
+
+      // Iterate through all dropped files
+      const files = Array.from(dataTransfer.files)
+
+      // Get the current block ID where files should be inserted
+      const currentBlock = editor.getTextCursorPosition().block
+      let lastInsertedBlockId = currentBlock.id
+
+      // Process files sequentially to maintain order
+      files.reduce((promise, file) => {
+        return promise.then(async () => {
+          try {
+            const props = await handleDragMedia(file)
+            if (!props) return
+
+            let blockType: string
+            if (chromiumSupportedImageMimeTypes.has(file.type)) {
+              blockType = 'image'
+            } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+              blockType = 'video'
+            } else {
+              blockType = 'file'
+            }
+
+            const newBlockId = generateBlockId()
+            const mediaBlock = {
+              id: newBlockId,
+              type: blockType,
+              props: {
+                url: props.url,
+                name: props.name,
+                ...(blockType === 'file' ? {size: props.size} : {}),
+              },
+              content: [],
+              children: [],
+            }
+
+            // Insert after the last inserted block (or current block for first file)
+            editor.insertBlocks([mediaBlock], lastInsertedBlockId, 'after')
+
+            // Update the last inserted block ID for next iteration
+            lastInsertedBlockId = newBlockId
+          } catch (error) {
+            console.error('Failed to upload file:', file.name, error)
+          }
+        })
+      }, Promise.resolve())
+
+      setIsDragging(false)
+      return
+    }
+  }
+
   return (
     <div
       ref={sizeObserverdRef}
       className="comment-editor ring-px ring-border mt-1 flex flex-1 flex-col gap-2 px-4 ring"
+      onDragStart={() => {
+        setIsDragging(true)
+      }}
+      onDragEnd={() => {
+        setIsDragging(false)
+      }}
+      onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsDragging(true)
+      }}
+      onDrop={onDrop}
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement
 
