@@ -147,8 +147,8 @@ function InnerDocumentPage(
     feed,
   } = props
 
-  const mainScrollRef = useScrollRestoration('main-document-scroll')
-  const mobileScrollRef = useScrollRestoration('mobile-panel-scroll')
+  const mainScrollRef = useScrollRestoration('main-document-scroll', true)
+  const mobileScrollRef = useScrollRestoration('mobile-panel-scroll', true)
   const activityFeedScrollRef = useScrollRestoration('activity-feed-scroll')
   const discussionsPanelScrollRef = useScrollRestoration(
     'discussions-panel-scroll',
@@ -159,6 +159,17 @@ function InnerDocumentPage(
   const currentAccount = useAccount(keyPair?.id || undefined)
 
   const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
+
+  // Attach onScroll handler to main scroll container
+  useEffect(() => {
+    const container = mainScrollRef.current
+    if (!container) return
+
+    container.addEventListener('scroll', onScroll, {passive: true})
+    return () => {
+      container.removeEventListener('scroll', onScroll)
+    }
+  }, [onScroll])
 
   const [searchParams, setSearchParams] = useSearchParams()
   const isFeedActive = useMemo(() => {
@@ -577,179 +588,174 @@ function InnerDocumentPage(
                         ) : null}
                       </div>
                     ) : null}
-                    <div className="flex h-full min-h-full flex-1 flex-col overflow-hidden">
-                      <ScrollArea ref={mainScrollRef} onScroll={onScroll}>
-                        {feed ? (
+                    <div
+                      className="flex flex-1 flex-col overflow-y-auto"
+                      ref={mainScrollRef}
+                    >
+                      {feed ? (
+                        <div
+                          {...wrapperProps}
+                          className={cn(
+                            wrapperProps.className,
+                            'flex pt-[var(--site-header-h)]',
+                          )}
+                        >
+                          {showSidebars ? (
+                            <div
+                              {...sidebarProps}
+                              className={`${
+                                sidebarProps.className || ''
+                              } flex flex-col`}
+                            />
+                          ) : null}
+                          <Container
+                            clearVerticalSpace
+                            {...mainContentProps}
+                            className={cn(
+                              mainContentProps.className,
+                              'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                            )}
+                          >
+                            <Text weight="bold" size="3xl">
+                              What's New
+                            </Text>
+                            <Separator />
+
+                            <Suspense
+                              fallback={
+                                <div className="flex items-center justify-center p-3">
+                                  <Spinner />
+                                </div>
+                              }
+                            >
+                              <Feed
+                                commentEditor={<WebCommenting docId={id} />}
+                                filterResource={`${id.id}*`}
+                                currentAccount={currentAccount.data?.id.uid}
+                              />
+                            </Suspense>
+                          </Container>
+                          {showSidebars ? (
+                            <div
+                              {...sidebarProps}
+                              className={`${
+                                sidebarProps.className || ''
+                              } flex flex-col`}
+                            />
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
+                          <DocumentCover cover={document.metadata.cover} />
+
                           <div
                             {...wrapperProps}
                             className={cn(
+                              'flex flex-1',
                               wrapperProps.className,
-                              'flex pt-[var(--site-header-h)]',
                             )}
                           >
                             {showSidebars ? (
                               <div
-                                {...sidebarProps}
-                                className={`${
-                                  sidebarProps.className || ''
-                                } flex flex-col`}
-                              />
-                            ) : null}
-                            <Container
-                              clearVerticalSpace
-                              {...mainContentProps}
-                              className={cn(
-                                mainContentProps.className,
-                                'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
-                              )}
-                            >
-                              <Text weight="bold" size="3xl">
-                                What's New
-                              </Text>
-                              <Separator />
-
-                              <Suspense
-                                fallback={
-                                  <div className="flex items-center justify-center p-3">
-                                    <Spinner />
-                                  </div>
-                                }
+                                className={cn(
+                                  sidebarProps.className,
+                                  'hide-scrollbar overflow-y-scroll pb-6',
+                                )}
+                                style={{
+                                  ...sidebarProps.style,
+                                  marginTop: document.metadata?.cover
+                                    ? 152
+                                    : 220,
+                                }}
                               >
-                                <Feed
-                                  commentEditor={<WebCommenting docId={id} />}
-                                  filterResource={`${id.id}*`}
-                                  currentAccount={currentAccount.data?.id.uid}
+                                <div className="hide-scrollbar overflow-scroll pb-6">
+                                  <WebDocumentOutline
+                                    showCollapsed={showCollapsed}
+                                    supportDocuments={props.supportDocuments}
+                                    onActivateBlock={onActivateBlock}
+                                    id={id}
+                                    document={document}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+                            <div {...mainContentProps}>
+                              {isHomeDoc ? null : (
+                                <PageHeader
+                                  originHomeId={originHomeId}
+                                  breadcrumbs={props.breadcrumbs}
+                                  docMetadata={document.metadata}
+                                  docId={id}
+                                  // @ts-expect-error
+                                  authors={document.authors.map(
+                                    (author) => accountsMetadata[author],
+                                  )}
+                                  updateTime={document.updateTime}
                                 />
-                              </Suspense>
-                            </Container>
+                              )}
+                              <WebDocContentProvider
+                                // @ts-expect-error
+                                onBlockCitationClick={
+                                  activityEnabled
+                                    ? onBlockCitationClick
+                                    : undefined
+                                }
+                                onBlockCommentClick={
+                                  activityEnabled
+                                    ? onBlockCommentClick
+                                    : undefined
+                                }
+                                originHomeId={originHomeId}
+                                id={{...id, version: document.version}}
+                                siteHost={siteHost}
+                                supportDocuments={supportDocuments}
+                                supportQueries={supportQueries}
+                                blockCitations={interactionSummary.data?.blocks}
+                                routeParams={{
+                                  uid: id.uid,
+                                  version: id.version || undefined,
+                                  blockRef: blockRef,
+                                  blockRange: blockRange,
+                                }}
+                              >
+                                <DocContent
+                                  document={document}
+                                  handleBlockReplace={() => {
+                                    // setDocumentPanel(null)
+                                    return true
+                                    // const route = {
+                                    //   key: 'document',
+                                    //   id: {
+                                    //     uid: id.uid,
+                                    //     path: id.path,
+                                    //     version: id.version,
+                                    //     blockRef: id.blockRef,
+                                    //     blockRange: id.blockRange,
+                                    //   },
+                                    // } as NavRoute
+                                    // const href = routeToHref(route, context)
+                                    // if (!href) return false
+                                    // replace(href, {
+                                    //   replace: true,
+                                    //   preventScrollReset: true,
+                                    // })
+                                    // return true
+                                  }}
+                                />
+                              </WebDocContentProvider>
+                            </div>
                             {showSidebars ? (
                               <div
-                                {...sidebarProps}
-                                className={`${
-                                  sidebarProps.className || ''
-                                } flex flex-col`}
+                                className={cn(sidebarProps.className)}
+                                style={sidebarProps.style}
                               />
                             ) : null}
                           </div>
-                        ) : (
-                          <div className="flex h-auto min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
-                            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                              <DocumentCover cover={document.metadata.cover} />
-
-                              <div
-                                {...wrapperProps}
-                                className={cn(
-                                  'flex flex-1',
-                                  wrapperProps.className,
-                                )}
-                              >
-                                {showSidebars ? (
-                                  <div
-                                    className={cn(
-                                      sidebarProps.className,
-                                      'hide-scrollbar overflow-y-scroll pb-6',
-                                    )}
-                                    style={{
-                                      ...sidebarProps.style,
-                                      marginTop: document.metadata?.cover
-                                        ? 152
-                                        : 220,
-                                    }}
-                                  >
-                                    <div className="hide-scrollbar h-full overflow-scroll pb-6">
-                                      <WebDocumentOutline
-                                        showCollapsed={showCollapsed}
-                                        supportDocuments={
-                                          props.supportDocuments
-                                        }
-                                        onActivateBlock={onActivateBlock}
-                                        id={id}
-                                        document={document}
-                                      />
-                                    </div>
-                                  </div>
-                                ) : null}
-                                <div {...mainContentProps}>
-                                  {isHomeDoc ? null : (
-                                    <PageHeader
-                                      originHomeId={originHomeId}
-                                      breadcrumbs={props.breadcrumbs}
-                                      docMetadata={document.metadata}
-                                      docId={id}
-                                      // @ts-expect-error
-                                      authors={document.authors.map(
-                                        (author) => accountsMetadata[author],
-                                      )}
-                                      updateTime={document.updateTime}
-                                    />
-                                  )}
-                                  <WebDocContentProvider
-                                    // @ts-expect-error
-                                    onBlockCitationClick={
-                                      activityEnabled
-                                        ? onBlockCitationClick
-                                        : undefined
-                                    }
-                                    onBlockCommentClick={
-                                      activityEnabled
-                                        ? onBlockCommentClick
-                                        : undefined
-                                    }
-                                    originHomeId={originHomeId}
-                                    id={{...id, version: document.version}}
-                                    siteHost={siteHost}
-                                    supportDocuments={supportDocuments}
-                                    supportQueries={supportQueries}
-                                    blockCitations={
-                                      interactionSummary.data?.blocks
-                                    }
-                                    routeParams={{
-                                      uid: id.uid,
-                                      version: id.version || undefined,
-                                      blockRef: blockRef,
-                                      blockRange: blockRange,
-                                    }}
-                                  >
-                                    <DocContent
-                                      document={document}
-                                      handleBlockReplace={() => {
-                                        // setDocumentPanel(null)
-                                        return true
-                                        // const route = {
-                                        //   key: 'document',
-                                        //   id: {
-                                        //     uid: id.uid,
-                                        //     path: id.path,
-                                        //     version: id.version,
-                                        //     blockRef: id.blockRef,
-                                        //     blockRange: id.blockRange,
-                                        //   },
-                                        // } as NavRoute
-                                        // const href = routeToHref(route, context)
-                                        // if (!href) return false
-                                        // replace(href, {
-                                        //   replace: true,
-                                        //   preventScrollReset: true,
-                                        // })
-                                        // return true
-                                      }}
-                                    />
-                                  </WebDocContentProvider>
-                                </div>
-                                {showSidebars ? (
-                                  <div
-                                    className={cn(sidebarProps.className)}
-                                    style={sidebarProps.style}
-                                  />
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
-                              <PageFooter id={id} />
-                            </div>
+                          <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
+                            <PageFooter id={id} />
                           </div>
-                        )}
-                      </ScrollArea>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Panel>
@@ -834,19 +840,11 @@ function InnerDocumentPage(
                       <Text weight="semibold">{panelTitle}</Text>
                     </div>
 
-                    <div className="flex flex-1 flex-col overflow-hidden">
-                      <ScrollArea
-                        onScroll={onScroll}
-                        ref={
-                          activePanel?.type === 'activity'
-                            ? activityFeedScrollRef
-                            : activePanel?.type === 'discussions'
-                            ? discussionsPanelScrollRef
-                            : undefined
-                        }
-                      >
-                        {panel}
-                      </ScrollArea>
+                    <div
+                      className="flex flex-1 flex-col overflow-y-auto"
+                      ref={mobileScrollRef}
+                    >
+                      {panel}
                     </div>
                   </div>
                 </>

@@ -7,7 +7,10 @@ import {useEffect, useRef} from 'react'
  * - Scrolls to top when navigating to a new route
  * Works with Remix's navigation system, similar to ScrollRestoration but for custom scroll areas.
  */
-export function useScrollRestoration(scrollId: string) {
+export function useScrollRestoration(
+  scrollId: string,
+  useNativeScroll = false,
+) {
   const location = useLocation()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -15,9 +18,11 @@ export function useScrollRestoration(scrollId: string) {
     const container = scrollContainerRef.current
     if (!container) return
 
-    const viewport = container.querySelector(
-      '[data-slot="scroll-area-viewport"]',
-    ) as HTMLElement
+    const viewport = useNativeScroll
+      ? container
+      : (container.querySelector(
+          '[data-slot="scroll-area-viewport"]',
+        ) as HTMLElement)
 
     if (!viewport) return
 
@@ -35,16 +40,21 @@ export function useScrollRestoration(scrollId: string) {
       viewport.scrollTo({top: 0, behavior: 'instant'})
     }
 
-    // Save scroll position as user scrolls
+    // Save scroll position as user scrolls (throttled to ~60fps)
+    let scrollTimeout: NodeJS.Timeout
     const handleScroll = () => {
-      sessionStorage.setItem(key, viewport.scrollTop.toString())
+      if (scrollTimeout) clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(() => {
+        sessionStorage.setItem(key, viewport.scrollTop.toString())
+      }, 16) // ~60fps
     }
 
     viewport.addEventListener('scroll', handleScroll, {passive: true})
     return () => {
       viewport.removeEventListener('scroll', handleScroll)
+      if (scrollTimeout) clearTimeout(scrollTimeout)
     }
-  }, [location.key, scrollId])
+  }, [location.key, scrollId, useNativeScroll])
 
   return scrollContainerRef
 }
