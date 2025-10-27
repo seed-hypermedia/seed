@@ -159,11 +159,7 @@ export function SubscribeDialog({
           <Button
             onClick={handleSaveEmail}
             disabled={isSaveDisabled || isLoading}
-            className={cn(
-              'bg-green-600 text-white hover:bg-green-700',
-              (isSaveDisabled || isLoading) &&
-                'bg-gray-300 text-gray-500 hover:bg-gray-300',
-            )}
+            variant="default"
           >
             {isLoading ? 'Subscribing...' : 'Save Email'}
           </Button>
