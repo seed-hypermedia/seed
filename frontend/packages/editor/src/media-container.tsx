@@ -1,15 +1,16 @@
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {useDocContentContext} from '@shm/ui/document-content'
+import {Text} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {cn} from '@shm/ui/utils'
+import {useState} from 'react'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {InlineContent} from './blocknote/react/ReactBlockSpec'
 import {MaxFileSizeB, MaxFileSizeMB} from './file'
 import {MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {Button} from '@shm/ui/button'
-import {Text} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {cn} from '@shm/ui/utils'
-import {useState} from 'react'
 
 interface ContainerProps {
   editor: BlockNoteEditor<HMBlockSchema>
@@ -47,6 +48,7 @@ export const MediaContainer = ({
   const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
+  const {comment} = useDocContentContext()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MaxFileSizeB) {
@@ -164,6 +166,10 @@ export const MediaContainer = ({
   return (
     <div
       className="relative flex w-full flex-col items-center gap-2 self-center"
+      // className={cn(
+      //   'relative flex w-full flex-col gap-2 self-center',
+      //   mediaType === 'file' ? 'items-stretch' : 'items-center',
+      // )}
       draggable="true"
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
@@ -199,8 +205,15 @@ export const MediaContainer = ({
       )}
       <div
         className={cn(
-          'relative flex max-w-full flex-col rounded-md border-4',
-          selected ? 'border-muted' : 'border-transparent',
+          'relative flex flex-col rounded-md border-2 transition-colors',
+          mediaType === 'file' ? 'w-full' : 'w-full',
+          drag || selected
+            ? 'border-foreground/20 dark:border-foreground/30'
+            : 'border-border',
+          drag && 'border-dashed',
+          comment && !drag && !selected
+            ? 'bg-black/5 dark:bg-white/10'
+            : 'bg-muted',
           className ?? block.type,
         )}
         style={{width}}

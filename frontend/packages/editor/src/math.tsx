@@ -1,10 +1,3 @@
-import {findNextBlock, findPreviousBlock} from './block-utils'
-import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
-import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {getBlockInfoFromSelection} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
-import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
-import {HMBlockSchema} from './schema'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
@@ -13,7 +6,14 @@ import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useDocContentContext} from '../../ui/src/document-content'
+import {findNextBlock, findPreviousBlock} from './block-utils'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {getBlockInfoFromSelection} from './blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {HMBlockSchema} from './schema'
 
 export const MathBlock = (type: 'math') =>
   createReactBlockSpec({
@@ -192,13 +192,12 @@ const Render = (
       contentEditable={false}
       className={cn(
         block.type,
-        'flex flex-col overflow-hidden rounded-md',
+        'flex w-full flex-col overflow-hidden rounded-md border-2 transition-colors',
         selected
-          ? 'border-border bg-background border-2'
-          : // : comment
-            // ? 'bg-muted'
-            // : 'bg-muted',
-            'bg-muted',
+          ? 'border-foreground/20 dark:border-foreground/30 bg-muted'
+          : comment
+          ? 'border-border bg-black/5 dark:bg-white/10'
+          : 'bg-muted border-border',
         'hover:bg-black/3 dark:hover:bg-white/3',
       )}
     >

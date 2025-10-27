@@ -1,12 +1,12 @@
+import {formatBytes} from '@shm/shared/utils/format-bytes'
+import {Button} from '@shm/ui/button'
+import {File} from '@shm/ui/icons'
+import {SizableText} from '@shm/ui/text'
 import {Block, BlockNoteEditor, defaultProps} from './blocknote/core'
 import {createReactBlockSpec} from './blocknote/react'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender} from './media-render'
 import {HMBlockSchema} from './schema'
-import {formatBytes} from '@shm/shared/utils/format-bytes'
-import {Button} from '@shm/ui/button'
-import {File} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
 
 export const MaxFileSizeMB = 150
 export const MaxFileSizeB = MaxFileSizeMB * 1024 * 1024
@@ -79,15 +79,15 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
     >
-      <Button className="flex-1 justify-start select-none" disabled>
-        <File className="size-4" />
+      <Button className="w-full justify-start px-4 py-3 select-none" disabled>
+        <File className="size-4 shrink-0" />
         <SizableText
           size="md"
-          className="flex-1 truncate overflow-hidden whitespace-nowrap"
+          className="min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap"
         >
           {block.props.name}
         </SizableText>
-        <SizableText className="pt-1" color="muted" size="sm">
+        <SizableText className="shrink-0 pt-1" color="muted" size="sm">
           {/* @ts-ignore */}
           {formatBytes(parseInt(block.props.size))}
         </SizableText>

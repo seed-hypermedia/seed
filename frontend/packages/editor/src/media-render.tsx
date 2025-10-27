@@ -193,7 +193,8 @@ export const MediaRender: React.FC<RenderProps> = ({
   }
 
   return (
-    <div className="flex flex-col">
+    // For some reason, the file block is not taking up the full width of the editor on mobile, so we need to add this style
+    <div className={cn('flex flex-col', mediaType === 'file' && 'w-full')}>
       {hideForm ? (
         <MediaComponent
           block={block}
@@ -397,9 +398,15 @@ function MediaForm({
           method: 'POST',
           body: formData,
         })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Server error: ${response.status} - ${errorText}`)
+        }
+
         const responseCID = await response.text()
         if (!responseCID) {
-          throw new Error('Failed to upload file to IPFS')
+          throw new Error('Failed to upload file to IPFS: No CID returned')
         }
         const ipfsUrl = `ipfs://${responseCID}`
         assign({
@@ -412,6 +419,12 @@ function MediaForm({
         } as MediaType)
       } catch (error) {
         console.error(`Editor: file upload error: ${error}`)
+        setFileName({
+          name: `Upload failed: ${
+            error instanceof Error ? error.message : 'Unknown error'
+          }`,
+          color: 'red',
+        })
       }
     }
   }
@@ -419,10 +432,15 @@ function MediaForm({
   return (
     <div
       className={cn(
-        'relative flex flex-col rounded-sm border-[3px] outline-none',
-        drag || selected ? 'border-border' : 'border-transparent',
-        drag ? 'border-dashed' : 'border-solid',
-        comment ? 'bg-muted/60' : 'bg-muted',
+        'bg-muted relative flex flex-col rounded-md border-2 transition-colors outline-none',
+        drag || selected
+          ? 'border-foreground/20 dark:border-foreground/30'
+          : 'border-border',
+        drag && 'border-dashed',
+        comment &&
+          !drag &&
+          !selected &&
+          'border-border bg-black/5 dark:bg-white/10',
       )}
       {...(isEmbed ? {} : dragProps)}
     >
@@ -445,10 +463,7 @@ function MediaForm({
                 />
               ) : (
                 <Input
-                  className={cn(
-                    'w-full pl-3',
-                    comment ? 'bg-muted/60' : 'bg-muted',
-                  )}
+                  className="border-muted-foreground/30 focus-visible:border-ring text-foreground max-w-full pl-3"
                   placeholder={`Input ${
                     mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType
                   } URL here...`}
@@ -470,13 +485,9 @@ function MediaForm({
                     side="top"
                   >
                     <Button
-                      className="w-12"
-                      style={{
-                        backgroundColor:
-                          fileName.color === 'red'
-                            ? 'text-muted-foreground/60'
-                            : 'text-muted-foreground',
-                      }}
+                      variant="default"
+                      size="sm"
+                      className="shrink-0 font-semibold"
                       disabled={fileName.color === 'red'}
                       onClick={() => {
                         if (url) {
@@ -491,9 +502,12 @@ function MediaForm({
                       }}
                     >
                       {loading ? (
-                        <Spinner size="small" className="text-primary" />
+                        <Spinner
+                          size="small"
+                          className="text-primary-foreground"
+                        />
                       ) : (
-                        'UPLOAD'
+                        'Upload'
                       )}
                     </Button>
                   </Tooltip>
@@ -514,7 +528,10 @@ function MediaForm({
                 </>
               ) : (
                 <Button
-                  className="w-12"
+                  contentEditable={false}
+                  variant="default"
+                  size="sm"
+                  className="shrink-0 font-semibold"
                   style={{
                     backgroundColor:
                       fileName.color === 'red'
@@ -529,9 +546,9 @@ function MediaForm({
                   }}
                 >
                   {loading ? (
-                    <Spinner size="small" className="text-primary" />
+                    <Spinner size="small" className="text-primary-foreground" />
                   ) : (
-                    'UPLOAD'
+                    'Upload'
                   )}
                 </Button>
               )}
@@ -543,12 +560,16 @@ function MediaForm({
             )}
           </div>
         ) : (
-          <div className="bg-background flex h-12 w-full items-center">
-            <Label htmlFor={'file-upload' + block.id}>
+          <div className="border-muted-foreground/30 bg-muted/50 hover:border-foreground/30 hover:bg-muted flex h-12 w-full cursor-pointer items-center justify-center rounded-md border-2 transition-colors">
+            <Label
+              contentEditable={false}
+              htmlFor={'file-upload' + block.id}
+              className="flex h-full w-full cursor-pointer items-center justify-center gap-2 select-none"
+            >
               {!drag && (
                 <>
                   <Upload className="size-4" />
-                  <SizableText className="truncate overflow-hidden p-2 whitespace-nowrap">
+                  <SizableText className="truncate overflow-hidden font-medium whitespace-nowrap">
                     Upload File
                   </SizableText>
                 </>
@@ -559,8 +580,8 @@ function MediaForm({
               type="file"
               multiple
               style={{
-                background: 'white',
-                padding: '0 2px',
+                // background: 'white',
+                // padding: '0 2px',
                 display: 'none',
               }}
               onChange={(event: ChangeEvent<HTMLInputElement>) => {

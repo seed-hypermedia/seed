@@ -1,10 +1,3 @@
-import {Block, BlockNoteEditor} from './blocknote'
-import {createReactBlockSpec} from './blocknote/react'
-// @ts-expect-error
-import {SwitcherItem} from './launcher-item'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
-import {HMBlockSchema} from './schema'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
@@ -32,6 +25,13 @@ import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
+import {Block, BlockNoteEditor} from './blocknote'
+import {createReactBlockSpec} from './blocknote/react'
+// @ts-expect-error
+import {SwitcherItem} from './launcher-item'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
 
 function EmbedError() {
   return <ErrorBlock message="Failed to load this Embedded document" />
@@ -384,11 +384,7 @@ const EmbedLauncherInput = ({
             )
           }
         }}
-        className={cn(
-          comment ? 'bg-black/5 dark:bg-white/10' : 'bg-muted',
-          'border-muted-foreground text-foreground h-9 w-full rounded-md border px-3',
-          'hover:border-black/10 focus:border-black/10 dark:hover:border-white/10 dark:focus:border-white/10',
-        )}
+        className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"
       />
 
       {content}
