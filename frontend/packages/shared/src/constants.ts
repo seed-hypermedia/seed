@@ -68,6 +68,16 @@ export const COMMIT_HASH =
 export const IS_PROD_DESKTOP =
   !!IME.PROD || process.env.NODE_ENV === 'production'
 
+export const IS_DESKTOP = (() => {
+  try {
+    return typeof window !== 'undefined' && 'ipc' in window
+  } catch {
+    return false
+  }
+})()
+
+export const IS_WEB = !IS_DESKTOP
+
 export const AVOID_UPDATES =
   !!IME.VITE_AVOID_UPDATES || process.env.VITE_AVOID_UPDATES == 'true' || false
 

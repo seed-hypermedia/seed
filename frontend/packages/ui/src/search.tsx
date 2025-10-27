@@ -16,13 +16,14 @@ import {Search} from './icons'
 import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
 
+import {IS_WEB} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
+import {HMIcon} from './hm-icon'
 import {Separator} from './separator'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-import {HMIcon} from './hm-icon'
 
 export function MobileSearch({
   originHomeId,
@@ -131,29 +132,31 @@ export function HeaderSearch({
   }, [popoverState.open])
 
   // Listen for Command+K / Ctrl+K keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input, textarea, or contenteditable
-      const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
-        return
+  if (IS_WEB) {
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Don't trigger if user is typing in an input, textarea, or contenteditable
+        const target = e.target as HTMLElement
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        ) {
+          return
+        }
+
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault()
+          popoverState.onOpenChange(true)
+        }
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        popoverState.onOpenChange(true)
+      window.addEventListener('keydown', handleKeyDown)
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown)
       }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [])
+    }, [])
+  }
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
