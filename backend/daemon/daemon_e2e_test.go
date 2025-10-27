@@ -1470,3 +1470,130 @@ func TestCommentDiscovery(t *testing.T) {
 
 	testutil.StructsEqual(comment, bobGotComment).Compare(t, "bob must get alice's comment intact")
 }
+
+func TestActivityFeed(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobKey := must.Do2(bob.Storage.KeyStore().GetKey(ctx, "main"))
+	// Allow Alice to sign with Bob’s key for cross-author events.
+	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobKey))
+
+	// 1) Create Alice's root (Profile/Ref) and a named doc (Ref).
+	aliceRoot, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Profile"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/named/a",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Named A"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	// 2) Create a comment signed by Bob (Comment).
+	_, err = alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		SigningKeyName: "bob", // Bob author
+		TargetAccount:  aliceRoot.Account,
+		TargetPath:     aliceRoot.Path,
+		TargetVersion:  aliceRoot.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "c1", Type: "paragraph", Text: "Hello from Bob"}},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3) Create a contact (Contact).
+	_, err = alice.RPC.DocumentsV3.CreateContact(ctx, &documents.CreateContactRequest{
+		Account:        aliceKey.String(),
+		SigningKeyName: "main",
+		Subject:        aliceKey.String(),
+		Name:           "Alice",
+	})
+	require.NoError(t, err)
+
+	// Wait briefly in case of async indexing.
+	time.Sleep(100 * time.Millisecond)
+
+	// A) Basic list: ensure we see Ref/Profile, Comment, Contact.
+	base, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize: 50,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, base)
+	require.GreaterOrEqual(t, len(base.Events), 3)
+
+	hasType := func(evts []*activity.Event, typ string) bool {
+		return slices.ContainsFunc(evts, func(e *activity.Event) bool {
+			nb, ok := e.Data.(*activity.Event_NewBlob)
+			return ok && nb.NewBlob.GetBlobType() == typ
+		})
+	}
+	require.True(t, hasType(base.Events, "Ref") || hasType(base.Events, "Profile"))
+	require.True(t, hasType(base.Events, "Comment"))
+	require.True(t, hasType(base.Events, "Contact"))
+
+	// B) Filter by type: only comments.
+	commentsOnly, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        50,
+		FilterEventType: []string{"Comment"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, commentsOnly)
+	require.GreaterOrEqual(t, len(commentsOnly.Events), 1)
+	require.True(t, slices.IndexFunc(commentsOnly.Events, func(e *activity.Event) bool {
+		nb, ok := e.Data.(*activity.Event_NewBlob)
+		return ok && nb.NewBlob.GetBlobType() != "Comment"
+	}) == -1, "commentsOnly must contain only Comment events")
+
+	// C) Filter by author: only Bob's events.
+	bobOnly, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:      50,
+		FilterAuthors: []string{bobKey.String()},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, bobOnly)
+	require.GreaterOrEqual(t, len(bobOnly.Events), 1)
+	require.True(t, slices.IndexFunc(bobOnly.Events, func(e *activity.Event) bool {
+		nb, ok := e.Data.(*activity.Event_NewBlob)
+		return ok && nb.NewBlob.GetAuthor() != bobKey.String()
+	}) == -1, "bobOnly must contain only Bob-authored events")
+
+	// D) Pagination: page through small chunks and ensure deterministic sequence.
+	page1, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize: 2,
+	})
+	require.NoError(t, err)
+	require.True(t, len(page1.Events) <= 2)
+
+	if page1.NextPageToken != "" {
+		page2, err := alice.RPC.Activity.ListEvents(ctx, &activity.ListEventsRequest{
+			PageSize:  2,
+			PageToken: page1.NextPageToken,
+		})
+		require.NoError(t, err)
+		// No overlap between page1 and page2 blob IDs
+		getID := func(e *activity.Event) int64 {
+			nb := e.GetNewBlob()
+			return nb.GetBlobId()
+		}
+		for _, e1 := range page1.Events {
+			for _, e2 := range page2.Events {
+				require.NotEqual(t, getID(e1), getID(e2), "pages must not overlap")
+			}
+		}
+	}
+}

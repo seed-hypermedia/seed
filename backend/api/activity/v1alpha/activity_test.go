@@ -15,11 +15,31 @@ func TestListEvents(t *testing.T) {
 	alice := newTestServer(t, "alice")
 	ctx := context.Background()
 
-	req := &activity.ListEventsRequest{
+	// Invalid author principal
+	_, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:      10,
+		FilterAuthors: []string{"invalid-principal"},
+	})
+	require.Error(t, err)
+
+	// Invalid resource format
+	_, err = alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:       10,
+		FilterResource: "not-a-resource",
+	})
+	require.Error(t, err)
+
+	// Invalid event type (see allowlist in the server)
+	_, err = alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:        10,
+		FilterEventType: []string{"invalid-type"},
+	})
+	require.Error(t, err)
+
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
 		PageSize:  5,
 		PageToken: "",
-	}
-	events, err := alice.ListEvents(ctx, req)
+	})
 	require.NoError(t, err)
 	require.NotNil(t, events)
 	require.Len(t, events.Events, 0)
