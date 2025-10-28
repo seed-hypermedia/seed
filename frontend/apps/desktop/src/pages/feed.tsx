@@ -1,7 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
-import {DocumentHeadItems} from '@/components/document-head-items'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {DesktopActivityService} from '@/desktop-activity-service'
 import {DesktopCommentsService} from '@/desktop-comments-service'
@@ -9,13 +8,12 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
+import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {useScrollRestoration} from '@/utils/use-scroll-restoration'
@@ -25,7 +23,6 @@ import {
   DocumentRoute,
   FeedRoute,
   getCommentTargetId,
-  getDocumentTitle,
   HMDocument,
   HMEntityContent,
   hmId,
@@ -36,17 +33,13 @@ import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {pluralS} from '@shm/shared/utils/language'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
-import {DocumentDate} from '@shm/ui/document-date'
 import {Feed} from '@shm/ui/feed'
-import {SeedHeading} from '@shm/ui/heading'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator as TSeparator} from '@shm/ui/separator'
@@ -56,8 +49,8 @@ import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, FilePlus} from 'lucide-react'
-import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
+import {FilePlus} from 'lucide-react'
+import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
 export default function FeedPage() {
@@ -350,27 +343,6 @@ function _FeedContent({
 const FeedContent = React.memo(_FeedContent)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 
-function InteractionSummaryItem({
-  label,
-  count,
-  onPress,
-  icon,
-}: {
-  label: string
-  count: number
-  onPress: () => void
-  icon: React.ReactNode
-}) {
-  return (
-    <Tooltip content={`${count} ${pluralS(count, label)}`}>
-      <TWButton onClick={onPress} size="sm" className={'p-0'}>
-        {icon}
-        <span className="text-xs">{count}</span>
-      </TWButton>
-    </Tooltip>
-  )
-}
-
 function _AppDocSiteHeader({
   siteHomeEntity,
   docId,
@@ -461,154 +433,6 @@ export function NewSubDocumentButton({
         />
       )}
     </>
-  )
-}
-
-function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
-  const resource = useResource(docId)
-  const hasCover = useMemo(
-    () =>
-      resource.data?.type === 'document' &&
-      !!resource.data.document?.metadata.cover,
-    [resource.data],
-  )
-  const hasIcon = useMemo(
-    () =>
-      resource.data?.type === 'document' &&
-      !!resource.data.document?.metadata.icon,
-    [resource.data],
-  )
-  const navigate = useNavigate()
-  const authors = useMemo(
-    () =>
-      resource.data?.type === 'document' ? resource.data.document?.authors : [],
-    [resource.data],
-  )
-  useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
-  const authorContacts = useContactsMetadata(authors || [])
-
-  if (resource.isLoading) return null
-  if (resource.data?.type !== 'document') return null
-
-  return (
-    <Container
-      className="dark:bg-background w-full rounded-lg bg-white"
-      style={{
-        marginTop: hasCover ? -40 : 0,
-        paddingTop: !hasCover ? 60 : 24,
-      }}
-    >
-      <div className="group flex flex-col gap-4" data-group="header">
-        {hasIcon ? (
-          <div
-            className="flex"
-            style={{
-              marginTop: hasCover ? -80 : 0,
-            }}
-          >
-            <HMIcon
-              size={100}
-              id={docId}
-              name={resource.data?.document?.metadata?.name}
-              icon={resource.data?.document?.metadata?.icon}
-            />
-          </div>
-        ) : null}
-        <div className="flex">
-          <SeedHeading
-            level={1}
-            style={{fontWeight: 'bold', wordBreak: 'break-word'}}
-          >
-            {getDocumentTitle(resource.data?.document)}
-          </SeedHeading>
-        </div>
-        {resource.data.document?.metadata?.summary ? (
-          <span className="font-body text-muted-foreground text-xl">
-            {resource.data.document?.metadata?.summary}
-          </span>
-        ) : null}
-        <div className="flex flex-col gap-2">
-          {resource.data?.document?.metadata.siteUrl ? (
-            <SiteURLButton
-              siteUrl={resource.data?.document?.metadata.siteUrl}
-            />
-          ) : null}
-          <div className="flex flex-1 items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
-              {resource.data?.document?.path.length || authors?.length !== 1 ? (
-                <>
-                  <div className="flex max-w-full flex-wrap items-center gap-1">
-                    {authors
-                      ?.map((a, index) => {
-                        console.log('== a 2', a)
-                        const contact = authorContacts[a]
-                        if (!contact) return null
-                        return [
-                          <SizableText
-                            key={contact.id.uid}
-                            size="sm"
-                            weight="bold"
-                            className="underline-transparent hover:underline"
-                            onClick={() => {
-                              navigate({key: 'contact', id: contact.id})
-                            }}
-                          >
-                            {contact.metadata?.name ? (
-                              contact.metadata.name
-                            ) : (
-                              <Tooltip content="Author has not yet loaded">
-                                <AlertCircle
-                                  size={18}
-                                  className="text-red-800"
-                                />
-                              </Tooltip>
-                            )}
-                          </SizableText>,
-                          index !== authors.length - 1 ? (
-                            index === authors.length - 2 ? (
-                              <SizableText
-                                key={`${a}-and`}
-                                size="xs"
-                                weight="bold"
-                              >
-                                {' & '}
-                              </SizableText>
-                            ) : (
-                              <SizableText
-                                key={`${a}-comma`}
-                                weight="bold"
-                                size="xs"
-                              >
-                                {', '}
-                              </SizableText>
-                            )
-                          ) : null,
-                        ]
-                      })
-                      .filter(Boolean)}
-                  </div>
-                  <div className="bg-border h-6 w-px" />
-                </>
-              ) : null}
-              {resource.data?.document ? (
-                <DocumentDate
-                  metadata={resource.data.document.metadata}
-                  updateTime={resource.data.document.updateTime}
-                  disableTooltip={false}
-                />
-              ) : null}
-            </div>
-            {resource.data?.document && (
-              <DocumentHeadItems
-                document={resource.data.document}
-                docId={docId}
-              />
-            )}
-          </div>
-        </div>
-        <TSeparator />
-      </div>
-    </Container>
   )
 }
 

@@ -19,7 +19,7 @@ export function DocInteractionSummary({
   if (isAccessoryOpen) return null
   if (!isHome) return null
   return (
-    <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+    <>
       <InteractionSummaryItem
         count={0}
         label="activity"
@@ -34,7 +34,7 @@ export function DocInteractionSummary({
         onClick={onCommentsClick}
         icon={<MessageSquare className="size-3" />}
       />
-    </div>
+    </>
   )
 }
 
@@ -55,7 +55,7 @@ export function InteractionSummaryItem({
     <Tooltip
       content={count ? `${count} ${pluralS(count, label, pluralLabel)}` : label}
     >
-      <Button onClick={onClick} size="sm" className={'p-0'}>
+      <Button onClick={onClick} size="xs" className={'p-0'}>
         {icon}
         {count ? <span className="text-xs">{count}</span> : null}
       </Button>

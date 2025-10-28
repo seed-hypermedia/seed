@@ -37,6 +37,7 @@ import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
+import {DocInteractionSummary} from '@shm/ui/interaction-summary'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {
   DocNavigationWrapper,
@@ -422,13 +423,11 @@ function InnerDocumentPage(
   }, [])
 
   const activitySummary = (
-    <DocInteractionsSummary
-      activePanel={activePanel}
-      docId={id}
-      citations={interactionSummary.data?.citations}
-      comments={interactionSummary.data?.comments}
-      changes={interactionSummary.data?.changes}
-      onCommentsOpen={() => {
+    <DocInteractionSummary
+      isHome={isHomeDoc}
+      isAccessoryOpen={!!activePanel}
+      commentsCount={interactionSummary.data?.comments || 0}
+      onCommentsClick={() => {
         setDocumentPanel({
           type: 'discussions',
           blockId: undefined,
@@ -437,7 +436,7 @@ function InnerDocumentPage(
           setMobilePanelOpen(true)
         }
       }}
-      onFeedOpen={() => {
+      onFeedClick={() => {
         setDocumentPanel({type: 'activity'})
         if (!media.gtSm) {
           setMobilePanelOpen(true)
@@ -584,7 +583,9 @@ function InnerDocumentPage(
                         {!activePanel &&
                         activityEnabled &&
                         interactionSummary.data ? (
-                          <>{activitySummary}</>
+                          <div className="flex items-center">
+                            {activitySummary}
+                          </div>
                         ) : null}
                       </div>
                     ) : null}
@@ -1042,89 +1043,6 @@ function WebDocumentOutline({
         activeBlockId={id.blockRef}
       />
     </DocNavigationWrapper>
-  )
-}
-
-const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
-
-function _DocInteractionsSummary({
-  docId,
-  citations,
-  comments,
-  changes,
-  onCommentsOpen,
-  onFeedOpen,
-  activePanel,
-}: {
-  docId: UnpackedHypermediaId
-  citations?: number
-  comments?: number
-  changes?: number
-  onCommentsOpen?: () => void
-  onFeedOpen?: () => void
-  activePanel: WebAccessory | null
-}) {
-  const tx = useTxString()
-  return (
-    <div className="flex items-center justify-center gap-1">
-      {onFeedOpen && (
-        <InteractionSummaryItem
-          label={tx('Feed')}
-          active={activePanel?.type === 'activity'}
-          onClick={onFeedOpen}
-          onMouseEnter={() => {
-            // Prefetch the feed component when user hovers
-            import('@shm/ui/feed').catch(() => {})
-          }}
-          // @ts-ignore
-          icon={<Sparkle className="size-4" />}
-        />
-      )}
-      {onCommentsOpen && (
-        <InteractionSummaryItem
-          label={tx('Discussions')}
-          active={activePanel?.type === 'discussions'}
-          onClick={onCommentsOpen}
-          onMouseEnter={() => {
-            // Prefetch the discussions panel when user hovers
-            import('./discussions-panel').catch(() => {})
-          }}
-          // @ts-ignore
-          icon={<MessageSquare className="size-4" />}
-        />
-      )}
-    </div>
-  )
-}
-
-function InteractionSummaryItem({
-  label,
-  count = null,
-  onClick,
-  icon,
-  active,
-  onMouseEnter,
-}: {
-  label: string
-  count?: number | null
-  onClick: () => void
-  icon: React.ReactNode
-  active: boolean
-  onMouseEnter?: () => void
-}) {
-  return (
-    <Tooltip content={label}>
-      <Button
-        onClick={onClick}
-        onMouseEnter={onMouseEnter}
-        variant="ghost"
-        className={cn('p-0', active && 'bg-accent')}
-        size="sm"
-      >
-        {icon}
-        {count == null ? null : <span className="text-xs">{count}</span>}
-      </Button>
-    </Tooltip>
   )
 }
 

@@ -429,13 +429,15 @@ function _MainDocumentPage({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        <DocInteractionSummary
-          isHome={isHomeDoc}
-          isAccessoryOpen={!!route.accessory}
-          commentsCount={interactionSummary.data?.comments || 0}
-          onCommentsClick={onCommentsClick}
-          onFeedClick={onFeedClick}
-        />
+        <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+          <DocInteractionSummary
+            isHome={isHomeDoc}
+            isAccessoryOpen={!!route.accessory}
+            commentsCount={interactionSummary.data?.comments || 0}
+            onCommentsClick={onCommentsClick}
+            onFeedClick={onFeedClick}
+          />
+        </div>
         <ScrollArea>
           <DocumentCover cover={document?.metadata.cover} />
 
