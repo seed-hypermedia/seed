@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	highWatermark = 100
-	lowWatermark  = 50
+	highWatermark = 300
+	lowWatermark  = 150
 )
 
 // Libp2p exposes libp2p host and the underlying routing system (DHT).
@@ -66,11 +66,11 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	}()
 	rm, err := buildResourceManager(
 		map[protocol.ID]rcmgr.LimitVal{
-			protocolID: 1000,
+			protocolID: 2000,
 		},
 		map[protocol.ID]rcmgr.LimitVal{
-			"/ipfs/kad/1.0.0":     1000,
-			"/ipfs/bitswap/1.2.0": 1000,
+			"/ipfs/kad/1.0.0":     2000,
+			"/ipfs/bitswap/1.2.0": 2000,
 		},
 	)
 	if err != nil {
@@ -188,9 +188,9 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	// scales the limits proportional to your system memory.
 	scaledDefaultLimits := scalingLimits.AutoScale()
 	const (
-		maxConns           = 2500
-		maxFileDescriptors = 3000
-		maxMemory          = 2048 * 1024 * 1024
+		maxConns           = 5000
+		maxFileDescriptors = 6000
+		maxMemory          = 8192 * 1024 * 1024 // 8GB
 	)
 
 	absoluteLimits := rcmgr.ResourceLimits{
