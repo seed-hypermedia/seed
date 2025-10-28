@@ -401,24 +401,24 @@ function InnerDocumentPage(
   const onReplyClick = useCallback((comment: HMComment) => {
     const targetId = isRouteEqualToCommentTarget({id, comment})
 
-    if (targetId) {
+    if (!targetId) {
+      setEditorAutoFocus(true)
+      setCommentPanel(comment)
+      if (!media.gtSm) {
+        setMobilePanelOpen(true)
+      }
+    } else {
       const route = {
         key: 'document',
-        id,
+        id: targetId,
         accessory: {
-          key: 'activity',
+          key: 'discussions',
           openComment: comment.id,
         },
       } as NavRoute
       const href = routeToHref(route, context)
       if (href) {
         replace(href)
-      }
-    } else {
-      setEditorAutoFocus(true)
-      setCommentPanel(comment)
-      if (!media.gtSm) {
-        setMobilePanelOpen(true)
       }
     }
   }, [])
@@ -478,9 +478,9 @@ function InnerDocumentPage(
             commentEditor={commentEditor}
             blockId={activePanel.blockId}
             comment={activePanel.comment}
-            handleBack={() => {
+            handleBack={(activity?: boolean) => {
               setDocumentPanel({
-                type: 'activity',
+                type: 'discussions',
               })
             }}
             setBlockId={onBlockCommentClick}
