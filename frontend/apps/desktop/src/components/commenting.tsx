@@ -13,6 +13,7 @@ import {
 import {useNavigate} from '@/utils/useNavigate'
 import {queryClient, queryKeys} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useCallback} from 'react'
 
 import {
   HMBlockEmbed,
@@ -116,20 +117,8 @@ function _CommentBox(props: {
     quotingBlockId,
     context,
   )
-  const [showEditor, setShowEditor] = useState(false)
   const route = useNavRoute()
   const navigate = useNavigate('replace')
-
-  useEffect(() => {
-    const focusKey = `${docId.id}-${commentId || quotingBlockId}`
-    const subscribers = focusSubscribers.get(focusKey)
-    const focusEditor = () => setShowEditor(true)
-    if (subscribers) {
-      subscribers.add(focusEditor)
-    } else {
-      focusSubscribers.set(focusKey, new Set([focusEditor]))
-    }
-  }, [docId.id, commentId])
 
   // Clear autoFocus from route after it's been used
   useEffect(() => {
@@ -160,60 +149,40 @@ function _CommentBox(props: {
       <span className="text-sm font-thin italic">No account is loaded</span>
     )
   } else {
-    if (draft.data || showEditor || autoFocus) {
-      content = (
-        <CommentDraftEditor
-          docId={docId}
-          autoFocus={showEditor || autoFocus}
-          initCommentDraft={draft.data}
-          quotingBlockId={quotingBlockId}
-          commentId={commentId}
-          context={context}
-          onDiscardDraft={() => {
-            setShowEditor(false)
-          }}
-          onSuccess={({id}) => {
-            setShowEditor(false)
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_COMMENTS],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.DOC_CITATIONS],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.BLOCK_DISCUSSIONS],
-            })
-            queryClient.invalidateQueries({
-              queryKey: [queryKeys.ACTIVITY_FEED],
-            })
-          }}
-        />
-      )
-    } else {
-      content = (
-        <Button
-          variant="ghost"
-          className="bg-background ring-px ring-border ml-1 w-full flex-1 items-center justify-start truncate rounded-md px-2 py-1 text-left ring"
-          style={{backgroundColor: backgroundColor}}
-          onClick={() => {
-            setShowEditor(true)
-          }}
-        >
-          <span className="text-sm italic opacity-50">
-            {commentId ? 'Reply in Discussion' : 'Start a new Discussion'}
-          </span>
-        </Button>
-      )
-    }
+    content = (
+      <CommentDraftEditor
+        docId={docId}
+        autoFocus={autoFocus}
+        initCommentDraft={draft.data}
+        quotingBlockId={quotingBlockId}
+        commentId={commentId}
+        context={context}
+        onDiscardDraft={() => {}}
+        onSuccess={() => {
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.DOCUMENT_ACTIVITY],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.DOCUMENT_DISCUSSION],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.DOCUMENT_COMMENTS],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.DOC_CITATIONS],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+          })
+          queryClient.invalidateQueries({
+            queryKey: [queryKeys.ACTIVITY_FEED],
+          })
+        }}
+      />
+    )
   }
 
   return (
@@ -285,6 +254,29 @@ function _CommentDraftEditor({
   const openUrl = useOpenUrl()
 
   if (!account) return null
+
+  const focusEditor = useCallback(() => {
+    if (editor?._tiptapEditor) {
+      editor._tiptapEditor.commands.focus()
+    }
+  }, [editor])
+
+  useEffect(() => {
+    const focusKey = `${docId.id}-${commentId || quotingBlockId}`
+    const subscribers = focusSubscribers.get(focusKey)
+    if (subscribers) {
+      subscribers.add(focusEditor)
+    } else {
+      focusSubscribers.set(focusKey, new Set([focusEditor]))
+    }
+
+    return () => {
+      const subscribers = focusSubscribers.get(focusKey)
+      if (subscribers) {
+        subscribers.delete(focusEditor)
+      }
+    }
+  }, [docId.id, commentId, quotingBlockId, focusEditor])
 
   function onDrop(event: React.DragEvent) {
     if (!isDragging) return

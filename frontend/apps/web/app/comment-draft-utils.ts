@@ -19,7 +19,7 @@ function getDraftKey(
   return parts.join('-')
 }
 
-// Clean up old drafts (older than 30 days)
+// Clean up old drafts (older than 30 days) and empty drafts
 function cleanupOldDrafts() {
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
   const keysToRemove: string[] = []
@@ -31,7 +31,15 @@ function cleanupOldDrafts() {
         const draft = JSON.parse(
           localStorage.getItem(key) || '{}',
         ) as CommentDraft
+
+        // Remove if older than 30 days
         if (draft.timestamp < thirtyDaysAgo) {
+          keysToRemove.push(key)
+          continue
+        }
+
+        // Remove if content is empty
+        if (draft.blocks && !draft.blocks.some(hasBlockContent)) {
           keysToRemove.push(key)
         }
       } catch {
@@ -78,8 +86,16 @@ export function useCommentDraftPersistence(
       clearTimeout(saveTimeoutRef.current)
     }
 
-    // Don't save if content is empty
-    if (!blocks.some(hasBlockContent)) {
+    // Check if content is empty
+    const hasContent = blocks.some(hasBlockContent)
+
+    if (!hasContent) {
+      // If content is empty and there's an existing draft, remove it
+      const existingDraft = localStorage.getItem(draftKey)
+      if (existingDraft) {
+        localStorage.removeItem(draftKey)
+        setDraftState(null)
+      }
       return
     }
 

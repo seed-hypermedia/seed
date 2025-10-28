@@ -46,7 +46,11 @@ export function hasBlockContent(block: HMBlockNode): boolean {
     case 'Group':
     case 'Link':
       // Group and Link blocks are structural, check text if available
-      return !!('text' in blockData && blockData.text && blockData.text.trim().length > 0)
+      return !!(
+        'text' in blockData &&
+        blockData.text &&
+        blockData.text.trim().length > 0
+      )
 
     default:
       return false

@@ -227,6 +227,15 @@ export function useCommentEditor(
   const write = trpc.comments.writeCommentDraft.useMutation({
     onSuccess: () => {
       invalidateQueries(['trpc.comments.listCommentDrafts'])
+      invalidateQueries([
+        'trpc.comments.getCommentDraft',
+        {
+          targetDocId: targetDocId.id,
+          replyCommentId: commentId,
+          quotingBlockId: quotingBlockId,
+          context: context,
+        },
+      ])
     },
     onError: (err) => {
       toast.error(err.message)
@@ -281,13 +290,27 @@ export function useCommentEditor(
       editor.topLevelBlocks,
     )
 
-    // Don't save if content is empty
+    // Convert to HMBlockNode format for checking
     const blockNodes = blocks.map((b) => b.toJson()) as HMBlockNode[]
-    if (!blockNodes.some(hasBlockContent)) {
+
+    // Check if content is empty
+    const hasContent = blockNodes.some(hasBlockContent)
+
+    if (!hasContent) {
+      // If content is empty and there's an existing draft, remove it
+      if (initCommentDraft) {
+        removeDraft.mutate({
+          targetDocId: targetDocId.id,
+          replyCommentId: commentId,
+          quotingBlockId: quotingBlockId,
+          context: context,
+        })
+      }
       setIsSaved(true)
       return
     }
 
+    // Save the draft with actual content
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,

@@ -1,3 +1,4 @@
+import {hasBlockContent} from '@shm/shared/content'
 import {
   HMCommentDraft,
   HMListedCommentDraft,
@@ -72,6 +73,39 @@ export async function initCommentDrafts() {
     commentDraftIndex = z
       .array(HMListedCommentDraftSchema)
       .parse(JSON.parse(commentIndexJSON))
+  }
+
+  // Clean up empty drafts on init
+  await cleanupEmptyDrafts()
+}
+
+async function cleanupEmptyDrafts() {
+  if (!commentDraftIndex) return
+
+  const draftsToRemove: string[] = []
+
+  for (const draft of commentDraftIndex) {
+    try {
+      const draftPath = join(commentDraftsDir, `${draft.id}.json`)
+      const fileContent = await fs.readFile(draftPath, 'utf-8')
+      const draftContent = JSON.parse(fileContent)
+
+      // Check if blocks are empty
+      if (!draftContent.blocks || !draftContent.blocks.some(hasBlockContent)) {
+        draftsToRemove.push(draft.id)
+        await fs.unlink(draftPath).catch(() => {})
+      }
+    } catch (e) {
+      // If file doesn't exist or is invalid, mark for removal
+      draftsToRemove.push(draft.id)
+    }
+  }
+
+  if (draftsToRemove.length > 0) {
+    commentDraftIndex = commentDraftIndex.filter(
+      (d) => !draftsToRemove.includes(d.id),
+    )
+    await saveCommentDraftIndex()
   }
 }
 
