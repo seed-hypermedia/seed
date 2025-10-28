@@ -21,7 +21,6 @@ export const action = async ({
 }: {
   request: Request
 }): Promise<WrappedResponse<LoadedEvent | null>> => {
-  console.log('== DEBUG api/resolve-event', request.body)
   if (request.method !== 'POST') {
     throw json({error: 'Method not allowed'}, {status: 405})
   }
@@ -33,7 +32,6 @@ export const action = async ({
   }
 
   const blobType = event.newBlob.blobType.toLowerCase()
-  console.log('== DEBUG RESOLVING EVENT', blobType, event.newBlob.cid)
 
   try {
     let result: LoadedEvent | null = null
@@ -61,8 +59,6 @@ export const action = async ({
       default:
         throw new Error(`Unknown event type: ${blobType}`)
     }
-
-    console.log('== DEBUG api/event resolved', result)
 
     return wrapJSON(result)
   } catch (e: any) {
