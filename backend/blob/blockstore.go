@@ -21,6 +21,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// MaxBlobSize is the maximum size of a single blob.
+// It's defined as 2 MiB to stay compatible with Bitswap: https://specs.ipfs.tech/bitswap-protocol/#block-sizes.
+const MaxBlobSize = 2 * 1024 * 1024
+
 var (
 	mCallsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "seed_ipfs_blockstore_calls_total",
@@ -272,6 +276,10 @@ func (b *blockStore) PutMany(ctx context.Context, blocks []blocks.Block) error {
 }
 
 func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash multihash.Multihash, data []byte) (id int64, exists bool, err error) {
+	if len(data) > MaxBlobSize {
+		return 0, false, fmt.Errorf("block %s is too large: %d > %d", cid.NewCidV1(codec, hash).String(), len(data), MaxBlobSize)
+	}
+
 	size, err := dbBlobsGetSize(conn, hash)
 	if err != nil {
 		return 0, false, err
