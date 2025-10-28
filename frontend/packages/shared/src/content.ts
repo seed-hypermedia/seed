@@ -11,6 +11,48 @@ import {
 } from './hm-types'
 import {unpackHmId} from './utils'
 
+// Check if a block has meaningful content
+export function hasBlockContent(block: HMBlockNode): boolean {
+  const blockData = block.block
+
+  // Check for children first
+  if (block.children && block.children.length > 0) {
+    return true
+  }
+
+  // Check based on block type
+  switch (blockData.type) {
+    case 'Paragraph':
+    case 'Heading':
+    case 'Code':
+    case 'Math':
+      // Text-based blocks: check if text is not empty
+      return !!blockData.text && blockData.text.trim().length > 0
+
+    case 'Image':
+    case 'Video':
+    case 'File':
+    case 'Button':
+    case 'Embed':
+    case 'WebEmbed':
+    case 'Nostr':
+      // Link-based blocks: these always have content if they have a link
+      return !!blockData.link
+
+    case 'Query':
+      // Query blocks always have content
+      return true
+
+    case 'Group':
+    case 'Link':
+      // Group and Link blocks are structural, check text if available
+      return !!('text' in blockData && blockData.text && blockData.text.trim().length > 0)
+
+    default:
+      return false
+  }
+}
+
 // HMBlockNodes are recursive values. we want the output to have the same shape, but limit the total number of blocks
 // the first blocks will be included up until the totalBlock value is reached
 export function clipContentBlocks(

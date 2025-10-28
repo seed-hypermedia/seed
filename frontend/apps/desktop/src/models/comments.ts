@@ -16,8 +16,10 @@ import {packHmId} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT} from '@shm/shared/constants'
+import {hasBlockContent} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
+  HMBlockNode,
   HMBlockNodeSchema,
   HMComment,
   HMCommentDraft,
@@ -278,6 +280,14 @@ export function useCommentEditor(
       // @ts-expect-error
       editor.topLevelBlocks,
     )
+
+    // Don't save if content is empty
+    const blockNodes = blocks.map((b) => b.toJson()) as HMBlockNode[]
+    if (!blockNodes.some(hasBlockContent)) {
+      setIsSaved(true)
+      return
+    }
+
     await write.mutateAsync({
       blocks,
       targetDocId: targetDocId.id,

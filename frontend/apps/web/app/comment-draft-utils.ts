@@ -1,3 +1,4 @@
+import {hasBlockContent} from '@shm/shared/content'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {useEffect, useRef, useState} from 'react'
 
@@ -75,6 +76,11 @@ export function useCommentDraftPersistence(
     // Clear any pending save
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Don't save if content is empty
+    if (!blocks.some(hasBlockContent)) {
+      return
     }
 
     // Debounce the save
