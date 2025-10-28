@@ -51,7 +51,6 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {pluralS} from '@shm/shared/utils/language'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
@@ -63,6 +62,7 @@ import {DocumentDate} from '@shm/ui/document-date'
 import {SeedHeading} from '@shm/ui/heading'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
+import {DocInteractionSummary} from '@shm/ui/interaction-summary'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -72,7 +72,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {AlertCircle, FilePlus, MessageSquare, Sparkle} from 'lucide-react'
+import {AlertCircle, FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 import {AppDocContentProvider} from './document-content-provider'
 
@@ -305,7 +305,7 @@ function _MainDocumentPage({
   onAccessory: (accessory: DocumentRoute['accessory']) => void
 }) {
   const replace = useNavigate('replace')
-
+  const route = useNavRoute()
   const account = useAccount(id.uid, {enabled: !id.path?.length})
 
   useEffect(() => {
@@ -375,6 +375,18 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
+  const interactionSummary = useInteractionSummary(id)
+
+  const onCommentsClick = useCallback(() => {
+    replace({...route, accessory: {key: 'discussions'}} as DocumentRoute)
+  }, [])
+
+  const onFeedClick = useCallback(() => {
+    replace({...route, accessory: {key: 'activity'}} as DocumentRoute)
+  }, [])
+
+  if (route.key != 'document' && route.key != 'feed') return null
+
   // @ts-ignore
   if (resource.isInitialLoading) return null
 
@@ -386,8 +398,6 @@ function _MainDocumentPage({
     )
   }
 
-  {
-  }
   // @ts-ignore
   if (resource.data?.type === 'not-found') {
     return <DocDiscovery />
@@ -419,7 +429,13 @@ function _MainDocumentPage({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        <DocInteractionsSummary docId={id} />
+        <DocInteractionSummary
+          isHome={isHomeDoc}
+          isAccessoryOpen={!!route.accessory}
+          commentsCount={interactionSummary.data?.comments || 0}
+          onCommentsClick={onCommentsClick}
+          onFeedClick={onFeedClick}
+        />
         <ScrollArea>
           <DocumentCover cover={document?.metadata.cover} />
 
@@ -450,7 +466,14 @@ function _MainDocumentPage({
                 'base-doc-container relative sm:mr-10 sm:ml-0',
               )}
             >
-              {isHomeDoc ? null : <DocPageHeader docId={id} />}
+              {isHomeDoc ? null : (
+                <DocPageHeader
+                  docId={id}
+                  commentsCount={interactionSummary.data?.comments || 0}
+                  onCommentsClick={onCommentsClick}
+                  onFeedClick={onFeedClick}
+                />
+              )}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                 <DocPageContent
                   blockRef={id.blockRef}
@@ -474,62 +497,6 @@ function _MainDocumentPage({
 }
 const MainDocumentPage = React.memo(_MainDocumentPage)
 const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
-
-const DocInteractionsSummary = React.memo(_DocInteractionsSummary)
-
-function _DocInteractionsSummary({docId}: {docId: UnpackedHypermediaId}) {
-  const interactionSummary = useInteractionSummary(docId)
-
-  const route = useNavRoute()
-  const docRoute = route.key === 'document' ? route : null
-  const replace = useNavigate('replace')
-  if (!docRoute) return null
-  if (docRoute.accessory) return null
-  return (
-    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
-      <div className="flex">
-        <InteractionSummaryItem
-          label="activity"
-          count={interactionSummary.data?.changes || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'activity'}})
-          }}
-          icon={<Sparkle className="size-3" color="currentColor" />}
-        />
-
-        <InteractionSummaryItem
-          label="comment"
-          count={interactionSummary.data?.comments || 0}
-          onPress={() => {
-            replace({...docRoute, accessory: {key: 'activity'}})
-          }}
-          icon={<MessageSquare className="size-3" />}
-        />
-      </div>
-    </div>
-  )
-}
-
-function InteractionSummaryItem({
-  label,
-  count,
-  onPress,
-  icon,
-}: {
-  label: string
-  count: number
-  onPress: () => void
-  icon: React.ReactNode
-}) {
-  return (
-    <Tooltip content={`${count} ${pluralS(count, label)}`}>
-      <TWButton onClick={onPress} size="sm" className={'p-0'}>
-        {icon}
-        <span className="text-xs">{count}</span>
-      </TWButton>
-    </Tooltip>
-  )
-}
 
 function _AppDocSiteHeader({
   siteHomeEntity,
@@ -634,7 +601,17 @@ export function NewSubDocumentButton({
   )
 }
 
-function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
+function DocPageHeader({
+  docId,
+  onCommentsClick,
+  onFeedClick,
+  commentsCount = 0,
+}: {
+  docId: UnpackedHypermediaId
+  onCommentsClick: () => void
+  onFeedClick: () => void
+  commentsCount: number
+}) {
   const resource = useResource(docId)
   const hasCover = useMemo(
     () =>
@@ -769,6 +746,9 @@ function DocPageHeader({docId}: {docId: UnpackedHypermediaId}) {
             </div>
             {resource.data?.document && (
               <DocumentHeadItems
+                commentsCount={commentsCount}
+                onCommentsClick={onCommentsClick}
+                onFeedClick={onFeedClick}
                 document={resource.data.document}
                 docId={docId}
               />

@@ -1,5 +1,6 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSubscribedResource} from '@/models/entities'
+import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
@@ -124,6 +125,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   // @ts-ignore
   const isDocument = resource.data?.type == 'document'
   const allDocumentCapabilities = useAllDocumentCapabilities(docId)
+  const interactionSummary = useInteractionSummary(docId)
   const collaboratorCount =
     allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
     undefined
@@ -132,6 +134,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     enabled: isDocument,
   })
   const directoryCount = childrenActivity.data?.length || undefined
+  const discussionsCount = interactionSummary.data?.comments
   return (
     <div className="flex h-full flex-1">
       <PanelGroup
@@ -172,6 +175,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               tabNumbers={{
                 collaborators: collaboratorCount,
                 directory: directoryCount,
+                discussions: discussionsCount || 0,
               }}
             />
             <div className="border-border flex items-center border-b px-5 py-3">
