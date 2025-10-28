@@ -1534,7 +1534,7 @@ func TestActivityFeed(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, base)
-	require.GreaterOrEqual(t, len(base.Events), 3)
+	require.Equal(t, 6, len(base.Events))
 
 	hasType := func(evts []*activity.Event, typ string) bool {
 		return slices.ContainsFunc(evts, func(e *activity.Event) bool {
@@ -1542,7 +1542,9 @@ func TestActivityFeed(t *testing.T) {
 			return ok && nb.NewBlob.GetBlobType() == typ
 		})
 	}
-	require.True(t, hasType(base.Events, "Ref") || hasType(base.Events, "Profile"))
+	require.True(t, hasType(base.Events, "Ref"))
+	// require.True(t, hasType(base.Events, "Profile"))
+	require.True(t, hasType(base.Events, "comment/target"))
 	require.True(t, hasType(base.Events, "Comment"))
 	require.True(t, hasType(base.Events, "Contact"))
 
