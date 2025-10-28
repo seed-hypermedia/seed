@@ -35,6 +35,7 @@ import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
 import {DocumentCover} from '@shm/ui/document-cover'
+import {DocumentHeader} from '@shm/ui/document-header'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {DocInteractionSummary} from '@shm/ui/interaction-summary'
@@ -71,11 +72,11 @@ import {
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
 import {WebDocContentProvider} from './doc-content-provider'
+import {getHref} from './href'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
-import {PageHeader} from './page-header'
 import {WebSiteProvider} from './providers'
 import {useScrollRestoration} from './use-scroll-restoration'
 import {WebActivityService} from './web-activity-service'
@@ -464,7 +465,7 @@ function InnerDocumentPage(
   if (activityEnabled && activePanel) {
     if (activePanel.type === 'discussions') {
       // Show the discussions panel with focused comment or block
-      panelTitle = tx('Thread')
+      panelTitle = tx('Discussions')
       panel = (
         <Suspense
           fallback={
@@ -682,16 +683,38 @@ function InnerDocumentPage(
                             ) : null}
                             <div {...mainContentProps}>
                               {isHomeDoc ? null : (
-                                <PageHeader
-                                  originHomeId={originHomeId}
-                                  breadcrumbs={props.breadcrumbs}
-                                  docMetadata={document.metadata}
+                                <DocumentHeader
                                   docId={id}
+                                  docMetadata={document.metadata}
                                   // @ts-expect-error
                                   authors={document.authors.map(
                                     (author) => accountsMetadata[author],
                                   )}
                                   updateTime={document.updateTime}
+                                  // @ts-expect-error
+                                  breadcrumbs={props.breadcrumbs}
+                                  commentsCount={
+                                    interactionSummary.data?.comments || 0
+                                  }
+                                  onCommentsClick={() => {
+                                    setDocumentPanel({
+                                      type: 'discussions',
+                                      blockId: undefined,
+                                    })
+                                    if (!media.gtSm) {
+                                      setMobilePanelOpen(true)
+                                    }
+                                  }}
+                                  onFeedClick={() => {
+                                    setDocumentPanel({type: 'activity'})
+                                    if (!media.gtSm) {
+                                      setMobilePanelOpen(true)
+                                    }
+                                  }}
+                                  onAuthorClick={(authorId) => {
+                                    const href = getHref(originHomeId, authorId)
+                                    if (href) replace(href)
+                                  }}
                                 />
                               )}
                               <WebDocContentProvider
