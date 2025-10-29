@@ -4,10 +4,6 @@ import {useContactsMetadata} from '@/models/contacts'
 import {AppDocContentProvider} from '@/pages/document-content-provider'
 import {deduplicateCitations, hmId, unpackHmId} from '@shm/shared'
 import {
-  DocumentAccessory,
-  DocumentDiscussionsAccessory,
-} from '@shm/shared/routes'
-import {
   HMAccountsMetadata,
   HMBlock,
   HMCitation,
@@ -16,14 +12,14 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useResolvedResources, useResource} from '@shm/shared/models/entity'
-import {AccessoryBackButton} from '@shm/ui/accessories'
+import {DocumentDiscussionsAccessory} from '@shm/shared/routes'
+import {AccessoryBackButton, AccessoryContent} from '@shm/ui/accessories'
 import {DocumentCitationEntry} from '@shm/ui/citations'
 import {Comment} from '@shm/ui/comments'
 import {BlocksContent} from '@shm/ui/document-content'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useMemo} from 'react'
-import {AccessoryContent} from './accessory-sidebar'
 import {renderCommentContent} from './commenting'
 
 export function CitationsPanel({

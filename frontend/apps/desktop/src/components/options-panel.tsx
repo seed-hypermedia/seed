@@ -4,6 +4,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {AccessoryContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DatePicker} from '@shm/ui/components/date-picker'
 import {Input} from '@shm/ui/components/input'
@@ -19,7 +20,6 @@ import {
 } from '@shm/ui/select-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useRef, useState} from 'react'
-import {AccessoryContent} from './accessory-sidebar'
 import {IconForm} from './icon-form'
 
 export function OptionsPanel({

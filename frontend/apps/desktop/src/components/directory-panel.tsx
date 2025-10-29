@@ -2,11 +2,11 @@ import {useAccountList} from '@/models/accounts'
 import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton} from '@/pages/document'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {AccessoryContent} from '@shm/ui/accessories'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Folder} from 'lucide-react'
-import {AccessoryContent} from './accessory-sidebar'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
   const childrenActivity = useChildrenActivity(docId)

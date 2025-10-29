@@ -20,6 +20,7 @@ import {
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {AccessoryContent} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
@@ -28,7 +29,6 @@ import {RadioButtons} from '@shm/ui/radio-buttons'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
-import {AccessoryContent} from './accessory-sidebar'
 import './combobox.css'
 
 export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {

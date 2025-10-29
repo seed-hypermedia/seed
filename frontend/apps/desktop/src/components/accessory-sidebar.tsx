@@ -17,7 +17,6 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles} from '@shm/ui/container'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -195,35 +194,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           </div>
         </Panel>
       </PanelGroup>
-    </div>
-  )
-}
-
-export function AccessoryContent({
-  children,
-  footer,
-  header,
-  title,
-  ...props
-}: {
-  children?: React.ReactNode
-  footer?: React.ReactNode
-  header?: React.ReactNode
-  title?: string
-}) {
-  return (
-    <div className="flex flex-1 flex-col overflow-hidden" {...props}>
-      <ScrollArea>
-        {header ? (
-          <div className="border-border max-h-1/2 border-b p-4">{header}</div>
-        ) : null}
-        <div className={cn('flex flex-col gap-2')}>{children}</div>
-      </ScrollArea>
-      {footer ? (
-        <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">
-          <ScrollArea>{footer}</ScrollArea>
-        </div>
-      ) : null}
     </div>
   )
 }

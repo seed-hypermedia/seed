@@ -2,7 +2,7 @@ import {useDocHistory} from '@/models/changes'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {AccessoryContent} from './components/accessory-sidebar'
+import {AccessoryContent} from '@shm/ui/accessories'
 
 export function EntityVersionsAccessory({
   id,
