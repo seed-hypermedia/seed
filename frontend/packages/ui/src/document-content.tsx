@@ -171,7 +171,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="bg-background-hover border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
+        <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -924,7 +924,7 @@ export function BlockNodeContent({
       className={cn(
         'blocknode-content',
         isHighlight ? 'bg-brand-12' : 'bg-transparent',
-        !comment && hover && 'bg-background dark:bg-black',
+        !comment && hover && !isHighlight && 'bg-background',
       )}
       style={{
         borderRadius: layoutUnit / 4,

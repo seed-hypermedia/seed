@@ -34,6 +34,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
+import {DocumentListItem} from '@shm/ui/document-list-item'
 import {
   BlankQueryBlockMessage,
   QueryBlockPlaceholder,
@@ -601,61 +602,32 @@ function QueryStyleCard({
   )
 }
 
-function QueryStyleList({items}: {items: any[]}) {
+function QueryStyleList({items}: {items: HMDocumentInfo[]}) {
   const navigate = useNavigate()
 
-  const entries = useMemo(
-    () =>
-      items.map((item) => {
-        const id = hmId(item.account, {
-          path: item.path,
-          latest: true,
-        })
-
-        return {
-          id,
-          document: item,
-          location: [],
-          authors: [],
-          account: item.account,
-          path: item.path,
-          isFavorite: false,
-          isSubscribed: false,
-        } as LibraryData['items'][0]
-      }),
-    [items],
+  const authorIds = new Set<string>()
+  items.forEach((item) =>
+    item.authors.forEach((authorId) => authorIds.add(authorId)),
   )
 
+  const authors = useAccountsMetadata(Array.from(authorIds))
+
   return (
-    <div className="flex w-full flex-col gap-3">
-      {entries.length ? (
-        entries.map((item) => {
+    <div className="flex w-full flex-col gap-1">
+      {items.length ? (
+        items.map((item) => {
           return (
-            <Button
-              className="h-auto shadow-md"
-              variant="outline"
-              onClick={() => {
+            <DocumentListItem
+              key={`${item.account}-${item.path?.join('/')}`}
+              item={item}
+              accountsMetadata={authors}
+              onClick={(id) => {
                 navigate({
                   key: 'document',
-                  id: item.id,
+                  id,
                 })
               }}
-            >
-              <HMIcon
-                size={28}
-                id={item.id}
-                name={item.document?.metadata.name}
-                icon={item.document?.metadata.icon}
-              />
-              <div className="flex flex-1 items-center gap-2 overflow-hidden py-2">
-                <SizableText weight="bold" className="truncate">
-                  {item.document?.metadata.name}
-                </SizableText>
-              </div>
-              <SizableText size="xs" color="muted">
-                {formattedDate(item.document?.updateTime)}
-              </SizableText>
-            </Button>
+            />
           )
         })
       ) : (

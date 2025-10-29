@@ -2,7 +2,6 @@ import {injectModels} from '@/models'
 import {useNavigate} from '@remix-run/react'
 import {
   createWebHMUrl,
-  formattedDate,
   getMetadataName,
   HMAccountsMetadata,
   HMBlockQuery,
@@ -19,7 +18,6 @@ import {
 } from '@shm/shared'
 import {EntityComponentProps} from '@shm/shared/document-content-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
 import {Discussions} from '@shm/ui/comments'
 import {
   BlockContentUnknown,
@@ -31,10 +29,9 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {DocumentListItem} from '@shm/ui/document-list-item'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import WebCommenting from './commenting'
@@ -373,28 +370,41 @@ function QueryStyleList({
   items: Array<HMDocumentInfo>
 }) {
   const navigate = useNavigate()
+  const {originHomeId} = useUniversalAppContext()
+
+  const authorIds = new Set<string>()
+  items.forEach((item) =>
+    item.authors.forEach((authorId) => authorIds.add(authorId)),
+  )
+
+  const authors = useResources(Array.from(authorIds).map((uid) => hmId(uid)))
+
+  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
+    authors
+      .map((d) => d.data)
+      .filter(
+        (d): d is Extract<typeof d, {type: 'document'}> =>
+          !!d && d.type === 'document' && !!d.document?.metadata,
+      )
+      .map((authorDoc) => [
+        authorDoc.id.uid,
+        {
+          id: authorDoc.id,
+          metadata: authorDoc.document.metadata,
+        },
+      ]),
+  )
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex w-full flex-col gap-1">
       {items?.map((item) => {
-        const id = hmId(item.account, {
-          path: item.path,
-          latest: true,
-        })
-        const icon =
-          id.path?.length == 0 || item.metadata?.icon ? (
-            <HMIcon
-              size={28}
-              id={id}
-              name={item.metadata?.name}
-              icon={item.metadata?.icon}
-            />
-          ) : null
         return (
-          <Button
-            className="h-auto shadow-md"
-            variant="outline"
-            onClick={() => {
+          <DocumentListItem
+            key={`${item.account}-${item.path?.join('/')}`}
+            item={item}
+            accountsMetadata={accountsMetadata}
+            isWeb={true}
+            onClick={(id) => {
               navigate(
                 createWebHMUrl(id.uid, {
                   hostname: null,
@@ -403,20 +413,11 @@ function QueryStyleList({
                   version: id.version,
                   latest: id.latest,
                   path: id.path,
+                  originHomeId,
                 }),
               )
             }}
-          >
-            {icon}
-            <div className="flex flex-1 items-center gap-2 overflow-hidden py-2">
-              <SizableText weight="bold" className="truncate">
-                {item.metadata.name}
-              </SizableText>
-            </div>
-            <SizableText size="xs" color="muted">
-              {formattedDate(item.updateTime)}
-            </SizableText>
-          </Button>
+          />
         )
       })}
     </div>
