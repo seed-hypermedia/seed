@@ -2,6 +2,7 @@ import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {json} from '@remix-run/node'
 import {
+  getEventType,
   HMEvent,
   loadCapabilityEvent,
   loadCitationEvent,
@@ -31,12 +32,24 @@ export const action = async ({
     throw json({error: 'Missing event'}, {status: 400})
   }
 
-  const blobType = event.newBlob.blobType.toLowerCase()
+  const eventType = getEventType(event)
+  const eventCid =
+    'newBlob' in event
+      ? event.newBlob?.cid
+      : 'newMention' in event
+      ? event.newMention?.sourceBlob?.cid
+      : undefined
+  console.log('== DEBUG RESOLVING EVENT', eventType, eventCid)
+
+  if (!eventType) {
+    console.error('Unable to determine event type:', event)
+    return wrapJSON(null)
+  }
 
   try {
     let result: LoadedEvent | null = null
 
-    switch (blobType) {
+    switch (eventType) {
       case 'comment':
         result = await loadCommentEvent(grpcClient, event, currentAccount)
         break
@@ -50,6 +63,12 @@ export const action = async ({
         result = await loadContactEvent(grpcClient, event, currentAccount)
         break
       case 'citation':
+      case 'comment/target':
+      case 'comment/embed':
+      case 'comment/link':
+      case 'doc/embed':
+      case 'doc/link':
+      case 'doc/button':
         result = await loadCitationEvent(grpcClient, event, currentAccount)
         break
       case 'profile':
@@ -57,7 +76,8 @@ export const action = async ({
         result = null
         break
       default:
-        throw new Error(`Unknown event type: ${blobType}`)
+        console.warn(`Unknown event type: ${eventType}`)
+        result = null
     }
 
     return wrapJSON(result)

@@ -391,6 +391,10 @@ message Mention {
   // Optional. Specifies the document where the mention was found. Relevant for comments.
   string source_document = 6;
 
+  // Optional. The target Entity the link points to,
+  // if one is specified in the link.
+  string target = 10;
+
   // Optional. The version of the target Entity the link points to,
   // if one is specified in the link.
   string target_version = 7;

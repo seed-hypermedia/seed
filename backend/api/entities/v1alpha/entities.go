@@ -1094,6 +1094,7 @@ func (api *Server) ListEntityMentions(ctx context.Context, in *entities.ListEnti
 					CreateTime: timestamppb.New(ts),
 				},
 				SourceDocument: sourceDoc,
+				Target:         in.Id,
 				TargetVersion:  targetVersion,
 				IsExactVersion: isPinned,
 				TargetFragment: fragment,

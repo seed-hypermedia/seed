@@ -137,8 +137,10 @@ async function getLastEventBlobCid(): Promise<string | undefined> {
   const event = events.at(0)
   if (!event) return
   const lastBlobCid =
-    event.data.case === 'newBlob' && event.data.value?.cid
-      ? event.data.value.cid
+    event.data.case === 'newBlob'
+      ? event.data.value?.cid
+      : event.data.case === 'newMention'
+      ? event.data.value?.sourceBlob?.cid
       : undefined
   if (!lastBlobCid) return
   return lastBlobCid
@@ -752,7 +754,12 @@ async function getParentComments(comment: PlainMessage<Comment>) {
 async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   const newestEvent = events.at(0)
   if (!newestEvent) return
-  const lastProcessedBlobCid = newestEvent.data.value?.cid
+  const lastProcessedBlobCid =
+    newestEvent.data.case === 'newBlob'
+      ? newestEvent.data.value?.cid
+      : newestEvent.data.case === 'newMention'
+      ? newestEvent.data.value?.sourceBlob?.cid
+      : undefined
   if (!lastProcessedBlobCid) return
   console.log('~~ markEventsAsProcessed setting CID to:', lastProcessedBlobCid)
   await setNotifierLastProcessedBlobCid(lastProcessedBlobCid)
@@ -769,8 +776,15 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
     })
 
     for (const event of events) {
-      if (event.data.case === 'newBlob' && event.data.value?.cid) {
-        if (event.data.value.cid === lastProcessedBlobCid) {
+      const eventCid =
+        event.data.case === 'newBlob'
+          ? event.data.value?.cid
+          : event.data.case === 'newMention'
+          ? event.data.value?.sourceBlob?.cid
+          : undefined
+
+      if (eventCid) {
+        if (eventCid === lastProcessedBlobCid) {
           return eventsAfterBlobCid
         }
         eventsAfterBlobCid.push(toPlainMessage(event))

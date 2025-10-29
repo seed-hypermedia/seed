@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {listEventsWithCitationsImpl} from '@shm/shared/models/activity-service'
+import {listEventsImpl} from '@shm/shared/models/activity-service'
 
 export type HMFeedPayload = {
   events: any[]
@@ -24,7 +24,7 @@ export const loader = async ({
   const filterEventType =
     url.searchParams.get('filterEventType')?.split(',') || undefined
   try {
-    const result = await listEventsWithCitationsImpl(grpcClient, {
+    const result = await listEventsImpl(grpcClient, {
       pageToken,
       pageSize,
       filterAuthors,

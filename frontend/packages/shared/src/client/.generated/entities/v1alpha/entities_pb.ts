@@ -1299,6 +1299,14 @@ export class Mention extends Message<Mention> {
   sourceDocument = "";
 
   /**
+   * Optional. The target Entity the link points to,
+   * if one is specified in the link.
+   *
+   * @generated from field: string target = 10;
+   */
+  target = "";
+
+  /**
    * Optional. The version of the target Entity the link points to,
    * if one is specified in the link.
    *
@@ -1334,6 +1342,7 @@ export class Mention extends Message<Mention> {
     { no: 4, name: "source_blob", kind: "message", T: Mention_BlobInfo },
     { no: 5, name: "is_exact_version", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 6, name: "source_document", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "target", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "target_version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "target_fragment", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "mention_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },

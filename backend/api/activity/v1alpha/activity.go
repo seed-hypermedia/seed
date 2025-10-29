@@ -13,6 +13,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
+	entity_proto "seed/backend/genproto/entities/v1alpha"
 	"seed/backend/storage"
 	"slices"
 	"sort"
@@ -334,6 +335,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	var deletedList []string
 
+	// Add mentions to the events list
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		var eids []string
 		irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
@@ -366,7 +368,8 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			queryStr = strings.TrimSpace(queryStr)
 			if err := sqlitex.ExecTransient(conn, queryStr, func(stmt *sqlite.Stmt) error {
 				var (
-					source     = stmt.ColumnText(0)
+					sourceDoc  string
+					target     = stmt.ColumnText(0)
 					sourceBlob = cid.NewCidV1(uint64(stmt.ColumnInt64(1)), stmt.ColumnBytesUnsafe(2)).String()
 					author     = core.Principal(stmt.ColumnBytesUnsafe(3)).String()
 					// Structural timestamp (ms) used for DB paging
@@ -374,47 +377,48 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 					eventTime      = timestamppb.New(time.UnixMilli(structTsMillis))
 					blobType       = stmt.ColumnText(5)
 
-					isPinned = stmt.ColumnInt(6) > 0
-					//anchor        = stmt.ColumnText(7)
+					isPinned      = stmt.ColumnInt(6) > 0
+					anchor        = stmt.ColumnText(7)
 					targetVersion = stmt.ColumnText(8)
 					fragment      = stmt.ColumnText(9)
 
-					linkType    = stmt.ColumnText(10)
-					blobID      = stmt.ColumnInt64(11)
+					linkType = stmt.ColumnText(10)
+					//blobID      = stmt.ColumnInt64(11)
 					observeTime = timestamppb.New(time.Unix(stmt.ColumnInt64(12), 0))
 					tsid        = blob.TSID(stmt.ColumnText(13))
-					extraAttrs  = stmt.ColumnText(14)
-					isDeleted   = stmt.ColumnText(16) == "1"
+					//extraAttrs  = stmt.ColumnText(14)
+					isDeleted = stmt.ColumnText(16) == "1"
+					source    = stmt.ColumnText(18)
 				)
 				genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(17), 10))
-				if source == "" && blobType != "Comment" {
-					return fmt.Errorf("BUG: missing source for link of type '%s'", blobType)
+				if target == "" && blobType != "Comment" {
+					return fmt.Errorf("BUG: missing target for link of type '%s'", blobType)
 				}
 
 				if blobType == "Comment" {
+					sourceDoc = target
 					source = "hm://" + author + "/" + tsid.String()
 					eventTime = timestamppb.New(tsid.Timestamp())
 
-				} else {
-					if targetVersion != "" {
-						source = strings.TrimSuffix(source, "/") + "?v=" + targetVersion // Remove trailing slash for consistency
-					}
-					if fragment != "" {
-						source = strings.TrimSuffix(source, "/") + "#" + fragment // Remove trailing slash for consistency
-					}
 				}
 				if isDeleted {
-					deletedList = append(deletedList, source)
+					deletedList = append(deletedList, target)
 				}
 				event := activity.Event{
-					Data: &activity.Event_NewBlob{NewBlob: &activity.NewBlobEvent{
-						Cid:        sourceBlob,
-						BlobType:   linkType,
-						Author:     author,
-						Resource:   source,
-						ExtraAttrs: extraAttrs,
-						BlobId:     blobID,
-						IsPinned:   isPinned,
+					Data: &activity.Event_NewMention{NewMention: &entity_proto.Mention{
+						Source:        source,
+						SourceType:    linkType,
+						SourceContext: anchor,
+						SourceBlob: &entity_proto.Mention_BlobInfo{
+							Cid:        sourceBlob,
+							Author:     author,
+							CreateTime: eventTime,
+						},
+						IsExactVersion: isPinned,
+						SourceDocument: sourceDoc,
+						Target:         target,
+						TargetVersion:  targetVersion,
+						TargetFragment: fragment,
 					}},
 					Account:     author,
 					EventTime:   eventTime,
@@ -457,6 +461,19 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	}
 	for _, movedResource := range movedResources {
 		for _, e := range events {
+			// switch on event type
+			// for mentions
+			if _, ok := e.Data.(*activity.Event_NewMention); ok {
+				if strings.Contains(e.Data.(*activity.Event_NewMention).NewMention.Source, movedResource.OldIri) {
+					if movedResource.IsDeleted {
+						deletedList = append(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source)
+					} /* else {
+						events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource = strings.ReplaceAll(events[i].Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri, movedResource.NewIri)
+					}*/
+				}
+				continue
+			}
+			// for new blobs
 			if strings.Contains(e.Data.(*activity.Event_NewBlob).NewBlob.Resource, movedResource.OldIri) {
 				if movedResource.IsDeleted {
 					deletedList = append(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource)
@@ -469,25 +486,53 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 
 	nonDeleted := make([]*activity.Event, 0, len(events))
 	for _, e := range events {
+		// switch on event type
+		// for mentions
+		if _, ok := e.Data.(*activity.Event_NewMention); ok {
+			if !slices.Contains(deletedList, e.Data.(*activity.Event_NewMention).NewMention.Source) {
+				nonDeleted = append(nonDeleted, e)
+			}
+			continue
+		}
+		// for new blobs
 		if !slices.Contains(deletedList, e.Data.(*activity.Event_NewBlob).NewBlob.Resource) {
 			nonDeleted = append(nonDeleted, e)
 		}
 	}
 
 	//TODO: remove duplicates based on resource, type, author, eventtime
+
 	seen := make(map[string]struct{})
 	for i := 0; i < len(nonDeleted); i++ {
 		e := nonDeleted[i]
-		key := fmt.Sprintf("%s:%s:%s:%d",
-			e.Data.(*activity.Event_NewBlob).NewBlob.Resource,
-			e.Data.(*activity.Event_NewBlob).NewBlob.BlobType,
-			e.Account,
-			e.EventTime.AsTime().UnixNano())
-		if _, ok := seen[key]; ok {
-			nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
-			i--
-		} else {
-			seen[key] = struct{}{}
+		// switch on event type
+		if _, ok := e.Data.(*activity.Event_NewMention); ok {
+			key := fmt.Sprintf("%s:%s:%s:%d",
+				e.Data.(*activity.Event_NewMention).NewMention.Target,
+				e.Data.(*activity.Event_NewMention).NewMention.SourceType,
+				e.Account,
+				e.EventTime.AsTime().UnixNano())
+			if _, ok := seen[key]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				i--
+			} else {
+				seen[key] = struct{}{}
+			}
+			continue
+		}
+		if _, ok := e.Data.(*activity.Event_NewBlob); ok {
+			key := fmt.Sprintf("%s:%s:%s:%d",
+				e.Data.(*activity.Event_NewBlob).NewBlob.Resource,
+				e.Data.(*activity.Event_NewBlob).NewBlob.BlobType,
+				e.Account,
+				e.EventTime.AsTime().UnixNano())
+			if _, ok := seen[key]; ok {
+				nonDeleted = append(nonDeleted[:i], nonDeleted[i+1:]...)
+				i--
+			} else {
+				seen[key] = struct{}{}
+			}
+			continue
 		}
 	}
 
@@ -616,12 +661,21 @@ SELECT distinct
 	structural_blobs.extra_attrs,
 	resource_links.id AS link_id,
 	structural_blobs.extra_attrs->>'deleted' as is_deleted,
-	structural_blobs.genesis_blob
+	CASE
+        WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
+        ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
+    END AS effective_genesis,
+	r2.iri AS source_iri
 FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 JOIN resources ON resources.id = resource_links.target
+LEFT JOIN resources r2
+  ON r2.genesis_blob = CASE
+        WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
+        ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
+     END
 WHERE resource_links.target IN (SELECT value from json_each(:targets_json))
 AND structural_blobs.ts <= :idx
 `
@@ -632,7 +686,7 @@ var linkTypesFilterMentions = `
 AND lower(link_type) IN (SELECT value from json_each(:link_types_json))
 `
 var limitMentions = `
-GROUP BY resources.iri, target_version, target_fragment
+GROUP BY resources.iri, target_version, target_fragment, source_iri
 ORDER BY structural_blobs.ts DESC
 LIMIT :page_size;
 `

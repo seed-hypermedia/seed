@@ -4,7 +4,8 @@ import {
   HMListEventsRequest,
   HMListEventsResponse,
   LoadedEvent,
-  listEventsWithCitationsImpl,
+  getEventType,
+  listEventsImpl,
   loadCapabilityEvent,
   loadCitationEvent,
   loadCommentEvent,
@@ -15,17 +16,24 @@ import {grpcClient} from './grpc-client'
 
 export class DesktopActivityService implements ActivityService {
   async listEvents(params: HMListEventsRequest): Promise<HMListEventsResponse> {
-    return listEventsWithCitationsImpl(grpcClient, params)
+    return listEventsImpl(grpcClient, params)
   }
 
   async resolveEvent(
     event: HMEvent,
     currentAccount?: string,
   ): Promise<LoadedEvent | null> {
-    // Determine event type from blobType or other fields
-    const blobType = event.newBlob.blobType.toLowerCase()
+    // Get event type from either newBlob or newMention
+    const eventType = getEventType(event)
 
-    switch (blobType) {
+    if (!eventType) {
+      console.error('Unable to determine event type:', event)
+      return null
+    }
+
+    console.log('== EVENT TYPE', eventType)
+
+    switch (eventType) {
       case 'comment':
         let res = await loadCommentEvent(grpcClient, event, currentAccount)
         return res
@@ -36,13 +44,20 @@ export class DesktopActivityService implements ActivityService {
       case 'contact':
         return loadContactEvent(grpcClient, event, currentAccount)
       case 'citation':
+      case 'comment/target':
+      case 'comment/embed':
+      case 'comment/link':
+      case 'doc/embed':
+      case 'doc/link':
+      case 'doc/button':
         return loadCitationEvent(grpcClient, event, currentAccount)
       case 'dagpb':
       case 'profile':
         return null
       default:
         // Fallback for unknown types
-        throw new Error(`Unknown event type: ${blobType}`)
+        console.warn(`Unknown event type: ${eventType}`)
+        return null
     }
   }
 }

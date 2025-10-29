@@ -1446,8 +1446,9 @@ func TestCommentDiscovery(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Bob discovers the comment.
-	var ok bool
-	for range 100 {
+	// TODO: use require.Eventually instead of manual loop.
+	require.Eventually(t, func() bool {
+		ok := false
 		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
 			Account: aliceDoc.Account,
 			Path:    strings.TrimPrefix(comment.Id, aliceDoc.Account), // Comment ID is a resource ID of form `{account}/{tsid}`, but we only want the path with the leading slash.
@@ -1456,11 +1457,9 @@ func TestCommentDiscovery(t *testing.T) {
 		require.Equal(t, "", res.LastError, "comment discovery must not produce any errors")
 		if res.Version == comment.Version {
 			ok = true
-			break
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	require.True(t, ok, "bob must discover alice's comment")
+		return ok
+	}, 3*time.Second, 100*time.Millisecond)
 
 	// Bob should be able to get the comment now.
 	bobGotComment, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{

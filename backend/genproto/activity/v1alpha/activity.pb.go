@@ -11,6 +11,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	v1alpha "seed/backend/genproto/entities/v1alpha"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -193,6 +194,7 @@ type Event struct {
 	// Types that are valid to be assigned to Data:
 	//
 	//	*Event_NewBlob
+	//	*Event_NewMention
 	Data isEvent_Data `protobuf_oneof:"data"`
 	// The ID of the user account that has caused the event.
 	Account string `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
@@ -251,6 +253,15 @@ func (x *Event) GetNewBlob() *NewBlobEvent {
 	return nil
 }
 
+func (x *Event) GetNewMention() *v1alpha.Mention {
+	if x != nil {
+		if x, ok := x.Data.(*Event_NewMention); ok {
+			return x.NewMention
+		}
+	}
+	return nil
+}
+
 func (x *Event) GetAccount() string {
 	if x != nil {
 		return x.Account
@@ -281,7 +292,13 @@ type Event_NewBlob struct {
 	NewBlob *NewBlobEvent `protobuf:"bytes,1,opt,name=new_blob,json=newBlob,proto3,oneof"`
 }
 
+type Event_NewMention struct {
+	NewMention *v1alpha.Mention `protobuf:"bytes,5,opt,name=new_mention,json=newMention,proto3,oneof"`
+}
+
 func (*Event_NewBlob) isEvent_Data() {}
+
+func (*Event_NewMention) isEvent_Data() {}
 
 // The event describing the
 type NewBlobEvent struct {
@@ -392,7 +409,7 @@ var File_activity_v1alpha_activity_proto protoreflect.FileDescriptor
 
 const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\n" +
-	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\"\xee\x01\n" +
+	"\x1factivity/v1alpha/activity.proto\x12\x19com.seed.activity.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fentities/v1alpha/entities.proto\"\xee\x01\n" +
 	"\x11ListEventsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -403,9 +420,11 @@ const file_activity_v1alpha_activity_proto_rawDesc = "" +
 	"\x0ffilter_resource\x18\x06 \x01(\tR\x0efilterResource\"v\n" +
 	"\x12ListEventsResponse\x128\n" +
 	"\x06events\x18\x01 \x03(\v2 .com.seed.activity.v1alpha.EventR\x06events\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xe9\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xb0\x02\n" +
 	"\x05Event\x12D\n" +
-	"\bnew_blob\x18\x01 \x01(\v2'.com.seed.activity.v1alpha.NewBlobEventH\x00R\anewBlob\x12\x18\n" +
+	"\bnew_blob\x18\x01 \x01(\v2'.com.seed.activity.v1alpha.NewBlobEventH\x00R\anewBlob\x12E\n" +
+	"\vnew_mention\x18\x05 \x01(\v2\".com.seed.entities.v1alpha.MentionH\x00R\n" +
+	"newMention\x12\x18\n" +
 	"\aaccount\x18\x02 \x01(\tR\aaccount\x129\n" +
 	"\n" +
 	"event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\teventTime\x12=\n" +
@@ -442,20 +461,22 @@ var file_activity_v1alpha_activity_proto_goTypes = []any{
 	(*ListEventsResponse)(nil),    // 1: com.seed.activity.v1alpha.ListEventsResponse
 	(*Event)(nil),                 // 2: com.seed.activity.v1alpha.Event
 	(*NewBlobEvent)(nil),          // 3: com.seed.activity.v1alpha.NewBlobEvent
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
+	(*v1alpha.Mention)(nil),       // 4: com.seed.entities.v1alpha.Mention
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
 }
 var file_activity_v1alpha_activity_proto_depIdxs = []int32{
 	2, // 0: com.seed.activity.v1alpha.ListEventsResponse.events:type_name -> com.seed.activity.v1alpha.Event
 	3, // 1: com.seed.activity.v1alpha.Event.new_blob:type_name -> com.seed.activity.v1alpha.NewBlobEvent
-	4, // 2: com.seed.activity.v1alpha.Event.event_time:type_name -> google.protobuf.Timestamp
-	4, // 3: com.seed.activity.v1alpha.Event.observe_time:type_name -> google.protobuf.Timestamp
-	0, // 4: com.seed.activity.v1alpha.ActivityFeed.ListEvents:input_type -> com.seed.activity.v1alpha.ListEventsRequest
-	1, // 5: com.seed.activity.v1alpha.ActivityFeed.ListEvents:output_type -> com.seed.activity.v1alpha.ListEventsResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4, // 2: com.seed.activity.v1alpha.Event.new_mention:type_name -> com.seed.entities.v1alpha.Mention
+	5, // 3: com.seed.activity.v1alpha.Event.event_time:type_name -> google.protobuf.Timestamp
+	5, // 4: com.seed.activity.v1alpha.Event.observe_time:type_name -> google.protobuf.Timestamp
+	0, // 5: com.seed.activity.v1alpha.ActivityFeed.ListEvents:input_type -> com.seed.activity.v1alpha.ListEventsRequest
+	1, // 6: com.seed.activity.v1alpha.ActivityFeed.ListEvents:output_type -> com.seed.activity.v1alpha.ListEventsResponse
+	6, // [6:7] is the sub-list for method output_type
+	5, // [5:6] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_activity_v1alpha_activity_proto_init() }
@@ -465,6 +486,7 @@ func file_activity_v1alpha_activity_proto_init() {
 	}
 	file_activity_v1alpha_activity_proto_msgTypes[2].OneofWrappers = []any{
 		(*Event_NewBlob)(nil),
+		(*Event_NewMention)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

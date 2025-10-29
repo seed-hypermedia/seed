@@ -40,9 +40,11 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   async function loadContactEvent(
     event: Event,
   ): Promise<LoadedContactEvent | null> {
-    const {author, resource} = event.data.value || {}
+    const newBlob = event.data.case === 'newBlob' ? event.data.value : null
     const {eventTime} = event
 
+    if (!newBlob) return null
+    const {author, resource} = newBlob
     if (!author) return null
     if (!resource) return null
     const authorId = hmId(author)
@@ -66,10 +68,12 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   async function loadCapabilityEvent(
     event: Event,
   ): Promise<LoadedCapabilityEvent | null> {
-    const {author, resource} = event.data.value || {}
-    const {eventTime} = event
     const newBlob = event.data.case === 'newBlob' ? event.data.value : null
-    const {cid} = newBlob || {}
+    const {eventTime} = event
+
+    if (!newBlob) return null
+
+    const {author, resource, cid} = newBlob
 
     if (!author || !resource) {
       return null
@@ -117,8 +121,12 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   async function loadCommentEvent(
     event: Event,
   ): Promise<LoadedCommentEvent | null> {
-    const {author, resource} = event.data.value || {}
+    const newBlob = event.data.case === 'newBlob' ? event.data.value : null
     const {eventTime} = event
+
+    if (!newBlob) return null
+
+    const {author, resource} = newBlob
 
     const resourceId = unpackHmId(resource)
     const resourceData = resourceId ? await loadResource(resourceId) : null
@@ -162,7 +170,10 @@ export function createFeedLoader(grpcClient: GRPCClient) {
   async function loadDocUpdateEvent(
     event: Event,
   ): Promise<LoadedDocUpdateEvent | null> {
-    const {author, cid, resource} = event.data.value || {}
+    const newBlob = event.data.case === 'newBlob' ? event.data.value : null
+    if (!newBlob) return null
+
+    const {author, cid, resource} = newBlob
     if (!cid) return null
     const refData = cid
       ? await loadBlob<{
