@@ -1538,11 +1538,15 @@ func TestActivityFeed(t *testing.T) {
 	hasType := func(evts []*activity.Event, typ string) bool {
 		return slices.ContainsFunc(evts, func(e *activity.Event) bool {
 			nb, ok := e.Data.(*activity.Event_NewBlob)
-			return ok && nb.NewBlob.GetBlobType() == typ
+			if !ok {
+				nm, ok := e.Data.(*activity.Event_NewMention)
+				return ok && nm.NewMention.GetSourceType() == typ
+			} else {
+				return ok && nb.NewBlob.GetBlobType() == typ
+			}
 		})
 	}
 	require.True(t, hasType(base.Events, "Ref"))
-	// require.True(t, hasType(base.Events, "Profile"))
 	require.True(t, hasType(base.Events, "comment/target"))
 	require.True(t, hasType(base.Events, "Comment"))
 	require.True(t, hasType(base.Events, "Contact"))
