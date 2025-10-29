@@ -27,6 +27,7 @@ import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
+import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 const queryClient = new QueryClient()
 
@@ -169,6 +170,12 @@ export function WebSiteProvider(props: {
       ipfsFileUrl={DAEMON_FILE_URL}
       openUrl={(url) => {
         window.open(url, '_blank')
+      }}
+      entityComponents={{
+        Document: EmbedDocument,
+        Inline: EmbedInline as any,
+        Query: QueryBlockWeb,
+        Comment: () => null,
       }}
       openRoute={(route: NavRoute, replace?: boolean) => {
         // Update navigation state

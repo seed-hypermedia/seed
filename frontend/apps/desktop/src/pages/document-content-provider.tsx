@@ -1,15 +1,9 @@
 import {useAppContext} from '@/app-context'
-import {
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockDesktop,
-} from '@/components/app-embeds'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -17,6 +11,7 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {useUniversalAppContext} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {
@@ -42,6 +37,7 @@ export function AppDocContentProvider({
   const experiments = useExperiments()
   const contacts = useSelectedAccountContacts()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const universalContext = useUniversalAppContext()
   return (
     <>
       <DocContentProvider
@@ -51,12 +47,14 @@ export function AppDocContentProvider({
         textUnit={overrides.textUnit || contentTextUnit}
         debug={false}
         contacts={contacts.data}
-        entityComponents={{
-          Document: EmbedDocument,
-          // @ts-expect-error
-          Inline: EmbedInline,
-          Query: QueryBlockDesktop,
-        }}
+        entityComponents={
+          universalContext.entityComponents || {
+            Document: () => null,
+            Inline: () => null,
+            Query: () => null,
+            Comment: () => null,
+          }
+        }
         onBlockCopy={
           reference
             ? (

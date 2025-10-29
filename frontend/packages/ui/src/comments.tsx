@@ -16,6 +16,7 @@ import {
   useCommentGroups,
   useCommentParents,
   useRouteLink,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {
   useBlockDiscussionsService,
@@ -28,16 +29,16 @@ import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
-import {ReactNode, useEffect, useMemo, useState} from 'react'
+import {ReactNode, useContext, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
 import {AccessoryBackButton, AccessoryContent} from './accessories'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {
   BlocksContent,
+  docContentContext,
   DocContentProvider,
   getBlockNodeById,
-  useDocContentContext,
 } from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
@@ -468,17 +469,19 @@ export function Comment({
   externalTarget?: HMMetadataPayload
 }) {
   const tx = useTxString()
+  const universalContext = useUniversalAppContext()
   let renderContent = renderCommentContent
   if (!renderContent) {
     renderContent = (comment) => (
       <DocContentProvider
-        // TODO: implement a service for the document content to to get rid of this entityComponents
-        entityComponents={{
-          Document: () => null,
-          Inline: () => null,
-          Query: () => null,
-          Comment: () => null,
-        }}
+        entityComponents={
+          universalContext.entityComponents || {
+            Document: () => null,
+            Inline: () => null,
+            Query: () => null,
+            Comment: () => null,
+          }
+        }
         onBlockCopy={() => {}}
         onBlockReply={() => {}}
         onBlockCommentClick={() => {}}
@@ -505,7 +508,7 @@ export function Comment({
     comment.author || authorId ? hmId(authorId || comment.author) : null
 
   const authorLink = useRouteLink(
-    authorHmId ? {key: 'document', id: authorHmId} : null,
+    authorHmId ? {key: 'profile', id: authorHmId} : null,
     {
       handler: 'onClick',
     },
@@ -577,7 +580,7 @@ export function Comment({
           <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
             {heading ? null : (
               <div className="flex items-baseline gap-1 overflow-hidden">
-                <button
+                <a
                   className={cn(
                     'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
                     authorLink ? 'cursor-pointer' : '',
@@ -585,7 +588,7 @@ export function Comment({
                   {...authorLink}
                 >
                   {authorMetadata?.name || authorId?.slice(0, 10) || '...'}
-                </button>
+                </a>
                 {externalTarget ? (
                   <>
                     <span className="text-muted-foreground text-xs">on</span>
@@ -667,7 +670,8 @@ export function CommentContent({
   comment: HMComment
   size?: 'sm' | 'md'
 }) {
-  const docContext = useDocContentContext()
+  const context = useContext(docContentContext)
+  const universalContext = useUniversalAppContext()
 
   const content = (
     <BlocksContent
@@ -679,7 +683,23 @@ export function CommentContent({
 
   if (size != 'md') {
     return (
-      <DocContentProvider {...docContext} textUnit={12} layoutUnit={14}>
+      <DocContentProvider
+        onBlockCopy={context?.onBlockCopy ?? null}
+        entityComponents={
+          context?.entityComponents ||
+          universalContext.entityComponents || {
+            Document: () => null,
+            Inline: () => null,
+            Query: () => null,
+            Comment: () => null,
+          }
+        }
+        textUnit={12}
+        layoutUnit={14}
+        debug={context?.debug ?? false}
+        collapsedBlocks={context?.collapsedBlocks ?? new Set()}
+        setCollapsedBlocks={context?.setCollapsedBlocks ?? (() => {})}
+      >
         {content}
       </DocContentProvider>
     )

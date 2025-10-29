@@ -17,6 +17,12 @@ export const contactRouteSchema = z.object({
 })
 export type ContactRoute = z.infer<typeof contactRouteSchema>
 
+export const profileRouteSchema = z.object({
+  key: z.literal('profile'),
+  id: unpackedHmIdSchema,
+})
+export type ProfileRoute = z.infer<typeof profileRouteSchema>
+
 export const documentDirectoryAccessorySchema = z.object({
   key: z.literal('directory'),
 })
@@ -153,6 +159,7 @@ export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
   contactsRouteSchema,
+  profileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
   documentRouteSchema,

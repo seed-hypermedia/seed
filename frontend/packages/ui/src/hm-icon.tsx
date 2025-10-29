@@ -3,7 +3,6 @@ import {useResource} from '@shm/shared/models/entity'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
 import {UIAvatar, UIAvatarProps} from './avatar'
-import {Button} from './button'
 import {useImageUrl} from './get-file-url'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -108,15 +107,13 @@ export function LinkIcon({
         `${id.uid.slice(0, 5)}...${id.uid.slice(-5)}`
       }
     >
-      <Button
-        variant="ghost"
-        size="icon"
+      <a
         className="no-window-drag relative min-h-5 min-w-5 p-0"
         {...linkProps}
         style={{height: size} as React.CSSProperties}
       >
         {content}
-      </Button>
+      </a>
     </Tooltip>
   )
 }

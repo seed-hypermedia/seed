@@ -3,13 +3,19 @@
 // TODO: change to expect-error instead
 // @ts-ignore
 export const loggingInterceptor = (next) => async (req) => {
+  const timeout = setTimeout(() => {
+    console.log(`🚨 TIMEOUT on ${req.method.name}`, req.message)
+  }, 5000)
   try {
+    console.log(`↗️ to ${req.method.name}`, req.message)
     const result = await next(req)
+    clearTimeout(timeout)
     // @ts-ignore
-    // console.log(`🔃 to ${req.method.name}`, req.message, result?.message)
+    console.log(`🔃 to ${req.method.name}`, req.message, result?.message)
     return result
   } catch (e) {
-    // console.error(`🚨 to ${req.method.name}`, req.message, e)
+    clearTimeout(timeout)
+    console.error(`🚨 to ${req.method.name}`, req.message, e)
     throw e
   }
 }

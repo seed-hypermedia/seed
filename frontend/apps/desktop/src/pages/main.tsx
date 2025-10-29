@@ -1,7 +1,7 @@
 import {useAppContext, useListen} from '@/app-context'
 
-import {CloseButton} from '@/components/window-controls'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
+import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useMyAccounts} from '@/models/daemon'
@@ -46,6 +46,7 @@ import {TitleBar} from '../components/titlebar'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
+
 var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
@@ -55,6 +56,7 @@ var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var Drafts = lazy(() => import('./drafts'))
+var Profile = lazy(() => import('./profile'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
@@ -273,6 +275,11 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Feed,
         Fallback: DocumentPlaceholder,
+      }
+    case 'profile':
+      return {
+        PageComponent: Profile,
+        Fallback: BaseLoading,
       }
     default:
       return {

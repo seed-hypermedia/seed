@@ -1,5 +1,6 @@
 import {createContext, useContext} from 'react'
 import {DAEMON_FILE_URL} from './constants'
+import {EntityComponentsRecord} from './document-content-types'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
@@ -28,6 +29,7 @@ type UniversalAppContextValue = {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
+  entityComponents?: EntityComponentsRecord
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -51,6 +53,7 @@ export function UniversalAppProvider(props: {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
+  entityComponents?: EntityComponentsRecord
 }) {
   return (
     <UniversalAppContext.Provider
@@ -67,6 +70,7 @@ export function UniversalAppProvider(props: {
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,
         setSelectedIdentity: props.setSelectedIdentity,
+        entityComponents: props.entityComponents,
       }}
     >
       {props.children as any}
@@ -125,6 +129,9 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
+  if (typeof route !== 'string' && route.key == 'profile') {
+    return `/hm/profile/${route.id.uid}`
+  }
   const docRoute =
     typeof route !== 'string' &&
     (route.key == 'document' || route.key == 'feed')
@@ -205,6 +212,7 @@ export function useRouteLink(
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {
+          console.log('openRoute', route, opts?.replace)
           context.openRoute(route, opts?.replace)
         } else {
           console.error(

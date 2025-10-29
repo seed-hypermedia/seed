@@ -761,6 +761,7 @@ export const HMMetadataPayloadSchema = z
   .object({
     id: unpackedHmIdSchema,
     metadata: HMDocumentMetadataSchema.or(z.null()),
+    hasSite: z.boolean().optional(),
   })
   .strict()
 export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>

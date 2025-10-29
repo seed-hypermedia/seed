@@ -21,8 +21,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
-import {useResource} from '@shm/shared/models/entity'
-import {ContactRoute, DraftRoute} from '@shm/shared/routes'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import {ContactRoute, DraftRoute, ProfileRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -125,6 +125,9 @@ export function TitleContent({
   }
   if (route.key === 'contact') {
     return <ContactTitle route={route} />
+  }
+  if (route.key === 'profile') {
+    return <ProfileTitle route={route} />
   }
   if (route.key === 'document' || route.key === 'feed') {
     return <BreadcrumbTitle entityId={route.id} onPublishSite={onPublishSite} />
@@ -897,6 +900,29 @@ function ContactTitle({route}: {route: ContactRoute}) {
       <BreadcrumbSeparator key={`contacts-seperator`} />
       <TitleText fontWeight="bold">
         {contact.data?.metadata?.name || 'Untitled Contact'}
+      </TitleText>
+    </>
+  )
+}
+
+function ProfileTitle({route}: {route: ProfileRoute}) {
+  const profile = useAccount(route.id.uid)
+
+  useWindowTitleSetter(async () => {
+    if (profile.data?.metadata?.name)
+      return `Profile: ${profile.data?.metadata?.name}`
+    return 'Profile'
+  }, [profile.data?.metadata?.name])
+
+  return (
+    <>
+      <Contact className="size-4" />
+      <TitleText className="no-window-drag self-center font-bold">
+        Profile
+      </TitleText>
+      <BreadcrumbSeparator key={`contacts-seperator`} />
+      <TitleText fontWeight="bold">
+        {profile.data?.metadata?.name || 'Untitled Profile'}
       </TitleText>
     </>
   )

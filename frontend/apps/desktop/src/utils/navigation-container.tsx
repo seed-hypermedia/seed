@@ -1,3 +1,8 @@
+import {
+  EmbedDocument,
+  EmbedInline,
+  QueryBlockDesktop,
+} from '@/components/app-embeds'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
@@ -128,6 +133,12 @@ export function NavigationContainer({
       selectedIdentity={navigation.selectedIdentity}
       setSelectedIdentity={(keyId: string | null) => {
         navigation.dispatch({type: 'selectedIdentity', value: keyId})
+      }}
+      entityComponents={{
+        Document: EmbedDocument,
+        Inline: EmbedInline as any,
+        Query: QueryBlockDesktop,
+        Comment: () => null,
       }}
     >
       <NavContextProvider value={navigation}>

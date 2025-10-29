@@ -1,0 +1,159 @@
+import {EditProfileDialog, LogoutButton, useLocalKeyPair} from '@/auth'
+import {getMetadata, getOriginRequestData} from '@/loaders'
+import {defaultSiteIcon} from '@/meta'
+import {PageFooter} from '@/page-footer'
+import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
+import {parseRequest} from '@/request'
+import {getConfig} from '@/site-config.server'
+import {WebActivityService} from '@/web-activity-service'
+import {unwrap} from '@/wrapping'
+import {wrapJSON} from '@/wrapping.server'
+import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
+import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+import {hmId} from '@shm/shared'
+import {ActivityProvider} from '@shm/shared/activity-service-provider'
+import {
+  HMMetadata,
+  HMMetadataPayload,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {useAccount} from '@shm/shared/models/entity'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {HMProfilePage} from '@shm/ui/profile-page'
+import {SmallSiteHeader} from '@shm/ui/site-header'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {useMemo} from 'react'
+
+type ProfilePagePayload = {
+  originHomeId: UnpackedHypermediaId | undefined
+  originHomeMetadata: HMMetadata | undefined
+  origin: string
+  profile: HMMetadataPayload
+} & ReturnType<typeof getOriginRequestData>
+
+export const meta: MetaFunction = ({data}) => {
+  const {originHomeMetadata} = unwrap<ProfilePagePayload>(data)
+  const meta: MetaDescriptor[] = []
+  const homeIcon = originHomeMetadata?.icon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(originHomeMetadata.icon), 'S')
+    : null
+  meta.push({
+    tagName: 'link',
+    rel: 'icon',
+    href: homeIcon || defaultSiteIcon,
+    type: 'image/png',
+  })
+  meta.push({
+    title: 'Connect to Seed Hypermedia Peer',
+  })
+  return meta
+}
+
+export const loader = async ({request}: LoaderFunctionArgs) => {
+  const parsedRequest = parseRequest(request)
+  const config = await getConfig(parsedRequest.hostname)
+
+  const originHome = config?.registeredAccountUid
+    ? await getMetadata(hmId(config.registeredAccountUid))
+    : undefined
+  const uid = parsedRequest.pathParts[2]
+  const profile = await getMetadata(hmId(uid))
+  return wrapJSON({
+    originHomeId: config?.registeredAccountUid
+      ? hmId(config.registeredAccountUid)
+      : undefined,
+    ...getOriginRequestData(parsedRequest),
+    originHomeMetadata: originHome?.metadata ?? undefined,
+    profile,
+  } satisfies ProfilePagePayload)
+}
+
+function ProfilePageContent({
+  originHomeMetadata,
+  originHomeId,
+  siteHost,
+  profile,
+  currentAccount,
+}: {
+  originHomeMetadata: HMMetadata | undefined
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+  profile: HMMetadataPayload
+  currentAccount?: string
+}) {
+  const activityService = useMemo(() => new WebActivityService(), [])
+  const editProfileDialog = useAppDialog(EditProfileDialog)
+  const account = useAccount(profile.id.uid)
+  const displayMetadata = account.data?.metadata ?? profile.metadata
+  return (
+    <>
+      <div className="flex min-h-screen flex-1 flex-col items-center">
+        {originHomeMetadata && (
+          <SmallSiteHeader
+            originHomeMetadata={originHomeMetadata}
+            originHomeId={originHomeId}
+            siteHost={siteHost}
+          />
+        )}
+        <PageContainer>
+          <ActivityProvider service={activityService}>
+            <HMProfilePage
+              profile={{
+                id: profile.id,
+                metadata: displayMetadata,
+                hasSite: profile.hasSite,
+              }}
+              onEditProfile={() =>
+                editProfileDialog.open({accountUid: profile.id.uid})
+              }
+              currentAccount={currentAccount}
+              headerButtons={
+                <>
+                  <LogoutButton />
+                </>
+              }
+            />
+          </ActivityProvider>
+        </PageContainer>
+        <PageFooter hideDeviceLinkToast={true} />
+      </div>
+      {editProfileDialog.content}
+    </>
+  )
+}
+
+export default function ProfilePage() {
+  const {originHomeId, siteHost, origin, originHomeMetadata, profile} =
+    unwrap<ProfilePagePayload>(useLoaderData())
+  const userKeyPair = useLocalKeyPair()
+
+  if (!originHomeId) {
+    return <h2>Invalid origin home id</h2>
+  }
+  return (
+    <WebSiteProvider
+      origin={origin}
+      originHomeId={originHomeId}
+      siteHost={siteHost}
+    >
+      <ProfilePageContent
+        originHomeMetadata={originHomeMetadata}
+        originHomeId={originHomeId}
+        siteHost={siteHost}
+        profile={profile}
+        currentAccount={userKeyPair?.id}
+      />
+    </WebSiteProvider>
+  )
+}
+
+const PageContainer = ({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)}
+    {...props}
+  />
+)

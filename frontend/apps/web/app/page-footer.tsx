@@ -4,8 +4,6 @@ import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {ExternalLink} from 'lucide-react'
 import {ReactNode} from 'react'
-import {AccountFooterActionsLazy, ClientOnly} from './client-lazy'
-import {AccountFooterActions} from './auth'
 
 export function PageFooter({
   id,
@@ -18,9 +16,9 @@ export function PageFooter({
   return (
     <div className="border-border border-t px-3 py-2 sm:px-4 sm:py-2">
       <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
-        <ClientOnly>
+        {/* <ClientOnly>
           <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
-        </ClientOnly>
+        </ClientOnly> */}
         <div className="flex items-center gap-4">
           <SizableText size="xs">
             {tx(

@@ -50,16 +50,25 @@ export const cborCodec = {
   name: 'DAG-CBOR',
 }
 
+type EncodedBlock = BlockView<unknown, number, 18, 1>
+
 export async function encodeBlock(
   data: any,
   codec?: Parameters<typeof Block.encode>[0]['codec'],
-): Promise<BlockView<unknown, number, 18, 1>> {
+): Promise<EncodedBlock> {
   const block = await Block.encode({
     value: data,
     codec: codec || cborCodec,
     hasher: sha256,
   })
   return block
+}
+
+export function blockReference(block: EncodedBlock) {
+  return {
+    data: block.bytes,
+    cid: block.cid.toString(),
+  } as const
 }
 
 export async function getChangesDepth(deps: string[]) {

@@ -7,7 +7,7 @@ import {useAccount} from '@shm/shared/src/models/entity'
 import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {LinkIcon} from '@shm/ui/hm-icon'
 import {AtSignIcon, ImageIcon, SlashSquareIcon, Trash} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
@@ -439,14 +439,8 @@ export function MobileCommentEditor({
       <>
         <div className="flex w-full items-start gap-2">
           <div className="flex shrink-0 grow-0">
-            {account?.metadata ? (
-              <HMIcon
-                id={account.id}
-                name={account.metadata?.name}
-                icon={account.metadata?.icon}
-                size={32}
-                onPress={onAvatarPress}
-              />
+            {account ? (
+              <LinkIcon id={account.id} metadata={account.metadata} size={32} />
             ) : (
               <UIAvatar
                 url={avatarPlaceholder}

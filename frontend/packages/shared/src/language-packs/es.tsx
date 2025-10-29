@@ -23,6 +23,9 @@ const Translations = {
   citation_count: (args: {count: number}) =>
     `${args.count} ${pluralS(args.count, 'cita', 'citas')}`,
   'Document Activity': 'Actividad del Documento',
+  'Account Activity': 'Actividad de la Cuenta',
+  'Unknown Profile': 'Perfil desconocido',
+  Activity: 'Actividad',
   Discussions: 'Discusiones',
   'Start a Comment': 'Inicia un debate',
   Reply: 'Responder',

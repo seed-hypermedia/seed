@@ -71,6 +71,7 @@ export async function getMetadata(
     return {
       id,
       metadata: HMDocumentMetadataSchema.parse(metadataJSON),
+      hasSite: id.path?.length ?? 0 === 0 ? !!rawDoc.content.length : undefined,
     }
   } catch (e) {
     return {id, metadata: {}}

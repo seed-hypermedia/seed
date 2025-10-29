@@ -99,8 +99,23 @@ import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
 
-export const docContentContext = createContext<DocContentContextValue | null>(
-  null,
+const defaultDocContentContext: DocContentContextValue = {
+  entityComponents: {
+    Document: () => null,
+    Comment: () => null,
+    Inline: () => null,
+    Query: () => null,
+  },
+  onBlockCopy: null,
+  layoutUnit: contentLayoutUnit,
+  textUnit: contentTextUnit,
+  debug: false,
+  collapsedBlocks: new Set(),
+  setCollapsedBlocks: () => {},
+}
+
+export const docContentContext = createContext<DocContentContextValue>(
+  defaultDocContentContext,
 )
 
 export function DocContentProvider({
@@ -211,13 +226,7 @@ export function DocContentProvider({
 }
 
 export function useDocContentContext() {
-  let context = useContext(docContentContext)
-
-  if (!context) {
-    throw new Error(`Please wrap <DocContent /> with <DocContentProvider />`)
-  }
-
-  return context
+  return useContext(docContentContext)
 }
 
 function debugStyles(debug: boolean = false, color = 'red') {

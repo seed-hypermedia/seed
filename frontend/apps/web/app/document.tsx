@@ -69,6 +69,7 @@ import {
   PanelGroup,
   PanelResizeHandle,
 } from 'react-resizable-panels'
+import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
 import {WebDocContentProvider} from './doc-content-provider'
@@ -875,6 +876,7 @@ function InnerDocumentPage(
               )}
             </WebDocContentProvider>
           </div>
+          <MyAccountBubble />
         </CommentsProvider>
       </ActivityProvider>
     </Suspense>

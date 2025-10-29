@@ -36,6 +36,7 @@ import {
 } from 'react-hook-form'
 import {z} from 'zod'
 import {
+  blockReference,
   createDocumentGenesisChange,
   createHomeDocumentChange,
   createRef,
@@ -272,20 +273,9 @@ export async function updateProfile({
   })
   const refBlock = await encodeBlock(refPayload)
   const updatePayload: UpdateDocumentPayload = {
-    icon: iconBlock
-      ? {
-          data: iconBlock.bytes,
-          cid: iconBlock.cid.toString(),
-        }
-      : null,
-    change: {
-      data: changeBlock.bytes,
-      cid: changeBlock.cid.toString(),
-    },
-    ref: {
-      data: refBlock.bytes,
-      cid: refBlock.cid.toString(),
-    },
+    icon: iconBlock ? blockReference(iconBlock) : null,
+    change: blockReference(changeBlock),
+    ref: blockReference(refBlock),
   }
   const updateData = cborEncode(updatePayload)
   await postCBOR('/hm/api/document-update', updateData)
@@ -530,7 +520,6 @@ export function EditProfileDialog({
   onClose: () => void
   input: {accountUid: string}
 }) {
-  console.log('EditProfileDialog', input)
   const keyPair = useLocalKeyPair()
   const id = hmId(input.accountUid)
   const tx = useTx()
@@ -577,7 +566,9 @@ export function EditProfileDialog({
   return (
     <>
       <DialogTitle>{tx('Edit Profile')}</DialogTitle>
-      {document && (
+      {account.isInitialLoading ? (
+        <Spinner />
+      ) : (
         <EditProfileForm
           defaultValues={{
             name: account.data?.metadata?.name || '?',
@@ -631,6 +622,22 @@ function LinkKeysDialog() {
           <Smartphone /> {tx('Link with Mobile App (Soon)')}
         </Button>
       </div>
+    </>
+  )
+}
+
+export function LogoutButton() {
+  const userKeyPair = useLocalKeyPair()
+  const logoutDialog = useAppDialog(LogoutDialog)
+  const tx = useTxString()
+  if (!userKeyPair) return null
+  return (
+    <>
+      <Button variant="outline" onClick={() => logoutDialog.open({})}>
+        <LogOut className="size-4" />
+        {tx('Logout')}
+      </Button>
+      {logoutDialog.content}
     </>
   )
 }

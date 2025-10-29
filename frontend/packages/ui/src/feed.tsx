@@ -1,3 +1,4 @@
+import {HMContactItem} from '@shm/shared/account-utils'
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
 import {
   HMBlockNode,
@@ -534,9 +535,7 @@ function EventHeaderContent({
     return (
       <div className="group flex w-full items-start justify-between gap-2">
         <p className="flex-1 overflow-hidden">
-          <span className="text-sm font-bold">
-            {event.author?.metadata?.name}
-          </span>{' '}
+          <EventAuthorName author={event.author} />{' '}
           {!isSingleResource ? (
             <>
               <span className="text-muted-foreground text-sm">
@@ -581,9 +580,7 @@ function EventHeaderContent({
   if (event.type == 'capability') {
     return (
       <p>
-        <span className="text-sm font-bold">
-          {event.author?.metadata?.name}
-        </span>{' '}
+        <EventAuthorName author={event.author} />{' '}
         <span className="text-muted-foreground text-sm">added</span>{' '}
         {event.delegates[0]?.id ? (
           <HMIcon
@@ -620,9 +617,7 @@ function EventHeaderContent({
   if (event.type == 'doc-update') {
     return (
       <p>
-        <span className="text-sm font-bold">
-          {event.author?.metadata?.name}
-        </span>{' '}
+        <EventAuthorName author={event.author} />{' '}
         {!isSingleResource ? (
           <>
             <span className="text-muted-foreground text-sm">
@@ -640,8 +635,8 @@ function EventHeaderContent({
             <span className="text-muted-foreground text-sm">
               {/* TODO: check if this is the correct way of getting the first ref update of a document */}
               {event.document.version == event.document.genesis
-                ? 'create the document'
-                : 'update the document'}
+                ? 'created the document'
+                : 'updated the document'}
             </span>{' '}
           </>
         )}
@@ -655,9 +650,7 @@ function EventHeaderContent({
   if (event.type == 'contact') {
     return (
       <p>
-        <span className="text-sm font-bold">
-          {event.author?.metadata?.name}
-        </span>{' '}
+        <EventAuthorName author={event.author} />{' '}
         <span className="text-muted-foreground text-sm">added</span>{' '}
         {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
           <HMIcon
@@ -683,13 +676,12 @@ function EventHeaderContent({
   }
 
   if (event.type == 'citation') {
-    const authorName = event.author?.metadata?.name || 'Someone'
     const targetName = event.target?.metadata?.name || 'this document'
     const sourceName = event.source?.metadata?.name || 'a document'
 
     return (
       <p>
-        <span className="text-sm font-bold">{authorName}</span>{' '}
+        <EventAuthorName author={event.author} />{' '}
         <span className="text-muted-foreground text-sm">
           {event.citationType === 'c' ? 'mentioned' : 'cited'}
         </span>{' '}
@@ -723,6 +715,19 @@ function EventHeaderContent({
   )
 
   return null
+}
+
+function EventAuthorName({author}: {author: HMContactItem | null}) {
+  const authorName = author?.metadata?.name || 'Someone'
+  const linkProps = useRouteLink(
+    author?.id ? {key: 'profile', id: author.id} : null,
+    {handler: 'onClick'},
+  )
+  return (
+    <a className="inline text-sm font-bold" {...linkProps}>
+      {authorName}
+    </a>
+  )
 }
 
 function EventContent({
@@ -803,7 +808,7 @@ function EventContent({
   // return (
   //   <div>
   //     <p>capability</p>
-  //     <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+  //     <p className="text-xs text-muted-foreground">{JSON.stringify(event)}</p>
   //   </div>
   // )
 
@@ -830,7 +835,7 @@ function EventContent({
     // return (
     //   <div>
     //     <p>contact</p>
-    //     <p className="text-muted-foreground text-xs">{JSON.stringify(event)}</p>
+    //     <p className="text-xs text-muted-foreground">{JSON.stringify(event)}</p>
     //   </div>
     // )
   }
@@ -882,9 +887,7 @@ function EventCommentWithReply({
           </div>
           <div className="group flex w-full items-start justify-between gap-2">
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
-              <span className="text-[11px] font-bold">
-                {event.replyParentAuthor?.metadata?.name}
-              </span>{' '}
+              <EventAuthorName author={event.replyParentAuthor} />{' '}
               <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
                 <EventTimestampWithTooltip time={event.time} />
               </span>

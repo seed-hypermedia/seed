@@ -40,7 +40,6 @@ import type {
   CommentPayload,
   CommentResponsePayload,
 } from './routes/hm.api.comment'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 injectModels()
 
@@ -229,31 +228,19 @@ export default function WebCommenting({
       promptEmailNotifications,
     ],
   )
-
-  const onAvatarPress = useCallback(async () => {
+  const onAvatarPress = useMemo(() => {
     if (!userKeyPair) {
-      createAccount()
-      return
+      return createAccount
     }
-    editProfileDialog.open({accountUid: userKeyPair.id})
-    return
-  }, [userKeyPair, createAccount, editProfileDialog])
+    return undefined
+  }, [userKeyPair])
 
   const handleDiscardDraft = useCallback(() => {
     removeDraft()
     onDiscardDraft?.()
   }, [removeDraft, onDiscardDraft])
 
-  // Memoize entity components to prevent recreating on every render
-  const entityComponents = useMemo(
-    () => ({
-      Document: EmbedDocument,
-      Comment: () => null,
-      Inline: EmbedInline,
-      Query: QueryBlockWeb,
-    }),
-    [],
-  )
+  const universalContext = useUniversalAppContext()
 
   // Don't render until draft is loaded
   if (isDraftLoading) {
@@ -263,14 +250,19 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <DocContentProvider
-        // @ts-expect-error - EmbedInline has incompatible prop types
-        entityComponents={entityComponents}
+        entityComponents={
+          universalContext.entityComponents || {
+            Document: () => null,
+            Inline: () => null,
+            Query: () => null,
+            Comment: () => null,
+          }
+        }
         importWebFile={importWebFile}
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}
         debug={false}
         comment
-        entityId={docId}
         onBlockCopy={null}
         layoutUnit={16}
         textUnit={14}

@@ -10,7 +10,6 @@ import {
 } from '@shm/shared'
 import {DocContentProvider} from '@shm/ui/document-content'
 import {toast} from '@shm/ui/toast'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
 
 export function WebDocContentProvider({
   children,
@@ -62,13 +61,14 @@ export function WebDocContentProvider({
     <DocContentProvider
       onHoverIn={onHoverIn}
       onHoverOut={onHoverOut}
-      entityComponents={{
-        Document: EmbedDocument,
-        // @ts-expect-error
-        Inline: EmbedInline,
-        Query: QueryBlockWeb,
-        Comment: () => null,
-      }}
+      entityComponents={
+        context.entityComponents || {
+          Document: () => null,
+          Inline: () => null,
+          Query: () => null,
+          Comment: () => null,
+        }
+      }
       entityId={id}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}

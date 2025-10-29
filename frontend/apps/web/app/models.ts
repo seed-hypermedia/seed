@@ -156,7 +156,6 @@ export function resourceQuery(id: UnpackedHypermediaId): Promise<HMResource> {
   const url = `/hm/api/resource/${id?.uid}${
     id?.path ? `/${id.path.join('/')}` : ''
   }?${queryString}`
-  console.log('WEB RESOURCE QUERY', url)
   return queryAPI<HMResource>(url)
 }
 
