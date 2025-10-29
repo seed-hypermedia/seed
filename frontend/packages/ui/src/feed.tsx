@@ -282,7 +282,7 @@ function EventItem({
   const tx = useTx()
   return (
     <div
-      className={cn('flex flex-col gap-2 rounded-lg p-2 transition-colors')}
+      className={cn('group flex flex-col gap-2 rounded-lg p-2 transition-colors')}
       {...(route ? linkProps : {})}
     >
       <div className="flex items-start gap-2">
@@ -533,7 +533,7 @@ function EventHeaderContent({
     }
 
     return (
-      <div className="group flex w-full items-start justify-between gap-2">
+      <div className="flex w-full items-start justify-between gap-2">
         <p className="flex-1 overflow-hidden">
           <EventAuthorName author={event.author} />{' '}
           {!isSingleResource ? (
@@ -551,12 +551,12 @@ function EventHeaderContent({
           </span>
         </p>
         {event.comment && (
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-muted-foreground"
+                className="text-muted-foreground transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -569,7 +569,12 @@ function EventHeaderContent({
               </Button>
             </Tooltip>
             {options.length > 0 && (
-              <OptionsDropdown side="bottom" align="end" menuItems={options} />
+              <OptionsDropdown
+                side="bottom"
+                align="end"
+                className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                menuItems={options}
+              />
             )}
           </div>
         )}

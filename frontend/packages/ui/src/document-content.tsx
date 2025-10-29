@@ -480,6 +480,7 @@ export function BlockNodeContent({
   parentBlockId,
   handleBlockReplace,
   hideCollapseButtons = false,
+  handleBlockClick,
 }: {
   isFirstChild: boolean
   blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
@@ -493,6 +494,7 @@ export function BlockNodeContent({
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
   hideCollapseButtons?: boolean
+  handleBlockClick?: () => void
 }) {
   const {
     layoutUnit,
@@ -878,6 +880,7 @@ export function BlockNodeContent({
         borderRadius: layoutUnit / 4,
         boxShadow: isHighlight ? '0 0 0 1px var(--brand-10)' : 'none',
       }}
+      onClick={handleBlockClick}
     >
       <div
         style={{

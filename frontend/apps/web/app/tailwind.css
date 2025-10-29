@@ -5,6 +5,11 @@
 @source "../../../packages/editor/src";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant hover-hover {
+  @media (hover: hover) {
+    @slot;
+  }
+}
 
 :root {
   --brand-1: hsl(180, 29%, 17%);
