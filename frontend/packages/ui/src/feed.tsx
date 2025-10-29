@@ -282,7 +282,9 @@ function EventItem({
   const tx = useTx()
   return (
     <div
-      className={cn('group flex flex-col gap-2 rounded-lg p-2 transition-colors')}
+      className={cn(
+        'group flex flex-col gap-2 rounded-lg p-2 transition-colors',
+      )}
       {...(route ? linkProps : {})}
     >
       <div className="flex items-start gap-2">
@@ -556,7 +558,7 @@ function EventHeaderContent({
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-muted-foreground transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -572,7 +574,7 @@ function EventHeaderContent({
               <OptionsDropdown
                 side="bottom"
                 align="end"
-                className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                 menuItems={options}
               />
             )}

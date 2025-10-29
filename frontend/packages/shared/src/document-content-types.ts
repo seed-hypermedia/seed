@@ -12,6 +12,10 @@ import {
 import {Contact} from './client'
 import {UnpackedHypermediaId} from './hm-types'
 
+export type BlockRangeWithOptions = (BlockRange | ExpandedBlockRange) & {
+  copyToClipboard?: boolean
+}
+
 export type DocContentContextValue = {
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
@@ -19,7 +23,7 @@ export type DocContentContextValue = {
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCopy:
     | null
-    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
+    | ((blockId: string, blockRange?: BlockRangeWithOptions) => void)
   onBlockReply?: null | ((blockId: string) => void)
   onBlockCommentClick?:
     | null

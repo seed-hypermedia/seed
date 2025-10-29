@@ -378,6 +378,22 @@ function _BlocksContent({
   hideCollapseButtons?: boolean
   expanded?: boolean
 }) {
+  const {onBlockCopy, routeParams} = useDocContentContext()
+
+  const createBlockClickHandler = (blockId: string) => () => {
+    const selection = window.getSelection()
+    const hasSelection = selection && selection.toString().length > 0
+
+    if (!hasSelection && onBlockCopy) {
+      const isCurrentlyFocused = routeParams?.blockRef === blockId
+      if (isCurrentlyFocused) {
+        onBlockCopy('', {expanded: true, copyToClipboard: false})
+      } else {
+        onBlockCopy(blockId, {expanded: true, copyToClipboard: false})
+      }
+    }
+  }
+
   if (!blocks) return null
 
   return (
@@ -400,6 +416,9 @@ function _BlocksContent({
               index={idx}
               handleBlockReplace={handleBlockReplace}
               expanded={expanded}
+              handleBlockClick={
+                bn.block?.id ? createBlockClickHandler(bn.block.id) : undefined
+              }
             />
           ))
         : null}
@@ -534,30 +553,54 @@ export function BlockNodeContent({
   const elm = useRef<HTMLDivElement>(null)
   const lastScrolledBlockRef = useRef<string | undefined>(undefined)
 
+  const createChildBlockClickHandler = (blockId: string) => () => {
+    const selection = window.getSelection()
+    const hasSelection = selection && selection.toString().length > 0
+
+    if (!hasSelection && onBlockCopy) {
+      const isCurrentlyFocused = routeParams?.blockRef === blockId
+      if (isCurrentlyFocused) {
+        onBlockCopy('', {expanded: true, copyToClipboard: false})
+      } else {
+        onBlockCopy(blockId, {expanded: true, copyToClipboard: false})
+      }
+    }
+  }
+
   let bnChildren = blockNode.children?.length
-    ? blockNode.children.map((bn, index) => (
-        <BlockNodeContent
-          hideCollapseButtons={hideCollapseButtons}
-          key={bn.block!.id}
-          depth={depth + 1}
-          isFirstChild={index == 0}
-          blockNode={bn}
-          // @ts-expect-error
-          childrenType={bn.block!.attributes?.childrenType}
-          listLevel={
-            childrenType === 'Unordered' &&
+    ? blockNode.children.map(
+        (
+          bn: BlockNode | HMBlockNode | PlainMessage<BlockNode>,
+          index: number,
+        ) => (
+          <BlockNodeContent
+            hideCollapseButtons={hideCollapseButtons}
+            key={bn.block!.id}
+            depth={depth + 1}
+            isFirstChild={index == 0}
+            blockNode={bn}
             // @ts-expect-error
-            bn.block!.attributes?.childrenType === 'Unordered'
-              ? listLevel + 1
-              : listLevel
-          }
-          index={index}
-          parentBlockId={blockNode.block?.id || null}
-          embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
-          handleBlockReplace={handleBlockReplace}
-          expanded={_expanded}
-        />
-      ))
+            childrenType={bn.block!.attributes?.childrenType}
+            listLevel={
+              childrenType === 'Unordered' &&
+              // @ts-expect-error
+              bn.block!.attributes?.childrenType === 'Unordered'
+                ? listLevel + 1
+                : listLevel
+            }
+            index={index}
+            parentBlockId={blockNode.block?.id || null}
+            embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
+            handleBlockReplace={handleBlockReplace}
+            expanded={_expanded}
+            handleBlockClick={
+              bn.block?.id
+                ? createChildBlockClickHandler(bn.block.id)
+                : undefined
+            }
+          />
+        ),
+      )
     : null
 
   const headingStyles = useMemo(() => {
@@ -865,6 +908,13 @@ export function BlockNodeContent({
   const blockCitationCount =
     (citationsCount?.citations || 0) + (citationsCount?.comments || 0)
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (handleBlockClick) {
+      e.stopPropagation()
+      handleBlockClick()
+    }
+  }
+
   return (
     <div
       id={blockNode.block?.id}
@@ -880,7 +930,7 @@ export function BlockNodeContent({
         borderRadius: layoutUnit / 4,
         boxShadow: isHighlight ? '0 0 0 1px var(--brand-10)' : 'none',
       }}
-      onClick={handleBlockClick}
+      onClick={handleClick}
     >
       <div
         style={{

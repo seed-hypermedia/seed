@@ -608,7 +608,7 @@ export function Comment({
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-muted-foreground transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                   onClick={() => {
                     const url = getUrl(hmId(comment.id))
                     copyTextToClipboard(url)
@@ -622,7 +622,7 @@ export function Comment({
                 <OptionsDropdown
                   side="bottom"
                   align="end"
-                  className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                   menuItems={options}
                 />
               ) : null}

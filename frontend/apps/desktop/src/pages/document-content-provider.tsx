@@ -4,6 +4,7 @@ import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
+import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -18,6 +19,7 @@ import {
   contentLayoutUnit,
   contentTextUnit,
 } from '@shm/ui/document-content-constants'
+import {useState} from 'react'
 import {useDocumentUrl} from '../components/copy-reference-button'
 
 export function AppDocContentProvider({
@@ -25,7 +27,7 @@ export function AppDocContentProvider({
   docId,
   isBlockFocused = false,
   ...overrides
-}: React.PropsWithChildren<Partial<DocContentContextValue>> & {
+}: React.PropsWithChildren<Partial<AppDocContentContextValue>> & {
   docId?: UnpackedHypermediaId
   isBlockFocused?: boolean
 }) {
@@ -38,6 +40,20 @@ export function AppDocContentProvider({
   const contacts = useSelectedAccountContacts()
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const universalContext = useUniversalAppContext()
+  const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
+    new Set(),
+  )
+  const setCollapsedBlocks = (id: string, val: boolean) => {
+    setCollapsedBlocksState((prev) => {
+      const next = new Set(prev)
+      if (val) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }
   return (
     <>
       <DocContentProvider
@@ -47,6 +63,8 @@ export function AppDocContentProvider({
         textUnit={overrides.textUnit || contentTextUnit}
         debug={false}
         contacts={contacts.data}
+        collapsedBlocks={collapsedBlocks}
+        setCollapsedBlocks={setCollapsedBlocks}
         entityComponents={
           universalContext.entityComponents || {
             Document: () => null,
@@ -57,11 +75,9 @@ export function AppDocContentProvider({
         }
         onBlockCopy={
           reference
-            ? (
-                blockId: string,
-                blockRange: BlockRange | ExpandedBlockRange | undefined,
-              ) => {
-                if (blockId && reference) {
+            ? (blockId: string, blockRange) => {
+                const shouldCopy = blockRange?.copyToClipboard !== false
+                if (blockId && reference && shouldCopy) {
                   reference.onCopy(blockId, blockRange || {expanded: true})
                 }
                 if (route.key === 'document') {
@@ -74,7 +90,7 @@ export function AppDocContentProvider({
                         blockRange &&
                         'start' in blockRange &&
                         'end' in blockRange
-                          ? blockRange
+                          ? {start: blockRange.start, end: blockRange.end}
                           : null,
                     },
                   })
@@ -117,7 +133,7 @@ export function AppDocContentProvider({
   )
 }
 
-export type DocContentContextValue = {
+export type AppDocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
   entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
