@@ -41,7 +41,7 @@ type ProfilePagePayload = {
 } & ReturnType<typeof getOriginRequestData>
 
 export const meta: MetaFunction = ({data}) => {
-  const {originHomeMetadata} = unwrap<ProfilePagePayload>(data)
+  const {originHomeMetadata, profile} = unwrap<ProfilePagePayload>(data)
   const meta: MetaDescriptor[] = []
   const homeIcon = originHomeMetadata?.icon
     ? getOptimizedImageUrl(extractIpfsUrlCid(originHomeMetadata.icon), 'S')
@@ -53,7 +53,7 @@ export const meta: MetaFunction = ({data}) => {
     type: 'image/png',
   })
   meta.push({
-    title: 'Connect to Seed Hypermedia Peer',
+    title: profile.metadata?.name || 'Profile',
   })
   return meta
 }
