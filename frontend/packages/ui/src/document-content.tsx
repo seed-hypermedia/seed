@@ -530,6 +530,8 @@ export function BlockNodeContent({
   }, [expanded])
 
   const elm = useRef<HTMLDivElement>(null)
+  const lastScrolledBlockRef = useRef<string | undefined>(undefined)
+
   let bnChildren = blockNode.children?.length
     ? blockNode.children.map((bn, index) => (
         <BlockNodeContent
@@ -648,11 +650,14 @@ export function BlockNodeContent({
       if (
         !comment &&
         routeParams &&
-        routeParams.blockRef === blockNode.block?.id
-      )
+        routeParams.blockRef === blockNode.block?.id &&
+        lastScrolledBlockRef.current !== routeParams.blockRef
+      ) {
         elm.current.scrollIntoView({behavior: 'smooth', block: 'start'})
+        lastScrolledBlockRef.current = routeParams.blockRef
+      }
     }
-  }, [routeParams])
+  }, [routeParams?.blockRef, comment, blockNode.block?.id])
 
   const tx = useTxString()
 
