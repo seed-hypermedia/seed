@@ -15,7 +15,8 @@ export function Separator({
       decorative
       orientation={vertical ? 'vertical' : 'horizontal'}
       className={cn(
-        'bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px',
+        // data-[orientation=vertical]:h-full - this was making vertical separator invisible
+        'bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:w-px',
         className,
       )}
     />

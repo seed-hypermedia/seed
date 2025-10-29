@@ -1,17 +1,3 @@
-import {
-  BlockNoteEditor,
-  BlockSpec,
-  getBlockInfoFromSelection,
-  PropSchema,
-  updateGroupCommand,
-} from './blocknote/core'
-import {
-  BlockTypeDropdownItem,
-  FormattingToolbarProps,
-  useEditorContentChange,
-  useEditorSelectionChange,
-} from './blocknote/react'
-import {HMLinkToolbarButton} from './hm-toolbar-link-button'
 import {EditorToggledStyle, HMBlockChildrenType} from '@shm/shared/hm-types'
 import {Button} from '@shm/ui/button'
 import {
@@ -36,7 +22,25 @@ import {Separator} from '@shm/ui/separator'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useState} from 'react'
+import {
+  BlockNoteEditor,
+  BlockSpec,
+  getBlockInfoFromSelection,
+  PropSchema,
+  updateGroupCommand,
+} from './blocknote/core'
 import {getGroupInfoFromPos} from './blocknote/core/extensions/Blocks/helpers/getGroupInfoFromPos'
+import {
+  BlockTypeDropdownItem,
+  FormattingToolbarProps,
+  useEditorContentChange,
+  useEditorSelectionChange,
+} from './blocknote/react'
+import {HMLinkToolbarButton} from './hm-toolbar-link-button'
+import {MobileLinkToolbarButton} from './mobile-link-toolbar-button'
+import {MobileTextMarkerDialog} from './mobile-text-marker-dialog'
+import {MobileTextTypeDialog} from './mobile-text-type-dialog'
+import {useMobile} from './use-mobile'
 
 const toggleStyles = [
   {
@@ -112,6 +116,9 @@ export function HMFormattingToolbar<
 ) {
   const [currentGroupType, setCurrentGroupType] = useState<string>('Group')
   const [currentBlockType, setCurrentBlockType] = useState<string>('paragraph')
+  const [isTextMarkerDialogOpen, setIsTextMarkerDialogOpen] = useState(false)
+  const [isTextTypeDialogOpen, setIsTextTypeDialogOpen] = useState(false)
+  const isMobile = useMobile()
 
   useEditorSelectionChange(props.editor, () => {
     const tiptap = props.editor._tiptapEditor
@@ -132,64 +139,152 @@ export function HMFormattingToolbar<
     }
   })
 
+  const handleTextMarkerChange = (listType: string) => {
+    if (listType !== currentGroupType) {
+      const tiptap = props.editor._tiptapEditor
+      const {state} = tiptap
+      const {$pos} = getGroupInfoFromPos(state.selection.from, state)
+      tiptap.commands.command(
+        updateGroupCommand(
+          $pos.pos,
+          listType as HMBlockChildrenType,
+          false,
+          false,
+          true,
+        ),
+      )
+      setCurrentGroupType(listType)
+    }
+    setIsTextMarkerDialogOpen(false)
+  }
+
+  const handleTextTypeChange = (blockType: string) => {
+    if (blockType !== currentBlockType) {
+      const tiptap = props.editor._tiptapEditor
+      const {state} = tiptap
+      const blockInfo = getBlockInfoFromSelection(state)
+      props.editor.updateBlock(blockInfo.block.node.attrs.id, {
+        type: blockType,
+        props: {},
+      })
+      setCurrentBlockType(blockType)
+    }
+    setIsTextTypeDialogOpen(false)
+  }
+
   return (
-    <div className="border-border bg-background z-9 w-fit rounded-md border p-1 shadow-md">
-      <div className="flex w-full items-center justify-stretch gap-1">
-        {toggleStyles.map((item) => (
-          <ToggleStyleButton
-            key={item.style}
-            editor={props.editor}
-            toggleStyle={item.style}
-            {...item}
-          />
-        ))}
-        <div className="relative">
-          <HMLinkToolbarButton editor={props.editor} />
+    <>
+      <div
+        className="border-border bg-background z-50 w-fit rounded-md border p-1 shadow-md"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <div className="flex w-full items-center justify-stretch gap-1">
+          {toggleStyles.map((item) => (
+            <ToggleStyleButton
+              key={item.style}
+              editor={props.editor}
+              toggleStyle={item.style}
+              {...item}
+            />
+          ))}
+
+          {/* Link button - different for mobile/desktop */}
+          {isMobile ? (
+            <MobileLinkToolbarButton editor={props.editor} />
+          ) : (
+            <div className="relative">
+              <HMLinkToolbarButton editor={props.editor} />
+            </div>
+          )}
+
+          <Separator vertical className="bg-foreground mx-1 h-6 opacity-50" />
+
+          {/* Text marker - dropdown on desktop, dialog on mobile */}
+          {isMobile ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+              onClick={() => setIsTextMarkerDialogOpen(true)}
+            >
+              <UnorderedList className="size-4" />
+            </Button>
+          ) : (
+            <FormatDropdown
+              value={currentGroupType}
+              onChange={(listType) => {
+                if (listType !== currentGroupType) {
+                  const tiptap = props.editor._tiptapEditor
+                  const {state} = tiptap
+                  const {$pos} = getGroupInfoFromPos(
+                    state.selection.from,
+                    state,
+                  )
+                  tiptap.commands.command(
+                    updateGroupCommand(
+                      $pos.pos,
+                      listType as HMBlockChildrenType,
+                      false,
+                      false,
+                      true,
+                    ),
+                  )
+                  setCurrentGroupType(listType)
+                }
+              }}
+              options={groupTypeOptions}
+            />
+          )}
+
+          {/* Text type - dropdown on desktop, dialog on mobile */}
+          {isMobile ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
+              onClick={() => setIsTextTypeDialogOpen(true)}
+            >
+              <Type className="size-4" />
+            </Button>
+          ) : (
+            <FormatDropdown
+              value={currentBlockType}
+              onChange={(blockType) => {
+                if (blockType !== currentBlockType) {
+                  const tiptap = props.editor._tiptapEditor
+                  const {state} = tiptap
+                  const blockInfo = getBlockInfoFromSelection(state)
+                  props.editor.updateBlock(blockInfo.block.node.attrs.id, {
+                    type: blockType,
+                    props: {},
+                  })
+                  setCurrentBlockType(blockType)
+                }
+              }}
+              options={textTypeOptions}
+            />
+          )}
         </div>
-
-        <Separator vertical className="bg-foreground mx-1 h-6" />
-
-        <FormatDropdown
-          value={currentGroupType}
-          onChange={(listType) => {
-            if (listType !== currentGroupType) {
-              const tiptap = props.editor._tiptapEditor
-              const {state} = tiptap
-              const {$pos} = getGroupInfoFromPos(state.selection.from, state)
-              tiptap.commands.command(
-                updateGroupCommand(
-                  $pos.pos,
-                  listType as HMBlockChildrenType,
-                  false,
-                  false,
-                  true,
-                ),
-              )
-
-              setCurrentGroupType(listType)
-            }
-          }}
-          options={groupTypeOptions}
-        />
-
-        <FormatDropdown
-          value={currentBlockType}
-          onChange={(blockType) => {
-            if (blockType !== currentBlockType) {
-              const tiptap = props.editor._tiptapEditor
-              const {state} = tiptap
-              const blockInfo = getBlockInfoFromSelection(state)
-              props.editor.updateBlock(blockInfo.block.node.attrs.id, {
-                type: blockType,
-                props: {},
-              })
-              setCurrentBlockType(blockType)
-            }
-          }}
-          options={textTypeOptions}
-        />
       </div>
-    </div>
+
+      {/* Mobile dialogs */}
+      {isMobile && (
+        <>
+          <MobileTextMarkerDialog
+            isOpen={isTextMarkerDialogOpen}
+            onClose={() => setIsTextMarkerDialogOpen(false)}
+            currentValue={currentGroupType}
+            onChange={handleTextMarkerChange}
+          />
+          <MobileTextTypeDialog
+            isOpen={isTextTypeDialogOpen}
+            onClose={() => setIsTextTypeDialogOpen(false)}
+            currentValue={currentBlockType}
+            onChange={handleTextTypeChange}
+          />
+        </>
+      )}
+    </>
   )
 }
 

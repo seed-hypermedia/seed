@@ -3,19 +3,17 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
-import {Close} from '@shm/ui/icons'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@shm/ui/components/dialog'
+import {Input} from '@shm/ui/components/input'
 import {SearchResultItem} from '@shm/ui/search'
 import {Spinner} from '@shm/ui/spinner'
-import {Tooltip} from '@shm/ui/tooltip'
-import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Check, Link, Unlink} from 'lucide-react'
+import {Check, Link, Unlink, X} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
 import {
   BlockNoteEditor,
@@ -23,15 +21,14 @@ import {
   useEditorSelectionChange,
 } from './blocknote'
 
-export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
+export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
 }) => {
   const [url, setUrl] = useState<string>(
     props.editor.getSelectedLinkUrl() || '',
   )
   const [text, setText] = useState<string>(props.editor.getSelectedText() || '')
-
-  const {open, ...popoverProps} = usePopoverState()
+  const [isOpen, setIsOpen] = useState(false)
 
   useEditorSelectionChange(props.editor, () => {
     setText(props.editor.getSelectedText() || '')
@@ -50,7 +47,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       if (currentUrl) {
         deleteLink()
       }
-      popoverProps.onOpenChange(false)
+      setIsOpen(false)
       props.editor.focus()
       props.editor.createLink(url, text)
     },
@@ -75,56 +72,79 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
         view.focus()
       }
     }
+    setIsOpen(false)
   }
 
   return (
-    <Popover open={open} {...popoverProps}>
-      <PopoverTrigger asChild>
-        <span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn(
-              'hover:bg-black/10 dark:hover:bg-white/10',
-              'focus:bg-black/10 dark:focus:bg-white/10',
-              'format-toolbar-item',
-              open &&
-                'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
-            )}
-          >
-            <Link className="size-4" />
-          </Button>
-        </span>
-      </PopoverTrigger>
+    <>
+      <Button
+        size="icon"
+        variant="ghost"
+        className={cn(
+          'hover:bg-black/10 dark:hover:bg-white/10',
+          'focus:bg-black/10 dark:focus:bg-white/10',
+          'h-9 w-9 shrink-0',
+          isOpen &&
+            'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
+        )}
+        onClick={() => setIsOpen(true)}
+      >
+        <Link className="size-4" />
+      </Button>
 
-      <PopoverContent className="w-fit max-w-[500px] min-w-[400px] p-0">
-        <LinkSearchInput
-          initialUrl={url}
-          onLinkSelect={(selectedUrl: string) => {
-            popoverProps.onOpenChange(false)
-            props.editor.focus()
-            if (url) {
-              // TODO: find out why text needs to be here
-              setLink(selectedUrl, undefined, url)
-            } else {
-              setLink(selectedUrl, undefined)
-            }
-          }}
-          onCancel={() => popoverProps.onOpenChange(false)}
-          onDeleteLink={deleteLink}
-        />
-      </PopoverContent>
-    </Popover>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent
+          className="h-full max-h-full w-full max-w-full rounded-none p-0"
+          showCloseButton={false}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex h-full flex-col">
+            <DialogHeader className="border-b p-4">
+              <div className="flex items-center justify-between">
+                <DialogTitle>Add Link</DialogTitle>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsOpen(false)}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto">
+              <LinkSearchInput
+                initialUrl={url}
+                isOpen={isOpen}
+                onLinkSelect={(selectedUrl: string) => {
+                  if (url) {
+                    setLink(selectedUrl, undefined, url)
+                  } else {
+                    setLink(selectedUrl, undefined)
+                  }
+                }}
+                onCancel={() => setIsOpen(false)}
+                onDeleteLink={url ? deleteLink : undefined}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
 function LinkSearchInput({
   initialUrl = '',
+  isOpen,
   onLinkSelect,
   onCancel,
   onDeleteLink,
 }: {
   initialUrl?: string
+  isOpen: boolean
   onLinkSelect: (url: string) => void
   onCancel: () => void
   onDeleteLink?: () => void
@@ -133,13 +153,11 @@ function LinkSearchInput({
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Helper functions to detect URL types
   const isHttpUrl = (url: string) =>
     url.startsWith('http://') || url.startsWith('https://') || url.includes('.')
   const isHypermediaUrl = (url: string) =>
     url.startsWith('hm://') || unpackHmId(url) !== null
 
-  // Use the search hook from shared package
   const searchResults = useSearch(searchValue, {
     enabled:
       !!searchValue && !isHttpUrl(searchValue) && !isHypermediaUrl(searchValue),
@@ -180,7 +198,6 @@ function LinkSearchInput({
         setIsLoading(true)
 
         if (isHttpUrl(url) || isHypermediaUrl(url)) {
-          // Handle hypermedia URL resolution
           if (isHypermediaUrl(url)) {
             try {
               const resolved = await resolveHypermediaUrl(url)
@@ -210,11 +227,9 @@ function LinkSearchInput({
             }
           }
 
-          // Handle HTTP URLs or fallback
           const finalUrl = url.startsWith('http') ? url : `https://${url}`
           onLinkSelect(finalUrl)
         } else {
-          // If it's not a URL and there are no search results, treat as a regular URL
           const finalUrl = `https://${url}`
           onLinkSelect(finalUrl)
         }
@@ -268,67 +283,41 @@ function LinkSearchInput({
   }
 
   return (
-    <div className="flex flex-col rounded-md">
-      {/* Search Input Header */}
-      <div className="flex items-center gap-2 border-b p-2">
+    <div className="flex flex-col">
+      <div className="flex flex-col gap-2 p-4">
         <Input
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
           placeholder="Search documents or enter a URL"
-          className="flex-1"
           onKeyDown={handleKeyDown}
-          autoFocus
         />
 
-        {isLoading ? (
-          <Spinner size="small" />
-        ) : (
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn(
-              'hover:bg-black/10 dark:hover:bg-white/10',
-              'focus:bg-black/10 dark:focus:bg-white/10',
-            )}
-            disabled={!searchValue}
-            onClick={() => handleUrlSubmit(searchValue)}
-          >
-            <Check className="size-3" />
-          </Button>
-        )}
-
-        {onDeleteLink && (
-          <Tooltip content="Delete Link" side="top">
+        <div className="flex gap-2">
+          {isLoading ? (
+            <Spinner size="small" />
+          ) : (
             <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                'hover:bg-black/10 dark:hover:bg-white/10',
-                'focus:bg-black/10 dark:focus:bg-white/10',
-              )}
-              onClick={onDeleteLink}
+              variant="default"
+              className="flex-1"
+              disabled={!searchValue}
+              onClick={() => handleUrlSubmit(searchValue)}
             >
-              <Unlink className="size-3" />
+              <Check className="mr-2 size-4" />
+              Add Link
             </Button>
-          </Tooltip>
-        )}
-
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn(
-            'hover:bg-black/10 dark:hover:bg-white/10',
-            'focus:bg-black/10 dark:focus:bg-white/10',
           )}
-          onClick={onCancel}
-        >
-          <Close className="size-4" />
-        </Button>
+
+          {onDeleteLink && (
+            <Button variant="destructive" onClick={onDeleteLink}>
+              <Unlink className="mr-2 size-4" />
+              Remove
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Search Results */}
       {allItems.length > 0 && (
-        <div className="max-h-[300px] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto border-t">
           {allItems.map((item, index) => (
             <SearchResultItem
               key={item.key}

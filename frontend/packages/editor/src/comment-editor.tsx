@@ -8,9 +8,8 @@ import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {LinkIcon} from '@shm/ui/hm-icon'
-import {Trash} from '@shm/ui/icons'
+import {AtSignIcon, ImageIcon, SlashSquareIcon, Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
@@ -19,9 +18,11 @@ import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
 import {createHypermediaDocLinkPlugin} from './hypermedia-link-plugin'
-import {MobileCommentEditor} from './mobile-comment-editor'
+import {MobileMentionsDialog} from './mobile-mentions-dialog'
+import {MobileSlashDialog} from './mobile-slash-dialog'
 import {hmBlockSchema} from './schema'
 import {getSlashMenuItems} from './slash-menu-items'
+import {isMobileDevice, useMobile} from './use-mobile'
 import {
   chromiumSupportedImageMimeTypes,
   chromiumSupportedVideoMimeTypes,
@@ -47,6 +48,8 @@ const [setGwUrl, gwUrl] = writeableStateStream<string | null>(
 export function useCommentEditor(
   perspectiveAccountUid?: string | null | undefined,
   onSubmit?: () => void,
+  onMobileMentionTrigger?: () => void,
+  onMobileSlashTrigger?: () => void,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
@@ -100,6 +103,63 @@ export function useCommentEditor(
             }
           },
         }),
+        // Mobile-specific keyboard handlers for mentions and slash menu
+        ...(onMobileMentionTrigger || onMobileSlashTrigger
+          ? [
+              Extension.create({
+                name: 'mobile-dialog-triggers',
+                priority: 2000,
+                addKeyboardShortcuts() {
+                  return {
+                    '@': ({editor}) => {
+                      if (!onMobileMentionTrigger || !isMobileDevice())
+                        return false
+
+                      const {state, view} = editor
+                      const {selection} = state
+
+                      const textBeforeCursor =
+                        selection.$from.parent.textContent.substring(
+                          0,
+                          selection.$from.parentOffset,
+                        )
+
+                      const isAtStart = textBeforeCursor.length === 0
+                      const isAfterSpace = textBeforeCursor.endsWith(' ')
+
+                      if (isAtStart || isAfterSpace) {
+                        onMobileMentionTrigger()
+                        return true
+                      }
+                      return false
+                    },
+                    '/': ({editor}) => {
+                      if (!onMobileSlashTrigger || !isMobileDevice())
+                        return false
+
+                      const {state, view} = editor
+                      const {selection} = state
+
+                      const textBeforeCursor =
+                        selection.$from.parent.textContent.substring(
+                          0,
+                          selection.$from.parentOffset,
+                        )
+
+                      const isAtStart = textBeforeCursor.length === 0
+                      const isAfterSpace = textBeforeCursor.endsWith(' ')
+
+                      if (isAtStart || isAfterSpace) {
+                        onMobileSlashTrigger()
+                        return true
+                      }
+                      return false
+                    },
+                  }
+                },
+              }),
+            ]
+          : []),
       ],
     },
   })
@@ -198,88 +258,18 @@ export function CommentEditor({
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
 }) {
-  const media = useMedia()
-
-  if (media.xs) {
-    return (
-      <MobileCommentEditor
-        submitButton={submitButton}
-        handleSubmit={handleSubmit}
-        account={account}
-        autoFocus={autoFocus}
-        perspectiveAccountUid={perspectiveAccountUid}
-        onDiscardDraft={onDiscardDraft}
-        initialBlocks={initialBlocks}
-        onContentChange={onContentChange}
-        onAvatarPress={onAvatarPress}
-      />
-    )
-  }
-
-  return (
-    <DesktopCommentEditor
-      submitButton={submitButton}
-      handleSubmit={handleSubmit}
-      account={account}
-      autoFocus={autoFocus}
-      perspectiveAccountUid={perspectiveAccountUid}
-      onDiscardDraft={onDiscardDraft}
-      initialBlocks={initialBlocks}
-      onContentChange={onContentChange}
-      onAvatarPress={onAvatarPress}
-    />
-  )
-}
-
-function DesktopCommentEditor({
-  submitButton,
-  handleSubmit,
-  account,
-  autoFocus,
-  perspectiveAccountUid,
-  onDiscardDraft,
-  initialBlocks,
-  onContentChange,
-  onAvatarPress,
-}: {
-  submitButton: (opts: {
-    reset: () => void
-    getContent: (
-      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-        blobs: {cid: string; data: Uint8Array}[]
-        resultCIDs: string[]
-      }>,
-    ) => Promise<{
-      blockNodes: HMBlockNode[]
-      blobs: {cid: string; data: Uint8Array}[]
-    }>
-  }) => JSX.Element
-  handleSubmit: (
-    getContent: (
-      prepareAttachments: (binaries: Uint8Array[]) => Promise<{
-        blobs: {cid: string; data: Uint8Array}[]
-        resultCIDs: string[]
-      }>,
-    ) => Promise<{
-      blockNodes: HMBlockNode[]
-      blobs: {cid: string; data: Uint8Array}[]
-    }>,
-    reset: () => void,
-  ) => void
-  account?: ReturnType<typeof useAccount>['data']
-  autoFocus?: boolean
-  perspectiveAccountUid?: string | null | undefined
-  onDiscardDraft?: () => void
-  initialBlocks?: HMBlockNode[]
-  onContentChange?: (blocks: HMBlockNode[]) => void
-  onAvatarPress?: () => void
-}) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
+  const isMobile = useMobile()
+  const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
+  const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
 
-  const {editor} = useCommentEditor(perspectiveAccountUid, () => {
-    setSubmitTrigger((prev) => prev + 1)
-  })
+  const {editor} = useCommentEditor(
+    perspectiveAccountUid,
+    () => setSubmitTrigger((prev) => prev + 1),
+    isMobile ? () => setIsMentionsDialogOpen(true) : undefined,
+    isMobile ? () => setIsSlashDialogOpen(true) : undefined,
+  )
   // Check if we have non-empty draft content
   const hasDraftContent =
     initialBlocks &&
@@ -405,6 +395,71 @@ function DesktopCommentEditor({
       blockNodes: blocks.map((b) => b.toJson()) as HMBlockNode[],
       blobs,
     }
+  }
+
+  const handleImageClick = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*,video/*'
+    input.multiple = true
+
+    input.onchange = async (e) => {
+      const files = Array.from((e.target as HTMLInputElement).files || [])
+      if (files.length === 0) return
+
+      const ttEditor = editor._tiptapEditor
+      const pos = ttEditor.view.state.doc.content.size - 4
+
+      for (const file of files) {
+        const props = await handleDragMedia(file, handleFileAttachment)
+        if (!props) continue
+
+        const newId = generateBlockId()
+        let blockNode
+
+        if (chromiumSupportedImageMimeTypes.has(file.type)) {
+          blockNode = {
+            id: newId,
+            type: 'image',
+            props: {
+              displaySrc: props.displaySrc,
+              fileBinary: props.fileBinary,
+              name: props.name,
+            },
+          }
+        } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+          blockNode = {
+            id: newId,
+            type: 'video',
+            props: {
+              displaySrc: props.displaySrc,
+              fileBinary: props.fileBinary,
+              name: props.name,
+            },
+          }
+        } else {
+          blockNode = {
+            id: newId,
+            type: 'file',
+            props: {
+              fileBinary: props.fileBinary,
+              name: props.name,
+              size: props.size,
+            },
+          }
+        }
+
+        const blockInfo = getBlockInfoFromPos(ttEditor.view.state, pos)
+        editor.insertBlocks(
+          // @ts-expect-error
+          [blockNode],
+          blockInfo.block.node.attrs.id,
+          'after',
+        )
+      }
+    }
+
+    input.click()
   }
 
   // Keep callback ref updated with latest getContent and reset
@@ -568,100 +623,213 @@ function DesktopCommentEditor({
   }
 
   return (
-    <div className="flex w-full items-start gap-2">
-      <div className="flex shrink-0 grow-0">
-        {account?.metadata ? (
-          <LinkIcon id={account.id} metadata={account.metadata} size={32} />
-        ) : (
-          <UIAvatar
-            url={avatarPlaceholder}
-            size={32}
-            onPress={onAvatarPress}
-            className="rounded-full"
-          />
-        )}
-      </div>
-      <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
-        <div
-          className={cn(
-            'comment-editor min-h-8 flex-1',
-            isEditorFocused ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
-          )}
-          // marginTop="$1"
-
-          // minHeight={isEditorFocused ? 105 : 40}
-          // paddingHorizontal="$4"
-          onClick={(e) => {
-            const target = e.target as HTMLElement
-
-            // Check if the clicked element is not an input, button, or textarea
-            if (target.closest('input, textarea, select, button')) {
-              return // Don't focus the editor in this case
-            }
-            e.stopPropagation()
-            editor._tiptapEditor.commands.focus()
-          }}
-          onDragStart={() => {
-            setIsDragging(true)
-          }}
-          onDragEnd={() => {
-            setIsDragging(false)
-          }}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setIsDragging(true)
-          }}
-          onDrop={onDrop}
-        >
-          {isEditorFocused ? (
-            // @ts-expect-error
-            <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+    <>
+      <div className="flex w-full items-start gap-2">
+        <div className="flex shrink-0 grow-0">
+          {account?.metadata ? (
+            <LinkIcon id={account.id} metadata={account.metadata} size={32} />
           ) : (
-            <Button
-              onClick={() => {
-                setIsEditorFocused(true)
-                setTimeout(() => {
-                  editor._tiptapEditor.commands.focus()
-                }, 100)
-              }}
-              className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
-              variant="ghost"
-              size="sm"
-            >
-              {tx('Start a Discussion')}
-            </Button>
+            <UIAvatar
+              url={avatarPlaceholder}
+              size={32}
+              onPress={onAvatarPress}
+              className="rounded-full"
+            />
           )}
         </div>
-        {isEditorFocused ? (
-          <div className="mx-2 mb-2 flex justify-end gap-2">
-            {submitButton({
-              reset,
-              getContent,
-            })}
-            {onDiscardDraft && (
-              <Tooltip content="Discard Comment Draft">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    // Clear the editor content
-                    reset()
-                    // Reset the focused state
-                    setIsEditorFocused(false)
-                    // Reset initialization flag for potential new drafts
-                    isInitializedRef.current = false
-                    // Call the discard callback
-                    onDiscardDraft()
-                  }}
-                >
-                  <Trash className="text-destructive size-4" />
-                </Button>
-              </Tooltip>
+        <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
+          <div
+            className={cn(
+              'comment-editor min-h-8 flex-1',
+              isEditorFocused
+                ? 'justify-start px-3 pt-1 pb-2'
+                : 'justify-center',
+            )}
+            // marginTop="$1"
+
+            // minHeight={isEditorFocused ? 105 : 40}
+            // paddingHorizontal="$4"
+            onClick={(e) => {
+              const target = e.target as HTMLElement
+
+              // Check if the clicked element is not an input, button, or textarea
+              if (target.closest('input, textarea, select, button')) {
+                return // Don't focus the editor in this case
+              }
+              e.stopPropagation()
+              editor._tiptapEditor.commands.focus()
+            }}
+            onDragStart={() => {
+              setIsDragging(true)
+            }}
+            onDragEnd={() => {
+              setIsDragging(false)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setIsDragging(true)
+            }}
+            onDrop={onDrop}
+          >
+            {isEditorFocused ? (
+              // @ts-expect-error
+              <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+            ) : (
+              <UIAvatar
+                url={avatarPlaceholder}
+                size={32}
+                onPress={onAvatarPress}
+                className="rounded-full"
+              />
             )}
           </div>
-        ) : null}
+          <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
+            <div
+              className={cn(
+                'comment-editor min-h-8 flex-1',
+                isEditorFocused
+                  ? 'justify-start px-3 pt-1 pb-2'
+                  : 'justify-center',
+              )}
+              // marginTop="$1"
+
+              // minHeight={isEditorFocused ? 105 : 40}
+              // paddingHorizontal="$4"
+              onClick={(e) => {
+                const target = e.target as HTMLElement
+
+                // Check if the clicked element is not an input, button, or textarea
+                if (target.closest('input, textarea, select, button')) {
+                  return // Don't focus the editor in this case
+                }
+                e.stopPropagation()
+                editor._tiptapEditor.commands.focus()
+              }}
+              onDragStart={() => {
+                setIsDragging(true)
+              }}
+              onDragEnd={() => {
+                setIsDragging(false)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setIsDragging(true)
+              }}
+              onDrop={onDrop}
+            >
+              {isEditorFocused ? (
+                // @ts-expect-error
+                <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+              ) : (
+                <Button
+                  onClick={() => {
+                    setIsEditorFocused(true)
+                    setTimeout(() => {
+                      editor._tiptapEditor.commands.focus()
+                    }, 100)
+                  }}
+                  className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
+                  variant="ghost"
+                  size="sm"
+                >
+                  {tx('Start a Discussion')}
+                </Button>
+              )}
+            </div>
+            {isEditorFocused ? (
+              <div
+                className={cn(
+                  'mx-2 mb-2 flex gap-2',
+                  isMobile ? 'justify-between' : 'justify-end',
+                )}
+              >
+                {isMobile && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => setIsMentionsDialogOpen(true)}
+                    >
+                      <AtSignIcon className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={handleImageClick}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => setIsSlashDialogOpen(true)}
+                    >
+                      <SlashSquareIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {submitButton({
+                    reset,
+                    getContent,
+                  })}
+                  {onDiscardDraft && (
+                    <Tooltip content="Discard Comment Draft">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          reset()
+                          setIsEditorFocused(false)
+                          isInitializedRef.current = false
+                          onDiscardDraft()
+                        }}
+                      >
+                        <Trash className="text-destructive size-4" />
+                      </Button>
+                    </Tooltip>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Mobile dialogs */}
+        {isMobile && (
+          <>
+            <MobileMentionsDialog
+              isOpen={isMentionsDialogOpen}
+              onClose={() => setIsMentionsDialogOpen(false)}
+              onSelect={(mention) => {
+                const {state, schema} = editor._tiptapEditor
+                const node = schema.nodes['inline-embed'].create(
+                  {link: mention.id.id},
+                  schema.text(' '),
+                )
+                editor._tiptapEditor.view.dispatch(
+                  state.tr.replaceSelectionWith(node).scrollIntoView(),
+                )
+                setIsMentionsDialogOpen(false)
+                setTimeout(() => editor._tiptapEditor.commands.focus(), 100)
+              }}
+              perspectiveAccountUid={perspectiveAccountUid}
+            />
+            <MobileSlashDialog
+              isOpen={isSlashDialogOpen}
+              onClose={() => setIsSlashDialogOpen(false)}
+              editor={editor}
+            />
+          </>
+        )}
       </div>
-    </div>
+    </>
   )
 }

@@ -1,3 +1,5 @@
+import '@/blocknote/core/style.css'
+import '@/editor.css'
 import {
   BlockNoteView,
   FormattingToolbarPositioner,
@@ -5,11 +7,9 @@ import {
   LinkMenuPositioner,
   SlashMenuPositioner,
 } from './blocknote'
-import '@/blocknote/core/style.css'
-import '@/editor.css'
 import {HMFormattingToolbar} from './hm-formatting-toolbar'
-import type {HyperMediaEditor} from './types'
 import {HypermediaLinkPreview} from './hm-link-preview'
+import type {HyperMediaEditor} from './types'
 
 export function HyperMediaEditorView({
   editor,
