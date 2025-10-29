@@ -1,19 +1,19 @@
-import {EditProfileDialog, useCreateAccount} from '@/auth'
-import {useCitations, useDocumentChanges, useInteractionSummary} from '@/models'
+import {useCreateAccount} from '@/auth'
+import {useInteractionSummary} from '@/models'
 import {useLocation, useNavigate, useSearchParams} from '@remix-run/react'
 import avatarPlaceholder from '@shm/editor/assets/avatar.png'
 import {
   BlockRange,
-  deduplicateCitations,
   ExpandedBlockRange,
   HMComment,
   HMDocument,
-  HMDocumentCitation,
   HMEntityContent,
+  hmId,
   HMMetadata,
   NavRoute,
   routeToHref,
   UnpackedHypermediaId,
+  useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
@@ -25,11 +25,8 @@ import {supportedLanguages} from '@shm/shared/language-packs'
 import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
-import {AccessoryBackButton} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {ChangeItem} from '@shm/ui/change-item'
-import {DocumentCitationEntry} from '@shm/ui/citations'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
@@ -50,11 +47,10 @@ import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Sparkle} from 'lucide-react'
-import React, {
+import {
   lazy,
   Suspense,
   useCallback,
@@ -73,7 +69,6 @@ import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
 import {WebDocContentProvider} from './doc-content-provider'
-import {getHref} from './href'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
@@ -596,57 +591,60 @@ function InnerDocumentPage(
                       ref={mainScrollRef}
                     >
                       {feed ? (
-                        <div
-                          {...wrapperProps}
-                          className={cn(
-                            wrapperProps.className,
-                            'flex pt-[var(--site-header-h)]',
-                          )}
-                        >
-                          {showSidebars ? (
-                            <div
-                              {...sidebarProps}
-                              className={`${
-                                sidebarProps.className || ''
-                              } flex flex-col`}
-                            />
-                          ) : null}
-                          <Container
-                            clearVerticalSpace
-                            {...mainContentProps}
+                        <>
+                          <div
+                            {...wrapperProps}
                             className={cn(
-                              mainContentProps.className,
-                              'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                              wrapperProps.className,
+                              'flex pt-[var(--site-header-h)]',
                             )}
                           >
-                            <Text weight="bold" size="3xl">
-                              What's New
-                            </Text>
-                            <Separator />
-
-                            <Suspense
-                              fallback={
-                                <div className="flex items-center justify-center p-3">
-                                  <Spinner />
-                                </div>
-                              }
-                            >
-                              <Feed
-                                commentEditor={<WebCommenting docId={id} />}
-                                filterResource={`${originHomeId.id}*`}
-                                currentAccount={currentAccount.data?.id.uid}
+                            {showSidebars ? (
+                              <div
+                                {...sidebarProps}
+                                className={`${
+                                  sidebarProps.className || ''
+                                } flex flex-col`}
                               />
-                            </Suspense>
-                          </Container>
-                          {showSidebars ? (
-                            <div
-                              {...sidebarProps}
-                              className={`${
-                                sidebarProps.className || ''
-                              } flex flex-col`}
-                            />
-                          ) : null}
-                        </div>
+                            ) : null}
+                            <Container
+                              clearVerticalSpace
+                              {...mainContentProps}
+                              className={cn(
+                                mainContentProps.className,
+                                'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                              )}
+                            >
+                              <Text weight="bold" size="3xl">
+                                What's New
+                              </Text>
+                              <Separator />
+
+                              <Suspense
+                                fallback={
+                                  <div className="flex items-center justify-center p-3">
+                                    <Spinner />
+                                  </div>
+                                }
+                              >
+                                <Feed
+                                  commentEditor={<WebCommenting docId={id} />}
+                                  filterResource={`${originHomeId.id}*`}
+                                  currentAccount={currentAccount.data?.id.uid}
+                                />
+                              </Suspense>
+                            </Container>
+                            {showSidebars ? (
+                              <div
+                                {...sidebarProps}
+                                className={`${
+                                  sidebarProps.className || ''
+                                } flex flex-col`}
+                              />
+                            ) : null}
+                          </div>
+                          <MyAccountBubble />
+                        </>
                       ) : (
                         <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
                           <DocumentCover cover={document.metadata.cover} />
@@ -712,10 +710,6 @@ function InnerDocumentPage(
                                       setMobilePanelOpen(true)
                                     }
                                   }}
-                                  onAuthorClick={(authorId) => {
-                                    const href = getHref(originHomeId, authorId)
-                                    if (href) replace(href)
-                                  }}
                                 />
                               )}
                               <WebDocContentProvider
@@ -776,6 +770,7 @@ function InnerDocumentPage(
                               />
                             ) : null}
                           </div>
+                          <MyAccountBubble />
                           <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
                             <PageFooter id={id} />
                           </div>
@@ -876,7 +871,6 @@ function InnerDocumentPage(
               )}
             </WebDocContentProvider>
           </div>
-          <MyAccountBubble />
         </CommentsProvider>
       </ActivityProvider>
     </Suspense>
@@ -910,15 +904,18 @@ function MobileInteractionCardCollapsed({
       }, 500)
     },
   })
-  const editProfileDialog = useAppDialog(EditProfileDialog)
 
-  const handleAvatarClick = useCallback(() => {
-    if (!keyPair || !myAccount.data) {
-      createAccount()
-      return
+  const handleAvatarClick = useMemo(() => {
+    if (!keyPair) {
+      return createAccount
     }
-    editProfileDialog.open({accountUid: keyPair.id})
-  }, [keyPair, myAccount.data, createAccount, editProfileDialog])
+    return null
+  }, [keyPair, createAccount])
+
+  const avatarLinkProps = useRouteLink(
+    keyPair ? {key: 'profile', id: hmId(keyPair.id)} : null,
+    {handler: 'onClick'},
+  )
 
   return (
     <>
@@ -932,11 +929,11 @@ function MobileInteractionCardCollapsed({
           e.stopPropagation()
         }}
       >
-        <Button
-          variant="ghost"
+        <a
           className="min-w-20 shrink-0 cursor-pointer"
-          onClick={handleAvatarClick}
-          type="button"
+          {...(handleAvatarClick
+            ? {onClick: handleAvatarClick}
+            : avatarLinkProps)}
         >
           {myAccount.data?.id ? (
             <HMIcon
@@ -952,7 +949,7 @@ function MobileInteractionCardCollapsed({
               className="rounded-full"
             />
           )}
-        </Button>
+        </a>
 
         <Button
           variant={isFeedActive ? 'inverse' : 'ghost'}
@@ -990,7 +987,6 @@ function MobileInteractionCardCollapsed({
         </Button>
       </div>
       {createAccountContent}
-      {editProfileDialog.content}
     </>
   )
 }
@@ -1068,77 +1064,5 @@ function WebDocumentOutline({
         activeBlockId={id.blockRef}
       />
     </DocNavigationWrapper>
-  )
-}
-
-function WebCitationsPanel({
-  activitySummary,
-  id,
-  blockId,
-  handleBack,
-}: {
-  activitySummary: React.ReactNode
-  id: UnpackedHypermediaId
-  blockId?: string
-  handleBack: () => void
-}) {
-  const citations = useCitations(id)
-  const displayCitations = useMemo(() => {
-    if (!citations.data) return null
-    const filteredCitations = blockId
-      ? citations.data.filter(
-          (citation) =>
-            citation.targetFragment &&
-            citation.targetFragment?.blockId === blockId,
-        )
-      : citations.data
-    const dedupedCitations = deduplicateCitations(filteredCitations)
-    return dedupedCitations
-  }, [citations.data, blockId])
-  const tx = useTxString()
-  return (
-    <div className="flex flex-col gap-2">
-      {blockId ? (
-        // @ts-expect-error
-        <AccessoryBackButton onPress={handleBack} label={tx('All Citations')} />
-      ) : null}
-      {displayCitations ? (
-        displayCitations.map((citation: HMDocumentCitation) => {
-          return (
-            <DocumentCitationEntry
-              key={citation.source.id.id}
-              citation={citation}
-            />
-          )
-        })
-      ) : (
-        <div className="flex items-center justify-center">
-          <Spinner />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function WebVersionsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  const changes = useDocumentChanges(docId)
-  const changesList = changes.data?.changes || []
-  return (
-    <div className="flex flex-col gap-2">
-      {changesList.map((change, idx) => {
-        const isCurrent = change.id === changes.data?.latestVersion
-        return (
-          <ChangeItem
-            key={change.id}
-            change={change}
-            isActive={docId.version ? docId.version === change.id : isCurrent}
-            docId={docId}
-            isLast={idx === changesList.length - 1}
-            isCurrent={change.id === changes.data?.latestVersion}
-            author={change.author}
-          />
-        )
-      })}
-    </div>
   )
 }

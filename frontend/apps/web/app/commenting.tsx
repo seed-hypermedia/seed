@@ -1,5 +1,5 @@
 import {createComment, postCBOR} from '@/api'
-import {EditProfileDialog, LocalWebIdentity, useCreateAccount} from '@/auth'
+import {LocalWebIdentity, useCreateAccount} from '@/auth'
 import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor} from '@shm/editor/comment-editor'
@@ -161,8 +161,6 @@ export default function WebCommenting({
     })
   }
 
-  const editProfileDialog = useAppDialog(EditProfileDialog)
-
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = useCallback(
@@ -305,7 +303,6 @@ export default function WebCommenting({
         />
       </DocContentProvider>
       {createAccountContent}
-      {editProfileDialog.content}
       {emailNotificationsPromptContent}
     </div>
   )

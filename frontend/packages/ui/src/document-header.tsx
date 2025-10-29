@@ -4,6 +4,7 @@ import {
   HMMetadata,
   HMMetadataPayload,
   UnpackedHypermediaId,
+  useRouteLink,
 } from '@shm/shared'
 import {MessageSquare, Sparkle} from 'lucide-react'
 import {useMemo} from 'react'
@@ -23,7 +24,6 @@ export function DocumentHeader({
   updateTime = null,
   breadcrumbs,
   siteUrl,
-  onAuthorClick,
   commentsCount = 0,
   onCommentsClick,
   onFeedClick,
@@ -37,7 +37,6 @@ export function DocumentHeader({
     metadata: HMMetadata
   }>
   siteUrl?: string
-  onAuthorClick?: (authorId: UnpackedHypermediaId) => void
   commentsCount?: number
   onCommentsClick?: () => void
   onFeedClick?: () => void
@@ -71,10 +70,7 @@ export function DocumentHeader({
           </div>
         ) : null}
         {breadcrumbs && breadcrumbs.length > 0 ? (
-          <Breadcrumbs
-            breadcrumbs={breadcrumbs}
-            onAuthorClick={onAuthorClick}
-          />
+          <Breadcrumbs breadcrumbs={breadcrumbs} />
         ) : null}
         <SizableText size="4xl" weight="bold">
           {docMetadata?.name}
@@ -90,29 +86,14 @@ export function DocumentHeader({
             <div className="flex flex-1 flex-wrap items-center gap-3">
               {authors?.length ? (
                 <>
-                  <div className="flex max-w-full flex-wrap items-center gap-1">
+                  <p className="text-sm font-bold">
                     {authors.flatMap((a, index) => {
                       return [
-                        onAuthorClick ? (
-                          <SizableText
-                            key={a.id.id}
-                            size="sm"
-                            weight="bold"
-                            className="underline-transparent hover:underline"
-                            onClick={() => onAuthorClick(a.id)}
-                          >
-                            {getMetadataName(a.metadata)}
-                          </SizableText>
-                        ) : (
-                          <SizableText
-                            key={a.id.id}
-                            size="sm"
-                            weight="bold"
-                            className="cursor-pointer"
-                          >
-                            {getMetadataName(a.metadata)}
-                          </SizableText>
-                        ),
+                        <AuthorLink
+                          name={getMetadataName(a.metadata)}
+                          id={a.id}
+                          key={a.id.id}
+                        />,
                         index !== authors.length - 1 ? (
                           index === authors.length - 2 ? (
                             <SizableText
@@ -134,7 +115,7 @@ export function DocumentHeader({
                         ) : null,
                       ]
                     })}
-                  </div>
+                  </p>
                   <div className="bg-border h-6 w-px" />
                 </>
               ) : null}
@@ -180,36 +161,35 @@ export function DocumentHeader({
   )
 }
 
+function AuthorLink({name, id}: {name: string; id: UnpackedHypermediaId}) {
+  const linkProps = useRouteLink({key: 'profile', id}, {handler: 'onClick'})
+  return (
+    <a
+      {...linkProps}
+      className="no-underline underline-offset-4 hover:underline"
+      style={{}}
+    >
+      {name}
+    </a>
+  )
+}
+
 function Breadcrumbs({
   breadcrumbs,
-  onAuthorClick,
 }: {
   breadcrumbs: Array<{
     id: UnpackedHypermediaId
     metadata: HMMetadata
   }>
-  onAuthorClick?: (authorId: UnpackedHypermediaId) => void
 }) {
   const [first, ...rest] = breadcrumbs
 
   return (
-    <div className="flex flex-1 items-center gap-2">
+    <div className="text-muted-foreground flex flex-1 items-center gap-2">
       {first ? (
         <div className="flex items-center gap-1">
-          <Home className="text-foreground size-3" />
-          <SizableText
-            color="muted"
-            asChild={!!onAuthorClick}
-            size="xs"
-            className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
-            onClick={onAuthorClick ? () => onAuthorClick(first.id) : undefined}
-          >
-            {onAuthorClick ? (
-              <button type="button">{first.metadata?.name}</button>
-            ) : (
-              <span>{first.metadata?.name}</span>
-            )}
-          </SizableText>
+          <Home className="size-3" />
+          <BreadcrumbLink id={first.id} metadata={first.metadata} />
         </div>
       ) : null}
       {rest.flatMap((crumb) => {
@@ -217,23 +197,32 @@ function Breadcrumbs({
           <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
             /
           </SizableText>,
-          <SizableText
-            color="muted"
-            asChild={!!onAuthorClick}
-            size="xs"
+          <BreadcrumbLink
+            id={crumb.id}
+            metadata={crumb.metadata}
             key={crumb.id.id}
-            className="max-w-[15ch] truncate overflow-hidden whitespace-nowrap no-underline hover:underline"
-            onClick={onAuthorClick ? () => onAuthorClick(crumb.id) : undefined}
-          >
-            {onAuthorClick ? (
-              <button type="button">{crumb.metadata?.name}</button>
-            ) : (
-              <span>{crumb.metadata?.name}</span>
-            )}
-          </SizableText>,
+          />,
         ]
       })}
     </div>
+  )
+}
+
+function BreadcrumbLink({
+  id,
+  metadata,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+}) {
+  const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
+  return (
+    <a
+      {...linkProps}
+      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+    >
+      {metadata?.name}
+    </a>
   )
 }
 
@@ -247,7 +236,7 @@ function SiteURLButton({
   return (
     <SizableText
       size="sm"
-      className="underline-transparent hover:underline"
+      className="no-underline underline-offset-4 hover:underline"
       onClick={() => onSiteUrlClick?.(siteUrl)}
     >
       {siteUrl}

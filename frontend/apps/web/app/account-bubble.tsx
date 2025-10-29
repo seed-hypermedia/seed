@@ -4,6 +4,9 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {CircleUser} from 'lucide-react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
+const BUBBLE_CLASSES =
+  'sticky bottom-4 left-4 mb-4 z-10 mt-auto flex items-center gap-2 self-start rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100'
+
 export function MyAccountBubble() {
   const keyPair = useLocalKeyPair()
   const myAccount = useAccount(keyPair?.id || undefined)
@@ -14,10 +17,7 @@ export function MyAccountBubble() {
     return <CreateAccountBubble />
   }
   return (
-    <a
-      className="absolute bottom-4 left-4 flex items-center gap-2 rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100"
-      {...linkProps}
-    >
+    <a className={`hidden ${BUBBLE_CLASSES} sm:flex`} {...linkProps}>
       {myAccount.data?.id ? (
         <HMIcon
           id={myAccount.data.id}
@@ -31,14 +31,14 @@ export function MyAccountBubble() {
   )
 }
 
-export function CreateAccountBubble() {
+function CreateAccountBubble() {
   const {createAccount, content} = useCreateAccount({
     onClose: () => {},
   })
   return (
     <>
       <button
-        className="absolute bottom-4 left-4 flex items-center gap-2 rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100"
+        className={BUBBLE_CLASSES}
         onClick={() => {
           createAccount()
         }}

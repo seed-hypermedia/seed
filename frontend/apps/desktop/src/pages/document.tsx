@@ -35,7 +35,6 @@ import {
   calculateBlockCitations,
   DocumentRoute,
   getCommentTargetId,
-  getDocumentTitle,
   HMDocument,
   HMEntityContent,
   hmId,
@@ -614,8 +613,6 @@ function DocPageHeader({
   onFeedClick: () => void
   commentsCount: number
 }) {
-  const navigate = useNavigate()
-  const openUrl = useOpenUrl()
   const authors = useMemo(() => document?.authors || [], [document])
   useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
   const authorContacts = useContactsMetadata(authors || [])
@@ -640,9 +637,6 @@ function DocPageHeader({
       commentsCount={commentsCount}
       onCommentsClick={onCommentsClick}
       onFeedClick={onFeedClick}
-      onAuthorClick={(authorId) => {
-        navigate({key: 'contact', id: authorId})
-      }}
     />
   )
 }

@@ -7,7 +7,6 @@ import {
   queryKeys,
   useUniversalAppContext,
 } from '@shm/shared'
-import {ENABLE_EMAIL_NOTIFICATIONS} from '@shm/shared/constants'
 import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -21,7 +20,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {LogOut, Megaphone, Monitor, Pencil, Smartphone} from 'lucide-react'
+import {LogOut, Monitor, Smartphone} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
@@ -583,7 +582,7 @@ export function EditProfileDialog({
   )
 }
 
-function LinkKeysDialog() {
+export function LinkKeysDialog() {
   const tx = useTx()
 
   return (
@@ -699,23 +698,23 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   if (!userKeyPair) return null
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
-      {ENABLE_EMAIL_NOTIFICATIONS && (
+      {/* {ENABLE_EMAIL_NOTIFICATIONS && (
         <Button size="xs" onClick={() => notifSettingsDialog.open({})}>
           <Megaphone className="size-4" />
           {tx('Notification Settings')}
         </Button>
-      )}
-      <Button
+      )} */}
+      {/* <Button
         size="xs"
         onClick={() => editProfileDialog.open({accountUid: userKeyPair.id})}
       >
         <Pencil className="size-4" />
         {tx('Edit Profile')}
-      </Button>
-      <Button size="xs" onClick={() => logoutDialog.open({})}>
+      </Button> */}
+      {/* <Button size="xs" onClick={() => logoutDialog.open({})}>
         <LogOut className="size-4" />
         {tx('Logout')}
-      </Button>
+      </Button> */}
       {logoutDialog.content}
       {editProfileDialog.content}
       {notifSettingsDialog.content}

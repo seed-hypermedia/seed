@@ -1,4 +1,10 @@
-import {EditProfileDialog, LogoutButton, useLocalKeyPair} from '@/auth'
+import {MyAccountBubble} from '@/account-bubble'
+import {
+  EditProfileDialog,
+  LinkKeysDialog,
+  LogoutButton,
+  useLocalKeyPair,
+} from '@/auth'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
@@ -18,11 +24,13 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
+import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMProfilePage} from '@shm/ui/profile-page'
 import {SmallSiteHeader} from '@shm/ui/site-header'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {KeySquare} from 'lucide-react'
 import {useMemo} from 'react'
 
 type ProfilePagePayload = {
@@ -86,6 +94,8 @@ function ProfilePageContent({
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const account = useAccount(profile.id.uid)
   const displayMetadata = account.data?.metadata ?? profile.metadata
+  const isCurrentAccount = currentAccount === profile.id.uid
+  const linkKeysDialog = useAppDialog(LinkKeysDialog)
   return (
     <>
       <div className="flex min-h-screen flex-1 flex-col items-center">
@@ -109,20 +119,29 @@ function ProfilePageContent({
               }
               currentAccount={currentAccount}
               headerButtons={
-                <>
-                  <LogoutButton />
-                </>
+                isCurrentAccount ? (
+                  <>
+                    <LogoutButton />
+                    <Button
+                      variant="outline"
+                      onClick={() => linkKeysDialog.open({})}
+                    >
+                      <KeySquare className="size-4" />
+                      Link Keys
+                    </Button>
+                  </>
+                ) : null
               }
             />
           </ActivityProvider>
         </PageContainer>
-        <PageFooter hideDeviceLinkToast={true} />
+        <MyAccountBubble />
+        <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />
+        {linkKeysDialog.content}
       </div>
-      {editProfileDialog.content}
     </>
   )
 }
-
 export default function ProfilePage() {
   const {originHomeId, siteHost, origin, originHomeMetadata, profile} =
     unwrap<ProfilePagePayload>(useLoaderData())
