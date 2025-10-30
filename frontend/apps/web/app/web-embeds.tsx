@@ -135,22 +135,16 @@ export function EmbedDocument(props: EntityComponentProps) {
 }
 
 export function EmbedInline(props: EntityComponentProps) {
-  const {onHoverIn, onHoverOut} = useDocContentContext()
-  return (
-    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
-  )
-}
-
-function DocInlineEmbed(props: EntityComponentProps) {
   const doc = useResource(props)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
   const ctx = useDocContentContext()
-  const {supportDocuments, supportQueries} = ctx || {}
+  const {supportDocuments} = ctx || {}
+  const {onHoverIn, onHoverOut} = ctx || {}
   const entity = props.id
     ? supportDocuments?.find((d) => d.id.id === props.id)
     : null
   const renderDocument = document || entity?.document
-  // basiclly we are willing to get the document from either ajax request or supportDocuments
+  // basically we are willing to get the document from either ajax request or supportDocuments
   // supportDocuments is there for initial load, while the ajax will have up-to-date info
   return (
     <InlineEmbedButton
@@ -158,10 +152,11 @@ function DocInlineEmbed(props: EntityComponentProps) {
       block={props.block}
       parentBlockId={props.parentBlockId}
       depth={props.depth}
-      onHoverIn={props.onHoverIn}
-      onHoverOut={props.onHoverOut}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+      style={props.style}
     >
-      {`@${getMetadataName(renderDocument?.metadata) || '...'}`}
+      {getMetadataName(renderDocument?.metadata) || '...'}
     </InlineEmbedButton>
   )
 }

@@ -1515,7 +1515,7 @@ function InlineContentView({
     if (styles.italic) classes.push('italic')
     if (styles.code)
       classes.push(
-        'text-code font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700',
+        'text-code font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border border-gray-200 dark:border-gray-700 text-[0.9em]',
       )
     if (styles.underline) classes.push('underline')
     if (styles.strike) classes.push('line-through')
@@ -1635,11 +1635,19 @@ function InlineContentView({
 
         if (content.type === 'inline-embed') {
           const unpackedRef = unpackHmId(content.link)
+          // @ts-expect-error
+          const hasRangeStyle = content.styles?.range || isRange
+          const embedStyles = {
+            ...dynamicStyles,
+            ...(hasRangeStyle && {
+              backgroundColor: 'var(--brand-10)',
+            }),
+          }
           if (unpackedRef)
             return (
               <InlineEmbed
                 key={content.link}
-                style={dynamicStyles}
+                style={embedStyles}
                 {...unpackedRef}
               />
             )
@@ -1659,7 +1667,7 @@ function InlineContentView({
                 inline={content.content}
                 fontSize={fSize}
                 rangeOffset={inlineContentOffset}
-                isRange={true}
+                isRange
                 fontWeight={fontWeight}
               />
             </Text>
@@ -2559,12 +2567,16 @@ export function InlineEmbedButton({
     {key: 'document', id: entityId},
     {handler: 'onClick'},
   )
+  const hasRangeHighlight = style?.backgroundColor === 'var(--brand-10)'
   return (
     <a
       {...buttonProps}
       onMouseEnter={() => props.onHoverIn?.(entityId)}
       onMouseLeave={() => props.onHoverOut?.(entityId)}
-      className="text-primary font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+      className={cn(
+        'font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+        hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
+      )}
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
       data-blockid={entityId.blockRef}

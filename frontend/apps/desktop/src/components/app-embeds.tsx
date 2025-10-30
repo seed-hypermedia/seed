@@ -436,27 +436,19 @@ export function EmbedDocumentCard(props: EntityComponentProps) {
 }
 
 export function EmbedInline(props: EntityComponentProps) {
-  const {onHoverIn, onHoverOut} = useDocContentContext()
-  return (
-    <DocInlineEmbed {...props} onHoverIn={onHoverIn} onHoverOut={onHoverOut} />
-  )
-}
-
-function DocInlineEmbed(props: EntityComponentProps) {
   const contacts = useSelectedAccountContacts()
   const doc = useSubscribedResource(props)
-  {
-  }
-  // @ts-ignore
+  const {onHoverIn, onHoverOut} = useDocContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
+
   return (
     <InlineEmbedButton
       entityId={narrowHmId(props)}
       block={props.block}
       parentBlockId={props.parentBlockId}
       depth={props.depth}
-      onHoverIn={props.onHoverIn}
-      onHoverOut={props.onHoverOut}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
       style={props.style}
     >
       {getContactMetadata(props.uid, document?.metadata, contacts.data).name ||
