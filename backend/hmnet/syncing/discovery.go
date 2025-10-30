@@ -202,6 +202,8 @@ type discoveryKey struct {
 }
 
 func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbsr.Store) error {
+	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
+
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 		return err
 	}
@@ -210,109 +212,47 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		return err
 	}
 
-	// Fill IRIs.
-	for dkey := range dkeys {
-		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-			SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
-			return err
-		}
-
-		if dkey.Recursive {
-			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-				SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
-				return err
-			}
-		}
-
-		space, path, err := dkey.IRI.SpacePath()
-		if err != nil {
-			return err
-		}
-
-		// TODO(burdiyan): currently in our database we don't treat comments and other snapshot resources as resources.
-		// Instead comments belong to the document they target, which is different from how we think about them now —
-		// we now think about them as their own state-based resources.
-		// So here we implement a bit of a naughty workaround, to include the blobs into the syncing dataset
-		// if the requested path looks like a TSID of a state-based resource.
-		// We should refactor our database to treat comments as resources and remove this workaround in the future.
-		if tsid, ok := parseTSIDPath(path); ok {
-			const q = `INSERT OR IGNORE INTO rbsr_blobs
-				SELECT id
-				FROM structural_blobs
-				WHERE extra_attrs->>'tsid' = :tsid
-				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
-			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
-				return err
-			}
-		}
+	if err := fillTables(conn, dkeys); err != nil {
+		return err
 	}
 
-	// Follow all the redirect targets recursively.
+	// Fill Links.
+	var linkIRIs map[discoveryKey]struct{} = make(map[discoveryKey]struct{})
 	{
-		const q = `WITH RECURSIVE t (id) AS (
-		    SELECT * FROM rbsr_iris
-		    UNION
-		    SELECT resources.id
-		    FROM structural_blobs sb, resources, t
-		    WHERE (t.id = sb.resource AND sb.type = 'Ref')
-		    AND sb.extra_attrs->>'redirect' IS NOT NULL
-		    AND sb.extra_attrs->>'redirect' = resources.iri
-		)
-		SELECT * FROM t;`
-
-		// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
-	}
-
-	// Fill Refs.
-	{
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
-			SELECT sb.id
-			FROM structural_blobs sb
-			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
-			WHERE resource IN rbsr_iris
-			AND type = 'Ref'`
-
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
-		}
-	}
-
-	// Fill Changes based on Refs.
-	{
-		const q = `WITH RECURSIVE
-			changes (id) AS (
-			    SELECT target
-			    FROM blob_links bl
-			    JOIN rbsr_blobs rb ON rb.id = bl.source
-			        AND bl.type = 'ref/head'
-			    UNION
-			    SELECT target
-			    FROM blob_links bl
-			    JOIN changes c ON c.id = bl.source
-			        AND bl.type = 'change/dep'
+		const q = `
+			WITH genesis (id) AS (
+				SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
+			), linked_changes (id) AS (
+				SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
+				UNION ALL
+				SELECT id from genesis
 			)
-			INSERT OR IGNORE INTO rbsr_blobs
-			SELECT id FROM changes;`
+			SELECT r.iri,
+			rl.is_pinned,
+			rl.extra_attrs->>'v' AS version
+			FROM resources r
+			JOIN resource_links rl ON r.id = rl.target
+			WHERE rl.source IN linked_changes
+			GROUP BY r.iri, version, rl.is_pinned;`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
+		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+			var iri = blob.IRI(stmt.ColumnText(0))
+			var version = blob.Version(stmt.ColumnText(2))
+			var isPinned = stmt.ColumnInt(1) != 0
+			dKey := discoveryKey{IRI: iri, Version: "", Recursive: false}
+			if isPinned && version != "" {
+				// If it's pinned, we want to make sure we get the specific version.
+				dKey = discoveryKey{IRI: iri, Version: version, Recursive: false}
+			}
+			linkIRIs[dKey] = struct{}{}
+			return nil
+		}); err != nil {
 			return err
 		}
 	}
-
-	// Fill Capabilities and the rest of the related blob types.
-	{
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
-			SELECT sb.id
-			FROM structural_blobs sb
-			LEFT JOIN stashed_blobs ON stashed_blobs.id = sb.id
-			WHERE resource IN rbsr_iris
-			AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
-
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
-		}
+	if err := fillTables(conn, linkIRIs); err != nil {
+		return err
 	}
-
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
 	for {
@@ -378,6 +318,112 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		}
 	}
 
+	return nil
+}
+
+func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
+	// Fill IRIs.
+	for dkey := range dkeys {
+		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
+				SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
+			return err
+		}
+
+		if dkey.Recursive {
+			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
+					SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+				return err
+			}
+		}
+
+		space, path, err := dkey.IRI.SpacePath()
+		if err != nil {
+			return err
+		}
+
+		// TODO(burdiyan): currently in our database we don't treat comments and other snapshot resources as resources.
+		// Instead comments belong to the document they target, which is different from how we think about them now —
+		// we now think about them as their own state-based resources.
+		// So here we implement a bit of a naughty workaround, to include the blobs into the syncing dataset
+		// if the requested path looks like a TSID of a state-based resource.
+		// We should refactor our database to treat comments as resources and remove this workaround in the future.
+		if tsid, ok := parseTSIDPath(path); ok {
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT id
+				FROM structural_blobs
+				WHERE extra_attrs->>'tsid' = :tsid
+				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
+			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Follow all the redirect targets recursively.
+	{
+		const q = `WITH RECURSIVE t (id) AS (
+				SELECT * FROM rbsr_iris
+				UNION
+				SELECT resources.id
+				FROM structural_blobs sb, resources, t
+				WHERE (t.id = sb.resource AND sb.type = 'Ref')
+				AND sb.extra_attrs->>'redirect' IS NOT NULL
+				AND sb.extra_attrs->>'redirect' = resources.iri
+			)
+			SELECT * FROM t;`
+
+		// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
+	}
+
+	// Fill Refs.
+	{
+		const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT sb.id
+				FROM structural_blobs sb
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+				WHERE resource IN rbsr_iris
+				AND type = 'Ref'`
+
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
+		}
+	}
+
+	// Fill Changes based on Refs.
+	{
+		const q = `WITH RECURSIVE
+				changes (id) AS (
+					SELECT target
+					FROM blob_links bl
+					JOIN rbsr_blobs rb ON rb.id = bl.source
+						AND bl.type = 'ref/head'
+					UNION
+					SELECT target
+					FROM blob_links bl
+					JOIN changes c ON c.id = bl.source
+						AND bl.type = 'change/dep'
+				)
+				INSERT OR IGNORE INTO rbsr_blobs
+				SELECT id FROM changes;`
+
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
+		}
+	}
+
+	// Fill Capabilities and the rest of the related blob types.
+	{
+		const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT sb.id
+				FROM structural_blobs sb
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+				WHERE resource IN rbsr_iris
+				AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
+
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
