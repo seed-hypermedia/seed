@@ -829,7 +829,7 @@ function InnerDocumentPage(
                 <>
                   <MobileInteractionCardCollapsed
                     onClick={() => {
-                      setDocumentPanel({type: 'activity'})
+                      setDocumentPanel({type: 'discussions'})
                       // setMobilePanelOpen(true)
                     }}
                     commentsCount={interactionSummary.data?.comments || 0}

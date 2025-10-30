@@ -2575,7 +2575,7 @@ export function InlineEmbedButton({
       onMouseLeave={() => props.onHoverOut?.(entityId)}
       className={cn(
         'font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
-        hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
+        hasRangeHighlight && 'hm-embed-range hover:cursor-default',
       )}
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
