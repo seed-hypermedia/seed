@@ -675,161 +675,114 @@ export function CommentEditor({
               // @ts-expect-error
               <HyperMediaEditorView editor={editor} openUrl={openUrl} />
             ) : (
-              <UIAvatar
-                url={avatarPlaceholder}
-                size={32}
-                onPress={onAvatarPress}
-                className="rounded-full"
-              />
+              <Button
+                onClick={() => {
+                  setIsEditorFocused(true)
+                  setTimeout(() => {
+                    editor._tiptapEditor.commands.focus()
+                  }, 100)
+                }}
+                className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
+                variant="ghost"
+                size="sm"
+              >
+                {tx('Start a Discussion')}
+              </Button>
             )}
           </div>
-          <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
+          {isEditorFocused ? (
             <div
               className={cn(
-                'comment-editor min-h-8 flex-1',
-                isEditorFocused
-                  ? 'justify-start px-3 pt-1 pb-2'
-                  : 'justify-center',
+                'mx-2 mb-2 flex gap-2',
+                isMobile ? 'justify-between' : 'justify-end',
               )}
-              // marginTop="$1"
-
-              // minHeight={isEditorFocused ? 105 : 40}
-              // paddingHorizontal="$4"
-              onClick={(e) => {
-                const target = e.target as HTMLElement
-
-                // Check if the clicked element is not an input, button, or textarea
-                if (target.closest('input, textarea, select, button')) {
-                  return // Don't focus the editor in this case
-                }
-                e.stopPropagation()
-                editor._tiptapEditor.commands.focus()
-              }}
-              onDragStart={() => {
-                setIsDragging(true)
-              }}
-              onDragEnd={() => {
-                setIsDragging(false)
-              }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setIsDragging(true)
-              }}
-              onDrop={onDrop}
             >
-              {isEditorFocused ? (
-                // @ts-expect-error
-                <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-              ) : (
-                <Button
-                  onClick={() => {
-                    setIsEditorFocused(true)
-                    setTimeout(() => {
-                      editor._tiptapEditor.commands.focus()
-                    }, 100)
-                  }}
-                  className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
-                  variant="ghost"
-                  size="sm"
-                >
-                  {tx('Start a Discussion')}
-                </Button>
-              )}
-            </div>
-            {isEditorFocused ? (
-              <div
-                className={cn(
-                  'mx-2 mb-2 flex gap-2',
-                  isMobile ? 'justify-between' : 'justify-end',
-                )}
-              >
-                {isMobile && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => setIsMentionsDialogOpen(true)}
-                    >
-                      <AtSignIcon className="h-4 w-4" />
-                    </Button>
+              {isMobile && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setIsMentionsDialogOpen(true)}
+                  >
+                    <AtSignIcon className="h-4 w-4" />
+                  </Button>
 
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={handleImageClick}
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                    </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={handleImageClick}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
 
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={() => setIsSlashDialogOpen(true)}
-                    >
-                      <SlashSquareIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  {submitButton({
-                    reset,
-                    getContent,
-                  })}
-                  {onDiscardDraft && (
-                    <Tooltip content="Discard Comment Draft">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          reset()
-                          setIsEditorFocused(false)
-                          isInitializedRef.current = false
-                          onDiscardDraft()
-                        }}
-                      >
-                        <Trash className="text-destructive size-4" />
-                      </Button>
-                    </Tooltip>
-                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setIsSlashDialogOpen(true)}
+                  >
+                    <SlashSquareIcon className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
+              )}
 
-        {/* Mobile dialogs */}
-        {isMobile && (
-          <>
-            <MobileMentionsDialog
-              isOpen={isMentionsDialogOpen}
-              onClose={() => setIsMentionsDialogOpen(false)}
-              onSelect={(mention) => {
-                const {state, schema} = editor._tiptapEditor
-                const node = schema.nodes['inline-embed'].create(
-                  {link: mention.id.id},
-                  schema.text(' '),
-                )
-                editor._tiptapEditor.view.dispatch(
-                  state.tr.replaceSelectionWith(node).scrollIntoView(),
-                )
-                setIsMentionsDialogOpen(false)
-                setTimeout(() => editor._tiptapEditor.commands.focus(), 100)
-              }}
-              perspectiveAccountUid={perspectiveAccountUid}
-            />
-            <MobileSlashDialog
-              isOpen={isSlashDialogOpen}
-              onClose={() => setIsSlashDialogOpen(false)}
-              editor={editor}
-            />
-          </>
-        )}
+              <div className="flex gap-2">
+                {submitButton({
+                  reset,
+                  getContent,
+                })}
+                {onDiscardDraft && (
+                  <Tooltip content="Discard Comment Draft">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        reset()
+                        setIsEditorFocused(false)
+                        isInitializedRef.current = false
+                        onDiscardDraft()
+                      }}
+                    >
+                      <Trash className="text-destructive size-4" />
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {/* Mobile dialogs */}
+      {isMobile && (
+        <>
+          <MobileMentionsDialog
+            isOpen={isMentionsDialogOpen}
+            onClose={() => setIsMentionsDialogOpen(false)}
+            onSelect={(mention) => {
+              const {state, schema} = editor._tiptapEditor
+              const node = schema.nodes['inline-embed'].create(
+                {link: mention.id.id},
+                schema.text(' '),
+              )
+              editor._tiptapEditor.view.dispatch(
+                state.tr.replaceSelectionWith(node).scrollIntoView(),
+              )
+              setIsMentionsDialogOpen(false)
+              setTimeout(() => editor._tiptapEditor.commands.focus(), 100)
+            }}
+            perspectiveAccountUid={perspectiveAccountUid}
+          />
+          <MobileSlashDialog
+            isOpen={isSlashDialogOpen}
+            onClose={() => setIsSlashDialogOpen(false)}
+            editor={editor}
+          />
+        </>
+      )}
     </>
   )
 }
