@@ -98,7 +98,7 @@ export function DocumentListItem({
       data-docid={id.id}
       variant="ghost"
       className={cn(
-        'h-auto w-full items-center justify-start border-none bg-transparent px-4 py-2',
+        'h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
         className,
       )}
       onClick={handleClick}
@@ -112,7 +112,7 @@ export function DocumentListItem({
         <div className="flex flex-1 items-center gap-3">
           <div className="items-center-justify-start flex flex-1 overflow-hidden">
             <SizableText
-              className={cn('flex-1 truncate text-left')}
+              className={cn('flex-1 truncate text-left font-sans')}
               weight={computedIsRead ? undefined : 'bold'}
             >
               {getMetadataName(metadata)}
@@ -128,7 +128,7 @@ export function DocumentListItem({
             />
           )}
           {!showAuthors && !itemActivitySummary && (
-            <SizableText size="xs" color="muted">
+            <SizableText size="xs" color="muted" className="font-sans">
               {formattedDate(item.updateTime)}
             </SizableText>
           )}

@@ -29,7 +29,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
-import {DocumentListItem} from '@shm/ui/document-list-item'
+import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {DocumentCard} from '@shm/ui/newspaper'
 import {Spinner} from '@shm/ui/spinner'
 import {cn} from '@shm/ui/utils'
@@ -265,8 +265,7 @@ export function QueryBlockWeb({
   block: HMBlockQuery
 }) {
   const ctx = useDocContentContext()
-  // const query
-  const {supportQueries} = ctx || {}
+  const {supportQueries, supportDocuments} = ctx || {}
   const includes = block.attributes.query.includes || []
   if (includes.length == 0) return null
   const queryInclude = includes[0]
@@ -303,22 +302,8 @@ export function QueryBlockWeb({
   if (block.attributes.query.limit) {
     sortedItems = sortedItems.slice(0, block.attributes.query.limit)
   }
-
-  const DataComponent =
-    block.attributes.style == 'List' ? QueryStyleList : QueryStyleCard
-
-  return <DataComponent block={block} items={sortedItems} />
-}
-
-function QueryStyleCard({
-  block,
-  items,
-}: {
-  block: HMBlockQuery
-  items: Array<HMDocumentInfo>
-}) {
-  const ctx = useDocContentContext()
-  const {supportDocuments} = ctx || {}
+  const navigate = useNavigate()
+  const {originHomeId} = useUniversalAppContext()
 
   function getEntity(path: string[]) {
     return supportDocuments?.find(
@@ -337,90 +322,29 @@ function QueryStyleCard({
       return acc
     }, {} as HMAccountsMetadata) || {}
 
-  const docs = useMemo(() => {
-    return items.map((item) => {
-      const id = hmId(item.account, {
-        path: item.path,
-        latest: true,
-      })
-      return {id, item}
-    })
-  }, [items])
-
-  const firstItem = block.attributes.banner ? docs[0] : null
-  const restItems = block.attributes.banner ? docs.slice(1) : docs
-
   return (
-    <DocumentCardGrid
-      // @ts-expect-error
-      firstItem={firstItem}
-      items={restItems}
-      getEntity={getEntity}
-      accountsMetadata={accountsMetadata}
+    <QueryBlockContent
+      items={sortedItems}
+      style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
-    />
-  )
-}
-
-function QueryStyleList({
-  block,
-  items,
-}: {
-  block: HMBlockQuery
-  items: Array<HMDocumentInfo>
-}) {
-  const navigate = useNavigate()
-  const {originHomeId} = useUniversalAppContext()
-
-  const authorIds = new Set<string>()
-  items.forEach((item) =>
-    item.authors.forEach((authorId) => authorIds.add(authorId)),
-  )
-
-  const authors = useResources(Array.from(authorIds).map((uid) => hmId(uid)))
-
-  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
-    authors
-      .map((d) => d.data)
-      .filter(
-        (d): d is Extract<typeof d, {type: 'document'}> =>
-          !!d && d.type === 'document' && !!d.document?.metadata,
-      )
-      .map((authorDoc) => [
-        authorDoc.id.uid,
-        {
-          id: authorDoc.id,
-          metadata: authorDoc.document.metadata,
-        },
-      ]),
-  )
-
-  return (
-    <div className="flex w-full flex-col gap-1">
-      {items?.map((item) => {
-        return (
-          <DocumentListItem
-            key={`${item.account}-${item.path?.join('/')}`}
-            item={item}
-            accountsMetadata={accountsMetadata}
-            isWeb={true}
-            onClick={(id) => {
-              navigate(
-                createWebHMUrl(id.uid, {
-                  hostname: null,
-                  blockRange: id.blockRange,
-                  blockRef: id.blockRef,
-                  version: id.version,
-                  latest: id.latest,
-                  path: id.path,
-                  originHomeId,
-                }),
-              )
-            }}
-          />
+      banner={block.attributes.banner || false}
+      accountsMetadata={accountsMetadata}
+      getEntity={getEntity}
+      onDocumentClick={(id) => {
+        navigate(
+          createWebHMUrl(id.uid, {
+            hostname: null,
+            blockRange: id.blockRange,
+            blockRef: id.blockRef,
+            version: id.version,
+            latest: id.latest,
+            path: id.path,
+            originHomeId,
+          }),
         )
-      })}
-    </div>
+      }}
+      isWeb={true}
+    />
   )
 }
 

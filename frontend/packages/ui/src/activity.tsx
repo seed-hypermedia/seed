@@ -108,7 +108,7 @@ export function LibraryEntryUpdateSummary({
       <SizableText
         size="xs"
         color="muted"
-        className="line-clamp-1"
+        className="line-clamp-1 font-sans"
         weight="light"
       >
         {summaryText}

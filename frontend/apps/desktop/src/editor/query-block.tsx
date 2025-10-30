@@ -1,7 +1,5 @@
-import {LibraryListItem} from '@/components/list-item'
 import {SearchInput} from '@/components/search-input'
 import {useListDirectory} from '@/models/documents'
-import {LibraryData} from '@/models/library'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {
@@ -13,8 +11,8 @@ import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryBlockSortedItems} from '@shm/shared/content'
 import {EditorQueryBlock} from '@shm/shared/editor-types'
 import {
+  HMAccountsMetadata,
   HMBlockQuery,
-  HMEntityContent,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -22,16 +20,16 @@ import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
-import {DocumentCardGrid} from '@shm/ui/document-content'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
+import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import type {UseQueryResult} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {NodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useNavigate} from '../utils/useNavigate'
 import {HMBlockSchema} from './schema'
 
 const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
@@ -190,7 +188,49 @@ function Render(
     setSelected(isSelected)
   }
 
-  const DataComponent = block.props.style == 'List' ? ListView : CardView
+  const authorIds = new Set<string>()
+  sortedItems.forEach((item) =>
+    item.authors.forEach((authorId) => authorIds.add(authorId)),
+  )
+
+  const authors = useResources(Array.from(authorIds).map((uid) => hmId(uid)))
+
+  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
+    authors
+      .map((document) => {
+        const d = document.data
+        if (!d || d.type !== 'document') return null
+        if (d.id.path && d.id.path.length !== 0) return null
+        return [
+          d.id.uid,
+          {
+            id: d.id,
+            metadata: d.document.metadata,
+          },
+        ]
+      })
+      .filter((m) => !!m),
+  )
+
+  const navigate = useNavigate()
+
+  // For Card view, we need getEntity function
+  const documents = useResources(
+    sortedItems.map((item) =>
+      hmId(item.account, {
+        path: item.path,
+        latest: true,
+      }),
+    ),
+  )
+
+  function getEntity(path: string[]) {
+    return (
+      documents?.find(
+        (document) => document.data?.id?.path?.join('/') === path?.join('/'),
+      )?.data || null
+    )
+  }
 
   return (
     <div
@@ -215,103 +255,20 @@ function Render(
           assign(props)
         }}
       />
-      <DataComponent
-        items={docResults}
-        block={block as unknown as EditorQueryBlock}
+      <QueryBlockContent
+        items={sortedItems}
+        style={block.props.style as 'Card' | 'List'}
+        columnCount={block.props.columnCount}
+        banner={banner}
+        accountsMetadata={accountsMetadata}
+        getEntity={getEntity}
+        onDocumentClick={(id) => {
+          navigate({
+            key: 'document',
+            id,
+          })
+        }}
       />
-    </div>
-  )
-}
-
-function CardView({
-  items,
-  block,
-}: {
-  block: EditorQueryBlock
-  items: Array<UseQueryResult<HMEntityContent | null, unknown>>
-}) {
-  const banner = useMemo(() => {
-    return Boolean(block.props.banner == 'true')
-  }, [block.props.banner])
-
-  const docs = useMemo(() => {
-    return items.map((item) => {
-      if (item.data) {
-        return {
-          id: item.data.id,
-          item: {
-            type: 'document',
-            path: item.data.id.path,
-            metadata: item.data.document?.metadata,
-          },
-        }
-      }
-      return null
-    })
-  }, [items])
-
-  function getEntity(path: string[]) {
-    return (
-      items.find((item) => item.data?.id?.path?.join('/') == path.join('/'))
-        ?.data || null
-    )
-  }
-
-  const firstItem = banner ? docs[0] : null
-  const restItems = banner ? docs.slice(1) : docs
-
-  return (
-    <DocumentCardGrid
-      // @ts-expect-error
-      firstItem={firstItem}
-      getEntity={getEntity}
-      // @ts-expect-error
-      items={restItems}
-      accountsMetadata={{}}
-      columnCount={parseInt(block.props.columnCount || '1', 10) as number}
-    />
-  )
-}
-
-function ListView({
-  items,
-  block,
-}: {
-  block: EditorQueryBlock
-  items: Array<UseQueryResult<HMEntityContent | null, unknown>>
-}) {
-  const entries = useMemo(
-    () =>
-      items
-        .filter((item) => !!item.data)
-        .map((item) => {
-          return {
-            id: item.data?.id,
-            document: item.data?.document,
-            location: [],
-            authors: [],
-            isFavorite: false,
-            isSubscribed: false,
-          } as LibraryData['items'][0]
-        }),
-    [items],
-  )
-  return (
-    <div className="flex flex-col gap-3">
-      {entries.length ? (
-        entries.map((entry) => (
-          // @ts-expect-error
-          <LibraryListItem
-            key={entry.id.id}
-            entry={entry}
-            exportMode={false}
-            selected={false}
-            toggleDocumentSelection={(id) => {}}
-          />
-        ))
-      ) : (
-        <EmptyQueryBlock queryIncludes={block.props.queryIncludes} />
-      )}
     </div>
   )
 }
@@ -394,7 +351,7 @@ function QuerySettings({
   return (
     <>
       <div
-        className={`query-settings editor-controls absolute left-0 flex h-full w-full items-start justify-end gap-2 p-2 ${
+        className={`query-settings editor-controls absolute left-0 z-20 flex h-full w-full items-start justify-end gap-2 p-2 ${
           popoverState.open ? 'z-40 opacity-100' : 'z-20 opacity-0'
         } group-hover:opacity-100`}
         onClick={
@@ -412,6 +369,8 @@ function QuerySettings({
         <Tooltip content="Edit Query">
           <Button
             size="icon"
+            variant="ghost"
+            className="hover:bg-background bg-white dark:bg-black"
             onClick={() => popoverState.onOpenChange(!popoverState.open)}
           >
             <Pencil className="size-4" />

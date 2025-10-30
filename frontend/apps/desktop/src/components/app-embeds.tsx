@@ -34,7 +34,7 @@ import {
   InlineEmbedButton,
   useDocContentContext,
 } from '@shm/ui/document-content'
-import {DocumentListItem} from '@shm/ui/document-list-item'
+import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {
   BlankQueryBlockMessage,
   QueryBlockPlaceholder,
@@ -502,23 +502,52 @@ export function QueryBlockDesktop({
     block.attributes.query.limit,
   ])
 
-  const docIds =
-    sortedItems.map((item) =>
-      hmId(item.account, {
-        path: item.path,
-        latest: true,
-      }),
-    ) || []
-
-  const authorIds = new Set<string>()
-  sortedItems.forEach((item) =>
-    item.authors.forEach((authorId) => authorIds.add(authorId)),
+  const docIds = useMemo(
+    () =>
+      sortedItems.map((item) =>
+        hmId(item.account, {
+          path: item.path,
+          latest: true,
+        }),
+      ),
+    [sortedItems],
   )
+
+  const authorIds = useMemo(() => {
+    const ids = new Set<string>()
+    sortedItems.forEach((item) =>
+      item.authors.forEach((authorId) => ids.add(authorId)),
+    )
+    return Array.from(ids)
+  }, [sortedItems])
 
   const documents = useResources([
     ...docIds,
-    ...Array.from(authorIds).map((uid) => hmId(uid)),
+    ...authorIds.map((uid) => hmId(uid)),
   ])
+
+  const navigate = useNavigate()
+
+  const accountsMetadata: HMAccountsMetadata = useMemo(
+    () =>
+      Object.fromEntries(
+        documents
+          .map((document) => {
+            const d = document.data
+            if (!d || d.type !== 'document') return null
+            if (d.id.path && d.id.path.length !== 0) return null
+            return [
+              d.id.uid,
+              {
+                id: d.id,
+                metadata: d.document.metadata,
+              },
+            ]
+          })
+          .filter((m) => !!m),
+      ),
+    [documents],
+  )
 
   function getEntity(path: string[]) {
     return (
@@ -528,23 +557,6 @@ export function QueryBlockDesktop({
     )
   }
 
-  const accountsMetadata: HMAccountsMetadata = Object.fromEntries(
-    documents
-      .map((document) => {
-        const d = document.data
-        if (!d || d.type !== 'document') return null
-        if (d.id.path && d.id.path.length !== 0) return null
-        return [
-          d.id.uid,
-          {
-            id: d.id,
-            metadata: d.document.metadata,
-          },
-        ]
-      })
-      .filter((m) => !!m),
-  )
-
   if (directoryItems.isInitialLoading) {
     return (
       <div className="block-query flex w-full" data-content-type="query">
@@ -553,87 +565,21 @@ export function QueryBlockDesktop({
     )
   }
 
-  const DataComponent =
-    block.attributes.style == 'List' ? QueryStyleList : QueryStyleCard
-
   return (
-    <DataComponent
+    <QueryBlockContent
       items={sortedItems}
-      block={block}
-      getEntity={getEntity}
-      accountsMetadata={accountsMetadata}
-    />
-  )
-}
-
-function QueryStyleCard({
-  items,
-  block,
-  getEntity,
-  accountsMetadata,
-}: {
-  items: any[]
-  block: HMBlockQuery
-  getEntity: any
-  accountsMetadata: HMAccountsMetadata
-}) {
-  const docs = useMemo(() => {
-    return items.map((item) => {
-      const id = hmId(item.account, {
-        path: item.path,
-        latest: true,
-      })
-      return {id, item}
-    })
-  }, [items])
-
-  const firstItem = block.attributes.banner ? docs[0] : null
-  const restItems = block.attributes.banner ? docs.slice(1) : docs
-
-  return (
-    <DocumentCardGrid
-      // @ts-ignore
-      firstItem={firstItem}
-      items={restItems}
-      getEntity={getEntity}
-      accountsMetadata={accountsMetadata}
+      style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
-    />
-  )
-}
-
-function QueryStyleList({items}: {items: HMDocumentInfo[]}) {
-  const navigate = useNavigate()
-
-  const authorIds = new Set<string>()
-  items.forEach((item) =>
-    item.authors.forEach((authorId) => authorIds.add(authorId)),
-  )
-
-  const authors = useAccountsMetadata(Array.from(authorIds))
-
-  return (
-    <div className="flex w-full flex-col gap-1">
-      {items.length ? (
-        items.map((item) => {
-          return (
-            <DocumentListItem
-              key={`${item.account}-${item.path?.join('/')}`}
-              item={item}
-              accountsMetadata={authors}
-              onClick={(id) => {
-                navigate({
-                  key: 'document',
-                  id,
-                })
-              }}
-            />
-          )
+      banner={block.attributes.banner || false}
+      accountsMetadata={accountsMetadata}
+      getEntity={getEntity}
+      onDocumentClick={(id) => {
+        navigate({
+          key: 'document',
+          id,
         })
-      ) : (
-        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
-      )}
-    </div>
+      }}
+    />
   )
 }
 
