@@ -4,7 +4,6 @@ import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import {EntityComponentsRecord} from '@shm/shared/document-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -65,14 +64,6 @@ export function AppDocContentProvider({
         contacts={contacts.data}
         collapsedBlocks={collapsedBlocks}
         setCollapsedBlocks={setCollapsedBlocks}
-        entityComponents={
-          universalContext.entityComponents || {
-            Document: () => null,
-            Inline: () => null,
-            Query: () => null,
-            Comment: () => null,
-          }
-        }
         onBlockCopy={
           reference
             ? (blockId: string, blockRange) => {
@@ -135,7 +126,6 @@ export function AppDocContentProvider({
 
 export type AppDocContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
-  entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   blockCitations?: Record<
     string,

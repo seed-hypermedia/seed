@@ -6,10 +6,10 @@ import {
   EditorText,
   extractQueryBlocks,
   extractRefs,
+  getChildrenType,
   getCommentTargetId,
   getParentPaths,
   HMBlock,
-  HMBlockChildrenType,
   HMBlockNode,
   hmBlockToEditorBlock,
   HMDocument,
@@ -637,20 +637,6 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
     type: 'Unsupported',
     id: block.id,
   }
-}
-
-function getChildrenType(block: HMBlock): HMBlockChildrenType | undefined {
-  if (block.type === 'Paragraph') return block.attributes.childrenType
-  if (block.type === 'Heading') return block.attributes.childrenType
-  if (block.type === 'Embed') return block.attributes.childrenType
-  if (block.type === 'Video') return block.attributes.childrenType
-  if (block.type === 'File') return block.attributes.childrenType
-  if (block.type === 'Image') return block.attributes.childrenType
-  if (block.type === 'Query') return block.attributes.childrenType
-  if (block.type === 'Math') return block.attributes.childrenType
-  if (block.type === 'Code') return block.attributes.childrenType
-  if (block.type === 'Button') return block.attributes.childrenType
-  return undefined
 }
 
 async function loadDocumentBlockNode(

@@ -27,7 +27,7 @@ import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
-import {EmbedDocument, EmbedInline, QueryBlockWeb} from './web-embeds'
+import {webUniversalClient} from './universal-client'
 
 const queryClient = new QueryClient()
 
@@ -101,7 +101,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
     <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
       <TooltipProvider>
         {children}
-        <div className="fixed right-0 bottom-0 z-50 h-auto w-full">
+        <div className="fixed right-0 bottom-0 z-50 w-full h-auto">
           <Toaster theme={theme} />
         </div>
       </TooltipProvider>
@@ -171,12 +171,7 @@ export function WebSiteProvider(props: {
       openUrl={(url) => {
         window.open(url, '_blank')
       }}
-      entityComponents={{
-        Document: EmbedDocument,
-        Inline: EmbedInline as any,
-        Query: QueryBlockWeb,
-        Comment: () => null,
-      }}
+      universalClient={webUniversalClient}
       openRoute={(route: NavRoute, replace?: boolean) => {
         // Update navigation state
         if (replace) {

@@ -1,3 +1,4 @@
+import {HMBlockEmbed} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {HMEmbedViewSchema} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
@@ -12,7 +13,9 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {Input} from '@shm/ui/components/input'
 import {
-  BlockContentEmbed,
+  BlockEmbedCard,
+  BlockEmbedComments,
+  BlockEmbedContent,
   ErrorBlock,
   useDocContentContext,
 } from '@shm/ui/document-content'
@@ -200,7 +203,7 @@ const display = ({
     >
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
-          <BlockContentEmbed
+          <EmbedContent
             parentBlockId={block.props.parentBlockId || null}
             block={{
               id: block.id,
@@ -213,12 +216,27 @@ const display = ({
               annotations: [],
               link: block.props.url,
             }}
-            depth={1}
           />
         </ErrorBoundary>
       )}
     </MediaContainer>
   )
+}
+
+function EmbedContent({
+  block,
+  parentBlockId,
+}: {
+  block: HMBlockEmbed
+  parentBlockId: string | null
+}) {
+  if (block.attributes.view === 'Card')
+    return <BlockEmbedCard block={block} parentBlockId={parentBlockId} />
+  if (block.attributes.view === 'Comments')
+    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
+  if (block.attributes.view === 'Content')
+    return <BlockEmbedContent block={block} parentBlockId={parentBlockId} />
+  return <ErrorBlock message="Unknown Embed View" />
 }
 
 const EmbedLauncherInput = ({
@@ -305,11 +323,11 @@ const EmbedLauncherInput = ({
     <div
       className={cn(
         focused ? 'flex' : 'hidden',
-        'absolute top-full left-0 z-40 max-h-[400px] w-full overflow-auto overflow-x-hidden',
+        'overflow-auto overflow-x-hidden absolute left-0 top-full z-40 w-full max-h-[400px]',
         'flex-col px-3 py-3 opacity-100',
         'bg-muted',
         'rounded-br-md rounded-bl-md',
-        'scrollbar-none shadow-sm',
+        'shadow-sm scrollbar-none',
       )}
       style={{
         scrollbarWidth: 'none',
@@ -353,7 +371,7 @@ const EmbedLauncherInput = ({
   )
 
   return (
-    <div className="relative flex flex-1 flex-col">
+    <div className="flex relative flex-col flex-1">
       <Input
         value={search}
         onChange={(e) => {
@@ -384,7 +402,7 @@ const EmbedLauncherInput = ({
             )
           }
         }}
-        className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"
+        className="w-full border-muted-foreground/30 focus-visible:border-ring text-foreground"
       />
 
       {content}

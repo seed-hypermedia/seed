@@ -1,5 +1,5 @@
 import {useAppContext} from '@/app-context'
-import {useSizeObserver} from '@/components/app-embeds'
+import {useSizeObserver} from '@/utils/use-size-observer'
 import {
   roleCanWrite,
   useSelectedAccountCapability,

@@ -3,7 +3,6 @@ import {
   BlockRange,
   ExpandedBlockRange,
   HMBlock,
-  HMBlockQuery,
   HMCitation,
   HMEntityContent,
   HMQueryResult,
@@ -17,7 +16,6 @@ export type BlockRangeWithOptions = (BlockRange | ExpandedBlockRange) & {
 }
 
 export type DocContentContextValue = {
-  entityComponents: EntityComponentsRecord
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void
@@ -64,18 +62,8 @@ export type DocContentContextValue = {
   >
 }
 
-export type EntityComponentsRecord = {
-  Document: React.FC<EntityComponentProps>
-  Comment: React.FC<EntityComponentProps>
-  Inline: React.FC<UnpackedHypermediaId & {style?: React.CSSProperties}>
-  Query: React.FC<{
-    id: UnpackedHypermediaId
-    block: HMBlockQuery
-  }>
-}
-export type EntityComponentProps = BlockContentProps & UnpackedHypermediaId
-export type BlockContentProps = {
-  block: HMBlock
+export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
+  block: BlockType
   parentBlockId: string | null
   depth?: number
   onHoverIn?: (id: UnpackedHypermediaId) => void

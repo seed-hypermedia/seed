@@ -16,7 +16,6 @@ import {
   useCommentGroups,
   useCommentParents,
   useRouteLink,
-  useUniversalAppContext,
 } from '@shm/shared'
 import {
   useBlockDiscussionsService,
@@ -469,19 +468,10 @@ export function Comment({
   externalTarget?: HMMetadataPayload
 }) {
   const tx = useTxString()
-  const universalContext = useUniversalAppContext()
   let renderContent = renderCommentContent
   if (!renderContent) {
     renderContent = (comment) => (
       <DocContentProvider
-        entityComponents={
-          universalContext.entityComponents || {
-            Document: () => null,
-            Inline: () => null,
-            Query: () => null,
-            Comment: () => null,
-          }
-        }
         onBlockCopy={() => {}}
         onBlockReply={() => {}}
         onBlockCommentClick={() => {}}
@@ -671,7 +661,6 @@ export function CommentContent({
   size?: 'sm' | 'md'
 }) {
   const context = useContext(docContentContext)
-  const universalContext = useUniversalAppContext()
 
   const content = (
     <BlocksContent
@@ -685,15 +674,6 @@ export function CommentContent({
     return (
       <DocContentProvider
         onBlockCopy={context?.onBlockCopy ?? null}
-        entityComponents={
-          context?.entityComponents ||
-          universalContext.entityComponents || {
-            Document: () => null,
-            Inline: () => null,
-            Query: () => null,
-            Comment: () => null,
-          }
-        }
         textUnit={12}
         layoutUnit={14}
         debug={context?.debug ?? false}

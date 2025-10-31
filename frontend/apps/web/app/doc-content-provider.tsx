@@ -78,14 +78,6 @@ export function WebDocContentProvider({
       onHoverOut={onHoverOut}
       collapsedBlocks={collapsedBlocks}
       setCollapsedBlocks={setCollapsedBlocks}
-      entityComponents={
-        context.entityComponents || {
-          Document: () => null,
-          Inline: () => null,
-          Query: () => null,
-          Comment: () => null,
-        }
-      }
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
       onBlockCopy={

@@ -1,11 +1,22 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {
-  BlockNode,
+  BlockRange,
   Contact,
   HMAccountsMetadata,
+  HMBlock,
+  HMBlockButton,
   HMBlockChildrenType,
+  HMBlockCode,
+  HMBlockEmbed,
+  HMBlockFile,
+  HMBlockHeading,
+  HMBlockImage,
+  HMBlockMath,
   HMBlockNode,
+  HMBlockParagraph,
   HMBlockQuery,
+  HMBlockVideo,
+  HMBlockWebEmbed,
   HMComment,
   HMDocument,
   HMDocumentInfo,
@@ -16,12 +27,12 @@ import {
   clipContentBlocks,
   formatBytes,
   formattedDateMedium,
+  getChildrenType,
   getDocumentTitle,
   hmBlockToEditorBlock,
-  hmId,
   isHypermediaScheme,
-  narrowHmId,
   packHmId,
+  queryBlockSortedItems,
   unpackHmId,
   useHover,
   useLowlight,
@@ -29,13 +40,14 @@ import {
   useRangeSelection,
   useRouteLink,
   useRouteLinkHref,
+  useUniversalClient,
 } from '@shm/shared'
 import {
   BlockContentProps,
   DocContentContextValue,
-  EntityComponentProps,
 } from '@shm/shared/document-content-types'
 import {useTxString} from '@shm/shared/translation'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
 import {
   generateInstagramEmbedHtml,
@@ -69,6 +81,7 @@ import React, {
 } from 'react'
 import {createPortal} from 'react-dom'
 import {Button} from './button'
+import {Discussions} from './comments'
 import {Badge} from './components/badge'
 import {CheckboxField} from './components/checkbox'
 import {
@@ -80,6 +93,7 @@ import {
 import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {contentLayoutUnit, contentTextUnit} from './document-content-constants'
 import './document-content.css'
+import {EmbedWrapper} from './embed-wrapper'
 import {BlankQueryBlockMessage} from './entity-card'
 import {
   extractIpfsUrlCid,
@@ -93,6 +107,7 @@ import {HMIcon} from './hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {BlockQuote} from './icons'
 import {DocumentCard} from './newspaper'
+import {QueryBlockContent} from './query-block-content'
 import {Spinner} from './spinner'
 import {SizableText, Text, TextProps} from './text'
 import {Tooltip} from './tooltip'
@@ -100,12 +115,6 @@ import useMedia from './use-media'
 import {cn} from './utils'
 
 const defaultDocContentContext: DocContentContextValue = {
-  entityComponents: {
-    Document: () => null,
-    Comment: () => null,
-    Inline: () => null,
-    Query: () => null,
-  },
   onBlockCopy: null,
   layoutUnit: contentLayoutUnit,
   textUnit: contentTextUnit,
@@ -171,7 +180,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
+        <div className="flex fixed right-16 bottom-16 z-50 flex-col gap-1 p-2 bg-white rounded-md border hover:bg-background border-border dark:bg-background">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -332,7 +341,7 @@ export function DocContent({
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
               size="icon"
-              className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
+              className="relative border bg-background hover:bg-background border-border dark:bg-black dark:hover:bg-black"
               onClick={() => {
                 onBlockCopy(
                   state.context.blockId,
@@ -372,7 +381,7 @@ function _BlocksContent({
   hideCollapseButtons = false,
   expanded = true,
 }: {
-  blocks?: Array<PlainMessage<BlockNode>> | Array<HMBlockNode> | null
+  blocks?: Array<HMBlockNode> | null
   parentBlockId: string | null
   handleBlockReplace?: () => boolean
   hideCollapseButtons?: boolean
@@ -502,7 +511,7 @@ export function BlockNodeContent({
   handleBlockClick,
 }: {
   isFirstChild: boolean
-  blockNode: BlockNode | HMBlockNode | PlainMessage<BlockNode>
+  blockNode: HMBlockNode
   index: number
   depth?: number
   listLevel?: number
@@ -568,39 +577,30 @@ export function BlockNodeContent({
   }
 
   let bnChildren = blockNode.children?.length
-    ? blockNode.children.map(
-        (
-          bn: BlockNode | HMBlockNode | PlainMessage<BlockNode>,
-          index: number,
-        ) => (
-          <BlockNodeContent
-            hideCollapseButtons={hideCollapseButtons}
-            key={bn.block!.id}
-            depth={depth + 1}
-            isFirstChild={index == 0}
-            blockNode={bn}
-            // @ts-expect-error
-            childrenType={bn.block!.attributes?.childrenType}
-            listLevel={
-              childrenType === 'Unordered' &&
-              // @ts-expect-error
-              bn.block!.attributes?.childrenType === 'Unordered'
-                ? listLevel + 1
-                : listLevel
-            }
-            index={index}
-            parentBlockId={blockNode.block?.id || null}
-            embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
-            handleBlockReplace={handleBlockReplace}
-            expanded={_expanded}
-            handleBlockClick={
-              bn.block?.id
-                ? createChildBlockClickHandler(bn.block.id)
-                : undefined
-            }
-          />
-        ),
-      )
+    ? blockNode.children.map((bn: HMBlockNode, index: number) => (
+        <BlockNodeContent
+          hideCollapseButtons={hideCollapseButtons}
+          key={bn.block!.id}
+          depth={depth + 1}
+          isFirstChild={index == 0}
+          blockNode={bn}
+          childrenType={getChildrenType(bn.block)}
+          listLevel={
+            childrenType === 'Unordered' &&
+            getChildrenType(bn.block) === 'Unordered'
+              ? listLevel + 1
+              : listLevel
+          }
+          index={index}
+          parentBlockId={blockNode.block?.id || null}
+          embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
+          handleBlockReplace={handleBlockReplace}
+          expanded={_expanded}
+          handleBlockClick={
+            bn.block?.id ? createChildBlockClickHandler(bn.block.id) : undefined
+          }
+        />
+      ))
     : null
 
   const headingStyles = useMemo(() => {
@@ -614,7 +614,7 @@ export function BlockNodeContent({
   const isEmbed = blockNode.block?.type == 'Embed'
 
   // Clone block and add the highlight annotation
-  const modifiedBlock = useMemo(() => {
+  const blockWithHighlights = useMemo(() => {
     if (
       !(
         routeParams?.blockRef === blockNode.block?.id && routeParams?.blockRange
@@ -622,13 +622,14 @@ export function BlockNodeContent({
     )
       return blockNode.block
 
-    const clonedBlock = {
+    const clonedBlock: HMBlock = {
       ...blockNode.block,
       // @ts-expect-error
       annotations: [...(blockNode!.block!.annotations || [])],
     }
 
     // Add the highlight annotation
+    // @ts-expect-error
     clonedBlock.annotations.push({
       type: 'Range',
       // @ts-expect-error
@@ -725,7 +726,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <BlockQuote color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount.citations
               ? String(citationsCount.citations)
@@ -754,7 +755,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
         </Button>
       ) : null}
 
@@ -778,7 +779,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
         </Button>
       ) : null}
 
@@ -802,7 +803,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="size-3 opacity-50" />
+          <Link color="currentColor" className="opacity-50 size-3" />
         </Button>
       ) : null}
     </div>
@@ -825,7 +826,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <BlockQuote color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount.citations
               ? String(citationsCount.citations)
@@ -848,7 +849,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
         </BubbleButton>
       ) : null}
       {onBlockCommentClick ? (
@@ -877,7 +878,7 @@ export function BlockNodeContent({
               : tx('Comment on this block')
           }
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount?.comments
               ? String(citationsCount.comments)
@@ -899,7 +900,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="size-3 opacity-50" />
+          <Link color="currentColor" className="opacity-50 size-3" />
         </BubbleButton>
       ) : null}
     </div>
@@ -991,8 +992,7 @@ export function BlockNodeContent({
           <HoverCard openDelay={500} closeDelay={500}>
             <HoverCardTrigger>
               <BlockContent
-                // @ts-expect-error
-                block={modifiedBlock}
+                block={blockWithHighlights}
                 depth={depth}
                 parentBlockId={parentBlockId}
                 // {...interactiveProps}
@@ -1001,7 +1001,7 @@ export function BlockNodeContent({
             <HoverCardContent
               side="top"
               align="end"
-              className="z-10 w-auto p-0"
+              className="z-10 p-0 w-auto"
             >
               {hoverCardContent}
             </HoverCardContent>
@@ -1012,8 +1012,7 @@ export function BlockNodeContent({
               <div>
                 <PopoverTrigger asChild>
                   <BlockContent
-                    // @ts-expect-error
-                    block={modifiedBlock}
+                    block={blockWithHighlights}
                     depth={depth}
                     parentBlockId={parentBlockId}
                     // {...interactiveProps}
@@ -1025,7 +1024,7 @@ export function BlockNodeContent({
               side="top"
               align="end"
               sideOffset={8}
-              className="w-auto max-w-xs p-0"
+              className="p-0 w-auto max-w-xs"
             >
               {mobileCardContent}
             </PopoverContent>
@@ -1053,7 +1052,7 @@ export function BlockNodeContent({
                     <HoverCardContent
                       side="top"
                       align="end"
-                      className="z-10 w-auto p-0"
+                      className="z-10 p-0 w-auto"
                     >
                       {hoverCardContent}
                     </HoverCardContent>
@@ -1071,7 +1070,7 @@ export function BlockNodeContent({
                       side="left"
                       align="start"
                       sideOffset={8}
-                      className="w-auto max-w-xs p-0"
+                      className="p-0 w-auto max-w-xs"
                     >
                       {mobileCardContent}
                     </PopoverContent>
@@ -1101,19 +1100,21 @@ function BlockContent(props: BlockContentProps) {
     'data-blockid': props.block.id,
   }
   if (props.block.type == 'Paragraph') {
-    return <BlockContentParagraph {...props} {...dataProps} />
+    return (
+      <BlockContentParagraph {...props} {...dataProps} block={props.block} />
+    )
   }
 
   if (props.block.type == 'Heading') {
-    return <BlockContentHeading {...props} {...dataProps} />
+    return <BlockContentHeading {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Image') {
-    return <BlockContentImage {...props} {...dataProps} />
+    return <BlockContentImage {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Video') {
-    return <BlockContentVideo {...props} {...dataProps} />
+    return <BlockContentVideo {...props} {...dataProps} block={props.block} />
   }
 
   // if (props.block.type == "nostr") {
@@ -1121,31 +1122,40 @@ function BlockContent(props: BlockContentProps) {
   // }
 
   if (props.block.type == 'File') {
-    return <BlockContentFile {...props} {...dataProps} />
+    return <BlockContentFile {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Button') {
-    return <BlockContentButton {...props} {...dataProps} />
+    return <BlockContentButton {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'WebEmbed') {
-    return <BlockContentWebEmbed {...props} {...dataProps} />
+    return (
+      <BlockContentWebEmbed {...props} {...dataProps} block={props.block} />
+    )
   }
 
   if (props.block.type == 'Embed') {
-    return <BlockContentEmbed {...props} {...dataProps} />
+    const embedBlock = props.block
+    if (props.block.attributes.view === 'Card')
+      return <BlockEmbedCard {...props} {...dataProps} block={embedBlock} />
+    if (props.block.attributes.view === 'Comments')
+      return <BlockEmbedComments {...props} {...dataProps} block={embedBlock} />
+    if (props.block.attributes.view === 'Content')
+      return <BlockEmbedContent {...props} {...dataProps} block={embedBlock} />
+    return <ErrorBlock message="Unknown Embed View" />
   }
 
   if (props.block.type == 'Code') {
-    return <BlockContentCode {...props} {...dataProps} />
+    return <BlockContentCode {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Math') {
-    return <BlockContentMath {...props} block={props.block} />
+    return <BlockContentMath {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Query') {
-    return <BlockContentQuery {...props} block={props.block} />
+    return <BlockContentQuery {...props} {...dataProps} block={props.block} />
   }
 
   return <BlockContentUnknown {...props} />
@@ -1155,7 +1165,7 @@ function BlockContentParagraph({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockParagraph>) {
   const {debug, comment} = useDocContentContext()
 
   let inline = useMemo(() => {
@@ -1185,7 +1195,7 @@ export function BlockContentHeading({
   depth,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockHeading>) {
   const {debug} = useDocContentContext()
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
 
@@ -1226,7 +1236,7 @@ function BlockContentImage({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockImage>) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
   const {textUnit, comment} = useDocContentContext()
   const imageUrl = useImageUrl()
@@ -1237,7 +1247,6 @@ function BlockContentImage({
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  if (block.type !== 'Image') return null
   if (!block?.link) return null
 
   const handleDoubleClick = useCallback(() => {
@@ -1287,7 +1296,7 @@ function BlockContentImage({
       onClick={handleClose}
     >
       <div
-        className="relative flex size-full items-center justify-center"
+        className="flex relative justify-center items-center size-full"
         onClick={(e) => {
           e.stopPropagation()
           handleClose()
@@ -1312,7 +1321,7 @@ function BlockContentImage({
         />
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          className="absolute top-4 right-4 p-2 text-white rounded-full transition-colors bg-black/50 hover:bg-black/70"
           aria-label="Close"
         >
           <X size={20} />
@@ -1327,7 +1336,7 @@ function BlockContentImage({
         {...props}
         ref={containerRef}
         className={cn(
-          'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
+          'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-image',
           blockStyles,
         )}
         data-content-type="image"
@@ -1392,9 +1401,8 @@ function BlockContentVideo({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockVideo>) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
-  // @ts-expect-error
   const link = block.link || ''
   const {textUnit} = useDocContentContext()
   const fileUrl = useFileUrl()
@@ -1405,7 +1413,7 @@ function BlockContentVideo({
     <div
       {...props}
       className={cn(
-        'block-content block-video flex w-full max-w-full flex-col items-center gap-2 py-3',
+        'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-video',
         blockStyles,
       )}
       data-content-type="video"
@@ -1418,7 +1426,7 @@ function BlockContentVideo({
     >
       {link ? (
         <div
-          className={cn('relative aspect-video w-full max-w-full')}
+          className={cn('relative w-full max-w-full aspect-video')}
           style={{
             width: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
@@ -1427,7 +1435,7 @@ function BlockContentVideo({
         >
           {isIpfs ? (
             <video
-              className={cn('absolute top-0 left-0 h-full w-full')}
+              className={cn('absolute top-0 left-0 w-full h-full')}
               contentEditable={false}
               playsInline
               controls
@@ -1442,7 +1450,7 @@ function BlockContentVideo({
             </video>
           ) : (
             <iframe
-              className={cn('absolute top-0 left-0 h-full w-full')}
+              className={cn('absolute top-0 left-0 w-full h-full')}
               src={getVideoIframeSrc(block.link)}
               allowFullScreen
             />
@@ -1495,10 +1503,8 @@ function InlineContentView({
   isRange?: boolean
   fontWeight?: string
 } & React.HTMLAttributes<HTMLSpanElement>) {
-  const {textUnit, entityComponents, onHoverIn, onHoverOut} =
-    useDocContentContext()
+  const {textUnit, onHoverIn, onHoverOut} = useDocContentContext()
 
-  const InlineEmbed = entityComponents.Inline
   let contentOffset = rangeOffset || 0
   const fSize = fontSize === null ? null : fontSize || textUnit
 
@@ -1612,9 +1618,9 @@ function InlineContentView({
               {...linkProps}
               onClick={onPress}
               className={cn(
-                'cursor-pointer break-all transition-colors',
+                'break-all transition-colors cursor-pointer',
                 // link colors
-                'link text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+                'text-blue-600 link hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
               )}
               target={isHmScheme ? undefined : '_blank'}
               onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
@@ -1645,11 +1651,17 @@ function InlineContentView({
           }
           if (unpackedRef)
             return (
-              <InlineEmbed
+              <InlineEmbedButton
                 key={content.link}
                 style={embedStyles}
-                {...unpackedRef}
-              />
+                entityId={unpackedRef}
+                block={{} as any}
+                parentBlockId={null}
+                onHoverIn={onHoverIn}
+                onHoverOut={onHoverOut}
+              >
+                {`@${unpackedRef.uid}`}
+              </InlineEmbedButton>
             )
           else return <span>!?!</span>
         }
@@ -1680,13 +1692,144 @@ function InlineContentView({
   )
 }
 
-export function BlockContentEmbed(props: BlockContentProps) {
-  const EmbedTypes = useDocContentContext().entityComponents
-  if (props.block.type !== 'Embed')
-    throw new Error('BlockContentEmbed requires an embed block type')
-  const id = unpackHmId(props.block.link)
-  if (id) return <EmbedTypes.Document {...props} {...id} />
-  return <BlockContentUnknown {...props} />
+export function BlockEmbedCard({
+  block,
+  parentBlockId,
+}: BlockContentProps<HMBlockEmbed>) {
+  const client = useUniversalClient()
+  const id = unpackHmId(block.link) ?? undefined
+  const doc = client.useResource(id)
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+  const authors = client.useResources(
+    document?.authors.map((uid: string) => hmId(uid)) || [],
+  )
+
+  if (doc.isInitialLoading)
+    return (
+      <div className="flex justify-center items-center">
+        <Spinner />
+      </div>
+    )
+  if (!doc.data) return <ErrorBlock message="Could not load embed" />
+
+  const accountsMetadata = Object.fromEntries(
+    authors
+      .map((d: any) => d.data)
+      .filter((d: any) => !!d)
+      .map((authorDoc: any) => [
+        authorDoc.id.uid,
+        {
+          id: authorDoc.id,
+          metadata:
+            authorDoc.type === 'document'
+              ? authorDoc.document?.metadata
+              : undefined,
+        },
+      ])
+      .filter(([_, metadata]) => !!metadata),
+  )
+
+  if (!id) return <ErrorBlock message="Invalid Embed URL" />
+
+  return (
+    <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder>
+      <DocumentCard
+        entity={{
+          id,
+          document: document,
+        }}
+        docId={id}
+        accountsMetadata={accountsMetadata}
+      />
+    </EmbedWrapper>
+  )
+}
+
+export function BlockEmbedContent({
+  block,
+  depth,
+  parentBlockId,
+}: BlockContentProps<HMBlockEmbed>) {
+  const client = useUniversalClient()
+  const [showReferenced, setShowReferenced] = useState(false)
+  const id = unpackHmId(block.link)
+  const resource = client.useResource(id)
+  const document =
+    resource.data?.type === 'document' ? resource.data.document : undefined
+  const comment =
+    resource.data?.type === 'comment' ? resource.data.comment : undefined
+
+  const author = client.useResource(
+    comment?.author ? hmId(comment?.author) : null,
+  )
+
+  if (!id) return <ErrorBlock message="Invalid embed link" />
+
+  if (comment) {
+    return (
+      <BlockEmbedContentComment
+        parentBlockId={parentBlockId}
+        depth={depth}
+        block={block}
+        id={id}
+        comment={comment}
+        isLoading={resource.isLoading}
+        author={
+          author.data?.type === 'document' || author.data?.type === 'comment'
+            ? author.data
+            : undefined
+        }
+      />
+    )
+  }
+
+  return (
+    <BlockEmbedContentDocument
+      id={id}
+      depth={depth}
+      viewType={block.attributes?.view}
+      blockId={block.id}
+      blockRef={id.blockRef}
+      blockRange={id.blockRange}
+      isLoading={resource.isLoading}
+      showReferenced={showReferenced}
+      onShowReferenced={setShowReferenced}
+      document={document}
+      parentBlockId={parentBlockId}
+      renderOpenButton={() => null}
+    />
+  )
+}
+
+export function BlockEmbedComments({
+  parentBlockId,
+  block,
+}: BlockContentProps<HMBlockEmbed>) {
+  const client = useUniversalClient()
+  const id = unpackHmId(block.link)
+
+  if (!id) {
+    return <ErrorBlock message="Invalid embed link" />
+  }
+
+  const CommentEditor = client.CommentEditor
+
+  return (
+    <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder noClick>
+      <Discussions
+        commentEditor={
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+          >
+            <CommentEditor docId={id} />
+          </div>
+        }
+        targetId={id}
+      />
+    </EmbedWrapper>
+  )
 }
 
 export function ErrorBlock({
@@ -1701,9 +1844,9 @@ export function ErrorBlock({
     <Tooltip
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
-      <div className="block-content block-unknown flex flex-1 flex-col">
+      <div className="flex flex-col flex-1 block-content block-unknown">
         <div
-          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex overflow-hidden gap-2 p-2 bg-red-100 rounded-md border border-red-300 flex-start"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1715,7 +1858,7 @@ export function ErrorBlock({
           <AlertCircle color="danger" className="size-3" />
         </div>
         {open ? (
-          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
+          <pre className="p-2 bg-gray-100 rounded-md border border-border dark:bg-gray-800">
             <code className="font-mono text-xs wrap-break-word">
               {JSON.stringify(debugData, null, 4)}
             </code>
@@ -1726,32 +1869,28 @@ export function ErrorBlock({
   )
 }
 
-export function CommentContentEmbed({
-  props,
+export function BlockEmbedContentComment({
+  id,
+  parentBlockId,
+  depth,
   comment,
   author,
-  EmbedWrapper,
+  block,
 }: {
-  props: EntityComponentProps
+  id: UnpackedHypermediaId
+  parentBlockId: string | null
+  depth: number | undefined
+  block: HMBlockEmbed
   isLoading?: boolean
   comment: HMComment | null | undefined
   author: HMResolvedResource | null | undefined
-  EmbedWrapper: React.ComponentType<
-    React.PropsWithChildren<{
-      id: UnpackedHypermediaId
-      depth: number
-      parentBlockId: string
-      embedView?: HMEmbedView
-    }>
-  >
 }) {
   return (
     <EmbedWrapper
-      // @ts-expect-error
-      embedView={props.block.attributes?.view}
-      depth={props.depth || 0}
-      id={narrowHmId(props)}
-      parentBlockId={props.parentBlockId || ''}
+      viewType={block.attributes?.view}
+      depth={depth || 0}
+      id={id}
+      parentBlockId={parentBlockId || ''}
     >
       {comment && author && (
         <CommentEmbedHeader comment={comment} author={author} />
@@ -1763,8 +1902,8 @@ export function CommentContentEmbed({
             isFirstChild={idx == 0}
             depth={1}
             expanded={true}
-            embedId={props.block.id}
-            parentBlockId={props.parentBlockId || ''}
+            embedId={block.id}
+            parentBlockId={parentBlockId}
             blockNode={bn}
             childrenType="Group"
             index={idx}
@@ -1787,7 +1926,7 @@ function CommentEmbedHeader({
     author.type === 'document' ? author.document?.metadata : undefined
   return (
     <div className="flex flex-wrap justify-between p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex gap-2 items-center">
         {author.id && (
           <HMIcon
             size={24}
@@ -1807,57 +1946,54 @@ function CommentEmbedHeader({
   )
 }
 
-export function ContentEmbed({
-  props,
-  document,
-  isLoading,
-  showReferenced,
-  onShowReferenced,
-  renderOpenButton,
-  EmbedWrapper,
-  parentBlockId = null,
-}: {
+function BlockEmbedContentDocument(props: {
+  depth: number | undefined
+  blockId: string
+  blockRef: string | null
+  blockRange: BlockRange | null
   isLoading: boolean
-  props: EntityComponentProps
+  id: UnpackedHypermediaId
   document: HMDocument | null | undefined
   showReferenced: boolean
   onShowReferenced: (showReference: boolean) => void
   renderOpenButton: () => React.ReactNode
-  EmbedWrapper: React.ComponentType<
-    React.PropsWithChildren<{
-      id: UnpackedHypermediaId
-      depth: number
-      parentBlockId: string
-      embedView?: HMEmbedView
-      isRange?: boolean
-    }>
-  >
   parentBlockId: string | null
+  viewType?: HMEmbedView
 }) {
+  const {
+    id,
+    blockId,
+    blockRange,
+    isLoading,
+    document,
+    showReferenced,
+    onShowReferenced,
+    renderOpenButton,
+    parentBlockId,
+    viewType,
+  } = props
   const context = useDocContentContext()
 
   const [isExpanded, setExpanded] = useState(
-    props.blockRange && 'expanded' in props.blockRange
-      ? props.blockRange.expanded
-      : true,
+    blockRange && 'expanded' in blockRange ? blockRange.expanded : true,
   )
 
   useEffect(() => {
-    setExpanded(!context.collapsedBlocks.has(props.block.id))
-  }, [context.collapsedBlocks, props.block.id])
+    setExpanded(!context.collapsedBlocks.has(blockId))
+  }, [context.collapsedBlocks, blockId])
 
   useEffect(() => {
-    if (isExpanded === true && !context.collapsedBlocks.has(props.block.id)) {
-      context.setCollapsedBlocks(props.block.id, false)
+    if (isExpanded === true && !context.collapsedBlocks.has(blockId)) {
+      context.setCollapsedBlocks(blockId, false)
     }
 
     if (
       isExpanded === false &&
-      context.collapsedBlocks.has(props.block.id) === false
+      context.collapsedBlocks.has(blockId) === false
     ) {
-      context.setCollapsedBlocks(props.block.id, true)
+      context.setCollapsedBlocks(blockId, true)
     }
-  }, [isExpanded, props.block.id])
+  }, [isExpanded, blockId])
 
   const embedData = useMemo(() => {
     const selectedBlock =
@@ -1914,7 +2050,7 @@ export function ContentEmbed({
     return res
   }, [props.blockRef, props.blockRange, document])
 
-  let content: null | JSX.Element = <BlockContentUnknown {...props} />
+  let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
   if (isLoading) {
     content = null
   } else if (embedData.data.embedBlocks) {
@@ -1927,11 +2063,11 @@ export function ContentEmbed({
               isFirstChild
               depth={props.depth}
               expanded={isExpanded}
-              embedId={props.block.id}
+              embedId={blockId}
               blockNode={{
                 block: {
                   type: 'Heading',
-                  id: `heading-${props.uid}`,
+                  id: `heading-${id.uid}`,
                   text: getDocumentTitle(document) || '',
                   attributes: {
                     childrenType: 'Group',
@@ -1954,7 +2090,7 @@ export function ContentEmbed({
                 }
                 depth={1}
                 expanded={isExpanded}
-                embedId={props.block.id}
+                embedId={blockId}
                 blockNode={bn}
                 childrenType="Group"
                 index={idx}
@@ -1990,7 +2126,7 @@ export function ContentEmbed({
         message={`Block #${props.blockRef} was not found in this version`}
       >
         <div className="flex gap-2 p-4">
-          {props.version ? (
+          {id.version ? (
             <Button
               variant="ghost"
               size="sm"
@@ -2006,18 +2142,11 @@ export function ContentEmbed({
       </BlockNotFoundError>
     )
   }
-
   return (
-    // <DocContentProvider
-    //   {...context}
-    //   layoutUnit={context.comment ? 18 : context.layoutUnit}
-    //   textUnit={context.comment ? 12 : context.textUnit}
-    // >
     <EmbedWrapper
-      // @ts-expect-error
-      embedView={props.block.attributes?.view}
+      viewType={viewType}
       depth={props.depth || 1}
-      id={narrowHmId(props)}
+      id={id}
       parentBlockId={parentBlockId || ''}
       isRange={
         !!props.blockRange &&
@@ -2026,39 +2155,163 @@ export function ContentEmbed({
     >
       {content}
     </EmbedWrapper>
-    // </DocContentProvider>
   )
 }
 
-function ErrorBlockMessage({message}: {message: string}) {
-  return (
-    <div className="bg-muted flex items-center rounded-md p-4">
-      <SizableText size="md">{message}</SizableText>
-    </div>
-  )
-}
+function QueryBlock({
+  id,
+  block,
+}: {
+  id: UnpackedHypermediaId
+  block: HMBlockQuery
+}) {
+  const client = useUniversalClient()
+  const ctx = useDocContentContext()
+  const {supportQueries, supportDocuments} = ctx || {}
 
-// document -> BlockContentQuery -> EntityTypes.Query(block, id) -> QueryBlockDesktop / QueryBlockWeb
-// editor -> QueryBlock -> EditorQueryBlock
-export function BlockContentQuery({block}: {block: HMBlockQuery}) {
-  const EntityTypes = useDocContentContext().entityComponents
-  if (block.type !== 'Query')
-    throw new Error('BlockContentQuery requires a Query block type')
+  // Check if we have SSR context (web platform)
+  const hasSSRContext = supportQueries && supportDocuments
 
-  const query = block.attributes.query
-  const mainInclude = query.includes[0]
-  if (!mainInclude)
-    return <ErrorBlockMessage message="Query block with nothing included" />
-  const id =
-    mainInclude.space &&
-    // @ts-ignore
-    hmId(query.includes[0].space, {
-      // @ts-ignore
-      path: query.includes[0].path ? query.includes[0].path.split('/') : null,
-      latest: true,
+  // Desktop: use client.useDirectory() for directory listing
+  const directoryItems = hasSSRContext
+    ? null
+    : client.useDirectory(id, {mode: block.attributes.query.includes[0]?.mode})
+
+  // Desktop: subscribe to query target when using directory
+  if (directoryItems) {
+    client.useResource(id, {recursive: true})
+  }
+
+  // Compute sorted items based on data source
+  const sortedItems = useMemo(() => {
+    let items: any[] = []
+
+    if (hasSSRContext) {
+      // Web: get items from SSR context
+      const includes = block.attributes.query.includes || []
+      if (includes.length === 0) return []
+      const queryInclude = includes[0]
+      if (!queryInclude?.space) return []
+
+      const queryResults = supportQueries?.find((q: any) => {
+        if (q.in.uid !== queryInclude.space) return false
+        return true
+      })
+
+      items = queryResults?.results || []
+    } else {
+      // Desktop: get items from directory listing
+      items = directoryItems?.data || []
+    }
+
+    // Sort and limit items
+    const sorted = queryBlockSortedItems({
+      entries: items,
+      sort: block.attributes.query.sort || [{term: 'UpdateTime', reverse: false}],
     })
-  if (!id) return <BlankQueryBlockMessage message="Empty Query" />
-  return <EntityTypes.Query block={block} id={id} />
+
+    return block.attributes.query.limit
+      ? sorted.slice(0, block.attributes.query.limit)
+      : sorted
+  }, [
+    hasSSRContext,
+    supportQueries,
+    directoryItems,
+    block.attributes.query,
+  ])
+
+  // Extract author IDs for metadata loading
+  const authorIds = useMemo(() => {
+    const ids = new Set<string>()
+    sortedItems.forEach((item) =>
+      item.authors?.forEach((authorId: string) => ids.add(authorId)),
+    )
+    return Array.from(ids)
+  }, [sortedItems])
+
+  // Desktop: batch load documents and authors
+  const docIds = useMemo(
+    () =>
+      !hasSSRContext
+        ? sortedItems.map((item) =>
+            hmId(item.account, {path: item.path, latest: true}),
+          )
+        : [],
+    [hasSSRContext, sortedItems],
+  )
+
+  const documents = !hasSSRContext
+    ? client.useResources([
+        ...docIds,
+        ...authorIds.map((uid: string) => hmId(uid)),
+      ])
+    : null
+
+  // Get accounts metadata from appropriate source
+  const accountsMetadata = !hasSSRContext
+    ? client.useAccountsMetadata(authorIds)
+    : supportDocuments?.reduce((acc: any, d: any) => {
+        if (!d.document?.metadata) return acc
+        if (d.id.path?.length) return acc
+        acc[d.id.uid] = {
+          id: d.id,
+          metadata: d.document.metadata,
+        }
+        return acc
+      }, {}) || {}
+
+  // Get entity helper function
+  function getEntity(path: string[]) {
+    if (hasSSRContext) {
+      return supportDocuments?.find(
+        (entity: any) => entity?.id?.path?.join('/') === path?.join('/'),
+      )
+    }
+    return (
+      documents?.find(
+        (document: any) =>
+          document.data?.id?.path?.join('/') === path?.join('/'),
+      )?.data || null
+    )
+  }
+
+  // Handle validation errors for web
+  if (hasSSRContext) {
+    const includes = block.attributes.query.includes || []
+    if (includes.length === 0) return null
+    const queryInclude = includes[0]
+    if (!queryInclude || includes.length !== 1)
+      return <ErrorBlock message="Only one query include supported" />
+    if (!queryInclude.space) return <ErrorBlock message="Empty Query" />
+  }
+
+  return (
+    <QueryBlockContent
+      items={sortedItems}
+      style={block.attributes.style || 'Card'}
+      columnCount={block.attributes.columnCount}
+      banner={block.attributes.banner || false}
+      accountsMetadata={accountsMetadata}
+      getEntity={getEntity}
+    />
+  )
+}
+
+// document -> BlockContentQuery -> QueryBlock (from embeds package)
+// editor -> QueryBlock -> EditorQueryBlock
+export function BlockContentQuery({block}: BlockContentProps<HMBlockQuery>) {
+  // Query blocks don't use block.link, they store target in attributes.query.includes
+  const includes = block.attributes.query.includes || []
+  if (includes.length === 0 || !includes[0]?.space) {
+    return <ErrorBlock message="Invalid query block configuration" debugData={block} />
+  }
+
+  const queryInclude = includes[0]
+  const id = hmId(queryInclude.space, {
+    path: queryInclude.path ? queryInclude.path.split('/').filter(Boolean) : null,
+  })
+
+  return <QueryBlock id={id} block={block} />
 }
 
 export function BlockNotFoundError({
@@ -2068,9 +2321,9 @@ export function BlockNotFoundError({
   message: string
 }>) {
   return (
-    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
-      <div className="flex items-center gap-2 p-4">
-        <AlertCircle className="flex-0 text-red-500" size={12} />
+    <div className="flex flex-col flex-1 p-2 bg-red-100/50 dark:bg-red-900/50">
+      <div className="flex gap-2 items-center p-4">
+        <AlertCircle className="text-red-500 flex-0" size={12} />
         <SizableText className="flex-1" color="destructive">
           {message ? message : 'Error'}
         </SizableText>
@@ -2080,7 +2333,7 @@ export function BlockNotFoundError({
   )
 }
 
-export function BlockContentUnknown(props: BlockContentProps) {
+export function BlockContentUnknown(props: BlockContentProps<HMBlock>) {
   let message = 'Unrecognized Block'
   if (props.block.type == 'Embed') {
     message = `Unrecognized Embed: ${props.block.link}`
@@ -2111,9 +2364,8 @@ export function getBlockNodeById(
   return res || null
 }
 
-export function BlockContentFile({block}: BlockContentProps) {
+export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
   const {saveCidAsFile} = useDocContentContext()
-  // @ts-expect-error
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
   return (
@@ -2123,12 +2375,12 @@ export function BlockContentFile({block}: BlockContentProps) {
       data-name={getBlockAttribute(block.attributes, 'name')}
       data-size={getBlockAttribute(block.attributes, 'size')}
       className={cn(
-        'block-content group block-file border-muted dark:border-muted relative overflow-hidden rounded-md border p-4',
+        'overflow-hidden relative p-4 rounded-md border block-content group block-file border-muted dark:border-muted',
       )}
     >
-      <div className="relative flex w-full flex-1 items-center gap-2">
+      <div className="flex relative flex-1 gap-2 items-center w-full">
         <File size={18} className="flex-0" />
-        <SizableText className="flex-1 truncate overflow-hidden text-sm whitespace-nowrap select-text">
+        <SizableText className="overflow-hidden flex-1 text-sm truncate whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
@@ -2140,7 +2392,7 @@ export function BlockContentFile({block}: BlockContentProps) {
       {fileCid && (
         <Button
           variant="brand"
-          className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute right-0 top-1/2 opacity-0 transition-opacity -translate-y-1/2 group-hover:opacity-100"
           size="sm"
           asChild
         >
@@ -2175,19 +2427,17 @@ export function BlockContentButton({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockButton>) {
   const {hover, ...hoverProps} = useHover()
   const buttonLink = block.type === 'Button' ? block.link : null
   const linkProps = useRouteLinkHref(buttonLink || '', {
     handler: 'onClick',
   })
-  // @ts-expect-error
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }
 
   const alignment =
-    // @ts-expect-error
     getBlockAttribute(block.attributes, 'alignment') || 'flex-start'
   if (block.type !== 'Button') return null
   return (
@@ -2195,7 +2445,7 @@ export function BlockContentButton({
       data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
-      className="block-content block-button flex w-full max-w-full flex-col select-none"
+      className="flex flex-col w-full max-w-full select-none block-content block-button"
       style={{
         justifyContent: alignment,
       }}
@@ -2217,7 +2467,7 @@ export function BlockContentButton({
       >
         <SizableText
           size="lg"
-          className="truncate text-center font-bold text-white"
+          className="font-bold text-center text-white truncate"
         >
           {getBlockAttribute(block.attributes, 'name')}
         </SizableText>
@@ -2230,10 +2480,9 @@ export function BlockContentWebEmbed({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockWebEmbed>) {
   const {layoutUnit} = useDocContentContext()
   const openUrl = useOpenUrl()
-  // @ts-expect-error
   const url = block.link || ''
   const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
   const isInstagram = /instagram\.com/.test(url)
@@ -2297,7 +2546,7 @@ export function BlockContentWebEmbed({
     <div
       {...props}
       className={cn(
-        'border-border bg-background w-full overflow-hidden rounded-md border p-4',
+        'overflow-hidden p-4 w-full rounded-md border border-border bg-background',
         'x-post-container',
         blockStyles,
       )}
@@ -2307,20 +2556,17 @@ export function BlockContentWebEmbed({
         marginRight: (-1 * layoutUnit) / 2,
       }}
       data-content-type="web-embed"
-      // @ts-expect-error
       data-url={block.link}
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        // @ts-expect-error
         if (block.link) {
-          // @ts-expect-error
           openUrl(block.link)
         }
       }}
     >
       {loading && (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       )}
@@ -2340,7 +2586,7 @@ export function BlockContentCode({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockCode>) {
   const {layoutUnit, debug} = useDocContentContext()
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
@@ -2375,8 +2621,7 @@ export function BlockContentCode({
       : null
   const nodes: any[] =
     language && language.length > 0
-      ? // @ts-expect-error
-        getHighlightNodes(lowlight.highlight(language, block.text))
+      ? getHighlightNodes(lowlight.highlight(language, block.text))
       : []
 
   return (
@@ -2384,14 +2629,16 @@ export function BlockContentCode({
       data-content-type="code"
       className={cn(
         blockStyles,
-        `w-full overflow-auto rounded-md border language-${language} border-border bg-background`,
+        `overflow-auto w-full rounded-md border language-${language} border-border bg-background`,
       )}
-      style={{
-        padding: layoutUnit / 2,
-        ...debugStyles(debug, 'blue'),
-        // @ts-expect-error
-        marginHorizontal: (-1 * layoutUnit) / 2,
-      }}
+      style={
+        {
+          padding: layoutUnit / 2,
+          ...debugStyles(debug, 'blue'),
+          marginLeft: (-1 * layoutUnit) / 2,
+          marginRight: (-1 * layoutUnit) / 2,
+        } as React.CSSProperties
+      }
       {...props}
     >
       <code className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
@@ -2399,8 +2646,7 @@ export function BlockContentCode({
           ? nodes.map((node, index) => (
               <CodeHighlight key={index} node={node} />
             ))
-          : // @ts-expect-error
-            block.text}
+          : block.text}
       </code>
     </pre>
   )
@@ -2410,7 +2656,7 @@ export function BlockContentMath({
   block,
   parentBlockId,
   ...props
-}: BlockContentProps) {
+}: BlockContentProps<HMBlockMath>) {
   const {layoutUnit} = useDocContentContext()
   const [tex, setTex] = useState<string>()
   const [error, setError] = useState<string>()
@@ -2421,18 +2667,15 @@ export function BlockContentMath({
 
   useEffect(() => {
     try {
-      // @ts-expect-error
       let res = katex.renderToString(block.text ? block.text : '', {
         throwOnError: true,
         displayMode: true,
       })
       setTex(res)
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e)
-      // @ts-expect-error
-      setError(e.message)
+      setError((e as Error).message)
     }
-    // @ts-expect-error
   }, [block.text])
 
   // Function to measure content and container widths
@@ -2518,30 +2761,28 @@ export function BlockContentMath({
     <div
       {...props}
       data-content-type="math"
-      // @ts-expect-error
       data-content={block.text}
       ref={containerRef}
       className={cn(
-        'block-content block-katex bg-background border-border w-full gap-2 rounded-md border py-3',
+        'gap-2 py-3 w-full rounded-md border block-content block-katex bg-background border-border',
         blockStyles,
         isContentSmallerThanContainer ? 'items-center' : 'items-start',
         isContentSmallerThanContainer ? 'overflow-hidden' : 'overflow-scroll',
       )}
       style={{
         padding: layoutUnit / 2,
-        // @ts-expect-error
-        marginHorizontal: (-1 * layoutUnit) / 2,
+        marginLeft: (-1 * layoutUnit) / 2,
+        marginRight: (-1 * layoutUnit) / 2,
       }}
     >
       <SizableText
         ref={mathRef}
         className={cn(
           isContentSmallerThanContainer
-            ? 'items-center justify-center'
-            : 'items-start justify-start',
+            ? 'justify-center items-center'
+            : 'justify-start items-start',
         )}
-        // @ts-expect-error
-        dangerouslySetInnerHTML={{__html: tex}}
+        dangerouslySetInnerHTML={{__html: tex || ''}}
       />
     </div>
   )
@@ -2575,7 +2816,7 @@ export function InlineEmbedButton({
       onMouseLeave={() => props.onHoverOut?.(entityId)}
       className={cn(
         'font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
-        hasRangeHighlight && 'hm-embed-range hover:cursor-default',
+        hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
       )}
       data-inline-embed={packHmId(entityId)}
       // this data attribute is used by the hypermedia highlight component
@@ -2591,8 +2832,7 @@ export function InlineEmbedButton({
 function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
-    <div className="flex items-center gap-2">
-      // @ts-expect-error
+    <div className="flex gap-2 items-center">
       <RadioGroupItem value={props.value} id={id} />
       <label className="text-xs" htmlFor={id}>
         {props.label}
@@ -2637,7 +2877,7 @@ export function DocumentCardGrid({
     )
   }, [columnCount])
   return (
-    <div className="flex w-full flex-col">
+    <div className="flex flex-col w-full">
       {firstItem ? (
         <div className="flex">
           <DocumentCard
@@ -2650,7 +2890,7 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {items?.length ? (
-        <div className="-mx-3 mt-2 flex flex-wrap justify-center">
+        <div className="flex flex-wrap justify-center -mx-3 mt-2">
           {items.map((item) => {
             if (!item) return null
             return (
@@ -2697,8 +2937,6 @@ function BubbleButton({
         className="rounded-sm select-none hover:opacity-100"
         style={{
           padding: layoutUnit / 4,
-          // @ts-expect-error
-          marginHorozontal: layoutUnit / 4,
         }}
         onClick={onClick}
       >

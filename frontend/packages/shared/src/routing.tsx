@@ -1,13 +1,15 @@
 import {createContext, useContext} from 'react'
 import {DAEMON_FILE_URL} from './constants'
-import {EntityComponentsRecord} from './document-content-types'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
+import type {UniversalClient} from './universal-client'
 import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
+
+export type {UniversalClient}
 
 type UniversalAppContextValue = {
   ipfsFileUrl?: string
@@ -29,7 +31,7 @@ type UniversalAppContextValue = {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
-  entityComponents?: EntityComponentsRecord
+  universalClient?: UniversalClient
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -53,7 +55,7 @@ export function UniversalAppProvider(props: {
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
-  entityComponents?: EntityComponentsRecord
+  universalClient?: UniversalClient
 }) {
   return (
     <UniversalAppContext.Provider
@@ -70,7 +72,7 @@ export function UniversalAppProvider(props: {
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,
         setSelectedIdentity: props.setSelectedIdentity,
-        entityComponents: props.entityComponents,
+        universalClient: props.universalClient,
       }}
     >
       {props.children as any}
@@ -86,6 +88,16 @@ export function useUniversalAppContext() {
     )
   }
   return context
+}
+
+export function useUniversalClient() {
+  const {universalClient} = useUniversalAppContext()
+  if (!universalClient) {
+    throw new Error(
+      'universalClient not found in UniversalAppContext. Ensure your platform sets universalClient in UniversalAppProvider.',
+    )
+  }
+  return universalClient
 }
 
 export function useOpenRoute() {

@@ -262,12 +262,6 @@ function Render(
         banner={banner}
         accountsMetadata={accountsMetadata}
         getEntity={getEntity}
-        onDocumentClick={(id) => {
-          navigate({
-            key: 'document',
-            id,
-          })
-        }}
       />
     </div>
   )

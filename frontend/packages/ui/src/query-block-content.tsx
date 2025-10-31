@@ -1,8 +1,4 @@
-import {
-  HMAccountsMetadata,
-  HMDocumentInfo,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {HMAccountsMetadata, HMDocumentInfo} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useMemo} from 'react'
 import {DocumentCardGrid} from './document-content'
@@ -15,8 +11,6 @@ export interface QueryBlockContentProps {
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
   getEntity?: (path: string[]) => any
-  onDocumentClick: (id: UnpackedHypermediaId) => void
-  isWeb?: boolean
 }
 
 export function QueryBlockContent({
@@ -26,8 +20,6 @@ export function QueryBlockContent({
   banner = false,
   accountsMetadata,
   getEntity,
-  onDocumentClick,
-  isWeb = false,
 }: QueryBlockContentProps) {
   if (style === 'Card') {
     return (
@@ -42,12 +34,7 @@ export function QueryBlockContent({
   }
 
   return (
-    <QueryBlockListView
-      items={items}
-      accountsMetadata={accountsMetadata}
-      onDocumentClick={onDocumentClick}
-      isWeb={isWeb}
-    />
+    <QueryBlockListView items={items} accountsMetadata={accountsMetadata} />
   )
 }
 
@@ -95,13 +82,9 @@ function QueryBlockCardView({
 function QueryBlockListView({
   items,
   accountsMetadata,
-  onDocumentClick,
-  isWeb,
 }: {
   items: HMDocumentInfo[]
   accountsMetadata: HMAccountsMetadata
-  onDocumentClick: (id: UnpackedHypermediaId) => void
-  isWeb?: boolean
 }) {
   return (
     <div className="my-4 flex w-full flex-col gap-1">
@@ -111,8 +94,6 @@ function QueryBlockListView({
             key={`${item.account}-${item.path?.join('/')}`}
             item={item}
             accountsMetadata={accountsMetadata}
-            onClick={onDocumentClick}
-            isWeb={isWeb}
           />
         )
       })}

@@ -38,7 +38,7 @@ import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
-import {useSizeObserver} from './app-embeds'
+import {useSizeObserver} from '@/utils/use-size-observer'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {

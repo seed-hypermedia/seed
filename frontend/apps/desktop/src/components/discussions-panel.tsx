@@ -42,50 +42,6 @@ function _DiscussionsPanel(props: {
     />
   )
 
-  // const commentEditor = (
-  //   <DocContentProvider
-  //     entityId={docId}
-  //     debug
-  //     comment
-  //     entityComponents={{
-  //       Comment: () => <p>comment</p>,
-  //       Document: () => <p>document</p>,
-  //       Inline: () => <span>inline</span>,
-  //       Query: () => <p>query</p>,
-  //     }}
-  //     onBlockCopy={(props) => {
-  //       console.log('onBlockCopy', props)
-  //     }}
-  //     onBlockCitationClick={(props) => {
-  //       console.log('onBlockCitationClick', props)
-  //     }}
-  //     saveCidAsFile={async (props) => {
-  //       console.log('saveCidAsFile', props)
-  //     }}
-  //     layoutUnit={14}
-  //     textUnit={12}
-  //     collapsedBlocks={new Set()}
-  //     setCollapsedBlocks={(props) => {
-  //       console.log('setCollapsedBlocks', props)
-  //     }}
-  //   >
-  //     <CommentEditor
-  //       submitButton={(props) => (
-  //         <button
-  //           onClick={() => {
-  //             console.log('comment => submit button clicked', props)
-  //           }}
-  //         >
-  //           submit
-  //         </button>
-  //       )}
-  //       handleSubmit={(props) => {
-  //         console.log('comment => handle submit', props)
-  //       }}
-  //     />
-  //   </DocContentProvider>
-  // )
-
   const deleteComment = useDeleteComment()
   const deleteCommentDialog = useDeleteCommentDialog()
 

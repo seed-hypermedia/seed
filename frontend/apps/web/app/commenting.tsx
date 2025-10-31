@@ -248,14 +248,6 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <DocContentProvider
-        entityComponents={
-          universalContext.entityComponents || {
-            Document: () => null,
-            Inline: () => null,
-            Query: () => null,
-            Comment: () => null,
-          }
-        }
         importWebFile={importWebFile}
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}

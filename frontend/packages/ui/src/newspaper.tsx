@@ -18,7 +18,6 @@ export function DocumentCard({
   docId,
   entity,
   accountsMetadata,
-  isWeb = false,
   navigate = true,
   onMouseEnter,
   onMouseLeave,
@@ -28,7 +27,6 @@ export function DocumentCard({
   docId: UnpackedHypermediaId
   entity: HMEntityContent | null | undefined
   accountsMetadata: HMAccountsMetadata
-  isWeb?: boolean
   navigate?: boolean
   onMouseEnter?: (id: UnpackedHypermediaId) => void
   onMouseLeave?: (id: UnpackedHypermediaId) => void
@@ -51,18 +49,18 @@ export function DocumentCard({
     ? getDocumentImage(entity?.document)
     : undefined
 
-  return (
-    <div
-      data-docid={docId?.id}
-      className={cn(
-        'hover:bg-accent dark:hover:bg-accent @container flex min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
-        banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
-      )}
-      onMouseEnter={docId ? () => onHoverIn?.(docId) : undefined}
-      onMouseLeave={docId ? () => onHoverOut?.(docId) : undefined}
-      {...(navigate ? linkProps : {})}
-      {...props}
-    >
+  const sharedProps = {
+    'data-docid': docId?.id,
+    className: cn(
+      'hover:bg-accent dark:hover:bg-accent @container flex min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
+      banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
+    ),
+    onMouseEnter: docId ? () => onHoverIn?.(docId) : undefined,
+    onMouseLeave: docId ? () => onHoverOut?.(docId) : undefined,
+  }
+
+  const content = (
+    <>
       <div className="flex max-w-full flex-1 cursor-pointer flex-col @md:flex-row">
         {coverImage && (
           <div
@@ -119,6 +117,20 @@ export function DocumentCard({
           </div>
         </div>
       </div>
+    </>
+  )
+
+  if (navigate && linkProps) {
+    return (
+      <a {...sharedProps} {...linkProps} {...(props as any)}>
+        {content}
+      </a>
+    )
+  }
+
+  return (
+    <div {...sharedProps} {...props}>
+      {content}
     </div>
   )
 }

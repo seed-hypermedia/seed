@@ -34,7 +34,6 @@ interface DocumentListItemProps {
   isRead?: boolean
   indent?: boolean
   onClick?: (id: UnpackedHypermediaId) => void
-  isWeb?: boolean
   className?: string
 }
 
@@ -82,7 +81,7 @@ export function DocumentListItem({
 
   const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
 
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Stop propagation to prevent parent handlers (like EmbedWrapper) from firing
     e.stopPropagation()
 
@@ -95,14 +94,18 @@ export function DocumentListItem({
 
   return (
     <Button
-      data-docid={id.id}
+      asChild
       variant="ghost"
       className={cn(
         'h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
         className,
       )}
-      onClick={handleClick}
     >
+      <a
+        data-docid={id.id}
+        {...linkProps}
+        onClick={handleClick}
+      >
       {indent && <div className="size-8 shrink-0" />}
       <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -141,6 +144,7 @@ export function DocumentListItem({
           />
         )}
       </div>
+      </a>
     </Button>
   )
 }

@@ -1,9 +1,5 @@
-import {
-  EmbedDocument,
-  EmbedInline,
-  QueryBlockDesktop,
-} from '@/components/app-embeds'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
+import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -134,12 +130,7 @@ export function NavigationContainer({
       setSelectedIdentity={(keyId: string | null) => {
         navigation.dispatch({type: 'selectedIdentity', value: keyId})
       }}
-      entityComponents={{
-        Document: EmbedDocument,
-        Inline: EmbedInline as any,
-        Query: QueryBlockDesktop,
-        Comment: () => null,
-      }}
+      universalClient={desktopUniversalClient}
     >
       <NavContextProvider value={navigation}>
         {children}
@@ -160,7 +151,7 @@ function DevTools() {
         <ReactQueryDevtools />
       </div>
       <div
-        className="absolute bottom-5 left-15 z-40 bg-white dark:bg-black"
+        className="absolute bottom-5 z-40 bg-white left-15 dark:bg-black"
         style={{
           boxShadow: dialogBoxShadow,
         }}
