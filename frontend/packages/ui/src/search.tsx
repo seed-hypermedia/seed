@@ -85,7 +85,6 @@ export function MobileSearch({
                     id: item.id,
                   }
                 : null,
-              {...originHomeId, handler: 'onClick'},
             )
             console.log('NAVIGATE PROPS', navigateProps)
             return (
@@ -357,7 +356,6 @@ export function SearchResultItem({
           id: unpackedId,
         }
       : null,
-    {...originHomeId, handler: 'onClick'},
   )
 
   const selectProps = item.onSelect

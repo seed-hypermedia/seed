@@ -162,7 +162,7 @@ export function DocumentHeader({
 }
 
 function AuthorLink({name, id}: {name: string; id: UnpackedHypermediaId}) {
-  const linkProps = useRouteLink({key: 'profile', id}, {handler: 'onClick'})
+  const linkProps = useRouteLink({key: 'profile', id})
   return (
     <a
       {...linkProps}
@@ -215,7 +215,7 @@ function BreadcrumbLink({
   id: UnpackedHypermediaId
   metadata: HMMetadata
 }) {
-  const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
+  const linkProps = useRouteLink({key: 'document', id})
   return (
     <a
       {...linkProps}

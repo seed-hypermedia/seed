@@ -98,7 +98,7 @@ function RouteEventRow({
   children: React.ReactNode
   route: NavRoute | null
 }) {
-  const linkProps = useRouteLink(route, {handler: 'onClick'})
+  const linkProps = useRouteLink(route)
   return (
     <div className="break-words" {...linkProps}>
       {children}
@@ -277,7 +277,7 @@ function EventItem({
   targetDomain?: string
   isSingleResource?: boolean
 }) {
-  const linkProps = useRouteLink(route, {handler: 'onClick'})
+  const linkProps = useRouteLink(route)
 
   const tx = useTx()
   return (
@@ -728,7 +728,6 @@ function EventAuthorName({author}: {author: HMContactItem | null}) {
   const authorName = author?.metadata?.name || 'Someone'
   const linkProps = useRouteLink(
     author?.id ? {key: 'profile', id: author.id} : null,
-    {handler: 'onClick'},
   )
   return (
     <a className="inline text-sm font-bold" {...linkProps}>
@@ -864,7 +863,7 @@ function EventCommentWithReply({
   targetDomain?: string
   isSingleResource?: boolean
 }) {
-  const linkProps = useRouteLink(route, {handler: 'onClick'})
+  const linkProps = useRouteLink(route)
   const tx = useTx()
 
   return (

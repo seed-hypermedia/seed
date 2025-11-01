@@ -499,16 +499,10 @@ export function Comment({
 
   const authorLink = useRouteLink(
     authorHmId ? {key: 'profile', id: authorHmId} : null,
-    {
-      handler: 'onClick',
-    },
   )
 
   const externalTargetLink = useRouteLink(
     externalTarget ? {key: 'document', id: externalTarget.id} : null,
-    {
-      handler: 'onClick',
-    },
   )
 
   useEffect(() => {
@@ -698,9 +692,6 @@ function CommentDate({comment}: {comment: HMComment}) {
         key: 'discussions',
         openComment: comment.id,
       },
-    },
-    {
-      handler: 'onClick',
     },
   )
   return (

@@ -41,9 +41,6 @@ export function ChangeItem({
       key: 'document',
       id: {...docId, version: change.id, latest: false},
     },
-    {
-      handler: 'onClick',
-    },
   )
 
   return (
@@ -100,9 +97,6 @@ export function ChangeItem({
 function AuthorName({author}: {author: HMMetadataPayload}) {
   const linkProps = useRouteLink(
     {key: 'document', id: author.id},
-    {
-      handler: 'onClick',
-    },
   )
   return (
     <a

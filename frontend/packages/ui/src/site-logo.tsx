@@ -16,9 +16,6 @@ export function SiteLogo({
       key: 'document',
       id,
     },
-    {
-      handler: 'onClick',
-    },
   )
   if (metadata?.seedExperimentalLogo) {
     return (

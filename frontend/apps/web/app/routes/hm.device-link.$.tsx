@@ -724,9 +724,6 @@ function GoHomeButton() {
           id: originHomeId,
         }
       : null,
-    {
-      handler: 'onClick',
-    },
   )
   if (!originHomeId) {
     return null

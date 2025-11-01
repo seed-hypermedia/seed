@@ -130,7 +130,6 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
 type UseRouteLinkOpts = {
   replace?: boolean
   onPress?: React.MouseEventHandler<HTMLElement>
-  handler?: 'onClick' | 'onPress'
 }
 
 export function routeToHref(
@@ -189,10 +188,8 @@ export function useRouteLink(
 
   if (!route)
     return {
-      onPress: undefined,
       onClick: undefined,
       href: undefined,
-      style: {textDecoration: 'none'},
       tag: 'a',
     }
   if (!context)
@@ -203,7 +200,7 @@ export function useRouteLink(
     originHomeId: context.originHomeId,
   })
 
-  const clickHandler = context.openRoute
+  const onClick = context.openRoute
     ? (e: React.MouseEvent<HTMLElement>) => {
         e?.stopPropagation()
         if (e.metaKey) {
@@ -235,21 +232,9 @@ export function useRouteLink(
       }
     : undefined
 
-  const props = {
-    href: href || '/',
-    style: {
-      textDecoration: 'none',
-    },
-    tag: 'a',
-  }
-  if (opts?.handler === 'onClick') {
-    return {
-      ...props,
-      onClick: clickHandler,
-    }
-  }
   return {
-    ...props,
-    onPress: clickHandler,
+    href: href || '/',
+    tag: 'a',
+    onClick,
   }
 }

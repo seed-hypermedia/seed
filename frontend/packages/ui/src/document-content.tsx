@@ -2434,9 +2434,7 @@ export function BlockContentButton({
 }: BlockContentProps<HMBlockButton>) {
   const {hover, ...hoverProps} = useHover()
   const buttonLink = block.type === 'Button' ? block.link : null
-  const linkProps = useRouteLinkHref(buttonLink || '', {
-    handler: 'onClick',
-  })
+  const linkProps = useRouteLinkHref(buttonLink || '')
   if (!block.attributes) {
     console.error('Button Block without attributes?!', block)
   }
@@ -2810,7 +2808,6 @@ export function InlineEmbedButton({
 }) {
   const buttonProps = useRouteLink(
     {key: 'document', id: entityId},
-    {handler: 'onClick'},
   )
   const hasRangeHighlight = style?.backgroundColor === 'var(--brand-10)'
   return (

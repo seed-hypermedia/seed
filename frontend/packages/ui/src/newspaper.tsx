@@ -33,9 +33,7 @@ export function DocumentCard({
   banner?: boolean
 }) {
   const {onHoverIn, onHoverOut} = useDocContentContext()
-  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null, {
-    handler: 'onClick',
-  })
+  const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
   const imageUrl = useImageUrl()
 
   let textContent = useMemo(() => {

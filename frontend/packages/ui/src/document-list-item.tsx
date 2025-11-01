@@ -79,7 +79,7 @@ export function DocumentListItem({
   const showAuthors =
     !!accountsMetadata && Object.keys(accountsMetadata).length > 0
 
-  const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
+  const linkProps = useRouteLink({key: 'document', id})
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Stop propagation to prevent parent handlers (like EmbedWrapper) from firing

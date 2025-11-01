@@ -386,7 +386,6 @@ function OverflowMenuItem({
       : item.id
       ? {key: 'document', id: item.id}
       : item.webUrl || '',
-    {handler: 'onClick'},
   )
   return (
     <DropdownMenuItem {...linkProps}>{item.metadata.name}</DropdownMenuItem>
@@ -419,7 +418,6 @@ function HeaderLinkItem({
           id,
         }
       : webUrl || null,
-    {handler: 'onClick'},
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
@@ -688,9 +686,6 @@ function GotoLatestBanner({
         latest: true,
         version: null,
       },
-    },
-    {
-      handler: 'onClick',
     },
   )
 

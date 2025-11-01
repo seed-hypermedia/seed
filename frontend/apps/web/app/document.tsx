@@ -914,7 +914,6 @@ function MobileInteractionCardCollapsed({
 
   const avatarLinkProps = useRouteLink(
     keyPair ? {key: 'profile', id: hmId(keyPair.id)} : null,
-    {handler: 'onClick'},
   )
 
   return (

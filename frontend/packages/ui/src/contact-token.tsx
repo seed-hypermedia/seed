@@ -19,7 +19,6 @@ export function ContactToken({
 }) {
   const linkProps = useRouteLink(
     {key: 'document', id: id},
-    {handler: 'onClick'},
   )
   const icon =
     !id.path?.length || metadata?.icon ? (

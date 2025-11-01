@@ -42,7 +42,7 @@ export function SubDocumentItem({
     path: item.path,
   })
   const isRead = markedAsRead || !item.activitySummary?.isUnread
-  const linkProps = useRouteLink({key: 'document', id}, {handler: 'onClick'})
+  const linkProps = useRouteLink({key: 'document', id})
   return (
     <Button className={cn('h-auto items-start justify-start')} {...linkProps}>
       {!hideIcon && (
