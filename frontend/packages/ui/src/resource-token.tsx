@@ -16,9 +16,7 @@ export function ResourceToken({
     id: UnpackedHypermediaId
   }>
 }) {
-  const linkProps = useRouteLink(
-    {key: 'document', id: id},
-  )
+  const linkProps = useRouteLink({key: 'document', id: id})
   const icon =
     !id.path?.length || metadata?.icon ? (
       <HMIcon size={20} id={id} name={metadata?.name} icon={metadata?.icon} />

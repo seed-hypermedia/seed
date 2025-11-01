@@ -684,16 +684,14 @@ export function CommentContent({
 
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
-  const link = useRouteLink(
-    {
-      key: 'document',
-      id: targetId!,
-      accessory: {
-        key: 'discussions',
-        openComment: comment.id,
-      },
+  const link = useRouteLink({
+    key: 'document',
+    id: targetId!,
+    accessory: {
+      key: 'discussions',
+      openComment: comment.id,
     },
-  )
+  })
   return (
     <a
       className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"

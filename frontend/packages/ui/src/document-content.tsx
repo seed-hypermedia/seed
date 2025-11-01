@@ -2298,7 +2298,7 @@ function QueryBlock({
 export function BlockContentQuery({block}: BlockContentProps<HMBlockQuery>) {
   // Query blocks don't use block.link, they store target in attributes.query.includes
   const includes = block.attributes.query.includes || []
-  
+
   // Empty includes means unconfigured query block - show empty state
   if (includes.length === 0 || !includes[0]?.space) {
     // Return empty QueryBlockContent to show "no results" state
@@ -2811,9 +2811,7 @@ export function InlineEmbedButton({
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
 }) {
-  const buttonProps = useRouteLink(
-    {key: 'document', id: entityId},
-  )
+  const buttonProps = useRouteLink({key: 'document', id: entityId})
   const hasRangeHighlight = style?.backgroundColor === 'var(--brand-10)'
   return (
     <a

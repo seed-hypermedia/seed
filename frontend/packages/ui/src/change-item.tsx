@@ -36,12 +36,10 @@ export function ChangeItem({
 
   const iconSize = 20
 
-  const linkProps = useRouteLink(
-    {
-      key: 'document',
-      id: {...docId, version: change.id, latest: false},
-    },
-  )
+  const linkProps = useRouteLink({
+    key: 'document',
+    id: {...docId, version: change.id, latest: false},
+  })
 
   return (
     <Button
@@ -95,9 +93,7 @@ export function ChangeItem({
 }
 
 function AuthorName({author}: {author: HMMetadataPayload}) {
-  const linkProps = useRouteLink(
-    {key: 'document', id: author.id},
-  )
+  const linkProps = useRouteLink({key: 'document', id: author.id})
   return (
     <a
       className="h-auto flex-shrink-1 truncate p-0 text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
