@@ -1609,14 +1609,13 @@ function InlineContentView({
 
         if (content.type === 'link') {
           const isHmScheme = isHypermediaScheme(content.href)
-          const {onPress, ...linkProps} = useRouteLinkHref(content.href)
+          const linkProps = useRouteLinkHref(content.href)
           const id = unpackHmId(content.href)
 
           return (
             <a
               key={index}
               {...linkProps}
-              onClick={onPress}
               className={cn(
                 'cursor-pointer break-all transition-colors',
                 // link colors
@@ -2299,11 +2298,17 @@ function QueryBlock({
 export function BlockContentQuery({block}: BlockContentProps<HMBlockQuery>) {
   // Query blocks don't use block.link, they store target in attributes.query.includes
   const includes = block.attributes.query.includes || []
+  
+  // Empty includes means unconfigured query block - show empty state
   if (includes.length === 0 || !includes[0]?.space) {
+    // Return empty QueryBlockContent to show "no results" state
     return (
-      <ErrorBlock
-        message="Invalid query block configuration"
-        debugData={block}
+      <QueryBlockContent
+        items={[]}
+        style={block.attributes.style || 'Card'}
+        columnCount={block.attributes.columnCount}
+        banner={block.attributes.banner || false}
+        accountsMetadata={{}}
       />
     )
   }
