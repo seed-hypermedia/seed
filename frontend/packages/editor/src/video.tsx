@@ -352,8 +352,8 @@ const display = ({
               editor.isEditable && 'pointer-events-none',
             )}
             src={block.props.url}
-            frameBorder="0"
             allowFullScreen
+            allow="clipboard-write; encrypted-media; picture-in-picture; web-share"
           />
         )}
       </div>

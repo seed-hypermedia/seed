@@ -25,6 +25,7 @@ import {
   ipcMain,
   Menu,
   OpenDialogOptions,
+  session,
   shell,
 } from 'electron'
 import {performance} from 'perf_hooks'
@@ -129,6 +130,19 @@ app.on('will-finish-launching', () => {
 
 app.whenReady().then(() => {
   logger.debug('[MAIN]: Seed ready')
+
+  // Configure session for YouTube embeds
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = details.responseHeaders || {}
+
+    // Remove X-Frame-Options header to allow YouTube embeds
+    delete responseHeaders['X-Frame-Options']
+    delete responseHeaders['x-frame-options']
+
+    callback({
+      responseHeaders,
+    })
+  })
 
   // Check if app was launched after update
   const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
