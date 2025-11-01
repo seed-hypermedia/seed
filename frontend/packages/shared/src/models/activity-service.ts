@@ -210,8 +210,6 @@ export async function listEventsImpl(
     emitDefaultValues: true,
   }) as unknown as HMListEventsResponse
 
-  console.log(`== ~ listEventsImpl ~ res:`, res)
-
   return res
 }
 

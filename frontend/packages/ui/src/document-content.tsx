@@ -577,30 +577,35 @@ export function BlockNodeContent({
   }
 
   let bnChildren = blockNode.children?.length
-    ? blockNode.children.map((bn: HMBlockNode, index: number) => (
-        <BlockNodeContent
-          hideCollapseButtons={hideCollapseButtons}
-          key={bn.block!.id}
-          depth={depth + 1}
-          isFirstChild={index == 0}
-          blockNode={bn}
-          childrenType={getChildrenType(bn.block)}
-          listLevel={
-            childrenType === 'Unordered' &&
-            getChildrenType(bn.block) === 'Unordered'
-              ? listLevel + 1
-              : listLevel
-          }
-          index={index}
-          parentBlockId={blockNode.block?.id || null}
-          embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
-          handleBlockReplace={handleBlockReplace}
-          expanded={_expanded}
-          handleBlockClick={
-            bn.block?.id ? createChildBlockClickHandler(bn.block.id) : undefined
-          }
-        />
-      ))
+    ? blockNode.children.map((bn: HMBlockNode, index: number) => {
+        if (!bn.block) return null
+        const bnChildrenType = getChildrenType(bn.block)
+        return (
+          <BlockNodeContent
+            hideCollapseButtons={hideCollapseButtons}
+            key={bn.block.id}
+            depth={depth + 1}
+            isFirstChild={index == 0}
+            blockNode={bn}
+            childrenType={bnChildrenType}
+            listLevel={
+              childrenType === 'Unordered' && bnChildrenType === 'Unordered'
+                ? listLevel + 1
+                : listLevel
+            }
+            index={index}
+            parentBlockId={blockNode.block?.id || null}
+            embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
+            handleBlockReplace={handleBlockReplace}
+            expanded={_expanded}
+            handleBlockClick={
+              bn.block.id
+                ? createChildBlockClickHandler(bn.block.id)
+                : undefined
+            }
+          />
+        )
+      })
     : null
 
   const headingStyles = useMemo(() => {

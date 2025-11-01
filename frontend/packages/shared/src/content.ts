@@ -314,17 +314,18 @@ export function findFirstBlock<ResultBlockType extends HMBlock>(
 }
 
 export function getChildrenType(
-  block: HMBlock,
+  block: HMBlock | undefined | null,
 ): HMBlockChildrenType | undefined {
-  if (block.type === 'Paragraph') return block.attributes.childrenType
-  if (block.type === 'Heading') return block.attributes.childrenType
-  if (block.type === 'Embed') return block.attributes.childrenType
-  if (block.type === 'Video') return block.attributes.childrenType
-  if (block.type === 'File') return block.attributes.childrenType
-  if (block.type === 'Image') return block.attributes.childrenType
-  if (block.type === 'Query') return block.attributes.childrenType
-  if (block.type === 'Math') return block.attributes.childrenType
-  if (block.type === 'Code') return block.attributes.childrenType
-  if (block.type === 'Button') return block.attributes.childrenType
+  if (!block) return undefined
+  if (block.type === 'Paragraph') return block.attributes?.childrenType
+  if (block.type === 'Heading') return block.attributes?.childrenType
+  if (block.type === 'Embed') return block.attributes?.childrenType
+  if (block.type === 'Video') return block.attributes?.childrenType
+  if (block.type === 'File') return block.attributes?.childrenType
+  if (block.type === 'Image') return block.attributes?.childrenType
+  if (block.type === 'Query') return block.attributes?.childrenType
+  if (block.type === 'Math') return block.attributes?.childrenType
+  if (block.type === 'Code') return block.attributes?.childrenType
+  if (block.type === 'Button') return block.attributes?.childrenType
   return undefined
 }
