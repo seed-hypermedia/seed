@@ -323,11 +323,11 @@ const EmbedLauncherInput = ({
     <div
       className={cn(
         focused ? 'flex' : 'hidden',
-        'overflow-auto overflow-x-hidden absolute left-0 top-full z-40 w-full max-h-[400px]',
+        'absolute top-full left-0 z-40 max-h-[400px] w-full overflow-auto overflow-x-hidden',
         'flex-col px-3 py-3 opacity-100',
         'bg-muted',
         'rounded-br-md rounded-bl-md',
-        'shadow-sm scrollbar-none',
+        'scrollbar-none shadow-sm',
       )}
       style={{
         scrollbarWidth: 'none',
@@ -371,7 +371,7 @@ const EmbedLauncherInput = ({
   )
 
   return (
-    <div className="flex relative flex-col flex-1">
+    <div className="relative flex flex-1 flex-col">
       <Input
         value={search}
         onChange={(e) => {
@@ -402,7 +402,7 @@ const EmbedLauncherInput = ({
             )
           }
         }}
-        className="w-full border-muted-foreground/30 focus-visible:border-ring text-foreground"
+        className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"
       />
 
       {content}

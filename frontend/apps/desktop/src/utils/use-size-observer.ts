@@ -1,9 +1,6 @@
 import {useRef} from 'react'
 
-function observeSize(
-  element: HTMLElement,
-  callback: (r: DOMRect) => void,
-) {
+function observeSize(element: HTMLElement, callback: (r: DOMRect) => void) {
   const ro = new ResizeObserver(() => {
     const r = element.getBoundingClientRect()
     callback(r)

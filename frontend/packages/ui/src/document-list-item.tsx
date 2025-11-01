@@ -101,49 +101,47 @@ export function DocumentListItem({
         className,
       )}
     >
-      <a
-        data-docid={id.id}
-        {...linkProps}
-        onClick={handleClick}
-      >
-      {indent && <div className="size-8 shrink-0" />}
-      <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {itemBreadcrumbs && itemBreadcrumbs.length > 1 && (
-          <DocumentListItemBreadcrumbs breadcrumbs={itemBreadcrumbs} />
-        )}
-        <div className="flex flex-1 items-center gap-3">
-          <div className="items-center-justify-start flex flex-1 overflow-hidden">
-            <SizableText
-              className={cn('flex-1 truncate text-left font-sans')}
-              weight={computedIsRead ? undefined : 'bold'}
-            >
-              {getMetadataName(metadata)}
-            </SizableText>
-          </div>
-          {interactionSummary && interactionSummary.comments > 0 && (
-            <DocumentListItemCommentCount count={interactionSummary.comments} />
+      <a data-docid={id.id} {...linkProps} onClick={handleClick}>
+        {indent && <div className="size-8 shrink-0" />}
+        <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {itemBreadcrumbs && itemBreadcrumbs.length > 1 && (
+            <DocumentListItemBreadcrumbs breadcrumbs={itemBreadcrumbs} />
           )}
-          {showAuthors && (
-            <FacePile
-              accounts={item.authors}
+          <div className="flex flex-1 items-center gap-3">
+            <div className="items-center-justify-start flex flex-1 overflow-hidden">
+              <SizableText
+                className={cn('flex-1 truncate text-left font-sans')}
+                weight={computedIsRead ? undefined : 'bold'}
+              >
+                {getMetadataName(metadata)}
+              </SizableText>
+            </div>
+            {interactionSummary && interactionSummary.comments > 0 && (
+              <DocumentListItemCommentCount
+                count={interactionSummary.comments}
+              />
+            )}
+            {showAuthors && (
+              <FacePile
+                accounts={item.authors}
+                accountsMetadata={accountsMetadata}
+              />
+            )}
+            {!showAuthors && !itemActivitySummary && (
+              <SizableText size="xs" color="muted" className="font-sans">
+                {formattedDate(item.updateTime)}
+              </SizableText>
+            )}
+          </div>
+          {itemActivitySummary && (
+            <LibraryEntryUpdateSummary
               accountsMetadata={accountsMetadata}
+              latestComment={itemLatestComment}
+              activitySummary={itemActivitySummary}
             />
           )}
-          {!showAuthors && !itemActivitySummary && (
-            <SizableText size="xs" color="muted" className="font-sans">
-              {formattedDate(item.updateTime)}
-            </SizableText>
-          )}
         </div>
-        {itemActivitySummary && (
-          <LibraryEntryUpdateSummary
-            accountsMetadata={accountsMetadata}
-            latestComment={itemLatestComment}
-            activitySummary={itemActivitySummary}
-          />
-        )}
-      </div>
       </a>
     </Button>
   )
