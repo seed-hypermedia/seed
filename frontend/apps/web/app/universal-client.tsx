@@ -1,9 +1,15 @@
-import type {HMAccountsMetadata, UnpackedHypermediaId} from '@shm/shared'
-import {hmId} from '@shm/shared'
+import type {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  UnpackedHypermediaId,
+} from '@shm/shared'
+import {hmId, packHmId} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import type {Contact, UniversalClient} from '@shm/shared/universal-client'
 import {UseQueryResult} from '@tanstack/react-query'
 import WebCommenting from './commenting'
+import {useAPI} from './models'
+import {DirectoryPayload} from './routes/hm.api.directory'
 
 export const webUniversalClient: UniversalClient = {
   useResource: ((
@@ -14,11 +20,18 @@ export const webUniversalClient: UniversalClient = {
   }) as UniversalClient['useResource'],
   useResources: useResources,
 
-  // Web doesn't support direct directory listing - relies on SSR context
-  useDirectory: () => {
-    throw new Error(
-      'Web platform does not support direct directory listing. Use supportQueries from DocContentContext instead.',
-    )
+  useDirectory: (
+    id: UnpackedHypermediaId,
+    options?: {mode?: string},
+  ): UseQueryResult<HMDocumentInfo[]> => {
+    const mode = options?.mode || 'Children'
+    const url = `/hm/api/directory?id=${packHmId(id)}&mode=${mode}`
+    const result = useAPI<DirectoryPayload>(url)
+
+    return {
+      ...result,
+      data: result.data?.directory || [],
+    } as UseQueryResult<HMDocumentInfo[]>
   },
 
   // Web doesn't have contacts

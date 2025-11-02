@@ -3,25 +3,17 @@ import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMAccountsMetadata,
+  HMDocumentInfo,
   HMDocumentMetadataSchema,
   hmId,
-  HMMetadata,
-  HMTimestamp,
   ListDocumentsResponse,
-  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 
 export type HMDirectory = PlainMessage<ListDocumentsResponse>
 
 export type DirectoryPayload = {
-  directory?: {
-    path: string
-    metadata: HMMetadata
-    updateTime?: HMTimestamp
-    id: UnpackedHypermediaId
-    authors: string[]
-  }[]
+  directory?: HMDocumentInfo[]
   accountsMetadata?: HMAccountsMetadata
   error?: string
 }
@@ -33,6 +25,7 @@ export const loader = async ({
 }): Promise<WrappedResponse<DirectoryPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
+  const mode = url.searchParams.get('mode') || 'Children'
   if (!id) throw new Error('id is required')
   let result: DirectoryPayload
   try {
@@ -48,21 +41,29 @@ export const loader = async ({
           d.metadata?.toJson({emitDefaultValues: true}),
         ),
       }))
-      .filter(
-        (doc) =>
-          doc.path !== '/' &&
-          doc.path !== '' &&
-          doc.path !== pathPrefix &&
-          doc.path.startsWith(pathPrefix) &&
-          doc.path.split('/').slice(1).length === idPathLength + 1,
-      )
+      .filter((doc) => {
+        if (doc.path === '/' || doc.path === '' || doc.path === pathPrefix) {
+          return false
+        }
+        if (!doc.path.startsWith(pathPrefix)) {
+          return false
+        }
+        // For Children mode, only include direct children
+        if (mode === 'Children') {
+          return doc.path.split('/').slice(1).length === idPathLength + 1
+        }
+        // For AllDescendants mode, include all descendants
+        return true
+      })
       .map((doc) => {
+        const docId = hmId(id.uid, {path: doc.path.split('/').slice(1)})
         return {
-          path: doc.path,
-          updateTime: doc.updateTime,
+          ...doc,
+          type: 'document' as const,
+          account: docId.uid,
+          path: docId.path || [],
           metadata: doc.metadata,
-          id: hmId(id.uid, {path: doc.path.split('/').slice(1)}),
-          authors: doc.authors,
+          id: docId,
         }
       })
     const allAuthors = new Set<string>()

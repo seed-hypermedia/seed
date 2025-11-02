@@ -2188,43 +2188,18 @@ function QueryBlock({
   block: HMBlockQuery
 }) {
   const client = useUniversalClient()
-  const ctx = useDocContentContext()
-  const {supportQueries, supportDocuments} = ctx || {}
 
-  // Check if we have SSR context (web platform)
-  const hasSSRContext = supportQueries && supportDocuments
+  // Use universal client for directory listing
+  const directoryItems = client.useDirectory(id, {
+    mode: block.attributes.query.includes[0]?.mode,
+  })
 
-  // Desktop: use client.useDirectory() for directory listing
-  const directoryItems = hasSSRContext
-    ? null
-    : client.useDirectory(id, {mode: block.attributes.query.includes[0]?.mode})
+  // Subscribe to query target
+  client.useResource(id, {recursive: true})
 
-  // Desktop: subscribe to query target when using directory
-  if (directoryItems) {
-    client.useResource(id, {recursive: true})
-  }
-
-  // Compute sorted items based on data source
+  // Compute sorted items
   const sortedItems = useMemo(() => {
-    let items: any[] = []
-
-    if (hasSSRContext) {
-      // Web: get items from SSR context
-      const includes = block.attributes.query.includes || []
-      if (includes.length === 0) return []
-      const queryInclude = includes[0]
-      if (!queryInclude?.space) return []
-
-      const queryResults = supportQueries?.find((q: any) => {
-        if (q.in.uid !== queryInclude.space) return false
-        return true
-      })
-
-      items = queryResults?.results || []
-    } else {
-      // Desktop: get items from directory listing
-      items = directoryItems?.data || []
-    }
+    const items = directoryItems?.data || []
 
     // Sort and limit items
     const sorted = queryBlockSortedItems({
@@ -2237,7 +2212,7 @@ function QueryBlock({
     return block.attributes.query.limit
       ? sorted.slice(0, block.attributes.query.limit)
       : sorted
-  }, [hasSSRContext, supportQueries, directoryItems, block.attributes.query])
+  }, [directoryItems, block.attributes.query])
 
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
@@ -2248,60 +2223,31 @@ function QueryBlock({
     return Array.from(ids)
   }, [sortedItems])
 
-  // Desktop: batch load documents and authors
+  // Batch load documents and authors
   const docIds = useMemo(
     () =>
-      !hasSSRContext
-        ? sortedItems.map((item) =>
-            hmId(item.account, {path: item.path, latest: true}),
-          )
-        : [],
-    [hasSSRContext, sortedItems],
+      sortedItems.map((item) =>
+        hmId(item.account, {path: item.path, latest: true}),
+      ),
+    [sortedItems],
   )
 
-  const documents = !hasSSRContext
-    ? client.useResources([
-        ...docIds,
-        ...authorIds.map((uid: string) => hmId(uid)),
-      ])
-    : null
+  const documents = client.useResources([
+    ...docIds,
+    ...authorIds.map((uid: string) => hmId(uid)),
+  ])
 
-  // Get accounts metadata from appropriate source
-  const accountsMetadata = !hasSSRContext
-    ? client.useAccountsMetadata(authorIds)
-    : supportDocuments?.reduce((acc: any, d: any) => {
-        if (!d.document?.metadata) return acc
-        if (d.id.path?.length) return acc
-        acc[d.id.uid] = {
-          id: d.id,
-          metadata: d.document.metadata,
-        }
-        return acc
-      }, {}) || {}
+  // Get accounts metadata
+  const accountsMetadata = client.useAccountsMetadata(authorIds)
 
   // Get entity helper function
   function getEntity(path: string[]) {
-    if (hasSSRContext) {
-      return supportDocuments?.find(
-        (entity: any) => entity?.id?.path?.join('/') === path?.join('/'),
-      )
-    }
     return (
       documents?.find(
         (document: any) =>
           document.data?.id?.path?.join('/') === path?.join('/'),
       )?.data || null
     )
-  }
-
-  // Handle validation errors for web
-  if (hasSSRContext) {
-    const includes = block.attributes.query.includes || []
-    if (includes.length === 0) return null
-    const queryInclude = includes[0]
-    if (!queryInclude || includes.length !== 1)
-      return <ErrorBlock message="Only one query include supported" />
-    if (!queryInclude.space) return <ErrorBlock message="Empty Query" />
   }
 
   return (
