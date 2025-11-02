@@ -50,6 +50,7 @@ export function MainAppSidebar() {
             id: hmId(selectedAccountId),
           })
         }}
+        bold
         title="Home"
         icon={<Home className="size-4" />}
       />
