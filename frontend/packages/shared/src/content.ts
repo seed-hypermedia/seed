@@ -166,11 +166,9 @@ function titleOfEntry(entry: HMDocumentInfo) {
 }
 
 function titleSort(ea: HMDocumentInfo, eb: HMDocumentInfo) {
-  const a = titleOfEntry(ea)
-  const b = titleOfEntry(eb)
-  if (a && b && a < b) return 1
-  if (a && b && a > b) return -1
-  return 0
+  const a = titleOfEntry(ea) || ''
+  const b = titleOfEntry(eb) || ''
+  return a.localeCompare(b, undefined, {sensitivity: 'base'})
 }
 
 export function queryBlockSortedItems({
