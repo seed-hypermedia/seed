@@ -98,7 +98,7 @@ function ProfilePageContent({
   const linkKeysDialog = useAppDialog(LinkKeysDialog)
   return (
     <>
-      <div className="flex min-h-screen flex-1 flex-col items-center">
+      <div className="flex flex-col flex-1 items-center min-h-screen">
         {originHomeMetadata && (
           <SmallSiteHeader
             originHomeMetadata={originHomeMetadata}
@@ -138,6 +138,7 @@ function ProfilePageContent({
         <MyAccountBubble />
         <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />
         {linkKeysDialog.content}
+        {editProfileDialog.content}
       </div>
     </>
   )
@@ -172,7 +173,7 @@ const PageContainer = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)}
+    className={cn('flex flex-col gap-5 items-center p-4 rounded-sm', className)}
     {...props}
   />
 )
