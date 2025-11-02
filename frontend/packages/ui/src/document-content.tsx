@@ -28,7 +28,9 @@ import {
   formatBytes,
   formattedDateMedium,
   getChildrenType,
+  getContactMetadata,
   getDocumentTitle,
+  getMetadataName,
   hmBlockToEditorBlock,
   isHypermediaScheme,
   packHmId,
@@ -182,7 +184,7 @@ export function DocContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
+        <div className="flex fixed right-16 bottom-16 z-50 flex-col gap-1 p-2 bg-white rounded-md border hover:bg-background border-border dark:bg-background">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -343,7 +345,7 @@ export function DocContent({
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
               size="icon"
-              className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
+              className="relative border bg-background hover:bg-background border-border dark:bg-black dark:hover:bg-black"
               onClick={() => {
                 onBlockSelect(
                   state.context.blockId,
@@ -732,7 +734,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <BlockQuote color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount.citations
               ? String(citationsCount.citations)
@@ -761,7 +763,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
         </Button>
       ) : null}
 
@@ -788,7 +790,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="size-3 opacity-50" />
+          <Link color="currentColor" className="opacity-50 size-3" />
         </Button>
       ) : null}
     </div>
@@ -811,7 +813,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="size-3 opacity-50" />
+          <BlockQuote color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount.citations
               ? String(citationsCount.citations)
@@ -846,7 +848,7 @@ export function BlockNodeContent({
               : tx('Comment on this block')
           }
         >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
+          <MessageSquare color="currentColor" className="opacity-50 size-3" />
           <SizableText color="muted" size="xs">
             {citationsCount?.comments
               ? String(citationsCount.comments)
@@ -871,7 +873,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="size-3 opacity-50" />
+          <Link color="currentColor" className="opacity-50 size-3" />
         </BubbleButton>
       ) : null}
     </div>
@@ -972,7 +974,7 @@ export function BlockNodeContent({
             <HoverCardContent
               side="top"
               align="end"
-              className="z-10 w-auto p-0"
+              className="z-10 p-0 w-auto"
             >
               {hoverCardContent}
             </HoverCardContent>
@@ -995,7 +997,7 @@ export function BlockNodeContent({
               side="top"
               align="end"
               sideOffset={8}
-              className="w-auto max-w-xs p-0"
+              className="p-0 w-auto max-w-xs"
             >
               {mobileCardContent}
             </PopoverContent>
@@ -1023,7 +1025,7 @@ export function BlockNodeContent({
                     <HoverCardContent
                       side="top"
                       align="end"
-                      className="z-10 w-auto p-0"
+                      className="z-10 p-0 w-auto"
                     >
                       {hoverCardContent}
                     </HoverCardContent>
@@ -1041,7 +1043,7 @@ export function BlockNodeContent({
                       side="left"
                       align="start"
                       sideOffset={8}
-                      className="w-auto max-w-xs p-0"
+                      className="p-0 w-auto max-w-xs"
                     >
                       {mobileCardContent}
                     </PopoverContent>
@@ -1266,7 +1268,7 @@ function BlockContentImage({
       onClick={handleClose}
     >
       <div
-        className="relative flex size-full items-center justify-center"
+        className="flex relative justify-center items-center size-full"
         onClick={(e) => {
           e.stopPropagation()
           handleClose()
@@ -1291,7 +1293,7 @@ function BlockContentImage({
         />
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+          className="absolute top-4 right-4 p-2 text-white rounded-full transition-colors bg-black/50 hover:bg-black/70"
           aria-label="Close"
         >
           <X size={20} />
@@ -1306,7 +1308,7 @@ function BlockContentImage({
         {...props}
         ref={containerRef}
         className={cn(
-          'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
+          'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-image',
           blockStyles,
         )}
         data-content-type="image"
@@ -1383,7 +1385,7 @@ function BlockContentVideo({
     <div
       {...props}
       className={cn(
-        'block-content block-video flex w-full max-w-full flex-col items-center gap-2 py-3',
+        'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-video',
         blockStyles,
       )}
       data-content-type="video"
@@ -1396,7 +1398,7 @@ function BlockContentVideo({
     >
       {link ? (
         <div
-          className={cn('relative aspect-video w-full max-w-full')}
+          className={cn('relative w-full max-w-full aspect-video')}
           style={{
             width: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
@@ -1405,7 +1407,7 @@ function BlockContentVideo({
         >
           {isIpfs ? (
             <video
-              className={cn('absolute top-0 left-0 h-full w-full')}
+              className={cn('absolute top-0 left-0 w-full h-full')}
               contentEditable={false}
               playsInline
               controls
@@ -1420,7 +1422,7 @@ function BlockContentVideo({
             </video>
           ) : (
             <iframe
-              className={cn('absolute top-0 left-0 h-full w-full')}
+              className={cn('absolute top-0 left-0 w-full h-full')}
               src={getVideoIframeSrc(block.link)}
               allowFullScreen
             />
@@ -1587,9 +1589,9 @@ function InlineContentView({
               key={index}
               {...linkProps}
               className={cn(
-                'cursor-pointer break-all transition-colors',
+                'break-all transition-colors cursor-pointer',
                 // link colors
-                'link text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+                'text-blue-600 link hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
               )}
               target={isHmScheme ? undefined : '_blank'}
               onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
@@ -1620,17 +1622,12 @@ function InlineContentView({
           }
           if (unpackedRef)
             return (
-              <InlineEmbedButton
-                key={content.link}
-                style={embedStyles}
+              <InlineEmbed
                 entityId={unpackedRef}
-                block={{} as any}
-                parentBlockId={null}
                 onHoverIn={onHoverIn}
                 onHoverOut={onHoverOut}
-              >
-                {`@${unpackedRef.uid}`}
-              </InlineEmbedButton>
+                style={embedStyles}
+              />
             )
           else return <span>!?!</span>
         }
@@ -1675,7 +1672,7 @@ export function BlockEmbedCard({
 
   if (doc.isInitialLoading)
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -1813,9 +1810,9 @@ export function ErrorBlock({
     <Tooltip
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
-      <div className="block-content block-unknown flex flex-1 flex-col">
+      <div className="flex flex-col flex-1 block-content block-unknown">
         <div
-          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex overflow-hidden gap-2 p-2 bg-red-100 rounded-md border border-red-300 flex-start"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1827,7 +1824,7 @@ export function ErrorBlock({
           <AlertCircle color="danger" className="size-3" />
         </div>
         {open ? (
-          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
+          <pre className="p-2 bg-gray-100 rounded-md border border-border dark:bg-gray-800">
             <code className="font-mono text-xs wrap-break-word">
               {JSON.stringify(debugData, null, 4)}
             </code>
@@ -1925,7 +1922,7 @@ function CommentEmbedHeader({
     author.type === 'document' ? author.document?.metadata : undefined
   return (
     <div className="flex flex-wrap justify-between p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex gap-2 items-center">
         {author.id && (
           <HMIcon
             size={24}
@@ -2356,9 +2353,9 @@ export function BlockNotFoundError({
   message: string
 }>) {
   return (
-    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
-      <div className="flex items-center gap-2 p-4">
-        <AlertCircle className="flex-0 text-red-500" size={12} />
+    <div className="flex flex-col flex-1 p-2 bg-red-100/50 dark:bg-red-900/50">
+      <div className="flex gap-2 items-center p-4">
+        <AlertCircle className="text-red-500 flex-0" size={12} />
         <SizableText className="flex-1" color="destructive">
           {message ? message : 'Error'}
         </SizableText>
@@ -2410,12 +2407,12 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
       data-name={getBlockAttribute(block.attributes, 'name')}
       data-size={getBlockAttribute(block.attributes, 'size')}
       className={cn(
-        'block-content group block-file border-muted dark:border-muted relative overflow-hidden rounded-md border p-4',
+        'overflow-hidden relative p-4 rounded-md border block-content group block-file border-muted dark:border-muted',
       )}
     >
-      <div className="relative flex w-full flex-1 items-center gap-2">
+      <div className="flex relative flex-1 gap-2 items-center w-full">
         <File size={18} className="flex-0" />
-        <SizableText className="flex-1 truncate overflow-hidden text-sm whitespace-nowrap select-text">
+        <SizableText className="overflow-hidden flex-1 text-sm truncate whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
@@ -2427,7 +2424,7 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
       {fileCid && (
         <Button
           variant="brand"
-          className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute right-0 top-1/2 opacity-0 transition-opacity -translate-y-1/2 group-hover:opacity-100"
           size="sm"
           asChild
         >
@@ -2478,7 +2475,7 @@ export function BlockContentButton({
       data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
-      className="block-content block-button flex w-full max-w-full flex-col select-none"
+      className="flex flex-col w-full max-w-full select-none block-content block-button"
       style={{
         justifyContent: alignment,
       }}
@@ -2500,7 +2497,7 @@ export function BlockContentButton({
       >
         <SizableText
           size="lg"
-          className="truncate text-center font-bold text-white"
+          className="font-bold text-center text-white truncate"
         >
           {getBlockAttribute(block.attributes, 'name')}
         </SizableText>
@@ -2579,7 +2576,7 @@ export function BlockContentWebEmbed({
     <div
       {...props}
       className={cn(
-        'border-border bg-background w-full overflow-hidden rounded-md border p-4',
+        'overflow-hidden p-4 w-full rounded-md border border-border bg-background',
         'x-post-container',
         blockStyles,
       )}
@@ -2599,7 +2596,7 @@ export function BlockContentWebEmbed({
       }}
     >
       {loading && (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       )}
@@ -2662,7 +2659,7 @@ export function BlockContentCode({
       data-content-type="code"
       className={cn(
         blockStyles,
-        `w-full overflow-auto rounded-md border language-${language} border-border bg-background`,
+        `overflow-auto w-full rounded-md border language-${language} border-border bg-background`,
       )}
       style={
         {
@@ -2797,7 +2794,7 @@ export function BlockContentMath({
       data-content={block.text}
       ref={containerRef}
       className={cn(
-        'block-content block-katex bg-background border-border w-full gap-2 rounded-md border py-3',
+        'gap-2 py-3 w-full rounded-md border block-content block-katex bg-background border-border',
         blockStyles,
         isContentSmallerThanContainer ? 'items-center' : 'items-start',
         isContentSmallerThanContainer ? 'overflow-hidden' : 'overflow-scroll',
@@ -2812,8 +2809,8 @@ export function BlockContentMath({
         ref={mathRef}
         className={cn(
           isContentSmallerThanContainer
-            ? 'items-center justify-center'
-            : 'items-start justify-start',
+            ? 'justify-center items-center'
+            : 'justify-start items-start',
         )}
         dangerouslySetInnerHTML={{__html: tex || ''}}
       />
@@ -2831,19 +2828,22 @@ export function InlineEmbedButton({
   children,
   entityId,
   style,
-  ...props
-}: BlockContentProps & {
+  onHoverIn,
+  onHoverOut,
+}: {
   children: string
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
   const buttonProps = useRouteLink({key: 'document', id: entityId})
   const hasRangeHighlight = style?.backgroundColor === 'var(--brand-10)'
   return (
     <a
       {...buttonProps}
-      onMouseEnter={() => props.onHoverIn?.(entityId)}
-      onMouseLeave={() => props.onHoverOut?.(entityId)}
+      onMouseEnter={() => onHoverIn?.(entityId)}
+      onMouseLeave={() => onHoverOut?.(entityId)}
       className={cn(
         'font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
         hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
@@ -2862,7 +2862,7 @@ export function InlineEmbedButton({
 function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex gap-2 items-center">
       <RadioGroupItem value={props.value} id={id} />
       <label className="text-xs" htmlFor={id}>
         {props.label}
@@ -2907,7 +2907,7 @@ export function DocumentCardGrid({
     )
   }, [columnCount])
   return (
-    <div className="flex w-full flex-col">
+    <div className="flex flex-col w-full">
       {firstItem ? (
         <div className="flex">
           <DocumentCard
@@ -2920,7 +2920,7 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {items?.length ? (
-        <div className="-mx-3 mt-2 flex flex-wrap justify-center">
+        <div className="flex flex-wrap justify-center -mx-3 mt-2">
           {items.map((item) => {
             if (!item) return null
             return (
@@ -2973,5 +2973,43 @@ function BubbleButton({
         {children}
       </Button>
     </Tooltip>
+  )
+}
+
+function InlineEmbed({
+  entityId,
+  onHoverIn,
+  onHoverOut,
+  style,
+}: {
+  entityId: UnpackedHypermediaId
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
+  style?: React.CSSProperties
+}) {
+  const client = useUniversalClient()
+  const doc = client.useResource(entityId)
+  const ctx = useDocContentContext()
+  const document = doc.data?.type === 'document' ? doc.data.document : undefined
+
+  let name = getMetadataName(document?.metadata) || '...'
+  if (!entityId.path?.length) {
+    const contactName = getContactMetadata(
+      entityId.uid,
+      document?.metadata,
+      ctx?.contacts,
+    ).name
+    name = contactName
+  }
+
+  return (
+    <InlineEmbedButton
+      entityId={entityId}
+      onHoverIn={onHoverIn}
+      onHoverOut={onHoverOut}
+      style={style}
+    >
+      {name}
+    </InlineEmbedButton>
   )
 }
