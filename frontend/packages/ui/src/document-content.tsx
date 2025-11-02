@@ -1112,9 +1112,8 @@ function BlockContent(props: BlockContentProps) {
       return <BlockEmbedCard {...props} {...dataProps} block={embedBlock} />
     if (props.block.attributes.view === 'Comments')
       return <BlockEmbedComments {...props} {...dataProps} block={embedBlock} />
-    if (props.block.attributes.view === 'Content')
-      return <BlockEmbedContent {...props} {...dataProps} block={embedBlock} />
-    return <ErrorBlock message="Unknown Embed View" />
+    // if (props.block.attributes.view === 'Content') // content is the default
+    return <BlockEmbedContent {...props} {...dataProps} block={embedBlock} />
   }
 
   if (props.block.type == 'Code') {
