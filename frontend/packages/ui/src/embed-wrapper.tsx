@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId} from '@shm/shared'
+import {UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren} from 'react'
 import {blockStyles, useDocContentContext} from './document-content'
@@ -26,6 +26,7 @@ export function EmbedWrapper({
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const docContentContext = useDocContentContext()
+  const openRoute = useOpenRoute()
 
   if (!id) return null
 
@@ -55,15 +56,16 @@ export function EmbedWrapper({
         noClick
           ? undefined
           : (e) => {
-              e.preventDefault()
               e.stopPropagation()
               const selection = window.getSelection()
               const hasSelection = selection && selection.toString().length > 0
               if (hasSelection) {
                 return
               }
-              // Navigation handled by UniversalAppContext.openRoute
-              // which each platform implements differently
+              if (openRoute) {
+                e.preventDefault()
+                openRoute({key: 'document', id})
+              }
             }
       }
       onMouseEnter={() => docContentContext?.onHoverIn?.(id)}

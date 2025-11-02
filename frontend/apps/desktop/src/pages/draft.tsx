@@ -406,7 +406,7 @@ function DocumentEditor({
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppDocContentProvider
-            // onBlockCopy={onBlockCopy} // todo: allow copy block when editing doc
+            // onBlockSelect={onBlockSelect} // todo: allow copy block when editing doc
             importWebFile={importWebFile}
           >
             <DraftCover
@@ -560,7 +560,7 @@ function DocumentEditor({
     setIsDragging(false)
   }
 
-  // function onBlockCopy(
+  // function onBlockSelect(
   //   blockId: string,
   //   blockRange: BlockRange | ExpandedBlockRange | undefined,
   // ) {

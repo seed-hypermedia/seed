@@ -80,7 +80,7 @@ export function WebDocContentProvider({
       setCollapsedBlocks={setCollapsedBlocks}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
-      onBlockCopy={
+      onBlockSelect={
         id
           ? (blockId, blockRange) => {
               const shouldCopy = blockRange?.copyToClipboard !== false
@@ -132,9 +132,12 @@ export function WebDocContentProvider({
                 window.navigator.clipboard.writeText(`${siteHost}${href}`)
                 toast.success('Block link copied to clipboard')
               }
-              navigate(href, {
-                replace: true,
-              })
+              // Only navigate if we're not explicitly just copying
+              if (blockRange?.copyToClipboard !== true) {
+                navigate(href, {
+                  replace: true,
+                })
+              }
             }
           : null
       }

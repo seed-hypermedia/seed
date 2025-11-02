@@ -64,7 +64,7 @@ export function AppDocContentProvider({
         contacts={contacts.data}
         collapsedBlocks={collapsedBlocks}
         setCollapsedBlocks={setCollapsedBlocks}
-        onBlockCopy={
+        onBlockSelect={
           reference
             ? (blockId: string, blockRange) => {
                 const shouldCopy = blockRange?.copyToClipboard !== false
@@ -135,10 +135,9 @@ export type AppDocContentContextValue = {
     }
   >
   onBlockCitationClick?: (blockId?: string | null) => void
-  onBlockCopy:
+  onBlockSelect:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
-  onBlockReply?: null | ((blockId: string) => void)
   onBlockCommentClick?:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)

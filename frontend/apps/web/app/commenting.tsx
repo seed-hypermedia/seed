@@ -253,7 +253,7 @@ export default function WebCommenting({
         handleFileAttachment={handleFileAttachment}
         debug={false}
         comment
-        onBlockCopy={null}
+        onBlockSelect={null}
         layoutUnit={16}
         textUnit={14}
         collapsedBlocks={new Set()}

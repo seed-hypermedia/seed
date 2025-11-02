@@ -11,7 +11,7 @@ import {
 import {Contact} from './client'
 import {UnpackedHypermediaId} from './hm-types'
 
-export type BlockRangeWithOptions = (BlockRange | ExpandedBlockRange) & {
+export type BlockRangeSelectOptions = (BlockRange | ExpandedBlockRange) & {
   copyToClipboard?: boolean
 }
 
@@ -19,10 +19,9 @@ export type DocContentContextValue = {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void
-  onBlockCopy:
+  onBlockSelect:
     | null
-    | ((blockId: string, blockRange?: BlockRangeWithOptions) => void)
-  onBlockReply?: null | ((blockId: string) => void)
+    | ((blockId: string, blockRange?: BlockRangeSelectOptions) => void)
   onBlockCommentClick?:
     | null
     | ((
