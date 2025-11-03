@@ -504,12 +504,10 @@ FROM resource_links
 JOIN structural_blobs ON structural_blobs.id = resource_links.source
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
-JOIN resources r
+LEFT JOIN resources r
   ON r.genesis_blob = CASE
         WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
         ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
      END
-WHERE resource_links.target IN rbsr_iris
-GROUP BY target_version, target_fragment, source_iri
-ORDER BY structural_blobs.ts DESC;
+WHERE resource_links.target IN rbsr_iris;
 `)
