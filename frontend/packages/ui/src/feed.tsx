@@ -539,10 +539,7 @@ function EventHeaderContent({
             name={event.delegates[0]?.metadata?.name}
           />
         ) : null}
-        <a className="text-sm font-bold">
-          {event.delegates[0]?.metadata?.name ||
-            event.delegates[0]?.id?.uid.substring(0, 8)}
-        </a>{' '}
+        <AuthorNameLink author={event.delegates[0]!} />{' '}
         {!isSingleResource ? (
           <>
             <span>as Writer in</span>{' '}
@@ -552,7 +549,7 @@ function EventHeaderContent({
           </>
         ) : (
           <>
-            <span>as a Writer</span>{' '}
+            <span>as a {event.capability.role}</span>{' '}
           </>
         )}
         <Timestamp time={event.time} route={route} />

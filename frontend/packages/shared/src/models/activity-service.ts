@@ -7,10 +7,16 @@ import {
   HMComment,
   HMDocument,
   HMMetadata,
+  HMRoleSchema,
   HMTimestamp,
   UnpackedHypermediaId,
 } from '../hm-types'
-import {hmId, parseFragment, unpackHmId} from '../utils'
+import {
+  entityQueryPathToHmIdPath,
+  hmId,
+  parseFragment,
+  unpackHmId,
+} from '../utils'
 
 export type HMListEventsRequest = {
   pageSize?: number
@@ -340,7 +346,32 @@ export async function loadCapabilityEvent(
       grpcCapability.delegate,
       currentAccount,
     )
+    const role = HMRoleSchema.parse(
+      // @ts-expect-error ugh, we want role as a string but it's an enum
+      grpcCapability.toJson({emitDefaultValues: true}).role.toLowerCase(),
+    )
 
+    if (role === 'none' || role === 'agent') {
+      return null
+    }
+
+    if (!grpcCapability.createTime) {
+      throw new Error(
+        'Event: missing createTime for capability event:' +
+          JSON.stringify(event),
+      )
+    }
+    const capability: HMCapability = {
+      role,
+      id: grpcCapability.id,
+      createTime: grpcCapability.createTime,
+      accountUid: grpcCapability.account,
+      grantId: hmId(grpcCapability.account, {
+        path: entityQueryPathToHmIdPath(grpcCapability.path),
+      }),
+      capabilityId: grpcCapability.id,
+      label: grpcCapability.label,
+    }
     return {
       id: event.newBlob.cid,
       type: 'capability',
@@ -356,10 +387,7 @@ export async function loadCapabilityEvent(
       time: event.eventTime!,
       delegates: delegate ? [delegate] : [],
       capabilityId: capId,
-      capability: {
-        id: grpcCapability.id,
-        accountUid: grpcCapability.account,
-      } as any, // Temporary type assertion until proper capability schema is available
+      capability,
     }
   } catch (error) {
     console.error('Event: catch error:', event, error)

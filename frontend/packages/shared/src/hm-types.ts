@@ -720,7 +720,8 @@ export type HMQueryResult = {
   mode?: 'Children' | 'AllDescendants'
 }
 
-export type HMRole = 'owner' | 'writer' | 'agent' | 'none'
+export const HMRoleSchema = z.enum(['writer', 'agent', 'none', 'owner'])
+export type HMRole = z.infer<typeof HMRoleSchema>
 
 export const HMDraftMetaSchema = z.object({
   id: z.string(),
@@ -1193,15 +1194,16 @@ export type HMContact = {
   subjectContacts: PlainMessage<Contact>[] | undefined
 }
 
-export type HMCapability = {
-  id: string
-  accountUid: string
-  role: HMRole
-  capabilityId?: string
-  grantId: UnpackedHypermediaId
-  label?: string | undefined
-  createTime: Date
-}
+export const HMCapabilitySchema = z.object({
+  id: z.string(),
+  accountUid: z.string(),
+  role: HMRoleSchema,
+  capabilityId: z.string().optional(),
+  grantId: unpackedHmIdSchema,
+  label: z.string().optional(),
+  createTime: HMTimestampSchema,
+})
+export type HMCapability = z.infer<typeof HMCapabilitySchema>
 
 export const siteDiscoverRequestSchema = z.object({
   uid: z.string(),
