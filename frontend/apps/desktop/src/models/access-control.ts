@@ -1,10 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
-import {
-  Capability,
-  Role,
-} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
+import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import {BIG_INT} from '@shm/shared/constants'
 import {
   HMCapability,
@@ -113,7 +109,7 @@ function useAccountsCapabilities(accountIds: string[]) {
               grantId: hmId(serverCap.account, {
                 path: entityQueryPathToHmIdPath(serverCap.path),
               }),
-              createTime: serverCap.createTime!.toDate(),
+              createTime: serverCap.createTime!,
             } satisfies HMCapability
           }),
         }
@@ -122,6 +118,11 @@ function useAccountsCapabilities(accountIds: string[]) {
   })
   return capabilities
 }
+
+const EMPTY_TIMESTAMP = {
+  seconds: 0,
+  nanos: 0,
+} as const
 
 export type HMWritableDocument = {
   entity: HMEntityContent
@@ -202,7 +203,7 @@ export function useSelectedAccountCapability(
       accountUid: id.uid,
       role: 'owner',
       grantId: hmId(id.uid),
-      createTime: new Date(0),
+      createTime: EMPTY_TIMESTAMP,
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -233,7 +234,7 @@ export function useMyCapability(
       accountUid: id.uid,
       role: 'owner',
       grantId: hmId(id.uid),
-      createTime: new Date(0),
+      createTime: EMPTY_TIMESTAMP,
     } satisfies HMCapability
   }
   const myCapability = [...(capabilities.data || [])]
@@ -268,7 +269,7 @@ export function useSelectedAccountCapabilities(
             accountUid: id.uid,
             role: 'owner',
             grantId: hmId(id.uid),
-            createTime: new Date(0),
+            createTime: EMPTY_TIMESTAMP,
           } satisfies HMCapability,
         ]
       : []
@@ -327,7 +328,7 @@ export function useAllDocumentCapabilities(
           }),
           role: roleToHMRole(cap.role),
           label: cap.label,
-          createTime: cap.createTime!.toDate(),
+          createTime: cap.createTime!,
         })
       }
 
@@ -339,7 +340,7 @@ export function useAllDocumentCapabilities(
           grantId: hmId(id.uid),
           role: 'owner',
           label: 'Owner',
-          createTime: new Date(0),
+          createTime: EMPTY_TIMESTAMP,
         },
       ] satisfies HMCapability[]
     },

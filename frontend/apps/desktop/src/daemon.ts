@@ -97,11 +97,13 @@ export async function startMainDaemon(): Promise<{
   const daemonProcess = spawn(goDaemonExecutablePath, daemonArguments, {
     // daemon env
     cwd: path.join(process.cwd(), '../../..'),
+    // @ts-expect-error
     env: daemonEnv,
     stdio: 'pipe',
   })
 
   let lastStderr = ''
+  // @ts-expect-error
   const stderr = readline.createInterface({input: daemonProcess.stderr})
   let expectingDaemonClose = false
   await new Promise<void>((resolve, reject) => {
@@ -112,14 +114,17 @@ export async function startMainDaemon(): Promise<{
       }
       log.rawMessage(line)
     })
+    // @ts-expect-error
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
       log.rawMessage(line)
     })
+    // @ts-expect-error
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
       reject(err)
     })
+    // @ts-expect-error
     daemonProcess.on('close', (code, signal) => {
       if (!expectingDaemonClose) {
         updateGoDaemonState({
@@ -129,6 +134,7 @@ export async function startMainDaemon(): Promise<{
         log.error('Go daemon closed', {code: code, signal: signal})
       }
     })
+    // @ts-expect-error
     daemonProcess.on('spawn', () => {
       log.debug('Go daemon spawned')
       resolve()
@@ -138,6 +144,7 @@ export async function startMainDaemon(): Promise<{
   app.addListener('will-quit', () => {
     log.debug('App will quit')
     expectingDaemonClose = true
+    // @ts-expect-error
     daemonProcess.kill()
   })
 

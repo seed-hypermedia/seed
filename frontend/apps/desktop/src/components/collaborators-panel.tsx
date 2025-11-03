@@ -240,7 +240,7 @@ function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
         capabilities={
           capabilities.data?.filter(
             (cap) => cap.grantId.id === id.id && cap.role === 'agent',
-          ) || []
+          ) || ([] as Array<HMCapability>)
         }
         id={id}
       />
