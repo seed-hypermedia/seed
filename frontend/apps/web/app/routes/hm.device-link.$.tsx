@@ -2,7 +2,6 @@ import {useCreateAccount, useLocalKeyPair} from '@/auth'
 import {ClientOnly} from '@/client-lazy'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
-import {injectModels} from '@/models'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
@@ -55,8 +54,6 @@ import {LocalWebIdentity} from '../auth'
 import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
 import type {DelegateDevicePayload} from './hm.api.delegate-device'
 import {Spinner} from '@shm/ui/spinner'
-
-injectModels()
 
 type DeviceLinkPagePayload = {
   enableWebSigning: boolean

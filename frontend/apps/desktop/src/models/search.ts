@@ -4,10 +4,10 @@ import {
   Entity,
   SearchEntitiesRequest,
 } from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
-import {SearchPayload, setSearchQuery} from '@shm/shared/models/search'
+import {SearchPayload} from '@shm/shared/models/search'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 
-export async function querySearch(
+export async function loadSearchQuery(
   searchQuery: string,
   opts?: {
     accountUid?: string
@@ -58,8 +58,6 @@ export async function querySearch(
       .filter((result) => !!result),
   }
 }
-
-setSearchQuery(querySearch)
 
 interface SearchItem {
   title: string

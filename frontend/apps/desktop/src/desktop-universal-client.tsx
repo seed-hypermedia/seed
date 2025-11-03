@@ -1,10 +1,15 @@
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {
+  loadAccount,
+  loadBatchAccounts,
+  loadResource,
   useAccountsMetadata,
   useSubscribedResource,
   useSubscribedResources,
 } from '@/models/entities'
+import {deleteRecent, loadRecents} from '@/models/recents'
+import {loadSearchQuery} from '@/models/search'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
@@ -30,4 +35,11 @@ export const desktopUniversalClient: UniversalClient = {
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <CommentBox docId={docId} context="document-content" />
   ),
+
+  loadSearch: loadSearchQuery,
+  loadResource: loadResource,
+  loadAccount: loadAccount,
+  loadBatchAccounts: loadBatchAccounts,
+  loadRecents: loadRecents,
+  deleteRecent: deleteRecent,
 }

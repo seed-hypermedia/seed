@@ -10,7 +10,9 @@ import {
 import {BIG_INT} from '@shm/shared/constants'
 import {HMComment, HMExternalCommentGroup} from '@shm/shared/hm-types'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
-import {loadBatchAccounts} from '@shm/shared/models/entity'
+import {createBatchAccountsResolver} from '@shm/shared/models/entity'
+
+const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export type HMDiscussionsPayload = ListDiscussionsResponse
 

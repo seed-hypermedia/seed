@@ -1,11 +1,11 @@
 import {client} from '@/trpc'
-import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
+import {RecentsResult} from '@shm/shared/models/recents'
 
-setRecentsQuery(async () => {
+export async function loadRecents(): Promise<RecentsResult[]> {
   const r = await client.recents.getRecents.query()
   return r
-})
+}
 
-setDeleteRecents(async (id: string) => {
+export async function deleteRecent(id: string): Promise<void> {
   await client.recents.deleteRecent.mutate(id)
-})
+}

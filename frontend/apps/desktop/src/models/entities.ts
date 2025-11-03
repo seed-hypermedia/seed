@@ -20,9 +20,6 @@ import {
   createBatchAccountsResolver,
   getErrorMessage,
   HMRedirectError,
-  setAccountQuery,
-  setBatchAccountQuery,
-  setResourceQuery,
   useResources,
 } from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
@@ -153,7 +150,9 @@ function catchNotFound<Result>(
   })
 }
 
-setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
+export async function loadResource(
+  hmId: UnpackedHypermediaId,
+): Promise<HMResource> {
   try {
     const resource = await grpcClient.resources.getResource({
       iri: packHmId(hmId),
@@ -186,9 +185,11 @@ setResourceQuery(async (hmId: UnpackedHypermediaId): Promise<HMResource> => {
       id: hmId,
     } satisfies HMResourceNotFound
   }
-})
+}
 
-export async function getAccount(accountUid: string) {
+export async function loadAccount(
+  accountUid: string,
+): Promise<HMMetadataPayload> {
   try {
     const grpcAccount = await grpcClient.documents.getAccount({
       id: accountUid,
@@ -196,7 +197,7 @@ export async function getAccount(accountUid: string) {
 
     const serverAccount = toPlainMessage(grpcAccount)
     if (serverAccount.aliasAccount) {
-      return await getAccount(serverAccount.aliasAccount)
+      return await loadAccount(serverAccount.aliasAccount)
     }
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
@@ -212,10 +213,7 @@ export async function getAccount(accountUid: string) {
   }
 }
 
-const getBatchAccountsResolved = createBatchAccountsResolver(grpcClient)
-
-setAccountQuery(getAccount)
-setBatchAccountQuery(getBatchAccountsResolved)
+export const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null

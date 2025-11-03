@@ -1,4 +1,4 @@
-import {getAccount} from '@/models/entities'
+import {loadAccount} from '@/models/entities'
 import {
   getCommentGroups,
   HMComment,
@@ -53,7 +53,7 @@ async function getCommentsAuthors(
   await Promise.all(
     authorUids.map(async (accountUid) => {
       try {
-        let account = await getAccount(accountUid)
+        let account = await loadAccount(accountUid)
 
         if (account) {
           authorAccounts.set(accountUid, account)

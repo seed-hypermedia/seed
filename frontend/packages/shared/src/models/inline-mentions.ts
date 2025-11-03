@@ -1,10 +1,12 @@
 import {useEffect, useRef} from 'react'
+import {useUniversalClient} from '../routing'
 import {useRecents} from './recents'
-import {searchQuery, SearchResultItem} from './search'
+import {SearchResultItem} from './search'
 
 export function useInlineMentions(
   perspectiveAccountUid?: string | null | undefined,
 ) {
+  const client = useUniversalClient()
   const recents = useRecents()
   const recentsRef = useRef<SearchResultItem[]>([])
   useEffect(() => {
@@ -21,8 +23,7 @@ export function useInlineMentions(
   }, [recents])
 
   async function onMentionsQuery(query: string) {
-    if (!searchQuery) throw new Error('searchQuery not injected')
-    const resp = await searchQuery(query, {
+    const resp = await client.loadSearch(query, {
       perspectiveAccountUid: perspectiveAccountUid || undefined,
       includeBody: false,
     })

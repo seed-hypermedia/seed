@@ -10,8 +10,10 @@ import {
   HMMetadataPayload,
 } from '@shm/shared/hm-types'
 import {ListCommentsResponse} from '@shm/shared/models/comments-service'
-import {loadBatchAccounts} from '@shm/shared/models/entity'
+import {createBatchAccountsResolver} from '@shm/shared/models/entity'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+
+const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export const loader = async ({
   request,

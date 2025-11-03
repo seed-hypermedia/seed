@@ -1,9 +1,7 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {UnpackedHypermediaId} from '../hm-types'
 import {queryKeys} from './query-keys'
-
-let queryRecents: (() => Promise<RecentsResult[]>) | null = null
-let deleteRecent: ((id: string) => Promise<void>) | null = null
+import {useUniversalClient} from '../routing'
 
 export type RecentsResult = {
   id: UnpackedHypermediaId
@@ -11,20 +9,12 @@ export type RecentsResult = {
   time: number
 }
 
-export function setRecentsQuery(handler: () => Promise<RecentsResult[]>) {
-  queryRecents = handler
-}
-
-export function setDeleteRecents(handler: (id: string) => Promise<void>) {
-  deleteRecent = handler
-}
-
 export function useRecents() {
+  const client = useUniversalClient()
   return useQuery({
     queryKey: [queryKeys.RECENTS],
     queryFn: async () => {
-      if (!queryRecents) throw new Error('queryRecents not injected')
-      const r = await queryRecents()
+      const r = await client.loadRecents()
       if (Array.isArray(r)) {
         return r
       } else {
@@ -36,11 +26,11 @@ export function useRecents() {
 }
 
 export function useDeleteRecent() {
+  const client = useUniversalClient()
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => {
-      if (!deleteRecent) throw new Error('deleteRecent not injected')
-      return deleteRecent(id)
+      return client.deleteRecent(id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({queryKey: [queryKeys.RECENTS]})

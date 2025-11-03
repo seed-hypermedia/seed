@@ -3,6 +3,7 @@ import {useQuery} from '@tanstack/react-query'
 import {HMDocument, UnpackedHypermediaId} from '../hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
+import {useUniversalClient} from '../routing'
 
 export type SearchResultItem = {
   id: UnpackedHypermediaId
@@ -18,32 +19,6 @@ export type SearchResultItem = {
 export type SearchPayload = {
   entities: SearchResultItem[]
   searchQuery: string
-}
-
-export let searchQuery:
-  | ((
-      query: string,
-      opts?: {
-        accountUid?: string
-        perspectiveAccountUid?: string
-        includeBody?: boolean
-        contextSize?: number
-      },
-    ) => Promise<SearchPayload>)
-  | null = null
-
-export function setSearchQuery(
-  handler: (
-    query: string,
-    opts?: {
-      accountUid?: string
-      perspectiveAccountUid?: string
-      includeBody?: boolean
-      contextSize?: number
-    },
-  ) => Promise<SearchPayload>,
-) {
-  searchQuery = handler
 }
 
 export function useSearch(
@@ -62,6 +37,7 @@ export function useSearch(
     perspectiveAccountUid?: string
   } = {},
 ) {
+  const client = useUniversalClient()
   return useQuery({
     queryKey: [
       queryKeys.SEARCH,
@@ -72,8 +48,7 @@ export function useSearch(
       contextSize,
     ],
     queryFn: async () => {
-      if (!searchQuery) throw new Error('searchQuery not injected')
-      const out = await searchQuery(query, {
+      const out = await client.loadSearch(query, {
         perspectiveAccountUid: perspectiveAccountUid || undefined,
         accountUid: accountUid || undefined,
         includeBody: includeBody || false,

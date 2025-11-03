@@ -1,6 +1,5 @@
 import {createComment, postCBOR} from '@/api'
 import {LocalWebIdentity, useCreateAccount} from '@/auth'
-import {injectModels} from '@/models'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {CommentEditor} from '@shm/editor/comment-editor'
 import {
@@ -40,8 +39,6 @@ import type {
   CommentPayload,
   CommentResponsePayload,
 } from './routes/hm.api.comment'
-
-injectModels()
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId

@@ -15,7 +15,9 @@ import {
   HMCommentGroup,
   HMMetadataPayload,
 } from '@shm/shared/hm-types'
-import {loadBatchAccounts} from '@shm/shared/models/entity'
+import {createBatchAccountsResolver} from '@shm/shared/models/entity'
+
+const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export type HMDiscussionPayload = {
   commentGroups: HMCommentGroup[]

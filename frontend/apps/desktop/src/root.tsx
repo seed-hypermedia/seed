@@ -40,14 +40,6 @@ import {
 import {labelOfQueryKey, queryKeys} from '@shm/shared/models/query-keys'
 import {windowContainerStyles} from '@shm/ui/container'
 import {cn} from '@shm/ui/utils'
-import * as entities from './models/entities'
-import * as recents from './models/recents'
-import * as search from './models/search'
-
-// reference this to ensure dependency injection happens before the injected queries are used
-search
-entities
-recents
 
 const logger = {
   log: wrapLogger(console.log),

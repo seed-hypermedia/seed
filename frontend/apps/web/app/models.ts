@@ -1,25 +1,10 @@
 import {
   HMCitationsPayload,
-  HMMetadataPayload,
-  HMMetadataPayloadSchema,
-  HMResource,
   packHmId,
   queryKeys,
-  setSearchQuery,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {
-  createBatchAccountsResolver,
-  setAccountQuery,
-  setBatchAccountQuery,
-  setResourceQuery,
-} from '@shm/shared/models/entity'
-import {setDeleteRecents, setRecentsQuery} from '@shm/shared/models/recents'
-import {SearchPayload} from '@shm/shared/models/search'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {serverOnly$} from 'vite-env-only/macros'
-import {grpcClient} from './client.server'
-import {deleteRecent, getRecents} from './local-db-recents'
 import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
@@ -86,42 +71,6 @@ export function useActivity(
   return response
 }
 
-export function searchQuery(
-  input: string,
-  {
-    accountUid,
-    includeBody,
-    contextSize,
-    perspectiveAccountUid,
-  }: {
-    accountUid?: string
-    includeBody?: boolean
-    contextSize?: number
-    perspectiveAccountUid?: string
-  } = {},
-) {
-  const url = `/hm/api/search?q=${input}&a=${
-    accountUid || ''
-  }&b=${includeBody}&c=${contextSize}&d=${perspectiveAccountUid || ''}`
-  return queryAPI<SearchPayload>(url)
-}
-
-async function accountQuery(accountUid: string) {
-  const response = await queryAPI<HMMetadataPayload>(
-    `/hm/api/account/${accountUid}`,
-  )
-  return HMMetadataPayloadSchema.parse(response)
-}
-
-// The batchAccountQuery has to be this weird because this file mixes client-side and server-side concerns,
-// and dev builds with Vite are not happy about it. The batchAccountQuery is only used on the server,
-// so here we use a dynamic import to avoid loading the grpc stuff on the client.
-//
-// TODO: all of this would be so much easier to reason about if it was all passed down explicitly as parameters to the relevant pieces of code,
-// without globals, singletons, and confusing injectModels() calls. Dependency Injection FTW.
-
-const batchAccountQuery = serverOnly$(createBatchAccountsResolver(grpcClient))
-
 export function useCitations(
   id: UnpackedHypermediaId,
   opts: {enabled?: boolean} = {},
@@ -146,31 +95,4 @@ export function useInteractionSummary(
     },
   )
   return response
-}
-
-export function resourceQuery(id: UnpackedHypermediaId): Promise<HMResource> {
-  const queryString = new URLSearchParams({
-    v: id?.version || '',
-    l: id?.latest ? 'true' : '',
-  }).toString()
-  const url = `/hm/api/resource/${id?.uid}${
-    id?.path ? `/${id.path.join('/')}` : ''
-  }?${queryString}`
-  return queryAPI<HMResource>(url)
-}
-
-export function injectModels() {
-  console.log('INJECTING MODELS')
-  setSearchQuery(searchQuery)
-  setResourceQuery(resourceQuery)
-  setRecentsQuery(getRecents)
-  setDeleteRecents(deleteRecent)
-  setAccountQuery(accountQuery)
-
-  // This needs to be conditional because we only load this on the server.
-  // We do this to prevent the grpc stuff leaking into the dev client builds,
-  // as Vite is not being too smart about it.
-  if (batchAccountQuery) {
-    setBatchAccountQuery(batchAccountQuery)
-  }
 }

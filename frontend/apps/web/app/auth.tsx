@@ -1,4 +1,3 @@
-import {injectModels} from '@/models'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {
@@ -55,8 +54,6 @@ import {
 } from './local-db'
 import type {CreateAccountPayload} from './routes/hm.api.create-account'
 import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
-
-injectModels()
 
 let AccountWithImage: boolean = false
 
