@@ -11,7 +11,11 @@ import {
 } from '@/models/documents'
 import {useSubscribedResource} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
-import {getDraftNodesOutline, UnpackedHypermediaId} from '@shm/shared'
+import {
+  getDraftNodesOutline,
+  getNodesOutline,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -122,23 +126,31 @@ export function DocNavigationDraftLoader({
   const document =
     entity.data?.type === 'document' ? entity.data.document : undefined
 
-  if (!document) return null
-
   const siteList = useListSite(id)
   const siteListQuery =
     siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
   const embeds = useDocumentEmbeds(document)
 
-  const outline = useMemo(() => {
+  // Use draft outline if draft has content, otherwise fallback to document outline
+  const draftOutline = useMemo(() => {
     if (!draft?.content) return []
     return getDraftNodesOutline(draft.content, id, embeds)
   }, [id, draft, embeds])
 
-  if (!siteListQuery || !metadata) return null
+  // Generate document outline as fallback
+  const documentOutline = useMemo(() => {
+    if (!document?.content || !id || !embeds) return []
+    return getNodesOutline(document.content, id, embeds)
+  }, [document, id, embeds])
+
+  // Use draft outline if available, otherwise use document outline
+  const outline = draftOutline.length > 0 ? draftOutline : documentOutline
+
+  if (!document || !siteListQuery || !metadata) return null
 
   return (
     <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
-      {draft && id ? (
+      {id && outline.length > 0 ? (
         <DraftOutline
           outline={outline}
           onActivateBlock={(blockId: string) => {
