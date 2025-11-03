@@ -576,9 +576,17 @@ export function createAppWindow(
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     browserWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
   } else {
-    browserWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    )
+    // Use local server to avoid file:// CORS restrictions with iframes
+    const serverPort = (global as any).localServerPort
+    if (serverPort) {
+      browserWindow.loadURL(`http://127.0.0.1:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
+    } else {
+      // Fallback to file:// if server not available (embeds won't work)
+      browserWindow.loadFile(
+        path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+      )
+      warn('[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work')
+    }
   }
 
   return browserWindow

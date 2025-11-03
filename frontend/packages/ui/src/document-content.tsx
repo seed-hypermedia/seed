@@ -1421,11 +1421,15 @@ function BlockContentVideo({
               />
             </video>
           ) : (
-            <iframe
-              className={cn('absolute top-0 left-0 h-full w-full')}
-              src={getVideoIframeSrc(block.link)}
-              allowFullScreen
-            />
+            <>
+              <iframe
+                className={cn('absolute top-0 left-0 h-full w-full')}
+                src={getVideoIframeSrc(block.link)}
+                allowFullScreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </>
           )}
         </div>
       ) : (

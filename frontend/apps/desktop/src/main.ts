@@ -56,13 +56,14 @@ import {
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import * as logger from './logger'
+import {startLocalServer, stopLocalServer} from './local-server'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
 import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
-import {initDrafts} from './app-drafts'
 import {initCommentDrafts} from './app-comments'
+import {initDrafts} from './app-drafts'
 import {
   getOnboardingState,
   setInitialAccountIdCount,
@@ -123,21 +124,41 @@ if (!gotTheLock) {
   app.quit()
 }
 
+
 app.on('will-finish-launching', () => {
   app.on('open-url', (_event, url) => handleUrlOpen(url))
   logger.info(`[APP-EVENT]: will-finish-launching`)
 })
 
-app.whenReady().then(() => {
+app.on('before-quit', () => {
+  // Stop local server when app quits
+  stopLocalServer()
+})
+
+app.whenReady().then(async () => {
   logger.debug('[MAIN]: Seed ready')
 
-  // Configure session for YouTube embeds
+  // Start local server in production to avoid file:// protocol issues with iframes
+  if (IS_PROD_DESKTOP && !MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    try {
+      const staticPath = path.join(__dirname, '../renderer')
+      const port = await startLocalServer(staticPath)
+      ;(global as any).localServerPort = port
+      logger.info(`[MAIN]: Local server started on port ${port}`)
+    } catch (err) {
+      logger.error('[MAIN]: Failed to start local server:', err)
+    }
+  }
+
+  // Remove X-Frame-Options header to allow embeds
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = details.responseHeaders || {}
 
-    // Remove X-Frame-Options header to allow YouTube embeds
-    delete responseHeaders['X-Frame-Options']
-    delete responseHeaders['x-frame-options']
+    // Remove X-Frame-Options from our app responses to allow embeds
+    if (details.url.includes('localhost') || details.url.includes('127.0.0.1')) {
+      delete responseHeaders['X-Frame-Options']
+      delete responseHeaders['x-frame-options']
+    }
 
     callback({
       responseHeaders,

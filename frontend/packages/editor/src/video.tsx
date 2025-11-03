@@ -20,6 +20,15 @@ export const getSourceType = (name: string) => {
     : undefined
 }
 
+function getVideoIframeSrc(link: string) {
+  const url = new URL(link)
+  if (url.host.includes('youtube.com')) {
+    url.searchParams.set('rel', '0')
+    return url.toString()
+  }
+  return link
+}
+
 export const VideoBlock = createReactBlockSpec({
   type: 'video',
   propSchema: {
@@ -343,7 +352,7 @@ const display = ({
             />
             <p>Error with the video file.</p>
           </video>
-        ) : (
+        ) : block.props.url ? (
           <iframe
             contentEditable={false}
             className={cn(
@@ -351,11 +360,12 @@ const display = ({
               !editor.isEditable && 'pointer-events-auto',
               editor.isEditable && 'pointer-events-none',
             )}
-            src={block.props.url}
+            src={getVideoIframeSrc(block.props.url)}
             allowFullScreen
-            allow="clipboard-write; encrypted-media; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
           />
-        )}
+        ) : null}
       </div>
     </MediaContainer>
   )
