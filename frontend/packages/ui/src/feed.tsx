@@ -1,10 +1,5 @@
-import {HMContactItem} from '@shm/shared/account-utils'
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
-import {
-  HMBlockNode,
-  HMTimestamp,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {
   HMListEventsRequest,
   LoadedCommentEvent,
@@ -15,14 +10,9 @@ import {NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {
-  AnyTimestamp,
-  formattedDateShort,
-  normalizeDate,
-} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
-import {memo, useEffect, useRef} from 'react'
+import {useEffect, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {Button} from './button'
@@ -32,6 +22,7 @@ import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
+import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {ResourceToken} from './resource-token'
@@ -64,7 +55,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   const resource = useResource(sourceId)
 
   if (resource.isLoading) {
-    return <div className="text-muted-foreground text-xs">Loading block...</div>
+    return <div className="text-xs text-muted-foreground">Loading block...</div>
   }
 
   if (resource.error || !resource.data) {
@@ -122,54 +113,6 @@ export function EventDescriptionText({children}: {children: React.ReactNode}) {
       {children}
     </SizableText>
   )
-}
-
-export const EventTimestamp = memo(function EventTimestamp({
-  time,
-}: {
-  time: HMTimestamp | undefined
-}) {
-  if (!time) return null
-
-  const date = normalizeDate(time)
-
-  if (!date) return null
-
-  return (
-    <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
-      <EventTimestampWithTooltip time={time} />
-    </SizableText>
-  )
-})
-
-const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({
-  time,
-}: {
-  time: AnyTimestamp
-}) {
-  if (!time) return null
-
-  const date = normalizeDate(time)
-
-  if (!date) return null
-
-  return (
-    <Tooltip side="top" delay={400} content={formatUTC(date)}>
-      {formattedDateShort(time)}
-    </Tooltip>
-  )
-})
-
-function formatUTC(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-
-  const year = date.getUTCFullYear()
-  const month = pad(date.getUTCMonth() + 1) // Months are 0-based.
-  const day = pad(date.getUTCDate())
-  const hours = pad(date.getUTCHours())
-  const minutes = pad(date.getUTCMinutes())
-
-  return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
 function getEventRoute(event: LoadedEvent): NavRoute | null {
@@ -283,11 +226,11 @@ function EventItem({
   return (
     <div
       className={cn(
-        'group flex flex-col gap-2 rounded-lg p-2 transition-colors',
+        'flex flex-col gap-2 p-2 rounded-lg transition-colors group',
       )}
       {...(route ? linkProps : {})}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex gap-2 items-start">
         <div className="size-[24px]">
           {event.author?.id ? (
             <HMIcon
@@ -304,12 +247,13 @@ function EventItem({
           currentAccount={currentAccount}
           targetDomain={targetDomain}
           isSingleResource={isSingleResource}
+          route={route}
         />
       </div>
       {isSingleResource && event.type == 'doc-update' ? null : (
-        <div className="relative flex gap-2">
+        <div className="flex relative gap-2">
           <div className={cn('w-[24px]')} />
-          <div className="flex flex-1 flex-col gap-3">
+          <div className="flex flex-col flex-1 gap-3">
             <EventContent isSingleResource={isSingleResource} event={event} />
             {event.type == 'comment' ||
             (event.type == 'citation' && event.comment) ? (
@@ -416,14 +360,14 @@ export function Feed({
 
   if (error) {
     return (
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex overflow-hidden flex-col flex-1">
         <p>Feed error. try again</p>
       </div>
     )
   }
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-3">
+      <div className="flex justify-center items-center p-3">
         <Spinner />
       </div>
     )
@@ -431,9 +375,9 @@ export function Feed({
 
   if (error) {
     return (
-      <div className="m-4 flex flex-col items-center justify-center gap-2 p-3">
+      <div className="flex flex-col gap-2 justify-center items-center p-3 m-4">
         <CircleAlert className="text-muted-foreground size-7" />
-        <p className="text-muted-foreground text-sm">Error Loading Feed</p>
+        <p className="text-sm text-muted-foreground">Error Loading Feed</p>
         <Button
           size="sm"
           variant="default"
@@ -448,7 +392,7 @@ export function Feed({
 
   return (
     <AccessoryContent header={commentEditor}>
-      <div className="mt-4 flex flex-col gap-5">
+      <div className="flex flex-col gap-5 mt-4">
         {allEvents.map((e) => {
           const route = getEventRoute(e)
 
@@ -488,12 +432,12 @@ export function Feed({
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
       {isFetchingNextPage && (
-        <div className="text-muted-foreground py-3 text-center">
+        <div className="py-3 text-center text-muted-foreground">
           Loading more...
         </div>
       )}
       {!hasNextPage && allEvents.length > 0 && (
-        <div className="text-muted-foreground py-3 text-center">
+        <div className="py-3 text-center text-muted-foreground">
           No more events
         </div>
       )}
@@ -507,12 +451,14 @@ function EventHeaderContent({
   currentAccount,
   targetDomain,
   isSingleResource,
+  route,
 }: {
   event: LoadedEvent
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
+  route?: NavRoute | null
 }) {
   const tx = useTxString()
   const getUrl = useResourceUrl(targetDomain)
@@ -535,30 +481,26 @@ function EventHeaderContent({
     }
 
     return (
-      <div className="flex w-full items-start justify-between gap-2">
-        <p className="flex-1 overflow-hidden">
-          <EventAuthorName author={event.author} />{' '}
+      <div className="flex gap-2 justify-between items-start w-full">
+        <InlineDescriptor>
+          <AuthorNameLink author={event.author} />{' '}
           {!isSingleResource ? (
             <>
-              <span className="text-muted-foreground text-sm">
-                commented on
-              </span>{' '}
+              <span>commented on</span>{' '}
               <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
                 {event.target?.metadata?.name}
               </a>{' '}
             </>
           ) : null}
-          <span className="text-muted-foreground ml-0.5 flex-none text-xs">
-            <EventTimestampWithTooltip time={event.time} />
-          </span>
-        </p>
+          <Timestamp time={event.time} route={route} />
+        </InlineDescriptor>
         {event.comment && (
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 items-center">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                className="transition-opacity duration-200 ease-in-out text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -574,7 +516,7 @@ function EventHeaderContent({
               <OptionsDropdown
                 side="bottom"
                 align="end"
-                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                 menuItems={options}
               />
             )}
@@ -586,12 +528,11 @@ function EventHeaderContent({
 
   if (event.type == 'capability') {
     return (
-      <p>
-        <EventAuthorName author={event.author} />{' '}
-        <span className="text-muted-foreground text-sm">added</span>{' '}
+      <InlineDescriptor>
+        <AuthorNameLink author={event.author} /> <span>added</span>{' '}
         {event.delegates[0]?.id ? (
           <HMIcon
-            className="mx-1 mb-1 inline-block align-middle"
+            className="inline-block mx-1 mb-1 align-middle"
             id={event.delegates[0]?.id}
             size={18}
             icon={event.delegates[0]?.metadata?.icon}
@@ -604,30 +545,28 @@ function EventHeaderContent({
         </a>{' '}
         {!isSingleResource ? (
           <>
-            <span className="text-muted-foreground text-sm">as Writer in</span>{' '}
+            <span>as Writer in</span>{' '}
             <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
               {event.target?.metadata?.name}
             </a>{' '}
           </>
         ) : (
           <>
-            <span className="text-muted-foreground text-sm">as a Writer</span>{' '}
+            <span>as a Writer</span>{' '}
           </>
         )}
-        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
-          <EventTimestampWithTooltip time={event.time} />
-        </span>
-      </p>
+        <Timestamp time={event.time} route={route} />
+      </InlineDescriptor>
     )
   }
 
   if (event.type == 'doc-update') {
     return (
-      <p>
-        <EventAuthorName author={event.author} />{' '}
+      <InlineDescriptor>
+        <AuthorNameLink author={event.author} />{' '}
         {!isSingleResource ? (
           <>
-            <span className="text-muted-foreground text-sm">
+            <span>
               {/* TODO: check if this is the correct way of getting the first ref update of a document */}
               {event.document.version == event.document.genesis
                 ? 'created'
@@ -639,7 +578,7 @@ function EventHeaderContent({
           </>
         ) : (
           <>
-            <span className="text-muted-foreground text-sm">
+            <span>
               {/* TODO: check if this is the correct way of getting the first ref update of a document */}
               {event.document.version == event.document.genesis
                 ? 'created the document'
@@ -647,21 +586,18 @@ function EventHeaderContent({
             </span>{' '}
           </>
         )}
-        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
-          <EventTimestampWithTooltip time={event.time} />
-        </span>
-      </p>
+        <Timestamp time={event.time} route={route} />
+      </InlineDescriptor>
     )
   }
 
   if (event.type == 'contact') {
     return (
-      <p>
-        <EventAuthorName author={event.author} />{' '}
-        <span className="text-muted-foreground text-sm">added</span>{' '}
+      <InlineDescriptor>
+        <AuthorNameLink author={event.author} /> <span>added</span>{' '}
         {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
           <HMIcon
-            className="mx-1 mb-1 inline-block align-middle"
+            className="inline-block mx-1 mb-1 align-middle"
             id={event.contact.subject.id}
             size={18}
             icon={event.contact.subject.metadata.icon}
@@ -671,14 +607,12 @@ function EventHeaderContent({
         <a className="text-sm font-bold">
           {event.contact.subject?.metadata?.name}
         </a>{' '}
-        <span className="text-muted-foreground text-sm">as</span>{' '}
+        <span>as</span>{' '}
         <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.contact.name}
         </span>{' '}
-        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
-          <EventTimestampWithTooltip time={event.time} />
-        </span>
-      </p>
+        <Timestamp time={event.time} route={route} />
+      </InlineDescriptor>
     )
   }
 
@@ -687,11 +621,9 @@ function EventHeaderContent({
     const sourceName = event.source?.metadata?.name || 'a document'
 
     return (
-      <p>
-        <EventAuthorName author={event.author} />{' '}
-        <span className="text-muted-foreground text-sm">
-          {event.citationType === 'c' ? 'mentioned' : 'cited'}
-        </span>{' '}
+      <InlineDescriptor>
+        <AuthorNameLink author={event.author} />{' '}
+        <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
         {!isSingleResource ? (
           <>
             <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
@@ -700,19 +632,15 @@ function EventHeaderContent({
           </>
         ) : (
           <>
-            <span className="text-muted-foreground text-sm">this document</span>{' '}
+            <span>this document</span>{' '}
           </>
         )}
-        <span className="text-muted-foreground text-sm">
-          {event.citationType === 'c' ? 'in a comment on' : 'in'}
-        </span>{' '}
+        <span>{event.citationType === 'c' ? 'in a comment on' : 'in'}</span>{' '}
         <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {sourceName}
         </a>{' '}
-        <span className="text-muted-foreground ml-0.5 flex-none text-xs">
-          <EventTimestampWithTooltip time={event.time} />
-        </span>
-      </p>
+        <Timestamp time={event.time} route={route} />
+      </InlineDescriptor>
     )
   }
 
@@ -722,18 +650,6 @@ function EventHeaderContent({
   )
 
   return null
-}
-
-function EventAuthorName({author}: {author: HMContactItem | null}) {
-  const authorName = author?.metadata?.name || 'Someone'
-  const linkProps = useRouteLink(
-    author?.id ? {key: 'profile', id: author.id} : null,
-  )
-  return (
-    <a className="inline text-sm font-bold" {...linkProps}>
-      {authorName}
-    </a>
-  )
 }
 
 function EventContent({
@@ -768,7 +684,7 @@ function EventContent({
       // If we have a blockRef, render the actual block content
       if (event.source.id.blockRef) {
         return (
-          <div className="-ml-3 flex flex-col gap-2">
+          <div className="flex flex-col gap-2 -ml-3">
             <CitationSourceBlock sourceId={event.source.id} />
           </div>
         )
@@ -778,7 +694,7 @@ function EventContent({
       return (
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               Source Document:
             </span>
             <div className="text-sm">
@@ -789,7 +705,7 @@ function EventContent({
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-xs">
+            <span className="text-xs text-muted-foreground">
               Target Document:
             </span>
             <div className="text-sm">
@@ -798,7 +714,7 @@ function EventContent({
                 metadata={event.target.metadata}
               />
               {event.targetFragment && (
-                <span className="text-muted-foreground ml-1 text-xs">
+                <span className="ml-1 text-xs text-muted-foreground">
                   (Block: {event.targetFragment})
                 </span>
               )}
@@ -869,7 +785,7 @@ function EventCommentWithReply({
   return (
     <div
       key={`${event.type}-${event.id}-${event.time}`}
-      className={cn('rounded-lg p-2 transition-colors')}
+      className={cn('p-2 rounded-lg transition-colors')}
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
@@ -879,7 +795,7 @@ function EventCommentWithReply({
           'before:border-border relative before:absolute before:top-[9px] before:left-[12px] before:h-[calc(100%-10px)] before:w-[16px] before:rounded-tl-lg before:border-t-1 before:border-l-1',
         )}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex gap-2 items-start">
           <div className={cn('h-[18px] w-[24px]')} />
           <div className="size-[18px]">
             {event.replyParentAuthor?.id ? (
@@ -891,16 +807,16 @@ function EventCommentWithReply({
               />
             ) : null}
           </div>
-          <div className="group flex w-full items-start justify-between gap-2">
+          <div className="flex gap-2 justify-between items-start w-full group">
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
-              <EventAuthorName author={event.replyParentAuthor} />{' '}
+              <AuthorNameLink author={event.replyParentAuthor} />{' '}
               <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
-                <EventTimestampWithTooltip time={event.time} />
+                <Timestamp time={event.time} />
               </span>
             </p>
           </div>
         </div>
-        <div className="relative flex gap-2">
+        <div className="flex relative gap-2">
           <div className={cn('w-[50px]')} />
 
           <div className="flex-1 pb-6">
@@ -915,7 +831,7 @@ function EventCommentWithReply({
         </div>
       </div>
 
-      <div className="flex items-start gap-2">
+      <div className="flex gap-2 items-start">
         <div className="size-[24px]">
           {event.author?.id ? (
             <HMIcon
@@ -932,11 +848,12 @@ function EventCommentWithReply({
           onCommentDelete={onCommentDelete}
           currentAccount={currentAccount}
           targetDomain={targetDomain}
+          route={route}
         />
       </div>
-      <div className="relative flex gap-2">
+      <div className="flex relative gap-2">
         <div className={cn('w-[24px]')} />
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-col flex-1 gap-3">
           <EventContent event={event} />
           <div className="-ml-3">
             <Button

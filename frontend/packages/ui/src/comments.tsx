@@ -3,7 +3,6 @@ import {
   AlertDialogTitle,
 } from '@radix-ui/react-alert-dialog'
 import {
-  formattedDateShort,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -12,6 +11,7 @@ import {
   hmId,
   HMMetadata,
   HMMetadataPayload,
+  NavRoute,
   UnpackedHypermediaId,
   useCommentGroups,
   useCommentParents,
@@ -41,6 +41,7 @@ import {
 } from './document-content'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
+import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -92,7 +93,7 @@ export function CommentDiscussions({
     return (
       <AccessoryContent>
         <AccessoryBackButton onClick={onBack} />
-        <div className="flex flex-col items-center gap-2 p-4">
+        <div className="flex flex-col gap-2 items-center p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
           </SizableText>
@@ -105,7 +106,7 @@ export function CommentDiscussions({
     return (
       <AccessoryContent>
         <AccessoryBackButton onClick={onBack} />
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       </AccessoryContent>
@@ -117,7 +118,7 @@ export function CommentDiscussions({
     return (
       <AccessoryContent>
         <AccessoryBackButton onClick={onBack} />
-        <div className="flex flex-col items-center gap-2 p-4">
+        <div className="flex flex-col gap-2 items-center p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
           </SizableText>
@@ -149,9 +150,9 @@ export function CommentDiscussions({
           <EmptyDiscussions emptyReplies />
         )
       ) : null}
-      <div className="border-border relative max-h-1/2 border-b py-4">
+      <div className="relative py-4 border-b border-border max-h-1/2">
         <div
-          className="bg-border absolute w-px"
+          className="absolute w-px bg-border"
           style={{
             height: 40,
             top: -16,
@@ -164,7 +165,7 @@ export function CommentDiscussions({
       {commentGroupReplies.data?.length > 0 ? (
         commentGroupReplies.data.map((cg) => {
           return (
-            <div key={cg.id} className={cn('border-border border-b p-2')}>
+            <div key={cg.id} className={cn('p-2 border-b border-border')}>
               <CommentGroup
                 key={cg.id}
                 commentGroup={cg}
@@ -208,13 +209,13 @@ export function Discussions({
 
   if (discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
   } else if (discussionsService.error) {
     panelContent = (
-      <div className="flex flex-col items-center gap-2 p-4">
+      <div className="flex flex-col gap-2 items-center p-4">
         <SizableText color="muted" size="sm">
           Failed to load discussions
         </SizableText>
@@ -226,7 +227,7 @@ export function Discussions({
         <>
           {discussionsService.data.discussions?.map((cg) => {
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
+              <div key={cg.id} className={cn('border-b border-border')}>
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
@@ -241,7 +242,7 @@ export function Discussions({
           })}
           {discussionsService.data.citingDiscussions?.map((cg) => {
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
+              <div key={cg.id} className={cn('border-b border-border')}>
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
@@ -302,7 +303,7 @@ export function BlockDiscussions({
     )
   } else if (doc.isInitialLoading) {
     quotedContent = (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -310,13 +311,13 @@ export function BlockDiscussions({
 
   if (commentsService.isLoading && !commentsService.data) {
     panelContent = (
-      <div className="flex items-center justify-center py-4">
+      <div className="flex justify-center items-center py-4">
         <Spinner />
       </div>
     )
   } else if (commentsService.error) {
     panelContent = (
-      <div className="flex flex-col items-center gap-2 p-4">
+      <div className="flex flex-col gap-2 items-center p-4">
         <SizableText color="muted" size="sm">
           Failed to load block discussions
         </SizableText>
@@ -331,7 +332,7 @@ export function BlockDiscussions({
       <>
         {commentsService.data.comments.map((comment) => {
           return (
-            <div key={comment.id} className={cn('border-border border-b p-2')}>
+            <div key={comment.id} className={cn('p-2 border-b border-border')}>
               <Comment
                 isFirst
                 isLast
@@ -358,7 +359,7 @@ export function BlockDiscussions({
       <AccessoryBackButton onClick={onBack} />
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
-      <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
+      <div className="pt-2 mt-2 border-t border-border">{panelContent}</div>
     </AccessoryContent>
   )
 }
@@ -387,7 +388,7 @@ export function CommentGroup({
   const firstComment = commentGroup.comments[0]
 
   return (
-    <div className="relative flex flex-col gap-2 p-2">
+    <div className="flex relative flex-col gap-2 p-2">
       {/* {commentGroup.comments.length > 1 && (
         <div
           className="absolute w-px bg-border"
@@ -532,13 +533,13 @@ export function Comment({
         <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
           {!isFirst ? (
             <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />
-          ) : null}
+          ) : null}{' '}
           <div
             className={cn(
-              'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
+              'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
               highlight
                 ? 'outline-secondary hover:outline-secondary'
-                : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
+                : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
             )}
             {...authorLink}
           />
@@ -552,46 +553,43 @@ export function Comment({
               />
             </div>
           )}
-          {!isLast ? <div className="bg-border h-full w-px" /> : null}
+          {!isLast ? <div className="w-px h-full bg-border" /> : null}
         </div>
       )}
 
-      <div className="flex w-full flex-1 flex-col gap-1">
+      <div className="flex flex-col flex-1 gap-1 w-full">
         {heading ? (
           <div className="inline">{heading}</div>
         ) : (
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+          <div className="flex overflow-hidden gap-2 justify-between items-center pr-2 group">
             {heading ? null : (
-              <div className="flex items-baseline gap-1 overflow-hidden">
-                <a
-                  className={cn(
-                    'hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors',
-                    authorLink ? 'cursor-pointer' : '',
-                  )}
-                  {...authorLink}
-                >
-                  {authorMetadata?.name || authorId?.slice(0, 10) || '...'}
-                </a>
+              <InlineDescriptor>
+                <AuthorNameLink
+                  author={{
+                    id: authorHmId,
+                    metadata: authorMetadata ?? undefined,
+                  }}
+                />{' '}
                 {externalTarget ? (
                   <>
-                    <span className="text-muted-foreground text-xs">on</span>
+                    <span>on</span>{' '}
                     <button
                       {...externalTargetLink}
-                      className="hover:bg-accent h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                      className="px-1 h-5 text-sm font-bold truncate rounded transition-colors hover:bg-accent text-foreground"
                     >
                       {externalTarget.metadata?.name}
                     </button>
                   </>
                 ) : null}
                 <CommentDate comment={comment} />
-              </div>
+              </InlineDescriptor>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2 items-center">
               <Tooltip content={tx('Copy Comment Link')}>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  className="transition-opacity duration-200 ease-in-out text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                   onClick={() => {
                     const url = getUrl(hmId(comment.id))
                     copyTextToClipboard(url)
@@ -605,7 +603,7 @@ export function Comment({
                 <OptionsDropdown
                   side="bottom"
                   align="end"
-                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                  className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                   menuItems={options}
                 />
               ) : null}
@@ -684,22 +682,15 @@ export function CommentContent({
 
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
-  const link = useRouteLink({
+  const destRoute: NavRoute = {
     key: 'document',
     id: targetId!,
     accessory: {
       key: 'discussions',
       openComment: comment.id,
     },
-  })
-  return (
-    <a
-      className="text-muted-foreground hover:text-muted-foreground truncate rounded text-xs underline"
-      {...link}
-    >
-      {formattedDateShort(comment.createTime)}
-    </a>
-  )
+  }
+  return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
 export function QuotedDocBlock({
@@ -716,8 +707,8 @@ export function QuotedDocBlock({
   }, [doc.content, blockId])
 
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
+    <div className="rounded-lg bg-brand-50 dark:bg-brand-950">
+      <div className="flex relative gap-1 p-2 rounded-lg transition-all duration-200 ease-in-out">
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>
@@ -775,8 +766,8 @@ export function EmptyDiscussions({
 }) {
   const tx = useTxString()
   return (
-    <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquare className="size-25 text-gray-200" size={48} />
+    <div className="flex flex-col gap-4 items-center py-4">
+      <MessageSquare className="text-gray-200 size-25" size={48} />
       <SizableText size="md">
         {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
       </SizableText>

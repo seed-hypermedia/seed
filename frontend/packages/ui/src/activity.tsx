@@ -1,25 +1,16 @@
 import {
   formattedDate,
-  formattedDateMedium,
   getMetadataName,
   HMAccountsMetadata,
   HMActivitySummary,
-  HMChangeGroup,
-  HMChangeSummary,
   HMComment,
   hmId,
   HMLibraryDocument,
-  HMMetadataPayload,
   normalizeDate,
   plainTextOfContent,
-  UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {ChevronDown} from 'lucide-react'
-import {useState} from 'react'
 import {Button} from './button'
-import {ChangeItem} from './change-item'
-import {HMIcon} from './hm-icon'
 import {Version} from './icons'
 import {SizableText} from './text'
 import {cn} from './utils'
@@ -44,7 +35,7 @@ export function SubDocumentItem({
   const isRead = markedAsRead || !item.activitySummary?.isUnread
   const linkProps = useRouteLink({key: 'document', id})
   return (
-    <Button className={cn('h-auto items-start justify-start')} {...linkProps}>
+    <Button className={cn('justify-start items-start h-auto')} {...linkProps}>
       {!hideIcon && (
         <div
           className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
@@ -52,10 +43,10 @@ export function SubDocumentItem({
           <Version size={16} color="white" />
         </div>
       )}
-      <div className="flex w-full flex-1 flex-col justify-start">
+      <div className="flex flex-col flex-1 justify-start w-full">
         <SizableText
           weight={isRead ? 'normal' : 'bold'}
-          className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"
+          className="overflow-hidden flex-1 text-left truncate whitespace-nowrap"
         >
           {getMetadataName(metadata)}
         </SizableText>
@@ -104,11 +95,11 @@ export function LibraryEntryUpdateSummary({
     }
   }
   return (
-    <div className="flex items-center justify-start gap-2">
+    <div className="flex gap-2 justify-start items-center">
       <SizableText
         size="xs"
         color="muted"
-        className="line-clamp-1 font-sans"
+        className="font-sans line-clamp-1"
         weight="light"
       >
         {summaryText}
@@ -136,7 +127,7 @@ export function ActivityTime({
       <SizableText
         size="xs"
         color="muted"
-        className="line-clamp-1 shrink-0 opacity-80"
+        className="opacity-80 line-clamp-1 shrink-0"
         weight="light"
       >
         ({formattedDate(displayTime)})
@@ -144,102 +135,4 @@ export function ActivityTime({
     )
   }
   return null
-}
-
-export function ChangeGroup({
-  item,
-  docId,
-  latestDocChanges,
-  activeChangeIds,
-  author,
-}: {
-  item: HMChangeGroup
-  docId: UnpackedHypermediaId
-  latestDocChanges: Set<string>
-  activeChangeIds: Set<string> | null
-  author: HMMetadataPayload
-}) {
-  const [isCollapsed, setIsCollapsed] = useState(true)
-  if (!isCollapsed || item.changes.length <= 1) {
-    return item.changes.map((change: HMChangeSummary) => {
-      const isActive = activeChangeIds?.has(change.id) || false
-      return (
-        <ChangeItem
-          key={change.id}
-          change={change}
-          isActive={isActive}
-          isLast={true}
-          isCurrent={latestDocChanges.has(item.id)}
-          docId={docId}
-          author={author}
-        />
-      )
-    })
-  }
-  return (
-    <ExpandChangeGroupButton
-      item={item}
-      onExpand={() => setIsCollapsed(false)}
-      author={author}
-    />
-  )
-}
-
-function ExpandChangeGroupButton({
-  item,
-  onExpand,
-  author,
-}: {
-  item: HMChangeGroup
-  onExpand: () => void
-  author: HMMetadataPayload
-}) {
-  return (
-    <Button
-      variant="outline"
-      onClick={onExpand}
-      className="relative h-auto w-full items-start justify-start"
-      key={item.id}
-    >
-      <div
-        className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
-      >
-        <Version size={16} color="white" />
-      </div>
-      <HMIcon
-        size={iconSize}
-        id={author.id}
-        name={author.metadata?.name}
-        icon={author.metadata?.icon}
-      />
-      <div className="flex flex-1 flex-col justify-start">
-        <p className="h-[${iconSize}px] flex w-full items-center justify-start gap-2 overflow-hidden">
-          <SizableText
-            size="sm"
-            className="shrink truncate overflow-hidden whitespace-nowrap"
-          >
-            {getMetadataName(author.metadata)}
-          </SizableText>
-
-          <SizableText
-            size="sm"
-            weight="bold"
-            className="flex-1 shrink-0 text-left"
-          >
-            {item.changes.length} versions
-          </SizableText>
-        </p>
-        <SizableText
-          size="xs"
-          color="muted"
-          className="shrink truncate overflow-hidden text-left whitespace-nowrap"
-        >
-          {formattedDateMedium(item.changes.at(-1)?.createTime)}
-        </SizableText>
-      </div>
-      <div className="flex h-full items-center justify-center">
-        <ChevronDown size={16} color="gray" />
-      </div>
-    </Button>
-  )
 }
