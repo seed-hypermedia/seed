@@ -197,7 +197,7 @@ export default function DownloadPage() {
       siteHost={siteHost}
     >
       <div
-        className="bg-top bg-cover"
+        className="bg-cover bg-top"
         style={{backgroundImage: `url(${downloadBg})`}}
       >
         <WebSiteHeader
@@ -212,7 +212,7 @@ export default function DownloadPage() {
         />
         <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
           <Container className="gap-4 px-6">
-            <h1 className="text-4xl font-bold text-center md:text-5xl">
+            <h1 className="text-center text-4xl font-bold md:text-5xl">
               Download Seed Hypermedia Today!
             </h1>
             <SizableText size="xl" className="text-center">
@@ -224,12 +224,12 @@ export default function DownloadPage() {
           </Container>
         </div>
         <Container>
-          <div className="flex flex-col gap-4 justify-center items-center">
+          <div className="flex flex-col items-center justify-center gap-4">
             <SizableText size="2xl" weight="bold">
               Download Seed Hypermedia {stableRelease.name}
             </SizableText>
           </div>
-          <div className="flex flex-col gap-4 justify-center items-center p-4 sm:flex-row">
+          <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
             {stableRelease.assets?.macos && (
               <PlatformItem
                 label="MacOS"
@@ -276,7 +276,7 @@ function PlatformItem({
     }))
 
   return (
-    <div className="flex flex-col gap-3 items-center p-4 w-full bg-white rounded-md border shadow-xl border-border sm:w-auto sm:min-w-3xs dark:bg-black">
+    <div className="border-border flex w-full flex-col items-center gap-3 rounded-md border bg-white p-4 shadow-xl sm:w-auto sm:min-w-3xs dark:bg-black">
       <Icon size={60} className="size-[60px]" />
       <SizableText size="lg" weight="bold">
         {label}
