@@ -146,7 +146,7 @@ app.whenReady().then(async () => {
       ;(global as any).localServerPort = port
       logger.info(`[MAIN]: Local server started on port ${port}`)
     } catch (err) {
-      logger.error('[MAIN]: Failed to start local server:', err)
+      logger.error('[MAIN]: Failed to start local server: ' + (err as Error).message)
     }
   }
 

@@ -928,7 +928,8 @@ function MobileInteractionCardCollapsed({
           e.stopPropagation()
         }}
       >
-        <a
+        <Button
+          variant="ghost"
           className="min-w-20 shrink-0 cursor-pointer"
           {...(handleAvatarClick
             ? {onClick: handleAvatarClick}
@@ -948,7 +949,7 @@ function MobileInteractionCardCollapsed({
               className="rounded-full"
             />
           )}
-        </a>
+        </Button>
 
         <Button
           variant={isFeedActive ? 'inverse' : 'ghost'}
