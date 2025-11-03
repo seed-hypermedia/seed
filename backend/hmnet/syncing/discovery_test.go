@@ -14,12 +14,12 @@ import (
 func TestLoadExternalStore(t *testing.T) {
 	t.Skip("This uses external database for local test only")
 	t.Parallel()
-	pool := loadLocalDB(t, "/home/julio/.config/Seed.bak/daemon/db/db.sqlite")
+	pool := loadLocalDB(t, "/home/julio/.config/Seed-local/daemon/db/db.sqlite")
 	store := rbsr.NewSliceStore()
 	// Create RBSR store once for reuse across all peers.
 	dKeys := colx.HashSet[discoveryKey]{
 		discoveryKey{
-			IRI: "hm://z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno/discussions/duplicated-discussion-ui",
+			IRI: "hm://z6Mkq9emq1yUBq4KSeiSH5yzgNBJSnidPVqFnTpzjCdLxB3R/tests/doc1",
 		}: {},
 	}
 	err := pool.WithSave(t.Context(), func(conn *sqlite.Conn) error {
