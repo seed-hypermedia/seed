@@ -158,7 +158,7 @@ func newSQLite(path string) (*sqlitex.Pool, error) {
 	// The minimum pool size is set a bit arbitrarily,
 	// but using a lower value has caused issues in the past
 	// with the database being locked.
-	poolSize := max(runtime.NumCPU()/2, 6)
+	poolSize := max(runtime.NumCPU()/2, 8)
 
 	// The database is owned by the store, and is closed when the store is closed.
 	db, err := OpenSQLite(path, 0, poolSize)
