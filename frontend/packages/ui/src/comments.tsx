@@ -666,6 +666,7 @@ export function CommentContent({
   if (size != 'md') {
     return (
       <DocContentProvider
+        comment
         onBlockSelect={context?.onBlockSelect ?? null}
         textUnit={12}
         layoutUnit={14}
