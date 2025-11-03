@@ -55,7 +55,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   const resource = useResource(sourceId)
 
   if (resource.isLoading) {
-    return <div className="text-xs text-muted-foreground">Loading block...</div>
+    return <div className="text-muted-foreground text-xs">Loading block...</div>
   }
 
   if (resource.error || !resource.data) {
@@ -226,11 +226,11 @@ function EventItem({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 p-2 rounded-lg transition-colors group',
+        'group flex flex-col gap-2 rounded-lg p-2 transition-colors',
       )}
       {...(route ? linkProps : {})}
     >
-      <div className="flex gap-2 items-start">
+      <div className="flex items-start gap-2">
         <div className="size-[24px]">
           {event.author?.id ? (
             <HMIcon
@@ -251,9 +251,9 @@ function EventItem({
         />
       </div>
       {isSingleResource && event.type == 'doc-update' ? null : (
-        <div className="flex relative gap-2">
+        <div className="relative flex gap-2">
           <div className={cn('w-[24px]')} />
-          <div className="flex flex-col flex-1 gap-3">
+          <div className="flex flex-1 flex-col gap-3">
             <EventContent isSingleResource={isSingleResource} event={event} />
             {event.type == 'comment' ||
             (event.type == 'citation' && event.comment) ? (
@@ -360,14 +360,14 @@ export function Feed({
 
   if (error) {
     return (
-      <div className="flex overflow-hidden flex-col flex-1">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <p>Feed error. try again</p>
       </div>
     )
   }
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-3">
+      <div className="flex items-center justify-center p-3">
         <Spinner />
       </div>
     )
@@ -375,9 +375,9 @@ export function Feed({
 
   if (error) {
     return (
-      <div className="flex flex-col gap-2 justify-center items-center p-3 m-4">
+      <div className="m-4 flex flex-col items-center justify-center gap-2 p-3">
         <CircleAlert className="text-muted-foreground size-7" />
-        <p className="text-sm text-muted-foreground">Error Loading Feed</p>
+        <p className="text-muted-foreground text-sm">Error Loading Feed</p>
         <Button
           size="sm"
           variant="default"
@@ -392,7 +392,7 @@ export function Feed({
 
   return (
     <AccessoryContent header={commentEditor}>
-      <div className="flex flex-col gap-5 mt-4">
+      <div className="mt-4 flex flex-col gap-5">
         {allEvents.map((e) => {
           const route = getEventRoute(e)
 
@@ -432,12 +432,12 @@ export function Feed({
         {!isLoading && <div className="h-20" ref={lastElementNodeRef} />}
       </div>
       {isFetchingNextPage && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           Loading more...
         </div>
       )}
       {!hasNextPage && allEvents.length > 0 && (
-        <div className="py-3 text-center text-muted-foreground">
+        <div className="text-muted-foreground py-3 text-center">
           No more events
         </div>
       )}
@@ -481,7 +481,7 @@ function EventHeaderContent({
     }
 
     return (
-      <div className="flex gap-2 justify-between items-start w-full">
+      <div className="flex w-full items-start justify-between gap-2">
         <InlineDescriptor>
           <AuthorNameLink author={event.author} />{' '}
           {!isSingleResource ? (
@@ -495,12 +495,12 @@ function EventHeaderContent({
           <Timestamp time={event.time} route={route} />
         </InlineDescriptor>
         {event.comment && (
-          <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-2">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
                 size="icon"
                 variant="ghost"
-                className="transition-opacity duration-200 ease-in-out text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -516,7 +516,7 @@ function EventHeaderContent({
               <OptionsDropdown
                 side="bottom"
                 align="end"
-                className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
+                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                 menuItems={options}
               />
             )}
@@ -532,7 +532,7 @@ function EventHeaderContent({
         <AuthorNameLink author={event.author} /> <span>added</span>{' '}
         {event.delegates[0]?.id ? (
           <HMIcon
-            className="inline-block mx-1 mb-1 align-middle"
+            className="mx-1 mb-1 inline-block align-middle"
             id={event.delegates[0]?.id}
             size={18}
             icon={event.delegates[0]?.metadata?.icon}
@@ -597,7 +597,7 @@ function EventHeaderContent({
         <AuthorNameLink author={event.author} /> <span>added</span>{' '}
         {event.contact.subject?.id && event.contact.subject.metadata?.icon ? (
           <HMIcon
-            className="inline-block mx-1 mb-1 align-middle"
+            className="mx-1 mb-1 inline-block align-middle"
             id={event.contact.subject.id}
             size={18}
             icon={event.contact.subject.metadata.icon}
@@ -684,7 +684,7 @@ function EventContent({
       // If we have a blockRef, render the actual block content
       if (event.source.id.blockRef) {
         return (
-          <div className="flex flex-col gap-2 -ml-3">
+          <div className="-ml-3 flex flex-col gap-2">
             <CitationSourceBlock sourceId={event.source.id} />
           </div>
         )
@@ -694,7 +694,7 @@ function EventContent({
       return (
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               Source Document:
             </span>
             <div className="text-sm">
@@ -705,7 +705,7 @@ function EventContent({
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               Target Document:
             </span>
             <div className="text-sm">
@@ -714,7 +714,7 @@ function EventContent({
                 metadata={event.target.metadata}
               />
               {event.targetFragment && (
-                <span className="ml-1 text-xs text-muted-foreground">
+                <span className="text-muted-foreground ml-1 text-xs">
                   (Block: {event.targetFragment})
                 </span>
               )}
@@ -785,7 +785,7 @@ function EventCommentWithReply({
   return (
     <div
       key={`${event.type}-${event.id}-${event.time}`}
-      className={cn('p-2 rounded-lg transition-colors')}
+      className={cn('rounded-lg p-2 transition-colors')}
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
@@ -795,7 +795,7 @@ function EventCommentWithReply({
           'before:border-border relative before:absolute before:top-[9px] before:left-[12px] before:h-[calc(100%-10px)] before:w-[16px] before:rounded-tl-lg before:border-t-1 before:border-l-1',
         )}
       >
-        <div className="flex gap-2 items-start">
+        <div className="flex items-start gap-2">
           <div className={cn('h-[18px] w-[24px]')} />
           <div className="size-[18px]">
             {event.replyParentAuthor?.id ? (
@@ -807,7 +807,7 @@ function EventCommentWithReply({
               />
             ) : null}
           </div>
-          <div className="flex gap-2 justify-between items-start w-full group">
+          <div className="group flex w-full items-start justify-between gap-2">
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
               <AuthorNameLink author={event.replyParentAuthor} />{' '}
               <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
@@ -816,7 +816,7 @@ function EventCommentWithReply({
             </p>
           </div>
         </div>
-        <div className="flex relative gap-2">
+        <div className="relative flex gap-2">
           <div className={cn('w-[50px]')} />
 
           <div className="flex-1 pb-6">
@@ -831,7 +831,7 @@ function EventCommentWithReply({
         </div>
       </div>
 
-      <div className="flex gap-2 items-start">
+      <div className="flex items-start gap-2">
         <div className="size-[24px]">
           {event.author?.id ? (
             <HMIcon
@@ -851,9 +851,9 @@ function EventCommentWithReply({
           route={route}
         />
       </div>
-      <div className="flex relative gap-2">
+      <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />
-        <div className="flex flex-col flex-1 gap-3">
+        <div className="flex flex-1 flex-col gap-3">
           <EventContent event={event} />
           <div className="-ml-3">
             <Button

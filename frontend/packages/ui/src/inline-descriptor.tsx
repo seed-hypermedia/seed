@@ -44,7 +44,7 @@ export function Timestamp({
 }
 
 export function InlineDescriptor({children}: {children: React.ReactNode}) {
-  return <p className="text-sm text-muted-foreground">{children}</p>
+  return <p className="text-muted-foreground text-sm">{children}</p>
 }
 
 export function AuthorNameLink({author}: {author: HMContactItem | null}) {
@@ -53,7 +53,7 @@ export function AuthorNameLink({author}: {author: HMContactItem | null}) {
     author?.id ? {key: 'profile', id: author.id} : null,
   )
   return (
-    <a className="text-sm font-bold text-foreground" {...linkProps}>
+    <a className="text-foreground text-sm font-bold" {...linkProps}>
       {authorName}
     </a>
   )

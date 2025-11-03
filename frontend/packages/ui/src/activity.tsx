@@ -35,7 +35,7 @@ export function SubDocumentItem({
   const isRead = markedAsRead || !item.activitySummary?.isUnread
   const linkProps = useRouteLink({key: 'document', id})
   return (
-    <Button className={cn('justify-start items-start h-auto')} {...linkProps}>
+    <Button className={cn('h-auto items-start justify-start')} {...linkProps}>
       {!hideIcon && (
         <div
           className={`w-[${iconSize}px] h-[${iconSize}px] items-center justify-center rounded-full bg-gray-800 p-0.5`}
@@ -43,10 +43,10 @@ export function SubDocumentItem({
           <Version size={16} color="white" />
         </div>
       )}
-      <div className="flex flex-col flex-1 justify-start w-full">
+      <div className="flex w-full flex-1 flex-col justify-start">
         <SizableText
           weight={isRead ? 'normal' : 'bold'}
-          className="overflow-hidden flex-1 text-left truncate whitespace-nowrap"
+          className="flex-1 truncate overflow-hidden text-left whitespace-nowrap"
         >
           {getMetadataName(metadata)}
         </SizableText>
@@ -95,11 +95,11 @@ export function LibraryEntryUpdateSummary({
     }
   }
   return (
-    <div className="flex gap-2 justify-start items-center">
+    <div className="flex items-center justify-start gap-2">
       <SizableText
         size="xs"
         color="muted"
-        className="font-sans line-clamp-1"
+        className="line-clamp-1 font-sans"
         weight="light"
       >
         {summaryText}
@@ -127,7 +127,7 @@ export function ActivityTime({
       <SizableText
         size="xs"
         color="muted"
-        className="opacity-80 line-clamp-1 shrink-0"
+        className="line-clamp-1 shrink-0 opacity-80"
         weight="light"
       >
         ({formattedDate(displayTime)})
