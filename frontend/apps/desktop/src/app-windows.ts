@@ -167,6 +167,10 @@ let lastFocusedWindowId: string | null = null
 
 const windowNavState: Record<string, Omit<AppWindow, 'bounds'>> = {}
 
+export function getWindowNavState() {
+  return windowNavState
+}
+
 let isExpectingQuit = false
 app.addListener('before-quit', () => {
   isExpectingQuit = true

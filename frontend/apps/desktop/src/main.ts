@@ -51,6 +51,7 @@ import {
   deleteWindowsState,
   getAllWindows,
   getFocusedWindow,
+  getWindowNavState,
   getWindowsState,
 } from './app-windows'
 import autoUpdate from './auto-update'
@@ -320,7 +321,10 @@ function initializeIpcHandlers() {
       )?.[0]
 
       if (focusedWindowId) {
-        const focusedWindowState = getWindowsState()[focusedWindowId]
+        // Use in-memory windowNavState instead of persisted windowsState
+        // to get the most current selected identity
+        const windowNavState = getWindowNavState()
+        const focusedWindowState = windowNavState[focusedWindowId]
         selectedIdentity = focusedWindowState?.selectedIdentity || null
       }
     }
