@@ -124,7 +124,6 @@ if (!gotTheLock) {
   app.quit()
 }
 
-
 app.on('will-finish-launching', () => {
   app.on('open-url', (_event, url) => handleUrlOpen(url))
   logger.info(`[APP-EVENT]: will-finish-launching`)
@@ -146,7 +145,9 @@ app.whenReady().then(async () => {
       ;(global as any).localServerPort = port
       logger.info(`[MAIN]: Local server started on port ${port}`)
     } catch (err) {
-      logger.error('[MAIN]: Failed to start local server: ' + (err as Error).message)
+      logger.error(
+        '[MAIN]: Failed to start local server: ' + (err as Error).message,
+      )
     }
   }
 
@@ -155,7 +156,10 @@ app.whenReady().then(async () => {
     const responseHeaders = details.responseHeaders || {}
 
     // Remove X-Frame-Options from our app responses to allow embeds
-    if (details.url.includes('localhost') || details.url.includes('127.0.0.1')) {
+    if (
+      details.url.includes('localhost') ||
+      details.url.includes('127.0.0.1')
+    ) {
       delete responseHeaders['X-Frame-Options']
       delete responseHeaders['x-frame-options']
     }

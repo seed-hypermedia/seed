@@ -48,7 +48,7 @@ export function startLocalServer(staticPath: string): Promise<number> {
               } else {
                 res.writeHead(200, {
                   'Content-Type': 'text/html',
-                  'Cache-Control': 'no-cache'
+                  'Cache-Control': 'no-cache',
                 })
                 res.end(indexContent)
               }
@@ -61,7 +61,7 @@ export function startLocalServer(staticPath: string): Promise<number> {
           const mimeType = mime.getType(filePath) || 'application/octet-stream'
           res.writeHead(200, {
             'Content-Type': mimeType,
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
           })
           res.end(content)
         }
