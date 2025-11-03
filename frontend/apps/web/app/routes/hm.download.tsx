@@ -49,37 +49,34 @@ const RELEASES_JSON_URL =
   'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
 
 const assetSchema = z.object({
-  download_url: z.string(),
+  download_url: z.string().optional(),
   zip_url: z.string().optional(),
+  nupkg_url: z.string().optional(),
+  release_url: z.string().optional(),
 })
+
 const releaseSchema = z.object({
   name: z.string(),
   tag_name: z.string(),
   release_notes: z.string(),
   assets: z.object({
-    macos: z
-      .object({
-        x64: assetSchema.optional(),
-        arm64: assetSchema.optional(),
-      })
-      .optional(),
-    win32: z
-      .object({
-        x64: assetSchema.optional(),
-      })
-      .optional(),
-    linux: z
-      .object({
-        rpm: assetSchema.optional(),
-        deb: assetSchema.optional(),
-        app_image: assetSchema.optional(),
-        flatpak: assetSchema.optional(),
-      })
-      .optional(),
+    macos: z.object({
+      x64: assetSchema.optional(),
+      arm64: assetSchema.optional(),
+    }),
+    win32: z.object({
+      x64: assetSchema.optional(),
+    }),
+    linux: z.object({
+      rpm: assetSchema.optional(),
+      deb: assetSchema.optional(),
+      app_image: assetSchema.optional(),
+      flatpak: assetSchema.optional(),
+    }),
   }),
 })
 
-async function loadStableRelease() {
+async function loadUpstreamRelease() {
   const response = await fetch(RELEASES_JSON_URL)
   const data = await response.json()
   return releaseSchema.parse(data)
@@ -94,11 +91,12 @@ export const loader = async ({request}: {request: Request}) => {
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid)
     throw new Error(`No registered account uid defined for ${hostname}`)
+  const stableRelease = await loadUpstreamRelease()
   return await loadSiteResource(
     parsedRequest,
     hmId(registeredAccountUid, {path: [], latest: true}),
     {
-      stableRelease: await loadStableRelease(),
+      stableRelease,
     },
   )
 }
@@ -236,36 +234,21 @@ export default function DownloadPage() {
               <PlatformItem
                 label="MacOS"
                 icon={Macos}
-                assets={Object.entries(stableRelease.assets.macos).map(
-                  ([key, value]) => ({
-                    label: key,
-                    url: value?.download_url,
-                  }),
-                )}
+                assets={stableRelease.assets.macos}
               />
             )}
             {stableRelease.assets?.win32 && (
               <PlatformItem
                 label="Windows"
                 icon={Win32}
-                assets={Object.entries(stableRelease.assets.win32).map(
-                  ([key, value]) => ({
-                    label: key,
-                    url: value?.download_url,
-                  }),
-                )}
+                assets={stableRelease.assets.win32}
               />
             )}
             {stableRelease.assets?.linux && (
               <PlatformItem
                 label="Linux"
                 icon={Linux}
-                assets={Object.entries(stableRelease.assets.linux).map(
-                  ([key, value]) => ({
-                    label: key,
-                    url: value?.download_url,
-                  }),
-                )}
+                assets={stableRelease.assets.linux}
               />
             )}
           </div>
@@ -279,15 +262,19 @@ export default function DownloadPage() {
 function PlatformItem({
   label,
   icon: Icon,
-  assets = [],
+  assets,
 }: {
   label: string
   icon: any
-  assets: Array<{
-    label: string
-    url: string
-  }>
+  assets: Record<string, z.infer<typeof assetSchema> | {} | undefined>
 }) {
+  const assetArray = Object.entries(assets)
+    .filter(([_, asset]) => asset && 'download_url' in asset)
+    .map(([key, asset]) => ({
+      label: key,
+      url: (asset as z.infer<typeof assetSchema>).download_url,
+    }))
+
   return (
     <div className="border-border flex w-full flex-col items-center gap-3 rounded-md border bg-white p-4 shadow-xl sm:w-auto sm:min-w-3xs dark:bg-black">
       <Icon size={60} className="size-[60px]" />
@@ -295,21 +282,25 @@ function PlatformItem({
         {label}
       </SizableText>
       <div className="flex gap-2">
-        {assets.map((asset) => (
-          <Button
-            variant="link"
-            className={`plausible-event-name=download plausible-event-os=${asset.url
-              .split('.')
-              .pop()}`}
-            size="sm"
-            asChild
-          >
-            <a href={asset.url} style={{textDecoration: 'none'}}>
-              <Download className="size-3" />
-              {asset.label}
-            </a>
-          </Button>
-        ))}
+        {assetArray.map(
+          (asset) =>
+            asset.url && (
+              <Button
+                key={asset.label}
+                variant="link"
+                className={`plausible-event-name=download plausible-event-os=${asset.url
+                  .split('.')
+                  .pop()}`}
+                size="sm"
+                asChild
+              >
+                <a href={asset.url} style={{textDecoration: 'none'}}>
+                  <Download className="size-3" />
+                  {asset.label}
+                </a>
+              </Button>
+            ),
+        )}
       </div>
     </div>
   )
