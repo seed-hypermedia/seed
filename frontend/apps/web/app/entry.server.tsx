@@ -20,8 +20,6 @@ import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
-import {initDatabase} from './db'
-import {initEmailNotifier} from './email-notifier'
 import {getDocument} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
@@ -88,8 +86,6 @@ async function initializeServer() {
   console.log('Connecting to the WEB_IDENTITY_ORIGIN server')
   await connectToWebIdentityOrigin()
   setInterval(connectToWebIdentityOrigin, 1000 * 60 * 5) // every 5 minutes, make sure we are connected to the WEB_IDENTITY_ORIGIN server
-  await initDatabase()
-  await initEmailNotifier()
 }
 
 // if we are configured for web identity, we rely on another server to sign content.

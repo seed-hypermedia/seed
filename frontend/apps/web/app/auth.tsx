@@ -45,7 +45,6 @@ import {
 } from './api'
 import {preparePublicKey} from './auth-utils'
 import {createDefaultAccountName} from './default-account-name'
-import {NotifSettingsDialog} from './email-notifications'
 import {
   deleteLocalKeys,
   getStoredLocalKeys,
@@ -642,7 +641,6 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   const userKeyPair = useLocalKeyPair()
   const logoutDialog = useAppDialog(LogoutDialog)
   const editProfileDialog = useAppDialog(EditProfileDialog)
-  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const linkKeysDialog = useAppDialog(LinkKeysDialog)
 
   const tx = useTx()
@@ -695,26 +693,8 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   if (!userKeyPair) return null
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
-      {/* {ENABLE_EMAIL_NOTIFICATIONS && (
-        <Button size="xs" onClick={() => notifSettingsDialog.open({})}>
-          <Megaphone className="size-4" />
-          {tx('Notification Settings')}
-        </Button>
-      )} */}
-      {/* <Button
-        size="xs"
-        onClick={() => editProfileDialog.open({accountUid: userKeyPair.id})}
-      >
-        <Pencil className="size-4" />
-        {tx('Edit Profile')}
-      </Button> */}
-      {/* <Button size="xs" onClick={() => logoutDialog.open({})}>
-        <LogOut className="size-4" />
-        {tx('Logout')}
-      </Button> */}
       {logoutDialog.content}
       {editProfileDialog.content}
-      {notifSettingsDialog.content}
       {linkKeysDialog.content}
     </div>
   )
