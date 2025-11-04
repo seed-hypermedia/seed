@@ -1,18 +1,29 @@
 import {useActivityFeed} from '@shm/shared/activity-service-provider'
-import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  HMBlockNode,
+  HMTimestamp,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {
   HMListEventsRequest,
   LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
 import {useResource} from '@shm/shared/models/entity'
-import {NavRoute} from '@shm/shared/routes'
+import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
+import {
+  AnyTimestamp,
+  formattedDateShort,
+  normalizeDate,
+} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
-import {useEffect, useRef} from 'react'
+import {memo, useEffect, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {Button} from './button'
@@ -30,255 +41,6 @@ import {Separator} from './separator'
 import {Spinner} from './spinner'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
-
-// Helper function to find a block by ID in the content tree
-function findContentBlock(
-  content: HMBlockNode[],
-  blockRef: string,
-): HMBlockNode | null {
-  let block: HMBlockNode | null = null
-  content.find((node) => {
-    if (node.block.id === blockRef) {
-      block = node
-      return true
-    } else if (node.children) {
-      block = findContentBlock(node.children, blockRef)
-      return !!block
-    }
-    return false
-  })
-  return block
-}
-
-// Component to render a source block for document citations
-function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
-  const resource = useResource(sourceId)
-
-  if (resource.isLoading) {
-    return <div className="text-muted-foreground text-xs">Loading block...</div>
-  }
-
-  if (resource.error || !resource.data) {
-    return null
-  }
-
-  const content =
-    resource.data.type === 'document'
-      ? resource.data.document?.content
-      : resource.data.type === 'comment'
-      ? resource.data.comment?.content
-      : undefined
-
-  if (!content || !sourceId.blockRef) {
-    return null
-  }
-
-  const blockNode = findContentBlock(content, sourceId.blockRef)
-
-  if (!blockNode) {
-    return null
-  }
-
-  return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
-}
-
-function RouteEventRow({
-  children,
-  route,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-}) {
-  const linkProps = useRouteLink(route)
-  return (
-    <div className="break-words" {...linkProps}>
-      {children}
-    </div>
-  )
-}
-
-export function EventRowInline({
-  children,
-  route,
-}: {
-  children: React.ReactNode
-  route: NavRoute | null
-}) {
-  return <RouteEventRow route={route}>{children}</RouteEventRow>
-}
-
-export function EventDescriptionText({children}: {children: React.ReactNode}) {
-  return (
-    <SizableText size="sm" className="px-2">
-      {children}
-    </SizableText>
-  )
-}
-
-function getEventRoute(event: LoadedEvent): NavRoute | null {
-  if (event.type == 'comment') {
-    // Navigate to the target document with discussions open and the comment focused
-    if (!event.target?.id || !event.comment) return null
-
-    const route = {
-      key: 'document' as const,
-      id: event.target.id,
-      accessory: {
-        key: 'discussions' as const,
-        openComment: event.comment.id,
-      },
-    }
-
-    return route
-  }
-
-  if (event.type == 'doc-update') {
-    // Navigate to the document at the version from the ref event
-    // Reconstruct the ID properly using hmId to ensure the id field is the base ID
-    if (!event.docId?.uid) return null
-
-    const route = {
-      key: 'document' as const,
-      id: hmId(event.docId.uid, {
-        path: event.docId.path,
-        version: event.document.version,
-      }),
-    }
-
-    return route
-  }
-
-  if (event.type == 'capability') {
-    // Navigate to the target document if available
-    if (!event.target?.id) return null
-
-    const route = {
-      key: 'document' as const,
-      id: event.target.id,
-    }
-
-    return route
-  }
-
-  if (event.type == 'contact') {
-    // Navigate to the contact page
-    if (!event.contact.id) return null
-
-    const route = {
-      key: 'contact' as const,
-      id: event.contact.id,
-    }
-
-    return route
-  }
-
-  if (event.type == 'citation') {
-    // Navigate to the target document (the document being cited)
-    if (!event.source?.id) return null
-
-    // For comment citations, open the comment in discussions panel
-    if (event.citationType === 'c' && event.comment) {
-      const route = {
-        key: 'document' as const,
-        id: event.source.id,
-        accessory: {
-          key: 'discussions' as const,
-          openComment: event.comment.id,
-        },
-      }
-      return route
-    }
-
-    // For document citations, navigate to the target document
-    // If there's a target fragment (block ID), include it in the URL
-    const route = {
-      key: 'document' as const,
-      id: event.source.id,
-      ...(event.targetFragment && {
-        fragment: event.targetFragment,
-      }),
-    }
-
-    return route
-  }
-
-  return null
-}
-
-function EventItem({
-  event,
-  route,
-  onCommentDelete,
-  currentAccount,
-  targetDomain,
-  isSingleResource,
-}: {
-  event: LoadedEvent
-  route: NavRoute | null
-  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  currentAccount?: string
-  targetDomain?: string
-  isSingleResource?: boolean
-}) {
-  const linkProps = useRouteLink(route)
-
-  const tx = useTx()
-  return (
-    <div
-      className={cn(
-        'group flex flex-col gap-2 rounded-lg p-2 transition-colors',
-      )}
-      {...(route ? linkProps : {})}
-    >
-      <div className="flex items-start gap-2">
-        <div className="size-[24px]">
-          {event.author?.id ? (
-            <HMIcon
-              size={24}
-              id={event.author.id}
-              name={event.author.metadata?.name}
-              icon={event.author.metadata?.icon}
-            />
-          ) : null}
-        </div>
-        <EventHeaderContent
-          event={event}
-          onCommentDelete={onCommentDelete}
-          currentAccount={currentAccount}
-          targetDomain={targetDomain}
-          isSingleResource={isSingleResource}
-          route={route}
-        />
-      </div>
-      {isSingleResource && event.type == 'doc-update' ? null : (
-        <div className="relative flex gap-2">
-          <div className={cn('w-[24px]')} />
-          <div className="flex flex-1 flex-col gap-3">
-            <EventContent isSingleResource={isSingleResource} event={event} />
-            {event.type == 'comment' ||
-            (event.type == 'citation' && event.comment) ? (
-              <div className="-ml-3">
-                <Button
-                  size="xs"
-                  className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
-                >
-                  <ReplyArrow className="size-3" />
-                  {tx('Reply')}
-                  {(event.type == 'comment' && event.replyCount > 0) ||
-                  (event.type == 'citation' &&
-                    event.replyCount !== undefined &&
-                    event.replyCount > 0)
-                    ? ` (${event.replyCount})`
-                    : ''}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function Feed({
   filterResource,
@@ -392,7 +154,7 @@ export function Feed({
 
   return (
     <AccessoryContent header={commentEditor}>
-      <div className="mt-4 flex flex-col gap-5">
+      <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e)
 
@@ -782,7 +544,9 @@ function EventCommentWithReply({
   return (
     <div
       key={`${event.type}-${event.id}-${event.time}`}
-      className={cn('rounded-lg p-2 transition-colors')}
+      className={cn(
+        'hover:bg-background p-2 transition-colors dark:hover:bg-black/10',
+      )}
       {...(route ? linkProps : {})}
     >
       {/* replying comment */}
@@ -864,6 +628,309 @@ function EventCommentWithReply({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Helper function to find a block by ID in the content tree
+function findContentBlock(
+  content: HMBlockNode[],
+  blockRef: string,
+): HMBlockNode | null {
+  let block: HMBlockNode | null = null
+  content.find((node) => {
+    if (node.block.id === blockRef) {
+      block = node
+      return true
+    } else if (node.children) {
+      block = findContentBlock(node.children, blockRef)
+      return !!block
+    }
+    return false
+  })
+  return block
+}
+
+// Component to render a source block for document citations
+function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
+  const resource = useResource(sourceId)
+
+  if (resource.isLoading) {
+    return <div className="text-muted-foreground text-xs">Loading block...</div>
+  }
+
+  if (resource.error || !resource.data) {
+    return null
+  }
+
+  const content =
+    resource.data.type === 'document'
+      ? resource.data.document?.content
+      : resource.data.type === 'comment'
+      ? resource.data.comment?.content
+      : undefined
+
+  if (!content || !sourceId.blockRef) {
+    return null
+  }
+
+  const blockNode = findContentBlock(content, sourceId.blockRef)
+
+  if (!blockNode) {
+    return null
+  }
+
+  return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
+}
+
+function RouteEventRow({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  const linkProps = useRouteLink(route)
+  return (
+    <div className="break-words" {...linkProps}>
+      {children}
+    </div>
+  )
+}
+
+export function EventRowInline({
+  children,
+  route,
+}: {
+  children: React.ReactNode
+  route: NavRoute | null
+}) {
+  return <RouteEventRow route={route}>{children}</RouteEventRow>
+}
+
+export function EventDescriptionText({children}: {children: React.ReactNode}) {
+  return (
+    <SizableText size="sm" className="px-2">
+      {children}
+    </SizableText>
+  )
+}
+
+export const EventTimestamp = memo(function EventTimestamp({
+  time,
+}: {
+  time: HMTimestamp | undefined
+}) {
+  if (!time) return null
+
+  const date = normalizeDate(time)
+
+  if (!date) return null
+
+  return (
+    <SizableText size="xs" className="text-muted-foreground self-end px-1 py-1">
+      <EventTimestampWithTooltip time={time} />
+    </SizableText>
+  )
+})
+
+const EventTimestampWithTooltip = memo(function EventTimestampWithTooltip({
+  time,
+}: {
+  time: AnyTimestamp
+}) {
+  if (!time) return null
+
+  const date = normalizeDate(time)
+
+  if (!date) return null
+
+  return (
+    <Tooltip side="top" delay={400} content={formatUTC(date)}>
+      {formattedDateShort(time)}
+    </Tooltip>
+  )
+})
+
+function formatUTC(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  const year = date.getUTCFullYear()
+  const month = pad(date.getUTCMonth() + 1) // Months are 0-based.
+  const day = pad(date.getUTCDate())
+  const hours = pad(date.getUTCHours())
+  const minutes = pad(date.getUTCMinutes())
+
+  return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
+}
+
+function getEventRoute(event: LoadedEvent): NavRoute | null {
+  if (event.type == 'comment') {
+    // Navigate to the target document with discussions open and the comment focused
+    if (!event.target?.id || !event.comment) return null
+
+    const route = {
+      key: 'document' as const,
+      id: event.target.id,
+      accessory: {
+        key: 'discussions' as const,
+        openComment: event.comment.id,
+      },
+    }
+
+    return route
+  }
+
+  if (event.type == 'doc-update') {
+    // Navigate to the document at the version from the ref event
+    // Reconstruct the ID properly using hmId to ensure the id field is the base ID
+    if (!event.docId?.uid) return null
+
+    const route: DocumentRoute = {
+      key: 'document' as const,
+      id: hmId(event.docId.uid, {
+        path: event.docId.path,
+        version: event.document.version,
+      }),
+    }
+
+    return route
+  }
+
+  if (event.type == 'capability') {
+    // Navigate to the target document if available
+    if (!event.target?.id) return null
+
+    const route = {
+      key: 'document' as const,
+      id: event.target.id,
+    }
+
+    return route
+  }
+
+  if (event.type == 'contact') {
+    // Navigate to the contact page
+    if (!event.contact.id) return null
+
+    const route = {
+      key: 'contact' as const,
+      id: event.contact.id,
+    }
+
+    return route
+  }
+
+  if (event.type == 'citation') {
+    // Navigate to the target document (the document being cited)
+    if (!event.source?.id) return null
+
+    // For comment citations, open the comment in discussions panel
+    if (event.citationType === 'c' && event.comment) {
+      const route = {
+        key: 'document' as const,
+        id: event.source.id,
+        accessory: {
+          key: 'discussions' as const,
+          openComment: event.comment.id,
+        },
+      }
+      return route
+    }
+
+    // For document citations, navigate to the target document
+    // If there's a target fragment (block ID), include it in the URL
+    const route = {
+      key: 'document' as const,
+      id: event.source.id,
+      ...(event.targetFragment && {
+        fragment: event.targetFragment,
+      }),
+    }
+
+    return route
+  }
+
+  return null
+}
+
+function EventItem({
+  event,
+  route,
+  onCommentDelete,
+  currentAccount,
+  targetDomain,
+  isSingleResource,
+}: {
+  event: LoadedEvent
+  route: NavRoute | null
+  onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  currentAccount?: string
+  targetDomain?: string
+  isSingleResource?: boolean
+}) {
+  const currentRoute = useNavRoute()
+  const linkProps = useRouteLink(
+    route ? _.merge({}, currentRoute, route) : currentRoute,
+  )
+
+  const tx = useTx()
+  return (
+    <div
+      className={cn(
+        'hover:bg-background flex flex-col gap-2 p-2 py-4 transition-colors dark:hover:bg-black/10',
+        currentRoute.key == 'document' &&
+          event.type == 'doc-update' &&
+          event.docId.version == currentRoute.id.version &&
+          'bg-accent hover:bg-accent dark:hover:bg-accent',
+      )}
+      {...(route ? linkProps : {})}
+    >
+      <div className="flex items-start gap-2">
+        <div className="size-[24px]">
+          {event.author?.id ? (
+            <HMIcon
+              size={24}
+              id={event.author.id}
+              name={event.author.metadata?.name}
+              icon={event.author.metadata?.icon}
+            />
+          ) : null}
+        </div>
+        <EventHeaderContent
+          event={event}
+          onCommentDelete={onCommentDelete}
+          currentAccount={currentAccount}
+          targetDomain={targetDomain}
+          isSingleResource={isSingleResource}
+        />
+      </div>
+      {isSingleResource && event.type == 'doc-update' ? null : (
+        <div className="relative flex gap-2">
+          <div className={cn('w-[24px]')} />
+          <div className="flex flex-1 flex-col gap-3">
+            <EventContent isSingleResource={isSingleResource} event={event} />
+            {event.type == 'comment' ||
+            (event.type == 'citation' && event.comment) ? (
+              <div className="-ml-3">
+                <Button
+                  size="xs"
+                  className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+                >
+                  <ReplyArrow className="size-3" />
+                  {tx('Reply')}
+                  {(event.type == 'comment' && event.replyCount > 0) ||
+                  (event.type == 'citation' &&
+                    event.replyCount !== undefined &&
+                    event.replyCount > 0)
+                    ? ` (${event.replyCount})`
+                    : ''}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

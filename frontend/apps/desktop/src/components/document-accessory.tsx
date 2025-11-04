@@ -6,7 +6,7 @@ import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocAccessoryOption} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Feed} from '@shm/ui/feed'
-import {ReactNode} from 'react'
+import {ReactNode, useState} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {CommentBox} from './commenting'
@@ -46,6 +46,7 @@ export function useDocumentAccessory({
   const accessoryOptions: Array<DocAccessoryOption> = []
 
   const selectedAccount = useSelectedAccount()
+  const [filterEventType, setFilterEventType] = useState([])
 
   if (accessoryKey === 'collaborators') {
     // @ts-expect-error
@@ -106,7 +107,7 @@ export function useDocumentAccessory({
           }
           filterResource={docId?.id}
           currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={undefined}
+          filterEventType={route.accessory?.filterEventType || []}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
         />

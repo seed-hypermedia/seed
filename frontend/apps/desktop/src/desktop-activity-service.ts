@@ -31,8 +31,6 @@ export class DesktopActivityService implements ActivityService {
       return null
     }
 
-    console.log('== EVENT TYPE', eventType)
-
     switch (eventType) {
       case 'comment':
         let res = await loadCommentEvent(grpcClient, event, currentAccount)

@@ -81,6 +81,9 @@ import {WebSiteHeader} from './web-site-header'
 
 // Lazy load components for better initial page load performance
 const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
+const FeedFilters = lazy(() =>
+  import('@shm/ui/feed-filters').then((m) => ({default: m.FeedFilters})),
+)
 const WebDiscussionsPanel = lazy(() =>
   import('./discussions-panel').then((m) => ({default: m.WebDiscussionsPanel})),
 )
@@ -90,6 +93,7 @@ export const links = () => [{rel: 'stylesheet', href: documentContentStyles}]
 type WebAccessory =
   | {
       type: 'activity'
+      filterEventType?: string[]
     }
   | {
       type: 'discussions'
@@ -144,6 +148,45 @@ function InnerDocumentPage(
     isLatest,
     feed,
   } = props
+
+  // Persist feed filters in localStorage per document
+  const [savedFeedFilters, setSavedFeedFilters] = useState({
+    filterEventType: [] as string[],
+  })
+
+  // Use localStorage after component mounts (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(
+          `activity-panel-feed-filters-${id.id}`,
+        )
+        if (stored) {
+          setSavedFeedFilters(JSON.parse(stored))
+        }
+      } catch (e) {
+        console.error('Failed to load feed filters from localStorage:', e)
+      }
+    }
+  }, [id.id])
+
+  // Save to localStorage when filters change
+  const updateSavedFilters = useCallback(
+    (filters: {filterEventType: string[]}) => {
+      setSavedFeedFilters(filters)
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            `activity-panel-feed-filters-${id.id}`,
+            JSON.stringify(filters),
+          )
+        } catch (e) {
+          console.error('Failed to save feed filters to localStorage:', e)
+        }
+      }
+    },
+    [id.id],
+  )
 
   const mainScrollRef = useScrollRestoration('main-document-scroll', true)
   const mobileScrollRef = useScrollRestoration('mobile-panel-scroll', true)
@@ -238,12 +281,16 @@ function InnerDocumentPage(
   }, [location.hash])
 
   function setDocumentPanel(panel: WebAccessory | null) {
+    // If switching to activity, include saved filters
+    if (panel?.type == 'activity') {
+      panel = {...panel, filterEventType: savedFeedFilters.filterEventType}
+    }
     setActivePanel(panel)
     setMobilePanelOpen(!!panel)
 
     // Update URL to reflect panel state
     // If closing discussions panel (going to activity or null), navigate back to document URL
-    if (panel?.type === 'activity' || panel === null) {
+    if (panel?.type == 'activity' || panel === null) {
       const route: NavRoute = {
         key: 'document',
         id,
@@ -312,7 +359,7 @@ function InnerDocumentPage(
       !comment
     ) {
       // If URL no longer has a comment but activePanel does, clear it to activity
-      setActivePanel({type: 'activity'})
+      setActivePanel({type: 'activity', ...savedFeedFilters})
     }
   }, [comment?.id])
 
@@ -502,6 +549,7 @@ function InnerDocumentPage(
             commentEditor={commentEditor}
             filterResource={id.id}
             currentAccount={currentAccount.data?.id.uid}
+            filterEventType={activePanel.filterEventType || []}
           />
         </Suspense>
       )
@@ -790,22 +838,43 @@ function InnerDocumentPage(
                       minSize={media.gtSm ? 20 : 100}
                       className="border-sidebar-border flex h-full flex-1 flex-col border-l"
                     >
-                      <div className="dark:bg-background border-border flex items-center border-b bg-white p-3">
-                        <Text weight="bold" size="md" className="flex-1">
-                          {panelTitle}
-                        </Text>
-                        <Tooltip content={tx('Close')}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="flex-none"
-                            onClick={() => {
-                              setDocumentPanel(null)
+                      <div className="dark:bg-background border-border border-b bg-white p-3">
+                        <div className="flex items-center">
+                          <Text weight="bold" size="md" className="flex-1">
+                            {panelTitle}
+                          </Text>
+                          <Tooltip content={tx('Close')}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="flex-none"
+                              onClick={() => {
+                                setDocumentPanel(null)
+                              }}
+                            >
+                              <Close className="size-4" />
+                            </Button>
+                          </Tooltip>
+                        </div>
+
+                        {activePanel?.type == 'activity' ? (
+                          <FeedFilters
+                            filterEventType={activePanel?.filterEventType}
+                            onFilterChange={({
+                              filterEventType,
+                            }: {
+                              filterEventType?: string[]
+                            }) => {
+                              setActivePanel({
+                                ...activePanel,
+                                filterEventType: filterEventType || [],
+                              })
+                              updateSavedFilters({
+                                filterEventType: filterEventType || [],
+                              })
                             }}
-                          >
-                            <Close className="size-4" />
-                          </Button>
-                        </Tooltip>
+                          />
+                        ) : null}
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <ScrollArea

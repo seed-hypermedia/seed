@@ -2,11 +2,13 @@ import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useSubscribedResource} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
-import {DocAccessoryOption} from '@shm/shared'
+import {useNavigate} from '@/utils/useNavigate'
+import {DocAccessoryOption, DocumentRoute} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {
   useNavigationDispatch,
   useNavigationState,
+  useNavRoute,
   useRouteDocId,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -18,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {panelContainerStyles} from '@shm/ui/container'
+import {FeedFilters} from '@shm/ui/feed-filters'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
@@ -25,7 +28,6 @@ import {cn} from '@shm/ui/utils'
 import {
   ChevronDown,
   Folder,
-  ListFilter,
   MessageSquare,
   Pencil,
   Sparkle,
@@ -65,6 +67,10 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
   const tx = useTx()
+  const route = useNavRoute()
+  const replace = useNavigate('replace')
+
+  console.log(`== ~ FILTER route:`, route)
 
   const widthStorage = useMemo(
     () => ({
@@ -93,6 +99,21 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     [state?.sidebarLocked, state?.accessoryWidth],
   )
 
+  const resource = useSubscribedResource(docId)
+
+  const isDocument = resource.data?.type == 'document'
+  const allDocumentCapabilities = useAllDocumentCapabilities(docId)
+  const interactionSummary = useInteractionSummary(docId)
+  const collaboratorCount =
+    allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
+    undefined
+
+  const childrenActivity = useChildrenActivity(docId, {
+    enabled: isDocument,
+  })
+  const directoryCount = childrenActivity.data?.length || undefined
+  const discussionsCount = interactionSummary.data?.comments
+
   useEffect(() => {
     const panelGroup = panelsRef.current
     if (panelGroup) {
@@ -120,20 +141,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     accessoryTitle = tx('Discussions')
   }
 
-  const resource = useSubscribedResource(docId)
-  // @ts-ignore
-  const isDocument = resource.data?.type == 'document'
-  const allDocumentCapabilities = useAllDocumentCapabilities(docId)
-  const interactionSummary = useInteractionSummary(docId)
-  const collaboratorCount =
-    allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
-    undefined
-
-  const childrenActivity = useChildrenActivity(docId, {
-    enabled: isDocument,
-  })
-  const directoryCount = childrenActivity.data?.length || undefined
-  const discussionsCount = interactionSummary.data?.comments
   return (
     <div className="flex h-full flex-1">
       <PanelGroup
@@ -177,17 +184,39 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
                 discussions: discussionsCount || 0,
               }}
             />
-            <div className="border-border flex items-center border-b px-5 py-3">
+            <div className="border-border border-b px-5 py-3">
               <Text weight="semibold" size="lg" className="flex-1">
                 {accessoryTitle}
               </Text>
               {accessoryKey == 'activity' ? (
-                <Tooltip content="coming soon!...">
-                  <Button size="icon">
-                    <ListFilter className="size-3" />
-                    {/* <span className="text-xs">3</span> */}
-                  </Button>
-                </Tooltip>
+                <FeedFilters
+                  filterEventType={
+                    route &&
+                    (route.key === 'document' || route.key === 'feed') &&
+                    route.accessory?.key == 'activity'
+                      ? route.accessory?.filterEventType
+                      : undefined
+                  }
+                  onFilterChange={({
+                    filterEventType,
+                  }: {
+                    filterEventType?: string[]
+                  }) => {
+                    console.log('== ~ FILTER onFilterChange', filterEventType)
+                    if (
+                      route &&
+                      (route.key === 'document' || route.key === 'feed')
+                    ) {
+                      replace({
+                        ...route,
+                        accessory: {
+                          ...(route.accessory as any),
+                          filterEventType,
+                        },
+                      })
+                    }
+                  }}
+                />
               ) : null}
             </div>
             {accessory}
