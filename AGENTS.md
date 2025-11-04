@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `backend/` hosts Go services (daemon, APIs, P2P); Bazel/Please targets exist, but day-to-day builds rely on `go` tooling and the `./dev` wrapper.
+- `backend/` hosts Go services (daemon, APIs, P2P); Bazel/Please targets exist, but day-to-day builds rely on `go` tooling and the `./dev` wrapper. Use `backend/AGENTS.md` file for further backend-related guidance.
 - `frontend/apps/` contains Remix- and Electron-based apps; shared React utilities live under `frontend/packages/`.
 - `docs/` stores developer playbooks and design notes; `proto/` holds the canonical protocol buffers; scripts and automation live in `scripts/`.
 - Tests follow source: Go `_test.go` files sit beside implementations, while web specs live in `__tests__` or `*.test.ts[x]` folders within each workspace.
