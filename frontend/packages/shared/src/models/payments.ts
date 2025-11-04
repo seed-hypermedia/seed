@@ -13,6 +13,7 @@ export function useAllowedPaymentRecipients(accountUids: string[]) {
     useErrorBoundary: false,
     retry: 1,
     queryFn: async () => {
+      if (!LIGHTNING_API_URL) return []
       let url = `${LIGHTNING_API_URL}/v2/check`
       accountUids.forEach((accountId, index) => {
         url += `${index === 0 ? '?' : '&'}user=${accountId}`

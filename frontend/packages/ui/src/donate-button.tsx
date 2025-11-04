@@ -15,13 +15,13 @@ import {
 } from '@shm/shared'
 import {Button} from './button'
 
-import {Label} from './components/label'
 import {AlertCircle, CircleDollarSign, Copy, PartyPopper} from 'lucide-react'
 import {useState} from 'react'
 import QRCode from 'react-qr-code'
 import {CheckboxField} from './components/checkbox'
 import {DialogDescription, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
+import {Label} from './components/label'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {Spinner} from './spinner'
@@ -57,12 +57,7 @@ export function DonateButton({
   const allowedRecipients = useAllowedPaymentRecipients(
     authors.map((author) => author.id.uid) || [],
   )
-  if (allowedRecipients.isError)
-    return (
-      <Tooltip content="Failed to query Seed server to check payment recipients">
-        <AlertCircle className="size-4 text-yellow-700" />
-      </Tooltip>
-    )
+  if (allowedRecipients.isError) return null
   if (allowedRecipients.isLoading) return null
   if (!allowedRecipients.data?.length) return null
   return (
