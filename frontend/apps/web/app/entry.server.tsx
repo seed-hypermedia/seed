@@ -20,7 +20,7 @@ import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
-import {getDocument} from './loaders'
+import {loadResolvedResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {
@@ -270,13 +270,17 @@ async function handleOptionsRequest(request: Request) {
   try {
     const hmId = getHmIdOfRequest(parsedRequest, originAccountId)
     if (hmId) {
-      const doc = await getDocument(hmId)
-      if (doc) {
+      const resource = await loadResolvedResource(hmId)
+      if (resource.type === 'document') {
         headers['X-Hypermedia-Id'] = hmId.id
-        headers['X-Hypermedia-Version'] = doc.version
+        headers['X-Hypermedia-Version'] = resource.document.version
         headers['X-Hypermedia-Title'] = encodeURIComponent(
-          doc.metadata.name || '',
+          resource.document.metadata.name || '',
         )
+      } else if (resource.type === 'comment') {
+        headers['X-Hypermedia-Id'] = hmId.id
+        headers['X-Hypermedia-Version'] = resource.comment.version
+        headers['X-Hypermedia-Title'] = ''
       }
       return new Response(null, {
         status: 200,

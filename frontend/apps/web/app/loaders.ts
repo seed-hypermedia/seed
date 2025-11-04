@@ -50,6 +50,7 @@ import {
   getErrorMessage,
   HMRedirectError,
 } from '@shm/shared/models/entity'
+import {createResourceLoader} from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/document-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
@@ -434,6 +435,16 @@ export async function loadResource(
     }
     throw e
   }
+}
+
+const newLoadResource = createResourceLoader(grpcClient)
+
+export async function loadResolvedResource(id: UnpackedHypermediaId) {
+  const resource = await newLoadResource(id)
+  if (resource.type === 'redirect') {
+    return await loadResolvedResource(resource.redirectTarget)
+  }
+  return resource
 }
 
 function textNodeAttributes(
