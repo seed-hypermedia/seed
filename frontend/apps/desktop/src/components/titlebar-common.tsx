@@ -194,7 +194,7 @@ export function DocOptionsButton({
       },
     })
   }
-  if (doc && canEditDoc && route.id.path?.length && !route.id.version) {
+  if (doc && canEditDoc && route.id.path?.length) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
