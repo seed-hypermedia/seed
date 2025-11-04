@@ -22,14 +22,26 @@ type structuralBlob struct {
 	BlobLinks     []blobLink
 	ResourceLinks []resourceLink
 	ExtraAttrs    any
+	Visibility    Visibility
 }
 
-func newStructuralBlob(id cid.Cid, blobType Type, author core.Principal, ts time.Time, resource IRI, resourceGenesis cid.Cid, resourceOwner core.Principal, resourceTimestamp time.Time) structuralBlob {
+func newStructuralBlob(
+	id cid.Cid,
+	blobType Type,
+	author core.Principal,
+	ts time.Time,
+	resource IRI,
+	resourceGenesis cid.Cid,
+	resourceOwner core.Principal,
+	resourceTimestamp time.Time,
+	visibility Visibility,
+) structuralBlob {
 	sb := structuralBlob{
-		CID:    id,
-		Type:   blobType,
-		Author: author,
-		Ts:     ts,
+		CID:        id,
+		Type:       blobType,
+		Author:     author,
+		Ts:         ts,
+		Visibility: visibility,
 	}
 	sb.Resource.ID = resource
 	sb.Resource.Owner = resourceOwner
@@ -39,8 +51,8 @@ func newStructuralBlob(id cid.Cid, blobType Type, author core.Principal, ts time
 	return sb
 }
 
-func newSimpleStructuralBlob(id cid.Cid, blobType Type) structuralBlob {
-	return structuralBlob{CID: id, Type: blobType}
+func newSimpleStructuralBlob(id cid.Cid, blobType Type, visibility Visibility) structuralBlob {
+	return structuralBlob{CID: id, Type: blobType, Visibility: visibility}
 }
 
 func (sb *structuralBlob) AddBlobLink(linkType string, target cid.Cid) {

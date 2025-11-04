@@ -28,7 +28,7 @@ func TestOutOfOrderCapability(t *testing.T) {
 	}, clock.MustNow())
 	require.NoError(t, err)
 
-	ref, err := NewRef(bob, 0, change.CID, alice.Principal(), "", []cid.Cid{change.CID}, clock.MustNow())
+	ref, err := NewRef(bob, 0, change.CID, alice.Principal(), "", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
 	require.NoError(t, err)
 
 	cpb, err := NewCapability(alice, bob.Principal(), alice.Principal(), "", "WRITER", "", clock.MustNow())

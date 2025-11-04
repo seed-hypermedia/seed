@@ -22,6 +22,42 @@ const (
 	C_BlobLinksType   = "blob_links.type"
 )
 
+// Table blob_links_with_types.
+const (
+	BlobLinksWithTypes           sqlitegen.Table  = "blob_links_with_types"
+	BlobLinksWithTypesLinkType   sqlitegen.Column = "blob_links_with_types.link_type"
+	BlobLinksWithTypesSource     sqlitegen.Column = "blob_links_with_types.source"
+	BlobLinksWithTypesSourceType sqlitegen.Column = "blob_links_with_types.source_type"
+	BlobLinksWithTypesTarget     sqlitegen.Column = "blob_links_with_types.target"
+	BlobLinksWithTypesTargetType sqlitegen.Column = "blob_links_with_types.target_type"
+)
+
+// Table blob_links_with_types. Plain strings.
+const (
+	T_BlobLinksWithTypes           = "blob_links_with_types"
+	C_BlobLinksWithTypesLinkType   = "blob_links_with_types.link_type"
+	C_BlobLinksWithTypesSource     = "blob_links_with_types.source"
+	C_BlobLinksWithTypesSourceType = "blob_links_with_types.source_type"
+	C_BlobLinksWithTypesTarget     = "blob_links_with_types.target"
+	C_BlobLinksWithTypesTargetType = "blob_links_with_types.target_type"
+)
+
+// Table blob_visibility_rules.
+const (
+	BlobVisibilityRules           sqlitegen.Table  = "blob_visibility_rules"
+	BlobVisibilityRulesLinkType   sqlitegen.Column = "blob_visibility_rules.link_type"
+	BlobVisibilityRulesSourceType sqlitegen.Column = "blob_visibility_rules.source_type"
+	BlobVisibilityRulesTargetType sqlitegen.Column = "blob_visibility_rules.target_type"
+)
+
+// Table blob_visibility_rules. Plain strings.
+const (
+	T_BlobVisibilityRules           = "blob_visibility_rules"
+	C_BlobVisibilityRulesLinkType   = "blob_visibility_rules.link_type"
+	C_BlobVisibilityRulesSourceType = "blob_visibility_rules.source_type"
+	C_BlobVisibilityRulesTargetType = "blob_visibility_rules.target_type"
+)
+
 // Table blobs.
 const (
 	Blobs           sqlitegen.Table  = "blobs"
@@ -252,6 +288,18 @@ const (
 	C_PeersUpdatedAt           = "peers.updated_at"
 )
 
+// Table public_blobs.
+const (
+	PublicBlobs   sqlitegen.Table  = "public_blobs"
+	PublicBlobsID sqlitegen.Column = "public_blobs.id"
+)
+
+// Table public_blobs. Plain strings.
+const (
+	T_PublicBlobs   = "public_blobs"
+	C_PublicBlobsID = "public_blobs.id"
+)
+
 // Table public_keys.
 const (
 	PublicKeys          sqlitegen.Table  = "public_keys"
@@ -444,6 +492,14 @@ var Schema = sqlitegen.Schema{
 		BlobLinksSource:                         {Table: BlobLinks, SQLType: "INTEGER"},
 		BlobLinksTarget:                         {Table: BlobLinks, SQLType: "INTEGER"},
 		BlobLinksType:                           {Table: BlobLinks, SQLType: "TEXT"},
+		BlobLinksWithTypesLinkType:              {Table: BlobLinksWithTypes, SQLType: "TEXT"},
+		BlobLinksWithTypesSource:                {Table: BlobLinksWithTypes, SQLType: "INTEGER"},
+		BlobLinksWithTypesSourceType:            {Table: BlobLinksWithTypes, SQLType: ""},
+		BlobLinksWithTypesTarget:                {Table: BlobLinksWithTypes, SQLType: "INTEGER"},
+		BlobLinksWithTypesTargetType:            {Table: BlobLinksWithTypes, SQLType: ""},
+		BlobVisibilityRulesLinkType:             {Table: BlobVisibilityRules, SQLType: "TEXT"},
+		BlobVisibilityRulesSourceType:           {Table: BlobVisibilityRules, SQLType: "TEXT"},
+		BlobVisibilityRulesTargetType:           {Table: BlobVisibilityRules, SQLType: "TEXT"},
 		BlobsCodec:                              {Table: Blobs, SQLType: "INTEGER"},
 		BlobsData:                               {Table: Blobs, SQLType: "BLOB"},
 		BlobsID:                                 {Table: Blobs, SQLType: "INTEGER"},
@@ -504,6 +560,7 @@ var Schema = sqlitegen.Schema{
 		PeersID:                                 {Table: Peers, SQLType: "INTEGER"},
 		PeersPid:                                {Table: Peers, SQLType: "TEXT"},
 		PeersUpdatedAt:                          {Table: Peers, SQLType: "INTEGER"},
+		PublicBlobsID:                           {Table: PublicBlobs, SQLType: "INTEGER"},
 		PublicKeysID:                            {Table: PublicKeys, SQLType: "INTEGER"},
 		PublicKeysPrincipal:                     {Table: PublicKeys, SQLType: "BLOB"},
 		ResourceLinksExtraAttrs:                 {Table: ResourceLinks, SQLType: "JSONB"},

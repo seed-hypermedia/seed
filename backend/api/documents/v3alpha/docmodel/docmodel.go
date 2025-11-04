@@ -51,6 +51,8 @@ type Document struct {
 	dirtyMetadata *btree.Map[[]string, mvRegValue[any]]
 
 	Generation maybe.Value[int64]
+
+	visibility blob.Visibility
 }
 
 // originFromCID creates a CRDT origin from the last 8 chars of the hash.
@@ -164,6 +166,17 @@ func (dm *Document) Checkout(heads []cid.Cid) (*Document, error) {
 // Genesis returns the CID of the genesis blob.
 func (dm *Document) Genesis() cid.Cid {
 	return dm.crdt.cids[0]
+}
+
+// SetVisibility should not exist, but because this document model
+// doesn't know anything about Refs we set the visibility from the outside.
+func (dm *Document) SetVisibility(bv blob.Visibility) {
+	dm.visibility = bv
+}
+
+// Visibility returns the visibility of the document.
+func (dm *Document) Visibility() blob.Visibility {
+	return dm.visibility
 }
 
 // ApplyChange to the state. Can only do that before any mutations were made.
@@ -363,7 +376,7 @@ func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encode
 }
 
 // Ref creates a Ref blob for the current heads.
-func (dm *Document) Ref(kp *core.KeyPair) (ref blob.Encoded[*blob.Ref], err error) {
+func (dm *Document) Ref(kp *core.KeyPair, visibility blob.Visibility) (ref blob.Encoded[*blob.Ref], err error) {
 	// TODO(hm24): make genesis detection more reliable.
 	genesis := dm.crdt.cids[0]
 
@@ -384,7 +397,7 @@ func (dm *Document) Ref(kp *core.KeyPair) (ref blob.Encoded[*blob.Ref], err erro
 		dm.Generation = maybe.New(head.Ts.UnixMilli())
 	}
 
-	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts)
+	return blob.NewRef(kp, dm.Generation.Value(), genesis, space, path, []cid.Cid{headCID}, head.Ts, visibility)
 }
 
 func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
@@ -556,6 +569,7 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 			Genesis:    e.cids[0].String(),
 			Generation: dm.Generation.Value(),
 		},
+		Visibility: VisibilityToProto(dm.visibility),
 	}
 
 	docpb.UpdateTime = timestamppb.New(last.Ts)
@@ -812,4 +826,17 @@ func annotationsToProto(in []blob.Annotation) ([]*documents.Annotation, error) {
 	}
 
 	return out, nil
+}
+
+// VisibilityToProto converts our internal visibility representation into a protobuf visibility.
+// It's largely the same, but we use CBOR in our permanent data, and we use protobuf in our API.
+func VisibilityToProto(bv blob.Visibility) documents.ResourceVisibility {
+	switch bv {
+	case blob.VisibilityPublic:
+		return documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC
+	case blob.VisibilityPrivate:
+		return documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE
+	default:
+		panic(fmt.Errorf("BUG: unknown visibility %v", bv))
+	}
 }

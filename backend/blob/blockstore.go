@@ -2,10 +2,12 @@ package blob
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
+	"seed/backend/util/sqlitegen"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -66,6 +68,8 @@ func newBlockstore(db *sqlitex.Pool) *blockStore {
 func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	mCallsTotal.WithLabelValues("Has").Inc()
 
+	publicOnly := IsPublicOnly(ctx)
+
 	eid, err := EntityIDFromCID(c)
 	if err != nil {
 		conn, release, err := b.db.Conn(ctx)
@@ -74,7 +78,7 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		}
 		defer release()
 
-		return b.has(conn, c)
+		return b.has(conn, c, publicOnly)
 	}
 	ok, err := b.checkEntityExists(ctx, eid)
 	if err != nil {
@@ -84,8 +88,8 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	return ok, nil
 }
 
-func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid) (bool, error) {
-	res, err := dbBlobsGetSize(conn, c.Hash())
+func (b *blockStore) has(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (bool, error) {
+	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
 	if err != nil {
 		return false, err
 	}
@@ -133,7 +137,8 @@ func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	}
 	defer release()
 
-	return b.get(conn, c)
+	publicOnly := IsPublicOnly(ctx)
+	return b.get(conn, c, publicOnly)
 }
 
 // GetMany is a batch request to get many blocks from the blockstore.
@@ -146,10 +151,11 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 	}
 	defer release()
 
+	publicOnly := IsPublicOnly(ctx)
 	out := make([]blocks.Block, len(cc))
 
 	for i, c := range cc {
-		blk, err := b.get(conn, c)
+		blk, err := b.get(conn, c, publicOnly)
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +174,7 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) (it iter.Seq[bl
 	var outErr error
 	check = func() error { return outErr }
 
+	publicOnly := IsPublicOnly(ctx)
 	return func(yield func(blocks.Block) bool) {
 		conn, release, err := b.db.Conn(ctx)
 		if err != nil {
@@ -177,7 +184,7 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) (it iter.Seq[bl
 		defer release()
 
 		for _, c := range cc {
-			blk, err := b.get(conn, c)
+			blk, err := b.get(conn, c, publicOnly)
 			if err != nil {
 				outErr = err
 				return
@@ -190,22 +197,22 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) (it iter.Seq[bl
 	}, check
 }
 
-func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid) (blocks.Block, error) {
-	res, err := dbBlobsGet(conn, c.Hash())
+func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.Block, error) {
+	res, err := dbBlobsGet(conn, c.Hash(), publicOnly)
 	if err != nil {
 		return nil, err
 	}
 
-	if res.BlobsID == 0 {
+	if res.ID == 0 {
 		return nil, format.ErrNotFound{Cid: c}
 	}
 
 	// Size 0 means that data is stored inline in the CID.
-	if res.BlobsSize == 0 {
+	if res.Size == 0 {
 		return blocks.NewBlockWithCid(nil, c)
 	}
 
-	data, err := b.decompress(res.BlobsData, int(res.BlobsSize))
+	data, err := b.decompress(res.Data, int(res.Size))
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +240,8 @@ func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	}
 	defer release()
 
-	res, err := dbBlobsGetSize(conn, c.Hash())
+	publicOnly := IsPublicOnly(ctx)
+	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
 	if err != nil {
 		return 0, err
 	}
@@ -280,7 +288,7 @@ func (b *blockStore) putBlock(conn *sqlite.Conn, inID int64, codec uint64, hash 
 		return 0, false, fmt.Errorf("block %s is too large: %d > %d", cid.NewCidV1(codec, hash).String(), len(data), MaxBlobSize)
 	}
 
-	size, err := dbBlobsGetSize(conn, hash)
+	size, err := dbBlobsGetSize(conn, hash, false)
 	if err != nil {
 		return 0, false, err
 	}
@@ -390,7 +398,8 @@ func (b *blockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 		return nil, err
 	}
 
-	list, err := dbBlobsListKnown(conn)
+	publicOnly := IsPublicOnly(ctx)
+	list, err := dbBlobsListKnown(conn, publicOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -446,3 +455,132 @@ func EntityIDFromCID(c cid.Cid) (string, error) {
 
 	return string(mh.Digest), nil
 }
+
+type dbBlob struct {
+	ID        int64
+	Multihash []byte
+	Codec     int64
+	Data      []byte
+	Size      int64
+	IsPublic  bool
+}
+
+func dbBlobsGet(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (dbBlob, error) {
+	var out dbBlob
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetBytes(":blobsMultihash", blobsMultihash)
+		stmt.SetBool(":publicOnly", publicOnly)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("BlobsGet: more than one result return for a single-kind query")
+		}
+
+		out.ID = stmt.ColumnInt64(0)
+		out.Multihash = stmt.ColumnBytes(1)
+		out.Codec = stmt.ColumnInt64(2)
+		out.Data = stmt.ColumnBytes(3)
+		out.Size = stmt.ColumnInt64(4)
+		out.IsPublic = stmt.ColumnInt(5) == 1
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, qBlobsGet(), before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: BlobsGet: %w", err)
+	}
+
+	return out, err
+}
+
+var qBlobsGet = dqb.Str(`
+	SELECT
+		blobs.id,
+		blobs.multihash,
+		blobs.codec,
+		blobs.data,
+		blobs.size,
+		public_blobs.id IS NOT NULL AS is_public
+	FROM blobs
+	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
+	WHERE blobs.multihash = :blobsMultihash AND blobs.size >= 0
+	AND is_public >= :publicOnly
+`)
+
+func dbBlobsDelete(conn *sqlite.Conn, blobsMultihash []byte) (int64, error) {
+	var out int64
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetBytes(":blobsMultihash", blobsMultihash)
+	}
+
+	onStep := func(i int, stmt *sqlite.Stmt) error {
+		if i > 1 {
+			return errors.New("BlobsDelete: more than one result return for a single-kind query")
+		}
+
+		out = stmt.ColumnInt64(0)
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, qBlobsDelete(), before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: BlobsDelete: %w", err)
+	}
+
+	return out, err
+}
+
+var qBlobsDelete = dqb.Str(`
+	DELETE FROM blobs
+	WHERE blobs.multihash = :blobsMultihash
+	RETURNING blobs.id
+`)
+
+type blobsListKnownResult struct {
+	BlobsID        int64
+	BlobsMultihash []byte
+	BlobsCodec     int64
+	IsPublic       bool
+}
+
+func dbBlobsListKnown(conn *sqlite.Conn, publicOnly bool) ([]blobsListKnownResult, error) {
+	var out []blobsListKnownResult
+
+	before := func(stmt *sqlite.Stmt) {
+		stmt.SetBool(":publicOnly", publicOnly)
+	}
+
+	onStep := func(_ int, stmt *sqlite.Stmt) error {
+		out = append(out, blobsListKnownResult{
+			BlobsID:        stmt.ColumnInt64(0),
+			BlobsMultihash: stmt.ColumnBytes(1),
+			BlobsCodec:     stmt.ColumnInt64(2),
+			IsPublic:       stmt.ColumnInt64(3) == 1,
+		})
+
+		return nil
+	}
+
+	err := sqlitegen.ExecStmt(conn, qBlobsListKnown(), before, onStep)
+	if err != nil {
+		err = fmt.Errorf("failed query: BlobsListKnown: %w", err)
+	}
+
+	return out, err
+}
+
+var qBlobsListKnown = dqb.Str(`
+	SELECT
+		blobs.id,
+		blobs.multihash,
+		blobs.codec,
+		public_blobs.id IS NOT NULL AS is_public
+	FROM blobs INDEXED BY blobs_metadata
+	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
+	WHERE blobs.size >= 0
+	AND is_public >= :publicOnly
+	ORDER BY blobs.id
+`)

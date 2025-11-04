@@ -1027,22 +1027,17 @@ func (stmt *Stmt) ColumnAny(col int) interface{} {
 }
 
 func (stmt *Stmt) columnBytes(col int) []byte {
+	n := stmt.ColumnLen(col)
+	if n == 0 {
+		return nil
+	}
+
 	p := C.sqlite3_column_blob(stmt.stmt, C.int(col))
 	if p == nil {
 		return nil
 	}
-	n := stmt.ColumnLen(col)
 
-	slice := struct {
-		data unsafe.Pointer
-		len  int
-		cap  int
-	}{
-		data: unsafe.Pointer(p),
-		len:  n,
-		cap:  n,
-	}
-	return *(*[]byte)(unsafe.Pointer(&slice))
+	return unsafe.Slice((*byte)(p), n)
 }
 
 // ColumnType are codes for each of the SQLite fundamental datatypes:
@@ -1105,6 +1100,22 @@ func (stmt *Stmt) ColumnType(col int) ColumnType {
 func (stmt *Stmt) ColumnText(col int) string {
 	n := stmt.ColumnLen(col)
 	return C.GoStringN((*C.char)(unsafe.Pointer(C.sqlite3_column_text(stmt.stmt, C.int(col)))), C.int(n))
+}
+
+// ColumnTextUnsafe returns a query result as a string backed by the C memory.
+// It's only safe to use this function for the duration of the current row,
+// otherwise it can cause "use after free" errors.
+//
+// Column indices start at 0.
+//
+// https://www.sqlite.org/c3ref/column_blob.html
+func (stmt *Stmt) ColumnTextUnsafe(col int) string {
+	buf := stmt.columnBytes(col)
+	if len(buf) == 0 {
+		return ""
+	}
+
+	return unsafe.String(&buf[0], len(buf))
 }
 
 // ColumnFloat returns a query result as a float64.

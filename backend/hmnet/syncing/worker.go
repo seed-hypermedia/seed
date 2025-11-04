@@ -17,7 +17,6 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
-	"github.com/ipfs/boxo/blockstore"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -30,7 +29,7 @@ type worker struct {
 	log        *zap.Logger
 	clientFunc netDialFunc
 	host       host.Host
-	indexer    blockstore.Blockstore
+	indexer    Blockstore
 	bswap      bitswap
 	db         *sqlitex.Pool
 	sema       chan struct{}
@@ -45,7 +44,7 @@ func newWorker(
 	log *zap.Logger,
 	clientFunc netDialFunc,
 	host host.Host,
-	indexer blockstore.Blockstore,
+	indexer Blockstore,
 	bswap bitswap,
 	db *sqlitex.Pool,
 	semaphore chan struct{},

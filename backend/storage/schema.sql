@@ -38,6 +38,34 @@ CREATE TABLE blobs (
 CREATE INDEX blobs_metadata ON blobs (id, multihash, codec, size, insert_time);
 CREATE INDEX blobs_metadata_by_hash ON blobs (multihash, codec, size, insert_time);
 
+-- When a blob is public it's stored in this table.
+-- Privacy of each blob is determined during indexing,
+-- so technically all blobs are private, at least until they are indexed.
+-- We track public blobs instead of private blobs, because the same blob can be both public and private,
+-- e.g. a Change blob that is part of both public document's history and private document's history.
+-- We need a quick way to check if a blob is public in block exchange protocols like BitSwap, and as soon as
+-- a blob is public at least once, we consider it public — hence it's easier to track public blobs as opposed to private ones.
+CREATE TABLE public_blobs (
+    id INTEGER PRIMARY KEY REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL
+) WITHOUT ROWID;
+
+-- Stores the blob links patterns by which the visibility of blobs should propagate.
+-- When we insert a blob, we first check if any parent according to these patters is public,
+-- and if so, we propagate the visibility downstream recursively according to these rules.
+CREATE TABLE blob_visibility_rules (
+    source_type TEXT NOT NULL,
+    link_type TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    PRIMARY KEY (source_type, link_type, target_type)
+) WITHOUT ROWID;
+
+-- The actual visibility rules for blob visibility propagation.
+INSERT INTO blob_visibility_rules VALUES
+('Change', 'change/dep', 'Change'),
+('Ref', 'ref/head', 'Change'),
+('*', '*', 'DagPB'),
+('*', '*', 'Raw');
+
 -- Stores some relevant attributes for structural blobs,
 -- which are those blobs that we can understand more deeply than just an opaque blob.
 CREATE TABLE structural_blobs (
@@ -161,6 +189,23 @@ CREATE TABLE blob_links (
     type TEXT NOT NULL,
     PRIMARY KEY (source, type, target)
 ) WITHOUT ROWID;
+
+CREATE VIEW blob_links_with_types (
+    source,
+    source_type,
+    link_type,
+    target,
+    target_type
+) AS
+SELECT
+    bl.source,
+    COALESCE(sb1.type, 'Raw') AS source_type,
+    bl.type AS link_type,
+    bl.target,
+    COALESCE(sb2.type, 'Raw') AS target_type
+FROM blob_links bl
+LEFT JOIN structural_blobs sb1 ON sb1.id = bl.source
+LEFT JOIN structural_blobs sb2 ON sb2.id = bl.target;
 
 CREATE UNIQUE INDEX blob_backlinks ON blob_links (target, type, source);
 

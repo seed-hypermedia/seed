@@ -2,6 +2,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net"
+	"net/http"
 	"seed/backend/api/apitest"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/core"
@@ -11,6 +15,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	entities "seed/backend/genproto/entities/v1alpha"
 	networking "seed/backend/genproto/networking/v1alpha"
+	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
@@ -19,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -117,6 +123,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 				},
 			},
 		},
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
 	testutil.StructsEqual(want, doc).
@@ -158,6 +165,7 @@ func TestDaemonUpdateProfile(t *testing.T) {
 					},
 				},
 			},
+			Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 		}
 
 		testutil.StructsEqual(want, doc).
@@ -1601,4 +1609,187 @@ func TestActivityFeed(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPrivateDocumentAccessControl(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Create two peers.
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+
+	// Get Alice's account key.
+	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
+
+	// Alice creates a private document.
+	privateDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/private-doc",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a private document that Bob should not be able to access",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify the private document has the correct visibility.
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, privateDoc.Visibility, "private document must have private visibility")
+
+	// Alice creates a public document.
+	publicDoc, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/public-doc",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Public Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify the public document has the correct visibility.
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, publicDoc.Visibility, "public document must have public visibility")
+
+	// Connect the peers.
+	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
+
+	// Force sync to trigger RBSR protocol.
+	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
+	require.NoError(t, err)
+
+	{
+		const retries = 100
+		for n := range retries {
+			resp, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+				Account:   aliceKey.String(),
+				Recursive: true,
+			})
+			require.NoError(t, err)
+
+			if resp.State == entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+				break
+			}
+
+			if n == retries-1 {
+				t.Fatal("Retries exhausted")
+			}
+
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// Bob should not be able to get the private document.
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceKey.String(),
+		Path:    "/private-doc",
+	})
+	require.Error(t, err, "Bob must not be able to access Alice's private document")
+
+	// Bob must not see private data in Alice's blob list.
+	{
+		c, err := bob.Net.Client(ctx, alice.Net.AddrInfo().ID)
+		require.NoError(t, err)
+
+		stream, err := c.ListBlobs(ctx, &p2p.ListBlobsRequest{})
+		require.NoError(t, err)
+		for {
+			blob, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			require.NoError(t, err)
+			c := must.Do2(cid.Cast(blob.Cid))
+			if c.String() == privateDoc.Version {
+				t.Fatal("Bob must not see private data in Alice's blob list")
+			}
+		}
+	}
+
+	// Test direct blob access via Bitswap.
+	// Parse the CID from the document version.
+	docCID, err := cid.Decode(privateDoc.Version)
+	require.NoError(t, err)
+
+	{
+		ctx, cancel := context.WithTimeout(ctx, 150*time.Millisecond)
+		defer cancel()
+		_, err = bob.Net.Bitswap().GetBlock(ctx, docCID)
+		require.Error(t, err, "Bob must not be able to get private document blobs via Bitswap")
+	}
+
+	// Test HTTP access to the document. Alice should serve the private blob if it's being called on localhost,
+	// but should not serve it if it's being called on a remote IP.
+	addr := alice.HTTPListener.Addr().String()
+	_, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	{
+		url := "http://localhost:" + port + "/ipfs/" + docCID.String()
+		resp, err := http.Get(url) //nolint:gosec
+		require.NoError(t, err)
+		require.Equal(t, 200, resp.StatusCode)
+		if err == nil {
+			require.NoError(t, resp.Body.Close())
+		}
+	}
+
+	{
+		localIP := getLocalIP(t)
+		client := &http.Client{Timeout: 150 * time.Millisecond}
+		url2 := "http://" + localIP + ":" + port + "/ipfs/" + docCID.String()
+		resp, err := client.Get(url2)
+		require.Error(t, err, "request to local IP should fail")
+		if err == nil {
+			require.NoError(t, resp.Body.Close())
+		}
+	}
+
+	// Alice should see both private and public documents when listing her own documents.
+	aliceListResp, err := alice.RPC.DocumentsV3.ListDocuments(ctx, &documents.ListDocumentsRequest{
+		Account:  aliceKey.String(),
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+
+	var foundPrivate, foundPublic bool
+	for _, doc := range aliceListResp.Documents {
+		if doc.Path == "/private-doc" {
+			foundPrivate = true
+			require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, doc.Visibility, "private document in list must have private visibility")
+		}
+		if doc.Path == "/public-doc" {
+			foundPublic = true
+			require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC, doc.Visibility, "public document in list must have public visibility")
+		}
+	}
+	require.True(t, foundPrivate, "Alice must see the private document in her document list")
+	require.True(t, foundPublic, "Alice must see the public document in her document list")
+}
+
+func getLocalIP(t *testing.T) string {
+	addrs, err := net.InterfaceAddrs()
+	require.NoError(t, err)
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+			return ipnet.IP.String()
+		}
+	}
+	t.Fatal("no local IP found")
+	return ""
 }

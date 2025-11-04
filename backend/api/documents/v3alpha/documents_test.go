@@ -90,6 +90,7 @@ func TestCreateDocumentChange(t *testing.T) {
 				},
 			},
 		},
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
 	testutil.StructsEqual(want, doc).
@@ -562,6 +563,7 @@ func TestCreateDocumentChangeWithTimestamp(t *testing.T) {
 		},
 		CreateTime: timestamppb.New(time.UnixMilli(0)),
 		UpdateTime: timestamppb.New(now.Round(time.Millisecond)),
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
 	testutil.StructsEqual(want, doc).
@@ -1164,7 +1166,7 @@ func TestRedirect(t *testing.T) {
 		s, ok := status.FromError(err)
 		require.True(t, ok, "error must be grpc status")
 		details := s.Details()
-		require.Len(t, details, 1, "redirect must have one detail object in the status error")
+		require.Lenf(t, details, 1, "redirect must have one detail object in the status error: %v", s)
 		redirectDetails := details[0].(*documents.RedirectErrorDetails)
 		wantDetails := &documents.RedirectErrorDetails{
 			TargetAccount: fork.Account,
@@ -1367,6 +1369,7 @@ func TestDetachedBlocks(t *testing.T) {
 				},
 			},
 		},
+		Visibility: documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
 	}
 
 	require.NotNil(t, doc.DetachedBlocks, "document must have detached blocks")

@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"seed/backend/blob"
 	"seed/backend/ipfs"
 	"strconv"
 	"strings"
@@ -46,13 +48,6 @@ type AddParams struct {
 	Shard     bool
 	NoCopy    bool
 	HashFun   string
-}
-
-// HTTPHandler is an interface to pass to the router only the http handlers and
-// not all the FileManager type.
-type HTTPHandler interface {
-	GetFile(http.ResponseWriter, *http.Request)
-	UploadFile(http.ResponseWriter, *http.Request)
 }
 
 // FileManager is the main object to handle ipfs files.
@@ -109,6 +104,13 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	// If the request is not coming from localhost (i.e. it's not from our Electron app),
+	// then we only serve public data, because for now private data is not available on the web.
+	// TODO(burdiyan): think about how we can authenticate private data requests on the web.
+	if !isLocalhost(r) {
+		ctx = blob.WithPublicOnly(ctx)
+	}
 
 	n, err := fm.DAGService.Get(ctx, cid)
 	if err != nil {
@@ -310,4 +312,12 @@ func (fm *FileManager) addFile(r io.Reader) (ipld.Node, error) {
 	var n ipld.Node
 	n, err = balanced.Layout(dbh)
 	return n, err
+}
+
+func isLocalhost(r *http.Request) bool {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	return ip == "127.0.0.1" || ip == "::1"
 }
