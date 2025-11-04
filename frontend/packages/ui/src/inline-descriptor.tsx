@@ -5,7 +5,7 @@ import {
   normalizeDate,
   useRouteLink,
 } from '@shm/shared'
-import {HMContactItem} from '@shm/shared/dist/account-utils'
+import {HMContactItem} from '@shm/shared/account-utils'
 import {Tooltip} from './tooltip'
 
 function formatUTC(date: Date) {
@@ -48,7 +48,7 @@ export function InlineDescriptor({children}: {children: React.ReactNode}) {
 }
 
 export function AuthorNameLink({author}: {author: HMContactItem | null}) {
-  const authorName = author?.metadata?.name || 'Someone'
+  const authorName = author?.metadata?.name || author?.id?.uid.slice(0, 10)
   const linkProps = useRouteLink(
     author?.id ? {key: 'profile', id: author.id} : null,
   )
