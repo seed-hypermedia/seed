@@ -83,10 +83,10 @@ type Bitswap struct {
 
 // NewBitswap creates a new Bitswap wrapper.
 // Users must call Close() for shutdown.
-func NewBitswap(host host.Host, rt routing.ContentRouting, bs blockstore.Blockstore) (*Bitswap, error) {
+func NewBitswap(host host.Host, rt routing.ContentRouting, bs blockstore.Blockstore, opts ...bitswap.Option) (*Bitswap, error) {
 	net := bsnet.NewFromIpfsHost(host)
 	ctx, cancel := context.WithCancel(context.Background())
-	b := bitswap.New(ctx, net, rt, bs)
+	b := bitswap.New(ctx, net, rt, bs, opts...)
 
 	return &Bitswap{
 		Bitswap:        b,

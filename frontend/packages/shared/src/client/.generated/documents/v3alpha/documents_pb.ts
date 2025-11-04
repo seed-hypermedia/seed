@@ -7,6 +7,37 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Empty, Message, proto3, protoInt64, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
+ * Hypermedia resources can have different visibility levels declared by their creators.
+ * By default everything is public, because this is what our system started with.
+ *
+ * Currently, private visibility means the resource is accessible by the owner of the account an its collaborators with WRITER role.
+ *
+ * @generated from enum com.seed.documents.v3alpha.ResourceVisibility
+ */
+export enum ResourceVisibility {
+  /**
+   * @generated from enum value: RESOURCE_VISIBILITY_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: RESOURCE_VISIBILITY_PUBLIC = 1;
+   */
+  PUBLIC = 1,
+
+  /**
+   * @generated from enum value: RESOURCE_VISIBILITY_PRIVATE = 2;
+   */
+  PRIVATE = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ResourceVisibility)
+proto3.util.setEnumType(ResourceVisibility, "com.seed.documents.v3alpha.ResourceVisibility", [
+  { no: 0, name: "RESOURCE_VISIBILITY_UNSPECIFIED" },
+  { no: 1, name: "RESOURCE_VISIBILITY_PUBLIC" },
+  { no: 2, name: "RESOURCE_VISIBILITY_PRIVATE" },
+]);
+
+/**
  * Attrbites that can be used for sorting.
  *
  * @generated from enum com.seed.documents.v3alpha.SortAttribute
@@ -353,6 +384,15 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
    */
   timestamp?: Timestamp;
 
+  /**
+   * Optional. Visibility of the document.
+   * Can only be specified here when creating the document for the first time,
+   * i.e. when `base_version` is empty.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 8;
+   */
+  visibility = ResourceVisibility.UNSPECIFIED;
+
   constructor(data?: PartialMessage<CreateDocumentChangeRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -368,6 +408,7 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
     { no: 5, name: "signing_key_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "timestamp", kind: "message", T: Timestamp },
+    { no: 8, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateDocumentChangeRequest {
@@ -2059,6 +2100,13 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
    */
   generation = protoInt64.zero;
 
+  /**
+   * Output only. Visibility of the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 8;
+   */
+  visibility = ResourceVisibility.UNSPECIFIED;
+
   constructor(data?: PartialMessage<CreateRefRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2074,6 +2122,7 @@ export class CreateRefRequest extends Message<CreateRefRequest> {
     { no: 5, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "timestamp", kind: "message", T: Timestamp },
     { no: 7, name: "generation", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateRefRequest {
@@ -2299,6 +2348,13 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   redirectInfo?: RefTarget_Redirect;
 
+  /**
+   * Output only. Visibility of the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 14;
+   */
+  visibility = ResourceVisibility.UNSPECIFIED;
+
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2319,6 +2375,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 11, name: "activity_summary", kind: "message", T: ActivitySummary },
     { no: 12, name: "generation_info", kind: "message", T: GenerationInfo },
     { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
+    { no: 14, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
@@ -2604,6 +2661,13 @@ export class Document extends Message<Document> {
    */
   generationInfo?: GenerationInfo;
 
+  /**
+   * Output only. Visibility of the document.
+   *
+   * @generated from field: com.seed.documents.v3alpha.ResourceVisibility visibility = 15;
+   */
+  visibility = ResourceVisibility.UNSPECIFIED;
+
   constructor(data?: PartialMessage<Document>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2623,6 +2687,7 @@ export class Document extends Message<Document> {
     { no: 9, name: "genesis", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "generation_info", kind: "message", T: GenerationInfo },
+    { no: 15, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Document {
@@ -3017,9 +3082,8 @@ export class DocumentChange_MoveBlock extends Message<DocumentChange_MoveBlock> 
 }
 
 /**
- * Operation to replace a metadata field with a new value
- *
- * Deprecated: Use SetAttribute instead.
+ * Operation to replace a metadata field with a new value.
+ * This is an old operation, and you should use [SetAttribute] instead for greater flexibility.
  *
  * @generated from message com.seed.documents.v3alpha.DocumentChange.SetMetadata
  */

@@ -372,7 +372,10 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		if len(v.Deps) == 0 {
 			resourceTime = v.Ts
 		}
-		sb = newStructuralBlob(c, TypeChange, author, v.Ts, "", v.Genesis, author, resourceTime)
+
+		// By default changes are private, until they are references by a public Ref,
+		// at least transitively.
+		sb = newStructuralBlob(c, eb.Decoded.Type, author, v.Ts, "", v.Genesis, author, resourceTime, VisibilityPrivate)
 	}
 
 	if v.Genesis.Defined() {
@@ -532,7 +535,11 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
-	return reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log)
+	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type changeIndexedAttrs struct {

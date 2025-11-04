@@ -40,10 +40,12 @@ func init() {
 	)
 }
 
-func indexDagPB(ictx *indexingCtx, _ int64, eb Encoded[datamodel.Node]) error {
+func indexDagPB(ictx *indexingCtx, _ int64, eb Encoded[datamodel.Node]) (err error) {
 	c, v := eb.CID, eb.Decoded
 
-	sb := newSimpleStructuralBlob(c, TypeDagPB)
+	// DagPB nodes, which are basically media files and other kinds of attachments, are considered private in the beginning,
+	// until they are included in some public document, public profile, or any other public "parent" / "container" resource.
+	sb := newSimpleStructuralBlob(c, TypeDagPB, VisibilityPrivate)
 
 	if err := traversal.WalkLocal(v, func(_ traversal.Progress, n ipld.Node) error {
 		pblink, ok := n.(dagpb.PBLink)
@@ -69,5 +71,9 @@ func indexDagPB(ictx *indexingCtx, _ int64, eb Encoded[datamodel.Node]) error {
 		return err
 	}
 
-	return ictx.SaveBlob(sb)
+	if err := ictx.SaveBlob(sb); err != nil {
+		return err
+	}
+
+	return nil
 }

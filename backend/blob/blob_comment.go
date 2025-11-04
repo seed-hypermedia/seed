@@ -54,6 +54,7 @@ type Comment struct {
 	ThreadRoot   cid.Cid        `refmt:"threadRoot,omitempty"`
 	ReplyParent_ cid.Cid        `refmt:"replyParent,omitempty"`
 	Body         []CommentBlock `refmt:"body"`
+	Visibility   Visibility     `refmt:"visibility,omitempty"`
 }
 
 // NewComment creates a new Comment blob.
@@ -66,6 +67,7 @@ func NewComment(
 	threadRoot cid.Cid,
 	replyParent cid.Cid,
 	body []CommentBlock,
+	visibility Visibility,
 	ts time.Time,
 ) (eb Encoded[*Comment], err error) {
 	if threadRoot.Equals(replyParent) {
@@ -84,6 +86,7 @@ func NewComment(
 		ThreadRoot:   threadRoot,
 		ReplyParent_: replyParent,
 		Body:         body,
+		Visibility:   visibility,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -232,8 +235,14 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	isTombstone := len(v.Body) == 0
 
 	extraAttrs := make(map[string]any)
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+
+	// Comments have an explicit visibility field, which is usually inherited from the document they target.
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility)
 	sb.ExtraAttrs = extraAttrs
+
+	if v.Visibility != VisibilityPublic {
+		extraAttrs["visibility"] = v.Visibility
+	}
 
 	extraAttrs["tsid"] = eb.TSID()
 

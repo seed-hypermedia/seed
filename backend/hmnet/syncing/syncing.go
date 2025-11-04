@@ -23,7 +23,6 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
-	"github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/boxo/exchange"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -107,6 +106,7 @@ type bitswap interface {
 	NewSession(context.Context) exchange.Fetcher
 	FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo
 }
+
 type Storage interface {
 	DB() *sqlitex.Pool
 	// Service manages syncing of Seed objects among peers.
@@ -122,6 +122,13 @@ type ResourceAPI interface {
 	GetResource(context.Context, *docspb.GetResourceRequest) (*docspb.Resource, error)
 }
 
+// Blockstore is the subset of the larger blockstore interface
+// necessary for the syncing service.
+type Blockstore interface {
+	Put(context.Context, blocks.Block) error
+	PutMany(context.Context, []blocks.Block) error
+}
+
 type protocolChecker struct {
 	checker func(context.Context, peer.ID, string, ...protocol.ID) error
 	version string
@@ -132,7 +139,7 @@ type Service struct {
 	cfg        config.Syncing
 	log        *zap.Logger
 	db         *sqlitex.Pool
-	indexer    blockstore.Blockstore
+	indexer    Blockstore
 	bitswap    bitswap
 	rbsrClient netDialFunc
 	resources  ResourceAPI
@@ -159,7 +166,7 @@ type P2PNode interface {
 }
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer blockstore.Blockstore, net P2PNode, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer Blockstore, net P2PNode, sstore SubscriptionStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -476,7 +483,7 @@ func syncEntities(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,
-	idx blockstore.Blockstore,
+	idx Blockstore,
 	sess exchange.Fetcher,
 	log *zap.Logger,
 	eids map[string]bool,
