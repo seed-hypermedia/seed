@@ -103,8 +103,7 @@ export const Link = Mark.create<LinkOptions>({
       HTMLAttributes: {
         target: '_blank',
         rel: 'noopener noreferrer nofollow',
-        class:
-          'link text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+        class: 'link text-link hover:text-link-hover',
       },
       validate: undefined,
       checkWebUrl: () => Promise.resolve(),
@@ -139,7 +138,7 @@ export const Link = Mark.create<LinkOptions>({
       'span',
       {
         ...attrs,
-        class: `${attrs.class} text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300`,
+        class: `${attrs.class} text-link hover:text-link-hover`,
       },
       0,
     ]

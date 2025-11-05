@@ -175,7 +175,10 @@ export function HypermediaLinkPreview(
             className="flex flex-1 cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
             onClick={() => props.openUrl(props.url)}
           >
-            <SizableText size="lg" color="brand" className="flex-1 truncate">
+            <SizableText
+              size="lg"
+              className="text-link hover:text-link-hover flex-1 truncate"
+            >
               {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
             </SizableText>
           </div>

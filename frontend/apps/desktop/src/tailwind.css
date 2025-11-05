@@ -26,6 +26,8 @@
   --brand-12: #e4f6e5;
   --brand: var(--brand-5);
   --highlight: hsl(123, 50%, 93%);
+  --link: lch(44.196 70 286.91);
+  --link-hover: lch(38 70 286.91);
   --background: oklch(0.98 0 0);
   --panel: white;
   --panel-background: var(--background);
@@ -103,6 +105,8 @@
   --brand-12: hsl(180, 29%, 17%);
   --brand: var(--brand-8);
   --highlight: hsl(180, 41%, 8%);
+  --link: lch(59.472 70 288.421);
+  --link-hover: lch(65 70 288.421);
   --background: oklch(0.2046 0 0);
   --panel-background: black;
   --panel: var(--background);
@@ -180,6 +184,8 @@
   --color-brand-11: var(--brand-11);
   --color-brand-12: var(--brand-12);
   --color-highlight: var(--highlight);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
 
   --color-background: var(--background);
   --color-panel: var(--panel);

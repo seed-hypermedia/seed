@@ -1486,7 +1486,7 @@ function InlineContentView({
 
   const getLinkColor = (linkType: LinkType): string => {
     if (linkType == 'basic' || linkType == 'hypermedia')
-      return 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+      return 'text-link hover:text-link-hover'
     return ''
   }
 
@@ -1595,7 +1595,7 @@ function InlineContentView({
               className={cn(
                 'cursor-pointer break-all transition-colors',
                 // link colors
-                'link text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+                'link text-link hover:text-link-hover',
               )}
               target={isHmScheme ? undefined : '_blank'}
               onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
@@ -2795,7 +2795,7 @@ export function InlineEmbedButton({
       onMouseEnter={() => onHoverIn?.(entityId)}
       onMouseLeave={() => onHoverOut?.(entityId)}
       className={cn(
-        'font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300',
+        'text-link hover:text-link-hover font-bold',
         hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
       )}
       data-inline-embed={packHmId(entityId)}
