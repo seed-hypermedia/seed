@@ -65,14 +65,15 @@ var userAgent = "seed/<dev>"
 // DefaultRelays bootstrap seed-owned relays so they can reserve slots to do holepunch.
 func DefaultRelays() []peer.AddrInfo {
 	return []peer.AddrInfo{
-		// HM25 Seed prod server
-		{
-			ID: must.Do2(peer.Decode("12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq")),
-			Addrs: []multiaddr.Multiaddr{
-				must.Do2(multiaddr.NewMultiaddr("/ip4/40.160.6.196/tcp/4002")),
-				must.Do2(multiaddr.NewMultiaddr("/ip4/40.160.6.196/udp/4002/quic-v1")),
-			},
-		},
+		/*
+			// HM25 Seed prod server
+			{
+				ID: must.Do2(peer.Decode("12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq")),
+				Addrs: []multiaddr.Multiaddr{
+					must.Do2(multiaddr.NewMultiaddr("/ip4/40.160.6.196/tcp/4002")),
+					must.Do2(multiaddr.NewMultiaddr("/ip4/40.160.6.196/udp/4002/quic-v1")),
+				},
+			},*/
 		// HM25 Seed test server
 		{
 			ID: must.Do2(peer.Decode("12D3KooWGvsbBfcbnkecNoRBM7eUTiuriDqUyzu87pobZXSdUUsJ")),

@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"seed/backend/util/cleanup"
-	"seed/backend/util/must"
 
 	delegated_routing "github.com/ipfs/boxo/routing/http/client"
 	content_routing "github.com/ipfs/boxo/routing/http/contentrouter"
@@ -23,7 +21,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	routing "github.com/libp2p/go-libp2p/core/routing"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
-	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 )
@@ -64,7 +61,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 			err = errors.Join(err, clean.Close())
 		}
 	}()
-	rm, err := buildResourceManager(
+	_, err = buildResourceManager(
 		map[protocol.ID]rcmgr.LimitVal{
 			protocolID: 2000,
 		},
@@ -77,23 +74,24 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 		return nil, err
 	}
 	var rt Routing
-	cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
-		connmgr.WithGracePeriod(5*time.Second),
-		connmgr.WithSilencePeriod(6*time.Second)))
-
+	/*
+		cm := must.Do2(connmgr.NewConnManager(lowWatermark, highWatermark,
+			connmgr.WithGracePeriod(5*time.Second),
+			connmgr.WithSilencePeriod(6*time.Second)))
+	*/
 	pid, err := peer.IDFromPublicKey(key.GetPublic())
 	if err != nil {
 		return nil, err
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.MaxIdleConns = 500
-	transport.MaxIdleConnsPerHost = 100
+	transport.MaxIdleConns = 5000
+	transport.MaxIdleConnsPerHost = 1000
 
 	delegateHTTPClient := &http.Client{
 		Transport: &delegated_routing.ResponseBodyLimitedTransport{
 			RoundTripper: transport,
-			LimitBytes:   1 << 20,
+			LimitBytes:   1 << 30,
 		},
 	}
 	o := []libp2p.Option{
@@ -102,9 +100,9 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 		libp2p.EnableRelay(), // Be able to dial behind-relay peers and receive connections from them.
 		libp2p.EnableAutoNATv2(),
 		libp2p.Peerstore(ps),
-		libp2p.ConnectionManager(cm),
-		libp2p.ResourceManager(rm),
-		libp2p.ConnectionGater(newGater(ps)),
+		//libp2p.ConnectionManager(cm),
+		//libp2p.ResourceManager(rm),
+		//libp2p.ConnectionGater(newGater(ps)),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			client, err := delegated_routing.New(delegatedDHTURL,
 				delegated_routing.WithHTTPClient(delegateHTTPClient),
