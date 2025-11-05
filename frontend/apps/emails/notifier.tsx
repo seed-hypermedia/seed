@@ -39,7 +39,6 @@ export async function createNotificationsEmail(
     'site-new-discussion': {},
     mention: {},
     reply: {},
-    'user-comment': {},
   }
 
   for (const notif of notifications) {
@@ -130,7 +129,7 @@ ${docNotifs
   })
   .join('\n')}
 
-Subscribed by mistake? Click here to unsubscribe or manage notifications: ${notifSettingsUrl}`
+Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
 
   // console.log(notifications[0].notif.comment?.content)
   // console.log(JSON.stringify(notifications[0], null, 2))
@@ -179,7 +178,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           })()
 
           return (
-            <React.Fragment key={reason}>
+            <>
               <MjmlSection padding="10px 0px 0px">
                 <MjmlColumn padding="0px">
                   <MjmlText fontSize="20px" fontWeight="bold">
@@ -194,15 +193,14 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                 const docUrl = docNotifs?.[0]?.notif?.url
 
                 return (
-                  <React.Fragment key={docId}>
+                  <>
                     <MjmlSection padding="0px 0px 10px">
                       <MjmlColumn>
                         <MjmlText fontSize="14px" color="#888">
                           {reason === 'site-new-discussion' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {docNotifs.length === 1 ? 'comment' : 'comments'}{' '}
-                              on{' '}
+                              {docNotifs.length} comment
+                              {docNotifs.length === 1 ? '' : 's'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -215,9 +213,8 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                             </>
                           ) : reason === 'mention' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {docNotifs.length === 1 ? 'mention' : 'mentions'}{' '}
-                              on{' '}
+                              {docNotifs.length} mention
+                              {docNotifs.length === 1 ? '' : 's'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -230,8 +227,8 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                             </>
                           ) : reason === 'reply' ? (
                             <>
-                              {docNotifs.length}{' '}
-                              {totalCount === 1 ? 'reply' : 'replies'} on{' '}
+                              {docNotifs.length} repl
+                              {totalCount === 1 ? 'y' : 'ies'} on{' '}
                               <span
                                 style={{
                                   fontWeight: 'bold',
@@ -248,13 +245,16 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                     </MjmlSection>
 
                     {docNotifs.map(({notif}) => {
-                      const key =
-                        'comment' in notif && notif.comment
-                          ? notif.comment.id
-                          : Math.random()
                       return (
-                        <React.Fragment key={key}>
-                          <EmailContent notification={notif} />
+                        <>
+                          <EmailContent
+                            key={
+                              'comment' in notif && notif.comment
+                                ? notif.comment.id
+                                : Math.random()
+                            }
+                            notification={notif}
+                          />
                           <MjmlSection padding="0px">
                             <MjmlColumn>
                               <MjmlText lineHeight="1" fontSize="1px">
@@ -262,7 +262,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                               </MjmlText>
                             </MjmlColumn>
                           </MjmlSection>
-                        </React.Fragment>
+                        </>
                       )
                     })}
 
@@ -283,10 +283,10 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
                         </MjmlButton>
                       </MjmlColumn>
                     </MjmlSection>
-                  </React.Fragment>
+                  </>
                 )
               })}
-            </React.Fragment>
+            </>
           )
         })}
 
@@ -324,8 +324,6 @@ export type Notification =
       authorAccountId: string
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
-      subjectAccountId: string
-      subjectAccountMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
       url: string
       source: 'comment' | 'document'
@@ -341,15 +339,6 @@ export type Notification =
       targetId: UnpackedHypermediaId
       url: string
       resolvedNames?: Record<string, string>
-    }
-  | {
-      reason: 'user-comment'
-      comment: PlainMessage<Comment>
-      parentComments: PlainMessage<Comment>[]
-      authorMeta: HMMetadata | null
-      targetMeta: HMMetadata | null
-      targetId: UnpackedHypermediaId
-      url: string
     }
 
 export type FullNotification = {
@@ -387,11 +376,6 @@ function getNotificationSummary(
     return `${notification.authorMeta?.name || 'Someone'} replied to ${
       accountMeta?.name || 'an account you are subscribed to'
     } comment on ${notification.targetMeta?.name || 'a document'}.`
-  }
-  if (notification.reason === 'user-comment') {
-    return `${notification.authorMeta?.name || 'Someone'} commented on ${
-      notification.targetMeta?.name || 'a document'
-    }.`
   }
   return ''
 }

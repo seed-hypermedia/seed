@@ -11,28 +11,19 @@ import {
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
-import {Button, buttonVariants} from '@shm/ui/button'
-import {DialogTitle} from '@shm/ui/components/dialog'
+import {buttonVariants} from '@shm/ui/button'
 import {DocContentProvider} from '@shm/ui/document-content'
-import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {MemoryBlockstore} from 'blockstore-core/memory'
 import {importer as unixFSImporter} from 'ipfs-unixfs-importer'
 import {SendHorizontal} from 'lucide-react'
 import type {CID} from 'multiformats'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useMemo, useRef, useState} from 'react'
 import {useCommentDraftPersistence} from './comment-draft-utils'
-import {EmailNotificationsForm} from './email-notifications'
-import {
-  hasPromptedEmailNotifications,
-  setHasPromptedEmailNotifications,
-} from './local-db'
 import type {
   CommentPayload,
   CommentResponsePayload,
@@ -141,30 +132,6 @@ export default function WebCommenting({
 
   const myAccount = useAccount(userKeyPair?.id || undefined)
 
-  const {
-    content: emailNotificationsPromptContent,
-    open: openEmailNotificationsPrompt,
-  } = useAppDialog(EmailNotificationsPrompt)
-
-  function promptEmailNotifications() {
-    console.log('🔔 promptEmailNotifications called', {
-      NOTIFY_SERVICE_HOST,
-    })
-    if (!NOTIFY_SERVICE_HOST) {
-      console.log('❌ Email notifications disabled')
-      return
-    }
-    hasPromptedEmailNotifications().then((hasPrompted) => {
-      console.log('🔔 hasPrompted check:', hasPrompted)
-      if (hasPrompted) {
-        console.log('❌ User already prompted, skipping')
-        return
-      }
-      console.log('✅ Opening email notifications prompt')
-      openEmailNotificationsPrompt({})
-    })
-  }
-
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = useCallback(
@@ -206,13 +173,9 @@ export default function WebCommenting({
           commentingOriginUrl,
         )
         await postComment.mutateAsync(commentPayload)
-        console.log(
-          '✅ Comment posted successfully, calling promptEmailNotifications',
-        )
         reset()
         removeDraft() // Remove draft after successful submission
         onDiscardDraft?.()
-        await promptEmailNotifications()
       } finally {
         setIsSubmitting(false)
       }
@@ -230,7 +193,6 @@ export default function WebCommenting({
       postComment,
       removeDraft,
       onDiscardDraft,
-      promptEmailNotifications,
     ],
   )
   const onAvatarPress = useMemo(() => {
@@ -302,7 +264,6 @@ export default function WebCommenting({
         />
       </DocContentProvider>
       {createAccountContent}
-      {emailNotificationsPromptContent}
     </div>
   )
 }
@@ -459,70 +420,5 @@ export function useOpenUrlWeb() {
     } else {
       window.location.href = newUrl
     }
-  }
-}
-
-// @ts-expect-error
-function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
-  useEffect(() => {
-    console.log('📧 EmailNotificationsPrompt mounted')
-    setHasPromptedEmailNotifications(true)
-  }, [])
-  const [mode, setMode] = useState<'prompt' | 'form' | 'success'>('prompt')
-  const [subscribedEmail, setSubscribedEmail] = useState<string | null>(null)
-
-  if (mode === 'prompt') {
-    return (
-      <div className="flex flex-col gap-3">
-        <DialogTitle>Email Notifications</DialogTitle>
-        <SizableText>
-          Do you want to receive an email when someone mentions your or replies
-          to your comments?
-        </SizableText>
-        <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={() => onClose()}>
-            No Thanks
-          </Button>
-          <Button variant="default" onClick={() => setMode('form')}>
-            Yes, Notify Me
-          </Button>
-        </div>
-      </div>
-    )
-  }
-  if (mode === 'form') {
-    return (
-      <div className="flex flex-col gap-3">
-        <DialogTitle>Email Notifications</DialogTitle>
-        <EmailNotificationsForm
-          onClose={onClose}
-          onComplete={(email: string) => {
-            setMode('success')
-            setSubscribedEmail(email)
-          }}
-        />
-      </div>
-    )
-  }
-  if (mode === 'success') {
-    return (
-      <div className="flex flex-col gap-3">
-        <DialogTitle>Email Notifications</DialogTitle>
-        <SizableText>
-          Email notifications have been set for{' '}
-          <SizableText weight="bold">
-            {subscribedEmail || 'your email'}
-          </SizableText>
-          .
-        </SizableText>
-        <SizableText>
-          You can edit your notification preferences by clicking "Manage
-          Notifications" from any email you receive.
-        </SizableText>
-        <Button variant="default" onClick={() => onClose()}>
-          Done
-        </Button>
-      </div>
-    )
   }
 }

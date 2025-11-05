@@ -16,6 +16,7 @@ import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Sparkle} from 'lucide-react'
 import {
@@ -163,7 +164,7 @@ export function SiteHeader({
       <header
         ref={headerRef}
         className={cn(
-          'flex z-20 p-4 w-full bg-white border-b transition-transform duration-200 transform-gpu border-border dark:bg-background',
+          'border-border dark:bg-background z-20 flex w-full transform-gpu border-b bg-white p-4 transition-transform duration-200',
           {
             'flex-col': isCenterLayout,
             'flex-row items-center': !isCenterLayout,
@@ -174,7 +175,7 @@ export function SiteHeader({
         )}
       >
         <div
-          className={cn('flex items-center self-stretch shrink-0', {
+          className={cn('flex shrink-0 items-center self-stretch', {
             'justify-center md:relative': isCenterLayout,
             'flex-start': !isCenterLayout,
           })}
@@ -186,9 +187,9 @@ export function SiteHeader({
             />
           </div>
           {isCenterLayout ? (
-            <div className="flex gap-2 items-center md:absolute md:right-0">
+            <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
-              {notifyServiceHost && (
+              {NOTIFY_SERVICE_HOST && (
                 <Button
                   variant="brand"
                   size="sm"
@@ -203,7 +204,7 @@ export function SiteHeader({
         </div>
 
         <div
-          className={cn('overflow-hidden flex-1 px-2', {
+          className={cn('flex-1 overflow-hidden px-2', {
             flex: !isCenterLayout,
           })}
         >
@@ -217,7 +218,7 @@ export function SiteHeader({
           />
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2">
           {!isCenterLayout && headerSearch}
           {!isCenterLayout && (
             <Button
@@ -294,8 +295,7 @@ export function SiteHeader({
           open={isSubscribeDialogOpen}
           onOpenChange={setIsSubscribeDialogOpen}
           accountId={headerHomeId?.uid}
-          accountMeta={draftMetadata || homeDoc.document?.metadata}
-          notifyServiceHost={notifyServiceHost}
+          apiHost={notifyServiceHost}
         />
       </header>
     </>
@@ -364,8 +364,8 @@ export function SmallSiteHeader({
   siteHost: string
 }) {
   return (
-    <div className="flex flex-col items-start px-2 py-4 w-screen bg-white border-b dark:bg-black">
-      <div className="flex justify-start w-full">
+    <div className="flex w-screen flex-col items-start border-b bg-white px-2 py-4 dark:bg-black">
+      <div className="flex w-full justify-start">
         <div className="p-2">
           <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
         </div>
@@ -425,10 +425,10 @@ function HeaderLinkItem({
       : webUrl || null,
   )
   return (
-    <div className={cn('flex gap-1 items-center px-1')} data-docid={id?.id}>
+    <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
       <a
         className={cn(
-          'px-1 font-bold truncate transition-colors cursor-pointer select-none',
+          'cursor-pointer truncate px-1 font-bold transition-colors select-none',
           active ? 'text-foreground' : 'text-muted-foreground',
           'hover:text-foreground',
         )}
@@ -518,7 +518,7 @@ export function SiteHeaderMenu({
       <a
         ref={feedLinkButtonRef}
         className={cn(
-          'flex gap-2 items-center px-1 font-bold truncate transition-colors cursor-pointer select-none',
+          'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
           isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
           'hover:text-foreground',
         )}
@@ -529,7 +529,7 @@ export function SiteHeaderMenu({
       >
         <Sparkle
           className={cn(
-            'flex-none size-4 shrink-0',
+            'size-4 flex-none shrink-0',
             isMainFeedVisible
               ? 'text-foreground text-bold'
               : 'text-muted-foreground',
@@ -555,14 +555,14 @@ export function SiteHeaderMenu({
     <div
       ref={containerRef}
       className={cn(
-        'hidden overflow-hidden relative flex-1 gap-5 items-center p-0 w-full',
+        'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
         'md:flex md:p-2',
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
       {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
       {/* Hidden measurement container */}
-      <div className="flex absolute top-0 left-0 gap-5 items-center p-0 opacity-0 pointer-events-none md:flex md:p-2">
+      <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
         {items?.map((item) => {
           return (
             <div
@@ -646,17 +646,17 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 h-screen transition-transform duration-200 bg-background md:hidden',
+        'bg-background fixed inset-0 z-50 h-screen transition-transform duration-200 md:hidden',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="flex sticky top-0 flex-col h-screen">
-        <div className="flex justify-end items-center p-4 flex-0">
+      <div className="sticky top-0 flex h-screen flex-col">
+        <div className="flex flex-0 items-center justify-end p-4">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <Close className="size-4" />
           </Button>
         </div>
-        <ScrollArea className="h-3/4 mobile-menu">
+        <ScrollArea className="mobile-menu h-3/4">
           {open ? renderContent() : null}
           <div className="h-20"></div>
         </ScrollArea>
@@ -698,7 +698,7 @@ function GotoLatestBanner({
         'pointer-events-none absolute top-[calc(var(--site-header-h)+12px)] right-0 left-0 z-50 flex w-full justify-center px-4',
       )}
     >
-      <div className="flex gap-4 items-center p-2 max-w-xl rounded-sm border shadow-lg pointer-events-auto bg-background border-border">
+      <div className="bg-background border-border pointer-events-auto flex max-w-xl items-center gap-4 rounded-sm border p-2 shadow-lg">
         <Button
           variant="ghost"
           size="icon"
@@ -706,7 +706,7 @@ function GotoLatestBanner({
         >
           <X color="var(--color-muted-foreground)" size={20} />
         </Button>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {tx(
             'version_from',
             ({date}: {date: string}) => `Version from ${date}`,
@@ -726,8 +726,8 @@ function GotoLatestBanner({
 
 function HypermediaHostBanner({origin}: {origin?: string}) {
   return (
-    <div className="p-1 w-full bg-primary">
-      <p className="flex flex-wrap gap-1 justify-center items-center text-sm text-white">
+    <div className="bg-primary w-full p-1">
+      <p className="flex flex-wrap items-center justify-center gap-1 text-sm text-white">
         <span>Hosted on</span>
         <a href="/" className="underline">
           {hostnameStripProtocol(origin)}

@@ -114,7 +114,7 @@ export function EmailContent({notification}: {notification: Notification}) {
             ) : (
               // Document mention
               <MjmlText fontSize="14px" padding="12px 25px">
-                mentioned {notification.subjectAccountMeta?.name ?? 'you'} in{' '}
+                was mentioned in{' '}
                 <span
                   style={{
                     backgroundColor: '#eee',

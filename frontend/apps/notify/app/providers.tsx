@@ -27,7 +27,6 @@ import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
-import {notifyUniversalClient} from './universal-client'
 
 const queryClient = new QueryClient()
 
@@ -51,16 +50,7 @@ export const Providers = (props: {children: any}) => {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <WebSiteProvider
-          originHomeId={{
-            uid: '',
-            version: undefined,
-            path: undefined,
-            latest: true,
-          }}
-        >
-          {props.children}
-        </WebSiteProvider>
+        {props.children}
       </QueryClientProvider>
     </ThemeProvider>
   )
@@ -177,7 +167,6 @@ export function WebSiteProvider(props: {
       languagePack={languagePack}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
-      universalClient={notifyUniversalClient}
       openUrl={(url) => {
         window.open(url, '_blank')
       }}

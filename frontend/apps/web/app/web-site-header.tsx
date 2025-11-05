@@ -9,7 +9,6 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
@@ -98,7 +97,6 @@ export function WebSiteHeader(
       handleToggleFeed={props.handleToggleFeed}
       isMainFeedVisible={searchParams.get('feed') === 'true'}
       wrapperClassName="fixed sm:static"
-      notifyServiceHost={NOTIFY_SERVICE_HOST}
     />
   )
 }

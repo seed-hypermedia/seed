@@ -10,7 +10,6 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {NotifSettings} from '@shm/emails/components/NotifSettings'
 import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import mjml2html from 'mjml'
@@ -87,7 +86,7 @@ ${firstNotifUrl}
   })
   .join('\n')}
 
-Subscribed by mistake? Click here to unsubscribe or manage notifications: ${notifSettingsUrl}`
+Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
   const {html} = renderReactToMjml(
     <Mjml>
       <MjmlHead>
@@ -183,7 +182,7 @@ export async function sendNotificationWelcomeEmail(
 
 ${primaryMessage}
 
-Subscribed by mistake? Click here to unsubscribe or manage notifications: ${notifSettingsUrl}`
+Subscribed by mistake? Click here to unsubscribe: ${notifSettingsUrl}`
   const {html} = renderReactToMjml(
     <Mjml>
       <MjmlHead>
@@ -209,6 +208,28 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
     accountMeta?.name
       ? `Hypermedia Updates for ${accountMeta?.name}`
       : 'Hypermedia Updates',
+  )
+}
+
+function NotifSettings({url}: {url: string}) {
+  return (
+    <MjmlSection>
+      <MjmlText fontSize={12} paddingBottom={16} align="center" color="#666666">
+        Subscribed by mistake? Click here to unsubscribe:
+      </MjmlText>
+      <MjmlButton
+        padding="12px 24px"
+        backgroundColor="#068f7b"
+        href={url}
+        align="center"
+        borderRadius="6px"
+        color="#ffffff"
+        fontSize="14px"
+        fontWeight="500"
+      >
+        Manage Email Notifications
+      </MjmlButton>
+    </MjmlSection>
   )
 }
 

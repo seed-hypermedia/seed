@@ -200,8 +200,8 @@ async function handleEmailNotifs(
   const allSubscribedEmails = allEmailsIncludingUnsubscribed.filter(
     (email) => !email.isUnsubscribed,
   )
-  const allSubscriptions = deduplicateSubscriptions(
-    allSubscribedEmails.flatMap((email) => email.subscriptions),
+  const allSubscriptions = allSubscribedEmails.flatMap(
+    (email) => email.subscriptions,
   )
   const notificationsToSend: Record<
     string, // email
@@ -338,11 +338,7 @@ async function handleEmailNotifs(
     }
 
     for (const sub of allSubscriptions) {
-      if (sub.notifyAllMentions && mentionedUsers.has(sub.id)) {
-        const subjectAccountMeta = await getAccount(sub.id)
-        if (!subjectAccountMeta) {
-          throw new Error(`Error getting subject account meta for ${sub.id}`)
-        }
+      if (mentionedUsers.has(sub.id) && sub.notifyAllMentions) {
         appendNotification(sub, {
           reason: 'mention',
           source: 'comment',
@@ -351,11 +347,8 @@ async function handleEmailNotifs(
           targetMeta: newComment.targetMeta,
           targetId: targetDocId,
           url: commentUrl,
-          subjectAccountId: sub.id,
-          subjectAccountMeta: subjectAccountMeta.metadata,
         })
-      }
-      if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
+      } else if (parentCommentAuthor === sub.id && sub.notifyAllReplies) {
         appendNotification(sub, {
           reason: 'reply',
           comment: newComment.comment,
@@ -365,25 +358,13 @@ async function handleEmailNotifs(
           targetId: targetDocId,
           url: commentUrl,
         })
-      }
-      if (
+      } else if (
         sub.id === comment.targetAccount &&
         !comment.threadRoot &&
         sub.notifySiteDiscussions
       ) {
         appendNotification(sub, {
           reason: 'site-new-discussion',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: commentUrl,
-        })
-      }
-      if (sub.notifyAllComments && sub.id === comment.author) {
-        appendNotification(sub, {
-          reason: 'user-comment',
           comment: newComment.comment,
           parentComments: newComment.parentComments,
           authorMeta: newComment.commentAuthorMeta,
@@ -679,36 +660,4 @@ async function loadRefFromIpfs(cid: string): Promise<any> {
   const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
   const buffer = await fetch(url).then((res) => res.arrayBuffer())
   return cborDecode(new Uint8Array(buffer))
-}
-
-function deduplicateSubscriptions(
-  subscriptions: BaseSubscription[],
-): BaseSubscription[] {
-  const deduplicatedMap = new Map<string, BaseSubscription>()
-
-  for (const subscription of subscriptions) {
-    const key = `${subscription.id}:${subscription.email}`
-    const existing = deduplicatedMap.get(key)
-
-    if (existing) {
-      // Aggregate notification settings using logical OR
-      deduplicatedMap.set(key, {
-        ...existing,
-        notifyAllMentions:
-          existing.notifyAllMentions || subscription.notifyAllMentions,
-        notifyAllReplies:
-          existing.notifyAllReplies || subscription.notifyAllReplies,
-        notifyOwnedDocChange:
-          existing.notifyOwnedDocChange || subscription.notifyOwnedDocChange,
-        notifySiteDiscussions:
-          existing.notifySiteDiscussions || subscription.notifySiteDiscussions,
-        notifyAllComments:
-          existing.notifyAllComments || subscription.notifyAllComments,
-      })
-    } else {
-      deduplicatedMap.set(key, subscription)
-    }
-  }
-
-  return Array.from(deduplicatedMap.values())
 }
