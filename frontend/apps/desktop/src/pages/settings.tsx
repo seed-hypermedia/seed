@@ -35,6 +35,7 @@ import {
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {formattedDateLong} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {
@@ -797,7 +798,10 @@ function LinkedDevices({
               </Tooltip>
               <p className="text-muted-foreground text-sm">
                 {/* Removing the timezone name in the timestamp. */}
-                {d.createTime?.toString().replace(/\s*\(.+\)$/, '')}
+                {formattedDateLong(d.createTime).replace(
+                  /\s+[A-Z]{2,4}[+-]?\d*$/,
+                  '',
+                )}
               </p>
             </div>
           ))}
