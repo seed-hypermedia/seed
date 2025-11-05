@@ -26,6 +26,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
 import {
+  ArrowLeft,
   ChevronDown,
   Folder,
   MessageSquare,
@@ -70,7 +71,35 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const route = useNavRoute()
   const replace = useNavigate('replace')
 
-  console.log(`== ~ FILTER route:`, route)
+  // Determine if we should show the back button
+  const shouldShowBackButton = useMemo(() => {
+    if (!route || route.key !== 'document') return false
+    const accessory = route.accessory
+    // Type guard to check if we're in discussions accessory
+    if (accessory?.key === 'discussions') {
+      return !!(accessory.openBlockId || accessory.openComment)
+    }
+    return false
+  }, [route])
+
+  // Handle back button click
+  const handleBack = () => {
+    if (!route || route.key !== 'document') return
+    const accessory = route.accessory
+    if (
+      accessory?.key === 'discussions' &&
+      (accessory.openBlockId || accessory.openComment)
+    ) {
+      replace({
+        ...route,
+        accessory: {
+          ...accessory,
+          openBlockId: undefined,
+          openComment: undefined,
+        },
+      })
+    }
+  }
 
   const widthStorage = useMemo(
     () => ({
@@ -185,9 +214,22 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               }}
             />
             <div className="border-border border-b px-5 py-3">
-              <Text weight="semibold" size="lg" className="flex-1">
-                {accessoryTitle}
-              </Text>
+              <div className="flex items-center justify-between gap-2">
+                <Text weight="semibold" size="lg" className="flex-1">
+                  {accessoryTitle}
+                </Text>
+                {shouldShowBackButton && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    className="h-7 px-2 text-xs"
+                  >
+                    <ArrowLeft className="mr-1 h-3 w-3" />
+                    Back
+                  </Button>
+                )}
+              </div>
               {accessoryKey == 'activity' ? (
                 <FeedFilters
                   filterEventType={

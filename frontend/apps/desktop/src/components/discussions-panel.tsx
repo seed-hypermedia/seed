@@ -24,7 +24,7 @@ function _DiscussionsPanel(props: {
   accessory: DocumentDiscussionsAccessory
   onAccessory: (acc: DocumentAccessory) => void
 }) {
-  const {docId, accessory, onAccessory} = props
+  const {docId, accessory} = props
   const selectedAccount = useSelectedAccount()
   const homeDoc = useResource(hmId(docId.uid))
   const targetDomain =
@@ -75,7 +75,6 @@ function _DiscussionsPanel(props: {
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
-          onBack={() => onAccessory({key: 'discussions'})}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
@@ -90,7 +89,6 @@ function _DiscussionsPanel(props: {
       <AppDocContentProvider docId={docId} textUnit={14} layoutUnit={16}>
         {deleteCommentDialog.content}
         <CommentDiscussions
-          onBack={() => onAccessory({key: 'discussions'})}
           commentId={accessory.openComment}
           commentEditor={commentEditor}
           targetId={docId}

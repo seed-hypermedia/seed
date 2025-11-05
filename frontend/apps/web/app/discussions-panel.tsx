@@ -19,7 +19,6 @@ type DiscussionsPanelProps = {
   setBlockId: (blockId: string | null) => void
   comment?: HMComment
   blockId?: string
-  handleBack: () => void
   commentEditor?: React.ReactNode
   targetDomain?: string
 }
@@ -33,7 +32,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     blockId,
     commentEditor,
     siteHost,
-    handleBack,
     targetDomain,
     docId,
   } = props
@@ -76,7 +74,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         <BlockDiscussions
           targetId={targetId}
           commentEditor={commentEditor}
-          onBack={handleBack}
           targetDomain={targetDomain}
           renderCommentContent={renderCommentContent}
         />
@@ -92,7 +89,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         textUnit={14}
       >
         <CommentDiscussions
-          onBack={handleBack}
           commentId={comment.id}
           commentEditor={commentEditor}
           targetId={props.docId}

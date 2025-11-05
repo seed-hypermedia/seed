@@ -8,11 +8,11 @@ import {
   HMComment,
   HMDocument,
   HMEntityContent,
-  hmId,
   HMMetadata,
   NavRoute,
-  routeToHref,
   UnpackedHypermediaId,
+  hmId,
+  routeToHref,
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -27,7 +27,6 @@ import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container} from '@shm/ui/container'
 import {DocContent} from '@shm/ui/document-content'
 import documentContentStyles from '@shm/ui/document-content.css?url'
@@ -51,8 +50,8 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {MessageSquare, Sparkle} from 'lucide-react'
 import {
-  lazy,
   Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -189,11 +188,6 @@ function InnerDocumentPage(
   )
 
   const mainScrollRef = useScrollRestoration('main-document-scroll', true)
-  const mobileScrollRef = useScrollRestoration('mobile-panel-scroll', true)
-  const activityFeedScrollRef = useScrollRestoration('activity-feed-scroll')
-  const discussionsPanelScrollRef = useScrollRestoration(
-    'discussions-panel-scroll',
-  )
   const activityService = useMemo(() => new WebActivityService(), [])
 
   const keyPair = useLocalKeyPair()
@@ -521,11 +515,6 @@ function InnerDocumentPage(
             commentEditor={commentEditor}
             blockId={activePanel.blockId}
             comment={activePanel.comment}
-            handleBack={(activity?: boolean) => {
-              setDocumentPanel({
-                type: 'discussions',
-              })
-            }}
             setBlockId={onBlockCommentClick}
             docId={id}
             homeId={originHomeId}
@@ -876,19 +865,7 @@ function InnerDocumentPage(
                           />
                         ) : null}
                       </div>
-                      <div className="flex-1 overflow-hidden">
-                        <ScrollArea
-                          ref={
-                            activePanel?.type === 'activity'
-                              ? activityFeedScrollRef
-                              : activePanel?.type === 'discussions'
-                              ? discussionsPanelScrollRef
-                              : undefined
-                          }
-                        >
-                          {panel}
-                        </ScrollArea>
-                      </div>
+                      <div className="flex-1 overflow-hidden">{panel}</div>
                     </Panel>
                   </>
                 ) : null}
@@ -930,8 +907,8 @@ function InnerDocumentPage(
                     </div>
 
                     <div
-                      className="flex flex-1 flex-col overflow-y-auto"
-                      ref={mobileScrollRef}
+                      className="flex flex-1 flex-col"
+                      // ref={mobileScrollRef}
                     >
                       {panel}
                     </div>

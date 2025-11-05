@@ -34,21 +34,28 @@ export function AccessoryContent({
   children,
   footer,
   header,
-  title,
+  scrollRef,
+  bottomPadding,
   ...props
 }: {
   children?: React.ReactNode
   footer?: React.ReactNode
   header?: React.ReactNode
-  title?: string
+  scrollRef?: React.RefObject<HTMLDivElement>
+  bottomPadding?: number | string
 }) {
   return (
-    <div className="flex flex-1 flex-col overflow-hidden" {...props}>
-      <ScrollArea>
+    <div className="flex h-full flex-1 flex-col overflow-hidden" {...props}>
+      <ScrollArea ref={scrollRef}>
         {header ? (
           <div className="border-border max-h-1/2 border-b p-4">{header}</div>
         ) : null}
-        <div className={cn('flex flex-col gap-2')}>{children}</div>
+        <div
+          className={cn('flex flex-col gap-2')}
+          style={{paddingBottom: bottomPadding}}
+        >
+          {children}
+        </div>
       </ScrollArea>
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">

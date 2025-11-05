@@ -28,9 +28,17 @@ import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
-import {ReactNode, useContext, useEffect, useMemo, useState} from 'react'
+import {
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useLayoutEffect,
+} from 'react'
 import {toast} from 'sonner'
-import {AccessoryBackButton, AccessoryContent} from './accessories'
+import {AccessoryContent} from './accessories'
 import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {
@@ -55,7 +63,6 @@ export function CommentDiscussions({
   targetId,
   commentId,
   renderCommentContent,
-  onBack,
   commentEditor,
   targetDomain,
   currentAccountId,
@@ -66,11 +73,34 @@ export function CommentDiscussions({
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
-  onBack?: () => void
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const focusedCommentRef = useRef<HTMLDivElement>(null)
+  const [showParents, setShowParents] = useState(false)
+  const [bottomPadding, setBottomPadding] = useState<number>(400)
+  const parentsRef = useRef<HTMLDivElement>(null)
+
+  // Reset scroll and parent visibility when commentId changes
+  useEffect(() => {
+    if (!commentId) return
+
+    // Reset state when switching to a different comment
+    setShowParents(false)
+
+    // Reset scroll position to top
+    if (scrollRef.current) {
+      const viewport = scrollRef.current.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLElement
+      if (viewport) {
+        viewport.scrollTop = 0
+      }
+    }
+  }, [commentId])
+
   if (!commentId) return null
 
   // Fetch all comments for the document
@@ -89,10 +119,77 @@ export function CommentDiscussions({
     (c) => c.id === commentId,
   )
 
+  // Find the actual focused comment
+  const focusedComment = useMemo(() => {
+    if (!commentsService.data?.comments) return null
+    return commentsService.data.comments.find((c) => c.id === commentId)
+  }, [commentsService.data?.comments, commentId])
+
+  // Render parent thread after initial load and adjust scroll
+  useLayoutEffect(() => {
+    // Only run once when we have parent thread data and haven't shown parents yet
+    if (!parentThread?.thread?.length || showParents) return
+
+    // Delay to ensure focused comment is rendered first
+    const timer = setTimeout(() => {
+      setShowParents(true)
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
+
+  // Adjust scroll position when parents are shown
+  useLayoutEffect(() => {
+    if (!showParents || !parentsRef.current || !scrollRef.current) return
+
+    // Measure parent height and adjust scroll
+    const parentHeight = parentsRef.current.offsetHeight
+    const viewport = scrollRef.current.querySelector(
+      '[data-slot="scroll-area-viewport"]',
+    ) as HTMLElement
+
+    if (viewport) {
+      // Scroll down by parent height to keep focused comment in view
+      viewport.scrollTop = parentHeight + 8
+    }
+  }, [showParents, commentId]) // Added commentId to re-run on comment change
+
+  // Calculate bottom padding based on viewport height
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return
+
+    const calculatePadding = () => {
+      const viewport = scrollRef.current?.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLElement
+      if (viewport) {
+        // Get viewport height and calculate padding
+        // We want enough padding so the focused comment can be scrolled to the top
+        const viewportHeight = viewport.clientHeight
+        // Add some extra padding to ensure smooth scrolling
+        const padding = Math.max(viewportHeight * 0.75, 300)
+        setBottomPadding(padding)
+      }
+    }
+
+    // Calculate initially
+    calculatePadding()
+
+    // Recalculate on resize
+    const resizeObserver = new ResizeObserver(calculatePadding)
+    const viewport = scrollRef.current.querySelector(
+      '[data-slot="scroll-area-viewport"]',
+    ) as HTMLElement
+    if (viewport) {
+      resizeObserver.observe(viewport)
+    }
+
+    return () => resizeObserver.disconnect()
+  }, [scrollRef.current])
+
   if (commentsService.error) {
     return (
       <AccessoryContent>
-        <AccessoryBackButton onClick={onBack} />
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
@@ -105,8 +202,7 @@ export function CommentDiscussions({
   if (commentsService.isLoading && !commentsService.data) {
     return (
       <AccessoryContent>
-        <AccessoryBackButton onClick={onBack} />
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
       </AccessoryContent>
@@ -117,7 +213,6 @@ export function CommentDiscussions({
   if (!commentFound && commentsService.data) {
     return (
       <AccessoryContent>
-        <AccessoryBackButton onClick={onBack} />
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
@@ -127,29 +222,63 @@ export function CommentDiscussions({
     )
   }
 
+  // Check if there are actual parent comments (more than just the focused comment itself)
+  const hasParents = parentThread?.thread && parentThread.thread.length > 1
+
   return (
-    <AccessoryContent>
-      <AccessoryBackButton onClick={onBack} />
-      {commentId && parentThread ? (
-        parentThread.thread.length > 0 ? (
-          <CommentGroup
-            commentGroup={{
-              id: commentId,
-              comments: parentThread.thread,
-              moreCommentsCount: 0,
-              type: 'commentGroup',
-            }}
-            authors={commentsService.data?.authors}
-            onCommentDelete={onCommentDelete}
-            currentAccountId={currentAccountId}
+    <AccessoryContent scrollRef={scrollRef} bottomPadding={bottomPadding}>
+      {/* Render parent thread above focused comment when ready */}
+      {hasParents && showParents && (
+        <div ref={parentsRef}>
+          {parentThread.thread.slice(0, -1).map((comment, index, list) => (
+            <div
+              key={comment.id}
+              className={cn(
+                'p-2',
+                index != list.length - 1 && 'border-border border-b',
+              )}
+            >
+              <Comment
+                comment={comment}
+                authorId={comment.author}
+                authorMetadata={
+                  commentsService.data?.authors?.[comment.author]?.metadata
+                }
+                renderCommentContent={renderCommentContent}
+                targetDomain={targetDomain}
+                currentAccountId={currentAccountId}
+                onCommentDelete={onCommentDelete}
+                isFirst={index === 0}
+                isLast={false}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Render the focused comment */}
+      {focusedComment && (
+        <div
+          ref={focusedCommentRef}
+          className={cn('border-border border-b p-2')}
+        >
+          <Comment
+            comment={focusedComment}
+            authorId={focusedComment.author}
+            authorMetadata={
+              commentsService.data?.authors?.[focusedComment.author]?.metadata
+            }
             renderCommentContent={renderCommentContent}
-            highlightLastComment
             targetDomain={targetDomain}
+            currentAccountId={currentAccountId}
+            onCommentDelete={onCommentDelete}
+            isFirst={!(hasParents && showParents)}
+            isLast={true}
+            highlight
           />
-        ) : (
-          <EmptyDiscussions emptyReplies />
-        )
-      ) : null}
+        </div>
+      )}
+
       <div className="border-border relative max-h-1/2 border-b py-4">
         <div
           className="bg-border absolute w-px"
@@ -190,7 +319,6 @@ export function Discussions({
   commentId,
   renderCommentContent,
   commentEditor,
-  onBack,
   targetDomain,
   currentAccountId,
   onCommentDelete,
@@ -199,7 +327,6 @@ export function Discussions({
   commentId?: string
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
-  onBack?: () => void
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
@@ -262,10 +389,7 @@ export function Discussions({
   }
 
   return (
-    <AccessoryContent header={commentEditor}>
-      {commentId ? <AccessoryBackButton onClick={onBack} /> : null}
-      {panelContent}
-    </AccessoryContent>
+    <AccessoryContent header={commentEditor}>{panelContent}</AccessoryContent>
   )
 }
 
@@ -273,7 +397,6 @@ export function BlockDiscussions({
   targetId,
   renderCommentContent,
   commentEditor,
-  onBack,
   targetDomain,
   currentAccountId,
   onCommentDelete,
@@ -281,7 +404,6 @@ export function BlockDiscussions({
   targetId: UnpackedHypermediaId
   renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
-  onBack?: () => void
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
@@ -356,7 +478,6 @@ export function BlockDiscussions({
 
   return (
     <AccessoryContent>
-      <AccessoryBackButton onClick={onBack} />
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
@@ -531,9 +652,9 @@ export function Comment({
     >
       {heading ? null : (
         <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
-          {!isFirst ? (
+          {isFirst ? null : (
             <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />
-          ) : null}{' '}
+          )}
           <div
             className={cn(
               'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
