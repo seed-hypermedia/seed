@@ -127,6 +127,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 	if err != nil {
 		return nil, err
 	}
+	node = &libp2pWrapper{node}
 	clean.Add(node)
 
 	return &Libp2p{
@@ -135,6 +136,18 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 		Host:    node,
 		Routing: rt,
 	}, nil
+}
+
+type libp2pWrapper struct {
+	host.Host
+}
+
+func (lw *libp2pWrapper) Connect(ctx context.Context, pinfo peer.AddrInfo) error {
+	if lw.Network().Connectedness(pinfo.ID) == network.Connected {
+		return nil
+	}
+
+	return lw.Host.Connect(ctx, pinfo)
 }
 
 // Listen starts listening on the network.
