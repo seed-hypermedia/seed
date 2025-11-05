@@ -18,12 +18,8 @@ import {
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {
-  createNotifierRequester,
-  getAccountNotifsSafe,
-} from '@/models/email-notifications'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
-import {useGatewayUrl, useNotifyServiceHost} from '@/models/gateway-settings'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -47,6 +43,7 @@ import {
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -87,35 +84,27 @@ export default function DocumentPage() {
   const replace = useNavigate('replace')
   const push = useNavigate('push')
 
+  const notifyServiceHost = useNotifyServiceHost()
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const immediatePromptNotifs =
     route.immediatelyPromptNotifs && !route.id?.path?.length
 
-  const gatewayUrl = useGatewayUrl()
   const markPromptedKey = trpc.prompting.markPromptedKey.useMutation()
 
   useEffect(() => {
-    if (immediatePromptNotifs) {
-      getAccountNotifsSafe(
-        createNotifierRequester(gatewayUrl.data),
-        route.id.uid,
-      ).then((result) => {
-        if (result && !result.account?.email) {
-          notifSettingsDialog.open({
-            accountUid: route.id.uid,
-            title: 'Get Emailed when Important Things Happen Here',
-          })
-          markPromptedKey.mutate({
-            key: `account-email-notifs-${route.id.uid}`,
-            isPrompted: true,
-          })
-        } else {
-          // 'notifs already set on server! or disconnected from server',
-        }
+    if (immediatePromptNotifs && notifyServiceHost.data) {
+      notifSettingsDialog.open({
+        notifyServiceHost: notifyServiceHost.data,
+        accountUid: route.id.uid,
+        title: 'Get Emailed when Important Things Happen Here',
+      })
+      markPromptedKey.mutate({
+        key: `account-email-notifs-${route.id.uid}`,
+        isPrompted: true,
       })
       replace({...route, immediatelyPromptNotifs: false})
     }
-  }, [immediatePromptNotifs])
+  }, [immediatePromptNotifs, notifyServiceHost.data])
 
   const mainPanelRef = useRef<HTMLDivElement>(null)
   const templateDialogContent = useTemplateDialog(route)
@@ -515,7 +504,7 @@ function _AppDocSiteHeader({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
-  const notifyServiceHost = useNotifyServiceHost()
+  const notifyServiceHost = useNotifyServiceHost().data || NOTIFY_SERVICE_HOST
 
   if (!siteHomeEntity) return null
   if (route.key !== 'document' && route.key != 'feed') return null
@@ -554,7 +543,7 @@ function _AppDocSiteHeader({
           key: route.key == 'document' ? 'feed' : 'document',
         })
       }}
-      notifyServiceHost={notifyServiceHost.data}
+      notifyServiceHost={notifyServiceHost}
     />
   )
 }

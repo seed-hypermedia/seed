@@ -1,5 +1,6 @@
 import {useIPC} from '@/app-context'
 import {useEditProfileDialog} from '@/components/edit-profile-dialog'
+import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {IconForm} from '@/components/icon-form'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
@@ -576,7 +577,6 @@ function AccountKeys() {
               </Field>
             </div>
           ) : null}
-
           <AlertDialog>
             <Tooltip content="Delete account from device">
               <AlertDialogTrigger asChild>
@@ -612,7 +612,10 @@ function AccountKeys() {
               </AlertDialogContent>
             </AlertDialogPortal>
           </AlertDialog>
-          <Separator />
+          <EmailNotificationsSettings
+            accountUid={selectedAccount}
+            accountName={getMetadataName(profileDocument?.metadata)}
+          />
           <SettingsSection title="Wallets">
             <AccountWallet
               accountUid={selectedAccount}
@@ -653,105 +656,32 @@ function AccountKeys() {
   )
 }
 
-// function EmailNotificationSettings({accountUid}: {accountUid: string}) {
-// const emailNotifs = useEmailNotifications(accountUid)
-// const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
-// const hasNoNotifs =
-//   emailNotifs.data?.account &&
-//   !emailNotifs.data.account.notifyAllMentions &&
-//   !emailNotifs.data.account.notifyAllReplies &&
-//   !emailNotifs.data.account.notifyOwnedDocChange &&
-//   !emailNotifs.data.account.notifySiteDiscussions
+function EmailNotificationsSettings({
+  accountUid,
+  accountName,
+}: {
+  accountUid: string
+  accountName: string
+}) {
+  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
 
-// const isLoading = emailNotifs.isLoading
-// const hasError = emailNotifs.isError && !emailNotifs.data
-// const hasAccount = emailNotifs.data?.account
-
-// console.log(emailNotifs.data, emailNotifs.isError)
-
-// return (
-//   <SettingsSection title="Email Notifications">
-//     {isLoading ? (
-//       <div className="flex gap-3 items-center">
-//         <Spinner size="small" />
-//         <SizableText className="text-muted-foreground">
-//           Loading notification settings...
-//         </SizableText>
-//       </div>
-//     ) : hasError ? (
-//       <div className="flex flex-col gap-3">
-//         <div className="flex gap-3 items-center">
-//           <X className="text-destructive size-6" />
-//           <SizableText className="text-destructive">
-//             Unable to load email notification settings
-//           </SizableText>
-//         </div>
-//         <SizableText className="text-sm text-muted-foreground">
-//           This may be due to network issues or gateway configuration problems.
-//         </SizableText>
-//       </div>
-//     ) : hasAccount ? (
-//       <div className="flex flex-col gap-3">
-//         <SizableText>
-//           Recipient Email:{' '}
-//           <SizableText weight="bold">
-//             {emailNotifs.data?.account?.email}
-//           </SizableText>
-//         </SizableText>
-//         {emailNotifs.data?.account?.notifyAllMentions && (
-//           <CheckmarkRow checked label="Notify when someone mentions me" />
-//         )}
-//         {emailNotifs.data?.account?.notifyAllReplies && (
-//           <CheckmarkRow checked label="Notify when someone replies to me" />
-//         )}
-//         {emailNotifs.data?.account?.notifyOwnedDocChange && (
-//           <CheckmarkRow
-//             checked
-//             label="Notify when someone changes a document I own"
-//           />
-//         )}
-//         {emailNotifs.data?.account?.notifySiteDiscussions && (
-//           <CheckmarkRow
-//             checked
-//             label="Notify when someone creates a discussion in my site"
-//           />
-//         )}
-//         {hasNoNotifs ? (
-//           <div className="flex gap-3 items-center">
-//             <X className="text-muted-foreground size-6" />
-//             <SizableText className="text-muted-foreground">
-//               No notifications enabled
-//             </SizableText>
-//           </div>
-//         ) : null}
-//       </div>
-//     ) : (
-//       <div className="flex gap-3 items-center">
-//         <SizableText className="text-muted-foreground">
-//           No email notification settings configured
-//         </SizableText>
-//       </div>
-//     )}
-//     <div className="flex">
-//       <Button
-//         size="sm"
-//         disabled={isLoading || hasError}
-//         onClick={() =>
-//           notifSettingsDialog.open({
-//             accountUid,
-//             title: 'Edit Notification Settings',
-//           })
-//         }
-//       >
-//         <Pencil className="mr-2 w-4 h-4" />
-//         Edit Notification Settings
-//       </Button>
-//     </div>
-//     {notifSettingsDialog.content}
-//   </SettingsSection>
-// )
-//   return null
-// }
+  return (
+    <SettingsSection title="Email Notifications">
+      <Button
+        variant="inverse"
+        onClick={() => {
+          notifSettingsDialog.open({
+            accountUid: accountUid,
+            title: `Notifications for ${accountName}`,
+          })
+        }}
+      >
+        Subscribe with email address
+      </Button>
+      {notifSettingsDialog.content}
+    </SettingsSection>
+  )
+}
 
 function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
   return (

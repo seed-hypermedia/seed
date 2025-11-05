@@ -1,4 +1,3 @@
-import {queryAPI} from '@/models'
 import {SizableText} from '@shm/ui/text'
 
 import type {Email} from '@/db'
@@ -8,11 +7,12 @@ import {
   useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
+import {hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
-import {useEffect, useState} from 'react'
 
 export default function EmailNotificationsPage() {
   return (
@@ -25,13 +25,13 @@ export default function EmailNotificationsPage() {
 function NotifySiteHeader() {
   return (
     <div className="flex flex-col gap-4 px-6 pt-8">
-      <div className="flex items-center gap-2">
+      <div className="flex gap-2 items-center">
         <img
           src="/assets/seed-icon.svg"
           alt="Seed"
-          className="h-6 w-6 flex-shrink-0 object-contain"
+          className="object-contain flex-shrink-0 w-6 h-6"
         />
-        <h1 className="text-brand text-2xl font-bold">Seed Notify</h1>
+        <h1 className="text-2xl font-bold text-brand">Seed Notify</h1>
       </div>
     </div>
   )
@@ -39,11 +39,11 @@ function NotifySiteHeader() {
 
 function NotifySiteContainer({children}: {children: React.ReactNode}) {
   return (
-    <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
+    <div className="flex overflow-hidden flex-col w-screen h-screen max-h-screen bg-panel min-h-svh">
       <NotifySiteHeader />
-      <div className="dark:bg-background flex flex-1 gap-4 overflow-hidden overflow-y-auto bg-white px-6 py-8">
+      <div className="flex overflow-hidden overflow-y-auto flex-1 gap-4 px-6 py-8 bg-white dark:bg-background">
         <div className="flex flex-col gap-4">
-          <div className="rounded-md border-1 p-4">{children}</div>
+          <div className="p-4 rounded-md border-1">{children}</div>
         </div>
       </div>
     </div>
@@ -59,14 +59,13 @@ export function EmailNotificationsContent() {
     error,
   } = useEmailNotificationsWithToken(token)
   const {mutate: setEmailUnsubscribed} = useSetEmailUnsubscribed(token)
-  const {mutate: setAccountOptions} = useSetAccountOptions(token)
   if (!token) {
     return <SizableText>No token provided</SizableText>
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
         <SizableText className="ml-2">
           Loading notification settings...
@@ -85,25 +84,25 @@ export function EmailNotificationsContent() {
     )
   }
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex flex-col gap-6 max-w-2xl">
       {notifSettings ? (
         <>
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-gray-600">{notifSettings.email}</p>
-            <h2 className="text-2xl font-bold">Set Up Email Notifications</h2>
+            <h2 className="text-2xl font-bold">Notification Settings</h2>
+            <p className="text-2xl text-gray-600">for {notifSettings.email}</p>
           </div>
           {notifSettings.isUnsubscribed ? (
             <>
-              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                <p className="font-medium text-red-700">
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <p className="font-bold text-red-700">
                   Unsubscribed from All Notifications
                 </p>
                 <SizableText className="mt-2 text-red-600">
-                  You can enable notifications for the following sites:
+                  You were subscribed to:
                 </SizableText>
                 <div className="mt-3 space-y-2">
                   {notifSettings.subscriptions.map((sub) => (
-                    <AccountTitle key={sub.id} accountId={sub.id} />
+                    <LoadedAccountTitle key={sub.id} id={hmId(sub.id)} />
                   ))}
                 </div>
               </div>
@@ -128,7 +127,7 @@ export function EmailNotificationsContent() {
                 ))}
               </div>
 
-              <div className="border-t pt-4">
+              <div className="pt-4 border-t">
                 <Button
                   variant="destructive"
                   onClick={() => {
@@ -142,7 +141,7 @@ export function EmailNotificationsContent() {
           )}
         </>
       ) : (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       )}
@@ -150,42 +149,31 @@ export function EmailNotificationsContent() {
   )
 }
 
-function AccountTitle({accountId}: {accountId: string}) {
-  const [accountData, setAccountData] = useState<{
-    id: any
-    metadata: any
-  } | null>(null)
-  const [loading, setLoading] = useState(true)
+function LoadedAccountTitle({id}: {id: UnpackedHypermediaId}) {
+  const {data: account} = useResource(id)
+  if (!account) return null
+  if (account.type !== 'document') return null
+  return (
+    <AccountTitle
+      accountId={account.id}
+      metadata={account.document?.metadata}
+    />
+  )
+}
 
-  useEffect(() => {
-    async function loadAccount() {
-      try {
-        const response = (await queryAPI(`/hm/api/account/${accountId}`)) as any
-        setAccountData(response)
-      } catch (error) {
-        console.error('Error loading account:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadAccount()
-  }, [accountId])
-
-  const displayName =
-    accountData?.metadata?.name || accountId.slice(0, 8) + '...'
-
-  if (loading) {
-    return (
-      <div className="flex gap-2">
-        <SizableText weight="bold">{accountId.slice(0, 8)}...</SizableText>
-      </div>
-    )
-  }
+function AccountTitle({
+  accountId,
+  metadata,
+}: {
+  accountId: UnpackedHypermediaId
+  metadata: HMMetadata
+}) {
+  const displayName = metadata?.name || accountId.uid.slice(0, 8) + '...'
 
   return (
-    <div className="flex gap-2">
-      {accountData?.id ? <HMIcon size={24} id={accountData.id} /> : null}
-      <SizableText weight="bold">{displayName}</SizableText>
+    <div className="flex gap-2 items-center pt-2 w-full border-t border-gray-300">
+      {accountId ? <HMIcon size={24} id={accountId} /> : null}
+      <p className="text-lg font-bold">{displayName}</p>
     </div>
   )
 }
@@ -197,58 +185,70 @@ function EmailNotificationSubscription({
   subscription: Email['subscriptions'][number]
   token: string
 }) {
+  const {data: account} = useResource(hmId(subscription.id))
+  if (!account) return null
+  if (account.type !== 'document') return null
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <AccountTitle accountId={subscription.id} />
+      <div className="flex gap-3 items-center">
+        <AccountTitle
+          accountId={account.id}
+          metadata={account.document?.metadata}
+        />
       </div>
 
       <div className="space-y-6">
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">Site Activity</h4>
+          <h4 className="font-bold text-gray-800">Site Activity</h4>
+          <p className="text-sm text-gray-600">
+            Get notified when something happens in{' '}
+            {account.document?.metadata?.name}. Emails will be sent every 4
+            hours at most.
+          </p>
           <p className="text-sm text-gray-600">Notify me when:</p>
-          <div className="space-y-3 pl-4">
+          <div className="pl-4 space-y-3">
             <AccountValueSwitch
               token={token}
-              label="Document Updates"
+              label="A Document is Created or Updated"
               field="notifyOwnedDocChange"
               subscription={subscription}
             />
             <AccountValueSwitch
               token={token}
-              label="Discussion Threads"
+              label="A Discussion is Created"
               field="notifySiteDiscussions"
               subscription={subscription}
             />
           </div>
         </div>
-        {/* 
+
         <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">User Activity</h4>
+          <h4 className="font-bold text-gray-800">User Activity</h4>
           <p className="text-sm text-gray-600">
-            Get notified about activity related to this user.
+            Get notified about activity related to this user. Notify me
+            immediately when:
           </p>
           <div className="pl-4 space-y-3">
             <AccountValueSwitch
               token={token}
-              label="When this user is mentioned"
+              label="This user is mentioned"
               field="notifyAllMentions"
               subscription={subscription}
             />
             <AccountValueSwitch
               token={token}
-              label="When someone replies to this user's comments"
+              label="Someone replies to this user's comments"
               field="notifyAllReplies"
               subscription={subscription}
             />
             <AccountValueSwitch
               token={token}
-              label="When this user makes comments"
+              label="This user creates a comment"
               field="notifyAllComments"
               subscription={subscription}
             />
           </div>
-        </div> */}
+        </div>
       </div>
     </div>
   )

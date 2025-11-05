@@ -1,12 +1,12 @@
 import {zodResolver} from '@hookform/resolvers/zod'
 import {useTxString} from '@shm/shared/translation'
-import {FormCheckbox, FormInput} from './form-input'
-import {FormField} from './forms'
-import {Spinner} from './spinner'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {Button} from './button'
+import {FormCheckbox, FormInput} from './form-input'
+import {FormField} from './forms'
+import {Spinner} from './spinner'
 import {SizableText} from './text'
 
 const emailNotificationsSchema = z.object({
@@ -24,13 +24,11 @@ export type UIEmailNotificationsFormSchema = z.infer<
 export function UIEmailNotificationsForm({
   onClose,
   onComplete,
-  defaultValues,
   setEmailNotifications,
   isLoading,
 }: {
   onClose: () => void
-  onComplete: () => void
-  defaultValues?: z.infer<typeof emailNotificationsSchema>
+  onComplete: (email: string) => void
   setEmailNotifications: (
     input: UIEmailNotificationsFormSchema,
   ) => Promise<void>
@@ -44,7 +42,7 @@ export function UIEmailNotificationsForm({
     formState: {errors},
   } = useForm<z.infer<typeof emailNotificationsSchema>>({
     resolver: zodResolver(emailNotificationsSchema),
-    defaultValues: defaultValues || {
+    defaultValues: {
       email: '',
       notifyAllMentions: true,
       notifyAllReplies: true,
@@ -53,10 +51,8 @@ export function UIEmailNotificationsForm({
     },
   })
   function onSubmit(data: z.infer<typeof emailNotificationsSchema>) {
-    console.log('data', data)
     setEmailNotifications(data).then(() => {
-      // onClose()
-      onComplete()
+      onComplete(data.email)
     })
   }
   useEffect(() => {

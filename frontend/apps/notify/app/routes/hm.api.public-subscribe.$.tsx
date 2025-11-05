@@ -19,6 +19,7 @@ const publicSubscribeAction = z.object({
   notifyAllReplies: z.boolean().optional().default(false),
   notifyOwnedDocChange: z.boolean().optional().default(false),
   notifySiteDiscussions: z.boolean().optional().default(true), // Default to true for public subscribers
+  notifyAllComments: z.boolean().optional().default(false),
 })
 
 export type PublicSubscribeAction = z.infer<typeof publicSubscribeAction>
@@ -38,11 +39,11 @@ export const action: ActionFunction = async ({request}) => {
     }
 
     const subConfig = {
-      notifyAllMentions: false,
-      notifyAllReplies: false,
+      notifyAllMentions: payload.notifyAllMentions,
+      notifyAllReplies: payload.notifyAllReplies,
       notifyOwnedDocChange: payload.notifyOwnedDocChange,
       notifySiteDiscussions: payload.notifySiteDiscussions,
-      notifyAllComments: false,
+      notifyAllComments: payload.notifyAllComments,
     } as const
 
     // Create the subscription
