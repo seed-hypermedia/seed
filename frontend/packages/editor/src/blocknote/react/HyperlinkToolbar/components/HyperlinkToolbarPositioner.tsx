@@ -62,6 +62,13 @@ export const HyperlinkToolbarPositioner = <
     return referencePos.current ?? new DOMRect()
   }, [])
 
+  const estimatedFormHeight = 400
+  const isTop = useMemo(() => {
+    if (!referencePos.current) return false
+    const spaceBelow = window.innerHeight - referencePos.current.bottom
+    return spaceBelow < estimatedFormHeight
+  }, [referencePos.current, show])
+
   const hyperlinkToolbarElement = useMemo(() => {
     if (!type || !id) {
       return null
@@ -109,17 +116,24 @@ export const HyperlinkToolbarPositioner = <
       interactive={true}
       visible={show}
       animation={'fade'}
-      placement={'bottom'}
+      placement={isTop ? 'top' : 'bottom'}
       popperOptions={{
         strategy: 'fixed',
         modifiers: [
-          {name: 'flip', enabled: false}, // disable flip to top
           {
-            name: 'preventOverflow', // allow shifting
+            name: 'flip',
+            enabled: true,
+            options: {
+              fallbackPlacements: [isTop ? 'bottom' : 'top'],
+              padding: 8,
+            },
+          },
+          {
+            name: 'preventOverflow',
             options: {
               boundary: 'viewport',
               rootBoundary: 'viewport',
-              tether: true,
+              tether: false,
               altAxis: true,
               padding: 8,
             },
@@ -127,7 +141,7 @@ export const HyperlinkToolbarPositioner = <
           {name: 'offset', options: {offset: [0, 8]}},
           {
             name: 'computeStyles',
-            options: {adaptive: false, gpuAcceleration: false},
+            options: {adaptive: true, gpuAcceleration: false},
           },
         ],
       }}
