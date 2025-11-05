@@ -157,6 +157,9 @@ export async function sendNotificationWelcomeEmail(
     notifyAllComments?: boolean
   },
 ) {
+  if (!NOTIFY_SERVICE_HOST) {
+    throw new Error('NOTIFY_SERVICE_HOST is not set')
+  }
   const notifSettingsUrl = `${NOTIFY_SERVICE_HOST.replace(
     /\/$/,
     '',

@@ -39,7 +39,7 @@ export async function sendEmail(
 
 export const sendNotificationsEmail = async (
   email: string,
-  opts: {adminToken: string; isUnsubscribed: boolean; createdAt: string},
+  opts: {adminToken: string},
   notifications: FullNotification[],
 ) => {
   const {subject, text, html, subscriberNames} = await createNotificationsEmail(

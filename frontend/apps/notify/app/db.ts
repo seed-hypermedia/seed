@@ -45,6 +45,26 @@ type DBEmail = {
 
 let db: Database.Database
 
+// Prepared statements - initialized after db is ready
+let stmtInsertEmail: Database.Statement
+let stmtInsertSubscription: Database.Statement
+let stmtGetSubscription: Database.Statement
+let stmtGetSubscriptionsForAccount: Database.Statement
+let stmtGetNotifierLastProcessedBlobCid: Database.Statement
+let stmtSetNotifierLastProcessedBlobCid: Database.Statement
+let stmtGetBatchNotifierLastProcessedBlobCid: Database.Statement
+let stmtSetBatchNotifierLastProcessedBlobCid: Database.Statement
+let stmtGetBatchNotifierLastSendTime: Database.Statement
+let stmtSetBatchNotifierLastSendTime: Database.Statement
+let stmtUpdateSubscription: Database.Statement
+let stmtGetEmail: Database.Statement
+let stmtGetEmailWithToken: Database.Statement
+let stmtGetSubscriptionsForEmail: Database.Statement
+let stmtSetEmailUnsubscribed: Database.Statement
+let stmtGetAllEmails: Database.Statement
+let stmtEnsureEmail: Database.Statement
+let stmtUpsertSubscription: Database.Statement
+
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(
     process.env.DATA_DIR || process.cwd(),
@@ -147,6 +167,79 @@ export async function initDatabase(): Promise<void> {
   `)
     version = 4
   }
+
+  // Initialize all prepared statements
+  stmtInsertEmail = db.prepare(
+    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
+  )
+  stmtInsertSubscription = db.prepare(
+    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  )
+  stmtGetSubscription = db.prepare(`
+    SELECT * FROM email_subscriptions WHERE id = ? AND email = ?
+  `)
+  stmtGetSubscriptionsForAccount = db.prepare(`
+    SELECT es.*
+    FROM email_subscriptions es
+    WHERE es.id = ?
+  `)
+  stmtGetNotifierLastProcessedBlobCid = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = 'last_processed_blob_cid'
+  `)
+  stmtSetNotifierLastProcessedBlobCid = db.prepare(`
+    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  `)
+  stmtGetBatchNotifierLastProcessedBlobCid = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = 'last_processed_batch_blob_cid'
+  `)
+  stmtSetBatchNotifierLastProcessedBlobCid = db.prepare(`
+    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  `)
+  stmtGetBatchNotifierLastSendTime = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = 'batch_notifier_last_send_time'
+  `)
+  stmtSetBatchNotifierLastSendTime = db.prepare(`
+    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  `)
+  stmtUpdateSubscription = db.prepare(`
+    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
+  `)
+  stmtGetEmail = db.prepare(`
+    SELECT emails.*
+    FROM emails 
+    WHERE emails.email = ?
+  `)
+  stmtGetEmailWithToken = db.prepare(`
+    SELECT emails.*
+    FROM emails
+    WHERE emails.adminToken = ?
+  `)
+  stmtGetSubscriptionsForEmail = db.prepare(`
+    SELECT es.*
+    FROM email_subscriptions es
+    WHERE es.email = ?
+  `)
+  stmtSetEmailUnsubscribed = db.prepare(`
+    UPDATE emails SET isUnsubscribed = ? WHERE adminToken = ?
+  `)
+  stmtGetAllEmails = db.prepare(`
+    SELECT emails.*
+    FROM emails 
+  `)
+  stmtEnsureEmail = db.prepare(
+    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
+  )
+  stmtUpsertSubscription = db.prepare(`
+    INSERT INTO email_subscriptions (
+      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id, email) DO UPDATE SET
+      notifyAllMentions     = excluded.notifyAllMentions,
+      notifyAllReplies      = excluded.notifyAllReplies,
+      notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
+      notifySiteDiscussions = excluded.notifySiteDiscussions,
+      notifyAllComments     = excluded.notifyAllComments
+  `)
 }
 
 export function cleanup(): void {
@@ -173,15 +266,9 @@ export function createSubscription({
   notifyAllComments?: boolean
 }): void {
   if (email) {
-    const emailStmt = db.prepare(
-      'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-    )
-    emailStmt.run(email, crypto.randomBytes(32).toString('hex'))
+    stmtInsertEmail.run(email, crypto.randomBytes(32).toString('hex'))
   }
-  const stmt = db.prepare(
-    'INSERT INTO email_subscriptions (id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  )
-  stmt.run(
+  stmtInsertSubscription.run(
     id,
     email,
     notifyAllMentions ? 1 : 0,
@@ -196,10 +283,7 @@ export function getSubscription(
   id: string,
   email: string,
 ): BaseSubscription | null {
-  const stmt = db.prepare(`
-    SELECT * FROM email_subscriptions WHERE id = ? AND email = ?
-  `)
-  const result = stmt.get(id, email) as Subscription | undefined
+  const result = stmtGetSubscription.get(id, email) as Subscription | undefined
   if (!result) return null
 
   return {
@@ -213,12 +297,7 @@ export function getSubscription(
 }
 
 export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
-  const stmt = db.prepare(`
-    SELECT es.*
-    FROM email_subscriptions es
-    WHERE es.id = ?
-  `)
-  const rows = stmt.all(id) as DBSubscription[]
+  const rows = stmtGetSubscriptionsForAccount.all(id) as DBSubscription[]
 
   return rows.map((r) => ({
     ...r,
@@ -231,49 +310,43 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
 }
 
 export function getNotifierLastProcessedBlobCid(): string | undefined {
-  const stmt = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'last_processed_blob_cid'
-  `)
-  const result = stmt.get() as {value: string} | undefined
+  const result = stmtGetNotifierLastProcessedBlobCid.get() as
+    | {value: string}
+    | undefined
   return result?.value
 }
 
 export function setNotifierLastProcessedBlobCid(cid: string): void {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
-  `)
-  stmt.run('last_processed_blob_cid', cid)
+  stmtSetNotifierLastProcessedBlobCid.run('last_processed_blob_cid', cid)
 }
 
 export function getBatchNotifierLastProcessedBlobCid(): string | undefined {
-  const stmt = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'last_processed_batch_blob_cid'
-  `)
-  const result = stmt.get() as {value: string} | undefined
+  const result = stmtGetBatchNotifierLastProcessedBlobCid.get() as
+    | {value: string}
+    | undefined
   return result?.value
 }
 
 export function setBatchNotifierLastProcessedBlobCid(cid: string): void {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
-  `)
-  stmt.run('last_processed_batch_blob_cid', cid)
+  stmtSetBatchNotifierLastProcessedBlobCid.run(
+    'last_processed_batch_blob_cid',
+    cid,
+  )
 }
 
 export function getBatchNotifierLastSendTime(): Date | undefined {
-  const stmt = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'batch_notifier_last_send_time'
-  `)
-  const result = stmt.get() as {value: string} | undefined
+  const result = stmtGetBatchNotifierLastSendTime.get() as
+    | {value: string}
+    | undefined
   if (!result?.value) return undefined
   return new Date(result.value)
 }
 
 export function setBatchNotifierLastSendTime(time: Date): void {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
-  `)
-  stmt.run('batch_notifier_last_send_time', time.toISOString())
+  stmtSetBatchNotifierLastSendTime.run(
+    'batch_notifier_last_send_time',
+    time.toISOString(),
+  )
 }
 
 export function updateSubscription(
@@ -292,10 +365,7 @@ export function updateSubscription(
     notifyAllComments?: boolean
   },
 ): void {
-  const stmt = db.prepare(`
-    UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
-  `)
-  stmt.run(
+  stmtUpdateSubscription.run(
     notifyAllMentions ? 1 : 0,
     notifyAllReplies ? 1 : 0,
     notifyOwnedDocChange ? 1 : 0,
@@ -306,12 +376,7 @@ export function updateSubscription(
 }
 
 export function getEmail(email: string): BaseEmail | null {
-  const stmt = db.prepare(`
-    SELECT emails.*
-    FROM emails 
-    WHERE emails.email = ?
-  `)
-  const emailValue = stmt.get(email) as DBEmail | undefined
+  const emailValue = stmtGetEmail.get(email) as DBEmail | undefined
   if (!emailValue) return null
 
   return {
@@ -322,20 +387,12 @@ export function getEmail(email: string): BaseEmail | null {
 }
 
 export function getEmailWithToken(emailAdminToken: string): Email | null {
-  const stmt = db.prepare(`
-    SELECT emails.*
-    FROM emails
-    WHERE emails.adminToken = ?
-  `)
-  const email = stmt.get(emailAdminToken) as DBEmail | undefined
+  const email = stmtGetEmailWithToken.get(emailAdminToken) as
+    | DBEmail
+    | undefined
   if (!email) return null
 
-  const subsStmt = db.prepare(`
-    SELECT es.*
-    FROM email_subscriptions es
-    WHERE es.email = ?
-  `)
-  const subs = subsStmt.all(email.email) as DBSubscription[]
+  const subs = stmtGetSubscriptionsForEmail.all(email.email) as DBSubscription[]
 
   return {
     ...email,
@@ -355,26 +412,16 @@ export function setEmailUnsubscribed(
   emailAdminToken: string,
   isUnsubscribed: boolean,
 ): void {
-  const stmt = db.prepare(`
-    UPDATE emails SET isUnsubscribed = ? WHERE adminToken = ?
-  `)
-  stmt.run(isUnsubscribed ? 1 : 0, emailAdminToken)
+  stmtSetEmailUnsubscribed.run(isUnsubscribed ? 1 : 0, emailAdminToken)
 }
 
 export function getAllEmails(): Email[] {
-  const stmt = db.prepare(`
-    SELECT emails.*
-    FROM emails 
-  `)
-  const emails = stmt.all() as DBEmail[]
+  const emails = stmtGetAllEmails.all() as DBEmail[]
 
   return emails.map((email) => {
-    const subsStmt = db.prepare(`
-    SELECT es.*
-    FROM email_subscriptions es
-    WHERE es.email = ?
-  `)
-    const subs = subsStmt.all(email.email) as DBSubscription[]
+    const subs = stmtGetSubscriptionsForEmail.all(
+      email.email,
+    ) as DBSubscription[]
 
     return {
       ...email,
@@ -412,10 +459,7 @@ export function setSubscription({
     throw new Error('setSubscription requires an email for the (id,email) key')
   }
 
-  const ensureEmailStmt = db.prepare(
-    'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
-  )
-  ensureEmailStmt.run(email, crypto.randomBytes(32).toString('hex'))
+  stmtEnsureEmail.run(email, crypto.randomBytes(32).toString('hex'))
 
   const current = getSubscription(id, email)
 
@@ -443,19 +487,7 @@ export function setSubscription({
     current?.notifyAllComments,
   )
 
-  const upsert = db.prepare(`
-    INSERT INTO email_subscriptions (
-      id, email, notifyAllMentions, notifyAllReplies, notifyOwnedDocChange, notifySiteDiscussions, notifyAllComments
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id, email) DO UPDATE SET
-      notifyAllMentions     = excluded.notifyAllMentions,
-      notifyAllReplies      = excluded.notifyAllReplies,
-      notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
-      notifySiteDiscussions = excluded.notifySiteDiscussions,
-      notifyAllComments     = excluded.notifyAllComments
-  `)
-
-  upsert.run(
+  stmtUpsertSubscription.run(
     id,
     email,
     nextNotifyAllMentions,

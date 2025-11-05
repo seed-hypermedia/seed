@@ -1,4 +1,4 @@
-import {NOTIFY_SERVICE_HOST, SEED_HOST_URL} from '@shm/shared/constants'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useEffect, useState} from 'react'
 import {Button} from './button'
 import {CheckboxField} from './components/checkbox'
@@ -17,14 +17,14 @@ interface SubscribeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   accountId?: string
-  siteUrl?: string
+  apiHost?: string
 }
 
 export function SubscribeDialog({
   open,
   onOpenChange,
   accountId,
-  siteUrl,
+  apiHost = NOTIFY_SERVICE_HOST,
 }: SubscribeDialogProps) {
   const [email, setEmail] = useState('')
   const [isChecked, setIsChecked] = useState(true)
@@ -72,7 +72,6 @@ export function SubscribeDialog({
     setError(null)
 
     try {
-      const apiHost = NOTIFY_SERVICE_HOST || siteUrl || SEED_HOST_URL
       const apiUrl = `${apiHost}/hm/api/public-subscribe`
 
       const response = await fetch(apiUrl, {

@@ -1,4 +1,4 @@
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import z from 'zod'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
@@ -10,6 +10,17 @@ let gatewayUrl: string =
 function writeGatewayUrl(url: string) {
   gatewayUrl = url
   appStore.set(GATEWAY_URL_KEY, url)
+}
+
+const NOTIFY_SERVICE_HOST_KEY = 'NotifyServiceHost'
+const storedNotifyHost = appStore.get(NOTIFY_SERVICE_HOST_KEY) as
+  | string
+  | undefined
+let notifyServiceHost: string =
+  storedNotifyHost !== undefined ? storedNotifyHost : NOTIFY_SERVICE_HOST || ''
+function writeNotifyServiceHost(url: string) {
+  notifyServiceHost = url
+  appStore.set(NOTIFY_SERVICE_HOST_KEY, url)
 }
 
 const DependsType = z
@@ -42,6 +53,15 @@ export const gatewaySettingsApi = t.router({
     .input(z.string())
     .mutation(async ({input = DEFAULT_GATEWAY_URL}) => {
       return writeGatewayUrl(input)
+    }),
+
+  getNotifyServiceHost: t.procedure.query(async () => {
+    return notifyServiceHost
+  }),
+  setNotifyServiceHost: t.procedure
+    .input(z.string())
+    .mutation(async ({input = NOTIFY_SERVICE_HOST || ''}) => {
+      return writeNotifyServiceHost(input)
     }),
 
   getPushOnCopy: t.procedure.query(async () => {

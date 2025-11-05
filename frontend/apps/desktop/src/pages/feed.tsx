@@ -14,6 +14,7 @@ import {
   useSiteNavigationItems,
 } from '@/models/documents'
 import {useSubscribedResource} from '@/models/entities'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {useScrollRestoration} from '@/utils/use-scroll-restoration'
@@ -361,6 +362,7 @@ function _AppDocSiteHeader({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
+  const notifyServiceHost = useNotifyServiceHost()
   if (!siteHomeEntity) return null
   if (route.key != 'document' && route.key != 'feed') return null
   return (
@@ -389,6 +391,7 @@ function _AppDocSiteHeader({
           accessory: route.key == 'document' ? null : route.accessory,
         })
       }}
+      notifyServiceHost={notifyServiceHost.data}
     />
   )
 }

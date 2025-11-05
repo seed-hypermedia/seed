@@ -37,15 +37,19 @@ export const action: ActionFunction = async ({request}) => {
       return withCors(json({error: 'Account ID is required'}, {status: 400}))
     }
 
+    const subConfig = {
+      notifyAllMentions: false,
+      notifyAllReplies: false,
+      notifyOwnedDocChange: payload.notifyOwnedDocChange,
+      notifySiteDiscussions: payload.notifySiteDiscussions,
+      notifyAllComments: false,
+    } as const
+
     // Create the subscription
     setSubscription({
       id: payload.accountId,
       email: payload.email,
-      notifyAllMentions: payload.notifyAllMentions,
-      notifyAllReplies: payload.notifyAllReplies,
-      notifyOwnedDocChange: payload.notifyOwnedDocChange,
-      notifySiteDiscussions: payload.notifySiteDiscussions,
-      notifyAllComments: true,
+      ...subConfig,
     })
 
     // Send welcome email
@@ -57,11 +61,7 @@ export const action: ActionFunction = async ({request}) => {
         if (newEmail && !newEmail.isUnsubscribed) {
           sendNotificationWelcomeEmail(payload.email, metadata.metadata, {
             adminToken: newEmail.adminToken,
-            notifyAllMentions: payload.notifyAllMentions,
-            notifyAllReplies: payload.notifyAllReplies,
-            notifyOwnedDocChange: payload.notifyOwnedDocChange,
-            notifySiteDiscussions: payload.notifySiteDiscussions,
-            notifyAllComments: true,
+            ...subConfig,
           })
         }
       }

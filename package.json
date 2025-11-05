@@ -49,6 +49,7 @@
   "workspaces": [
     "frontend/apps/*",
     "frontend/packages/*",
+    "frontend/scripts",
     "docs"
   ],
   "dependencies": {

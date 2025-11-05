@@ -23,7 +23,7 @@ import {
   getAccountNotifsSafe,
 } from '@/models/email-notifications'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
-import {useGatewayUrl} from '@/models/gateway-settings'
+import {useGatewayUrl, useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
@@ -515,6 +515,7 @@ function _AppDocSiteHeader({
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
+  const notifyServiceHost = useNotifyServiceHost()
 
   if (!siteHomeEntity) return null
   if (route.key !== 'document' && route.key != 'feed') return null
@@ -553,6 +554,7 @@ function _AppDocSiteHeader({
           key: route.key == 'document' ? 'feed' : 'document',
         })
       }}
+      notifyServiceHost={notifyServiceHost.data}
     />
   )
 }

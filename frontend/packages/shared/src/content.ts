@@ -1,6 +1,7 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import {Contact} from './client'
 import {
+  HMAnnotation,
   HMBlock,
   HMBlockChildrenType,
   HMBlockImage,
@@ -325,5 +326,17 @@ export function getChildrenType(
   if (block.type === 'Math') return block.attributes?.childrenType
   if (block.type === 'Code') return block.attributes?.childrenType
   if (block.type === 'Button') return block.attributes?.childrenType
+  return undefined
+}
+
+export function getAnnotations(block: HMBlock): HMAnnotation[] | undefined {
+  if (block.type === 'Embed') return block.annotations || []
+  if (block.type === 'Video') return block.annotations || []
+  if (block.type === 'File') return block.annotations || []
+  if (block.type === 'Image') return block.annotations || []
+  if (block.type === 'Query') return block.annotations || []
+  if (block.type === 'Math') return block.annotations || []
+  if (block.type === 'Code') return block.annotations || []
+  if (block.type === 'Button') return block.annotations || []
   return undefined
 }

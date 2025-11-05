@@ -119,38 +119,6 @@ export function EmailNotificationsContent() {
           ) : (
             <>
               <div className="space-y-6">
-                <div className="space-y-4">
-                  <SwitchField
-                    id="all-notifications"
-                    label="Enable All Notifications"
-                    checked={notifSettings.subscriptions.every(
-                      (sub) =>
-                        sub.notifyOwnedDocChange &&
-                        sub.notifySiteDiscussions &&
-                        sub.notifyAllMentions &&
-                        sub.notifyAllReplies &&
-                        sub.notifyAllComments,
-                    )}
-                    onCheckedChange={(checked) => {
-                      // Set all subscriptions to the same value
-                      notifSettings.subscriptions.forEach((sub) => {
-                        setAccountOptions({
-                          accountId: sub.id,
-                          notifyOwnedDocChange: checked === true,
-                          notifySiteDiscussions: checked === true,
-                          notifyAllMentions: checked === true,
-                          notifyAllReplies: checked === true,
-                          notifyAllComments: checked === true,
-                        })
-                      })
-                    }}
-                  />
-                  <p className="ml-0 text-sm text-gray-600">
-                    Enable all notification types for all subscribed sites and
-                    users. You can customize individual settings below.
-                  </p>
-                </div>
-
                 {notifSettings.subscriptions.map((sub) => (
                   <EmailNotificationSubscription
                     key={sub.id}
@@ -238,31 +206,29 @@ function EmailNotificationSubscription({
       <div className="space-y-6">
         <div className="space-y-3">
           <h4 className="font-medium text-gray-900">Site Activity</h4>
-          <p className="text-sm text-gray-600">
-            Get notified about activity happening on this site.
-          </p>
+          <p className="text-sm text-gray-600">Notify me when:</p>
           <div className="space-y-3 pl-4">
             <AccountValueSwitch
               token={token}
-              label="Document changes on this site"
+              label="Document Updates"
               field="notifyOwnedDocChange"
               subscription={subscription}
             />
             <AccountValueSwitch
               token={token}
-              label="New comments on this site"
+              label="Discussion Threads"
               field="notifySiteDiscussions"
               subscription={subscription}
             />
           </div>
         </div>
-
+        {/* 
         <div className="space-y-3">
           <h4 className="font-medium text-gray-900">User Activity</h4>
           <p className="text-sm text-gray-600">
             Get notified about activity related to this user.
           </p>
-          <div className="space-y-3 pl-4">
+          <div className="pl-4 space-y-3">
             <AccountValueSwitch
               token={token}
               label="When this user is mentioned"
@@ -282,7 +248,7 @@ function EmailNotificationSubscription({
               subscription={subscription}
             />
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   )

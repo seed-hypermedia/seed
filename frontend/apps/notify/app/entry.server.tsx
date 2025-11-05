@@ -23,7 +23,7 @@ async function initializeServer() {
 
 initializeServer()
   .then(() => {
-    console.log('Server initialized and cache warmed')
+    console.log('Server initialized')
   })
   .catch((e) => {
     console.error('Error initializing server', e)

@@ -340,6 +340,10 @@ function MainApp({}: {}) {
           utils.comments.listCommentDrafts.invalidate()
         } else if (queryKey[0] === 'trpc.gatewaySettings.getGatewayUrl') {
           utils.gatewaySettings.getGatewayUrl.invalidate()
+        } else if (
+          queryKey[0] === 'trpc.gatewaySettings.getNotifyServiceHost'
+        ) {
+          utils.gatewaySettings.getNotifyServiceHost.invalidate()
         } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnCopy') {
           utils.gatewaySettings.getPushOnCopy.invalidate()
         } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnPublish') {

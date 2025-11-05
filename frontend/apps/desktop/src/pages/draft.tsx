@@ -15,6 +15,7 @@ import {
   useSiteNavigationItems,
 } from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {handleDragMedia} from '@/utils/media-drag'
@@ -598,6 +599,7 @@ function DraftAppHeader({
   actor: any // TODO: proper type
 }) {
   const dir = useListDirectory(docId, {mode: 'Children'})
+  const notifyServiceHost = useNotifyServiceHost()
   const currentDocNav: HMNavigationItem[] | undefined = useSelector(
     actor,
     (s: any) => s.context.navigation,
@@ -652,6 +654,7 @@ function DraftAppHeader({
       supportDocuments={[siteHomeEntity]}
       handleToggleFeed={() => {}}
       isMainFeedVisible={false}
+      notifyServiceHost={notifyServiceHost.data}
     />
   )
 }

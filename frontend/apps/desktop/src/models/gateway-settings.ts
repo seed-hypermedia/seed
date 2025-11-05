@@ -34,6 +34,21 @@ export function useSetGatewayUrl() {
   return setGatewayUrl
 }
 
+export function useNotifyServiceHost() {
+  const notifyServiceHost = trpc.gatewaySettings.getNotifyServiceHost.useQuery()
+  return notifyServiceHost
+}
+
+export function useSetNotifyServiceHost() {
+  const setNotifyServiceHost =
+    trpc.gatewaySettings.setNotifyServiceHost.useMutation({
+      onSuccess: () => {
+        invalidateQueries(['trpc.gatewaySettings.getNotifyServiceHost'])
+      },
+    })
+  return setNotifyServiceHost
+}
+
 export function usePushOnCopy() {
   const pushOnCopy = trpc.gatewaySettings.getPushOnCopy.useQuery(undefined, {
     onError: (error) => {

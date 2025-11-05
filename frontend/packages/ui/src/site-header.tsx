@@ -16,6 +16,7 @@ import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Sparkle} from 'lucide-react'
 import {
@@ -60,6 +61,7 @@ export function SiteHeader({
   handleToggleFeed,
   isMainFeedVisible = false,
   wrapperClassName,
+  notifyServiceHost,
 }: {
   originHomeId: UnpackedHypermediaId | null
   docId: UnpackedHypermediaId | null
@@ -79,6 +81,7 @@ export function SiteHeader({
   handleToggleFeed: () => void
   isMainFeedVisible: boolean
   wrapperClassName?: string
+  notifyServiceHost?: string
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
@@ -186,14 +189,16 @@ export function SiteHeader({
           {isCenterLayout ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
-              <Button
-                variant="brand"
-                size="sm"
-                className="text-white"
-                onClick={() => setIsSubscribeDialogOpen(true)}
-              >
-                Subscribe
-              </Button>
+              {NOTIFY_SERVICE_HOST && (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  className="text-white"
+                  onClick={() => setIsSubscribeDialogOpen(true)}
+                >
+                  Subscribe
+                </Button>
+              )}
             </div>
           ) : null}
         </div>
@@ -290,7 +295,7 @@ export function SiteHeader({
           open={isSubscribeDialogOpen}
           onOpenChange={setIsSubscribeDialogOpen}
           accountId={headerHomeId?.uid}
-          siteUrl={document?.metadata?.siteUrl || origin}
+          apiHost={notifyServiceHost}
         />
       </header>
     </>

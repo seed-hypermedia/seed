@@ -95,12 +95,12 @@ export function EmailContent({notification}: {notification: Notification}) {
             )}
           </MjmlText>
         </MjmlColumn>
-        {notification.type === 'change' ? (
+        {notification.reason === 'site-doc-update' ? (
           renderChange({
             targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
             isNewDocument: notification.isNewDocument,
           })
-        ) : notification.type === 'mention' ? (
+        ) : notification.reason === 'mention' ? (
           <MjmlColumn width="100%" verticalAlign="middle">
             {notification.comment ? (
               renderMention({
@@ -128,7 +128,7 @@ export function EmailContent({notification}: {notification: Notification}) {
               </MjmlText>
             )}
           </MjmlColumn>
-        ) : notification.type === 'reply' ? (
+        ) : notification.reason === 'reply' ? (
           <MjmlColumn width="100%" verticalAlign="middle">
             <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
               New reply:
@@ -558,7 +558,10 @@ function getNotificationMeta(notification: Notification) {
   const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
 
   const createdAt = (() => {
-    if (notification.type === 'comment' || notification.type === 'reply') {
+    if (
+      notification.reason === 'site-new-discussion' ||
+      notification.reason === 'reply'
+    ) {
       return notification.comment.createTime?.seconds
         ? format(
             new Date(Number(notification.comment.createTime.seconds) * 1000),
@@ -566,7 +569,7 @@ function getNotificationMeta(notification: Notification) {
           )
         : ''
     }
-    if (notification.type === 'mention') {
+    if (notification.reason === 'mention') {
       return notification.comment?.createTime?.seconds
         ? format(
             new Date(Number(notification.comment.createTime.seconds) * 1000),

@@ -149,7 +149,7 @@ export const ENABLE_EMAIL_NOTIFICATIONS =
     NOTIFY_SENDER
   )
 
-export const NOTIFY_SERVICE_HOST =
-  WEB_ENV.NOTIFY_SERVICE_HOST ||
-  process.env.NOTIFY_SERVICE_HOST ||
-  'http://localhost:3060'
+export const NOTIFY_SERVICE_HOST: string | undefined =
+  IME.VITE_NOTIFY_SERVICE_HOST ||
+  process.env.VITE_NOTIFY_SERVICE_HOST ||
+  WEB_ENV.NOTIFY_SERVICE_HOST

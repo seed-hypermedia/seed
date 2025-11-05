@@ -154,6 +154,7 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
           VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
           VITE_GATEWAY_URL: "https://dev.hyper.media"
+          VITE_NOTIFY_SERVICE_HOST: "https://notify-dev.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
@@ -201,6 +202,7 @@ jobs:
           VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
           VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
           VITE_GATEWAY_URL: "https://dev.hyper.media"
+          VITE_NOTIFY_SERVICE_HOST: "https://notify-dev.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}

@@ -14,9 +14,11 @@ import {
 import {useExperiments, useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
+  useNotifyServiceHost,
   usePushOnCopy,
   usePushOnPublish,
   useSetGatewayUrl,
+  useSetNotifyServiceHost,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '@/models/gateway-settings'
@@ -930,9 +932,12 @@ const EXPERIMENTS = //: ExperimentType[]
 
 function GatewaySettings({}: {}) {
   const gatewayUrl = useGatewayUrl()
+  const notifyServiceHost = useNotifyServiceHost()
 
   const setGatewayUrl = useSetGatewayUrl()
+  const setNotifyServiceHost = useSetNotifyServiceHost()
   const [gwUrl, setGWUrl] = useState('')
+  const [notifyHost, setNotifyHost] = useState('')
 
   useEffect(() => {
     if (gatewayUrl.data) {
@@ -940,10 +945,16 @@ function GatewaySettings({}: {}) {
     }
   }, [gatewayUrl.data])
 
+  useEffect(() => {
+    if (notifyServiceHost.data !== undefined) {
+      setNotifyHost(notifyServiceHost.data)
+    }
+  }, [notifyServiceHost.data])
+
   return (
     <div className="flex flex-col gap-3">
       <TableList>
-        <InfoListHeader title="URL" />
+        <InfoListHeader title="Gateway URL" />
         <TableList.Item>
           <div className="flex w-full gap-3">
             <Input className="flex-1" value={gwUrl} onChangeText={setGWUrl} />
@@ -952,6 +963,28 @@ function GatewaySettings({}: {}) {
               onClick={() => {
                 setGatewayUrl.mutate(gwUrl)
                 toast.success('Public Gateway URL changed!')
+              }}
+            >
+              Save
+            </Button>
+          </div>
+        </TableList.Item>
+      </TableList>
+
+      <TableList>
+        <InfoListHeader title="Notify Service Host" />
+        <TableList.Item>
+          <div className="flex w-full gap-3">
+            <Input
+              className="flex-1"
+              value={notifyHost}
+              onChangeText={setNotifyHost}
+            />
+            <Button
+              size="sm"
+              onClick={() => {
+                setNotifyServiceHost.mutate(notifyHost)
+                toast.success('Notify Service Host changed!')
               }}
             >
               Save
