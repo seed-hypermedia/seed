@@ -8,7 +8,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/records"
+	"github.com/libp2p/go-libp2p-kad-dht/providers"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -29,7 +29,7 @@ func newDHT(ctx context.Context, h host.Host, ds datastore.Batching, clean clean
 	// manager wants to flush records into the database, we would have closed the database
 	// already. Because of this we always have an annoying error during our shutdown.
 	// Here we manually ensure all the goroutines started by provider manager are closed.
-	provStore, err := records.NewProviderManager(ctx, h.ID(), h.Peerstore(), ds)
+	provStore, err := providers.NewProviderManager(h.ID(), h.Peerstore(), ds)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,6 @@ func newDHT(ctx context.Context, h host.Host, ds datastore.Batching, clean clean
 
 	return fullDHT, nil
 }
-
 func (n *noopDHT) Provide(context.Context, cid.Cid, bool) error {
 	return errNotImplemented
 }

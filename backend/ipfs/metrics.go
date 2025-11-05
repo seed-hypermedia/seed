@@ -124,16 +124,6 @@ func (m *Libp2pMetrics) Collect(c chan<- prometheus.Metric) {
 	}
 }
 
-// Reset implements libp2p.BandwidthReporter.
-func (m *Libp2pMetrics) Reset() {
-	return
-}
-
-// TrimIdle implements libp2p.BandwidthReporter.
-func (m *Libp2pMetrics) TrimIdle(time.Time) {
-	return
-}
-
 func (m *Libp2pMetrics) shouldCollect(now time.Time) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
