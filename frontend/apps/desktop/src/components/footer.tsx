@@ -58,7 +58,7 @@ export function FooterButton({
     <Button
       size="sm"
       variant={active ? 'default' : 'ghost'}
-      className={cn('px-2', active && 'bg-blue-500 hover:bg-blue-600')}
+      className={cn('px-2', active && 'bg-link hover:bg-link-hover')}
       onClick={onPress}
     >
       {icon}

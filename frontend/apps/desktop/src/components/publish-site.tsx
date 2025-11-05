@@ -1,3 +1,4 @@
+import {loadResource} from '@/models/entities'
 import {HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
@@ -12,7 +13,6 @@ import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {loadResource} from '@/models/entities'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput} from '@shm/ui/form-input'
@@ -445,7 +445,7 @@ function SelectPlanButton({
         onClick={onClick}
         className={cn(
           'border border-transparent',
-          active && 'border-blue-700 bg-blue-500',
+          active && 'border-link-hover bg-link',
           disabled ? 'cursor-default opacity-50' : 'cursor-pointer',
         )}
         disabled={disabled}

@@ -87,7 +87,7 @@ export default function Feed() {
 
   if (isLoading) {
     return (
-      <div className="container p-4 mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-4xl p-4">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">Event Feed</h1>
         <div className="text-center">Loading...</div>
       </div>
@@ -96,7 +96,7 @@ export default function Feed() {
 
   if (error) {
     return (
-      <div className="container p-4 mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-4xl p-4">
         <h1 className="mb-6 text-3xl font-bold text-gray-900">Event Feed</h1>
         <div className="text-center text-red-600">Error loading feed</div>
       </div>
@@ -104,16 +104,16 @@ export default function Feed() {
   }
 
   return (
-    <div className="container p-4 mx-auto max-w-4xl">
+    <div className="container mx-auto max-w-4xl p-4">
       {/* New Content Pill */}
       {showNewContentPill && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="fixed top-20 left-1/2 z-50 -translate-x-1/2 transform">
           <button
             onClick={handleNewContentClick}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-full shadow-lg transition-colors duration-200 flex items-center justify-center gap-2 whitespace-nowrap"
+            className="bg-link hover:bg-link-hover flex items-center justify-center gap-2 rounded-full px-4 py-2 font-medium whitespace-nowrap text-white shadow-lg transition-colors duration-200"
           >
             <svg
-              className="w-4 h-4"
+              className="h-4 w-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -134,7 +134,7 @@ export default function Feed() {
       <div className="flex flex-col gap-4">
         {allEvents.map((event: any, index: number) => (
           <div
-            className="container p-4 mx-auto bg-white rounded-lg shadow max-w-4xl"
+            className="container mx-auto max-w-4xl rounded-lg bg-white p-4 shadow"
             key={event.newBlob.cid}
             ref={index === allEvents.length - 1 ? lastElementRef : undefined}
           >
@@ -142,8 +142,8 @@ export default function Feed() {
           </div>
         ))}
         {isFetchingNextPage && (
-          <div className="text-center py-4">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+          <div className="py-4 text-center">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-b-2 border-gray-900"></div>
             <span className="ml-2">Loading more...</span>
           </div>
         )}

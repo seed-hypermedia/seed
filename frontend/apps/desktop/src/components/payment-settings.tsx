@@ -275,7 +275,7 @@ function WalletDetails({
               copyTextToClipboard(walletId)
               toast.success('Copied Lightning Address to Clipboard')
             }}
-            className="text-blue-500"
+            className="text-link"
           >
             <Copy className="size-4" />
             <SizableText family="mono" className="text-current">{`x${wallet.id

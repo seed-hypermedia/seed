@@ -482,7 +482,7 @@ function DocMessageBox({
         <div className="border-border bg-background flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
           {spinner ? (
             <div className="flex items-center justify-start">
-              <Spinner className="size-6 fill-blue-500" />
+              <Spinner className="fill-link size-6" />
             </div>
           ) : null}
           <SizableText size="2xl" weight="bold">

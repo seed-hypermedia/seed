@@ -422,7 +422,7 @@ function URLPreview({
           size="sm"
           className={cn(
             'break-all',
-            isError ? 'text-destructive' : 'text-blue-500',
+            isError ? 'text-destructive' : 'text-link',
           )}
         >
           {url}

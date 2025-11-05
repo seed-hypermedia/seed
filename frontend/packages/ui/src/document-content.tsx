@@ -1595,11 +1595,7 @@ function InlineContentView({
               className={cn(
                 'cursor-pointer break-all transition-colors',
                 // link colors
-<<<<<<< HEAD
                 'link text-link hover:text-link-hover',
-=======
-                'link text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500',
->>>>>>> 4bbf39c17 (update link colors)
               )}
               target={isHmScheme ? undefined : '_blank'}
               onMouseEnter={id ? () => onHoverIn?.(id) : undefined}
@@ -2799,11 +2795,7 @@ export function InlineEmbedButton({
       onMouseEnter={() => onHoverIn?.(entityId)}
       onMouseLeave={() => onHoverOut?.(entityId)}
       className={cn(
-<<<<<<< HEAD
         'text-link hover:text-link-hover font-bold',
-=======
-        'font-bold text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-500',
->>>>>>> 4bbf39c17 (update link colors)
         hasRangeHighlight && 'hm-embed-range bg-brand-10 hover:cursor-default',
       )}
       data-inline-embed={packHmId(entityId)}
