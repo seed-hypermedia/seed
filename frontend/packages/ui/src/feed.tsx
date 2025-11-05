@@ -572,7 +572,7 @@ function EventCommentWithReply({
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
               <AuthorNameLink author={event.replyParentAuthor} />{' '}
               <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
-                <Timestamp time={event.time} />
+                <Timestamp time={event.replyingComment?.updateTime} />
               </span>
             </p>
           </div>
