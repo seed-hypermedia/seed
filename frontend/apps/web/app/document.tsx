@@ -48,7 +48,7 @@ import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
-import {MessageSquare, Sparkle} from 'lucide-react'
+import {ChevronLeft, MessageSquare, Sparkle} from 'lucide-react'
 import {
   Suspense,
   lazy,
@@ -829,6 +829,25 @@ function InnerDocumentPage(
                     >
                       <div className="dark:bg-background border-border border-b bg-white p-3">
                         <div className="flex items-center">
+                          {activePanel?.type === 'discussions' &&
+                          (activePanel.comment || activePanel.blockId) ? (
+                            <Tooltip content={tx('Back to All discussions')}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="mr-2 flex-none"
+                                onClick={() => {
+                                  setDocumentPanel({
+                                    type: 'discussions',
+                                    blockId: undefined,
+                                    comment: undefined,
+                                  })
+                                }}
+                              >
+                                <ChevronLeft className="size-4" />
+                              </Button>
+                            </Tooltip>
+                          ) : null}
                           <Text weight="bold" size="md" className="flex-1">
                             {panelTitle}
                           </Text>
@@ -902,14 +921,28 @@ function InnerDocumentPage(
                         <Close className="size-4" />
                       </Button>
                     </div>
-                    <div className="border-border border-b px-5 py-2 text-left">
+                    <div className="border-border flex items-center border-b px-5 py-2 text-left">
+                      {activePanel?.type === 'discussions' &&
+                      activePanel.comment ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="mr-2 flex-none"
+                          onClick={() => {
+                            setDocumentPanel({
+                              type: 'discussions',
+                              blockId: undefined,
+                              comment: undefined,
+                            })
+                          }}
+                        >
+                          <ChevronLeft className="size-4" />
+                        </Button>
+                      ) : null}
                       <Text weight="semibold">{panelTitle}</Text>
                     </div>
 
-                    <div
-                      className="flex flex-1 flex-col"
-                      // ref={mobileScrollRef}
-                    >
+                    <div className="flex flex-1 flex-col overflow-hidden">
                       {panel}
                     </div>
                   </div>

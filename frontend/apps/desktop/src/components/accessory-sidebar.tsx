@@ -3,8 +3,8 @@ import {useSubscribedResource} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
-import {DocAccessoryOption, DocumentRoute} from '@shm/shared'
-import {useTx} from '@shm/shared/translation'
+import {DocAccessoryOption} from '@shm/shared'
+import {useTx, useTxString} from '@shm/shared/translation'
 import {
   useNavigationDispatch,
   useNavigationState,
@@ -26,8 +26,8 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
 import {
-  ArrowLeft,
   ChevronDown,
+  ChevronLeft,
   Folder,
   MessageSquare,
   Pencil,
@@ -68,6 +68,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
   const tx = useTx()
+  const txString = useTxString()
   const route = useNavRoute()
   const replace = useNavigate('replace')
 
@@ -215,20 +216,21 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
             />
             <div className="border-border border-b px-5 py-3">
               <div className="flex items-center justify-between gap-2">
+                {shouldShowBackButton && (
+                  <Tooltip content={txString('Back to All discussions')}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleBack}
+                      className="h-7 px-2 text-xs"
+                    >
+                      <ChevronLeft className="size-3" />
+                    </Button>
+                  </Tooltip>
+                )}
                 <Text weight="semibold" size="lg" className="flex-1">
                   {accessoryTitle}
                 </Text>
-                {shouldShowBackButton && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleBack}
-                    className="h-7 px-2 text-xs"
-                  >
-                    <ArrowLeft className="mr-1 h-3 w-3" />
-                    Back
-                  </Button>
-                )}
               </div>
               {accessoryKey == 'activity' ? (
                 <FeedFilters
