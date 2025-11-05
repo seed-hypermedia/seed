@@ -211,18 +211,18 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 
 var customBootstrapPeers = []string{
 	// Seed Dev Gateway.
-	//"/dns4/dev.hyper.media/udp/56001/quic-v1/p2p/" + ipfs.DevGatewayPID,
-	//"/dns4/dev.hyper.media/tcp/56001/p2p/" + ipfs.DevGatewayPID,
+	"/dns4/dev.hyper.media/udp/56001/quic-v1/p2p/" + ipfs.DevGatewayPID,
+	"/dns4/dev.hyper.media/tcp/56001/p2p/" + ipfs.DevGatewayPID,
 	"/dns4/roam.dev.hyper.media/tcp/443/p2p/" + ipfs.DevGatewayPID,
 
 	// Seed Staging Gateway.
-	//"/dns4/staging.hyper.media/udp/55001/quic-v1/p2p/" + ipfs.StagingGatewayPID,
-	//"/dns4/staging.hyper.media/tcp/55001/p2p/" + ipfs.StagingGatewayPID,
+	"/dns4/staging.hyper.media/udp/55001/quic-v1/p2p/" + ipfs.StagingGatewayPID,
+	"/dns4/staging.hyper.media/tcp/55001/p2p/" + ipfs.StagingGatewayPID,
 
 	// Seed Production Gateway.
-	//"/dns4/hyper.media/udp/56001/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
-	//"/dns4/hyper.media/tcp/56001/p2p/" + ipfs.ProductionGatewayPID,
-	//"/dns4/roam.hyper.media/tcp/443/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/hyper.media/udp/56001/quic-v1/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/hyper.media/tcp/56001/p2p/" + ipfs.ProductionGatewayPID,
+	"/dns4/roam.hyper.media/tcp/443/p2p/" + ipfs.ProductionGatewayPID,
 }
 
 func bootstrapPeers() []peer.AddrInfo {
