@@ -150,6 +150,6 @@ export const ENABLE_EMAIL_NOTIFICATIONS =
   )
 
 export const NOTIFY_SERVICE_HOST: string | undefined =
-  IME.VITE_NOTIFY_SERVICE_HOST ||
-  process.env.VITE_NOTIFY_SERVICE_HOST ||
-  WEB_ENV.NOTIFY_SERVICE_HOST
+  IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
+  process.env.NOTIFY_SERVICE_HOST || // web server
+  WEB_ENV.NOTIFY_SERVICE_HOST // web client
