@@ -477,30 +477,55 @@ function DocumentEditor({
     const dataTransfer = event.dataTransfer
 
     if (dataTransfer?.files && dataTransfer.files.length > 0) {
-      handleDragMedia(
-        dataTransfer.files,
-        // @ts-expect-error
-        (type, fileCID) => {
-          console.log('==== MEDIA UPLOAD', type, fileCID)
-          let mediaBlock = {
-            id: generateBlockId(),
-            type: type,
-            props: {
-              url: `ipfs://${fileCID}`,
-              name: '',
-            },
-            content: [],
-            children: [],
+      event.preventDefault()
+
+      // Iterate through all dropped files
+      const files = Array.from(dataTransfer.files)
+
+      // Get the current block ID where files should be inserted
+      const currentBlock = editor.getTextCursorPosition().block
+      let lastInsertedBlockId = currentBlock.id
+
+      // Process files sequentially to maintain order
+      files.reduce((promise, file, index) => {
+        return promise.then(async () => {
+          try {
+            const props = await handleDragMedia(file)
+            if (!props) return
+
+            let blockType: string
+            if (chromiumSupportedImageMimeTypes.has(file.type)) {
+              blockType = 'image'
+            } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
+              blockType = 'video'
+            } else {
+              blockType = 'file'
+            }
+
+            const newBlockId = generateBlockId()
+            const mediaBlock = {
+              id: newBlockId,
+              type: blockType,
+              props: {
+                url: props.url,
+                name: props.name,
+                ...(blockType === 'file' ? {size: props.size} : {}),
+              },
+              content: [],
+              children: [],
+            }
+
+            // Insert after the last inserted block (or current block for first file)
+            editor.insertBlocks([mediaBlock], lastInsertedBlockId, 'after')
+
+            // Update the last inserted block ID for next iteration
+            lastInsertedBlockId = newBlockId
+          } catch (error) {
+            console.error('Failed to upload file:', file.name, error)
           }
-          editor.insertBlocks(
-            [mediaBlock],
-            // @ts-expect-error
-            editor._tiptapEditor.state.selection,
-          )
-        },
-        chromiumSupportedImageMimeTypes,
-        chromiumSupportedVideoMimeTypes,
-      )
+        })
+      }, Promise.resolve())
+
       setIsDragging(false)
       return
     }
