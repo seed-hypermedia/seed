@@ -86,19 +86,26 @@ export function formattedDateShort(
 ) {
   let date = normalizeDate(value)
   if (!date) return ''
-  // if within the last 24 hours, show the time
-  if (date.getTime() > Date.now() - 24 * 60 * 60 * 1000) {
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+  // if same day, show only time
+  if (today.getTime() === dateDay.getTime()) {
     return format(date, 'HH:mm', {
       locale: options?.locale,
     })
   }
+
   // if within the last year, show the month and day
   if (date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000) {
     return format(date, 'MMM d', {
       locale: options?.locale,
     })
   }
-  // otherwise, show the date
+
+  // otherwise, show the full date with year
   return format(date, 'MMM d, yyyy', {
     locale: options?.locale,
   })
