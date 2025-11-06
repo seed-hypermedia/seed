@@ -154,6 +154,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       )
       if (account) {
         console.log('Dispatching site template event')
+        // Ensure the account is selected when onboarding was previously completed
+        setSelectedIdentity?.(account.uid)
         navigate({
           key: 'document',
           id: account,
@@ -168,6 +170,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     account,
     navigate,
     onComplete,
+    setSelectedIdentity,
   ])
 
   // Initialize step from local state
@@ -248,6 +251,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         cleanupOnboardingFormData()
       }
       if (account) {
+        // Ensure the account is selected when completing onboarding
+        setSelectedIdentity?.(account.uid)
         navigate({
           key: 'document',
           id: account,
