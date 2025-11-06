@@ -152,5 +152,13 @@ export function useAppDialog<DialogInput>(
         </Component.Root>
       ),
     }
-  }, [Component, DialogContentComponent, nav, openState, onClose, options?.containerClassName, options?.contentClassName])
+  }, [
+    Component,
+    DialogContentComponent,
+    nav,
+    openState,
+    onClose,
+    options?.containerClassName,
+    options?.contentClassName,
+  ])
 }

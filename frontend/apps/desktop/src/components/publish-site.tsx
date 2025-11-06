@@ -60,8 +60,9 @@ import {
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
-    containerClassName: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
-    contentClassName: 'p-0 flex items-center justify-center',
+    containerClassName:
+      'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
   })
 }
 
@@ -96,16 +97,14 @@ function RemoveSiteDialog({
             Cancel
           </Button>
         </AlertDialogCancel>
-        <AlertDialogAction asChild>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              removeSite.mutate()
-              onClose()
-            }}
-          >
-            Remove Site
-          </Button>
+        <AlertDialogAction
+          variant="destructive"
+          onClick={() => {
+            removeSite.mutate()
+            onClose()
+          }}
+        >
+          Remove Site
         </AlertDialogAction>
       </div>
     </div>
@@ -141,7 +140,7 @@ function SeedHostHeader() {
   return (
     <div className="mt-6 flex items-center gap-2">
       <SeedHost color="#ffffff" size={32} />
-      <Text weight="bold" size="lg" className="text-muted-foreground">
+      <Text weight="bold" size="lg" className="text-white/90">
         Hosting by Seed Hypermedia
       </Text>
     </div>
@@ -159,18 +158,14 @@ function SeedHostContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="relative flex h-full w-full flex-col items-center gap-4 bg-gray-900 p-4">
+    <div className="relative flex h-full w-full flex-col items-center gap-4 rounded-lg bg-gray-900 p-4">
       <SeedHostHeader />
       {backButton ? (
         <div className="absolute top-4 left-4">{backButton}</div>
       ) : null}
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         {heading ? (
-          <Text
-            weight="bold"
-            size="lg"
-            className="text-muted-foreground text-center"
-          >
+          <Text weight="bold" size="lg" className="text-center text-white/90">
             {heading}
           </Text>
         ) : null}
@@ -192,7 +187,7 @@ function SeedHostCongratsContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="bg-background relative flex h-full w-full flex-col items-center gap-4 p-4">
+    <div className="relative flex h-full w-full flex-col items-center gap-4 overflow-hidden rounded-lg bg-gray-900 p-4">
       <div className="absolute top-20 bottom-0 left-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-left] [animation-timing-function:ease-in-out]">
         <CelebrationDotsLeft />
       </div>
@@ -210,7 +205,7 @@ function SeedHostCongratsContainer({
           <Text
             weight="bold"
             size="lg"
-            className="text-muted-foreground mb-4 text-center"
+            className="mb-4 text-center text-white/90"
           >
             {heading}
           </Text>
@@ -333,7 +328,7 @@ function PublishOptionButton({
 function BackButton({onPress}: {onPress: () => void}) {
   return (
     <Button size="icon" onClick={onPress} variant="ghost">
-      <ArrowLeft className="text-muted-foreground size-4" />
+      <ArrowLeft className="size-4 text-gray-500 dark:text-gray-400" />
     </Button>
   )
 }
@@ -796,7 +791,7 @@ function SeedHostLogin({
             </>
           ) : (
             <>
-              <SizableText className="text-muted-foreground text-center">
+              <SizableText className="text-center text-white/80">
                 We sent a verification link to {email}. Click on it, and you
                 will be logged in here.
               </SizableText>
@@ -900,7 +895,7 @@ function SeedHostRegisterSubdomain({
       backButton={<BackButton onPress={onBack} />}
       footer={
         <div className="flex items-center gap-0">
-          <SizableText size="sm" className="text-muted-foreground">
+          <SizableText size="sm" className="text-white/80">
             Logged in as{' '}
           </SizableText>
 
@@ -920,13 +915,13 @@ function SeedHostRegisterSubdomain({
             </HoverCardTrigger>
             <HoverCardContent className="dark w-full max-w-3xl rounded-lg bg-black p-2">
               <div className="flex flex-col gap-2 p-2">
-                <SizableText size="sm" className="text-muted-foreground">
+                <SizableText size="sm" className="text-white/80">
                   Logged into{' '}
-                  <Text weight="bold" className="text-muted-foreground">
+                  <Text weight="bold" className="text-white/90">
                     {hostnameStripProtocol(SEED_HOST_URL)}
                   </Text>{' '}
                   as{' '}
-                  <Text weight="bold" className="text-muted-foreground">
+                  <Text weight="bold" className="text-white/90">
                     {email}
                   </Text>
                 </SizableText>
@@ -1012,7 +1007,7 @@ function SeedHostSubdomainPublished({
       graphic={<WebPublishedGraphic />}
       footer={
         <div className="flex flex-col gap-3">
-          <SizableText className="text-muted-foreground">
+          <SizableText className="text-white/80">
             Now you can publish the site to your own domain.
           </SizableText>
 
@@ -1029,7 +1024,7 @@ function SeedHostSubdomainPublished({
         </div>
       }
     >
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-white/80">
         Here is the link to your new site.
       </SizableText>
       <PublishedUrl url={host} />
@@ -1089,8 +1084,9 @@ const activelyWatchedDomainIds = new Set<string>()
 
 export function useSeedHostDialog() {
   const {open, content} = useAppDialog(SeedHostDomainPublishedDialog, {
-    containerClassName: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
-    contentClassName: 'p-0 flex items-center justify-center',
+    containerClassName:
+      'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
   })
   const {pendingDomains} = useHostSession()
   const watchingDomainsInProgress = useRef<
@@ -1138,8 +1134,8 @@ export function useSeedHostDialog() {
           })
       }
     })
-  }, [pendingDomains])
-  return {content}
+  }, [pendingDomains, open])
+  return {content, open}
 }
 
 function SeedHostDomainPublishedDialog({
@@ -1175,7 +1171,7 @@ function SeedHostDomainPublished({
       heading={`Now Published to ${host}!`}
       graphic={<CongratsGraphic />}
     >
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-white/80">
         Here is the link for your site.
       </SizableText>
       <PublishedUrl url={`https://${host}`} />
@@ -1269,7 +1265,7 @@ function SeedHostRegisterCustomDomain({
       )
     } else if (pendingDomain?.status === 'initializing') {
       pendingStatus = (
-        <SizableText className="text-muted-foreground">
+        <SizableText className="text-white/80">
           Initializing your domain...
         </SizableText>
       )
@@ -1279,7 +1275,7 @@ function SeedHostRegisterCustomDomain({
         heading="Set Up Custom Domain"
         footer={
           <div className="flex flex-col gap-3">
-            <SizableText className="text-muted-foreground">
+            <SizableText className="text-white/80">
               You can close this dialog and keep using the app.
             </SizableText>
             <BlueButton onClick={onClose}>Close</BlueButton>
@@ -1317,10 +1313,10 @@ function SeedHostRegisterCustomDomain({
       {siteUrl ? (
         <>
           <DialogInner>
-            <SizableText className="text-muted-foreground">
+            <SizableText className="text-white/80">
               You can now publish to a domain that you own.
             </SizableText>
-            <SizableText className="text-muted-foreground">
+            <SizableText className="text-white/80">
               On the next step you will be asked to update your DNS settings to
               point to the Seed Host service.
             </SizableText>
@@ -1363,7 +1359,7 @@ function SeedHostRegisterCustomDomain({
           </DialogInner>
         </>
       ) : (
-        <SizableText className="text-muted-foreground">
+        <SizableText className="text-white/80">
           You need to publish your site first.
         </SizableText>
       )}
@@ -1381,20 +1377,20 @@ export function DNSInstructions({
   const isSubd = isSubdomain(hostname)
   return (
     <div className="flex flex-col gap-3">
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-white/80">
         Now is your time to change the DNS record for your domain.
       </SizableText>
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-white/80">
         Set the{' '}
-        <Text weight="bold" className="text-muted-foreground">
+        <Text weight="bold" className="text-white/90">
           {hostname}
         </Text>{' '}
         {isSubd ? 'CNAME' : 'ALIAS'} record to{' '}
-        <Text weight="bold" className="text-muted-foreground">
+        <Text weight="bold" className="text-white/90">
           {hostnameStripProtocol(siteUrl)}.
         </Text>
       </SizableText>
-      <SizableText className="text-muted-foreground">
+      <SizableText className="text-white/80">
         Once you update the DNS, it usually takes 10 minutes to propagate. Keep
         the app open until then.
       </SizableText>
