@@ -100,6 +100,7 @@ export function useAppDialog<DialogInput>(
     isAlert?: boolean
     onClose?: () => void
     contentClassName?: string
+    containerClassName?: string
     overrideNavigation?: NavigationContext
   },
 ) {
@@ -132,7 +133,10 @@ export function useAppDialog<DialogInput>(
           <Component.Portal>
             <NavContextProvider value={nav}>
               <Component.Overlay onClick={close} />
-              <Component.Content>
+              <Component.Content
+                className={options?.containerClassName}
+                contentClassName={options?.contentClassName}
+              >
                 {openState && (
                   <DialogContentComponent
                     input={openState}
@@ -148,5 +152,5 @@ export function useAppDialog<DialogInput>(
         </Component.Root>
       ),
     }
-  }, [Component, DialogContentComponent, nav, openState, onClose])
+  }, [Component, DialogContentComponent, nav, openState, onClose, options?.containerClassName, options?.contentClassName])
 }
