@@ -32,10 +32,10 @@ import {
   ReactNode,
   useContext,
   useEffect,
-  useMemo,
-  useState,
-  useRef,
   useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
@@ -685,12 +685,16 @@ export function Comment({
           <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
             {heading ? null : (
               <InlineDescriptor>
-                <AuthorNameLink
-                  author={{
-                    id: authorHmId,
-                    metadata: authorMetadata ?? undefined,
-                  }}
-                />{' '}
+                {authorHmId ? (
+                  <AuthorNameLink
+                    author={{
+                      id: authorHmId,
+                      metadata: authorMetadata ?? undefined,
+                    }}
+                  />
+                ) : (
+                  <span>Someone</span>
+                )}{' '}
                 {externalTarget ? (
                   <>
                     <span>on</span>{' '}
