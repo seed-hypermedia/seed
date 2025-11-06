@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"slices"
+	"strings"
 )
 
 var tpl = template.Must(template.New("").Parse(`
@@ -96,16 +98,19 @@ func DebugHandler() http.Handler {
 	}
 
 	handleGet := func(w http.ResponseWriter, _ *http.Request) {
-		logs := ListLogNames()
-
+		loggerMutex.RLock()
 		data := indexModel{
-			Logs: make([]logInfo, len(logs)),
+			Logs: make([]logInfo, 0, len(levels)),
 		}
+		for k, v := range levels {
+			data.Logs = append(data.Logs, logInfo{
+				Subsystem: k,
+				Level:     v.String(),
+			})
+		}
+		loggerMutex.RUnlock()
 
-		for i, l := range logs {
-			data.Logs[i].Subsystem = l
-			data.Logs[i].Level = GetLogLevel(l).String()
-		}
+		slices.SortFunc(data.Logs, func(a, b logInfo) int { return strings.Compare(a.Subsystem, b.Subsystem) })
 
 		w.Header().Set("Content-Type", "text/html")
 

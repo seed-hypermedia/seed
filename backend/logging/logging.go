@@ -5,15 +5,19 @@ package logging
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p/gologshim"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/term"
+
+	_ "unsafe" //nolint:revive
 )
 
 func init() {
@@ -44,6 +48,9 @@ func init() {
 	}
 
 	log.SetPrimaryCore(zapcore.NewCore(enc, os.Stderr, zap.NewAtomicLevelAt(zapcore.DebugLevel)))
+
+	gologshim.SetDefaultHandler(log.SlogHandler())
+	slog.SetDefault(slog.New(log.SlogHandler()).With("logger", "global-slog"))
 }
 
 // New creates a new named logger with the specified level.
@@ -96,12 +103,23 @@ func DefaultConfig() Config {
 	}
 }
 
-// ListLogNames of the underlying IPFS global logger.
-func ListLogNames() []string {
-	logs := log.GetSubsystems()
-	sort.Strings(logs)
-	return logs
-}
+// We are doing this ugly hack to access some of the private globals from the go-log package,
+// because since the introduction of the github.com/libp2p/go-libp2p/gologshim, and the switch in libp2p
+// from zap to the standard slog package, some things in go-log package stopped working like before.
+// In particular, loggers created with gologshim are not stored as loggers themselves, but only their levels,
+// which means the go-log's GetSubsystems() function won't list the loggers created with the shim.
+//
+// So, in order to render truly all available subsystems, we have to access the levels map, which is not exported by go-log in any way.
+// It's important that any access to those linked private variables is guarded by the loggerMutex.
+
+//go:linkname loggerMutex github.com/ipfs/go-log/v2.loggerMutex
+var loggerMutex sync.RWMutex
+
+//go:linkname loggers github.com/ipfs/go-log/v2.loggers
+var loggers map[string]*zap.SugaredLogger
+
+//go:linkname levels github.com/ipfs/go-log/v2.levels
+var levels map[string]zap.AtomicLevel
 
 // GetGlobalConfig returns globel logging configuration.
 // It's pain that there's no way to not use global here.
