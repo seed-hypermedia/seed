@@ -99,8 +99,8 @@ export function useAppDialog<DialogInput>(
   options?: {
     isAlert?: boolean
     onClose?: () => void
-    contentClassName?: string
-    containerClassName?: string
+    className?: string // Dialog container styles (size, position, etc.)
+    contentClassName?: string // Inner content wrapper styles (padding, layout, etc.)
     overrideNavigation?: NavigationContext
   },
 ) {
@@ -134,7 +134,7 @@ export function useAppDialog<DialogInput>(
             <NavContextProvider value={nav}>
               <Component.Overlay onClick={close} />
               <Component.Content
-                className={options?.containerClassName}
+                className={options?.className}
                 contentClassName={options?.contentClassName}
               >
                 {openState && (
@@ -158,7 +158,7 @@ export function useAppDialog<DialogInput>(
     nav,
     openState,
     onClose,
-    options?.containerClassName,
+    options?.className,
     options?.contentClassName,
   ])
 }

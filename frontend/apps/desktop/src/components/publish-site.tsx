@@ -60,8 +60,7 @@ import {
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
-    containerClassName:
-      'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    className: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
     contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
   })
 }
@@ -1084,8 +1083,7 @@ const activelyWatchedDomainIds = new Set<string>()
 
 export function useSeedHostDialog() {
   const {open, content} = useAppDialog(SeedHostDomainPublishedDialog, {
-    containerClassName:
-      'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    className: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
     contentClassName: 'p-0 flex items-center justify-center overflow-hidden',
   })
   const {pendingDomains} = useHostSession()

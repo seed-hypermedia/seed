@@ -196,7 +196,7 @@ export function SiteTemplate({
 
 export function useTemplateDialog(route: DocumentRoute) {
   const dialog = useAppDialog(SiteTemplate, {
-    containerClassName: 'max-w-3xl',
+    className: 'max-w-3xl',
   })
   const navigate = useNavigate('replace')
   useEffect(() => {

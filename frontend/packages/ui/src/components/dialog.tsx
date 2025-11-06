@@ -46,10 +46,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   contentClassName,
+  style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   contentClassName?: string
+  style?: React.CSSProperties
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -57,9 +59,13 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 flex max-h-[100dvh] max-h-[calc(var(--vvh,1vh)*100)] w-full max-w-xl translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-lg shadow-lg duration-200 sm:max-h-[calc(100dvh-4rem)] sm:max-h-[calc(var(--vvh,1vh)*100-4rem)]',
+          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 flex translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-lg shadow-lg duration-200',
+          // Default sizing only if no custom className is provided
+          !className &&
+            'max-h-[100dvh] max-h-[calc(var(--vvh,1vh)*100)] w-full max-w-xl sm:max-h-[calc(100dvh-4rem)] sm:max-h-[calc(var(--vvh,1vh)*100-4rem)]',
           className,
         )}
+        style={style}
         {...props}
       >
         <div
