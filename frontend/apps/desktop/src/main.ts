@@ -52,12 +52,11 @@ import {
   getAllWindows,
   getFocusedWindow,
   getWindowNavState,
-  getWindowsState,
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
-import * as logger from './logger'
 import {startLocalServer, stopLocalServer} from './local-server'
+import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
@@ -311,9 +310,10 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    // Get the focused window's selected identity to copy it to the new window
+    // Get the focused window's selected identity and accessoryWidth to copy them to the new window
     const focusedWindow = getFocusedWindow()
     let selectedIdentity: string | null = null
+    let accessoryWidth: number | undefined = undefined
 
     if (focusedWindow) {
       const focusedWindowId = Array.from(getAllWindows().entries()).find(
@@ -322,16 +322,18 @@ function initializeIpcHandlers() {
 
       if (focusedWindowId) {
         // Use in-memory windowNavState instead of persisted windowsState
-        // to get the most current selected identity
+        // to get the most current selected identity and accessoryWidth
         const windowNavState = getWindowNavState()
         const focusedWindowState = windowNavState[focusedWindowId]
         selectedIdentity = focusedWindowState?.selectedIdentity || null
+        accessoryWidth = focusedWindowState?.accessoryWidth
       }
     }
 
     trpc.createAppWindow({
       routes: [defaultRoute],
       selectedIdentity,
+      accessoryWidth,
     })
   })
 

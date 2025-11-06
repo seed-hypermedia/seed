@@ -8,10 +8,12 @@ export const ipc: AppIPC = {
     if (cmd === 'plugin:window|open') {
       const path = (args?.path as string) || ''
       const selectedIdentity = (args?.selectedIdentity as string) || null
+      const accessoryWidth = (args?.accessoryWidth as number) || undefined
       const route = decodeRouteFromPath(path.slice(1))
       await client.createAppWindow.mutate({
         routes: [route],
         selectedIdentity,
+        accessoryWidth,
       })
     } else {
       console.debug('IPC Invoke', cmd, args)

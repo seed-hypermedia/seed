@@ -157,6 +157,7 @@ export async function openInitialWindows() {
         selectedIdentity: window.selectedIdentity || defaultSelectedIdentity,
         sidebarLocked: window.sidebarLocked,
         sidebarWidth: window.sidebarWidth,
+        accessoryWidth: window.accessoryWidth,
         bounds: window.bounds,
         id: windowId,
       })
@@ -278,6 +279,7 @@ export const router = t.router({
         id: z.string().optional(),
         sidebarLocked: z.boolean().default(true),
         sidebarWidth: z.number().default(15),
+        accessoryWidth: z.number().default(20),
         bounds: z
           .object({
             x: z.number(),

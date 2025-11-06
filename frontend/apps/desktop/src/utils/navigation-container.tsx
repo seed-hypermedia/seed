@@ -115,8 +115,14 @@ export function NavigationContainer({
       }}
       openRouteNewWindow={(route: NavRoute) => {
         const path = encodeRouteToPath(route)
-        const selectedIdentity = navigation.selectedIdentity.get()
-        ipc.invoke('plugin:window|open', {path, selectedIdentity})
+        const currentState = navigation.state.get()
+        const selectedIdentity = currentState.selectedIdentity
+        const accessoryWidth = currentState.accessoryWidth
+        ipc.invoke('plugin:window|open', {
+          path,
+          selectedIdentity,
+          accessoryWidth,
+        })
       }}
       openUrl={(url: string) => {
         externalOpen(url)

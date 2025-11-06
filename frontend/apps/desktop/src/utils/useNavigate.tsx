@@ -1,6 +1,10 @@
 import {useIPC} from '@/app-context'
 import {NavRoute} from '@shm/shared/routes'
-import {NavMode, useNavigationDispatch} from '@shm/shared/utils/navigation'
+import {
+  NavMode,
+  useNavigationDispatch,
+  useNavigationState,
+} from '@shm/shared/utils/navigation'
 import {startTransition, useCallback} from 'react'
 import {encodeRouteToPath} from './route-encoding'
 import {getRouteWindowType, getWindowType} from './window-types'
@@ -8,6 +12,7 @@ import {getRouteWindowType, getWindowType} from './window-types'
 export function useNavigate(requestedMode: NavMode = 'push') {
   const dispatch = useNavigationDispatch()
   const {invoke} = useIPC()
+  const navState = useNavigationState()
 
   return useCallback(
     (route: NavRoute) => {
@@ -17,7 +22,11 @@ export function useNavigate(requestedMode: NavMode = 'push') {
       startTransition(() => {
         if (mode === 'spawn') {
           const path = encodeRouteToPath(route)
-          invoke('plugin:window|open', {path})
+          invoke('plugin:window|open', {
+            path,
+            selectedIdentity: navState?.selectedIdentity,
+            accessoryWidth: navState?.accessoryWidth,
+          })
         } else if (mode === 'push') {
           dispatch({type: 'push', route})
         } else if (mode === 'replace') {
