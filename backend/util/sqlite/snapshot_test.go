@@ -59,8 +59,8 @@ func initDB(t *testing.T) (*sqlite.Conn, *sqlitex.Pool, func()) {
 		os.Remove(db)
 	}
 
-	for i := 0; i < poolSize; i++ {
-		c := pool.Get(nil)
+	for range poolSize {
+		c := pool.Get(t.Context())
 		if err := sqlitex.ExecScript(c, `PRAGMA application_id;`); err != nil {
 			cleanup()
 			t.Fatal(err)
@@ -75,7 +75,7 @@ func TestSnapshot(t *testing.T) {
 	conn, pool, cleanup := initDB(t)
 	defer cleanup()
 
-	s1, err := pool.GetSnapshot(nil, "")
+	s1, err := pool.GetSnapshot(t.Context(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	read := pool.Get(nil)
+	read := pool.Get(t.Context())
 	defer pool.Put(read)
 
 	endRead, err := read.StartSnapshotRead(s1)

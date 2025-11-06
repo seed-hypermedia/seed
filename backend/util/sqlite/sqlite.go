@@ -92,12 +92,12 @@ type Conn struct {
 	closed     bool
 	count      int // shared variable to help the race detector find Conn misuse
 
-	cancelCh   chan struct{}
-	tracer     Tracer
-	doneCh     <-chan struct{}
-	unlockNote *C.unlock_note
-	file       string
-	line       int
+	cancelCh    chan struct{}
+	tracer      Tracer
+	doneCh      <-chan struct{}
+	unlockNote  *C.unlock_note
+	file        string
+	busyTimeout time.Duration
 }
 
 // sqlitex_pool is used by sqlitex.Open to tell OpenConn that there is
@@ -331,6 +331,12 @@ func (conn *Conn) SetInterrupt(doneCh <-chan struct{}) (oldDoneCh <-chan struct{
 // https://www.sqlite.org/c3ref/busy_timeout.html
 func (conn *Conn) SetBusyTimeout(d time.Duration) {
 	C.sqlite3_busy_timeout(conn.conn, C.int(d/time.Millisecond))
+	conn.busyTimeout = d
+}
+
+// BusyTimeout returns the current busy timeout configured for the connection.
+func (conn *Conn) BusyTimeout() time.Duration {
+	return conn.busyTimeout
 }
 
 func (conn *Conn) interrupted(loc, query string) error {

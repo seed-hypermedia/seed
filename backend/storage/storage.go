@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
+func init() {
+	sqlitex.SetLogger(logging.NewSlog("seed/sqlite", "warn"))
+}
+
 // Store is a storage directory on a filesystem.
 type Store struct {
 	path string

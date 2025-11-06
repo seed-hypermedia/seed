@@ -18,12 +18,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"runtime/trace"
 	"sync"
 	"time"
 
 	"seed/backend/util/sqlite"
 )
+
+var log = slog.Default()
+
+// SetLogger sets the logger for this package.
+// It must be called before calling any other function in this package.
+func SetLogger(logger *slog.Logger) {
+	log = logger
+}
 
 // Pool is a pool of SQLite connections.
 //
@@ -99,7 +108,7 @@ func Open(uri string, flags sqlite.OpenFlags, poolSize int) (pool *Pool, err err
 	flags |= sqlitex_pool
 
 	p.all = make(map[*sqlite.Conn]context.CancelFunc)
-	for i := 0; i < poolSize; i++ {
+	for range poolSize {
 		conn, err := sqlite.OpenConn(uri, flags)
 		if err != nil {
 			return nil, err

@@ -104,9 +104,6 @@ func savepoint(conn *sqlite.Conn, name string) (releaseFn func(*error), err erro
 			// Possible interrupt. Fall through to the error path.
 			if conn.GetAutocommit() {
 				// There is nothing to rollback.
-				if recoverP != nil {
-					panic(recoverP)
-				}
 				return
 			}
 		}

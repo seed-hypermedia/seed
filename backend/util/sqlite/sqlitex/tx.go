@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"seed/backend/util/sqlite"
 )
@@ -15,6 +17,17 @@ var ErrBeginImmediateTx = errors.New("Failed to begin immediate transaction")
 // WithTx executes fn within an immediate transaction, and commits
 // or rolls back accordingly.
 func WithTx(conn *sqlite.Conn, fn func() error) error {
+	start := time.Now()
+	defer func() {
+		d := time.Since(start)
+		if d >= conn.BusyTimeout() {
+			log.Warn("SlowQuery",
+				"duration", d.String(),
+				"stacktrace", string(debug.Stack()),
+			)
+		}
+	}()
+
 	// Not allowing nested transactions can often be error-prone.
 	// It might indicate a design flaw in the code, but because this is a wrapper that invokes a callback function,
 	// it's relatively safe to just fallback to a savepoint when we receive a nested transaction error.

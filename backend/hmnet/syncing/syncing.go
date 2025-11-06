@@ -589,7 +589,7 @@ func syncEntities(
 	for i, blkID := range allWants {
 		blk, err := sess.GetBlock(ctx, blkID)
 		if err != nil {
-			log.Warn("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
+			log.Debug("FailedToGetWantedBlob", zap.String("cid", blkID.String()), zap.Error(err))
 			prog.BlobsFailed.Add(1)
 			continue
 		}

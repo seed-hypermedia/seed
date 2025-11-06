@@ -19,8 +19,9 @@ import (
 	"io"
 	"testing"
 
-	"crawshaw.io/iox/ioxtest"
 	"seed/backend/util/sqlite"
+
+	"crawshaw.io/iox/ioxtest"
 )
 
 func TestBuffer(t *testing.T) {
@@ -98,8 +99,8 @@ func TestConcurrentBuffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn1 := dbpool.Get(nil)
-	conn2 := dbpool.Get(nil)
+	conn1 := dbpool.Get(t.Context())
+	conn2 := dbpool.Get(t.Context())
 	defer func() {
 		dbpool.Put(conn1)
 		dbpool.Put(conn2)

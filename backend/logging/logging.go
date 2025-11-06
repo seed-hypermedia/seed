@@ -50,13 +50,24 @@ func init() {
 	log.SetPrimaryCore(zapcore.NewCore(enc, os.Stderr, zap.NewAtomicLevelAt(zapcore.DebugLevel)))
 
 	gologshim.SetDefaultHandler(log.SlogHandler())
-	slog.SetDefault(slog.New(log.SlogHandler()).With("logger", "global-slog"))
+	slog.SetDefault(NewSlog("slog-global", "info"))
 }
 
 // New creates a new named logger with the specified level.
 // If logger was created before it will just set the level.
 func New(subsystem, level string) *zap.Logger {
 	l := log.Logger(subsystem).Desugar()
+
+	if err := log.SetLogLevel(subsystem, level); err != nil {
+		panic(err)
+	}
+
+	return l
+}
+
+// NewSlog creates a new slog logger, which is wired through the same go-log pipeline.
+func NewSlog(subsystem, level string) *slog.Logger {
+	l := gologshim.Logger(subsystem)
 
 	if err := log.SetLogLevel(subsystem, level); err != nil {
 		panic(err)
