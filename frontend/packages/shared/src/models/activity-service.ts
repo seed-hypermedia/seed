@@ -1,10 +1,11 @@
-import {HMContactItem, resolveAccount} from '../account-utils'
+import {resolveAccount} from '../account-utils'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
 import {
   HMCapability,
   HMComment,
+  HMContactItem,
   HMDocument,
   HMMetadata,
   HMRoleSchema,
