@@ -60,8 +60,8 @@ import {
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {
-    contentClassName:
-      'max-w-3xl h-8/10 w-full p-0 flex items-center justify-center',
+    containerClassName: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    contentClassName: 'p-0 flex items-center justify-center',
   })
 }
 
@@ -192,7 +192,7 @@ function SeedHostCongratsContainer({
   footer?: React.ReactNode
 }>) {
   return (
-    <div className="bg-background relative flex h-[80vh] max-h-[800px] w-[80vw] max-w-[1000px] flex-col items-center gap-4 p-4">
+    <div className="bg-background relative flex h-full w-full flex-col items-center gap-4 p-4">
       <div className="absolute top-20 bottom-0 left-0 [transform-origin:center] scale-125 animate-[superSlow] [animation-delay:0ms] [animation-duration:3000ms] [animation-fill-mode:both] [animation-name:celebration-dots-left] [animation-timing-function:ease-in-out]">
         <CelebrationDotsLeft />
       </div>
@@ -1088,7 +1088,10 @@ function PublishedUrl({url}: {url: string}) {
 const activelyWatchedDomainIds = new Set<string>()
 
 export function useSeedHostDialog() {
-  const {open, content} = useAppDialog(SeedHostDomainPublishedDialog)
+  const {open, content} = useAppDialog(SeedHostDomainPublishedDialog, {
+    containerClassName: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
+    contentClassName: 'p-0 flex items-center justify-center',
+  })
   const {pendingDomains} = useHostSession()
   const watchingDomainsInProgress = useRef<
     {
