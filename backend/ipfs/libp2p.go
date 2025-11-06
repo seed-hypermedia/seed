@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	routing "github.com/libp2p/go-libp2p/core/routing"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/libp2p/go-libp2p/x/rate"
 	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 )
@@ -58,7 +60,7 @@ type Routing interface {
 // using the Listen() method on the underlying P2P network.
 func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peerstore, protocolID protocol.ID, delegatedDHTURL string, log *zap.Logger, opts ...libp2p.Option) (nn *Libp2p, err error) {
 	var clean cleanup.Stack
-
+	const unlimitedResources = true
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, clean.Close())
@@ -72,7 +74,7 @@ func NewLibp2pNode(key crypto.PrivKey, ds datastore.Batching, ps peerstore.Peers
 			"/ipfs/kad/1.0.0":     2000,
 			"/ipfs/bitswap/1.2.0": 2000,
 		},
-	)
+		unlimitedResources)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +193,7 @@ func (n *Libp2p) Close() error {
 
 // buildResourceManager returns a resource manager given two sets of hard limits. for each protocol listed in ourProtocols (seed protocols)
 // we apply the maximum limits of ourStreamsHardLimit. For their protocols (non seed protocols) we apply the maximum limits of theirStreamsHardLimit
-func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, theirProtocolLimits map[protocol.ID]rcmgr.LimitVal) (network.ResourceManager, error) {
+func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, theirProtocolLimits map[protocol.ID]rcmgr.LimitVal, unlimited bool) (network.ResourceManager, error) {
 	scalingLimits := rcmgr.DefaultLimits
 
 	// Add limits around included libp2p protocols
@@ -199,84 +201,100 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 
 	// Turn the scaling limits into a concrete set of limits using `.AutoScale`. This
 	// scales the limits proportional to your system memory.
-	scaledDefaultLimits := scalingLimits.AutoScale()
-	const (
-		maxConns           = 5000
-		maxFileDescriptors = 6000
-		maxMemory          = 8192 * 1024 * 1024 // 8GB
-	)
+	limits := rcmgr.InfiniteLimits
+	unlimitedLimiter := rate.Limiter{GlobalLimit: rate.Limit{RPS: float64(math.MaxInt64), Burst: math.MaxInt64}}
+	opts := rcmgr.WithConnRateLimiters(&unlimitedLimiter)
+	if !unlimited {
+		scaledDefaultLimits := scalingLimits.AutoScale()
+		const (
+			maxConns           = 5000
+			maxFileDescriptors = 6000
+			maxMemory          = 8192 * 1024 * 1024 // 8GB
+		)
 
-	absoluteLimits := rcmgr.ResourceLimits{
-		Streams:         maxConns,
-		StreamsInbound:  maxConns,
-		StreamsOutbound: maxConns,
-		Conns:           maxConns,
-		ConnsInbound:    maxConns,
-		ConnsOutbound:   maxConns,
-		FD:              maxFileDescriptors,
-		Memory:          maxMemory,
-	}
-
-	protocolsLimits := map[protocol.ID]rcmgr.ResourceLimits{}
-	for name, limit := range ourProtocolLimits {
-		if limit > maxConns {
-			return nil, fmt.Errorf("Provided limit %d can't be greater than absolute limit %d", limit, maxConns)
-		}
-		limits := rcmgr.ResourceLimits{
-			Streams:         limit,
-			StreamsInbound:  limit,
-			StreamsOutbound: limit,
-			Conns:           limit,
-			ConnsInbound:    limit,
-			ConnsOutbound:   limit,
+		absoluteLimits := rcmgr.ResourceLimits{
+			Streams:         maxConns,
+			StreamsInbound:  maxConns,
+			StreamsOutbound: maxConns,
+			Conns:           maxConns,
+			ConnsInbound:    maxConns,
+			ConnsOutbound:   maxConns,
 			FD:              maxFileDescriptors,
 			Memory:          maxMemory,
 		}
 
-		protocolsLimits[name] = limits
-	}
-	for name, limit := range theirProtocolLimits {
-		if limit > maxConns {
-			return nil, fmt.Errorf("Provided limit %d can't be greater than absolute limit %d", limit, maxConns)
+		protocolsLimits := map[protocol.ID]rcmgr.ResourceLimits{}
+		for name, limit := range ourProtocolLimits {
+			if limit > maxConns {
+				return nil, fmt.Errorf("Provided limit %d can't be greater than absolute limit %d", limit, maxConns)
+			}
+			limits := rcmgr.ResourceLimits{
+				Streams:         limit,
+				StreamsInbound:  limit,
+				StreamsOutbound: limit,
+				Conns:           limit,
+				ConnsInbound:    limit,
+				ConnsOutbound:   limit,
+				FD:              maxFileDescriptors,
+				Memory:          maxMemory,
+			}
+
+			protocolsLimits[name] = limits
 		}
-		limits := rcmgr.ResourceLimits{
-			Streams:         limit,
-			StreamsInbound:  limit,
-			StreamsOutbound: limit,
-			Conns:           limit,
-			ConnsInbound:    limit,
-			ConnsOutbound:   limit,
-			FD:              maxFileDescriptors,
-			Memory:          maxMemory,
+		for name, limit := range theirProtocolLimits {
+			if limit > maxConns {
+				return nil, fmt.Errorf("Provided limit %d can't be greater than absolute limit %d", limit, maxConns)
+			}
+			limits := rcmgr.ResourceLimits{
+				Streams:         limit,
+				StreamsInbound:  limit,
+				StreamsOutbound: limit,
+				Conns:           limit,
+				ConnsInbound:    limit,
+				ConnsOutbound:   limit,
+				FD:              maxFileDescriptors,
+				Memory:          maxMemory,
+			}
+
+			protocolsLimits[name] = limits
 		}
 
-		protocolsLimits[name] = limits
+		// Defaults
+		cfg := rcmgr.PartialLimitConfig{
+			System:               absoluteLimits,
+			Transient:            absoluteLimits,
+			AllowlistedSystem:    absoluteLimits,
+			AllowlistedTransient: absoluteLimits,
+			ServiceDefault:       absoluteLimits,
+			//Service:              map[string]rcmgr.ResourceLimits{},
+			ServicePeerDefault: absoluteLimits,
+			//ServicePeer:          map[string]rcmgr.ResourceLimits{},
+			ProtocolDefault:     absoluteLimits,
+			Protocol:            protocolsLimits,
+			ProtocolPeerDefault: absoluteLimits,
+			//ProtocolPeer:         map[protocol.ID]rcmgr.ResourceLimits{},
+			PeerDefault: absoluteLimits,
+			//Peer:                 map[peer.ID]rcmgr.ResourceLimits{},
+			Conn:   absoluteLimits,
+			Stream: absoluteLimits,
+		}
+		limits = cfg.Build(scaledDefaultLimits)
 	}
-
-	// Defaults
-	cfg := rcmgr.PartialLimitConfig{
-		System:               absoluteLimits,
-		Transient:            absoluteLimits,
-		AllowlistedSystem:    absoluteLimits,
-		AllowlistedTransient: absoluteLimits,
-		ServiceDefault:       absoluteLimits,
-		//Service:              map[string]rcmgr.ResourceLimits{},
-		ServicePeerDefault: absoluteLimits,
-		//ServicePeer:          map[string]rcmgr.ResourceLimits{},
-		ProtocolDefault:     absoluteLimits,
-		Protocol:            protocolsLimits,
-		ProtocolPeerDefault: absoluteLimits,
-		//ProtocolPeer:         map[protocol.ID]rcmgr.ResourceLimits{},
-		PeerDefault: absoluteLimits,
-		//Peer:                 map[peer.ID]rcmgr.ResourceLimits{},
-		Conn:   absoluteLimits,
-		Stream: absoluteLimits,
-	}
-
-	limits := cfg.Build(scaledDefaultLimits)
 
 	// The resource manager expects a limiter, so we create one from our limits.
 	limiter := rcmgr.NewFixedLimiter(limits)
+	var rm network.ResourceManager
+	var err error
 
-	return rcmgr.NewResourceManager(limiter)
+	if unlimited {
+		rm, err = rcmgr.NewResourceManager(limiter, opts)
+
+	} else {
+		rm, err = rcmgr.NewResourceManager(limiter)
+
+	}
+	if err != nil {
+		return nil, err
+	}
+	return rm, nil
 }
