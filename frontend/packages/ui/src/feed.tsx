@@ -33,7 +33,12 @@ import {copyTextToClipboard} from './copy-to-clipboard'
 import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
-import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
+import {
+  AuthorNameLink,
+  DocumentNameLink,
+  InlineDescriptor,
+  Timestamp,
+} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {ResourceToken} from './resource-token'
@@ -246,12 +251,13 @@ function EventHeaderContent({
       <div className="flex w-full items-center justify-between gap-2">
         <InlineDescriptor>
           <AuthorNameLink author={event.author} />{' '}
-          {!isSingleResource ? (
+          {!isSingleResource && event.target ? (
             <>
               <span>commented on</span>{' '}
-              <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-                {event.target?.metadata?.name}
-              </a>{' '}
+              <DocumentNameLink
+                metadata={event.target?.metadata}
+                id={event.target.id}
+              />
             </>
           ) : null}
           <Timestamp time={event.time} route={route} />
@@ -302,12 +308,13 @@ function EventHeaderContent({
           />
         ) : null}
         <AuthorNameLink author={event.delegates[0]!} />{' '}
-        {!isSingleResource ? (
+        {!isSingleResource && event.target?.id ? (
           <>
-            <span>as Writer in</span>{' '}
-            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-              {event.target?.metadata?.name}
-            </a>{' '}
+            <span>as a {event.capability.role} in</span>{' '}
+            <DocumentNameLink
+              metadata={event.target?.metadata}
+              id={event.target?.id}
+            />{' '}
           </>
         ) : (
           <>
@@ -331,9 +338,10 @@ function EventHeaderContent({
                 ? 'created'
                 : 'updated'}
             </span>{' '}
-            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-              {event.document.metadata.name}
-            </a>{' '}
+            <DocumentNameLink
+              metadata={event.document.metadata}
+              id={event.docId}
+            />{' '}
           </>
         ) : (
           <>
@@ -363,10 +371,7 @@ function EventHeaderContent({
             name={event.contact.subject.metadata.name}
           />
         ) : null}
-        <a className="text-sm font-bold">
-          {event.contact.subject?.metadata?.name}
-        </a>{' '}
-        <span>as</span>{' '}
+        <AuthorNameLink author={event.contact.subject} /> <span>as</span>{' '}
         <span className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
           {event.contact.name}
         </span>{' '}
@@ -376,18 +381,17 @@ function EventHeaderContent({
   }
 
   if (event.type == 'citation') {
-    const targetName = event.target?.metadata?.name || 'this document'
-    const sourceName = event.source?.metadata?.name || 'a document'
-
     return (
       <InlineDescriptor>
         <AuthorNameLink author={event.author} />{' '}
         <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
         {!isSingleResource ? (
           <>
-            <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-              {targetName}
-            </a>{' '}
+            <DocumentNameLink
+              metadata={event.target?.metadata}
+              id={event.target?.id}
+              fallback="this document"
+            />{' '}
           </>
         ) : (
           <>
@@ -395,9 +399,11 @@ function EventHeaderContent({
           </>
         )}
         <span>{event.citationType === 'c' ? 'in a comment on' : 'in'}</span>{' '}
-        <a className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10">
-          {sourceName}
-        </a>{' '}
+        <DocumentNameLink
+          metadata={event.source?.metadata}
+          id={event.source?.id}
+          fallback="a document"
+        />{' '}
         <Timestamp time={event.time} route={route} />
       </InlineDescriptor>
     )

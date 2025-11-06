@@ -1,11 +1,13 @@
 import {
   AnyTimestamp,
   formattedDateShort,
+  HMMetadata,
   NavRoute,
   normalizeDate,
+  UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {HMContactItem} from '@shm/shared/account-utils'
+import {HMContactItem} from '@shm/shared/hm-types'
 import {Tooltip} from './tooltip'
 
 function formatUTC(date: Date) {
@@ -55,6 +57,26 @@ export function AuthorNameLink({author}: {author: HMContactItem | null}) {
   return (
     <a className="text-foreground text-sm font-bold" {...linkProps}>
       {authorName}
+    </a>
+  )
+}
+
+export function DocumentNameLink({
+  metadata,
+  id,
+  fallback = 'a document',
+}: {
+  metadata?: HMMetadata | null
+  id: UnpackedHypermediaId
+  fallback?: string
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <a
+      className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
+      {...linkProps}
+    >
+      {metadata?.name || fallback}
     </a>
   )
 }

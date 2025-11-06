@@ -1194,6 +1194,11 @@ export type HMContact = {
   subjectContacts: PlainMessage<Contact>[] | undefined
 }
 
+export type HMContactItem = {
+  id: UnpackedHypermediaId
+  metadata?: HMMetadata
+}
+
 export const HMCapabilitySchema = z.object({
   id: z.string(),
   accountUid: z.string(),

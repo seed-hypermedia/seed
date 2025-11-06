@@ -1,12 +1,7 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {GRPCClient} from './grpc-client'
-import {HMMetadata} from './hm-types'
-import {hmId, unpackHmId} from './utils'
-
-export type HMContactItem = {
-  id: ReturnType<typeof unpackHmId>
-  metadata?: HMMetadata
-}
+import {HMContactItem, HMMetadata} from './hm-types'
+import {hmId} from './utils'
 
 /**
  * Resolves an account ID to a contact item with metadata
