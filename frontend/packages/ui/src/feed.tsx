@@ -243,7 +243,7 @@ function EventHeaderContent({
     }
 
     return (
-      <div className="flex w-full items-start justify-between gap-2">
+      <div className="flex w-full items-center justify-between gap-2">
         <InlineDescriptor>
           <AuthorNameLink author={event.author} />{' '}
           {!isSingleResource ? (
@@ -568,7 +568,7 @@ function EventCommentWithReply({
               />
             ) : null}
           </div>
-          <div className="group flex w-full items-start justify-between gap-2">
+          <div className="group flex w-full items-center justify-between gap-2">
             <p className="min-h-[20px] flex-1 overflow-hidden leading-[14px]">
               <AuthorNameLink author={event.replyParentAuthor} />{' '}
               <span className="text-muted-foreground ml-0.5 flex-none text-[11px]">
