@@ -1,29 +1,35 @@
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useSubscribeToNotifications} from '@shm/shared/models/email-notifications'
-import {useTx} from '@shm/shared/translation'
-import {DialogTitle} from '@shm/ui/components/dialog'
+import {useAccount} from '@shm/shared/models/entity'
 import {
   UIEmailNotificationsForm,
   UIEmailNotificationsFormSchema,
 } from '@shm/ui/email-notifications'
+import {useLocalKeyPair} from './auth'
 
-export function NotifSettingsDialog({
+export function EmailNotificationsForm({
   onClose,
-  input,
+  onComplete,
 }: {
   onClose: () => void
-  input: {accountUid: string; title: string; notifyServiceHost: string}
+  onComplete: (email: string) => void
 }) {
+  const keyPair = useLocalKeyPair()
+  const account = useAccount(keyPair?.id)
   const {mutateAsync, isPending} = useSubscribeToNotifications()
-  const tx = useTx()
 
   const setEmailNotifications = async (
     formData: UIEmailNotificationsFormSchema,
   ) => {
+    if (!account.data?.id.uid) return
+    if (!NOTIFY_SERVICE_HOST)
+      throw new Error('Email notifications service host is not configured')
+
     await mutateAsync({
-      notifyServiceHost: input.notifyServiceHost,
+      notifyServiceHost: NOTIFY_SERVICE_HOST,
       action: 'subscribe',
       email: formData.email,
-      accountId: input.accountUid,
+      accountId: account.data.id.uid,
       notifyAllMentions: formData.notifyAllMentions,
       notifyAllReplies: formData.notifyAllReplies,
       notifyOwnedDocChange: formData.notifyOwnedDocChange,
@@ -32,17 +38,11 @@ export function NotifSettingsDialog({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <DialogTitle>
-        {input.title || tx('Email Notification Settings')}
-      </DialogTitle>
-
-      <UIEmailNotificationsForm
-        onClose={onClose}
-        onComplete={onClose}
-        setEmailNotifications={setEmailNotifications}
-        isLoading={isPending}
-      />
-    </div>
+    <UIEmailNotificationsForm
+      setEmailNotifications={setEmailNotifications}
+      isLoading={isPending}
+      onClose={onClose}
+      onComplete={onComplete}
+    />
   )
 }

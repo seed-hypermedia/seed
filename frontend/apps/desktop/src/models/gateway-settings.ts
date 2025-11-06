@@ -1,5 +1,5 @@
 import {trpc} from '@/trpc'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useEffect, useMemo} from 'react'
@@ -36,7 +36,7 @@ export function useSetGatewayUrl() {
 
 export function useNotifyServiceHost() {
   const notifyServiceHost = trpc.gatewaySettings.getNotifyServiceHost.useQuery()
-  return notifyServiceHost
+  return notifyServiceHost.data || NOTIFY_SERVICE_HOST
 }
 
 export function useSetNotifyServiceHost() {

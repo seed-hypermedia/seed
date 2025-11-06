@@ -16,7 +16,6 @@ import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Sparkle} from 'lucide-react'
 import {
@@ -189,7 +188,7 @@ export function SiteHeader({
           {isCenterLayout ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
-              {NOTIFY_SERVICE_HOST && (
+              {notifyServiceHost && (
                 <Button
                   variant="brand"
                   size="sm"
@@ -295,7 +294,8 @@ export function SiteHeader({
           open={isSubscribeDialogOpen}
           onOpenChange={setIsSubscribeDialogOpen}
           accountId={headerHomeId?.uid}
-          apiHost={notifyServiceHost}
+          accountMeta={draftMetadata || homeDoc.document?.metadata}
+          notifyServiceHost={notifyServiceHost}
         />
       </header>
     </>

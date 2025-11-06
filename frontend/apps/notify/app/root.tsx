@@ -89,7 +89,7 @@ export function Layout({children}: {children: React.ReactNode}) {
           dangerouslySetInnerHTML={{
             __html: `window.ENV = ${JSON.stringify({
               LIGHTNING_API_URL,
-              SITE_BASE_URL: siteHost || SITE_BASE_URL,
+              SITE_BASE_URL,
               WEB_IDENTITY_ORIGIN,
               WEB_IDENTITY_ENABLED,
               ENABLE_EMAIL_NOTIFICATIONS,

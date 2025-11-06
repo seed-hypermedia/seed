@@ -391,7 +391,7 @@ function _AppDocSiteHeader({
           accessory: route.key == 'document' ? null : route.accessory,
         })
       }}
-      notifyServiceHost={notifyServiceHost.data}
+      notifyServiceHost={notifyServiceHost}
     />
   )
 }

@@ -95,90 +95,177 @@ export function EmailContent({notification}: {notification: Notification}) {
             )}
           </MjmlText>
         </MjmlColumn>
-        {notification.reason === 'site-doc-update' ? (
-          renderChange({
-            targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-            isNewDocument: notification.isNewDocument,
-          })
-        ) : notification.reason === 'mention' ? (
-          <MjmlColumn width="100%" verticalAlign="middle">
-            {notification.comment ? (
-              renderMention({
-                blocks: notification.comment.content.map(
-                  (n) => new BlockNode(n),
-                ),
-                targetDocName:
-                  notification.targetMeta?.name ?? 'Untitled Document',
-                resolvedNames: notification.resolvedNames,
-              })
-            ) : (
-              // Document mention
-              <MjmlText fontSize="14px" padding="12px 25px">
-                was mentioned in{' '}
-                <span
-                  style={{
-                    backgroundColor: '#eee',
-                    borderRadius: '4px',
-                    padding: '4px 8px',
-                    display: 'inline-block',
-                  }}
-                >
-                  {notification.targetMeta?.name ?? 'Untitled Document'}
-                </span>
-              </MjmlText>
-            )}
-          </MjmlColumn>
-        ) : notification.reason === 'reply' ? (
-          <MjmlColumn width="100%" verticalAlign="middle">
-            <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-              New reply:
-            </MjmlText>
-            <MjmlSection padding="0 0 8px 23px">
-              <MjmlColumn border-left="1px solid #20C997">
-                {renderBlocks(
-                  notification.comment.content.map((n) => new BlockNode(n)),
-                  notification.url,
-                  notification.resolvedNames,
-                )}
-              </MjmlColumn>
-            </MjmlSection>
-          </MjmlColumn>
-        ) : (
-          // Default to comment
-          <MjmlColumn width="100%" verticalAlign="middle">
-            <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-              Commented:
-            </MjmlText>
-            <MjmlSection padding="0 0 8px 23px">
-              <MjmlColumn border-left="1px solid #20C997">
-                {renderBlocks(
-                  notification.comment.content.map((n) => new BlockNode(n)),
-                  notification.url,
-                  notification.resolvedNames,
-                )}
-              </MjmlColumn>
-            </MjmlSection>
-            <MjmlSection padding="0 0 16px 0">
-              <MjmlColumn>
-                <MjmlText fontSize="14px" color="#888">
-                  on:{' '}
-                  <span
-                    style={{
-                      backgroundColor: '#eee',
-                      borderRadius: '4px',
-                      padding: '2px 6px',
-                      display: 'inline-block',
-                    }}
-                  >
-                    {notification.targetMeta?.name ?? 'Untitled Document'}
-                  </span>
-                </MjmlText>
-              </MjmlColumn>
-            </MjmlSection>
-          </MjmlColumn>
-        )}
+        <NotificationContent notification={notification} />
       </MjmlSection>
     </>
+  )
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled notification type: ${JSON.stringify(value)}`)
+}
+
+function NotificationContent({notification}: {notification: Notification}) {
+  switch (notification.reason) {
+    case 'site-doc-update':
+      return <SiteDocUpdateContent notification={notification} />
+    case 'mention':
+      return <MentionContent notification={notification} />
+    case 'reply':
+      return <ReplyContent notification={notification} />
+    case 'site-new-discussion':
+      return <NewDiscussionContent notification={notification} />
+    case 'user-comment':
+      return <UserCommentContent notification={notification} />
+    default:
+      return assertNever(notification)
+  }
+}
+
+function SiteDocUpdateContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'site-doc-update'}>
+}) {
+  return renderChange({
+    targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
+    isNewDocument: notification.isNewDocument,
+  })
+}
+
+function MentionContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'mention'}>
+}) {
+  return (
+    <MjmlColumn width="100%" verticalAlign="middle">
+      {notification.comment ? (
+        renderMention({
+          blocks: notification.comment.content.map((n) => new BlockNode(n)),
+          targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
+          resolvedNames: notification.resolvedNames,
+        })
+      ) : (
+        // Document mention
+        <MjmlText fontSize="14px" padding="12px 25px">
+          mentioned {notification.subjectAccountMeta?.name ?? 'you'} in{' '}
+          <span
+            style={{
+              backgroundColor: '#eee',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              display: 'inline-block',
+            }}
+          >
+            {notification.targetMeta?.name ?? 'Untitled Document'}
+          </span>
+        </MjmlText>
+      )}
+    </MjmlColumn>
+  )
+}
+
+function ReplyContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'reply'}>
+}) {
+  return (
+    <MjmlColumn width="100%" verticalAlign="middle">
+      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+        New reply:
+      </MjmlText>
+      <MjmlSection padding="0 0 8px 23px">
+        <MjmlColumn border-left="1px solid #20C997">
+          {renderBlocks(
+            notification.comment.content.map((n) => new BlockNode(n)),
+            notification.url,
+            notification.resolvedNames,
+          )}
+        </MjmlColumn>
+      </MjmlSection>
+    </MjmlColumn>
+  )
+}
+
+function NewDiscussionContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'site-new-discussion'}>
+}) {
+  return (
+    <MjmlColumn width="100%" verticalAlign="middle">
+      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+        Started a discussion:
+      </MjmlText>
+      <MjmlSection padding="0 0 8px 23px">
+        <MjmlColumn border-left="1px solid #20C997">
+          {renderBlocks(
+            notification.comment.content.map((n) => new BlockNode(n)),
+            notification.url,
+            notification.resolvedNames,
+          )}
+        </MjmlColumn>
+      </MjmlSection>
+      <MjmlSection padding="0 0 16px 0">
+        <MjmlColumn>
+          <MjmlText fontSize="14px" color="#888">
+            on:{' '}
+            <span
+              style={{
+                backgroundColor: '#eee',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                display: 'inline-block',
+              }}
+            >
+              {notification.targetMeta?.name ?? 'Untitled Document'}
+            </span>
+          </MjmlText>
+        </MjmlColumn>
+      </MjmlSection>
+    </MjmlColumn>
+  )
+}
+
+function UserCommentContent({
+  notification,
+}: {
+  notification: Extract<Notification, {reason: 'user-comment'}>
+}) {
+  return (
+    <MjmlColumn width="100%" verticalAlign="middle">
+      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
+        Commented:
+      </MjmlText>
+      <MjmlSection padding="0 0 8px 23px">
+        <MjmlColumn border-left="1px solid #20C997">
+          {renderBlocks(
+            notification.comment.content.map((n) => new BlockNode(n)),
+            notification.url,
+            {},
+          )}
+        </MjmlColumn>
+      </MjmlSection>
+      <MjmlSection padding="0 0 16px 0">
+        <MjmlColumn>
+          <MjmlText fontSize="14px" color="#888">
+            on:{' '}
+            <span
+              style={{
+                backgroundColor: '#eee',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                display: 'inline-block',
+              }}
+            >
+              {notification.targetMeta?.name ?? 'Untitled Document'}
+            </span>
+          </MjmlText>
+        </MjmlColumn>
+      </MjmlSection>
+    </MjmlColumn>
   )
 }
 

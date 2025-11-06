@@ -679,7 +679,7 @@ function DraftAppHeader({
       supportDocuments={[siteHomeEntity]}
       handleToggleFeed={() => {}}
       isMainFeedVisible={false}
-      notifyServiceHost={notifyServiceHost.data}
+      notifyServiceHost={notifyServiceHost}
     />
   )
 }
