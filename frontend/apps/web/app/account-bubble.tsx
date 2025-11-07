@@ -2,11 +2,12 @@ import {hmId, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {HMIcon} from '@shm/ui/hm-icon'
 import useMedia from '@shm/ui/use-media'
+import {cn} from '@shm/ui/utils'
 import {CircleUser} from 'lucide-react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
-const BUBBLE_CLASSES =
-  'sticky bottom-4 left-4 mb-4 z-10 mt-auto flex items-center gap-2 self-start rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100'
+const COMMON_BUBBLE_CLASSES =
+  'sticky bottom-4 left-4 z-10 mt-auto mb-4 flex hidden self-start shadow-lg'
 
 export function MyAccountBubble() {
   const media = useMedia()
@@ -18,20 +19,20 @@ export function MyAccountBubble() {
   if (!media.gtSm) {
     return null
   }
-  if (!myAccount.data) {
+  if (!keyPair) {
     return <CreateAccountBubble />
   }
   return (
-    <a className={`hidden ${BUBBLE_CLASSES} sm:flex`} {...linkProps}>
-      {myAccount.data?.id ? (
-        <HMIcon
-          id={myAccount.data.id}
-          name={myAccount.data.metadata?.name}
-          icon={myAccount.data.metadata?.icon}
-          size={32}
-        />
-      ) : null}
-      {myAccount.data?.metadata?.name}
+    <a
+      className={cn(COMMON_BUBBLE_CLASSES, 'hidden rounded-full sm:flex')}
+      {...linkProps}
+    >
+      <HMIcon
+        id={hmId(keyPair.id)}
+        name={myAccount.data?.metadata?.name}
+        icon={myAccount.data?.metadata?.icon}
+        size={32}
+      />
     </a>
   )
 }
@@ -43,7 +44,10 @@ function CreateAccountBubble() {
   return (
     <>
       <button
-        className={BUBBLE_CLASSES}
+        className={cn(
+          COMMON_BUBBLE_CLASSES,
+          'items-center gap-2 rounded-lg bg-white p-2 font-bold transition-colors hover:bg-gray-100 sm:flex dark:bg-gray-800',
+        )}
         onClick={() => {
           createAccount()
         }}

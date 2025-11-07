@@ -563,7 +563,6 @@ export function BlockNodeContent({
   }, [expanded])
 
   const elm = useRef<HTMLDivElement>(null)
-  const lastScrolledBlockRef = useRef<string | undefined>(undefined)
 
   const createChildBlockClickHandler = (blockId: string) => () => {
     const selection = window.getSelection()
@@ -698,7 +697,6 @@ export function BlockNodeContent({
     setExpanded(!_expanded)
     if (embedId) setCollapsedBlocks(embedId, !_expanded)
   }
-
 
   const tx = useTxString()
 
