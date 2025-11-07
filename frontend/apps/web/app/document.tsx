@@ -360,29 +360,29 @@ function InnerDocumentPage(
   const context = useUniversalAppContext()
   const onActivateBlock = useCallback(
     (blockId: string) => {
+      // Scroll to block smoothly
+      const targetElement = window.document.getElementById(blockId)
+      if (targetElement) {
+        targetElement.scrollIntoView({behavior: 'smooth', block: 'start'})
+      }
+
+      // Build URL for the block reference
       const route = {
         key: 'document',
-        id: {
-          ...id,
-          blockRef: blockId,
-        },
+        id: {...id, blockRef: blockId},
       } as NavRoute
       const href = routeToHref(route, {
         hmUrlHref: context.hmUrlHref,
         originHomeId: context.originHomeId,
       })
       if (!href) return
+
       replace(href, {
         replace: true,
+        preventScrollReset: true,
       })
-      const targetElement = window.document.getElementById(blockId)
-      if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'start'})
-      } else {
-        console.error('Element not found:', blockId)
-      }
     },
-    [id, context.hmUrlHref, context.originHomeId],
+    [id, context.hmUrlHref, context.originHomeId, replace],
   )
 
   const {

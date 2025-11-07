@@ -699,19 +699,6 @@ export function BlockNodeContent({
     if (embedId) setCollapsedBlocks(embedId, !_expanded)
   }
 
-  useEffect(() => {
-    if (elm.current) {
-      if (
-        !comment &&
-        routeParams &&
-        routeParams.blockRef === blockNode.block?.id &&
-        lastScrolledBlockRef.current !== routeParams.blockRef
-      ) {
-        elm.current.scrollIntoView({behavior: 'smooth', block: 'start'})
-        lastScrolledBlockRef.current = routeParams.blockRef
-      }
-    }
-  }, [routeParams?.blockRef, comment, blockNode.block?.id])
 
   const tx = useTxString()
 

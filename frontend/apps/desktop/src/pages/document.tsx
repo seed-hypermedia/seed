@@ -529,6 +529,11 @@ function _AppDocSiteHeader({
       }
       document={document}
       onBlockFocus={(blockId) => {
+        const element = window.document.getElementById(blockId)
+        if (element) {
+          element.scrollIntoView({behavior: 'smooth', block: 'center'})
+        }
+
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
       supportDocuments={supportDocsWithHome}

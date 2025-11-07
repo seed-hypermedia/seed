@@ -82,10 +82,9 @@ export function WebSiteHeader(
       directoryItems={directoryItems}
       origin={props.origin}
       onBlockFocus={(blockId) => {
-        window.location.hash = blockId
         const element = document.getElementById(blockId)
         if (element) {
-          element.scrollIntoView({behavior: 'smooth'})
+          element.scrollIntoView({behavior: 'smooth', block: 'start'})
         }
       }}
       onShowMobileMenu={(open) => {

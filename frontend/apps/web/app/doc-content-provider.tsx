@@ -134,8 +134,15 @@ export function WebDocContentProvider({
               }
               // Only navigate if we're not explicitly just copying
               if (blockRange?.copyToClipboard !== true) {
+                // Scroll to block smoothly BEFORE updating URL
+                const element = document.getElementById(blockId)
+                if (element) {
+                  element.scrollIntoView({behavior: 'smooth', block: 'start'})
+                }
+
                 navigate(href, {
                   replace: true,
+                  preventScrollReset: true,
                 })
               }
             }
