@@ -7,9 +7,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
-	"seed/backend/util/sqlite"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -31,16 +29,4 @@ func TestDBMigrateManual(t *testing.T) {
 
 	blobs := must.Do2(blob.OpenIndex(context.Background(), db, log))
 	require.NoError(t, blobs.Reindex(context.Background()))
-}
-
-func TestSlow(t *testing.T) {
-	dir, err := storage.Open(t.TempDir(), nil, core.NewMemoryKeyStore(), "debug")
-	require.NoError(t, err)
-	defer dir.Close()
-
-	err = dir.DB().WithTx(t.Context(), func(conn *sqlite.Conn) error {
-		time.Sleep(12 * time.Second)
-		return nil
-	})
-	require.NoError(t, err)
 }
