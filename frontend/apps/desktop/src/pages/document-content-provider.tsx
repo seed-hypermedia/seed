@@ -71,7 +71,10 @@ export function AppDocContentProvider({
                 if (blockId && reference && shouldCopy) {
                   reference.onCopy(blockId, blockRange || {expanded: true})
                 }
-                if (route.key === 'document' && blockRange?.copyToClipboard !== true) {
+                if (
+                  route.key === 'document' &&
+                  blockRange?.copyToClipboard !== true
+                ) {
                   const element = window.document.getElementById(blockId)
                   if (element) {
                     element.scrollIntoView({behavior: 'smooth', block: 'start'})
