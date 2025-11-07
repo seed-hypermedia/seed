@@ -25,14 +25,14 @@ export function UIEmailNotificationsForm({
   onClose,
   onComplete,
   setEmailNotifications,
-  isLoading,
+  isPending,
 }: {
   onClose: () => void
   onComplete: (email: string) => void
   setEmailNotifications: (
     input: UIEmailNotificationsFormSchema,
   ) => Promise<void>
-  isLoading: boolean
+  isPending: boolean
 }) {
   const tx = useTxString()
   const {
@@ -97,19 +97,20 @@ export function UIEmailNotificationsForm({
       </div>
       <EmptyNotifWarning control={control} />
       <div className="flex items-center justify-end gap-3">
-        <Spinner hide={!isLoading} />
+        <Spinner hide={!isPending} />
         <Button
           variant="ghost"
           size="sm"
-          type="button" // Prevent form submission
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault()
             onClose()
           }}
+          disabled={isPending}
         >
           {tx('Cancel')}
         </Button>
 
-        <Button variant="default" type="submit">
+        <Button variant="default" type="submit" disabled={isPending}>
           {tx('Save Notification Settings')}
         </Button>
       </div>

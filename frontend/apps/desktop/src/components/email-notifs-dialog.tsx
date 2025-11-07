@@ -5,6 +5,7 @@ import {
   UIEmailNotificationsForm,
   UIEmailNotificationsFormSchema,
 } from '@shm/ui/email-notifications'
+import {toast} from 'sonner'
 
 export function NotifSettingsDialog({
   onClose,
@@ -13,12 +14,17 @@ export function NotifSettingsDialog({
   onClose: () => void
   input: {accountUid: string; title: string; notifyServiceHost: string}
 }) {
-  const {mutateAsync, isPending} = useSubscribeToNotifications()
+  const {mutateAsync, isPending} = useSubscribeToNotifications({
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
   const tx = useTx()
 
   const setEmailNotifications = async (
     formData: UIEmailNotificationsFormSchema,
   ) => {
+    if (isPending) return
     await mutateAsync({
       notifyServiceHost: input.notifyServiceHost,
       action: 'subscribe',
@@ -39,9 +45,9 @@ export function NotifSettingsDialog({
 
       <UIEmailNotificationsForm
         onClose={onClose}
-        onComplete={onClose}
+        onComplete={(email) => onClose()}
         setEmailNotifications={setEmailNotifications}
-        isLoading={isPending}
+        isPending={isPending}
       />
     </div>
   )

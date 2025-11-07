@@ -1,4 +1,4 @@
-import {useMutation} from '@tanstack/react-query'
+import {useMutation, UseMutationOptions} from '@tanstack/react-query'
 
 export type SubscribePayload = {
   notifyServiceHost: string
@@ -29,8 +29,11 @@ async function subscribeToNotifications({
   }
 }
 
-export function useSubscribeToNotifications() {
+export function useSubscribeToNotifications(
+  opts?: UseMutationOptions<void, Error, SubscribePayload>,
+) {
   return useMutation({
     mutationFn: subscribeToNotifications,
+    ...opts,
   })
 }

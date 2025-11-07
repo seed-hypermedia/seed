@@ -40,7 +40,7 @@ export function EmailNotificationsForm({
   return (
     <UIEmailNotificationsForm
       setEmailNotifications={setEmailNotifications}
-      isLoading={isPending}
+      isPending={isPending}
       onClose={onClose}
       onComplete={onComplete}
     />
