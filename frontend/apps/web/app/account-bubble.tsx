@@ -1,6 +1,7 @@
 import {hmId, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {HMIcon} from '@shm/ui/hm-icon'
+import useMedia from '@shm/ui/use-media'
 import {CircleUser} from 'lucide-react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
@@ -8,11 +9,15 @@ const BUBBLE_CLASSES =
   'sticky bottom-4 left-4 mb-4 z-10 mt-auto flex items-center gap-2 self-start rounded-lg bg-white p-2 font-bold shadow-lg transition-colors hover:bg-gray-100'
 
 export function MyAccountBubble() {
+  const media = useMedia()
   const keyPair = useLocalKeyPair()
   const myAccount = useAccount(keyPair?.id || undefined)
   const linkProps = useRouteLink(
     keyPair ? {key: 'profile', id: hmId(keyPair.id)} : null,
   )
+  if (!media.gtSm) {
+    return null
+  }
   if (!myAccount.data) {
     return <CreateAccountBubble />
   }
