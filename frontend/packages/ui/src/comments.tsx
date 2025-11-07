@@ -333,7 +333,7 @@ export function Discussions({
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
   let panelContent = null
-
+  console.log('discussionsService', discussionsService.data)
   if (discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
       <div className="flex items-center justify-center">
@@ -349,8 +349,11 @@ export function Discussions({
       </div>
     )
   } else if (discussionsService.data) {
+    const totalCount =
+      (discussionsService.data.discussions?.length ?? 0) +
+      (discussionsService.data.citingDiscussions?.length ?? 0)
     panelContent =
-      discussionsService.data.discussions?.length > 0 ? (
+      totalCount > 0 ? (
         <>
           {discussionsService.data.discussions?.map((cg) => {
             return (
