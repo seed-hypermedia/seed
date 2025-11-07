@@ -1,5 +1,5 @@
-import {ConnectError} from '@connectrpc/connect'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {RedirectErrorDetails} from '../client'
 import {GRPCClient} from '../grpc-client'
@@ -10,9 +10,9 @@ import {
   HMResource,
   UnpackedHypermediaId,
 } from '../hm-types'
+import {useUniversalClient} from '../routing'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {queryKeys} from './query-keys'
-import {useUniversalClient} from '../routing'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
@@ -30,69 +30,58 @@ export function createBatchAccountsResolver(client: GRPCClient) {
   ): Promise<Record<string, HMMetadataPayload>> {
     if (accountUids.length === 0) return {}
 
-    try {
-      const _accounts = await client.documents.batchGetAccounts({
-        ids: accountUids,
-      })
+    const _accounts = await client.documents.batchGetAccounts({
+      ids: accountUids,
+    })
 
-      if (!_accounts?.accounts) {
-        return {}
-      }
-
-      const resolvedAccounts: Record<string, HMMetadataPayload> = {}
-      const aliasesToResolve: string[] = []
-      const aliasMapping: Record<string, string[]> = {}
-
-      Object.entries(_accounts.accounts).forEach(([id, account]) => {
-        const serverAccount = toPlainMessage(account)
-
-        if (serverAccount.aliasAccount) {
-          const aliasAccount = serverAccount.aliasAccount
-          if (!aliasMapping[aliasAccount]) {
-            aliasMapping[aliasAccount] = []
-          }
-          aliasMapping[aliasAccount].push(id)
-
-          if (!aliasesToResolve.includes(aliasAccount)) {
-            aliasesToResolve.push(aliasAccount)
-          }
-        } else {
-          const serverMetadata = account.metadata?.toJson() || {}
-          const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
-          resolvedAccounts[id] = {
-            id: hmId(id),
-            metadata,
-          } as HMMetadataPayload
-        }
-      })
-
-      if (aliasesToResolve.length > 0) {
-        const resolvedAliases = await getBatchAccountsResolved(aliasesToResolve)
-
-        Object.entries(resolvedAliases).forEach(
-          ([resolvedId, resolvedAccount]) => {
-            resolvedAccounts[resolvedId] = resolvedAccount
-
-            if (aliasMapping[resolvedId]) {
-              aliasMapping[resolvedId].forEach((originalId) => {
-                resolvedAccounts[originalId] = resolvedAccount
-              })
-            }
-          },
-        )
-      }
-
-      return resolvedAccounts
-    } catch (error) {
-      const fallbackAccounts: Record<string, HMMetadataPayload> = {}
-      accountUids.forEach((uid) => {
-        fallbackAccounts[uid] = {
-          id: hmId(uid),
-          metadata: {},
-        } as HMMetadataPayload
-      })
-      return fallbackAccounts
+    if (!_accounts?.accounts) {
+      return {}
     }
+
+    const resolvedAccounts: Record<string, HMMetadataPayload> = {}
+    const aliasesToResolve: string[] = []
+    const aliasMapping: Record<string, string[]> = {}
+
+    Object.entries(_accounts.accounts).forEach(([id, account]) => {
+      const serverAccount = toPlainMessage(account)
+
+      if (serverAccount.aliasAccount) {
+        const aliasAccount = serverAccount.aliasAccount
+        if (!aliasMapping[aliasAccount]) {
+          aliasMapping[aliasAccount] = []
+        }
+        aliasMapping[aliasAccount].push(id)
+
+        if (!aliasesToResolve.includes(aliasAccount)) {
+          aliasesToResolve.push(aliasAccount)
+        }
+      } else {
+        const serverMetadata = account.metadata?.toJson() || {}
+        const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+        resolvedAccounts[id] = {
+          id: hmId(id),
+          metadata,
+        } as HMMetadataPayload
+      }
+    })
+
+    if (aliasesToResolve.length > 0) {
+      const resolvedAliases = await getBatchAccountsResolved(aliasesToResolve)
+
+      Object.entries(resolvedAliases).forEach(
+        ([resolvedId, resolvedAccount]) => {
+          resolvedAccounts[resolvedId] = resolvedAccount
+
+          if (aliasMapping[resolvedId]) {
+            aliasMapping[resolvedId].forEach((originalId) => {
+              resolvedAccounts[originalId] = resolvedAccount
+            })
+          }
+        },
+      )
+    }
+
+    return resolvedAccounts
   }
 
   return getBatchAccountsResolved

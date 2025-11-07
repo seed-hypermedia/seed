@@ -1,14 +1,9 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {hmId, unpackHmId} from '@shm/shared'
+import {unpackHmId} from '@shm/shared'
 import {BIG_INT} from '@shm/shared/constants'
-import {
-  HMAccount,
-  HMCitationsPayload,
-  HMComment,
-  HMMetadataPayload,
-} from '@shm/shared/hm-types'
+import {HMCitationsPayload, HMComment} from '@shm/shared/hm-types'
 import {ListCommentsResponse} from '@shm/shared/models/comments-service'
 import {createBatchAccountsResolver} from '@shm/shared/models/entity'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -29,35 +24,25 @@ export const loader = async ({
   let allComments: HMComment[] = []
   let authors = {}
 
-  // Fetch comments with error handling
-  try {
-    const data = await grpcClient.comments.listComments({
-      targetAccount: targetId.uid,
-      targetPath: hmIdPathToEntityQueryPath(targetId.path),
-      pageSize: BIG_INT,
-    })
+  const data = await grpcClient.comments.listComments({
+    targetAccount: targetId.uid,
+    targetPath: hmIdPathToEntityQueryPath(targetId.path),
+    pageSize: BIG_INT,
+  })
 
-    allComments = data.comments.map(
-      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
-    )
-  } catch (e: any) {
-    console.error('Failed to load comments:', e.message)
-  }
+  allComments = data.comments.map(
+    (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
+  )
 
-  // Load authors with error handling
-  try {
-    const allAccounts = new Set<string>()
-    allComments.forEach((comment) => {
-      if (comment.author && comment.author.trim() !== '') {
-        allAccounts.add(comment.author)
-      }
-    })
-    const authorAccountUids = Array.from(allAccounts)
-    if (authorAccountUids.length > 0) {
-      authors = await loadBatchAccounts(authorAccountUids)
+  const allAccounts = new Set<string>()
+  allComments.forEach((comment) => {
+    if (comment.author && comment.author.trim() !== '') {
+      allAccounts.add(comment.author)
     }
-  } catch (e: any) {
-    console.error('Failed to load authors:', e.message)
+  })
+  const authorAccountUids = Array.from(allAccounts)
+  if (authorAccountUids.length > 0) {
+    authors = await loadBatchAccounts(authorAccountUids)
   }
 
   const result: ListCommentsResponse = {
