@@ -1,6 +1,6 @@
 self: super: {
   go = super.go_1_22;
-  nodejs = super.nodejs_20;
+  nodejs = super.nodejs_22;
   bazel-wrapper = super.callPackage ./bazel-wrapper {};
   impure-cc = super.callPackage ./impure-cc {};
   golangci-lint = super.golangci-lint.override {

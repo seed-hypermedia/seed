@@ -59,7 +59,7 @@ async function decompressPublicKey(
     },
     true,
     ['verify'],
-  )
+  ) as Promise<CryptoKey>
 }
 
 /**
