@@ -8,7 +8,7 @@ import {
   writeCustomDomainConfig,
   type ServiceConfig,
 } from '@/site-config.server'
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
 import {randomBytes} from 'crypto'
 import {z} from 'zod'
 
@@ -174,7 +174,7 @@ async function handleConfigureService(
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return json({message: 'Method not allowed'}, {status: 405})
+    return Response.json({message: 'Method not allowed'}, {status: 405})
   }
 
   try {
@@ -182,7 +182,7 @@ export const action: ActionFunction = async ({request}) => {
 
     const parseResult = AdminActionRequest.safeParse(data)
     if (!parseResult.success) {
-      return json(
+      return Response.json(
         {message: 'Invalid request', errors: parseResult.error.errors},
         {status: 400},
       )
@@ -190,12 +190,12 @@ export const action: ActionFunction = async ({request}) => {
     const payload = parseResult.data
 
     if (payload.adminSecret !== adminSecret || !adminSecret) {
-      return json({message: 'Invalid admin secret'}, {status: 401})
+      return Response.json({message: 'Invalid admin secret'}, {status: 401})
     }
 
     const serviceConfig = await getServiceConfig()
     if (!serviceConfig) {
-      return json({message: 'Service config not found'}, {status: 404})
+      return Response.json({message: 'Service config not found'}, {status: 404})
     }
 
     const action = payload.adminAction
@@ -225,10 +225,10 @@ export const action: ActionFunction = async ({request}) => {
         break
     }
 
-    return json(result.data, {status: result.status})
+    return Response.json(result.data, {status: result.status})
   } catch (error) {
     console.error('Admin action error:', error)
-    return json(
+    return Response.json(
       {message: error instanceof Error ? error.message : 'Unknown error'},
       {status: 500},
     )

@@ -1,4 +1,4 @@
-import {ActionFunction, json} from '@remix-run/node'
+import {ActionFunction} from 'react-router'
 import {z} from 'zod'
 
 const publishSchema = z
@@ -12,13 +12,13 @@ const publishSchema = z
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return json({message: 'Method not allowed'}, {status: 405})
+    return Response.json({message: 'Method not allowed'}, {status: 405})
   }
-  const data = await request.json()
-  const payload = publishSchema.parse(data)
+  const body = await request.json()
+  const payload = publishSchema.parse(body)
   console.log(payload)
 
-  return json({
+  return Response.json({
     message: 'Success',
   })
 }

@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
-import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
+import {ActionFunction, LoaderFunction} from 'react-router'
 import {
   hmIdPathToEntityQueryPath,
   unpackedHmIdSchema,
@@ -20,12 +20,19 @@ const syncCommentRequestSchema = z.object({
 export type SyncCommentRequest = z.infer<typeof syncCommentRequestSchema>
 
 export const loader: LoaderFunction = async ({request}) => {
-  return withCors(json({message: 'Method not allowed'}, {status: 405}))
+  return withCors(
+    Response.json({message: 'Method not allowed'}, {status: 405}),
+  )
 }
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return withCors(json({message: 'Method not allowed'}, {status: 405}))
+    return withCors(
+      Response.json(
+        {message: 'Method not allowed'},
+        {status: 405},
+      ),
+    )
   }
   try {
     const body = await request.json()
@@ -34,7 +41,7 @@ export const action: ActionFunction = async ({request}) => {
       syncCommentRequestSchema.parse(body)
     const targetId = unpackHmId(target)
     if (!targetId) {
-      return json({message: 'Invalid target'}, {status: 400})
+      return Response.json({message: 'Invalid target'}, {status: 400})
     }
     const commentExists = await getCommentExists(commentId)
     if (!commentExists) {
@@ -54,13 +61,16 @@ export const action: ActionFunction = async ({request}) => {
       }),
     )
     return withCors(
-      json({
+      Response.json({
         message: 'Success',
       }),
     )
   } catch (error: any) {
     return withCors(
-      json({message: 'Error syncing comment:' + error.message}, {status: 500}),
+      Response.json(
+        {message: 'Error syncing comment:' + error.message},
+        {status: 500},
+      ),
     )
   }
 }

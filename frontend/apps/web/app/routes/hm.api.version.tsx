@@ -1,5 +1,5 @@
-import type {LoaderFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {LoaderFunction} from 'react-router'
+// removed data import from 'react-router'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import fs from 'fs/promises'
 
@@ -44,5 +44,5 @@ export const loader: LoaderFunction = async () => {
   if (!versionInfo) {
     versionInfo = await getVersionInfo()
   }
-  return json({web: versionInfo, daemon: await getDaemonVersionInfo()})
+  return Response.json({web: versionInfo, daemon: await getDaemonVersionInfo()})
 }

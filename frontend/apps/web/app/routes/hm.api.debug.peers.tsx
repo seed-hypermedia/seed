@@ -1,11 +1,11 @@
 import {grpcClient} from '@/client.server'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import type {LoaderFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {LoaderFunction} from 'react-router'
+// removed data import from 'react-router'
 
 export const loader: LoaderFunction = async () => {
   const peers = await grpcClient.networking.listPeers({})
-  return json({
+  return Response.json({
     addrs: toPlainMessage(peers),
   })
 }

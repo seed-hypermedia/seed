@@ -10,8 +10,8 @@ import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import * as cbor from '@ipld/dag-cbor'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
-import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+import {LoaderFunctionArgs, MetaFunction} from 'react-router'
+import {MetaDescriptor, useLoaderData} from 'react-router'
 import {
   DeviceLinkSessionSchema,
   hmId,

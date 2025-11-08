@@ -1,8 +1,8 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {getConfig, writeConfig} from '@/site-config.server'
-import type {ActionFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {ActionFunction} from 'react-router'
+// removed data import from 'react-router'
 import {z} from 'zod'
 
 const registerSchema = z.object({
@@ -49,14 +49,14 @@ export const action: ActionFunction = async ({request}) => {
       sourcePeerId: input.peerId,
     })
     console.log('Registration Done.')
-    return json({message: 'Success'})
+    return Response.json({message: 'Success'})
   } catch (e) {
     // @ts-expect-error
     if (e.toJSON) {
-      return json(e, {status: 500})
+      return Response.json(e, {status: 500})
     } else {
       // @ts-expect-error
-      return json({message: e.message}, {status: 500})
+      return Response.json({message: e.message}, {status: 500})
     }
   }
 }

@@ -1,6 +1,6 @@
 import {useCreateAccount} from '@/auth'
 import {useInteractionSummary} from '@/models'
-import {useLocation, useNavigate, useSearchParams} from '@remix-run/react'
+import {useLocation, useNavigate, useSearchParams} from 'react-router'
 import avatarPlaceholder from '@shm/editor/assets/avatar.png'
 import {
   BlockRange,

@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {Params} from '@remix-run/react'
+import {Params} from 'react-router'
 import {listEventsImpl} from '@shm/shared/models/activity-service'
 
 export type HMFeedPayload = {

@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {json} from '@remix-run/node'
+// removed data import from 'react-router'
 import {
   getEventType,
   HMEvent,
@@ -23,13 +23,13 @@ export const action = async ({
   request: Request
 }): Promise<WrappedResponse<LoadedEvent | null>> => {
   if (request.method !== 'POST') {
-    throw json({error: 'Method not allowed'}, {status: 405})
+    throw Response.json({error: 'Method not allowed'}, {status: 405})
   }
 
   const {event, currentAccount} = (await request.json()) as ResolveEventRequest
 
   if (!event) {
-    throw json({error: 'Missing event'}, {status: 400})
+    throw Response.json({error: 'Missing event'}, {status: 400})
   }
 
   const eventType = getEventType(event)

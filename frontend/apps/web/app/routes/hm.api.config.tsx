@@ -1,8 +1,8 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
-import type {LoaderFunction} from '@remix-run/node'
-import {json} from '@remix-run/node'
+import type {LoaderFunction} from 'react-router'
+// removed data import from 'react-router'
 import {SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'
 
 export const loader: LoaderFunction = async ({request}) => {
@@ -13,7 +13,7 @@ export const loader: LoaderFunction = async ({request}) => {
   const peerInfo = await grpcClient.networking.getPeerInfo({
     deviceId: daemonInfo.peerId,
   })
-  return json({
+  return Response.json({
     registeredAccountUid: config.registeredAccountUid,
     peerId: daemonInfo.peerId,
     protocolId: daemonInfo.protocolId,
