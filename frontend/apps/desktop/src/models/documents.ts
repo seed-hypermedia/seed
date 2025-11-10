@@ -920,19 +920,17 @@ export function usePublishToSite() {
       host: siteHost || DEFAULT_GATEWAY_URL,
       media: true,
     })
-    await Promise.all(
-      Array.from(referenceMaterialIds).map(async (url) => {
-        const id = unpackHmId(url)
-        if (!id) return
-        await siteDiscover({
-          uid: id.uid,
-          version: id.version,
-          path: id.path,
-          host: siteHost || DEFAULT_GATEWAY_URL,
-          media: true,
-        })
-      }),
-    )
+    for (const url of Array.from(referenceMaterialIds)) {
+      const id = unpackHmId(url)
+      if (!id) continue
+      await siteDiscover({
+        uid: id.uid,
+        version: id.version,
+        path: id.path,
+        host: siteHost || DEFAULT_GATEWAY_URL,
+        media: true,
+      })
+    }
     return true
   }
 }
