@@ -1,7 +1,7 @@
 import {UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren} from 'react'
-import {blockStyles, useDocContentContext} from './document-content'
+import {blockStyles, useBlocksContentContext} from './document-content'
 import {cn} from './utils'
 
 export function EmbedWrapper({
@@ -25,7 +25,7 @@ export function EmbedWrapper({
     noClick?: boolean
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
-  const docContentContext = useDocContentContext()
+  const blocksContentContext = useBlocksContentContext()
   const openRoute = useOpenRoute()
 
   if (!id) return null
@@ -68,8 +68,8 @@ export function EmbedWrapper({
               }
             }
       }
-      onMouseEnter={() => docContentContext?.onHoverIn?.(id)}
-      onMouseLeave={() => docContentContext?.onHoverOut?.(id)}
+      onMouseEnter={() => blocksContentContext?.onHoverIn?.(id)}
+      onMouseLeave={() => blocksContentContext?.onHoverOut?.(id)}
       {...props}
     >
       {children}

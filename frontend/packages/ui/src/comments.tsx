@@ -43,8 +43,8 @@ import {Button} from './button'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {
   BlocksContent,
-  docContentContext,
-  DocContentProvider,
+  blocksContentContext,
+  BlocksContentProvider,
   getBlockNodeById,
 } from './document-content'
 import {HMIcon} from './hm-icon'
@@ -596,7 +596,7 @@ export function Comment({
   let renderContent = renderCommentContent
   if (!renderContent) {
     renderContent = (comment) => (
-      <DocContentProvider
+      <BlocksContentProvider
         onBlockSelect={() => {}}
         onBlockCommentClick={() => {}}
         onBlockCitationClick={() => {}}
@@ -612,7 +612,7 @@ export function Comment({
           blocks={comment.content}
           parentBlockId={null}
         />
-      </DocContentProvider>
+      </BlocksContentProvider>
     )
   }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
@@ -779,7 +779,7 @@ export function CommentContent({
   comment: HMComment
   size?: 'sm' | 'md'
 }) {
-  const context = useContext(docContentContext)
+  const context = useContext(blocksContentContext)
 
   const content = (
     <BlocksContent
@@ -791,7 +791,7 @@ export function CommentContent({
 
   if (size != 'md') {
     return (
-      <DocContentProvider
+      <BlocksContentProvider
         comment
         onBlockSelect={context?.onBlockSelect ?? null}
         textUnit={12}
@@ -801,7 +801,7 @@ export function CommentContent({
         setCollapsedBlocks={context?.setCollapsedBlocks ?? (() => {})}
       >
         {content}
-      </DocContentProvider>
+      </BlocksContentProvider>
     )
   } else {
     return content

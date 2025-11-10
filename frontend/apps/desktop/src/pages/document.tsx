@@ -66,7 +66,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {AppDocContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
@@ -111,7 +111,7 @@ export default function DocumentPage() {
   return (
     <>
       <ActivityProvider service={activityService}>
-        <AppDocContentProvider>
+        <AppBlocksContentProvider>
           <CommentsProvider
             service={commentsService}
             onReplyClick={(replyComment) => {
@@ -183,7 +183,7 @@ export default function DocumentPage() {
               notifSettingsDialogContent={notifSettingsDialog.content}
             />
           </CommentsProvider>
-        </AppDocContentProvider>
+        </AppBlocksContentProvider>
       </ActivityProvider>
     </>
   )
@@ -743,7 +743,7 @@ function DocPageContent({
   if (resource?.type !== 'document') return null
   const document = resource.document
   return (
-    <AppDocContentProvider
+    <AppBlocksContentProvider
       routeParams={{
         uid: docRoute.id?.uid || undefined,
         version: docRoute.id?.version || undefined,
@@ -811,6 +811,6 @@ function DocPageContent({
           return false
         }}
       />
-    </AppDocContentProvider>
+    </AppBlocksContentProvider>
   )
 }

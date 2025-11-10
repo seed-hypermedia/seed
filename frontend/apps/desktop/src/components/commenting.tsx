@@ -2,7 +2,7 @@ import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
-import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {AppBlocksContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {
   chromiumSupportedImageMimeTypes,
@@ -15,6 +15,7 @@ import {queryClient, queryKeys} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback} from 'react'
 
+import {useSizeObserver} from '@/utils/use-size-observer'
 import {
   HMBlockEmbed,
   HMComment,
@@ -31,14 +32,13 @@ import {Button} from '@shm/ui/button'
 import {
   BlocksContent,
   getBlockNodeById,
-  useDocContentContext,
+  useBlocksContentContext,
 } from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
-import {useSizeObserver} from '@/utils/use-size-observer'
 import {HyperMediaEditorView} from './editor'
 
 export function renderCommentContent(comment: HMComment) {
@@ -64,12 +64,12 @@ export function renderCommentContent(comment: HMComment) {
   }, [comment])
 
   return (
-    <AppDocContentProvider comment textUnit={14} layoutUnit={16}>
+    <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
       <div className="flex w-full flex-col">
         <CommentReference reference={data.reference} />
         <BlocksContent blocks={data.content} parentBlockId={null} />
       </div>
-    </AppDocContentProvider>
+    </AppBlocksContentProvider>
   )
 }
 
@@ -364,9 +364,9 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <AppDocContentProvider comment textUnit={14} layoutUnit={16}>
+        <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
-        </AppDocContentProvider>
+        </AppBlocksContentProvider>
       </div>
       <div
         className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
@@ -425,7 +425,7 @@ function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
 function CommentReference({reference}: {reference: string | null}) {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
-  const context = useDocContentContext()
+  const context = useBlocksContentContext()
   const referenceId = useMemo(() => {
     if (!reference) return null
     return unpackHmId(reference)
@@ -507,7 +507,7 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        <AppDocContentProvider
+        <AppBlocksContentProvider
           {...context}
           comment
           textUnit={14}
@@ -519,7 +519,7 @@ function CommentReference({reference}: {reference: string | null}) {
             expanded={false}
             hideCollapseButtons
           />
-        </AppDocContentProvider>
+        </AppBlocksContentProvider>
       </div>
     </div>
   )

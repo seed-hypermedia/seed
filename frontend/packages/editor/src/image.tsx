@@ -1,4 +1,4 @@
-import {useDocContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/document-content'
 import {getDaemonFileUrl, useFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'
@@ -78,7 +78,7 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const {importWebFile} = useDocContentContext()
+  const {importWebFile} = useBlocksContentContext()
 
   const submitImage = (
     url: string,
@@ -199,7 +199,7 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const {importWebFile} = useDocContentContext()
+  const {importWebFile} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   useEffect(() => {

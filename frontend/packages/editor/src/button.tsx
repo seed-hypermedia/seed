@@ -1,3 +1,9 @@
+import {Button} from '@shm/ui/button'
+import {SizableText} from '@shm/ui/text'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
+import {useEffect, useState} from 'react'
+import {useBlocksContentContext} from '../../ui/src/document-content'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
@@ -5,12 +11,6 @@ import {useEditorSelectionChange} from './blocknote/react/hooks/useEditorSelecti
 import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
 import {updateSelection} from './media-render'
 import {HMBlockSchema} from './schema'
-import {Button} from '@shm/ui/button'
-import {SizableText} from '@shm/ui/text'
-import {usePopoverState} from '@shm/ui/use-popover-state'
-import {cn} from '@shm/ui/utils'
-import {useEffect, useState} from 'react'
-import {useDocContentContext} from '../../ui/src/document-content'
 
 export const ButtonBlock = createReactBlockSpec({
   type: 'button',
@@ -77,7 +77,7 @@ const Render = (
   // ]
   // const [link, setLink] = useState(block.props.url)
   // const openUrl = useOpenUrl()
-  const {openUrl} = useDocContentContext()
+  const {openUrl} = useBlocksContentContext()
 
   const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {

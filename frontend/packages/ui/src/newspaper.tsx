@@ -8,7 +8,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {HTMLAttributes, useMemo} from 'react'
-import {useDocContentContext} from './document-content'
+import {useBlocksContentContext} from './document-content'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
 import {SizableText} from './text'
@@ -32,7 +32,7 @@ export function DocumentCard({
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
 }) {
-  const {onHoverIn, onHoverOut} = useDocContentContext()
+  const {onHoverIn, onHoverOut} = useBlocksContentContext()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
   const imageUrl = useImageUrl()
 

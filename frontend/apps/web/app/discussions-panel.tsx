@@ -8,7 +8,7 @@ import {
 import {BlocksContent} from '@shm/ui/document-content'
 import React, {useCallback} from 'react'
 
-import {WebDocContentProvider} from './doc-content-provider'
+import {WebBlocksContentProvider} from './doc-content-provider'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
@@ -39,7 +39,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     (comment: HMComment) => {
       return (
         homeId && (
-          <WebDocContentProvider
+          <WebBlocksContentProvider
             key={comment.id}
             originHomeId={homeId}
             siteHost={siteHost}
@@ -52,7 +52,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
               blocks={comment.content}
               parentBlockId={null}
             />
-          </WebDocContentProvider>
+          </WebBlocksContentProvider>
         )
       )
     },
@@ -65,7 +65,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       blockRef: blockId,
     })
     return (
-      <WebDocContentProvider
+      <WebBlocksContentProvider
         originHomeId={homeId}
         siteHost={siteHost}
         textUnit={14}
@@ -77,13 +77,13 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
           targetDomain={targetDomain}
           renderCommentContent={renderCommentContent}
         />
-      </WebDocContentProvider>
+      </WebBlocksContentProvider>
     )
   }
 
   if (comment) {
     return (
-      <WebDocContentProvider
+      <WebBlocksContentProvider
         originHomeId={homeId}
         siteHost={siteHost}
         textUnit={14}
@@ -95,12 +95,12 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
           renderCommentContent={renderCommentContent}
           targetDomain={targetDomain}
         />
-      </WebDocContentProvider>
+      </WebBlocksContentProvider>
     )
   }
 
   return (
-    <WebDocContentProvider
+    <WebBlocksContentProvider
       originHomeId={homeId}
       siteHost={siteHost}
       textUnit={14}
@@ -111,6 +111,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
       />
-    </WebDocContentProvider>
+    </WebBlocksContentProvider>
   )
 }

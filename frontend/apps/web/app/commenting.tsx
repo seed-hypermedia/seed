@@ -16,7 +16,7 @@ import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {DocContentProvider} from '@shm/ui/document-content'
+import {BlocksContentProvider} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -254,7 +254,7 @@ export default function WebCommenting({
 
   return (
     <div className="w-full">
-      <DocContentProvider
+      <BlocksContentProvider
         importWebFile={importWebFile}
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}
@@ -300,7 +300,7 @@ export default function WebCommenting({
           account={myAccount.data}
           perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
         />
-      </DocContentProvider>
+      </BlocksContentProvider>
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>

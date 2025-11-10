@@ -48,7 +48,7 @@ import {
 import {
   BlockContentProps,
   BlockRangeSelectOptions,
-  DocContentContextValue,
+  BlocksContentContextValue,
 } from '@shm/shared/document-content-types'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -118,7 +118,7 @@ import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
 
-const defaultDocContentContext: DocContentContextValue = {
+const defaultBlocksContentContext: BlocksContentContextValue = {
   onBlockSelect: null,
   layoutUnit: contentLayoutUnit,
   textUnit: contentTextUnit,
@@ -127,11 +127,11 @@ const defaultDocContentContext: DocContentContextValue = {
   setCollapsedBlocks: () => {},
 }
 
-export const docContentContext = createContext<DocContentContextValue>(
-  defaultDocContentContext,
+export const blocksContentContext = createContext<BlocksContentContextValue>(
+  defaultBlocksContentContext,
 )
 
-export function DocContentProvider({
+export function BlocksContentProvider({
   children,
   debugTop = 0,
   showDevMenu = false,
@@ -142,7 +142,7 @@ export function DocContentProvider({
   contacts,
   ...docContextContent
 }: PropsWithChildren<
-  DocContentContextValue & {
+  BlocksContentContextValue & {
     debugTop?: number
     showDevMenu?: boolean
     ffSerif?: boolean
@@ -168,7 +168,7 @@ export function DocContentProvider({
   }
 
   return (
-    <docContentContext.Provider
+    <blocksContentContext.Provider
       value={{
         ...docContextContent,
         layoutUnit: lUnit,
@@ -234,12 +234,12 @@ export function DocContentProvider({
           </RadioGroup>
         </div>
       ) : null}
-    </docContentContext.Provider>
+    </blocksContentContext.Provider>
   )
 }
 
-export function useDocContentContext() {
-  return useContext(docContentContext)
+export function useBlocksContentContext() {
+  return useContext(blocksContentContext)
 }
 
 function debugStyles(debug: boolean = false, color = 'red') {
@@ -286,7 +286,7 @@ export function DocContent({
   const media = useMedia()
   const allBlocks = document?.content || []
   const {wrapper, bubble, coords, state, actor} = useRangeSelection(allBlocks)
-  const {layoutUnit, onBlockSelect} = useDocContentContext()
+  const {layoutUnit, onBlockSelect} = useBlocksContentContext()
   const focusedBlocks = getFocusedBlocks(allBlocks, focusBlockId)
   const displayBlocks = maxBlockCount
     ? clipContentBlocks(focusedBlocks || [], maxBlockCount)
@@ -391,7 +391,7 @@ function _BlocksContent({
   hideCollapseButtons?: boolean
   expanded?: boolean
 }) {
-  const {onBlockSelect, routeParams} = useDocContentContext()
+  const {onBlockSelect, routeParams} = useBlocksContentContext()
 
   const createBlockClickHandler = (blockId: string) => () => {
     const selection = window.getSelection()
@@ -538,7 +538,7 @@ export function BlockNodeContent({
     comment,
     blockCitations,
     setCollapsedBlocks,
-  } = useDocContentContext()
+  } = useBlocksContentContext()
   const [hover, setHover] = useState(false)
   const [isHighlight, setHighlight] = useState(false)
   const headingMarginStyles = useHeadingMarginStyles(
@@ -1123,7 +1123,7 @@ function BlockContentParagraph({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockParagraph>) {
-  const {debug, comment} = useDocContentContext()
+  const {debug, comment} = useBlocksContentContext()
 
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block)
@@ -1153,7 +1153,7 @@ export function BlockContentHeading({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockHeading>) {
-  const {debug} = useDocContentContext()
+  const {debug} = useBlocksContentContext()
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
 
   return (
@@ -1195,7 +1195,7 @@ function BlockContentImage({
   ...props
 }: BlockContentProps<HMBlockImage>) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
-  const {textUnit, comment} = useDocContentContext()
+  const {textUnit, comment} = useBlocksContentContext()
   const imageUrl = useImageUrl()
   const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
     'closed',
@@ -1361,7 +1361,7 @@ function BlockContentVideo({
 }: BlockContentProps<HMBlockVideo>) {
   let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
   const link = block.link || ''
-  const {textUnit} = useDocContentContext()
+  const {textUnit} = useBlocksContentContext()
   const fileUrl = useFileUrl()
   if (block.type !== 'Video') return null
   const isIpfs = isIpfsUrl(link)
@@ -1464,7 +1464,7 @@ function InlineContentView({
   isRange?: boolean
   fontWeight?: string
 } & React.HTMLAttributes<HTMLSpanElement>) {
-  const {textUnit, onHoverIn, onHoverOut} = useDocContentContext()
+  const {textUnit, onHoverIn, onHoverOut} = useBlocksContentContext()
 
   let contentOffset = rangeOffset || 0
   const fSize = fontSize === null ? null : fontSize || textUnit
@@ -1840,7 +1840,7 @@ export function BlockEmbedContentComment({
   comment: HMComment | null | undefined
   author: HMResolvedResource | null | undefined
 }) {
-  const parentContext = useDocContentContext()
+  const parentContext = useBlocksContentContext()
   const openRoute = useOpenRoute()
 
   // Create onBlockSelect handler for the comment embed that navigates to the comment with block focused
@@ -1869,7 +1869,7 @@ export function BlockEmbedContentComment({
       id={id}
       parentBlockId={parentBlockId || ''}
     >
-      <DocContentProvider
+      <BlocksContentProvider
         {...parentContext}
         onBlockSelect={embedOnBlockSelect}
         routeParams={{}}
@@ -1895,7 +1895,7 @@ export function BlockEmbedContentComment({
             />
           )
         })}
-      </DocContentProvider>
+      </BlocksContentProvider>
     </EmbedWrapper>
   )
 }
@@ -1957,7 +1957,7 @@ function BlockEmbedContentDocument(props: {
     parentBlockId,
     viewType,
   } = props
-  const parentContext = useDocContentContext()
+  const parentContext = useBlocksContentContext()
   const openRoute = useOpenRoute()
 
   const [isExpanded, setExpanded] = useState(
@@ -2059,7 +2059,7 @@ function BlockEmbedContentDocument(props: {
     content = null
   } else if (embedData.data.embedBlocks) {
     content = (
-      <DocContentProvider
+      <BlocksContentProvider
         {...parentContext}
         onBlockSelect={embedOnBlockSelect}
         routeParams={{}}
@@ -2129,7 +2129,7 @@ function BlockEmbedContentDocument(props: {
             </Tooltip>
           </div>
         ) : null}
-      </DocContentProvider>
+      </BlocksContentProvider>
     )
   } else if (props.blockRef) {
     return (
@@ -2332,7 +2332,7 @@ export function getBlockNodeById(
 }
 
 export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
-  const {saveCidAsFile} = useDocContentContext()
+  const {saveCidAsFile} = useBlocksContentContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
   if (block.type !== 'File') return null
   return (
@@ -2446,7 +2446,7 @@ export function BlockContentWebEmbed({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockWebEmbed>) {
-  const {layoutUnit} = useDocContentContext()
+  const {layoutUnit} = useBlocksContentContext()
   const openUrl = useOpenUrl()
   const url = block.link || ''
   const isTwitter = /(?:twitter\.com|x\.com)/.test(url)
@@ -2552,7 +2552,7 @@ export function BlockContentCode({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockCode>) {
-  const {layoutUnit, debug} = useDocContentContext()
+  const {layoutUnit, debug} = useBlocksContentContext()
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
   }
@@ -2622,7 +2622,7 @@ export function BlockContentMath({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockMath>) {
-  const {layoutUnit} = useDocContentContext()
+  const {layoutUnit} = useBlocksContentContext()
   const [tex, setTex] = useState<string>()
   const [error, setError] = useState<string>()
   const mathRef = useRef<HTMLDivElement>(null)
@@ -2924,7 +2924,7 @@ function InlineEmbed({
 }) {
   const client = useUniversalClient()
   const doc = client.useResource(entityId)
-  const ctx = useDocContentContext()
+  const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 
   let name = getMetadataName(document?.metadata) || '...'

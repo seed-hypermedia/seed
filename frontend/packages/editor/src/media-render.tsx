@@ -2,7 +2,7 @@ import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {useDocContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/document-content'
 import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
@@ -113,7 +113,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
-  const {importWebFile} = useDocContentContext()
+  const {importWebFile} = useBlocksContentContext()
 
   useEditorSelectionChange(editor, () =>
     updateSelection(editor, block, setSelected),
@@ -345,7 +345,7 @@ function MediaForm({
     },
   }
 
-  const {handleFileAttachment, comment} = useDocContentContext()
+  const {handleFileAttachment, comment} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   const handleUpload = async (files: File[]) => {

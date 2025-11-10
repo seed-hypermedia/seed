@@ -1,5 +1,5 @@
 import {draftMachine} from '@/models/draft-machine'
-import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {AppBlocksContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -84,7 +84,7 @@ export function useDocumentAccessory({
     }
   } else if (accessoryKey === 'activity') {
     accessory = (
-      <AppDocContentProvider
+      <AppBlocksContentProvider
         docId={docId}
         comment
         textUnit={14}
@@ -111,11 +111,11 @@ export function useDocumentAccessory({
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
         />
-      </AppDocContentProvider>
+      </AppBlocksContentProvider>
     )
   } else if (accessoryKey === 'contacts') {
     accessory = (
-      <AppDocContentProvider
+      <AppBlocksContentProvider
         docId={docId}
         comment
         textUnit={16}
@@ -132,7 +132,7 @@ export function useDocumentAccessory({
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
         />
-      </AppDocContentProvider>
+      </AppBlocksContentProvider>
     )
   }
 

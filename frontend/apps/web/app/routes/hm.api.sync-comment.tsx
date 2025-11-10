@@ -20,18 +20,13 @@ const syncCommentRequestSchema = z.object({
 export type SyncCommentRequest = z.infer<typeof syncCommentRequestSchema>
 
 export const loader: LoaderFunction = async ({request}) => {
-  return withCors(
-    Response.json({message: 'Method not allowed'}, {status: 405}),
-  )
+  return withCors(Response.json({message: 'Method not allowed'}, {status: 405}))
 }
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
     return withCors(
-      Response.json(
-        {message: 'Method not allowed'},
-        {status: 405},
-      ),
+      Response.json({message: 'Method not allowed'}, {status: 405}),
     )
   }
   try {

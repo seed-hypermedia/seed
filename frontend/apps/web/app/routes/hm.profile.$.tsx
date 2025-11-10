@@ -5,7 +5,7 @@ import {
   LogoutButton,
   useLocalKeyPair,
 } from '@/auth'
-import {WebDocContentProvider} from '@/doc-content-provider'
+import {WebBlocksContentProvider} from '@/doc-content-provider'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
@@ -109,7 +109,7 @@ function ProfilePageContent({
         )}
         <PageContainer>
           <ActivityProvider service={activityService}>
-            <WebDocContentProvider
+            <WebBlocksContentProvider
               siteHost={siteHost}
               originHomeId={originHomeId}
               comment
@@ -141,7 +141,7 @@ function ProfilePageContent({
                   ) : null
                 }
               />
-            </WebDocContentProvider>
+            </WebBlocksContentProvider>
           </ActivityProvider>
         </PageContainer>
         <MyAccountBubble />

@@ -13,7 +13,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {useDocContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/document-content'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -292,7 +292,7 @@ export function CommentEditor({
   const [isEditorFocused, setIsEditorFocused] = useState(
     () => autoFocus || hasDraftContent || false,
   )
-  const {openUrl, handleFileAttachment} = useDocContentContext()
+  const {openUrl, handleFileAttachment} = useBlocksContentContext()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)

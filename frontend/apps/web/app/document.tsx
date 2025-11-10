@@ -67,7 +67,7 @@ import {
 import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
-import {WebDocContentProvider} from './doc-content-provider'
+import {WebBlocksContentProvider} from './doc-content-provider'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
@@ -590,7 +590,7 @@ function InnerDocumentPage(
               isLatest={isLatest}
               handleToggleFeed={handleToggleFeed}
             />
-            <WebDocContentProvider
+            <WebBlocksContentProvider
               siteHost={siteHost}
               originHomeId={originHomeId}
               comment
@@ -749,7 +749,7 @@ function InnerDocumentPage(
                                   }}
                                 />
                               )}
-                              <WebDocContentProvider
+                              <WebBlocksContentProvider
                                 // @ts-expect-error
                                 onBlockCitationClick={
                                   activityEnabled
@@ -798,7 +798,7 @@ function InnerDocumentPage(
                                     // return true
                                   }}
                                 />
-                              </WebDocContentProvider>
+                              </WebBlocksContentProvider>
                             </div>
                             {showSidebars ? (
                               <div
@@ -948,7 +948,7 @@ function InnerDocumentPage(
                   </div>
                 </>
               )}
-            </WebDocContentProvider>
+            </WebBlocksContentProvider>
           </div>
         </CommentsProvider>
       </ActivityProvider>

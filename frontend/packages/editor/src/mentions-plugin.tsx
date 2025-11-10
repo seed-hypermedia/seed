@@ -6,7 +6,7 @@ import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useDocContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/document-content'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
@@ -151,7 +151,7 @@ function ContactMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const {contacts} = useDocContentContext()
+  const {contacts} = useBlocksContentContext()
   const entity = useAccount(unpackedRef.uid)
 
   return (

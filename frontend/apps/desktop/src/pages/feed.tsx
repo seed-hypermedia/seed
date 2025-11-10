@@ -52,7 +52,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
-import {AppDocContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './document-content-provider'
 
 export default function FeedPage() {
   const commentsService = new DesktopCommentsService()
@@ -312,7 +312,7 @@ function _FeedContent({
               </Text>
               <TSeparator />
 
-              <AppDocContentProvider
+              <AppBlocksContentProvider
                 comment
                 routeParams={{
                   uid: homeId.uid,
@@ -327,7 +327,7 @@ function _FeedContent({
                   filterResource={`${homeId.id}*`}
                   currentAccount={selectedAccount?.id.uid || ''}
                 />
-              </AppDocContentProvider>
+              </AppBlocksContentProvider>
             </Container>
             {showSidebars ? (
               <div

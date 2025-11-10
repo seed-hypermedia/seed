@@ -5,7 +5,7 @@ import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {useDocContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/document-content'
 import {SwitchField} from '@shm/ui/form-fields'
 import {
   AlignCenter,
@@ -67,7 +67,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const [_text, setText] = useState(props.text || '')
   const [selectedType, setSelectedType] = useState(props.type)
   const unpacked = unpackHmId(_url)
-  const {collapsedBlocks, setCollapsedBlocks} = useDocContentContext()
+  const {collapsedBlocks, setCollapsedBlocks} = useBlocksContentContext()
   const isSeedLink = !!unpacked
   const isLatestVersion = isSeedLink ? unpacked.latest !== false : false
 

@@ -8,11 +8,11 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {DocContentProvider} from '@shm/ui/document-content'
+import {BlocksContentProvider} from '@shm/ui/document-content'
 import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
 
-export function WebDocContentProvider({
+export function WebBlocksContentProvider({
   children,
   id,
   originHomeId,
@@ -73,7 +73,7 @@ export function WebDocContentProvider({
     })
   }
   return (
-    <DocContentProvider
+    <BlocksContentProvider
       onHoverIn={onHoverIn}
       onHoverOut={onHoverOut}
       collapsedBlocks={collapsedBlocks}
@@ -158,6 +158,6 @@ export function WebDocContentProvider({
       blockCitations={blockCitations}
     >
       {children}
-    </DocContentProvider>
+    </BlocksContentProvider>
   )
 }

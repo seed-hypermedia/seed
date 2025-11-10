@@ -1,4 +1,4 @@
-import {useDocContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/document-content'
 import {Link} from '@shm/ui/icons'
 import {BlockSchema} from '../../../../../core'
 import {DragHandleMenuProps} from '../DragHandleMenu'
@@ -7,7 +7,7 @@ import {DragHandleMenuItem} from '../DragHandleMenuItem'
 export const CopyLinkToBlockButton = <BSchema extends BlockSchema>({
   block,
 }: DragHandleMenuProps<BSchema>) => {
-  const {onBlockSelect} = useDocContentContext()
+  const {onBlockSelect} = useBlocksContentContext()
   if (!onBlockSelect) return null
   return (
     <DragHandleMenuItem

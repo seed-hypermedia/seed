@@ -1,4 +1,4 @@
-import {AppDocContentProvider} from '@/pages/document-content-provider'
+import {AppBlocksContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -70,7 +70,7 @@ function _DiscussionsPanel(props: {
       blockRef: accessory.openBlockId,
     })
     return (
-      <AppDocContentProvider docId={targetId} textUnit={14} layoutUnit={16}>
+      <AppBlocksContentProvider docId={targetId} textUnit={14} layoutUnit={16}>
         {deleteCommentDialog.content}
         <BlockDiscussions
           targetId={targetId}
@@ -80,13 +80,13 @@ function _DiscussionsPanel(props: {
           onCommentDelete={onCommentDelete}
           renderCommentContent={renderCommentContent}
         />
-      </AppDocContentProvider>
+      </AppBlocksContentProvider>
     )
   }
 
   if (accessory.openComment) {
     return (
-      <AppDocContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+      <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
         {deleteCommentDialog.content}
         <CommentDiscussions
           commentId={accessory.openComment}
@@ -97,12 +97,12 @@ function _DiscussionsPanel(props: {
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
         />
-      </AppDocContentProvider>
+      </AppBlocksContentProvider>
     )
   }
 
   return (
-    <AppDocContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+    <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
@@ -112,6 +112,6 @@ function _DiscussionsPanel(props: {
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
       />
-    </AppDocContentProvider>
+    </AppBlocksContentProvider>
   )
 }

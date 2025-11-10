@@ -7,7 +7,7 @@ import {PanelContainer} from '@shm/ui/container'
 import {HMProfilePage} from '@shm/ui/profile-page'
 import {useMemo} from 'react'
 import {DesktopActivityService} from '../desktop-activity-service'
-import {AppDocContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './document-content-provider'
 
 export default function ProfilePage() {
   const route = useNavRoute()
@@ -22,7 +22,7 @@ export default function ProfilePage() {
     <PanelContainer>
       <MainWrapper scrollable>
         <ActivityProvider service={activityService}>
-          <AppDocContentProvider
+          <AppBlocksContentProvider
             docId={profileId}
             comment
             textUnit={16}
@@ -33,7 +33,7 @@ export default function ProfilePage() {
               currentAccount={selectedAccount?.id.uid ?? ''}
               onEditProfile={null}
             />
-          </AppDocContentProvider>
+          </AppBlocksContentProvider>
         </ActivityProvider>
       </MainWrapper>
     </PanelContainer>

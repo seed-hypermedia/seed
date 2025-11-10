@@ -17,7 +17,7 @@ import {
   BlockEmbedComments,
   BlockEmbedContent,
   ErrorBlock,
-  useDocContentContext,
+  useBlocksContentContext,
 } from '@shm/ui/document-content'
 import {ExternalLink} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
@@ -253,7 +253,7 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
-  const {comment} = useDocContentContext()
+  const {comment} = useBlocksContentContext()
   const recents = useRecents()
   const searchResults = useSearch(search, {
     includeBody: true,

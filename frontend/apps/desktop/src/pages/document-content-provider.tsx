@@ -13,7 +13,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {DocContentProvider} from '@shm/ui/document-content'
+import {BlocksContentProvider} from '@shm/ui/document-content'
 import {
   contentLayoutUnit,
   contentTextUnit,
@@ -21,12 +21,12 @@ import {
 import {useState} from 'react'
 import {useDocumentUrl} from '../components/copy-reference-button'
 
-export function AppDocContentProvider({
+export function AppBlocksContentProvider({
   children,
   docId,
   isBlockFocused = false,
   ...overrides
-}: React.PropsWithChildren<Partial<AppDocContentContextValue>> & {
+}: React.PropsWithChildren<Partial<AppBlocksContentContextValue>> & {
   docId?: UnpackedHypermediaId
   isBlockFocused?: boolean
 }) {
@@ -55,7 +55,7 @@ export function AppDocContentProvider({
   }
   return (
     <>
-      <DocContentProvider
+      <BlocksContentProvider
         showDevMenu={experiments.data?.pubContentDevMenu}
         layoutUnit={overrides.layoutUnit || contentLayoutUnit}
         importWebFile={importWebFile}
@@ -126,13 +126,13 @@ export function AppDocContentProvider({
         {...overrides}
       >
         {children}
-      </DocContentProvider>
+      </BlocksContentProvider>
       {reference?.content}
     </>
   )
 }
 
-export type AppDocContentContextValue = {
+export type AppBlocksContentContextValue = {
   entityId: UnpackedHypermediaId | undefined
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   blockCitations?: Record<

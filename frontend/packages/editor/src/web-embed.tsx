@@ -1,11 +1,3 @@
-import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
-import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
-import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
-import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
-import {MediaContainer} from './media-container'
-import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
-import {HMBlockSchema} from './schema'
-import {isValidUrl} from './utils'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -16,7 +8,15 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
-import {useDocContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/document-content'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
+import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
+import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
+import {MediaContainer} from './media-container'
+import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
+import {HMBlockSchema} from './schema'
+import {isValidUrl} from './utils'
 
 export const WebEmbed = createReactBlockSpec({
   type: 'web-embed',
@@ -115,7 +115,7 @@ const display = ({
 }: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const {openUrl} = useDocContentContext()
+  const {openUrl} = useBlocksContentContext()
 
   const containerRef = useRef(null)
   const isInitialized = useRef(false)

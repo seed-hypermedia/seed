@@ -59,7 +59,7 @@ import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
-import {AppDocContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {
@@ -406,7 +406,7 @@ function DocumentEditor({
         className="flex flex-1 flex-col overflow-hidden"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
-          <AppDocContentProvider
+          <AppBlocksContentProvider
             // onBlockSelect={onBlockSelect} // todo: allow copy block when editing doc
             importWebFile={importWebFile}
           >
@@ -465,7 +465,7 @@ function DocumentEditor({
                 {showSidebars ? <div {...sidebarProps} /> : null}
               </div>
             </div>
-          </AppDocContentProvider>
+          </AppBlocksContentProvider>
         </ScrollArea>
       </div>
     )

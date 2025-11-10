@@ -15,7 +15,7 @@ export type BlockRangeSelectOptions = (BlockRange | ExpandedBlockRange) & {
   copyToClipboard?: boolean
 }
 
-export type DocContentContextValue = {
+export type BlocksContentContextValue = {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
   onBlockCitationClick?: (blockId?: string | null) => void

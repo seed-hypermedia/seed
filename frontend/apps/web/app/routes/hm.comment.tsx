@@ -1,6 +1,6 @@
 import {cborDecode, SignedComment} from '@/api'
 import {WebCommenting} from '@/client-lazy'
-import {WebDocContentProvider} from '@/doc-content-provider'
+import {WebBlocksContentProvider} from '@/doc-content-provider'
 import {
   getComment,
   getMetadata,
@@ -186,7 +186,7 @@ export default function CreateComment() {
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
-        <WebDocContentProvider
+        <WebBlocksContentProvider
           key={comment.id}
           originHomeId={originHomeId}
           // id={id}
@@ -194,7 +194,7 @@ export default function CreateComment() {
           comment={true}
         >
           <BlocksContent blocks={comment.content} parentBlockId={null} />
-        </WebDocContentProvider>
+        </WebBlocksContentProvider>
       )
     },
     [originHomeId],
@@ -261,7 +261,7 @@ export default function CreateComment() {
               </div>
               {quotingBlockId ? (
                 <div className="py-4">
-                  <WebDocContentProvider
+                  <WebBlocksContentProvider
                     originHomeId={originHomeId}
                     siteHost={siteHost}
                   >
@@ -270,7 +270,7 @@ export default function CreateComment() {
                       blockId={quotingBlockId}
                       doc={targetDocument}
                     />
-                  </WebDocContentProvider>
+                  </WebBlocksContentProvider>
                 </div>
               ) : null}
               <div className="py-4">
@@ -436,7 +436,7 @@ function PublishedComment({
   const renderCommentContent = useCallback(
     (comment: HMComment) => {
       return (
-        <WebDocContentProvider
+        <WebBlocksContentProvider
           key={comment.id}
           originHomeId={originHomeId}
           // id={id}
@@ -444,7 +444,7 @@ function PublishedComment({
           comment={true}
         >
           <BlocksContent blocks={comment.content} parentBlockId={null} />
-        </WebDocContentProvider>
+        </WebBlocksContentProvider>
       )
     },
     [originHomeId],
