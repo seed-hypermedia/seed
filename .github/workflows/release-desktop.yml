@@ -71,7 +71,7 @@ jobs:
 
           # Calculate version based on channel
           echo "Calculating version for channel: $CHANNEL"
-          VERSION=$(node scripts/generate-version.mjs --channel=$CHANNEL --debug)
+          VERSION=$(node scripts/generate-version.mjs --channel=$CHANNEL)
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo ""
