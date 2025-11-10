@@ -42,7 +42,9 @@ export function apiGetter<ResultType>(
       return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
-        return withCors(Response.json({error: e.message}, {status: e.status}))
+        return withCors(
+          Response.json({error: e.message}, {status: e.status}),
+        )
       }
       return withCors(
         json(
@@ -65,7 +67,9 @@ export function apiGetterWithParams<ResultType>(
       return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
-        return withCors(Response.json({error: e.message}, {status: e.status}))
+        return withCors(
+          Response.json({error: e.message}, {status: e.status}),
+        )
       }
       return withCors(
         json(
@@ -102,7 +106,9 @@ export function cborApiAction<RequestType, ResultType>(
       return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
-        return withCors(Response.json({error: e.message}, {status: e.status}))
+        return withCors(
+          Response.json({error: e.message}, {status: e.status}),
+        )
       }
       return withCors(
         json(
