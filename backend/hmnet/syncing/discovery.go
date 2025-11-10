@@ -253,7 +253,24 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 	}
 	// Fill Citations.
 	{
-		if err := sqlitex.ExecTransient(conn, listCitations(), func(stmt *sqlite.Stmt) error {
+		const q = `
+			SELECT distinct
+				public_keys.principal AS main_author,
+				structural_blobs.extra_attrs->>'tsid' AS tsid,
+				structural_blobs.extra_attrs->>'deleted' as is_deleted,
+				r.iri AS source_iri,
+				structural_blobs.type AS blob_type
+			FROM resource_links
+			JOIN structural_blobs ON structural_blobs.id = resource_links.source
+			JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+			JOIN public_keys ON public_keys.id = structural_blobs.author
+			LEFT JOIN resources r
+			ON r.genesis_blob = CASE
+					WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
+					ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
+				END
+			WHERE resource_links.target IN rbsr_iris;`
+		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 			var (
 				author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
 				tsid      = blob.TSID(stmt.ColumnText(1))
@@ -490,23 +507,4 @@ var qGetEntity = dqb.Str(`
 	FROM resources
 	WHERE iri = :iri
 	LIMIT 1;
-`)
-
-var listCitations = dqb.Str(`
-SELECT distinct
-	public_keys.principal AS main_author,
-	structural_blobs.extra_attrs->>'tsid' AS tsid,
-	structural_blobs.extra_attrs->>'deleted' as is_deleted,
-	r.iri AS source_iri,
-	structural_blobs.type AS blob_type
-FROM resource_links
-JOIN structural_blobs ON structural_blobs.id = resource_links.source
-JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-JOIN public_keys ON public_keys.id = structural_blobs.author
-LEFT JOIN resources r
-  ON r.genesis_blob = CASE
-        WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
-        ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
-     END
-WHERE resource_links.target IN rbsr_iris;
 `)
