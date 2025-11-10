@@ -23,7 +23,7 @@ import {LogOut, Monitor, Smartphone} from 'lucide-react'
 import {BlockView} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
-import {useEffect, useSyncExternalStore} from 'react'
+import {useEffect, useState, useSyncExternalStore} from 'react'
 import {
   Control,
   FieldValues,
@@ -278,8 +278,24 @@ export async function updateProfile({
 
 export function useCreateAccount(options?: {onClose?: () => void}) {
   const userKeyPair = useLocalKeyPair()
+  const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
+
   const createAccountDialog = useAppDialog(CreateAccountDialog, {
     onClose: options?.onClose,
+    className: [
+      'w-full sm:max-w-xl',
+      'max-sm:w-[calc(100%-1.5rem)]',
+      'max-sm:translate-y-0',
+      isMobileKeyboardOpen
+        ? 'max-sm:top-[1.5vh] max-sm:max-h-[55vh]'
+        : 'max-sm:top-[4vh] max-sm:max-h-[85vh]',
+    ].join(' '),
+    contentClassName: [
+      'max-sm:scroll-py-4',
+      isMobileKeyboardOpen
+        ? 'max-sm:gap-3 max-sm:p-4'
+        : 'max-sm:gap-4 max-sm:p-5',
+    ].join(' '),
   })
   return {
     canCreateAccount: !userKeyPair,
@@ -292,6 +308,35 @@ export function useCreateAccount(options?: {onClose?: () => void}) {
   }
 }
 
+function useIsMobileKeyboardOpen() {
+  const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleResize = () => {
+      const layoutViewportHeight = window.innerHeight
+      const visualViewportHeight =
+        window.visualViewport?.height ?? layoutViewportHeight
+      setIsOpen(layoutViewportHeight - visualViewportHeight > 150)
+    }
+
+    const visualViewport = window.visualViewport
+    visualViewport?.addEventListener('resize', handleResize)
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+    handleResize()
+
+    return () => {
+      visualViewport?.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [])
+
+  return isOpen
+}
+
 function CreateAccountDialog({
   input,
   onClose,
@@ -300,6 +345,7 @@ function CreateAccountDialog({
   onClose: () => void
 }) {
   const {origin} = useUniversalAppContext()
+  const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
     createAccount({name: data.name, icon: data.icon}).then(() => onClose())
   }
@@ -307,14 +353,14 @@ function CreateAccountDialog({
   const siteName = hostnameStripProtocol(origin)
   return (
     <>
-      <DialogTitle>
+      <DialogTitle className="max-sm:text-base">
         {tx(
           'create_account_title',
           ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
           {siteName},
         )}
       </DialogTitle>
-      <DialogDescription>
+      <DialogDescription className="max-sm:text-sm">
         {tx(
           'create_account_description',
           'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
@@ -425,7 +471,7 @@ function ImageField<Fields extends FieldValues>({
       : URL.createObjectURL(c.field.value)
     : null
   return (
-    <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 dark:border-neutral-600 dark:hover:border-neutral-500">
+    <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 max-sm:h-16 max-sm:w-16 dark:border-neutral-600 dark:hover:border-neutral-500">
       <input
         type="file"
         accept="image/*"
