@@ -217,7 +217,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		return err
 	}
 
-	var linkIRIs map[discoveryKey]struct{} = make(map[discoveryKey]struct{})
+	var linkIRIs = make(map[discoveryKey]struct{})
 	// Fill Links.
 	{
 		const q = `
@@ -264,7 +264,6 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 
 			if blobType == "Comment" {
 				source = "hm://" + author + "/" + tsid.String()
-
 			}
 			if isDeleted {
 				return nil
@@ -384,23 +383,23 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 			}
 		}
 	}
+	/*
+		// Follow all the redirect targets recursively.
+		{
+			const q = `WITH RECURSIVE t (id) AS (
+					SELECT * FROM rbsr_iris
+					UNION
+					SELECT resources.id
+					FROM structural_blobs sb, resources, t
+					WHERE (t.id = sb.resource AND sb.type = 'Ref')
+					AND sb.extra_attrs->>'redirect' IS NOT NULL
+					AND sb.extra_attrs->>'redirect' = resources.iri
+				)
+				SELECT * FROM t;`
 
-	// Follow all the redirect targets recursively.
-	{
-		const q = `WITH RECURSIVE t (id) AS (
-				SELECT * FROM rbsr_iris
-				UNION
-				SELECT resources.id
-				FROM structural_blobs sb, resources, t
-				WHERE (t.id = sb.resource AND sb.type = 'Ref')
-				AND sb.extra_attrs->>'redirect' IS NOT NULL
-				AND sb.extra_attrs->>'redirect' = resources.iri
-			)
-			SELECT * FROM t;`
-
-		// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
-	}
-
+			// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
+		}
+	*/
 	// Fill Refs.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
