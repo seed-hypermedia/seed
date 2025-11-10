@@ -26,7 +26,6 @@ func TestLoadExternalStore(t *testing.T) {
 		return loadRBSRStore(conn, dKeys, store)
 	})
 	require.NoError(t, err)
-
 }
 
 func loadLocalDB(t testing.TB, path string) *sqlitex.Pool {
