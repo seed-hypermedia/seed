@@ -15,6 +15,7 @@ import fs from 'node:fs'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
+const CHANNEL = IS_PROD_DEV ? 'dev' : 'stable'
 
 const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
@@ -148,7 +149,7 @@ const config: ForgeConfig = {
             // Note that we must provide this S3 URL here
             // in order to support smooth version transitions
             // especially when using a CDN to front your updates
-            macUpdateManifestBaseUrl: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/darwin/${arch}`,
+            macUpdateManifestBaseUrl: `https://seedreleases.s3.eu-west-2.amazonaws.com/${CHANNEL}/latest/darwin/${arch}`,
           })
         : {},
       ['darwin'],
@@ -172,9 +173,9 @@ const config: ForgeConfig = {
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
-      // remoteReleases: `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`,
+      // Note: Stable channel doesn't use delta updates
       remoteReleases: IS_PROD_DEV
-        ? `https://seedappdev.s3.eu-west-2.amazonaws.com/dev/win32/${arch}`
+        ? `https://seedreleases.s3.eu-west-2.amazonaws.com/${CHANNEL}/latest/win32/${arch}`
         : undefined,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,
@@ -256,30 +257,30 @@ function addPublishers() {
 
   config.publishers?.push(
     new PublisherS3({
-      bucket: 'seedappdev',
+      bucket: 'seedreleases',
       accessKeyId: process.env.S3_ACCESS_KEY,
       secretAccessKey: process.env.S3_SECRET_KEY,
-      folder: 'dev',
+      folder: CHANNEL,
       omitAcl: true,
       public: true,
-      region: 'eu-west-2',
+      region: 'us-east-1',
       s3ForcePathStyle: true,
     }),
     // this updates the latest folder
     new PublisherS3({
-      bucket: 'seedappdev',
+      bucket: 'seedreleases',
       accessKeyId: process.env.S3_ACCESS_KEY,
       secretAccessKey: process.env.S3_SECRET_KEY,
-      folder: 'dev',
+      folder: CHANNEL,
       omitAcl: true,
       public: true,
-      region: 'eu-west-2',
+      region: 'us-east-1',
       s3ForcePathStyle: true,
       keyResolver(fileName, platform, arch) {
         if (fileName.endsWith('latest.yml')) {
-          return 'dev/latest/latest.yml'
+          return `${CHANNEL}/latest/latest.yml`
         }
-        return `dev/latest/${fileName}`
+        return `${CHANNEL}/latest/${fileName}`
       },
     }),
   )

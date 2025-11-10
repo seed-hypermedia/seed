@@ -1,19 +1,23 @@
-name: Generate latest.json (prod)
+name: Publish Stable Release Metadata
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 2025.11.7)'
+        required: true
+        type: string
 
   release:
     types: [published]
 
 jobs:
-  generate-latest-json:
+  publish-stable-metadata:
     runs-on: ubuntu-latest
 
     steps:
       # Check out the repository code
       - name: Checkout repository
-
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -25,23 +29,77 @@ jobs:
           node-version: 20
           cache: "yarn"
 
-      # Configure AWS Credentials
-      - name: Configure AWS Credentials
+      # Determine version from release or input
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            # Get version from release tag
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            # Use manual input
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Publishing metadata for version: $VERSION"
 
+      # Configure AWS Credentials for NEW location
+      - name: Configure AWS Credentials (NEW location)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.S3_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.S3_SECRET_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Generate and upload to NEW location
+      - name: Generate and upload latest.json (NEW location)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "📝 Generating latest.json for stable channel"
+          echo "  Version: $VERSION"
+
+          # Generate latest.json
+          node scripts/generate-prod-latest.js \
+            --channel=stable \
+            --version=$VERSION > latest.json
+
+          # Upload to NEW S3 location
+          aws s3 cp latest.json s3://seedreleases/stable/latest/latest.json \
+            --acl public-read \
+            --content-type "application/json"
+
+          echo "✅ Uploaded latest.json to NEW location"
+
+      # Configure AWS Credentials for OLD location (migration)
+      - name: Configure AWS Credentials (OLD location)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
 
-      # Generate prod-latest.json
-      - name: Generate prod-latest.json
+      # Upload to OLD location for migration
+      - name: Upload latest.json to OLD location (migration)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
 
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/generate-prod-latest.js > .github/latest.json
+          echo "📝 MIGRATION: Uploading to OLD location for existing users"
+          echo "  ⚠️  This step can be removed after users migrate"
 
-      # Upload to S3
-      - name: Upload latest.json to S3
+          # Upload to OLD S3 location
+          aws s3 cp latest.json s3://seedappdev/prod/latest.json \
+            --acl public-read \
+            --content-type "application/json"
 
-        run: aws s3 cp .github/latest.json s3://seedreleases/prod/latest.json
+          echo "✅ Uploaded latest.json to OLD location (migration)"
+
+      - name: Summary
+        run: |
+          echo "## ✅ Stable Release Metadata Published"
+          echo ""
+          echo "**Version:** ${{ steps.version.outputs.version }}"
+          echo ""
+          echo "### 📦 Published to:"
+          echo "- ✅ NEW: s3://seedreleases/stable/latest/latest.json"
+          echo "- ✅ OLD: s3://seedappdev/prod/latest.json (migration)"

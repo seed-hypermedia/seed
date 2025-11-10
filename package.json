@@ -2,8 +2,9 @@
   "name": "seed",
   "private": true,
   "scripts": {
-    "test": "yarn web:test && yarn shared:test",
+    "test": "yarn web:test && yarn shared:test && yarn version:test",
     "shared:test": "yarn workspace @shm/shared test",
+    "version:test": "vitest run scripts/generate-version.test.mjs",
     "format:check": "yarn workspaces foreach -pt run format:check",
     "typecheck": "echo '🛠️ Building shared packages types...' && yarn workspace @shm/shared build:types && echo '✅ Types built Successfully' && echo '🛠️ Checking types across all workspaces...' && yarn workspaces foreach -pt run typecheck && echo '✅ Types checked Successfully'",
     "security:check": "yarn npm audit",

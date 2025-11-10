@@ -32,8 +32,8 @@ jobs:
       - name: Set Version
         id: set_version
         run: |
-          node scripts/generate-dev-version.mjs --debug
-          VERSION=$(node scripts/generate-dev-version.mjs)
+          node scripts/generate-version.mjs --debug
+          VERSION=$(node scripts/generate-version.mjs)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Display Version

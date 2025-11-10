@@ -1,55 +1,101 @@
-name: Release - Desktop App
+name: Release - Desktop App (Unified)
 
 permissions:
   contents: write
 
 on:
+  # Manual trigger only - no automatic tag-based releases
   workflow_dispatch:
-  push:
-    tags:
-      - "*.*.*"
+    inputs:
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        options:
+          - dev
+          - stable
+        default: "dev"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.channel || 'stable' }}
   cancel-in-progress: true
 
 env:
   AWS_REGION: us-east-1
 
 jobs:
-  build-info:
+  calculate-version:
     runs-on: ubuntu-latest
+    # Add environment protection for stable releases
+    environment: ${{ inputs.channel == 'stable' && 'production' || 'development' }}
     outputs:
       version: ${{ steps.set_version.outputs.version }}
+      channel: ${{ steps.set_channel.outputs.channel }}
+      is_stable: ${{ steps.set_channel.outputs.is_stable }}
 
     steps:
+      - name: Validate stable channel restrictions
+        if: ${{ inputs.channel == 'stable' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "❌ ERROR: Stable releases can only be triggered from the main branch!"
+          echo "Current branch: ${{ github.ref }}"
+          echo "Required branch: refs/heads/main"
+          echo ""
+          echo "Please switch to the main branch before triggering a stable release."
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for version calculation
 
-      - name: Set Version
+      - name: Determine Channel
+        id: set_channel
+        run: |
+          CHANNEL="${{ inputs.channel }}"
+          IS_STABLE=$([ "$CHANNEL" == "stable" ] && echo "true" || echo "false")
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "is_stable=$IS_STABLE" >> $GITHUB_OUTPUT
+          echo "📦 Channel: $CHANNEL (is_stable=$IS_STABLE)"
+
+          # Log branch information
+          echo "🌿 Current branch: ${{ github.ref }}"
+          if [ "$IS_STABLE" == "true" ]; then
+            echo "✅ Stable release from main branch"
+          fi
+
+      - name: Calculate Version
         id: set_version
         run: |
-          VERSION=${{ github.ref_name }}
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          CHANNEL="${{ steps.set_channel.outputs.channel }}"
 
-      - name: Display Version
-        run: |
-          echo "App Version: ${{ steps.set_version.outputs.version }}"
+          # Calculate version based on channel
+          echo "Calculating version for channel: $CHANNEL"
+          VERSION=$(node scripts/generate-version.mjs --channel=$CHANNEL --debug)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo ""
+          echo "✅ Calculated version: $VERSION"
 
   frontend-tests:
     runs-on: ubuntu-latest
-    needs: [build-info]
+    needs: [calculate-version]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Check for new TypeScript directives
         run: node scripts/check-ts-directives.mjs
+
       - name: Install dependencies
         run: yarn install
+
       - name: Validate Code Formatting
         run: yarn format:check
+
       - name: Validate TypeScript
         run: yarn typecheck
+
       - name: Run tests
         run: yarn test
 
@@ -57,7 +103,7 @@ jobs:
     timeout-minutes: 30
     name: Build ${{ matrix.config.os }} @ ${{ matrix.config.arch }}
     runs-on: ${{ matrix.config.os }}
-    needs: [build-info, frontend-tests]
+    needs: [calculate-version, frontend-tests]
     strategy:
       matrix:
         config:
@@ -77,6 +123,7 @@ jobs:
             arch: x64
             goarch: amd64
             daemon_name: x86_64-pc-windows-msvc
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -84,8 +131,6 @@ jobs:
       - uses: ./.github/actions/ci-setup
         with:
           matrix-os: ${{ matrix.config.os }}
-          # matrix-target: ${{ matrix.config.daemon_name }}
-          # matrix-arch: ${{ matrix.config.arch }}
 
       - name: Build Backend (Unix)
         if: matrix.config.os != 'windows-2025'
@@ -120,13 +165,14 @@ jobs:
           security import certificate.p12 -k build.keychain -P $APPLE_CERTIFICATE_PASSWORD -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k $APPLE_KEYCHAIN_PASSWORD build.keychain
           rm -fr *.p12
-          security set-keychain-settings -lut 1200 # prevent the keychain to get locked before codesign is done
+          security set-keychain-settings -lut 1200
 
       - name: Set temporal version in package.json
         run: |
           node scripts/set-desktop-version.mjs
         env:
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "${{ needs.calculate-version.outputs.version }}"
+
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
@@ -137,7 +183,7 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "${{ needs.calculate-version.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
@@ -164,7 +210,7 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=4096
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
-          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_VERSION: "${{ needs.calculate-version.outputs.version }}"
           VITE_COMMIT_HASH: "${{ github.sha }}"
           VITE_DESKTOP_P2P_PORT: "56000"
           VITE_DESKTOP_HTTP_PORT: "56001"
@@ -183,9 +229,115 @@ jobs:
         with:
           name: artifacts-${{ matrix.config.daemon_name }}
           path: frontend/apps/desktop/out/make/**/*
-  publish-to-github:
-    needs: [build-info, build-binaries]
+
+  # MIGRATION ONLY: Publish to OLD S3 location for existing stable users
+  # This job can be removed after users migrate to the new version
+  publish-migration-to-old-s3:
+    needs: [calculate-version, build-binaries]
     runs-on: ubuntu-latest
+    if: needs.calculate-version.outputs.channel == 'stable'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Configure AWS Credentials (eu-west-2)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2  # OLD bucket is in eu-west-2
+
+      - name: Publish to OLD S3 location (migration support)
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+
+          echo "📦 MIGRATION: Publishing to OLD S3 location for existing users"
+          echo "  Bucket: s3://seedappdev/prod/"
+          echo "  Version: $VERSION"
+          echo ""
+          echo "  ⚠️  This is temporary for migration support"
+          echo "  ⚠️  Remove this job after users update to new version"
+
+          # Publish to old prod location for existing stable users
+          aws s3 sync artifacts/ s3://seedappdev/prod/latest/ \
+            --exclude "*.blockmap" \
+            --acl public-read
+
+          echo "✅ Published to OLD S3 location (migration)"
+
+      - name: Generate and upload latest.json to OLD location
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+
+          # Generate latest.json
+          node scripts/generate-prod-latest.js \
+            --channel=stable \
+            --version=$VERSION > latest.json
+
+          # Upload to OLD S3 location
+          aws s3 cp latest.json s3://seedappdev/prod/latest.json \
+            --acl public-read \
+            --content-type "application/json"
+
+          echo "✅ Uploaded latest.json to OLD location (migration)"
+
+  # Metadata uploads for dev channel only
+  # (stable latest.json is handled by desktop-prod-latest-json-to-s3.yml on release)
+  publish-dev-metadata:
+    needs: [calculate-version, build-binaries]
+    runs-on: ubuntu-latest
+    if: needs.calculate-version.outputs.channel == 'dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Generate and upload latest.json (dev channel)
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+
+          echo "📝 Generating latest.json for dev channel"
+          echo "  Version: $VERSION"
+
+          # Generate latest.json
+          node scripts/generate-prod-latest.js \
+            --channel=dev \
+            --version=$VERSION > latest.json
+
+          # Upload to NEW S3 location
+          aws s3 cp latest.json s3://seedreleases/dev/latest/latest.json \
+            --acl public-read \
+            --content-type "application/json"
+
+          echo "✅ Uploaded latest.json for dev channel"
+
+      - name: Generate and upload RELEASES.json (dev channel)
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+
+          # Create RELEASES.json with current version
+          echo "{\"currentRelease\": \"$VERSION\"}" > RELEASES.json
+
+          # Upload to NEW S3 location
+          aws s3 cp RELEASES.json s3://seedreleases/dev/latest/RELEASES.json \
+            --acl public-read \
+            --content-type "application/json"
+
+          echo "✅ Uploaded RELEASES.json for dev channel"
+
+  publish-to-github:
+    needs: [calculate-version, build-binaries]
+    runs-on: ubuntu-latest
+    if: needs.calculate-version.outputs.is_stable == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -196,12 +348,60 @@ jobs:
         with:
           path: artifacts
 
-      - name: "create release"
+      - name: Create Git Tag
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create annotated tag
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+          echo "✅ Created and pushed tag: $VERSION"
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
-          tag_name: "${{ needs.build-info.outputs.version }}"
+          tag_name: "${{ needs.calculate-version.outputs.version }}"
+          name: "Release ${{ needs.calculate-version.outputs.version }}"
           prerelease: true
           generate_release_notes: true
           files: ./artifacts/artifacts-*/**/*
+          body: |
+            ## 📦 Downloads
+
+            **Channel:** stable
+            **Version:** ${{ needs.calculate-version.outputs.version }}
+
+            Binaries are also available on S3:
+            - Download URL: https://seedreleases.s3.amazonaws.com/stable/latest/
+            - Archive: https://seedreleases.s3.amazonaws.com/stable/archive/${{ needs.calculate-version.outputs.version }}/
+
+            🤖 Auto-generated release notes below:
+
+  summary:
+    needs: [calculate-version, build-binaries, publish-dev-metadata, publish-migration-to-old-s3, publish-to-github]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Complete"
+          echo ""
+          echo "**Channel:** ${{ needs.calculate-version.outputs.channel }}"
+          echo "**Version:** ${{ needs.calculate-version.outputs.version }}"
+          echo ""
+          echo "### 📦 Published to:"
+          echo "- ✅ S3 NEW: s3://seedreleases/${{ needs.calculate-version.outputs.channel }}/latest/ (via Forge)"
+          echo "- ✅ S3 Archive: s3://seedreleases/${{ needs.calculate-version.outputs.channel }}/archive/${{ needs.calculate-version.outputs.version }}/ (via Forge)"
+
+          if [ "${{ needs.calculate-version.outputs.is_stable }}" == "true" ]; then
+            echo "- ✅ S3 OLD: s3://seedappdev/prod/latest/ (migration support)"
+            echo "- ✅ GitHub Release (prerelease)"
+          else
+            echo "- ⏭️  GitHub Release (skipped for dev channel)"
+            echo "- ⏭️  OLD S3 location (skipped for dev channel)"
+          fi
