@@ -1,4 +1,4 @@
-import {data, LinksFunction, LoaderFunctionArgs} from 'react-router'
+import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
 import {
   isRouteErrorResponse,
   Links,
@@ -8,7 +8,7 @@ import {
   ScrollRestoration,
   useLoaderData,
   useRouteError,
-} from 'react-router'
+} from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
@@ -75,7 +75,7 @@ export async function loader({request}: LoaderFunctionArgs) {
 
   const result = {isProd, enableStats, domain, siteHost}
 
-  return data(result)
+  return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {

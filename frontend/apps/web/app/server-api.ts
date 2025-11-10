@@ -1,5 +1,5 @@
-import {ActionFunction, LoaderFunction} from 'react-router'
-import {Params} from 'react-router'
+import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
+import {Params} from '@remix-run/react'
 import {WEB_API_DISABLED, WEB_IS_GATEWAY} from '@shm/shared/constants'
 import {cborDecode} from './api'
 import {ParsedRequest, parseRequest} from './request'
@@ -39,13 +39,13 @@ export function apiGetter<ResultType>(
         throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
       }
       const result = await handler(parsedRequest)
-      return withCors(Response.json(result))
+      return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
         return withCors(Response.json({error: e.message}, {status: e.status}))
       }
       return withCors(
-        Response.json(
+        json(
           {error: e instanceof Error ? e.message : 'Unknown error'},
           {status: 500},
         ),
@@ -62,13 +62,13 @@ export function apiGetterWithParams<ResultType>(
     const parsedRequest = parseRequest(request)
     try {
       const result = await handler(parsedRequest, params)
-      return withCors(Response.json(result))
+      return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
         return withCors(Response.json({error: e.message}, {status: e.status}))
       }
       return withCors(
-        Response.json(
+        json(
           {error: e instanceof Error ? e.message : 'Unknown error'},
           {status: 500},
         ),
@@ -94,18 +94,18 @@ export function cborApiAction<RequestType, ResultType>(
         throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
       }
       const cborData = await request.arrayBuffer()
-      const requestData: RequestType = cborDecode(new Uint8Array(cborData))
-      const result = await handler(requestData, {
+      const data: RequestType = cborDecode(new Uint8Array(cborData))
+      const result = await handler(data, {
         ...parsedRequest,
         rawData: cborData,
       })
-      return withCors(Response.json(result))
+      return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {
         return withCors(Response.json({error: e.message}, {status: e.status}))
       }
       return withCors(
-        Response.json(
+        json(
           {error: e instanceof Error ? e.message : 'Unknown error'},
           {status: 500},
         ),

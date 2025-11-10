@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {withCors} from '@/utils/cors'
 import {discoverDocument} from '@/utils/discovery'
-import {ActionFunction, LoaderFunction} from 'react-router'
+import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
 import {
   hmIdPathToEntityQueryPath,
   unpackedHmIdSchema,
@@ -36,7 +36,7 @@ export const action: ActionFunction = async ({request}) => {
       syncCommentRequestSchema.parse(body)
     const targetId = unpackHmId(target)
     if (!targetId) {
-      return Response.json({message: 'Invalid target'}, {status: 400})
+      return json({message: 'Invalid target'}, {status: 400})
     }
     const commentExists = await getCommentExists(commentId)
     if (!commentExists) {
@@ -56,16 +56,13 @@ export const action: ActionFunction = async ({request}) => {
       }),
     )
     return withCors(
-      Response.json({
+      json({
         message: 'Success',
       }),
     )
   } catch (error: any) {
     return withCors(
-      Response.json(
-        {message: 'Error syncing comment:' + error.message},
-        {status: 500},
-      ),
+      json({message: 'Error syncing comment:' + error.message}, {status: 500}),
     )
   }
 }

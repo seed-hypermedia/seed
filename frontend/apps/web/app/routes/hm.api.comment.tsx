@@ -1,7 +1,7 @@
 import {SignedComment} from '@/api'
 import {grpcClient} from '@/client.server'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {ActionFunction} from 'react-router'
+import {ActionFunction, json} from '@remix-run/node'
 import {
   entityQueryPathToHmIdPath,
   HMBlockNodeSchema,
@@ -52,10 +52,10 @@ export type CommentResponsePayload = {
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return Response.json({message: 'Method not allowed'}, {status: 405})
+    return json({message: 'Method not allowed'}, {status: 405})
   }
   if (request.headers.get('Content-Type') !== 'application/cbor') {
-    return Response.json(
+    return json(
       {message: 'Content-Type must be application/cbor'},
       {status: 400},
     )
@@ -76,7 +76,7 @@ export const action: ActionFunction = async ({request}) => {
   const signerUid = base58btc.encode(comment.signer)
   const resultCommentId = resultComment.cids[0]
   if (!resultCommentId) {
-    return Response.json({message: 'Failed to store comment'}, {status: 500})
+    return json({message: 'Failed to store comment'}, {status: 500})
   }
   const targetUid = base58btc.encode(comment.space)
   const targetId = hmId(targetUid, {
@@ -89,7 +89,7 @@ export const action: ActionFunction = async ({request}) => {
   const commentResult = await grpcClient.comments.getComment({
     id: resultCommentId,
   })
-  return Response.json({
+  return json({
     message: 'Success',
     dependencies,
     commentId: resultCommentId,

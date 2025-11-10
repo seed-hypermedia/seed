@@ -1,5 +1,5 @@
 import {adminSecret, getServiceConfig} from '@/site-config.server'
-import {ActionFunction} from 'react-router'
+import {ActionFunction, json} from '@remix-run/node'
 import {z} from 'zod'
 
 const listConfigSchema = z
@@ -10,16 +10,16 @@ const listConfigSchema = z
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return Response.json({message: 'Method not allowed'}, {status: 405})
+    return json({message: 'Method not allowed'}, {status: 405})
   }
-  const body = await request.json()
-  const payload = listConfigSchema.parse(body)
+  const data = await request.json()
+  const payload = listConfigSchema.parse(data)
   if (payload.adminSecret !== adminSecret || !adminSecret) {
-    return Response.json({message: 'Invalid admin secret'}, {status: 401})
+    return json({message: 'Invalid admin secret'}, {status: 401})
   }
   const serviceConfig = await getServiceConfig()
   if (!serviceConfig) {
-    return Response.json({message: 'Service config not found'}, {status: 404})
+    return json({message: 'Service config not found'}, {status: 404})
   }
-  return Response.json(serviceConfig)
+  return json(serviceConfig)
 }

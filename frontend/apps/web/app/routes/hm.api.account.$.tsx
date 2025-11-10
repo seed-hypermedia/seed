@@ -3,7 +3,7 @@ import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError, Code} from '@connectrpc/connect'
-import {Params} from 'react-router'
+import {Params} from '@remix-run/react'
 import {
   Account,
   HMDocumentMetadataSchema,

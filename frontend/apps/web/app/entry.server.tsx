@@ -3,9 +3,9 @@ import configDotenv from './config-dotenv'
 
 import {PassThrough} from 'node:stream'
 
-import type {AppLoadContext, EntryContext} from 'react-router'
-import {redirect, ServerRouter} from 'react-router'
-import {createReadableStreamFromReadable} from '@react-router/node'
+import type {AppLoadContext, EntryContext} from '@remix-run/node'
+import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
+import {RemixServer} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {
   SITE_BASE_URL,
@@ -441,7 +441,11 @@ function handleBotRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <ServerRouter context={remixContext} url={request.url} />,
+      <RemixServer
+        context={remixContext}
+        url={request.url}
+        abortDelay={ABORT_DELAY}
+      />,
       {
         onAllReady() {
           shellRendered = true
@@ -491,7 +495,11 @@ function handleBrowserRequest(
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
-      <ServerRouter context={remixContext} url={request.url} />,
+      <RemixServer
+        context={remixContext}
+        url={request.url}
+        abortDelay={ABORT_DELAY}
+      />,
       {
         onShellReady() {
           shellRendered = true

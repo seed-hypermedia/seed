@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {Params} from 'react-router'
+import {Params} from '@remix-run/react'
 import {
   calculateInteractionSummary,
   hmIdPathToEntityQueryPath,

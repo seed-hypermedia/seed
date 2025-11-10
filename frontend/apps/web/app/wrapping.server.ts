@@ -1,12 +1,12 @@
-import {serialize} from 'superjson'
+import {json, TypedResponse} from '@remix-run/node'
+import {serialize, SuperJSONResult} from 'superjson'
 
 // Re-export isomorphic functions.
 export {wrap, unwrap, type Wrapped} from './wrapping'
 
 // Server-only types and functions
-export type WrappedResponse<T> = Response
+export type WrappedResponse<T> = TypedResponse<SuperJSONResult>
 
 export function wrapJSON<T>(value: T, resp?: ResponseInit): WrappedResponse<T> {
-  const serialized = serialize(value)
-  return Response.json(serialized, resp) as WrappedResponse<T>
+  return json(serialize(value), resp)
 }

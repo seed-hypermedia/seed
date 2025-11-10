@@ -1,5 +1,5 @@
 import {discoverDocument, discoverMedia} from '@/utils/discovery'
-import {ActionFunction} from 'react-router'
+import {ActionFunction, json} from '@remix-run/node'
 import {siteDiscoverRequestSchema} from '@shm/shared/hm-types'
 
 export const action: ActionFunction = async ({request}) => {
@@ -10,12 +10,12 @@ export const action: ActionFunction = async ({request}) => {
     if (data.media) {
       await discoverMedia(input.uid, input.path, input.version)
     }
-    return Response.json({message: 'Success'})
+    return json({message: 'Success'})
   } catch (e) {
     if (e instanceof Error) {
-      return Response.json({message: e.message}, {status: 500})
+      return json({message: e.message}, {status: 500})
     } else {
-      return Response.json({message: 'Unknown error'}, {status: 500})
+      return json({message: 'Unknown error'}, {status: 500})
     }
   }
 }

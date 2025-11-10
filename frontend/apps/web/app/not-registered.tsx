@@ -1,4 +1,4 @@
-import {Link} from 'react-router'
+import {Link} from '@remix-run/react'
 import {SizableText} from '@shm/ui/text'
 import {Container} from './ui/container'
 

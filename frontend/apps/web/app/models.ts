@@ -15,14 +15,9 @@ export async function queryAPI<ResponsePayloadType>(url: string) {
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.statusText}`)
   }
-  try {
-    const fullData = await response.json()
-    const data = unwrap<ResponsePayloadType>(fullData)
-    return data
-  } catch (error) {
-    console.error('Error unwrapping data', url, error)
-    throw error
-  }
+  const fullData = await response.json()
+  const data = unwrap<ResponsePayloadType>(fullData)
+  return data
 }
 
 export function useAPI<ResponsePayloadType>(

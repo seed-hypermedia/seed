@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {ActionFunction} from 'react-router'
+import {ActionFunction, json} from '@remix-run/node'
 
 export type DelegateDevicePayload = {
   profileAlias: Uint8Array
@@ -24,10 +24,10 @@ async function storeBlob(blob: Uint8Array) {
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return Response.json({message: 'Method not allowed'}, {status: 405})
+    return json({message: 'Method not allowed'}, {status: 405})
   }
   if (request.headers.get('Content-Type') !== 'application/cbor') {
-    return Response.json(
+    return json(
       {message: 'Content-Type must be application/cbor'},
       {status: 400},
     )
@@ -44,7 +44,7 @@ export const action: ActionFunction = async ({request}) => {
   )
   const profileAliasCid = await storeBlob(delegateDevicePayload.profileAlias)
 
-  return Response.json({
+  return json({
     message: 'Success',
     // @ts-expect-error
     profileAliasCid,

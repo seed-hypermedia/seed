@@ -2,7 +2,7 @@ import {grpcClient} from '@/client.server'
 import {getAccount} from '@/loaders'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {Params} from 'react-router'
+import {Params} from '@remix-run/react'
 import {
   HMDocumentChangeInfo,
   hmIdPathToEntityQueryPath,

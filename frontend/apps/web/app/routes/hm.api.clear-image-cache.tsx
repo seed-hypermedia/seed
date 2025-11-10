@@ -1,4 +1,4 @@
-import {ActionFunction} from 'react-router'
+import {ActionFunction, json} from '@remix-run/node'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -8,7 +8,7 @@ const CACHE_PATH = path.resolve(
 
 export const action: ActionFunction = async ({request}) => {
   if (request.method !== 'POST') {
-    return Response.json({error: 'Method not allowed'}, {status: 405})
+    return json({error: 'Method not allowed'}, {status: 405})
   }
 
   const url = new URL(request.url)
@@ -24,7 +24,7 @@ export const action: ActionFunction = async ({request}) => {
         await fs.unlink(path.join(CACHE_PATH, file)).catch(() => {})
       }
 
-      return Response.json({
+      return json({
         success: true,
         message: `Cleared cache for CID: ${cid}`,
         deletedFiles: filesToDelete.length,
@@ -34,14 +34,14 @@ export const action: ActionFunction = async ({request}) => {
       await fs.rm(CACHE_PATH, {recursive: true, force: true}).catch(() => {})
       await fs.mkdir(CACHE_PATH, {recursive: true}).catch(() => {})
 
-      return Response.json({
+      return json({
         success: true,
         message: 'Cleared entire image cache',
       })
     }
   } catch (error) {
     console.error('Error clearing cache:', error)
-    return Response.json(
+    return json(
       {
         error: 'Failed to clear cache',
         details: error instanceof Error ? error.message : 'Unknown error',

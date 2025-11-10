@@ -1,4 +1,4 @@
-import type {ActionFunction} from 'react-router'
+import type {ActionFunction} from '@remix-run/node'
 import sharp from 'sharp'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB

@@ -1,4 +1,4 @@
-import {useNavigate} from 'react-router'
+import {useNavigate} from '@remix-run/react'
 import {
   BlockRange,
   HMEntityContent,

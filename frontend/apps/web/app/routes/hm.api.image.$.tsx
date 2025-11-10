@@ -1,4 +1,4 @@
-import {LoaderFunction} from 'react-router'
+import {LoaderFunction} from '@remix-run/node'
 import {OptimizedImageSize} from '@shm/shared'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import fs from 'fs/promises'

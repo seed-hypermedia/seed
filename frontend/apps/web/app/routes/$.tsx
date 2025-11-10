@@ -9,8 +9,8 @@ import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
-import {HeadersFunction} from 'react-router'
-import {MetaFunction, Params, useLoaderData} from 'react-router'
+import {HeadersFunction} from '@remix-run/node'
+import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {
   getDocumentTitle,
   hmId,

@@ -1,6 +1,6 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {redirect} from 'react-router'
+import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
   EditorText,
