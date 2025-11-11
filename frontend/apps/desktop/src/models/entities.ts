@@ -220,21 +220,22 @@ type EntitySubscription = {
   recursive?: boolean
 }
 
-function invalidateEntityWithVersion(
+function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
   const lastEntity = queryClient.getQueryData<HMEntityContent>([
     queryKeys.ENTITY,
     id.id,
-    undefined,
+    undefined, // this signifies the "latest" version we have in cache
   ])
-  if (!lastEntity || lastEntity?.document?.version !== version) {
+  if (lastEntity && lastEntity?.document?.version !== version) {
     // console.log('[sync] new version discovered for entity', id, version)
     invalidateQueries([queryKeys.ENTITY, id.id])
     invalidateQueries([queryKeys.ACCOUNT, id.uid])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   }
+  // we should also invalidate the queryKeys.ACCOUNT entry in the cache
 }
 
 export async function discoverDocument(
@@ -279,7 +280,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
   if (!id) return
   await discoverDocument(id.uid, id.path, undefined, recursive)
     .then((result) => {
-      invalidateEntityWithVersion(id, result.version)
+      discoveryResultWithLatestVersion(id, result.version)
       if (recursive) {
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
         queryClient
@@ -287,7 +288,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
           // @ts-expect-error
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
-              invalidateEntityWithVersion(
+              discoveryResultWithLatestVersion(
                 hmId(doc.account, {path: doc.path}),
                 doc.version,
               )
