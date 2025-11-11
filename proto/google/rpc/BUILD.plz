@@ -1,0 +1,22 @@
+subinclude("//build/rules/codegen:defs")
+
+# Custom rule for google.rpc.Status - only generates _pb.ts (no service, so no _connect.ts)
+generated(
+    name = "js",
+    srcs = glob(["*.proto"]),
+    outs = ["status_pb.ts"],
+    cmd = """
+rm -f $OUT_DIR/*_pb.ts
+$TOOLS_PROTOC -I proto \
+--plugin=protoc-gen-es=$TOOLS_PROTOC_GEN_ES \
+--es_opt=target=ts,import_extension=none \
+--es_out=frontend/packages/shared/src/client/.generated/ \
+$SRCS
+""",
+    out_dir = "//frontend/packages/shared/src/client/.generated/google/rpc",
+    tools = [
+        "//build/nix:protoc",
+        "//build/tools:protoc-gen-es",
+    ],
+)
+

@@ -2,6 +2,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {RedirectErrorDetails} from '../client'
+import {Status} from '../client/.generated/google/rpc/status_pb'
 import {GRPCClient} from '../grpc-client'
 import {
   HMDocumentMetadataSchema,
@@ -32,6 +33,18 @@ export function createBatchAccountsResolver(client: GRPCClient) {
 
     const _accounts = await client.documents.batchGetAccounts({
       ids: accountUids,
+    })
+
+    Object.entries(_accounts.errors).forEach(([id, error]) => {
+      try {
+        const status = Status.fromBinary(error)
+        console.error(`Error loading account ${id}: `, toPlainMessage(status))
+      } catch (e) {
+        console.error(
+          `Error loading account ${id}: (error parse failure) `,
+          error.toHex(),
+        )
+      }
     })
 
     if (!_accounts?.accounts) {
