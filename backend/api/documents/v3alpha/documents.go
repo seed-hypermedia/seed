@@ -517,60 +517,17 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 }
 
 // GetAccount implements Documents API v3.
-func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountRequest) (out *documents.Account, err error) {
+func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountRequest) (*documents.Account, error) {
 	{
 		if in.Id == "" {
 			return nil, errutil.MissingArgument("account")
 		}
 	}
 
-	if _, err := core.DecodePrincipal(in.Id); err != nil {
-		return nil, err
-	}
-
-	var (
-		query string
-		args  colx.Slice[any]
-	)
-	{
-		qb := srv.baseAccountQuery()
-		qb = qb.Where("spaces.id = ?")
-
-		args.Append(in.Id)
-
-		query = qb.String()
-	}
-
-	conn, release, err := srv.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-
-	defer sqlitex.Save(conn)(&err)
-
-	lookup := blob.NewLookupCache(conn)
-
-	rows, discard, check := sqlitex.Query(conn, query, args...)
-	defer discard(&err)
-	for row := range rows {
-		item, err := srv.accountFromRow(row, lookup)
-		if err != nil {
-			return nil, err
-		}
-
-		out = item.Proto
-		break
-	}
-	if err := check(); err != nil {
-		return nil, err
-	}
-
-	if out == nil {
-		return nil, status.Errorf(codes.NotFound, "account %s is not found", in.Id)
-	}
-
-	return out, nil
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.Account, error) {
+		lookup := blob.NewLookupCache(conn)
+		return srv.getAccountByID(conn, lookup, in.Id)
+	})
 }
 
 // BatchGetAccounts implements Documents API v3.
@@ -598,37 +555,8 @@ func (srv *Server) BatchGetAccounts(ctx context.Context, in *documents.BatchGetA
 	slices.Sort(in.Ids)
 	in.Ids = slices.Compact(in.Ids)
 
-	getAccount := func(id string) (out *documents.Account, err error) {
-		if _, err := core.DecodePrincipal(id); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", id, err)
-		}
-
-		qb := srv.baseAccountQuery()
-		qb = qb.Where("spaces.id = ?")
-
-		rows, discard, check := sqlitex.Query(conn, qb.String(), id)
-		defer discard(&err)
-		for row := range rows {
-			item, err := srv.accountFromRow(row, lookup)
-			if err != nil {
-				return nil, err
-			}
-			out = item.Proto
-			break
-		}
-		if err := check(); err != nil {
-			return nil, err
-		}
-
-		if out == nil {
-			return nil, status.Errorf(codes.NotFound, "account %s is not found", id)
-		}
-
-		return out, nil
-	}
-
 	for _, id := range in.Ids {
-		acc, err := getAccount(id)
+		acc, err := srv.getAccountByID(conn, lookup, id)
 		if err != nil {
 			if out.Errors == nil {
 				out.Errors = make(map[string][]byte, len(in.Ids))
@@ -694,6 +622,35 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 		).
 		From("spaces").
 		LeftJoin("(SELECT DISTINCT substr(iri, 6, 48) AS id FROM subscriptions) subs", "spaces.id = subs.id")
+}
+
+func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, id string) (out *documents.Account, err error) {
+	if _, err := core.DecodePrincipal(id); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", id, err)
+	}
+
+	qb := srv.baseAccountQuery()
+	qb = qb.Where("spaces.id = ?")
+
+	rows, discard, check := sqlitex.Query(conn, qb.String(), id)
+	defer discard(&err)
+	for row := range rows {
+		item, err := srv.accountFromRow(row, lookup)
+		if err != nil {
+			return nil, err
+		}
+		out = item.Proto
+		break
+	}
+	if err := check(); err != nil {
+		return nil, err
+	}
+
+	if out == nil {
+		return nil, status.Errorf(codes.NotFound, "account %s is not found", id)
+	}
+
+	return out, nil
 }
 
 func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*dbAccount, error) {
