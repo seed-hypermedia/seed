@@ -357,7 +357,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComme
 	var icmt indexedComment
 	for cmt := range comments {
 		// Check if the comment is marked as deleted
-		if cmt.Comment.Body == nil || len(cmt.Comment.Body) == 0 {
+		if len(cmt.Comment.Body) == 0 {
 			return out, status.Errorf(codes.NotFound, "comment %s has been deleted", idRaw)
 		}
 		icmt = cmt
