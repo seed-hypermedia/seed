@@ -149,7 +149,8 @@ const config: ForgeConfig = {
             // Note that we must provide this S3 URL here
             // in order to support smooth version transitions
             // especially when using a CDN to front your updates
-            macUpdateManifestBaseUrl: `https://seedreleases.s3.eu-west-2.amazonaws.com/${CHANNEL}/latest/darwin/${arch}`,
+            // NOTE: New builds will check NEW URL, workflow copies to OLD for existing users
+            macUpdateManifestBaseUrl: `https://seedreleases.s3.amazonaws.com/${CHANNEL}/latest/darwin/${arch}`,
           })
         : {},
       ['darwin'],
@@ -173,9 +174,9 @@ const config: ForgeConfig = {
 
       // Note that we must provide this S3 URL here
       // in order to generate delta updates
-      // Note: Stable channel doesn't use delta updates
+      // NOTE: New builds will check NEW URL, workflow copies to OLD for existing users
       remoteReleases: IS_PROD_DEV
-        ? `https://seedreleases.s3.eu-west-2.amazonaws.com/${CHANNEL}/latest/win32/${arch}`
+        ? `https://seedreleases.s3.amazonaws.com/${CHANNEL}/latest/win32/${arch}`
         : undefined,
 
       // certificateFile: process.env.WINDOWS_PFX_FILE,

@@ -107,11 +107,11 @@ jobs:
     strategy:
       matrix:
         config:
-          - os: macos-13-large
+          - os: macos-15-large
             arch: x64
             goarch: amd64
             daemon_name: x86_64-apple-darwin
-          - os: macos-13-xlarge
+          - os: macos-15-xlarge
             arch: arm64
             goarch: arm64
             daemon_name: aarch64-apple-darwin
@@ -249,7 +249,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2  # OLD bucket is in eu-west-2
+          aws-region: eu-west-2 # OLD bucket is in eu-west-2
 
       - name: Publish to OLD S3 location (migration support)
         run: |
@@ -284,6 +284,43 @@ jobs:
             --content-type "application/json"
 
           echo "✅ Uploaded latest.json to OLD location (migration)"
+
+  # MIGRATION: Copy dev artifacts to OLD location for existing users
+  publish-dev-to-old-s3:
+    needs: [calculate-version, build-binaries]
+    runs-on: ubuntu-latest
+    if: needs.calculate-version.outputs.channel == 'dev'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Configure AWS Credentials (eu-west-2)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2  # OLD bucket is in eu-west-2
+
+      - name: Publish to OLD S3 location (dev migration)
+        run: |
+          VERSION="${{ needs.calculate-version.outputs.version }}"
+
+          echo "📦 MIGRATION: Publishing dev to OLD location for existing users"
+          echo "  Bucket: s3://seedappdev/dev/"
+          echo "  Version: $VERSION"
+          echo ""
+          echo "  ⚠️  This is temporary for migration support"
+
+          # Publish to old dev location for existing users
+          aws s3 sync artifacts/ s3://seedappdev/dev/latest/ \
+            --exclude "*.blockmap" \
+            --acl public-read
+
+          echo "✅ Published dev to OLD S3 location (migration)"
 
   # Metadata uploads for dev channel only
   # (stable latest.json is handled by desktop-prod-latest-json-to-s3.yml on release)
@@ -383,7 +420,15 @@ jobs:
             🤖 Auto-generated release notes below:
 
   summary:
-    needs: [calculate-version, build-binaries, publish-dev-metadata, publish-migration-to-old-s3, publish-to-github]
+    needs:
+      [
+        calculate-version,
+        build-binaries,
+        publish-dev-metadata,
+        publish-dev-to-old-s3,
+        publish-migration-to-old-s3,
+        publish-to-github,
+      ]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -402,6 +447,6 @@ jobs:
             echo "- ✅ S3 OLD: s3://seedappdev/prod/latest/ (migration support)"
             echo "- ✅ GitHub Release (prerelease)"
           else
+            echo "- ✅ S3 OLD: s3://seedappdev/dev/latest/ (migration support)"
             echo "- ⏭️  GitHub Release (skipped for dev channel)"
-            echo "- ⏭️  OLD S3 location (skipped for dev channel)"
           fi
