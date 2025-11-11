@@ -50,6 +50,17 @@ const notifReasonsBatch = new Set<NotifReason>([
   'site-new-discussion',
 ])
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+  })
+  return Promise.race([promise, timeoutPromise])
+}
+
 export async function initEmailNotifier() {
   console.log('Init Email Notifier')
 
@@ -60,8 +71,16 @@ export async function initEmailNotifier() {
   })
 
   setInterval(() => {
-    if (currentNotifProcessing) return
-    currentNotifProcessing = handleEmailNotifications()
+    if (currentNotifProcessing) {
+      console.log('Email notifications already processing. Skipping round.')
+      return
+    }
+    const timeoutMs = 60_000 // 60 seconds max
+    currentNotifProcessing = withTimeout(
+      handleEmailNotifications(),
+      timeoutMs,
+      `Email notification processing timed out after ${timeoutMs}ms`,
+    )
 
     currentNotifProcessing
       .then(() => {
@@ -77,7 +96,12 @@ export async function initEmailNotifier() {
 
   setInterval(() => {
     if (currentBatchNotifProcessing) return
-    currentBatchNotifProcessing = handleBatchNotifications()
+    const timeoutMs = 120_000 // 120 seconds max for batch processing
+    currentBatchNotifProcessing = withTimeout(
+      handleBatchNotifications(),
+      timeoutMs,
+      `Batch notification processing timed out after ${timeoutMs}ms`,
+    )
     currentBatchNotifProcessing
       .then(() => {
         // console.log('Batch email notifications handled')
