@@ -58,6 +58,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import {ErrorBoundary, FallbackProps} from 'react-error-boundary'
 import {
   ImperativePanelHandle,
   Panel,
@@ -504,13 +505,7 @@ function InnerDocumentPage(
       // Show the discussions panel with focused comment or block
       panelTitle = tx('Discussions')
       panel = (
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center p-3">
-              <Spinner />
-            </div>
-          }
-        >
+        <PanelWrapper>
           <WebDiscussionsPanel
             commentEditor={commentEditor}
             blockId={activePanel.blockId}
@@ -522,25 +517,19 @@ function InnerDocumentPage(
             originHomeId={originHomeId}
             siteHost={siteHost}
           />
-        </Suspense>
+        </PanelWrapper>
       )
     } else if (activePanel.type === 'activity') {
       // Show the activity feed
       panel = (
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center p-3">
-              <Spinner />
-            </div>
-          }
-        >
+        <PanelWrapper>
           <Feed
             commentEditor={commentEditor}
             filterResource={id.id}
             currentAccount={currentAccount.data?.id.uid}
             filterEventType={activePanel.filterEventType || []}
           />
-        </Suspense>
+        </PanelWrapper>
       )
       panelTitle = tx('Document Activity')
     }
@@ -1143,5 +1132,33 @@ function WebDocumentOutline({
         activeBlockId={id.blockRef}
       />
     </DocNavigationWrapper>
+  )
+}
+
+function PanelError({error, resetErrorBoundary}: FallbackProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 self-stretch bg-red-100 p-3 align-middle">
+      <h3 className="text-xl font-bold text-red-800">Oops, we hit an error!</h3>
+      <p className="text-red-600">{error.message}</p>
+      <Button onClick={resetErrorBoundary} variant="destructive">
+        Retry
+      </Button>
+    </div>
+  )
+}
+
+function PanelLoading() {
+  return (
+    <div className="flex h-full items-center justify-center p-3">
+      <Spinner />
+    </div>
+  )
+}
+
+function PanelWrapper({children}: {children: React.ReactNode}) {
+  return (
+    <Suspense fallback={<PanelLoading />}>
+      <ErrorBoundary FallbackComponent={PanelError}>{children}</ErrorBoundary>
+    </Suspense>
   )
 }
