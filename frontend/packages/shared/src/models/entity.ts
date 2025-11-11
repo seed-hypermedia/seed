@@ -42,7 +42,7 @@ export function createBatchAccountsResolver(client: GRPCClient) {
       } catch (e) {
         console.error(
           `Error loading account ${id}: (error parse failure) `,
-          error.toHex(),
+          Buffer.from(error).toString('hex'),
         )
       }
     })
