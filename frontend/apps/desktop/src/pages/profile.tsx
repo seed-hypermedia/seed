@@ -1,4 +1,5 @@
 import {MainWrapper} from '@/components/main-wrapper'
+import {useSubscribedResource} from '@/models/entities'
 import {useSelectedAccount} from '@/selected-account'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {useResolvedResource} from '@shm/shared/models/entity'
@@ -17,6 +18,8 @@ export default function ProfilePage() {
   const doc = profile.data?.type === 'document' ? profile.data.document : null
   const activityService = useMemo(() => new DesktopActivityService(), [])
   const selectedAccount = useSelectedAccount()
+
+  useSubscribedResource(profileId)
 
   return (
     <PanelContainer>

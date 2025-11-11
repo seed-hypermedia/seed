@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {useSizeObserver} from '@/utils/use-size-observer'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
@@ -8,10 +7,11 @@ import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useIdEntities, useItemsFromId} from '@/models/entities'
+import {useItemsFromId, useSubscribedResourceIds} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
+import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   hmId,
@@ -170,7 +170,7 @@ function BreadcrumbTitle({
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useItemsFromId(entityId)
-  const entityContents = useIdEntities(entityIds)
+  const entityContents = useSubscribedResourceIds(entityIds)
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [itemMaxWidths, setItemMaxWidths] = useState<Record<string, number>>({})

@@ -406,7 +406,7 @@ export function useSubscribedResource(
   return result
 }
 
-export function useIdEntities(
+export function useSubscribedResourceIds(
   ids: Array<UnpackedHypermediaId>,
 ): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
   // @ts-ignore
