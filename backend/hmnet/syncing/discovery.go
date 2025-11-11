@@ -225,6 +225,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 				SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
 			), linked_changes (id) AS (
 				SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
+				AND structural_blobs.extra_attrs->>'deleted' is not true
 				UNION ALL
 				SELECT id from genesis
 			)
@@ -315,8 +316,9 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			AND sb.extra_attrs->>'del' IN (
 				SELECT DISTINCT author
 				FROM structural_blobs
-				WHERE id IN rbsr_blobs
+				WHERE id IN rbsr_blobs 
 			)
+			AND sb.extra_attrs->>'deleted' is not true
 			AND sb.extra_attrs->>'role' = 'AGENT';`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
@@ -342,6 +344,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			FROM rbsr_blobs rb
 			CROSS JOIN structural_blobs sb ON sb.id = rb.id
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
+			WHERE sb.extra_attrs->>'deleted' is not true
 			ORDER BY sb.ts;`
 
 		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
@@ -352,7 +355,6 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 				hash  = row.ColumnBytes(inc())
 			)
 			c := cid.NewCidV1(uint64(codec), hash)
-
 			return store.Insert(ts, strbytes.Bytes(c.KeyString()))
 		}); err != nil {
 			return err
@@ -399,6 +401,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 							SELECT id
 							FROM structural_blobs
 							WHERE extra_attrs->>'tsid' = :tsid
+							AND structural_blobs.extra_attrs->>'deleted' is not true
 							AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
 					if err := sqlitex.Exec(conn, q, nil, tsidMaybe, []byte(space)); err != nil {
 						return err
@@ -431,6 +434,7 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 				FROM structural_blobs sb
 				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 				WHERE resource IN rbsr_iris
+				AND sb.extra_attrs->>'deleted' is not true
 				AND type = 'Ref'`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
@@ -460,6 +464,10 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 		}
 	}
 
+	//blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+	//if err != nil {
+	//	return err
+	//}
 	// Fill Capabilities and the rest of the related blob types.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -468,6 +476,23 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 				WHERE resource IN rbsr_iris
 				AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
+
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return err
+		}
+	}
+	//blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+	//if err != nil {
+	//	return err
+	//}
+	//fmt.Println(blobCountBefore, "->", blobCountAfter)
+	// Fill media files.
+	{
+		const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT target
+				FROM blob_links bl
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
+				WHERE bl.source IN rbsr_blobs`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
