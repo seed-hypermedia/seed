@@ -52,7 +52,7 @@ var qBlobLinksInsertOrIgnore = dqb.Str(`
 `)
 
 var qFTSGetRawContentByGenesis = dqb.Str(`
-	SELECT 
+	SELECT
 	fts.raw_content,
 	ftsi.version
 FROM fts_index ftsi
@@ -62,7 +62,7 @@ AND ftsi.genesis_blob = :FTSGenesisBlob
 `)
 
 var qFTSGetRawContentByBlobID = dqb.Str(`
-	SELECT 
+	SELECT
 	fts.raw_content,
 	ftsi.version
 FROM fts_index ftsi
@@ -232,7 +232,8 @@ var qBlobsGetSize = dqb.Str(`
 `)
 
 func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {
-	rows, check := sqlitex.Query(conn, qBlobsGetGenesis(), id)
+	rows, discard, check := sqlitex.Query(conn, qBlobsGetGenesis(), id)
+	defer discard(&err)
 	for row := range rows {
 		genesis = row.ColumnInt64(0)
 	}

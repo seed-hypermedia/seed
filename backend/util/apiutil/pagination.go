@@ -19,20 +19,22 @@ type Key interface {
 // EncodePageToken creates a page token from the provided value.
 // If the key is not nil, the token will be encrypted, for ensuring its opacity to the client.
 // Encrypted tokens must be decrypted with the same key when decoding them.
-func EncodePageToken(value any, key Key) (string, error) {
+//
+// EncodePageToken may panic if the value cannot be marshaled or encrypted, which means there's a bug in our code.
+func EncodePageToken(value any, key Key) string {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal page token value: %w", err)
+		panic(fmt.Errorf("failed to marshal page token value: %w", err))
 	}
 
 	if key != nil {
 		data, err = key.Encrypt(data)
 		if err != nil {
-			return "", fmt.Errorf("failed to encrypt page token: %w", err)
+			panic(fmt.Errorf("failed to encrypt page token: %w", err))
 		}
 	}
 
-	return base64.RawURLEncoding.EncodeToString(data), nil
+	return base64.RawURLEncoding.EncodeToString(data)
 }
 
 // DecodePageToken decodes the provided page token into the value.

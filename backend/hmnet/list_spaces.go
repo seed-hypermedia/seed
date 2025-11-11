@@ -54,10 +54,7 @@ func (srv *rpcMux) ListSpaces(ctx context.Context, in *p2p.ListSpacesRequest) (*
 		return nil, err
 	}
 
-	out.NextPageToken, err = apiutil.EncodePageToken(pageToken, nil)
-	if err != nil {
-		return nil, err
-	}
+	out.NextPageToken = apiutil.EncodePageToken(pageToken, nil)
 
 	return out, nil
 }

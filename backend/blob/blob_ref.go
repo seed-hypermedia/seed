@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"seed/backend/core"
@@ -454,14 +453,13 @@ type documentGeneration struct {
 }
 
 func (dg *documentGeneration) load(conn *sqlite.Conn, resource, generation int64, genesis string) (err error) {
-	rows, check := sqlitex.Query(conn, qLoadDocumentGeneration(), resource, generation, genesis)
+	rows, discard, check := sqlitex.Query(conn, qLoadDocumentGeneration(), resource, generation, genesis)
+	defer discard(&err)
 	for row := range rows {
 		err = dg.fromRow(row)
 		break
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return err
 	}
 
@@ -478,19 +476,17 @@ func (dg *documentGeneration) load(conn *sqlite.Conn, resource, generation int64
 }
 
 func (dg documentGeneration) loadAllByResource(conn *sqlite.Conn, resource int64) (out []documentGeneration, err error) {
-	rows, check := sqlitex.Query(conn, qLoadGenerationsForResource(), resource)
+	rows, discard, check := sqlitex.Query(conn, qLoadGenerationsForResource(), resource)
+	defer discard(&err)
 	for row := range rows {
 		var dg documentGeneration
-		if ierr := dg.fromRow(row); ierr != nil {
-			err = errors.Join(err, fmt.Errorf("failed to decode document generation from row: %w", ierr))
-			break
+		if err := dg.fromRow(row); err != nil {
+			return nil, fmt.Errorf("failed to decode document generation from row: %w", err)
 		}
 
 		out = append(out, dg)
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -796,7 +792,8 @@ func (cm *changeMetadata) Genesis() int64 {
 }
 
 func (cm *changeMetadata) load(conn *sqlite.Conn, id int64) (err error) {
-	rows, check := sqlitex.Query(conn, qLoadChangeMetadata(), id)
+	rows, discard, check := sqlitex.Query(conn, qLoadChangeMetadata(), id)
+	defer discard(&err)
 	for row := range rows {
 		cm.shouldUpdate = true
 		inc := sqlite.NewIncrementor(0)
@@ -815,8 +812,7 @@ func (cm *changeMetadata) load(conn *sqlite.Conn, id int64) (err error) {
 		break
 	}
 
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return err
 	}
 
@@ -824,13 +820,14 @@ func (cm *changeMetadata) load(conn *sqlite.Conn, id int64) (err error) {
 		return nil
 	}
 
-	rows, check = sqlitex.Query(conn, qLoadChangeDeps(), id)
+	rows, discard, check = sqlitex.Query(conn, qLoadChangeDeps(), id)
+	defer discard(&err)
+
 	for row := range rows {
 		cm.Deps = append(cm.Deps, row.ColumnInt64(0))
 	}
 
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return err
 	}
 

@@ -2,7 +2,6 @@ package documents
 
 import (
 	"context"
-	"errors"
 	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
@@ -156,64 +155,61 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 		args = []any{subjectPrincipal, cursor.ContactID, in.PageSize + 1}
 	}
 
-	conn, release, err := srv.db.Conn(ctx)
-	if err != nil {
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		rows, discard, check := sqlitex.Query(conn, query, args...)
+		defer discard(&err)
+
+		for row := range rows {
+			if len(out.Contacts) == int(in.PageSize) {
+				out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
+				break
+			}
+
+			seq := sqlite.NewIncrementor(0)
+			id := row.ColumnInt64(seq())
+			accountPrincipal := row.ColumnBytes(seq())
+			subjectPrincipal := row.ColumnBytes(seq())
+			name := row.ColumnText(seq())
+			tsid := row.ColumnText(seq())
+			deleted := row.ColumnText(seq())
+			ts := row.ColumnInt64(seq())
+
+			// Skip deleted contacts (should already be filtered by query, but double-check).
+			if deleted == "true" {
+				continue
+			}
+
+			timestamp := time.UnixMilli(ts)
+
+			// Create time is inferred from the original TSID.
+			createTimestamp := blob.TSID(tsid).Timestamp()
+
+			rid := blob.RecordID{Authority: accountPrincipal, TSID: blob.TSID(tsid)}
+
+			proto := &documents.Contact{
+				Id:         rid.String(),
+				Subject:    core.Principal(subjectPrincipal).String(),
+				Name:       name,
+				CreateTime: timestamppb.New(createTimestamp),
+				UpdateTime: timestamppb.New(timestamp),
+				Account:    core.Principal(accountPrincipal).String(),
+			}
+
+			cursor.ContactID = id
+
+			out.Contacts = append(out.Contacts, proto)
+		}
+
+		return check()
+	}); err != nil {
 		return nil, err
-	}
-	defer release()
-
-	rows, check := sqlitex.Query(conn, query, args...)
-	for row := range rows {
-		if len(out.Contacts) == int(in.PageSize) {
-			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
-			break
-		}
-
-		seq := sqlite.NewIncrementor(0)
-		id := row.ColumnInt64(seq())
-		accountPrincipal := row.ColumnBytes(seq())
-		subjectPrincipal := row.ColumnBytes(seq())
-		name := row.ColumnText(seq())
-		tsid := row.ColumnText(seq())
-		deleted := row.ColumnText(seq())
-		ts := row.ColumnInt64(seq())
-
-		// Skip deleted contacts (should already be filtered by query, but double-check).
-		if deleted == "true" {
-			continue
-		}
-
-		timestamp := time.UnixMilli(ts)
-
-		// Create time is inferred from the original TSID.
-		createTimestamp := blob.TSID(tsid).Timestamp()
-
-		rid := blob.RecordID{Authority: accountPrincipal, TSID: blob.TSID(tsid)}
-
-		proto := &documents.Contact{
-			Id:         rid.String(),
-			Subject:    core.Principal(subjectPrincipal).String(),
-			Name:       name,
-			CreateTime: timestamppb.New(createTimestamp),
-			UpdateTime: timestamppb.New(timestamp),
-			Account:    core.Principal(accountPrincipal).String(),
-		}
-
-		cursor.ContactID = id
-
-		out.Contacts = append(out.Contacts, proto)
-	}
-
-	err = errors.Join(err, check())
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to query contacts: %v", err)
 	}
 
 	return out, nil
 }
 
 // GetContact implements Documents API v3.
-func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactRequest) (*documents.Contact, error) {
+func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactRequest) (out *documents.Contact, err error) {
 	if in.Id == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
@@ -249,7 +245,8 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 	`
 
 	var contact *documents.Contact
-	rows, check := sqlitex.Query(conn, query, recordID.Authority.String(), recordID.TSID.String())
+	rows, discard, check := sqlitex.Query(conn, query, recordID.Authority.String(), recordID.TSID.String())
+	defer discard(&err)
 	for row := range rows {
 		seq := sqlite.NewIncrementor(0)
 		accountPrincipal := row.ColumnBytes(seq())
@@ -260,7 +257,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 
 		// If this is a tombstone (deleted contact), return not found
 		if deleted != "" {
-			break
+			return nil, status.Errorf(codes.NotFound, "contact not found")
 		}
 
 		timestamp := time.UnixMilli(ts)
@@ -278,13 +275,8 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 		}
 		break
 	}
-
 	if err := check(); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to query contact: %v", err)
-	}
-
-	if contact == nil {
-		return nil, status.Errorf(codes.NotFound, "contact not found")
 	}
 
 	return contact, nil

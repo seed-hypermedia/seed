@@ -69,9 +69,8 @@ func (srv *rpcMux) ListPeers(ctx context.Context, in *p2p.ListPeersRequest) (*p2
 	if err := srv.Node.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
 			if count == in.PageSize {
-				var err error
-				out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-				return err
+				out.NextPageToken = apiutil.EncodePageToken(lastCursor, nil)
+				return nil
 			}
 			count++
 			id := stmt.ColumnInt64(0)

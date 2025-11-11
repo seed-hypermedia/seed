@@ -117,11 +117,10 @@ func (srv *Server) ListPeers(ctx context.Context, in *networking.ListPeersReques
 		}
 	}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) error {
+		return sqlitex.Exec(conn, qListPeers(), func(stmt *sqlite.Stmt) (err error) {
 			if count == in.PageSize {
-				var err error
-				out.NextPageToken, err = apiutil.EncodePageToken(lastCursor, nil)
-				return err
+				out.NextPageToken = apiutil.EncodePageToken(lastCursor, nil)
+				return nil
 			}
 			count++
 			id := stmt.ColumnInt64(0)

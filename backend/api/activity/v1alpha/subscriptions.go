@@ -147,10 +147,7 @@ func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubs
 
 	var nextPageToken string
 	if lastBlobID != 0 && int(req.PageSize) == len(subscriptions) {
-		nextPageToken, err = apiutil.EncodePageToken(lastBlobID-1, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode next page token: %w", err)
-		}
+		nextPageToken = apiutil.EncodePageToken(lastBlobID-1, nil)
 	}
 
 	return &activity.ListSubscriptionsResponse{

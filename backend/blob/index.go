@@ -292,7 +292,8 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headJSON))
+		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headJSON))
+		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
 			var (
@@ -471,7 +472,8 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headsJSON))
+		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headsJSON))
+		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
 			var (
@@ -576,7 +578,7 @@ func (idx *Index) IsValidWriter(ctx context.Context, space core.Principal, path 
 	return valid, err
 }
 
-func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) ([]int64, error) {
+func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) (out []int64, err error) {
 	if len(heads) == 0 {
 		return nil, fmt.Errorf("BUG: heads must not be empty")
 	}
@@ -586,8 +588,8 @@ func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) ([]int64, error
 		return nil, err
 	}
 
-	var out []int64
-	rows, check := sqlitex.Query(conn, qResolveHeads(), strbytes.String(idsJSON))
+	rows, discard, check := sqlitex.Query(conn, qResolveHeads(), strbytes.String(idsJSON))
+	defer discard(&err)
 	for row := range rows {
 		out = append(out, row.ColumnInt64(0))
 	}
@@ -634,7 +636,8 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 }
 
 func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []generation, err error) {
-	rows, check := sqlitex.Query(conn, qLoadGenerations(), resource, resource)
+	rows, discard, check := sqlitex.Query(conn, qLoadGenerations(), resource, resource)
+	defer discard(&err)
 	for row := range rows {
 		seq := sqlite.NewIncrementor(0)
 		g := generation{
@@ -648,8 +651,7 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 		{
 			isTomb := row.ColumnInt64(seq())
 			if isTomb != 0 && isTomb != 1 {
-				err = fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
-				break
+				return nil, fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
 			}
 
 			g.IsTombstone = isTomb == 1
@@ -659,9 +661,8 @@ func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []genera
 			g.RedirectTarget = IRI(row.ColumnText(seq()))
 		}
 
-		if xerr := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); xerr != nil {
-			err = fmt.Errorf("BUG: failed to unmarshal JSON heads: %w", xerr)
-			break
+		if err := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); err != nil {
+			return nil, err
 		}
 
 		out = append(out, g)
@@ -696,7 +697,8 @@ func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool,
 		return true, nil
 	}
 
-	rows, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON)
+	rows, discard, check := sqlitex.Query(conn, qIsValidWriter(), ownerID, writerID, parentsJSON)
+	defer discard(&err)
 	for range rows {
 		valid = true
 		break
@@ -722,7 +724,8 @@ var qIsValidWriter = dqb.Str(`
 `)
 
 func isValidAgentKey(conn *sqlite.Conn, parentID int64, delegateID int64) (valid bool, err error) {
-	rows, check := sqlitex.Query(conn, qIsValidAgentKey(), parentID, delegateID)
+	rows, discard, check := sqlitex.Query(conn, qIsValidAgentKey(), parentID, delegateID)
+	defer discard(&err)
 	for range rows {
 		valid = true
 		break
@@ -1058,15 +1061,15 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 // IsBlobIndexed returns the current state of the blob.
 func (idx *indexingCtx) IsBlobIndexed(c cid.Cid) (indexed bool, err error) {
 	codec, hash := ipfs.DecodeCID(c)
-	rows, check := sqlitex.Query(idx.conn, qIsBlobIndexed(), codec, hash)
-	defer func() {
-		err = errors.Join(err, check())
-	}()
+	rows, discard, check := sqlitex.Query(idx.conn, qIsBlobIndexed(), codec, hash)
+	defer discard(&err)
 
 	for range rows {
 		indexed = true
 		break
 	}
+
+	err = errors.Join(err, check())
 
 	return indexed, err
 }
@@ -1377,7 +1380,8 @@ func (l *LookupCache) CID(id int64) (c cid.Cid, err error) {
 		return сc, nil
 	}
 
-	rows, check := sqlitex.Query(l.conn, qLookupCID(), id)
+	rows, discard, check := sqlitex.Query(l.conn, qLookupCID(), id)
+	defer discard(&err)
 	for row := range rows {
 		codec := row.ColumnInt64(0)
 		hash := row.ColumnBytesUnsafe(1)
@@ -1411,7 +1415,8 @@ func (l *LookupCache) DocumentTitle(iri IRI) (title string, ok bool, err error) 
 		return title, true, nil
 	}
 
-	rows, check := sqlitex.Query(l.conn, qLookupDocumentTitle(), iri)
+	rows, discard, check := sqlitex.Query(l.conn, qLookupDocumentTitle(), iri)
+	defer discard(&err)
 	for row := range rows {
 		title = row.ColumnText(0)
 		ok = true
@@ -1439,7 +1444,8 @@ func (l *LookupCache) PublicKey(id int64) (out core.Principal, err error) {
 		return key, nil
 	}
 
-	rows, check := sqlitex.Query(l.conn, qLookupPublicKey(), id)
+	rows, discard, check := sqlitex.Query(l.conn, qLookupPublicKey(), id)
+	defer discard(&err)
 	for row := range rows {
 		out = core.Principal(row.ColumnBytes(0))
 		break
@@ -1471,7 +1477,8 @@ func (l *LookupCache) RecordID(c cid.Cid) (rid RecordID, err error) {
 		return recID, nil
 	}
 
-	rows, check := sqlitex.Query(l.conn, qLookupRecordID(), c.Prefix().Codec, c.Hash())
+	rows, discard, check := sqlitex.Query(l.conn, qLookupRecordID(), c.Prefix().Codec, c.Hash())
+	defer discard(&err)
 	for row := range rows {
 		principal := core.Principal(row.ColumnBytes(0))
 		tsid := TSID(row.ColumnText(1))
@@ -1509,7 +1516,8 @@ var qLookupRecordID = dqb.Str(`
 `)
 
 func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger) (err error) {
-	rows, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match)
+	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match)
+	defer discard(&err)
 
 	// We collect the stashed blobs into closures, to avoid nested SQLite queries,
 	// because the result set here would select and update the same table, which sometimes gives unexpected results.
@@ -1524,10 +1532,9 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 			size    = row.ColumnInt64(inc())
 		)
 
-		data, xerr := bs.decompress(rawData, int(size))
-		if xerr != nil {
-			err = xerr
-			break
+		data, err := bs.decompress(rawData, int(size))
+		if err != nil {
+			return err
 		}
 
 		c := cid.NewCidV1(uint64(codec), hash)

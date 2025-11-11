@@ -2,7 +2,6 @@ package documents
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"seed/backend/blob"
@@ -163,9 +162,9 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 		c   cid.Cid
 	)
 
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		var gerr error
-		rows, check := sqlitex.Query(conn, qGetResource(), authority, tsid)
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		rows, discard, check := sqlitex.Query(conn, qGetResource(), authority, tsid)
+		defer discard(&err)
 		for row := range rows {
 			seq := sqlite.NewIncrementor(0)
 			var (
@@ -179,18 +178,15 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 			data := make([]byte, 0, size)
 			data, err := srv.idx.Decompress(dataZipped, data)
 			if err != nil {
-				gerr = err
-				break
+				return err
 			}
 
 			out, err = decodeSnapshotBlob(btype, data)
 			if err != nil {
-				gerr = err
-				break
+				return err
 			}
 		}
-
-		return errors.Join(gerr, check())
+		return check()
 	}); err != nil {
 		return nil, err
 	}

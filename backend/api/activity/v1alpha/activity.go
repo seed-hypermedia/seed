@@ -568,10 +568,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			}
 		}
 		if minTS != 0 {
-			nextPageToken, err = apiutil.EncodePageToken(minTS-1, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to encode next page token: %w", err)
-			}
+			nextPageToken = apiutil.EncodePageToken(minTS-1, nil)
 		}
 	}
 

@@ -2,7 +2,6 @@ package blob
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net/url"
 	"seed/backend/core"
@@ -403,15 +402,14 @@ type spaceCommentStats struct {
 func (sm *spaceCommentStats) load(conn *sqlite.Conn, spaceID string) (err error) {
 	sm.ID = spaceID
 
-	rows, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID)
+	rows, discard, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID)
+	defer discard(&err)
 	for row := range rows {
 		sm.shouldUpdate = true
 		row.Scan(&sm.LastComment, &sm.LastCommentTime, &sm.CommentCount)
 		break
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return err
 	}
 

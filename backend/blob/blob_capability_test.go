@@ -5,7 +5,6 @@ import (
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
-	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 
@@ -43,15 +42,7 @@ func TestOutOfOrderCapability(t *testing.T) {
 }
 
 func countStashedBlobs(t *testing.T, db *sqlitex.Pool) int {
-	var count int
-	err := db.WithSave(t.Context(), func(conn *sqlite.Conn) error {
-		rows, check := sqlitex.Query(conn, "SELECT count() FROM stashed_blobs")
-		for row := range rows {
-			count = row.ColumnInt(0)
-			break
-		}
-		return check()
-	})
+	count, err := sqlitex.QueryOnePool[int](t.Context(), db, "SELECT count() FROM stashed_blobs")
 	require.NoError(t, err)
 	return count
 }

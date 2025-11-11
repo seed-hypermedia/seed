@@ -2,9 +2,7 @@ package documents
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"iter"
 	"math"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
@@ -152,27 +150,27 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse target path '%s': %v", in.TargetPath, err)
 	}
 
-	// TODO(burdiyan): implement pagination.
-	resp := &documents.ListCommentsResponse{}
-
-	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.ListCommentsResponse, error) {
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (resp *documents.ListCommentsResponse, err error) {
+		resp = &documents.ListCommentsResponse{}
+		mapper := srv.commentDBMapper()
 		lookup := blob.NewLookupCache(conn)
-		var outErr error
-		comments, check := srv.iterComments(conn, iri)
-		for cmt := range comments {
-			pb, err := commentToProto(lookup, cmt.CID, cmt.Comment, cmt.TSID)
-			if err != nil {
-				outErr = err
-				break
+
+		comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, qIterComments(), iri)
+		defer discard(&err)
+		for comment := range comments {
+			// Checking error from the mapper in case there's something wrong in the decoding from the database.
+			if err := mapper.Err(); err != nil {
+				return nil, err
 			}
+
+			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
+			if err != nil {
+				return nil, err
+			}
+
 			resp.Comments = append(resp.Comments, pb)
 		}
-		outErr = errors.Join(outErr, check())
-		if outErr != nil {
-			return nil, outErr
-		}
-
-		return resp, nil
+		return resp, check()
 	})
 }
 
@@ -199,38 +197,33 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 		}
 	}
 
-	resp := &documents.ListCommentsResponse{
-		Comments: make([]*documents.Comment, 0, min(in.PageSize, maxPageAllocBuffer)),
-	}
+	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (resp *documents.ListCommentsResponse, err error) {
+		resp = &documents.ListCommentsResponse{
+			Comments: make([]*documents.Comment, 0, min(in.PageSize, maxPageAllocBuffer)),
+		}
 
-	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.ListCommentsResponse, error) {
+		mapper := srv.commentDBMapper()
 		lookup := blob.NewLookupCache(conn)
-		var outErr error
-		comments, check := srv.iterCommentsByAuthor(ctx, author, cursor.CommentID, in.PageSize+1)
+
+		comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, qIterCommentsByAuthor(), author, cursor.CommentID, in.PageSize+1)
+		defer discard(&err)
+
 		for result := range comments {
 			if len(resp.Comments) == int(in.PageSize) {
-				resp.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
-				if err != nil {
-					return nil, status.Errorf(codes.Internal, "failed to encode page token: %v", err)
-				}
+				resp.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 				break
 			}
 
 			pb, err := commentToProto(lookup, result.CID, result.Comment, result.TSID)
 			if err != nil {
-				outErr = err
-				break
+				return nil, err
 			}
-			resp.Comments = append(resp.Comments, pb)
 
+			resp.Comments = append(resp.Comments, pb)
 			cursor.CommentID = result.DBID
 		}
-		outErr = errors.Join(outErr, check())
-		if outErr != nil {
-			return nil, outErr
-		}
 
-		return resp, nil
+		return resp, check()
 	})
 }
 
@@ -241,52 +234,54 @@ type indexedComment struct {
 	Comment *blob.Comment
 }
 
-func (srv *Server) iterComments(conn *sqlite.Conn, resource blob.IRI) (it iter.Seq[indexedComment], check func() error) {
-	var outErr error
+type commentDBMapper struct {
+	srv *Server
+	err error
+	buf []byte
+}
 
-	check = func() error { return outErr }
-	it = func(yield func(indexedComment) bool) {
-		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterComments(), resource)
-		for row := range rows {
-			seq := sqlite.NewIncrementor(0)
-			var (
-				id    = row.ColumnInt64(seq())
-				codec = row.ColumnInt64(seq())
-				hash  = row.ColumnBytesUnsafe(seq())
-				data  = row.ColumnBytesUnsafe(seq())
-				tsid  = row.ColumnText(seq())
-			)
+func (m *commentDBMapper) HandleRow(stmt *sqlite.Stmt) indexedComment {
+	seq := sqlite.NewIncrementor(0)
+	var (
+		id    = stmt.ColumnInt64(seq())
+		codec = stmt.ColumnInt64(seq())
+		hash  = stmt.ColumnBytesUnsafe(seq())
+		data  = stmt.ColumnBytesUnsafe(seq())
+		tsid  = stmt.ColumnText(seq())
+	)
 
-			buf, err := srv.idx.Decompress(data, buf)
-			if err != nil {
-				outErr = err
-				break
-			}
+	// Reset the buffer before decoding.
+	m.buf = m.buf[:0]
 
-			c := cid.NewCidV1(uint64(codec), hash)
-			cmt := &blob.Comment{}
-			if err := cbornode.DecodeInto(buf, cmt); err != nil {
-				outErr = fmt.Errorf("WalkChanges: failed to decode change %s for entity %s: %w", c, resource, err)
-				break
-			}
-
-			if !yield(indexedComment{
-				DBID:    id,
-				CID:     c,
-				TSID:    blob.TSID(tsid),
-				Comment: cmt,
-			}) {
-				break
-			}
-
-			buf = buf[:0] // reset the slice reusing the backing array
-		}
-
-		outErr = errors.Join(outErr, check())
+	m.buf, m.err = m.srv.idx.Decompress(data, m.buf)
+	if m.err != nil {
+		return indexedComment{}
 	}
 
-	return it, check
+	c := cid.NewCidV1(uint64(codec), hash)
+	cmt := &blob.Comment{}
+	m.err = cbornode.DecodeInto(m.buf, cmt)
+	if m.err != nil {
+		return indexedComment{}
+	}
+
+	return indexedComment{
+		DBID:    id,
+		CID:     c,
+		TSID:    blob.TSID(tsid),
+		Comment: cmt,
+	}
+}
+
+func (m *commentDBMapper) Err() error {
+	return m.err
+}
+
+func (srv *Server) commentDBMapper() *commentDBMapper {
+	return &commentDBMapper{
+		srv: srv,
+		buf: make([]byte, 0, 1024*1024),
+	}
 }
 
 var qIterComments = dqb.Str(`
@@ -309,61 +304,6 @@ var qIterComments = dqb.Str(`
 	AND sb.extra_attrs->>'deleted' IS NULL
 	ORDER BY sb.ts
 `)
-
-func (srv *Server) iterCommentsByAuthor(ctx context.Context, author core.Principal, afterID int64, limit int32) (it iter.Seq[indexedComment], check func() error) {
-	var outErr error
-
-	check = func() error { return outErr }
-	it = func(yield func(indexedComment) bool) {
-		conn, release, err := srv.db.Conn(ctx)
-		if err != nil {
-			outErr = err
-			return
-		}
-		defer release()
-
-		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, check := sqlitex.Query(conn, qIterCommentsByAuthor(), author, afterID, limit)
-		for row := range rows {
-			seq := sqlite.NewIncrementor(0)
-			var (
-				sbID  = row.ColumnInt64(seq())
-				codec = row.ColumnInt64(seq())
-				hash  = row.ColumnBytesUnsafe(seq())
-				data  = row.ColumnBytesUnsafe(seq())
-				tsid  = row.ColumnText(seq())
-			)
-
-			buf, err = srv.idx.Decompress(data, buf)
-			if err != nil {
-				outErr = err
-				break
-			}
-
-			chcid := cid.NewCidV1(uint64(codec), hash)
-			cmt := &blob.Comment{}
-			if err := cbornode.DecodeInto(buf, cmt); err != nil {
-				outErr = fmt.Errorf("IterCommentsByAuthor: failed to decode comment %s for author %s: %w", chcid, author, err)
-				break
-			}
-
-			if !yield(indexedComment{
-				DBID:    sbID,
-				CID:     chcid,
-				Comment: cmt,
-				TSID:    blob.TSID(tsid),
-			}) {
-				break
-			}
-
-			buf = buf[:0] // reset the slice reusing the backing array
-		}
-
-		outErr = errors.Join(outErr, check())
-	}
-
-	return it, check
-}
 
 var qIterCommentsByAuthor = dqb.Str(`
 	SELECT
@@ -388,7 +328,7 @@ var qIterCommentsByAuthor = dqb.Str(`
 	LIMIT :limit
 `)
 
-func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (indexedComment, error) {
+func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComment, err error) {
 	var (
 		query string
 		args  []any
@@ -410,50 +350,21 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (indexedComment, 
 		}
 	}
 
+	mapper := srv.commentDBMapper()
+	comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, query, args...)
+	defer discard(&err)
+
 	var icmt indexedComment
-	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-	rows, check := sqlitex.Query(conn, query, args...)
-	var err error
-	for row := range rows {
-		seq := sqlite.NewIncrementor(0)
-		var (
-			sbID  = row.ColumnInt64(seq())
-			codec = row.ColumnInt64(seq())
-			hash  = row.ColumnBytesUnsafe(seq())
-			data  = row.ColumnBytesUnsafe(seq())
-			tsid  = row.ColumnText(seq())
-		)
-
-		buf, err = srv.idx.Decompress(data, buf)
-		if err != nil {
-			break
-		}
-
-		chcid := cid.NewCidV1(uint64(codec), hash)
-		cmt := &blob.Comment{}
-
-		err = cbornode.DecodeInto(buf, cmt)
-		if err != nil {
-			err = fmt.Errorf("getComment: failed to decode comment %s: %w", chcid, err)
-			break
-		}
-
+	for cmt := range comments {
 		// Check if the comment is marked as deleted
-		if cmt.Body == nil || len(cmt.Body) == 0 {
-			err = status.Errorf(codes.NotFound, "comment %s not found", idRaw)
-			break
+		if cmt.Comment.Body == nil || len(cmt.Comment.Body) == 0 {
+			return out, status.Errorf(codes.NotFound, "comment %s has been deleted", idRaw)
 		}
-
-		icmt = indexedComment{
-			DBID:    sbID,
-			CID:     chcid,
-			Comment: cmt,
-			TSID:    blob.TSID(tsid),
-		}
+		icmt = cmt
 		break
 	}
-	if err := errors.Join(err, check()); err != nil {
-		return indexedComment{}, err
+	if err := check(); err != nil {
+		return out, err
 	}
 
 	if icmt.Comment == nil {
@@ -498,7 +409,7 @@ WHERE bl.target = (
    SELECT id
    FROM structural_blobs sb
    WHERE sb.type = 'Comment'
-   AND sb.extra_attrs->>'deleted' is not true 
+   AND sb.extra_attrs->>'deleted' is not true
    AND sb.author = (SELECT id FROM public_keys WHERE principal = :authority)
    AND sb.extra_attrs->>'tsid' = :tsid
 )

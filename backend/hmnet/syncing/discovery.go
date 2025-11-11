@@ -312,7 +312,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
 			SELECT sb.id
 			FROM structural_blobs sb
-			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+			LEFT JOIN stashed_blobs ON stashed_blobs.id = sb.id
 			WHERE resource IN rbsr_iris
 			AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
 

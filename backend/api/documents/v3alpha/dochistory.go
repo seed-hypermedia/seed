@@ -108,10 +108,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 
 	if nextCursor != "" {
 		cursor.StartFrom = nextCursor
-		out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
-		if err != nil {
-			return nil, err
-		}
+		out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 	}
 
 	return out, err

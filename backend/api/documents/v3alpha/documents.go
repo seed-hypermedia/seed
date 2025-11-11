@@ -379,18 +379,19 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...)
+	defer discard(&err)
+
 	for row := range rows {
 		if count == in.PageSize {
-			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
 		count++
 
-		item, ierr := documentInfoFromRow(lookup, row)
-		if ierr != nil {
-			err = ierr
-			break
+		item, err := documentInfoFromRow(lookup, row)
+		if err != nil {
+			return nil, err
 		}
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
@@ -398,9 +399,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		out.Documents = append(out.Documents, item)
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -491,10 +490,11 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...)
+	defer discard(&err)
 	for row := range rows {
 		if count == in.PageSize {
-			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
 		count++
@@ -509,9 +509,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		cursor.ActivityTime = item.LastActivityTime
 		cursor.ID = item.SpaceID
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -553,7 +551,8 @@ func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountReque
 
 	lookup := blob.NewLookupCache(conn)
 
-	rows, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...)
+	defer discard(&err)
 	for row := range rows {
 		item, err := srv.accountFromRow(row, lookup)
 		if err != nil {
@@ -561,10 +560,9 @@ func (srv *Server) GetAccount(ctx context.Context, in *documents.GetAccountReque
 		}
 
 		out = item.Proto
+		break
 	}
-
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -608,17 +606,17 @@ func (srv *Server) BatchGetAccounts(ctx context.Context, in *documents.BatchGetA
 		qb := srv.baseAccountQuery()
 		qb = qb.Where("spaces.id = ?")
 
-		rows, check := sqlitex.Query(conn, qb.String(), id)
+		rows, discard, check := sqlitex.Query(conn, qb.String(), id)
+		defer discard(&err)
 		for row := range rows {
 			item, err := srv.accountFromRow(row, lookup)
 			if err != nil {
 				return nil, err
 			}
 			out = item.Proto
+			break
 		}
-
-		err = errors.Join(err, check())
-		if err != nil {
+		if err := check(); err != nil {
 			return nil, err
 		}
 
@@ -884,7 +882,7 @@ func (srv *Server) UpdateProfile(ctx context.Context, in *documents.UpdateProfil
 }
 
 // ListRootDocuments implements Documents API v3.
-func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (*documents.ListRootDocumentsResponse, error) {
+func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (out *documents.ListRootDocumentsResponse, err error) {
 	var cursor = struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
@@ -903,7 +901,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		in.PageSize = 30
 	}
 
-	out := &documents.ListRootDocumentsResponse{
+	out = &documents.ListRootDocumentsResponse{
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
@@ -933,18 +931,19 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...)
+	defer discard(&err)
+
 	for row := range rows {
 		if count == in.PageSize {
-			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
 		count++
 
-		item, ierr := documentInfoFromRow(lookup, row)
-		if ierr != nil {
-			err = ierr
-			break
+		item, err := documentInfoFromRow(lookup, row)
+		if err != nil {
+			return nil, err
 		}
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
@@ -954,8 +953,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		out.Documents = append(out.Documents, item)
 	}
 
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -963,7 +961,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 }
 
 // ListDocuments implements Documents API v3.
-func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (*documents.ListDocumentsResponse, error) {
+func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (out *documents.ListDocumentsResponse, err error) {
 	var cursor = struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
@@ -982,7 +980,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		in.PageSize = defaultPageSize
 	}
 
-	out := &documents.ListDocumentsResponse{
+	out = &documents.ListDocumentsResponse{
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
@@ -1026,18 +1024,18 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...)
+	defer discard(&err)
 	for row := range rows {
 		if count == in.PageSize {
-			out.NextPageToken, err = apiutil.EncodePageToken(cursor, nil)
+			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
 		count++
 
-		item, ierr := documentInfoFromRow(lookup, row)
-		if ierr != nil {
-			err = ierr
-			break
+		item, err := documentInfoFromRow(lookup, row)
+		if err != nil {
+			return nil, err
 		}
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
@@ -1047,8 +1045,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		out.Documents = append(out.Documents, item)
 	}
 
-	err = errors.Join(err, check())
-	if err != nil {
+	if err := check(); err != nil {
 		return nil, err
 	}
 
@@ -1057,12 +1054,15 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
 	q := baseListDocumentsQuery().Where("r.iri = ?").String()
-	rows, check := sqlitex.Query(conn, q, iri, 0) // 0 is the page size parameter.
-	defer func() {
-		err = errors.Join(err, check())
-	}()
+	rows, discard, check := sqlitex.Query(conn, q, iri, 0) // 0 is the page size parameter.
+	defer discard(&err)
+
 	for row := range rows {
 		return documentInfoFromRow(lookup, row)
+	}
+
+	if err := check(); err != nil {
+		return nil, err
 	}
 
 	return nil, status.Errorf(codes.NotFound, "document with IRI %s is not found", iri)
