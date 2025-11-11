@@ -4,6 +4,7 @@ import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
 import {
   getCommentGroups,
+  HMCommentSchema,
   hmIdPathToEntityQueryPath,
   unpackHmId,
 } from '@shm/shared'
@@ -40,9 +41,13 @@ export const loader = async ({
       pageSize: BIG_INT,
     })
 
-    const allComments = data.comments.map(
-      (comment) => comment.toJson({emitDefaultValues: true}) as HMComment,
-    )
+    const allComments = data.comments
+      .map((comment) => comment.toJson({emitDefaultValues: true}) as HMComment)
+      .map((comment) => {
+        const parsed = HMCommentSchema.safeParse(comment)
+        return (parsed.success ? parsed.data : null) as HMComment | null
+      })
+      .filter(Boolean) as HMComment[] // filter out invalid comments
     commentGroups = getCommentGroups(allComments, undefined)
 
     commentGroups.forEach((group) => {
@@ -79,9 +84,13 @@ export const loader = async ({
             targetPath: hmIdPathToEntityQueryPath(commentTargetId.path),
             pageSize: BIG_INT,
           })
-          const comments = commentsQuery.comments.map((c) =>
-            c.toJson({emitDefaultValues: true}),
-          ) as Array<HMComment>
+          const comments = commentsQuery.comments
+            .map((c) => c.toJson({emitDefaultValues: true}))
+            .map((comment) => {
+              const parsed = HMCommentSchema.safeParse(comment)
+              return (parsed.success ? parsed.data : null) as HMComment | null
+            })
+            .filter(Boolean) as HMComment[] // filter out invalid comments
           const citingComment = comments.find(
             (comment) => comment.id === c.source.slice(5),
           )
