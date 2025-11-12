@@ -201,6 +201,11 @@ func TestListAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	list, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{})
+	require.NoError(t, err)
+
+	rootDocInfo := list.Documents[0]
+
 	aliceAcc := &documents.Account{
 		Id:       aliceRoot.Account,
 		Metadata: aliceRoot.Metadata,
@@ -209,6 +214,7 @@ func TestListAccounts(t *testing.T) {
 			LatestChangeTime:  aliceRoot.UpdateTime,
 			LatestCommentTime: nil,
 		},
+		HomeDocumentInfo: rootDocInfo,
 	}
 
 	accs, err := alice.ListAccounts(ctx, &documents.ListAccountsRequest{})
@@ -229,6 +235,12 @@ func TestListAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	list, err = bob.ListDocuments(ctx, &documents.ListDocumentsRequest{})
+	require.NoError(t, err)
+	require.Len(t, list.Documents, 1)
+
+	bobRootInfo := list.Documents[0]
+
 	bobAcc := &documents.Account{
 		Id:       bobRoot.Account,
 		Metadata: bobRoot.Metadata,
@@ -237,6 +249,7 @@ func TestListAccounts(t *testing.T) {
 			LatestChangeTime:  bobRoot.UpdateTime,
 			LatestCommentTime: nil,
 		},
+		HomeDocumentInfo: bobRootInfo,
 	}
 
 	accs, err = bob.ListAccounts(ctx, &documents.ListAccountsRequest{})

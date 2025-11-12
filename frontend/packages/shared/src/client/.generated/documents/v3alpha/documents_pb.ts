@@ -863,12 +863,16 @@ export class Account extends Message<Account> {
   /**
    * Metadata attributes from the root document of this account's Space.
    *
+   * Deprecated: Use `home_document_info` instead.
+   *
    * @generated from field: google.protobuf.Struct metadata = 2;
    */
   metadata?: Struct;
 
   /**
    * Summary of the activity in the entire account.
+   *
+   * Deprecated: Use `home_document_info` instead.
    *
    * @generated from field: com.seed.documents.v3alpha.ActivitySummary activity_summary = 3;
    */
@@ -899,6 +903,14 @@ export class Account extends Message<Account> {
    */
   profile?: Profile;
 
+  /**
+   * Information about the home document of this account.
+   * It can be null if we don't have the home document for this account.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentInfo home_document_info = 7;
+   */
+  homeDocumentInfo?: DocumentInfo;
+
   constructor(data?: PartialMessage<Account>) {
     super();
     proto3.util.initPartial(data, this);
@@ -913,6 +925,7 @@ export class Account extends Message<Account> {
     { no: 4, name: "is_subscribed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "alias_account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "profile", kind: "message", T: Profile },
+    { no: 7, name: "home_document_info", kind: "message", T: DocumentInfo },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Account {

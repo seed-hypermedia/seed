@@ -279,9 +279,13 @@ message Account {
   string id = 1;
 
   // Metadata attributes from the root document of this account's Space.
+  //
+  // Deprecated: Use `home_document_info` instead.
   google.protobuf.Struct metadata = 2;
 
   // Summary of the activity in the entire account.
+  //
+  // Deprecated: Use `home_document_info` instead.
   ActivitySummary activity_summary = 3;
 
   // Whether the user is subscribed to this account.
@@ -296,6 +300,10 @@ message Account {
   // Optional. Profile information about the account.
   // Can be missing if there's no Profile blob for this account.
   Profile profile = 6;
+
+  // Information about the home document of this account.
+  // It can be null if we don't have the home document for this account.
+  DocumentInfo home_document_info = 7;
 }
 
 // Profile describes properties of an account.

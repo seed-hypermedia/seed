@@ -513,6 +513,17 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 		return nil, err
 	}
 
+	// Now for each account in the list we need to load their home document info.
+	// TODO(burdiyan): this is far from idea. We should find a better way to do it.
+
+	for _, acc := range out.Accounts {
+		iri := blob.IRI("hm://" + acc.Id)
+		acc.HomeDocumentInfo, err = getDocumentInfo(conn, lookup, iri)
+		if err != nil && status.Code(err) != codes.NotFound {
+			return nil, fmt.Errorf("failed to load home document info for account %s: %v", acc.Id, err)
+		}
+	}
+
 	return out, nil
 }
 
@@ -625,7 +636,8 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 }
 
 func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, id string) (out *documents.Account, err error) {
-	if _, err := core.DecodePrincipal(id); err != nil {
+	acc, err := core.DecodePrincipal(id)
+	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", id, err)
 	}
 
@@ -648,6 +660,22 @@ func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, i
 
 	if out == nil {
 		return nil, status.Errorf(codes.NotFound, "account %s is not found", id)
+	}
+
+	iri, err := blob.NewIRI(acc, "")
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := getDocumentInfo(conn, lookup, iri)
+	if err != nil {
+		// If the error is not found we handle it gracefully,
+		// and simply won't set the home document info.
+		if status.Code(err) != codes.NotFound {
+			return nil, err
+		}
+	} else {
+		out.HomeDocumentInfo = info
 	}
 
 	return out, nil
