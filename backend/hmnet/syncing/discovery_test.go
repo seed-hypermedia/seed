@@ -12,7 +12,7 @@ import (
 )
 
 func TestLoadExternalStore(t *testing.T) {
-	//t.Skip("This uses external database for local test only")
+	t.Skip("This uses external database for local test only")
 	t.Parallel()
 	pool := loadLocalDB(t, "/home/julio/.config/Seed-local/daemon/db/db.sqlite")
 	store := rbsr.NewSliceStore()
