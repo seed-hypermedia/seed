@@ -25,7 +25,6 @@ message SyncResourceWithPeerRequest {
   string resource = 2;
 }
 
-SyncResourceWithPeerResponse
 message ReconcileBlobsRequest {
   // Optional. Filters to narrow down the blobs to reconcile.
   // If not set, all public blobs are reconciled.
