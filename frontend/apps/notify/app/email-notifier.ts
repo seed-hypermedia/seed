@@ -3,18 +3,20 @@ import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
   BlockNode,
-  Comment,
   createWebHMUrl,
   entityQueryPathToHmIdPath,
   Event,
   getAnnotations,
   HMBlockNode,
   HMBlockNodeSchema,
+  HMComment,
+  HMCommentSchema,
   HMDocument,
   HMDocumentMetadataSchema,
   hmId,
   HMMetadata,
   HMMetadataPayload,
+  UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
@@ -145,6 +147,8 @@ async function handleBatchNotifications() {
     } catch (error) {
       console.error('Error sending batch notifications', error)
     } finally {
+      // even if there is an error, we still want to mark the events as processed.
+      // so that we don't attempt to process the same events again.
       setBatchNotifierLastSendTime(new Date())
       setBatchNotifierLastProcessedBlobCid(lastBlobCid)
     }
@@ -206,8 +210,15 @@ async function handleImmediateNotificationsAfterBlobCid(
 ) {
   const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
   if (eventsToProcess.length === 0) return
-  await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
-  await markEventsAsProcessed(eventsToProcess)
+  try {
+    await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
+  } catch (error) {
+    console.error('Error handling immediate notifications', error)
+  } finally {
+    // even if there is an error, we still want to mark the events as processed.
+    // so that we don't attempt to process the same events again.
+    await markEventsAsProcessed(eventsToProcess)
+  }
 }
 
 async function handleEmailNotifs(
@@ -257,165 +268,15 @@ async function handleEmailNotifs(
     })
   }
 
-  const newComments: {
-    comment: PlainMessage<Comment>
-    parentAuthors: Set<string>
-    parentComments: PlainMessage<Comment>[]
-    commentAuthorMeta: HMMetadata | null
-    targetMeta: HMMetadata | null
-    mentions: Set<string>
-  }[] = []
   for (const event of events) {
-    if (event.data.case === 'newBlob') {
-      const blob = event.data.value
-      if (blob.blobType === 'Ref') {
-        const refEvent = await loadRefEvent(event)
-      }
-      if (blob.blobType !== 'Comment') continue
-      const comment = await grpcClient.comments.getComment({id: blob.cid})
-      const parentComments = await getParentComments(comment)
-      let commentAuthorMeta = null
-      let targetMeta = null
-
-      try {
-        commentAuthorMeta = (await getAccount(comment.author)).metadata
-      } catch (error) {
-        console.error(`Error getting comment author ${comment.author}:`, error)
-      }
-
-      try {
-        targetMeta = (
-          await getMetadata(
-            hmId(comment.targetAccount, {
-              path: entityQueryPathToHmIdPath(comment.targetPath),
-            }),
-          )
-        ).metadata
-      } catch (error) {
-        console.error(
-          `Error getting target metadata for ${comment.targetAccount}:`,
-          error,
-        )
-      }
-
-      newComments.push({
-        comment: toPlainMessage(comment),
-        parentComments,
-        parentAuthors: new Set(), // Not used anymore
-        commentAuthorMeta,
-        targetMeta,
-        mentions: new Set(), // Not used anymore
-      })
-    }
-  }
-  for (const newComment of newComments) {
-    const comment = newComment.comment
-    // const targetDocUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${
-    //   comment.targetAccount
-    // }${comment.targetPath}`
-
-    // Create comment-specific URL for comment-related notifications
-    const commentIdParts = comment.id.split('/')
-    const commentTSID = commentIdParts[1]
-    if (!commentTSID) {
-      console.error('Invalid comment ID format:', comment.id)
-      continue
-    }
-    const commentUrl = createWebHMUrl(comment.author, {
-      path: [commentTSID],
-      hostname: SITE_BASE_URL.replace(/\/$/, ''),
-    })
-
-    const targetDocId = hmId(comment.targetAccount, {
-      path: entityQueryPathToHmIdPath(comment.targetPath),
-    })
-
-    // Get all mentioned users in this comment
-    const mentionedUsers = new Set<string>()
-    for (const rawBlockNode of comment.content) {
-      const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-      // @ts-expect-error
-      for (const annotation of blockNode.block?.annotations || []) {
-        if (annotation.type === 'Embed') {
-          const hmId = unpackHmId(annotation.link)
-          if (hmId && !hmId.path?.length) {
-            mentionedUsers.add(hmId.uid)
-          }
-        }
-      }
-    }
-
-    // Get the parent comment author for reply notifications
-    let parentCommentAuthor: string | null = null
-    if (comment.replyParent) {
-      try {
-        const parentComment = await getComment(comment.replyParent)
-        if (parentComment) {
-          parentCommentAuthor = parentComment.author
-        }
-      } catch (error) {
-        console.error(
-          `Error getting parent comment ${comment.replyParent}:`,
-          error,
-        )
-      }
-    }
-
-    for (const sub of allSubscriptions) {
-      if (sub.notifyAllMentions && mentionedUsers.has(sub.id)) {
-        const subjectAccountMeta = await getAccount(sub.id)
-        if (!subjectAccountMeta) {
-          throw new Error(`Error getting subject account meta for ${sub.id}`)
-        }
-        appendNotification(sub, {
-          reason: 'mention',
-          source: 'comment',
-          authorAccountId: comment.author,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: commentUrl,
-          subjectAccountId: sub.id,
-          subjectAccountMeta: subjectAccountMeta.metadata,
-        })
-      }
-      if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
-        appendNotification(sub, {
-          reason: 'reply',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: commentUrl,
-        })
-      }
-      if (
-        sub.id === comment.targetAccount &&
-        !comment.threadRoot &&
-        sub.notifySiteDiscussions
-      ) {
-        appendNotification(sub, {
-          reason: 'site-new-discussion',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: commentUrl,
-        })
-      }
-      if (sub.notifyAllComments && sub.id === comment.author) {
-        appendNotification(sub, {
-          reason: 'user-comment',
-          comment: newComment.comment,
-          parentComments: newComment.parentComments,
-          authorMeta: newComment.commentAuthorMeta,
-          targetMeta: newComment.targetMeta,
-          targetId: targetDocId,
-          url: commentUrl,
-        })
-      }
+    try {
+      await evaluateEventForNotifications(
+        event,
+        allSubscriptions,
+        appendNotification,
+      )
+    } catch (error) {
+      console.error('Error evaluating event for notifications', error)
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
@@ -431,6 +292,210 @@ async function handleEmailNotifs(
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
       await sendEmail(email, subject, {text, html})
+    }
+  }
+}
+
+async function evaluateEventForNotifications(
+  event: PlainMessage<Event>,
+  allSubscriptions: BaseSubscription[],
+  appendNotification: (
+    subscription: BaseSubscription,
+    notif: Notification,
+  ) => Promise<void>,
+) {
+  if (event.data.case === 'newBlob') {
+    const blob = event.data.value
+    if (blob.blobType === 'Ref') {
+      const refEvent = await loadRefEvent(event)
+      await evaluateDocUpdateForNotifications(
+        refEvent,
+        allSubscriptions,
+        appendNotification,
+      )
+    }
+    if (blob.blobType === 'Comment') {
+      const serverComment = await grpcClient.comments.getComment({id: blob.cid})
+      const rawComment = toPlainMessage(serverComment)
+      const comment = HMCommentSchema.parse(rawComment)
+      await evaluateNewCommentForNotifications(
+        comment,
+        allSubscriptions,
+        appendNotification,
+      )
+    }
+  }
+}
+
+async function evaluateDocUpdateForNotifications(
+  refEvent: {
+    newMentions: MentionMap
+    isNewDocument: boolean
+    openUrl: string
+    metadata: HMMetadata
+    id: UnpackedHypermediaId
+    authorId: string
+    authorMeta: HMMetadata
+  },
+  allSubscriptions: BaseSubscription[],
+  appendNotification: (
+    subscription: BaseSubscription,
+    notif: Notification,
+  ) => Promise<void>,
+) {
+  console.log('~~ evaluateDocUpdateForNotifications', refEvent)
+  for (const sub of allSubscriptions) {
+    if (sub.notifyAllMentions && refEvent.newMentions[sub.id]) {
+      const subjectAccountMeta = (await getAccount(sub.id)).metadata
+      appendNotification(sub, {
+        reason: 'mention',
+        source: 'document',
+        authorAccountId: refEvent.authorId,
+        authorMeta: refEvent.authorMeta,
+        targetMeta: refEvent.metadata,
+        subjectAccountId: sub.id,
+        subjectAccountMeta,
+        targetId: refEvent.id,
+        url: refEvent.openUrl,
+      })
+    }
+    // if (sub.notifyOwnedDocChange) {} // TODO: implement this
+  }
+}
+
+async function evaluateNewCommentForNotifications(
+  comment: HMComment,
+  allSubscriptions: BaseSubscription[],
+  appendNotification: (
+    subscription: BaseSubscription,
+    notif: Notification,
+  ) => Promise<void>,
+) {
+  const parentComments = await getParentComments(comment)
+  let commentAuthorMeta = null
+  let targetMeta = null
+
+  try {
+    commentAuthorMeta = (await getAccount(comment.author)).metadata
+  } catch (error) {
+    console.error(`Error getting comment author ${comment.author}:`, error)
+  }
+
+  try {
+    targetMeta = (
+      await getMetadata(
+        hmId(comment.targetAccount, {
+          path: entityQueryPathToHmIdPath(comment.targetPath),
+        }),
+      )
+    ).metadata
+  } catch (error) {
+    console.error(
+      `Error getting target metadata for ${comment.targetAccount}:`,
+      error,
+    )
+  }
+
+  // Create comment-specific URL for comment-related notifications
+  const commentIdParts = comment.id.split('/')
+  const commentTSID = commentIdParts[1]
+  if (!commentTSID) {
+    throw new Error('Invalid comment ID format: ' + comment.id)
+  }
+  const commentUrl = createWebHMUrl(comment.author, {
+    path: [commentTSID],
+    hostname: SITE_BASE_URL.replace(/\/$/, ''),
+  })
+
+  const targetDocId = hmId(comment.targetAccount, {
+    path: entityQueryPathToHmIdPath(comment.targetPath),
+  })
+
+  // Get all mentioned users in this comment
+  const mentionedUsers = new Set<string>()
+  for (const rawBlockNode of comment.content) {
+    const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+    // @ts-expect-error
+    for (const annotation of blockNode.block?.annotations || []) {
+      if (annotation.type === 'Embed') {
+        const hmId = unpackHmId(annotation.link)
+        if (hmId && !hmId.path?.length) {
+          mentionedUsers.add(hmId.uid)
+        }
+      }
+    }
+  }
+
+  // Get the parent comment author for reply notifications
+  let parentCommentAuthor: string | null = null
+  if (comment.replyParent) {
+    try {
+      const parentComment = await getComment(comment.replyParent)
+      if (parentComment) {
+        parentCommentAuthor = parentComment.author
+      }
+    } catch (error) {
+      console.error(
+        `Error getting parent comment ${comment.replyParent}:`,
+        error,
+      )
+    }
+  }
+
+  for (const sub of allSubscriptions) {
+    if (sub.notifyAllMentions && mentionedUsers.has(sub.id)) {
+      const subjectAccountMeta = await getAccount(sub.id)
+      if (!subjectAccountMeta) {
+        throw new Error(`Error getting subject account meta for ${sub.id}`)
+      }
+      appendNotification(sub, {
+        reason: 'mention',
+        source: 'comment',
+        authorAccountId: comment.author,
+        authorMeta: commentAuthorMeta,
+        targetMeta: targetMeta,
+        targetId: targetDocId,
+        url: commentUrl,
+        subjectAccountId: sub.id,
+        subjectAccountMeta: subjectAccountMeta.metadata,
+      })
+    }
+    if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
+      appendNotification(sub, {
+        reason: 'reply',
+        comment: comment,
+        parentComments: parentComments,
+        authorMeta: commentAuthorMeta,
+        targetMeta: targetMeta,
+        targetId: targetDocId,
+        url: commentUrl,
+      })
+    }
+    if (
+      sub.id === comment.targetAccount &&
+      !comment.threadRoot &&
+      sub.notifySiteDiscussions
+    ) {
+      appendNotification(sub, {
+        reason: 'site-new-discussion',
+        comment: comment,
+        parentComments: parentComments,
+        authorMeta: commentAuthorMeta,
+        targetMeta: targetMeta,
+        targetId: targetDocId,
+        url: commentUrl,
+      })
+    }
+    if (sub.notifyAllComments && sub.id === comment.author) {
+      appendNotification(sub, {
+        reason: 'user-comment',
+        comment: comment,
+        parentComments: parentComments,
+        authorMeta: commentAuthorMeta,
+        targetMeta: targetMeta,
+        targetId: targetDocId,
+        url: commentUrl,
+      })
     }
   }
 }
@@ -461,17 +526,18 @@ async function handleEmailNotifs(
 //   return mentions
 // }
 
-async function getParentComments(comment: PlainMessage<Comment>) {
-  const parentComments: PlainMessage<Comment>[] = []
+async function getParentComments(comment: HMComment) {
+  const parentComments: HMComment[] = []
   let currentComment = comment
   while (currentComment.replyParent) {
     try {
-      const parentComment = await grpcClient.comments.getComment({
+      const parentCommentRaw = await grpcClient.comments.getComment({
         id: currentComment.replyParent,
       })
-      const parentCommentPlain = toPlainMessage(parentComment)
-      parentComments.push(parentCommentPlain)
-      currentComment = parentCommentPlain
+      const parentCommentPlain = toPlainMessage(parentCommentRaw)
+      const parentComment = HMCommentSchema.parse(parentCommentPlain)
+      parentComments.push(parentComment)
+      currentComment = parentComment
     } catch (error: any) {
       // Handle ConnectError for NotFound comments gracefully
       if (
@@ -585,15 +651,14 @@ async function resolveAnnotationNames(blocks: BlockNode[]) {
   return resolvedNames
 }
 
-async function loadRefEvent(blob: any): Promise<{
-  mentions: MentionMap
-  newMentions: MentionMap
-  isNewDocument: boolean
-  openUrl: string
-  metadata: HMMetadata
-} | null> {
-  const unpacked = unpackHmId(blob.resource)
-  if (!unpacked?.uid) return null
+async function loadRefEvent(event: PlainMessage<Event>) {
+  if (event.data.case !== 'newBlob')
+    throw new Error('Invalid event for loadRefEvent')
+  const blob = event.data.value
+  const id = unpackHmId(blob.resource)
+
+  if (!id?.uid)
+    throw new Error('Invalid ref event for resource: ' + blob.resource)
 
   const refData = await loadRefFromIpfs(blob.cid)
 
@@ -601,14 +666,14 @@ async function loadRefEvent(blob: any): Promise<{
 
   const changeData = await loadRefFromIpfs(changeCid)
 
-  const changedDoc = await getDocument(unpacked)
+  const changedDoc = await getDocument(id)
 
-  const openUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${unpacked.uid}/${(
-    unpacked.path || []
+  const openUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${id.uid}/${(
+    id.path || []
   ).join('/')}`
 
   const prevVersionId = {
-    ...unpacked,
+    ...id,
     version:
       changeData.deps && changeData.deps.length > 0
         ? changeData.deps.map((cid: CID) => cid.toString()).join('.')
@@ -620,11 +685,13 @@ async function loadRefEvent(blob: any): Promise<{
 
   const currentDocMentions = getMentionsOfDocument(changedDoc)
 
+  let newMentions: MentionMap = currentDocMentions
+  console.log('~~ currentDocMentions', currentDocMentions)
   // Check if there are previous mentions to compare against
   if (prevVersionId?.version) {
     const prevVersionDoc = await getDocument(prevVersionId)
     const prevVersionDocMentions = getMentionsOfDocument(prevVersionDoc)
-    const newMentions: MentionMap = {}
+    newMentions = {}
     for (const [blockId, mentions] of Object.entries(currentDocMentions)) {
       const prevMentions = prevVersionDocMentions[blockId]
       if (!prevMentions) {
@@ -640,20 +707,19 @@ async function loadRefEvent(blob: any): Promise<{
         }
       }
     }
-    return {
-      mentions: currentDocMentions,
-      newMentions,
-      isNewDocument,
-      openUrl,
-      metadata: changedDoc.metadata,
-    }
+    console.log('~~ newMentions', newMentions)
   }
+  const authorMeta = (await getAccount(blob.author)).metadata
+  if (!authorMeta)
+    throw new Error('Error getting author meta for ' + blob.author)
   return {
-    mentions: currentDocMentions,
-    newMentions: currentDocMentions,
+    id,
+    newMentions,
     isNewDocument,
     openUrl,
     metadata: changedDoc.metadata,
+    authorId: blob.author,
+    authorMeta,
   }
 }
 
@@ -661,7 +727,9 @@ type MentionMap = Record<string, Set<string>> // block id -> set of account ids
 
 function getMentionsOfDocument(document: HMDocument): MentionMap {
   const mentionMap: MentionMap = {}
+  console.log('~~ getMentionsOfDocument', document.content)
   extractMentionsFromBlockNodes(document.content, mentionMap)
+  console.log('~~ RESULT mentionMap', mentionMap)
   return mentionMap
 }
 
@@ -683,6 +751,7 @@ function extractMentionsFromBlockNode(
   const annotations = getAnnotations(block)
   if (annotations) {
     for (const annotation of annotations) {
+      console.log('~~ annotation', annotation)
       if (annotation.type === 'Embed' && annotation.link.startsWith('hm://')) {
         const hmUidAndPath = annotation.link.slice(5)
         if (

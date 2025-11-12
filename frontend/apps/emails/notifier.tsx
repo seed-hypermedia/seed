@@ -1,4 +1,3 @@
-import {PlainMessage} from '@bufbuild/protobuf'
 import {
   Mjml,
   MjmlBody,
@@ -11,7 +10,7 @@ import {
   MjmlTitle,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
-import {Comment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {HMComment, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
@@ -311,8 +310,8 @@ export type Notification =
     }
   | {
       reason: 'site-new-discussion'
-      comment: PlainMessage<Comment>
-      parentComments: PlainMessage<Comment>[]
+      comment: HMComment
+      parentComments: HMComment[]
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
@@ -329,13 +328,13 @@ export type Notification =
       targetId: UnpackedHypermediaId
       url: string
       source: 'comment' | 'document'
-      comment?: PlainMessage<Comment>
+      comment?: HMComment
       resolvedNames?: Record<string, string>
     }
   | {
       reason: 'reply'
-      comment: PlainMessage<Comment>
-      parentComments: PlainMessage<Comment>[]
+      comment: HMComment
+      parentComments: HMComment[]
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId
@@ -344,8 +343,8 @@ export type Notification =
     }
   | {
       reason: 'user-comment'
-      comment: PlainMessage<Comment>
-      parentComments: PlainMessage<Comment>[]
+      comment: HMComment
+      parentComments: HMComment[]
       authorMeta: HMMetadata | null
       targetMeta: HMMetadata | null
       targetId: UnpackedHypermediaId

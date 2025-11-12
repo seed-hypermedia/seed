@@ -3,9 +3,9 @@ import {AppIPC} from '@/app-ipc'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
+import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
-import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -18,13 +18,13 @@ import {ErrorBoundary} from 'react-error-boundary'
 import superjson from 'superjson'
 import {getOnboardingState} from './app-onboarding'
 import {AppErrorContent, RootAppError} from './components/app-error'
+import {DebugDialogs} from './components/debug-dialogs'
 import {
   Onboarding,
   OnboardingDebugBox,
   OnboardingDialog,
   ResetOnboardingButton,
 } from './components/onboarding'
-import {DebugDialogs} from './components/debug-dialogs'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -392,7 +392,7 @@ function MainApp({}: {}) {
       <Main />
       {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
       {__SHOW_OB_RESET_BTN__ && <OnboardingDebugBox />}
-      {!IS_PROD_DESKTOP && <DebugDialogs />}
+      {!IS_PROD_DESKTOP && false && <DebugDialogs />}
     </>
   )
 

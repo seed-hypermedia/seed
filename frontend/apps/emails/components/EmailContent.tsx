@@ -6,9 +6,9 @@ import {
   MjmlSection,
   MjmlText,
 } from '@faire/mjml-react'
-import {BlockNode, createWebHMUrl, unpackHmId} from '@shm/shared'
+import {createWebHMUrl, HMBlockNode, unpackHmId} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
-import {format} from 'date-fns'
+import {formattedDateShort} from '@shm/shared/utils/date'
 import React from 'react'
 import {Notification} from '../notifier'
 
@@ -142,7 +142,7 @@ function MentionContent({
     <MjmlColumn width="100%" verticalAlign="middle">
       {notification.comment ? (
         renderMention({
-          blocks: notification.comment.content.map((n) => new BlockNode(n)),
+          blocks: notification.comment.content,
           targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
           resolvedNames: notification.resolvedNames,
         })
@@ -179,7 +179,7 @@ function ReplyContent({
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
           {renderBlocks(
-            notification.comment.content.map((n) => new BlockNode(n)),
+            notification.comment.content,
             notification.url,
             notification.resolvedNames,
           )}
@@ -202,7 +202,7 @@ function NewDiscussionContent({
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
           {renderBlocks(
-            notification.comment.content.map((n) => new BlockNode(n)),
+            notification.comment.content,
             notification.url,
             notification.resolvedNames,
           )}
@@ -241,11 +241,7 @@ function UserCommentContent({
       </MjmlText>
       <MjmlSection padding="0 0 8px 23px">
         <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(
-            notification.comment.content.map((n) => new BlockNode(n)),
-            notification.url,
-            {},
-          )}
+          {renderBlocks(notification.comment.content, notification.url, {})}
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 0 16px 0">
@@ -274,7 +270,7 @@ export function renderMention({
   targetDocName,
   resolvedNames,
 }: {
-  blocks: BlockNode[]
+  blocks: HMBlockNode[]
   targetDocName: string
   resolvedNames?: Record<string, string>
 }) {
@@ -353,7 +349,7 @@ function renderChange({
 }
 
 function renderBlocks(
-  blocks: BlockNode[],
+  blocks: HMBlockNode[],
   notifUrl: string,
   resolvedNames?: Record<string, string>,
 ) {
@@ -368,7 +364,7 @@ function renderBlocks(
 }
 
 function renderBlock(
-  blockNode: BlockNode,
+  blockNode: HMBlockNode,
   notifUrl: string,
   resolvedNames?: Record<string, string>,
 ) {
@@ -407,7 +403,7 @@ function renderBlock(
   }
 
   if (type === 'Image') {
-    const width = attributes?.fields?.width?.kind?.value ?? 400
+    const width = attributes?.width ?? 400
     let src: string | undefined = undefined
     if (link?.startsWith('ipfs://')) {
       const cid = extractIpfsUrlCid(link)
@@ -649,20 +645,10 @@ function getNotificationMeta(notification: Notification) {
       notification.reason === 'site-new-discussion' ||
       notification.reason === 'reply'
     ) {
-      return notification.comment.createTime?.seconds
-        ? format(
-            new Date(Number(notification.comment.createTime.seconds) * 1000),
-            'MMM d',
-          )
-        : ''
+      return formattedDateShort(notification.comment.createTime)
     }
     if (notification.reason === 'mention') {
-      return notification.comment?.createTime?.seconds
-        ? format(
-            new Date(Number(notification.comment.createTime.seconds) * 1000),
-            'MMM d',
-          )
-        : ''
+      return formattedDateShort(notification.comment?.createTime)
     }
     return ''
   })()

@@ -316,6 +316,8 @@ export function getNotifierLastProcessedBlobCid(): string | undefined {
   return result?.value
 }
 
+// delete from notifier_status where field='last_processed_blob_cid';
+
 export function setNotifierLastProcessedBlobCid(cid: string): void {
   stmtSetNotifierLastProcessedBlobCid.run('last_processed_blob_cid', cid)
 }
