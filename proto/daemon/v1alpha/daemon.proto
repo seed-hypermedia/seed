@@ -91,10 +91,9 @@ message RegisterKeyRequest {
 }
 
 message SyncResourceWithPeerRequest {
-  // Required. Addresses of the Peer to sync with.
-  // comma separated list of multiaddrs, including peer ID.
-  // Only one peer is supported per request.
-  string peer = 1;
+  // Required. Peer ID to sync with.
+  // No addresses are needed, just the pid
+  string pid = 1;
 
   // Required. Resource IRI to sync. We will also sync
   // related blobs to that resource. No wilcards are supported.
