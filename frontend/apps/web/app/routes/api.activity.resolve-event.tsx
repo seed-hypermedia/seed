@@ -33,13 +33,6 @@ export const action = async ({
   }
 
   const eventType = getEventType(event)
-  const eventCid =
-    'newBlob' in event
-      ? event.newBlob?.cid
-      : 'newMention' in event
-      ? event.newMention?.sourceBlob?.cid
-      : undefined
-  console.log('== DEBUG RESOLVING EVENT', eventType, eventCid)
 
   if (!eventType) {
     console.error('Unable to determine event type:', event)
