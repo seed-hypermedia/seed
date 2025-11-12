@@ -77,6 +77,7 @@ var qListBlobs = dqb.Str(`
 		blobs.codec,
 		blobs.multihash
 	FROM blobs INDEXED BY blobs_metadata
+	JOIN public_blobs pb ON pb.id = blobs.id
 	WHERE blobs.size >= 0
 	AND blobs.id > ?;
 `)

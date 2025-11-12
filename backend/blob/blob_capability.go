@@ -126,7 +126,8 @@ func indexCapability(ictx *indexingCtx, _ int64, eb Encoded[*Capability]) error 
 		return err
 	}
 
-	sb := newStructuralBlob(c, TypeCapability, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{})
+	// Capabilities are public by default and don't have explicit visibility field.
+	sb := newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, VisibilityPublic)
 
 	if _, err := ictx.ensurePubKey(v.Signer); err != nil {
 		return err

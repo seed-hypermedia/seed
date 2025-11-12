@@ -21,7 +21,6 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
-	"seed/backend/util/future"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -172,13 +171,12 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	a.Syncing.SetDocGetter(a.RPC.DocumentsV3)
 	var fm *hmnet.FileManager
 	{
-		bs := a.Index.IPFSBlockstore()
 		var e exchange.Interface = a.Net.Bitswap()
 		if cfg.Syncing.NoDiscovery {
-			e = offline.Exchange(bs)
+			e = offline.Exchange(a.Index)
 		}
 
-		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), bs, e)
+		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e)
 	}
 
 	opts.extraHTTPHandlers = append(opts.extraHTTPHandlers, func(r *Router) {
@@ -194,30 +192,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	a.setupLogging(ctx, cfg)
 
 	return
-}
-
-type lazyFileManager struct {
-	fm future.Value[*hmnet.FileManager]
-}
-
-func (l *lazyFileManager) GetFile(w http.ResponseWriter, r *http.Request) {
-	fm, err := l.fm.Await(r.Context())
-	if err != nil {
-		http.Error(w, "File manager is not ready yet", http.StatusPreconditionFailed)
-		return
-	}
-
-	fm.GetFile(w, r)
-}
-
-func (l *lazyFileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
-	fm, err := l.fm.Await(r.Context())
-	if err != nil {
-		http.Error(w, "File manager is not ready yet", http.StatusPreconditionFailed)
-		return
-	}
-
-	fm.UploadFile(w, r)
 }
 
 func (a *App) setupLogging(ctx context.Context, cfg config.Config) {

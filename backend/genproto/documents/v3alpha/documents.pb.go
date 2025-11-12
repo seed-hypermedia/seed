@@ -24,6 +24,59 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Hypermedia resources can have different visibility levels declared by their creators.
+// By default everything is public, because this is what our system started with.
+//
+// Currently, private visibility means the resource is accessible by the owner of the account an its collaborators with WRITER role.
+type ResourceVisibility int32
+
+const (
+	ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED ResourceVisibility = 0
+	ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC      ResourceVisibility = 1
+	ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE     ResourceVisibility = 2
+)
+
+// Enum value maps for ResourceVisibility.
+var (
+	ResourceVisibility_name = map[int32]string{
+		0: "RESOURCE_VISIBILITY_UNSPECIFIED",
+		1: "RESOURCE_VISIBILITY_PUBLIC",
+		2: "RESOURCE_VISIBILITY_PRIVATE",
+	}
+	ResourceVisibility_value = map[string]int32{
+		"RESOURCE_VISIBILITY_UNSPECIFIED": 0,
+		"RESOURCE_VISIBILITY_PUBLIC":      1,
+		"RESOURCE_VISIBILITY_PRIVATE":     2,
+	}
+)
+
+func (x ResourceVisibility) Enum() *ResourceVisibility {
+	p := new(ResourceVisibility)
+	*p = x
+	return p
+}
+
+func (x ResourceVisibility) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResourceVisibility) Descriptor() protoreflect.EnumDescriptor {
+	return file_documents_v3alpha_documents_proto_enumTypes[0].Descriptor()
+}
+
+func (ResourceVisibility) Type() protoreflect.EnumType {
+	return &file_documents_v3alpha_documents_proto_enumTypes[0]
+}
+
+func (x ResourceVisibility) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ResourceVisibility.Descriptor instead.
+func (ResourceVisibility) EnumDescriptor() ([]byte, []int) {
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{0}
+}
+
 // Attrbites that can be used for sorting.
 type SortAttribute int32
 
@@ -65,11 +118,11 @@ func (x SortAttribute) String() string {
 }
 
 func (SortAttribute) Descriptor() protoreflect.EnumDescriptor {
-	return file_documents_v3alpha_documents_proto_enumTypes[0].Descriptor()
+	return file_documents_v3alpha_documents_proto_enumTypes[1].Descriptor()
 }
 
 func (SortAttribute) Type() protoreflect.EnumType {
-	return &file_documents_v3alpha_documents_proto_enumTypes[0]
+	return &file_documents_v3alpha_documents_proto_enumTypes[1]
 }
 
 func (x SortAttribute) Number() protoreflect.EnumNumber {
@@ -78,7 +131,7 @@ func (x SortAttribute) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SortAttribute.Descriptor instead.
 func (SortAttribute) EnumDescriptor() ([]byte, []int) {
-	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{0}
+	return file_documents_v3alpha_documents_proto_rawDescGZIP(), []int{1}
 }
 
 // Request for getting a single document.
@@ -383,7 +436,11 @@ type CreateDocumentChangeRequest struct {
 	// Optional. Timestamp that the change should have.
 	// By default current time is used.
 	// The timestamp must be strictly greater than the timestamp of any other Change in the dependency chain.
-	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Timestamp *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Optional. Visibility of the document.
+	// Can only be specified here when creating the document for the first time,
+	// i.e. when `base_version` is empty.
+	Visibility    ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -465,6 +522,13 @@ func (x *CreateDocumentChangeRequest) GetTimestamp() *timestamppb.Timestamp {
 		return x.Timestamp
 	}
 	return nil
+}
+
+func (x *CreateDocumentChangeRequest) GetVisibility() ResourceVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
 }
 
 type DeleteDocumentRequest struct {
@@ -2317,7 +2381,9 @@ type CreateRefRequest struct {
 	// Optional. The generation number for the Ref.
 	// If not specified, the server will use the generation number of the most recent generation,
 	// or will create a fresh generation number if there are no existing Refs for this path.
-	Generation    int64 `protobuf:"varint,7,opt,name=generation,proto3" json:"generation,omitempty"`
+	Generation int64 `protobuf:"varint,7,opt,name=generation,proto3" json:"generation,omitempty"`
+	// Output only. Visibility of the document.
+	Visibility    ResourceVisibility `protobuf:"varint,8,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2399,6 +2465,13 @@ func (x *CreateRefRequest) GetGeneration() int64 {
 		return x.Generation
 	}
 	return 0
+}
+
+func (x *CreateRefRequest) GetVisibility() ResourceVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
 }
 
 // Request to get a Ref by ID.
@@ -2556,7 +2629,9 @@ type DocumentInfo struct {
 	// Information about the generation of the document.
 	GenerationInfo *GenerationInfo `protobuf:"bytes,12,opt,name=generation_info,json=generationInfo,proto3" json:"generation_info,omitempty"`
 	// Output only. Redirect information if the document is a republish or a redirect.
-	RedirectInfo  *RefTarget_Redirect `protobuf:"bytes,13,opt,name=redirect_info,json=redirectInfo,proto3" json:"redirect_info,omitempty"`
+	RedirectInfo *RefTarget_Redirect `protobuf:"bytes,13,opt,name=redirect_info,json=redirectInfo,proto3" json:"redirect_info,omitempty"`
+	// Output only. Visibility of the document.
+	Visibility    ResourceVisibility `protobuf:"varint,14,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2673,6 +2748,13 @@ func (x *DocumentInfo) GetRedirectInfo() *RefTarget_Redirect {
 		return x.RedirectInfo
 	}
 	return nil
+}
+
+func (x *DocumentInfo) GetVisibility() ResourceVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
 }
 
 // Information about the generation of a document.
@@ -2905,8 +2987,10 @@ type Document struct {
 	Version string `protobuf:"bytes,10,opt,name=version,proto3" json:"version,omitempty"`
 	// Output only. Information about the generation of the document.
 	GenerationInfo *GenerationInfo `protobuf:"bytes,13,opt,name=generation_info,json=generationInfo,proto3" json:"generation_info,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Output only. Visibility of the document.
+	Visibility    ResourceVisibility `protobuf:"varint,15,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Document) Reset() {
@@ -3014,6 +3098,13 @@ func (x *Document) GetGenerationInfo() *GenerationInfo {
 		return x.GenerationInfo
 	}
 	return nil
+}
+
+func (x *Document) GetVisibility() ResourceVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
 }
 
 // Content block with children.
@@ -3694,9 +3785,8 @@ func (x *DocumentChange_MoveBlock) GetLeftSibling() string {
 	return ""
 }
 
-// Operation to replace a metadata field with a new value
-//
-// Deprecated: Use SetAttribute instead.
+// Operation to replace a metadata field with a new value.
+// This is an old operation, and you should use [SetAttribute] instead for greater flexibility.
 type DocumentChange_SetMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Metadata key to set.
@@ -4070,7 +4160,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x1bBatchGetDocumentInfoRequest\x12N\n" +
 	"\brequests\x18\x01 \x03(\v22.com.seed.documents.v3alpha.GetDocumentInfoRequestR\brequests\"f\n" +
 	"\x1cBatchGetDocumentInfoResponse\x12F\n" +
-	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\xb8\x02\n" +
+	"\tdocuments\x18\x01 \x03(\v2(.com.seed.documents.v3alpha.DocumentInfoR\tdocuments\"\x88\x03\n" +
 	"\x1bCreateDocumentChangeRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
@@ -4080,7 +4170,10 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\n" +
 	"capability\x18\x06 \x01(\tR\n" +
 	"capability\x128\n" +
-	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"E\n" +
+	"\ttimestamp\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12N\n" +
+	"\n" +
+	"visibility\x18\b \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
+	"visibility\"E\n" +
 	"\x15DeleteDocumentRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"V\n" +
@@ -4207,7 +4300,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x17\n" +
 	"\ais_read\x18\x03 \x01(\bR\x06isRead\x12!\n" +
-	"\fis_recursive\x18\x04 \x01(\bR\visRecursive\"\xa3\x02\n" +
+	"\fis_recursive\x18\x04 \x01(\bR\visRecursive\"\xf3\x02\n" +
 	"\x10CreateRefRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12=\n" +
@@ -4219,7 +4312,10 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\ttimestamp\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x1e\n" +
 	"\n" +
 	"generation\x18\a \x01(\x03R\n" +
-	"generation\"\x1f\n" +
+	"generation\x12N\n" +
+	"\n" +
+	"visibility\x18\b \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
+	"visibility\"\x1f\n" +
 	"\rGetRefRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x8d\x01\n" +
 	"\x12DocumentChangeInfo\x12\x0e\n" +
@@ -4227,7 +4323,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\x85\x05\n" +
+	"createTime\"\xd5\x05\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -4243,7 +4339,10 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	" \x03(\v2&.com.seed.documents.v3alpha.BreadcrumbR\vbreadcrumbs\x12V\n" +
 	"\x10activity_summary\x18\v \x01(\v2+.com.seed.documents.v3alpha.ActivitySummaryR\x0factivitySummary\x12S\n" +
 	"\x0fgeneration_info\x18\f \x01(\v2*.com.seed.documents.v3alpha.GenerationInfoR\x0egenerationInfo\x12S\n" +
-	"\rredirect_info\x18\r \x01(\v2..com.seed.documents.v3alpha.RefTarget.RedirectR\fredirectInfo\"J\n" +
+	"\rredirect_info\x18\r \x01(\v2..com.seed.documents.v3alpha.RefTarget.RedirectR\fredirectInfo\x12N\n" +
+	"\n" +
+	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
+	"visibility\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +
@@ -4260,7 +4359,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1d\n" +
 	"\n" +
-	"is_missing\x18\x03 \x01(\bR\tisMissing\"\xa4\x05\n" +
+	"is_missing\x18\x03 \x01(\bR\tisMissing\"\xf4\x05\n" +
 	"\bDocument\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -4275,7 +4374,10 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\agenesis\x18\t \x01(\tR\agenesis\x12\x18\n" +
 	"\aversion\x18\n" +
 	" \x01(\tR\aversion\x12S\n" +
-	"\x0fgeneration_info\x18\r \x01(\v2*.com.seed.documents.v3alpha.GenerationInfoR\x0egenerationInfo\x1ah\n" +
+	"\x0fgeneration_info\x18\r \x01(\v2*.com.seed.documents.v3alpha.GenerationInfoR\x0egenerationInfo\x12N\n" +
+	"\n" +
+	"visibility\x18\x0f \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
+	"visibility\x1ah\n" +
 	"\x13DetachedBlocksEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12;\n" +
 	"\x05value\x18\x02 \x01(\v2%.com.seed.documents.v3alpha.BlockNodeR\x05value:\x028\x01J\x04\b\v\x10\fJ\x04\b\f\x10\r\"\x87\x01\n" +
@@ -4349,7 +4451,11 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1c\n" +
 	"\trepublish\x18\x03 \x01(\bR\trepublish\x1a\v\n" +
 	"\tTombstoneB\b\n" +
-	"\x06target*6\n" +
+	"\x06target*z\n" +
+	"\x12ResourceVisibility\x12#\n" +
+	"\x1fRESOURCE_VISIBILITY_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aRESOURCE_VISIBILITY_PUBLIC\x10\x01\x12\x1f\n" +
+	"\x1bRESOURCE_VISIBILITY_PRIVATE\x10\x02*6\n" +
 	"\rSortAttribute\x12\x11\n" +
 	"\rACTIVITY_TIME\x10\x00\x12\b\n" +
 	"\x04NAME\x10\x01\x12\b\n" +
@@ -4393,183 +4499,188 @@ func file_documents_v3alpha_documents_proto_rawDescGZIP() []byte {
 	return file_documents_v3alpha_documents_proto_rawDescData
 }
 
-var file_documents_v3alpha_documents_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_documents_v3alpha_documents_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_documents_v3alpha_documents_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_documents_v3alpha_documents_proto_goTypes = []any{
-	(SortAttribute)(0),                      // 0: com.seed.documents.v3alpha.SortAttribute
-	(*GetDocumentRequest)(nil),              // 1: com.seed.documents.v3alpha.GetDocumentRequest
-	(*RedirectErrorDetails)(nil),            // 2: com.seed.documents.v3alpha.RedirectErrorDetails
-	(*GetDocumentInfoRequest)(nil),          // 3: com.seed.documents.v3alpha.GetDocumentInfoRequest
-	(*BatchGetDocumentInfoRequest)(nil),     // 4: com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
-	(*BatchGetDocumentInfoResponse)(nil),    // 5: com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
-	(*CreateDocumentChangeRequest)(nil),     // 6: com.seed.documents.v3alpha.CreateDocumentChangeRequest
-	(*DeleteDocumentRequest)(nil),           // 7: com.seed.documents.v3alpha.DeleteDocumentRequest
-	(*ListRootDocumentsRequest)(nil),        // 8: com.seed.documents.v3alpha.ListRootDocumentsRequest
-	(*ListRootDocumentsResponse)(nil),       // 9: com.seed.documents.v3alpha.ListRootDocumentsResponse
-	(*ListAccountsRequest)(nil),             // 10: com.seed.documents.v3alpha.ListAccountsRequest
-	(*ListAccountsResponse)(nil),            // 11: com.seed.documents.v3alpha.ListAccountsResponse
-	(*GetAccountRequest)(nil),               // 12: com.seed.documents.v3alpha.GetAccountRequest
-	(*BatchGetAccountsRequest)(nil),         // 13: com.seed.documents.v3alpha.BatchGetAccountsRequest
-	(*BatchGetAccountsResponse)(nil),        // 14: com.seed.documents.v3alpha.BatchGetAccountsResponse
-	(*UpdateProfileRequest)(nil),            // 15: com.seed.documents.v3alpha.UpdateProfileRequest
-	(*Account)(nil),                         // 16: com.seed.documents.v3alpha.Account
-	(*Profile)(nil),                         // 17: com.seed.documents.v3alpha.Profile
-	(*CreateAliasRequest)(nil),              // 18: com.seed.documents.v3alpha.CreateAliasRequest
-	(*CreateContactRequest)(nil),            // 19: com.seed.documents.v3alpha.CreateContactRequest
-	(*GetContactRequest)(nil),               // 20: com.seed.documents.v3alpha.GetContactRequest
-	(*UpdateContactRequest)(nil),            // 21: com.seed.documents.v3alpha.UpdateContactRequest
-	(*DeleteContactRequest)(nil),            // 22: com.seed.documents.v3alpha.DeleteContactRequest
-	(*ListContactsRequest)(nil),             // 23: com.seed.documents.v3alpha.ListContactsRequest
-	(*ListContactsResponse)(nil),            // 24: com.seed.documents.v3alpha.ListContactsResponse
-	(*Contact)(nil),                         // 25: com.seed.documents.v3alpha.Contact
-	(*ListDirectoryRequest)(nil),            // 26: com.seed.documents.v3alpha.ListDirectoryRequest
-	(*SortOptions)(nil),                     // 27: com.seed.documents.v3alpha.SortOptions
-	(*ListDirectoryResponse)(nil),           // 28: com.seed.documents.v3alpha.ListDirectoryResponse
-	(*ListDocumentsRequest)(nil),            // 29: com.seed.documents.v3alpha.ListDocumentsRequest
-	(*ListDocumentsResponse)(nil),           // 30: com.seed.documents.v3alpha.ListDocumentsResponse
-	(*ListDocumentChangesRequest)(nil),      // 31: com.seed.documents.v3alpha.ListDocumentChangesRequest
-	(*ListDocumentChangesResponse)(nil),     // 32: com.seed.documents.v3alpha.ListDocumentChangesResponse
-	(*GetDocumentChangeRequest)(nil),        // 33: com.seed.documents.v3alpha.GetDocumentChangeRequest
-	(*UpdateDocumentReadStatusRequest)(nil), // 34: com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
-	(*CreateRefRequest)(nil),                // 35: com.seed.documents.v3alpha.CreateRefRequest
-	(*GetRefRequest)(nil),                   // 36: com.seed.documents.v3alpha.GetRefRequest
-	(*DocumentChangeInfo)(nil),              // 37: com.seed.documents.v3alpha.DocumentChangeInfo
-	(*DocumentInfo)(nil),                    // 38: com.seed.documents.v3alpha.DocumentInfo
-	(*GenerationInfo)(nil),                  // 39: com.seed.documents.v3alpha.GenerationInfo
-	(*ActivitySummary)(nil),                 // 40: com.seed.documents.v3alpha.ActivitySummary
-	(*Breadcrumb)(nil),                      // 41: com.seed.documents.v3alpha.Breadcrumb
-	(*Document)(nil),                        // 42: com.seed.documents.v3alpha.Document
-	(*BlockNode)(nil),                       // 43: com.seed.documents.v3alpha.BlockNode
-	(*Block)(nil),                           // 44: com.seed.documents.v3alpha.Block
-	(*Annotation)(nil),                      // 45: com.seed.documents.v3alpha.Annotation
-	(*DocumentChange)(nil),                  // 46: com.seed.documents.v3alpha.DocumentChange
-	(*Ref)(nil),                             // 47: com.seed.documents.v3alpha.Ref
-	(*RefTarget)(nil),                       // 48: com.seed.documents.v3alpha.RefTarget
-	nil,                                     // 49: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
-	nil,                                     // 50: com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
-	nil,                                     // 51: com.seed.documents.v3alpha.Document.DetachedBlocksEntry
-	(*DocumentChange_MoveBlock)(nil),        // 52: com.seed.documents.v3alpha.DocumentChange.MoveBlock
-	(*DocumentChange_SetMetadata)(nil),      // 53: com.seed.documents.v3alpha.DocumentChange.SetMetadata
-	(*DocumentChange_SetAttribute)(nil),     // 54: com.seed.documents.v3alpha.DocumentChange.SetAttribute
-	(*RefTarget_Version)(nil),               // 55: com.seed.documents.v3alpha.RefTarget.Version
-	(*RefTarget_Redirect)(nil),              // 56: com.seed.documents.v3alpha.RefTarget.Redirect
-	(*RefTarget_Tombstone)(nil),             // 57: com.seed.documents.v3alpha.RefTarget.Tombstone
-	(*timestamppb.Timestamp)(nil),           // 58: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                 // 59: google.protobuf.Struct
-	(*emptypb.Empty)(nil),                   // 60: google.protobuf.Empty
+	(ResourceVisibility)(0),                 // 0: com.seed.documents.v3alpha.ResourceVisibility
+	(SortAttribute)(0),                      // 1: com.seed.documents.v3alpha.SortAttribute
+	(*GetDocumentRequest)(nil),              // 2: com.seed.documents.v3alpha.GetDocumentRequest
+	(*RedirectErrorDetails)(nil),            // 3: com.seed.documents.v3alpha.RedirectErrorDetails
+	(*GetDocumentInfoRequest)(nil),          // 4: com.seed.documents.v3alpha.GetDocumentInfoRequest
+	(*BatchGetDocumentInfoRequest)(nil),     // 5: com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
+	(*BatchGetDocumentInfoResponse)(nil),    // 6: com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
+	(*CreateDocumentChangeRequest)(nil),     // 7: com.seed.documents.v3alpha.CreateDocumentChangeRequest
+	(*DeleteDocumentRequest)(nil),           // 8: com.seed.documents.v3alpha.DeleteDocumentRequest
+	(*ListRootDocumentsRequest)(nil),        // 9: com.seed.documents.v3alpha.ListRootDocumentsRequest
+	(*ListRootDocumentsResponse)(nil),       // 10: com.seed.documents.v3alpha.ListRootDocumentsResponse
+	(*ListAccountsRequest)(nil),             // 11: com.seed.documents.v3alpha.ListAccountsRequest
+	(*ListAccountsResponse)(nil),            // 12: com.seed.documents.v3alpha.ListAccountsResponse
+	(*GetAccountRequest)(nil),               // 13: com.seed.documents.v3alpha.GetAccountRequest
+	(*BatchGetAccountsRequest)(nil),         // 14: com.seed.documents.v3alpha.BatchGetAccountsRequest
+	(*BatchGetAccountsResponse)(nil),        // 15: com.seed.documents.v3alpha.BatchGetAccountsResponse
+	(*UpdateProfileRequest)(nil),            // 16: com.seed.documents.v3alpha.UpdateProfileRequest
+	(*Account)(nil),                         // 17: com.seed.documents.v3alpha.Account
+	(*Profile)(nil),                         // 18: com.seed.documents.v3alpha.Profile
+	(*CreateAliasRequest)(nil),              // 19: com.seed.documents.v3alpha.CreateAliasRequest
+	(*CreateContactRequest)(nil),            // 20: com.seed.documents.v3alpha.CreateContactRequest
+	(*GetContactRequest)(nil),               // 21: com.seed.documents.v3alpha.GetContactRequest
+	(*UpdateContactRequest)(nil),            // 22: com.seed.documents.v3alpha.UpdateContactRequest
+	(*DeleteContactRequest)(nil),            // 23: com.seed.documents.v3alpha.DeleteContactRequest
+	(*ListContactsRequest)(nil),             // 24: com.seed.documents.v3alpha.ListContactsRequest
+	(*ListContactsResponse)(nil),            // 25: com.seed.documents.v3alpha.ListContactsResponse
+	(*Contact)(nil),                         // 26: com.seed.documents.v3alpha.Contact
+	(*ListDirectoryRequest)(nil),            // 27: com.seed.documents.v3alpha.ListDirectoryRequest
+	(*SortOptions)(nil),                     // 28: com.seed.documents.v3alpha.SortOptions
+	(*ListDirectoryResponse)(nil),           // 29: com.seed.documents.v3alpha.ListDirectoryResponse
+	(*ListDocumentsRequest)(nil),            // 30: com.seed.documents.v3alpha.ListDocumentsRequest
+	(*ListDocumentsResponse)(nil),           // 31: com.seed.documents.v3alpha.ListDocumentsResponse
+	(*ListDocumentChangesRequest)(nil),      // 32: com.seed.documents.v3alpha.ListDocumentChangesRequest
+	(*ListDocumentChangesResponse)(nil),     // 33: com.seed.documents.v3alpha.ListDocumentChangesResponse
+	(*GetDocumentChangeRequest)(nil),        // 34: com.seed.documents.v3alpha.GetDocumentChangeRequest
+	(*UpdateDocumentReadStatusRequest)(nil), // 35: com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
+	(*CreateRefRequest)(nil),                // 36: com.seed.documents.v3alpha.CreateRefRequest
+	(*GetRefRequest)(nil),                   // 37: com.seed.documents.v3alpha.GetRefRequest
+	(*DocumentChangeInfo)(nil),              // 38: com.seed.documents.v3alpha.DocumentChangeInfo
+	(*DocumentInfo)(nil),                    // 39: com.seed.documents.v3alpha.DocumentInfo
+	(*GenerationInfo)(nil),                  // 40: com.seed.documents.v3alpha.GenerationInfo
+	(*ActivitySummary)(nil),                 // 41: com.seed.documents.v3alpha.ActivitySummary
+	(*Breadcrumb)(nil),                      // 42: com.seed.documents.v3alpha.Breadcrumb
+	(*Document)(nil),                        // 43: com.seed.documents.v3alpha.Document
+	(*BlockNode)(nil),                       // 44: com.seed.documents.v3alpha.BlockNode
+	(*Block)(nil),                           // 45: com.seed.documents.v3alpha.Block
+	(*Annotation)(nil),                      // 46: com.seed.documents.v3alpha.Annotation
+	(*DocumentChange)(nil),                  // 47: com.seed.documents.v3alpha.DocumentChange
+	(*Ref)(nil),                             // 48: com.seed.documents.v3alpha.Ref
+	(*RefTarget)(nil),                       // 49: com.seed.documents.v3alpha.RefTarget
+	nil,                                     // 50: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
+	nil,                                     // 51: com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
+	nil,                                     // 52: com.seed.documents.v3alpha.Document.DetachedBlocksEntry
+	(*DocumentChange_MoveBlock)(nil),        // 53: com.seed.documents.v3alpha.DocumentChange.MoveBlock
+	(*DocumentChange_SetMetadata)(nil),      // 54: com.seed.documents.v3alpha.DocumentChange.SetMetadata
+	(*DocumentChange_SetAttribute)(nil),     // 55: com.seed.documents.v3alpha.DocumentChange.SetAttribute
+	(*RefTarget_Version)(nil),               // 56: com.seed.documents.v3alpha.RefTarget.Version
+	(*RefTarget_Redirect)(nil),              // 57: com.seed.documents.v3alpha.RefTarget.Redirect
+	(*RefTarget_Tombstone)(nil),             // 58: com.seed.documents.v3alpha.RefTarget.Tombstone
+	(*timestamppb.Timestamp)(nil),           // 59: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                 // 60: google.protobuf.Struct
+	(*emptypb.Empty)(nil),                   // 61: google.protobuf.Empty
 }
 var file_documents_v3alpha_documents_proto_depIdxs = []int32{
-	3,  // 0: com.seed.documents.v3alpha.BatchGetDocumentInfoRequest.requests:type_name -> com.seed.documents.v3alpha.GetDocumentInfoRequest
-	38, // 1: com.seed.documents.v3alpha.BatchGetDocumentInfoResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	46, // 2: com.seed.documents.v3alpha.CreateDocumentChangeRequest.changes:type_name -> com.seed.documents.v3alpha.DocumentChange
-	58, // 3: com.seed.documents.v3alpha.CreateDocumentChangeRequest.timestamp:type_name -> google.protobuf.Timestamp
-	38, // 4: com.seed.documents.v3alpha.ListRootDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	27, // 5: com.seed.documents.v3alpha.ListAccountsRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
-	16, // 6: com.seed.documents.v3alpha.ListAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.Account
-	49, // 7: com.seed.documents.v3alpha.BatchGetAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
-	50, // 8: com.seed.documents.v3alpha.BatchGetAccountsResponse.errors:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
-	17, // 9: com.seed.documents.v3alpha.UpdateProfileRequest.profile:type_name -> com.seed.documents.v3alpha.Profile
-	59, // 10: com.seed.documents.v3alpha.Account.metadata:type_name -> google.protobuf.Struct
-	40, // 11: com.seed.documents.v3alpha.Account.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
-	17, // 12: com.seed.documents.v3alpha.Account.profile:type_name -> com.seed.documents.v3alpha.Profile
-	38, // 13: com.seed.documents.v3alpha.Account.home_document_info:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	58, // 14: com.seed.documents.v3alpha.Profile.update_time:type_name -> google.protobuf.Timestamp
-	25, // 15: com.seed.documents.v3alpha.UpdateContactRequest.contact:type_name -> com.seed.documents.v3alpha.Contact
-	25, // 16: com.seed.documents.v3alpha.ListContactsResponse.contacts:type_name -> com.seed.documents.v3alpha.Contact
-	58, // 17: com.seed.documents.v3alpha.Contact.create_time:type_name -> google.protobuf.Timestamp
-	58, // 18: com.seed.documents.v3alpha.Contact.update_time:type_name -> google.protobuf.Timestamp
-	27, // 19: com.seed.documents.v3alpha.ListDirectoryRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
-	0,  // 20: com.seed.documents.v3alpha.SortOptions.attribute:type_name -> com.seed.documents.v3alpha.SortAttribute
-	38, // 21: com.seed.documents.v3alpha.ListDirectoryResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	38, // 22: com.seed.documents.v3alpha.ListDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
-	37, // 23: com.seed.documents.v3alpha.ListDocumentChangesResponse.changes:type_name -> com.seed.documents.v3alpha.DocumentChangeInfo
-	48, // 24: com.seed.documents.v3alpha.CreateRefRequest.target:type_name -> com.seed.documents.v3alpha.RefTarget
-	58, // 25: com.seed.documents.v3alpha.CreateRefRequest.timestamp:type_name -> google.protobuf.Timestamp
-	58, // 26: com.seed.documents.v3alpha.DocumentChangeInfo.create_time:type_name -> google.protobuf.Timestamp
-	59, // 27: com.seed.documents.v3alpha.DocumentInfo.metadata:type_name -> google.protobuf.Struct
-	58, // 28: com.seed.documents.v3alpha.DocumentInfo.create_time:type_name -> google.protobuf.Timestamp
-	58, // 29: com.seed.documents.v3alpha.DocumentInfo.update_time:type_name -> google.protobuf.Timestamp
-	41, // 30: com.seed.documents.v3alpha.DocumentInfo.breadcrumbs:type_name -> com.seed.documents.v3alpha.Breadcrumb
-	40, // 31: com.seed.documents.v3alpha.DocumentInfo.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
-	39, // 32: com.seed.documents.v3alpha.DocumentInfo.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	56, // 33: com.seed.documents.v3alpha.DocumentInfo.redirect_info:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
-	58, // 34: com.seed.documents.v3alpha.ActivitySummary.latest_comment_time:type_name -> google.protobuf.Timestamp
-	58, // 35: com.seed.documents.v3alpha.ActivitySummary.latest_change_time:type_name -> google.protobuf.Timestamp
-	59, // 36: com.seed.documents.v3alpha.Document.metadata:type_name -> google.protobuf.Struct
-	43, // 37: com.seed.documents.v3alpha.Document.content:type_name -> com.seed.documents.v3alpha.BlockNode
-	51, // 38: com.seed.documents.v3alpha.Document.detached_blocks:type_name -> com.seed.documents.v3alpha.Document.DetachedBlocksEntry
-	58, // 39: com.seed.documents.v3alpha.Document.create_time:type_name -> google.protobuf.Timestamp
-	58, // 40: com.seed.documents.v3alpha.Document.update_time:type_name -> google.protobuf.Timestamp
-	39, // 41: com.seed.documents.v3alpha.Document.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	44, // 42: com.seed.documents.v3alpha.BlockNode.block:type_name -> com.seed.documents.v3alpha.Block
-	43, // 43: com.seed.documents.v3alpha.BlockNode.children:type_name -> com.seed.documents.v3alpha.BlockNode
-	59, // 44: com.seed.documents.v3alpha.Block.attributes:type_name -> google.protobuf.Struct
-	45, // 45: com.seed.documents.v3alpha.Block.annotations:type_name -> com.seed.documents.v3alpha.Annotation
-	59, // 46: com.seed.documents.v3alpha.Annotation.attributes:type_name -> google.protobuf.Struct
-	53, // 47: com.seed.documents.v3alpha.DocumentChange.set_metadata:type_name -> com.seed.documents.v3alpha.DocumentChange.SetMetadata
-	52, // 48: com.seed.documents.v3alpha.DocumentChange.move_block:type_name -> com.seed.documents.v3alpha.DocumentChange.MoveBlock
-	44, // 49: com.seed.documents.v3alpha.DocumentChange.replace_block:type_name -> com.seed.documents.v3alpha.Block
-	54, // 50: com.seed.documents.v3alpha.DocumentChange.set_attribute:type_name -> com.seed.documents.v3alpha.DocumentChange.SetAttribute
-	48, // 51: com.seed.documents.v3alpha.Ref.target:type_name -> com.seed.documents.v3alpha.RefTarget
-	58, // 52: com.seed.documents.v3alpha.Ref.timestamp:type_name -> google.protobuf.Timestamp
-	39, // 53: com.seed.documents.v3alpha.Ref.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
-	55, // 54: com.seed.documents.v3alpha.RefTarget.version:type_name -> com.seed.documents.v3alpha.RefTarget.Version
-	56, // 55: com.seed.documents.v3alpha.RefTarget.redirect:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
-	57, // 56: com.seed.documents.v3alpha.RefTarget.tombstone:type_name -> com.seed.documents.v3alpha.RefTarget.Tombstone
-	16, // 57: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry.value:type_name -> com.seed.documents.v3alpha.Account
-	43, // 58: com.seed.documents.v3alpha.Document.DetachedBlocksEntry.value:type_name -> com.seed.documents.v3alpha.BlockNode
-	60, // 59: com.seed.documents.v3alpha.DocumentChange.SetAttribute.null_value:type_name -> google.protobuf.Empty
-	1,  // 60: com.seed.documents.v3alpha.Documents.GetDocument:input_type -> com.seed.documents.v3alpha.GetDocumentRequest
-	3,  // 61: com.seed.documents.v3alpha.Documents.GetDocumentInfo:input_type -> com.seed.documents.v3alpha.GetDocumentInfoRequest
-	4,  // 62: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:input_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
-	6,  // 63: com.seed.documents.v3alpha.Documents.CreateDocumentChange:input_type -> com.seed.documents.v3alpha.CreateDocumentChangeRequest
-	7,  // 64: com.seed.documents.v3alpha.Documents.DeleteDocument:input_type -> com.seed.documents.v3alpha.DeleteDocumentRequest
-	10, // 65: com.seed.documents.v3alpha.Documents.ListAccounts:input_type -> com.seed.documents.v3alpha.ListAccountsRequest
-	12, // 66: com.seed.documents.v3alpha.Documents.GetAccount:input_type -> com.seed.documents.v3alpha.GetAccountRequest
-	13, // 67: com.seed.documents.v3alpha.Documents.BatchGetAccounts:input_type -> com.seed.documents.v3alpha.BatchGetAccountsRequest
-	15, // 68: com.seed.documents.v3alpha.Documents.UpdateProfile:input_type -> com.seed.documents.v3alpha.UpdateProfileRequest
-	18, // 69: com.seed.documents.v3alpha.Documents.CreateAlias:input_type -> com.seed.documents.v3alpha.CreateAliasRequest
-	19, // 70: com.seed.documents.v3alpha.Documents.CreateContact:input_type -> com.seed.documents.v3alpha.CreateContactRequest
-	20, // 71: com.seed.documents.v3alpha.Documents.GetContact:input_type -> com.seed.documents.v3alpha.GetContactRequest
-	21, // 72: com.seed.documents.v3alpha.Documents.UpdateContact:input_type -> com.seed.documents.v3alpha.UpdateContactRequest
-	22, // 73: com.seed.documents.v3alpha.Documents.DeleteContact:input_type -> com.seed.documents.v3alpha.DeleteContactRequest
-	23, // 74: com.seed.documents.v3alpha.Documents.ListContacts:input_type -> com.seed.documents.v3alpha.ListContactsRequest
-	26, // 75: com.seed.documents.v3alpha.Documents.ListDirectory:input_type -> com.seed.documents.v3alpha.ListDirectoryRequest
-	29, // 76: com.seed.documents.v3alpha.Documents.ListDocuments:input_type -> com.seed.documents.v3alpha.ListDocumentsRequest
-	8,  // 77: com.seed.documents.v3alpha.Documents.ListRootDocuments:input_type -> com.seed.documents.v3alpha.ListRootDocumentsRequest
-	31, // 78: com.seed.documents.v3alpha.Documents.ListDocumentChanges:input_type -> com.seed.documents.v3alpha.ListDocumentChangesRequest
-	33, // 79: com.seed.documents.v3alpha.Documents.GetDocumentChange:input_type -> com.seed.documents.v3alpha.GetDocumentChangeRequest
-	34, // 80: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:input_type -> com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
-	35, // 81: com.seed.documents.v3alpha.Documents.CreateRef:input_type -> com.seed.documents.v3alpha.CreateRefRequest
-	36, // 82: com.seed.documents.v3alpha.Documents.GetRef:input_type -> com.seed.documents.v3alpha.GetRefRequest
-	42, // 83: com.seed.documents.v3alpha.Documents.GetDocument:output_type -> com.seed.documents.v3alpha.Document
-	38, // 84: com.seed.documents.v3alpha.Documents.GetDocumentInfo:output_type -> com.seed.documents.v3alpha.DocumentInfo
-	5,  // 85: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:output_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
-	42, // 86: com.seed.documents.v3alpha.Documents.CreateDocumentChange:output_type -> com.seed.documents.v3alpha.Document
-	60, // 87: com.seed.documents.v3alpha.Documents.DeleteDocument:output_type -> google.protobuf.Empty
-	11, // 88: com.seed.documents.v3alpha.Documents.ListAccounts:output_type -> com.seed.documents.v3alpha.ListAccountsResponse
-	16, // 89: com.seed.documents.v3alpha.Documents.GetAccount:output_type -> com.seed.documents.v3alpha.Account
-	14, // 90: com.seed.documents.v3alpha.Documents.BatchGetAccounts:output_type -> com.seed.documents.v3alpha.BatchGetAccountsResponse
-	16, // 91: com.seed.documents.v3alpha.Documents.UpdateProfile:output_type -> com.seed.documents.v3alpha.Account
-	60, // 92: com.seed.documents.v3alpha.Documents.CreateAlias:output_type -> google.protobuf.Empty
-	25, // 93: com.seed.documents.v3alpha.Documents.CreateContact:output_type -> com.seed.documents.v3alpha.Contact
-	25, // 94: com.seed.documents.v3alpha.Documents.GetContact:output_type -> com.seed.documents.v3alpha.Contact
-	25, // 95: com.seed.documents.v3alpha.Documents.UpdateContact:output_type -> com.seed.documents.v3alpha.Contact
-	60, // 96: com.seed.documents.v3alpha.Documents.DeleteContact:output_type -> google.protobuf.Empty
-	24, // 97: com.seed.documents.v3alpha.Documents.ListContacts:output_type -> com.seed.documents.v3alpha.ListContactsResponse
-	28, // 98: com.seed.documents.v3alpha.Documents.ListDirectory:output_type -> com.seed.documents.v3alpha.ListDirectoryResponse
-	30, // 99: com.seed.documents.v3alpha.Documents.ListDocuments:output_type -> com.seed.documents.v3alpha.ListDocumentsResponse
-	9,  // 100: com.seed.documents.v3alpha.Documents.ListRootDocuments:output_type -> com.seed.documents.v3alpha.ListRootDocumentsResponse
-	32, // 101: com.seed.documents.v3alpha.Documents.ListDocumentChanges:output_type -> com.seed.documents.v3alpha.ListDocumentChangesResponse
-	37, // 102: com.seed.documents.v3alpha.Documents.GetDocumentChange:output_type -> com.seed.documents.v3alpha.DocumentChangeInfo
-	60, // 103: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:output_type -> google.protobuf.Empty
-	47, // 104: com.seed.documents.v3alpha.Documents.CreateRef:output_type -> com.seed.documents.v3alpha.Ref
-	47, // 105: com.seed.documents.v3alpha.Documents.GetRef:output_type -> com.seed.documents.v3alpha.Ref
-	83, // [83:106] is the sub-list for method output_type
-	60, // [60:83] is the sub-list for method input_type
-	60, // [60:60] is the sub-list for extension type_name
-	60, // [60:60] is the sub-list for extension extendee
-	0,  // [0:60] is the sub-list for field type_name
+	4,  // 0: com.seed.documents.v3alpha.BatchGetDocumentInfoRequest.requests:type_name -> com.seed.documents.v3alpha.GetDocumentInfoRequest
+	39, // 1: com.seed.documents.v3alpha.BatchGetDocumentInfoResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
+	47, // 2: com.seed.documents.v3alpha.CreateDocumentChangeRequest.changes:type_name -> com.seed.documents.v3alpha.DocumentChange
+	59, // 3: com.seed.documents.v3alpha.CreateDocumentChangeRequest.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 4: com.seed.documents.v3alpha.CreateDocumentChangeRequest.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
+	39, // 5: com.seed.documents.v3alpha.ListRootDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
+	28, // 6: com.seed.documents.v3alpha.ListAccountsRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
+	17, // 7: com.seed.documents.v3alpha.ListAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.Account
+	50, // 8: com.seed.documents.v3alpha.BatchGetAccountsResponse.accounts:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry
+	51, // 9: com.seed.documents.v3alpha.BatchGetAccountsResponse.errors:type_name -> com.seed.documents.v3alpha.BatchGetAccountsResponse.ErrorsEntry
+	18, // 10: com.seed.documents.v3alpha.UpdateProfileRequest.profile:type_name -> com.seed.documents.v3alpha.Profile
+	60, // 11: com.seed.documents.v3alpha.Account.metadata:type_name -> google.protobuf.Struct
+	41, // 12: com.seed.documents.v3alpha.Account.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
+	18, // 13: com.seed.documents.v3alpha.Account.profile:type_name -> com.seed.documents.v3alpha.Profile
+	39, // 14: com.seed.documents.v3alpha.Account.home_document_info:type_name -> com.seed.documents.v3alpha.DocumentInfo
+	59, // 15: com.seed.documents.v3alpha.Profile.update_time:type_name -> google.protobuf.Timestamp
+	26, // 16: com.seed.documents.v3alpha.UpdateContactRequest.contact:type_name -> com.seed.documents.v3alpha.Contact
+	26, // 17: com.seed.documents.v3alpha.ListContactsResponse.contacts:type_name -> com.seed.documents.v3alpha.Contact
+	59, // 18: com.seed.documents.v3alpha.Contact.create_time:type_name -> google.protobuf.Timestamp
+	59, // 19: com.seed.documents.v3alpha.Contact.update_time:type_name -> google.protobuf.Timestamp
+	28, // 20: com.seed.documents.v3alpha.ListDirectoryRequest.sort_options:type_name -> com.seed.documents.v3alpha.SortOptions
+	1,  // 21: com.seed.documents.v3alpha.SortOptions.attribute:type_name -> com.seed.documents.v3alpha.SortAttribute
+	39, // 22: com.seed.documents.v3alpha.ListDirectoryResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
+	39, // 23: com.seed.documents.v3alpha.ListDocumentsResponse.documents:type_name -> com.seed.documents.v3alpha.DocumentInfo
+	38, // 24: com.seed.documents.v3alpha.ListDocumentChangesResponse.changes:type_name -> com.seed.documents.v3alpha.DocumentChangeInfo
+	49, // 25: com.seed.documents.v3alpha.CreateRefRequest.target:type_name -> com.seed.documents.v3alpha.RefTarget
+	59, // 26: com.seed.documents.v3alpha.CreateRefRequest.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 27: com.seed.documents.v3alpha.CreateRefRequest.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
+	59, // 28: com.seed.documents.v3alpha.DocumentChangeInfo.create_time:type_name -> google.protobuf.Timestamp
+	60, // 29: com.seed.documents.v3alpha.DocumentInfo.metadata:type_name -> google.protobuf.Struct
+	59, // 30: com.seed.documents.v3alpha.DocumentInfo.create_time:type_name -> google.protobuf.Timestamp
+	59, // 31: com.seed.documents.v3alpha.DocumentInfo.update_time:type_name -> google.protobuf.Timestamp
+	42, // 32: com.seed.documents.v3alpha.DocumentInfo.breadcrumbs:type_name -> com.seed.documents.v3alpha.Breadcrumb
+	41, // 33: com.seed.documents.v3alpha.DocumentInfo.activity_summary:type_name -> com.seed.documents.v3alpha.ActivitySummary
+	40, // 34: com.seed.documents.v3alpha.DocumentInfo.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	57, // 35: com.seed.documents.v3alpha.DocumentInfo.redirect_info:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
+	0,  // 36: com.seed.documents.v3alpha.DocumentInfo.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
+	59, // 37: com.seed.documents.v3alpha.ActivitySummary.latest_comment_time:type_name -> google.protobuf.Timestamp
+	59, // 38: com.seed.documents.v3alpha.ActivitySummary.latest_change_time:type_name -> google.protobuf.Timestamp
+	60, // 39: com.seed.documents.v3alpha.Document.metadata:type_name -> google.protobuf.Struct
+	44, // 40: com.seed.documents.v3alpha.Document.content:type_name -> com.seed.documents.v3alpha.BlockNode
+	52, // 41: com.seed.documents.v3alpha.Document.detached_blocks:type_name -> com.seed.documents.v3alpha.Document.DetachedBlocksEntry
+	59, // 42: com.seed.documents.v3alpha.Document.create_time:type_name -> google.protobuf.Timestamp
+	59, // 43: com.seed.documents.v3alpha.Document.update_time:type_name -> google.protobuf.Timestamp
+	40, // 44: com.seed.documents.v3alpha.Document.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	0,  // 45: com.seed.documents.v3alpha.Document.visibility:type_name -> com.seed.documents.v3alpha.ResourceVisibility
+	45, // 46: com.seed.documents.v3alpha.BlockNode.block:type_name -> com.seed.documents.v3alpha.Block
+	44, // 47: com.seed.documents.v3alpha.BlockNode.children:type_name -> com.seed.documents.v3alpha.BlockNode
+	60, // 48: com.seed.documents.v3alpha.Block.attributes:type_name -> google.protobuf.Struct
+	46, // 49: com.seed.documents.v3alpha.Block.annotations:type_name -> com.seed.documents.v3alpha.Annotation
+	60, // 50: com.seed.documents.v3alpha.Annotation.attributes:type_name -> google.protobuf.Struct
+	54, // 51: com.seed.documents.v3alpha.DocumentChange.set_metadata:type_name -> com.seed.documents.v3alpha.DocumentChange.SetMetadata
+	53, // 52: com.seed.documents.v3alpha.DocumentChange.move_block:type_name -> com.seed.documents.v3alpha.DocumentChange.MoveBlock
+	45, // 53: com.seed.documents.v3alpha.DocumentChange.replace_block:type_name -> com.seed.documents.v3alpha.Block
+	55, // 54: com.seed.documents.v3alpha.DocumentChange.set_attribute:type_name -> com.seed.documents.v3alpha.DocumentChange.SetAttribute
+	49, // 55: com.seed.documents.v3alpha.Ref.target:type_name -> com.seed.documents.v3alpha.RefTarget
+	59, // 56: com.seed.documents.v3alpha.Ref.timestamp:type_name -> google.protobuf.Timestamp
+	40, // 57: com.seed.documents.v3alpha.Ref.generation_info:type_name -> com.seed.documents.v3alpha.GenerationInfo
+	56, // 58: com.seed.documents.v3alpha.RefTarget.version:type_name -> com.seed.documents.v3alpha.RefTarget.Version
+	57, // 59: com.seed.documents.v3alpha.RefTarget.redirect:type_name -> com.seed.documents.v3alpha.RefTarget.Redirect
+	58, // 60: com.seed.documents.v3alpha.RefTarget.tombstone:type_name -> com.seed.documents.v3alpha.RefTarget.Tombstone
+	17, // 61: com.seed.documents.v3alpha.BatchGetAccountsResponse.AccountsEntry.value:type_name -> com.seed.documents.v3alpha.Account
+	44, // 62: com.seed.documents.v3alpha.Document.DetachedBlocksEntry.value:type_name -> com.seed.documents.v3alpha.BlockNode
+	61, // 63: com.seed.documents.v3alpha.DocumentChange.SetAttribute.null_value:type_name -> google.protobuf.Empty
+	2,  // 64: com.seed.documents.v3alpha.Documents.GetDocument:input_type -> com.seed.documents.v3alpha.GetDocumentRequest
+	4,  // 65: com.seed.documents.v3alpha.Documents.GetDocumentInfo:input_type -> com.seed.documents.v3alpha.GetDocumentInfoRequest
+	5,  // 66: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:input_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoRequest
+	7,  // 67: com.seed.documents.v3alpha.Documents.CreateDocumentChange:input_type -> com.seed.documents.v3alpha.CreateDocumentChangeRequest
+	8,  // 68: com.seed.documents.v3alpha.Documents.DeleteDocument:input_type -> com.seed.documents.v3alpha.DeleteDocumentRequest
+	11, // 69: com.seed.documents.v3alpha.Documents.ListAccounts:input_type -> com.seed.documents.v3alpha.ListAccountsRequest
+	13, // 70: com.seed.documents.v3alpha.Documents.GetAccount:input_type -> com.seed.documents.v3alpha.GetAccountRequest
+	14, // 71: com.seed.documents.v3alpha.Documents.BatchGetAccounts:input_type -> com.seed.documents.v3alpha.BatchGetAccountsRequest
+	16, // 72: com.seed.documents.v3alpha.Documents.UpdateProfile:input_type -> com.seed.documents.v3alpha.UpdateProfileRequest
+	19, // 73: com.seed.documents.v3alpha.Documents.CreateAlias:input_type -> com.seed.documents.v3alpha.CreateAliasRequest
+	20, // 74: com.seed.documents.v3alpha.Documents.CreateContact:input_type -> com.seed.documents.v3alpha.CreateContactRequest
+	21, // 75: com.seed.documents.v3alpha.Documents.GetContact:input_type -> com.seed.documents.v3alpha.GetContactRequest
+	22, // 76: com.seed.documents.v3alpha.Documents.UpdateContact:input_type -> com.seed.documents.v3alpha.UpdateContactRequest
+	23, // 77: com.seed.documents.v3alpha.Documents.DeleteContact:input_type -> com.seed.documents.v3alpha.DeleteContactRequest
+	24, // 78: com.seed.documents.v3alpha.Documents.ListContacts:input_type -> com.seed.documents.v3alpha.ListContactsRequest
+	27, // 79: com.seed.documents.v3alpha.Documents.ListDirectory:input_type -> com.seed.documents.v3alpha.ListDirectoryRequest
+	30, // 80: com.seed.documents.v3alpha.Documents.ListDocuments:input_type -> com.seed.documents.v3alpha.ListDocumentsRequest
+	9,  // 81: com.seed.documents.v3alpha.Documents.ListRootDocuments:input_type -> com.seed.documents.v3alpha.ListRootDocumentsRequest
+	32, // 82: com.seed.documents.v3alpha.Documents.ListDocumentChanges:input_type -> com.seed.documents.v3alpha.ListDocumentChangesRequest
+	34, // 83: com.seed.documents.v3alpha.Documents.GetDocumentChange:input_type -> com.seed.documents.v3alpha.GetDocumentChangeRequest
+	35, // 84: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:input_type -> com.seed.documents.v3alpha.UpdateDocumentReadStatusRequest
+	36, // 85: com.seed.documents.v3alpha.Documents.CreateRef:input_type -> com.seed.documents.v3alpha.CreateRefRequest
+	37, // 86: com.seed.documents.v3alpha.Documents.GetRef:input_type -> com.seed.documents.v3alpha.GetRefRequest
+	43, // 87: com.seed.documents.v3alpha.Documents.GetDocument:output_type -> com.seed.documents.v3alpha.Document
+	39, // 88: com.seed.documents.v3alpha.Documents.GetDocumentInfo:output_type -> com.seed.documents.v3alpha.DocumentInfo
+	6,  // 89: com.seed.documents.v3alpha.Documents.BatchGetDocumentInfo:output_type -> com.seed.documents.v3alpha.BatchGetDocumentInfoResponse
+	43, // 90: com.seed.documents.v3alpha.Documents.CreateDocumentChange:output_type -> com.seed.documents.v3alpha.Document
+	61, // 91: com.seed.documents.v3alpha.Documents.DeleteDocument:output_type -> google.protobuf.Empty
+	12, // 92: com.seed.documents.v3alpha.Documents.ListAccounts:output_type -> com.seed.documents.v3alpha.ListAccountsResponse
+	17, // 93: com.seed.documents.v3alpha.Documents.GetAccount:output_type -> com.seed.documents.v3alpha.Account
+	15, // 94: com.seed.documents.v3alpha.Documents.BatchGetAccounts:output_type -> com.seed.documents.v3alpha.BatchGetAccountsResponse
+	17, // 95: com.seed.documents.v3alpha.Documents.UpdateProfile:output_type -> com.seed.documents.v3alpha.Account
+	61, // 96: com.seed.documents.v3alpha.Documents.CreateAlias:output_type -> google.protobuf.Empty
+	26, // 97: com.seed.documents.v3alpha.Documents.CreateContact:output_type -> com.seed.documents.v3alpha.Contact
+	26, // 98: com.seed.documents.v3alpha.Documents.GetContact:output_type -> com.seed.documents.v3alpha.Contact
+	26, // 99: com.seed.documents.v3alpha.Documents.UpdateContact:output_type -> com.seed.documents.v3alpha.Contact
+	61, // 100: com.seed.documents.v3alpha.Documents.DeleteContact:output_type -> google.protobuf.Empty
+	25, // 101: com.seed.documents.v3alpha.Documents.ListContacts:output_type -> com.seed.documents.v3alpha.ListContactsResponse
+	29, // 102: com.seed.documents.v3alpha.Documents.ListDirectory:output_type -> com.seed.documents.v3alpha.ListDirectoryResponse
+	31, // 103: com.seed.documents.v3alpha.Documents.ListDocuments:output_type -> com.seed.documents.v3alpha.ListDocumentsResponse
+	10, // 104: com.seed.documents.v3alpha.Documents.ListRootDocuments:output_type -> com.seed.documents.v3alpha.ListRootDocumentsResponse
+	33, // 105: com.seed.documents.v3alpha.Documents.ListDocumentChanges:output_type -> com.seed.documents.v3alpha.ListDocumentChangesResponse
+	38, // 106: com.seed.documents.v3alpha.Documents.GetDocumentChange:output_type -> com.seed.documents.v3alpha.DocumentChangeInfo
+	61, // 107: com.seed.documents.v3alpha.Documents.UpdateDocumentReadStatus:output_type -> google.protobuf.Empty
+	48, // 108: com.seed.documents.v3alpha.Documents.CreateRef:output_type -> com.seed.documents.v3alpha.Ref
+	48, // 109: com.seed.documents.v3alpha.Documents.GetRef:output_type -> com.seed.documents.v3alpha.Ref
+	87, // [87:110] is the sub-list for method output_type
+	64, // [64:87] is the sub-list for method input_type
+	64, // [64:64] is the sub-list for extension type_name
+	64, // [64:64] is the sub-list for extension extendee
+	0,  // [0:64] is the sub-list for field type_name
 }
 
 func init() { file_documents_v3alpha_documents_proto_init() }
@@ -4604,7 +4715,7 @@ func file_documents_v3alpha_documents_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_documents_v3alpha_documents_proto_rawDesc), len(file_documents_v3alpha_documents_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,

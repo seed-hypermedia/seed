@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
 	"strconv"
@@ -37,7 +38,7 @@ var (
 )
 
 // setupIPFSFileHandlers sets up the IPFS file endpoints for uploading and getting files.
-func setupIPFSFileHandlers(r *Router, h IPFSFileHandler) {
+func setupIPFSFileHandlers(r *Router, h *hmnet.FileManager) {
 	r.Handle("/ipfs/file-upload", http.HandlerFunc(h.UploadFile), 0)
 	r.Handle("/ipfs/{cid}", http.HandlerFunc(h.GetFile), 0)
 }
@@ -116,20 +117,13 @@ func setupGRPCWebHandler(r *Router, rpc *grpc.Server) {
 	})).Handler(grpcWebHandler)
 }
 
-// IPFSFileHandler is an interface to pass to the router only the http handlers and
-// not all the FileManager type.
-type IPFSFileHandler interface {
-	GetFile(http.ResponseWriter, *http.Request)
-	UploadFile(http.ResponseWriter, *http.Request)
-}
-
 func initHTTP(
 	port int,
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	blobs blockstore.Blockstore,
-	ipfsHandler IPFSFileHandler,
+	ipfsHandler *hmnet.FileManager,
 	extraHandlers ...func(*Router),
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{r: mux.NewRouter()}

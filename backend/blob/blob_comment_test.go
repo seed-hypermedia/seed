@@ -52,7 +52,7 @@ func TestCommentCausality(t *testing.T) {
 			Type: "paragraph",
 			Text: "Hello World",
 		}},
-	}, clock.MustNow())
+	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
 	reply, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, cid.Undef, []CommentBlock{
@@ -60,7 +60,7 @@ func TestCommentCausality(t *testing.T) {
 			Type: "paragraph",
 			Text: "I reply",
 		}},
-	}, clock.MustNow())
+	}, VisibilityPublic, clock.MustNow())
 	require.NoError(t, err)
 
 	reply2, err := NewComment(bob.Account, root.TSID(), root.Decoded.Space(), root.Decoded.Path, root.Decoded.Version, root.CID, reply.CID, []CommentBlock{
@@ -68,7 +68,7 @@ func TestCommentCausality(t *testing.T) {
 			Type: "paragraph",
 			Text: "I reply to reply",
 		}},
-	}, clock.MustNow())
+	}, VisibilityPublic, clock.MustNow())
 
 	blobs := colx.SlicePermutations([]struct {
 		Name string
