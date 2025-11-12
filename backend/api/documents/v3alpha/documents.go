@@ -700,12 +700,8 @@ func (srv *Server) accountFromRow(row *sqlite.Stmt, lookup *blob.LookupCache) (*
 	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
 		srv.log.Warn("Unmarshal error", zap.Any("metadataJSON", metadataJSON), zap.Error(err))
 	}
-	metadata := make(map[string]any, len(attrs))
-	for k, v := range attrs {
-		if v.Value != nil {
-			colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
-		}
-	}
+
+	metadata := attrs.PublicMap()
 
 	var (
 		latestCommentID   string
@@ -1110,16 +1106,8 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		return nil, err
 	}
 
-	metadata := make(map[string]any, len(attrs))
-	for k, v := range attrs {
-		// Skip metadata that is internal to the database index.
-		if strings.HasPrefix(k, "$db.") {
-			continue
-		}
-		if v.Value != nil {
-			colx.ObjectSet(metadata, strings.Split(k, "."), v.Value)
-		}
-	}
+	metadata := attrs.PublicMap()
+
 	var redirectInfo *documents.RefTarget_Redirect
 	if redirect, ok := attrs["$db.redirect"]; ok {
 		space, path, err := blob.IRI(redirect.Value.(string)).SpacePath()

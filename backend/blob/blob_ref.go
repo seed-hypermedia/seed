@@ -8,6 +8,7 @@ import (
 	"maps"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
@@ -15,6 +16,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/RoaringBitmap/roaring/v2/roaring64"
@@ -767,6 +769,38 @@ func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 	if ts > vv.Ts {
 		m[k] = IndexedValue{Value: v, Ts: ts}
 	}
+}
+
+// PublicMap returns hydrated map attributes, doing proper nested map representation,
+// by unfolding the attributes with dot separators and respecting the order of values.
+// It also returns only public attributes, excluded those prefixed with `$db.`.
+func (m DocIndexedAttrs) PublicMap() map[string]any {
+	out := make(map[string]any, len(m))
+
+	type KV struct {
+		Key   string
+		Value IndexedValue
+	}
+	kvs := make([]KV, 0, len(m))
+	for k, v := range m {
+		kvs = append(kvs, KV{Key: k, Value: v})
+	}
+	slices.SortFunc(kvs, func(a, b KV) int {
+		if a.Value.Ts == b.Value.Ts {
+			return cmp.Compare(a.Key, b.Key)
+		}
+		return cmp.Compare(a.Value.Ts, b.Value.Ts)
+	})
+
+	for _, kv := range kvs {
+		if strings.HasPrefix(kv.Key, "$db.") || kv.Value.Value == nil {
+			continue
+		}
+
+		colx.ObjectSet(out, strings.Split(kv.Key, "."), kv.Value.Value)
+	}
+
+	return out
 }
 
 type changeMetadata struct {

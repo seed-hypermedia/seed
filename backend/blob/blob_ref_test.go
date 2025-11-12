@@ -1,6 +1,7 @@
 package blob
 
 import (
+	"encoding/json"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
@@ -96,5 +97,17 @@ func TestRefCausality(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 1, count, "must have one generation for the document indexed")
 		})
+	}
+}
+
+func TestBug_MetadataCRDT(t *testing.T) {
+	// Data extracted from real document that was causing problems.
+	data := []byte(`{"cover":{"v":"","t":1741180379407},"icon":{"v":"ipfs://bafkreid63qduvw3p4bldx4mjxnb6tskhgabvhe4zfsf62hmfrp5xbe6uku","t":1729778316028},"layout":{"v":"","t":1761781408059},"name":{"v":"Eric Vicenti","t":1729606183282},"seedExperimentalLogo":{"v":"","t":1761781408059},"showOutline":{"v":false,"t":1761781408059},"siteUrl":{"v":"https://ev.hyper.media","t":1743635919824},"theme":{"v":"[object Object]","t":1739260812124},"theme.headerLayout":{"v":"","t":1761781408059},"thumbnail":{"v":"ipfs://bafkreid63qduvw3p4bldx4mjxnb6tskhgabvhe4zfsf62hmfrp5xbe6uku","t":1729606183282}}`)
+
+	for range 150 {
+		var attrs DocIndexedAttrs
+		require.NoError(t, json.Unmarshal(data, &attrs))
+
+		require.IsType(t, map[string]any{}, attrs.PublicMap()["theme"])
 	}
 }
