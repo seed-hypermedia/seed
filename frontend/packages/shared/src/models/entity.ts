@@ -70,10 +70,8 @@ export function createBatchAccountsResolver(client: GRPCClient) {
         }
       } else {
         const serverMetadata = account.metadata?.toJson() || {}
-
-        const metadata = HMDocumentMetadataSchema.safeParse(
-          documentMetadataParseAdjustments(serverMetadata),
-        )
+        documentMetadataParseAdjustments(serverMetadata)
+        const metadata = HMDocumentMetadataSchema.safeParse(serverMetadata)
         if (!metadata.success) {
           console.error(
             `Error parsing metadata for account ${id}: `,
