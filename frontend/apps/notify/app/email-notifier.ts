@@ -686,7 +686,6 @@ async function loadRefEvent(event: PlainMessage<Event>) {
   const currentDocMentions = getMentionsOfDocument(changedDoc)
 
   let newMentions: MentionMap = currentDocMentions
-  console.log('~~ currentDocMentions', currentDocMentions)
   // Check if there are previous mentions to compare against
   if (prevVersionId?.version) {
     const prevVersionDoc = await getDocument(prevVersionId)
@@ -707,7 +706,6 @@ async function loadRefEvent(event: PlainMessage<Event>) {
         }
       }
     }
-    console.log('~~ newMentions', newMentions)
   }
   const authorMeta = (await getAccount(blob.author)).metadata
   if (!authorMeta)
@@ -727,9 +725,7 @@ type MentionMap = Record<string, Set<string>> // block id -> set of account ids
 
 function getMentionsOfDocument(document: HMDocument): MentionMap {
   const mentionMap: MentionMap = {}
-  console.log('~~ getMentionsOfDocument', document.content)
   extractMentionsFromBlockNodes(document.content, mentionMap)
-  console.log('~~ RESULT mentionMap', mentionMap)
   return mentionMap
 }
 
