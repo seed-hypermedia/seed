@@ -185,6 +185,58 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
 }
 
 /**
+ * @generated from message com.seed.daemon.v1alpha.SyncResourceWithPeerRequest
+ */
+export class SyncResourceWithPeerRequest extends Message<SyncResourceWithPeerRequest> {
+  /**
+   * Required. Addresses of the Peer to sync with.
+   * comma separated list of multiaddrs, including peer ID.
+   * Only one peer is supported per request.
+   *
+   * @generated from field: string peer = 1;
+   */
+  peer = "";
+
+  /**
+   * Required. Resource IRI to sync. We will also sync
+   * related blobs to that resource. No wilcards are supported.
+   * Only documents resources can be specified. No single comments supported yet.
+   * See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
+   *
+   * @generated from field: string resource = 2;
+   */
+  resource = "";
+
+  constructor(data?: PartialMessage<SyncResourceWithPeerRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SyncResourceWithPeerRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SyncResourceWithPeerRequest {
+    return new SyncResourceWithPeerRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SyncResourceWithPeerRequest {
+    return new SyncResourceWithPeerRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SyncResourceWithPeerRequest {
+    return new SyncResourceWithPeerRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SyncResourceWithPeerRequest | PlainMessage<SyncResourceWithPeerRequest> | undefined, b: SyncResourceWithPeerRequest | PlainMessage<SyncResourceWithPeerRequest> | undefined): boolean {
+    return proto3.util.equals(SyncResourceWithPeerRequest, a, b);
+  }
+}
+
+/**
  * Request to get basic information about the running daemon.
  *
  * @generated from message com.seed.daemon.v1alpha.GetInfoRequest

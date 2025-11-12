@@ -2,27 +2,10 @@ syntax = "proto3";
 
 package com.seed.p2p.v1alpha;
 
-import "google/protobuf/empty.proto";
-
 option go_package = "seed/backend/genproto/p2p/v1alpha;p2p";
 
 service Syncing {
   rpc ReconcileBlobs(ReconcileBlobsRequest) returns (ReconcileBlobsResponse);
-
-  rpc SyncResourceWithPeer(SyncResourceWithPeerRequest) returns (google.protobuf.Empty);
-}
-
-message SyncResourceWithPeerRequest {
-  // Required. Addresses of the Peer to sync with.
-  // comma separated list of multiaddrs, including peer ID.
-  // Only one peer is supported per request.
-  string peer = 1;
-
-  // Required. Resource IRI to sync. We will also sync
-  // related blobs to that resource. No wilcards are supported.
-  // Only documents resources can be specified. No single comments supported yet.
-  // See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
-  string resource = 2;
 }
 
 message ReconcileBlobsRequest {
