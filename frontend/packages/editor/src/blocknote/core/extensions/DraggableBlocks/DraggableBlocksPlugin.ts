@@ -23,6 +23,67 @@ const serializeForClipboard = (pv as any).__serializeForClipboard
 
 let dragImageElement: Element | undefined
 
+type ScrollContainer = HTMLElement
+
+const AUTO_SCROLL_MARGIN = 80
+const AUTO_SCROLL_MAX_SPEED = 30
+const SCROLLABLE_OVERFLOW_VALUES = new Set(['auto', 'scroll'])
+
+function findScrollContainer(element: HTMLElement): ScrollContainer {
+  const editorClassSelector =
+    '.Editor-root, .draft-editor, .comment-editor, .comment-editor .ProseMirror'
+  const editorContainer = element.closest(editorClassSelector)
+  if (editorContainer) {
+    return editorContainer as HTMLElement
+  }
+
+  let current: HTMLElement | null = element
+
+  while (current) {
+    const {overflowY, overflow} = window.getComputedStyle(current)
+    const canScroll =
+      (SCROLLABLE_OVERFLOW_VALUES.has(overflowY) ||
+        SCROLLABLE_OVERFLOW_VALUES.has(overflow)) &&
+      current.scrollHeight > current.clientHeight
+
+    if (canScroll) {
+      return current
+    }
+
+    current = current.parentElement
+  }
+
+  const fallback =
+    (document.scrollingElement as HTMLElement | null) ??
+    document.documentElement ??
+    document.body
+
+  if (!fallback) {
+    throw new Error(
+      'Unable to determine scroll container for draggable blocks.',
+    )
+  }
+
+  return fallback
+}
+
+function scrollContainerBy(container: ScrollContainer, deltaY: number) {
+  if (deltaY === 0) {
+    return
+  }
+
+  const previous = container.scrollTop
+  container.scrollTop = previous + deltaY
+}
+
+function getScrollBounds(container: ScrollContainer) {
+  const rect = container.getBoundingClientRect()
+  return {
+    top: rect.top,
+    bottom: rect.bottom,
+  }
+}
+
 function getDraggableBlockFromCoords(
   coords: {left: number; top: number},
   view: EditorView,
@@ -260,6 +321,7 @@ export class BlockMenuView<BSchema extends BlockSchema> {
   menuFrozen = false
 
   private lastPosition: DOMRect | undefined
+  private scrollContainer: ScrollContainer
 
   constructor({
     tiptapEditor,
@@ -273,6 +335,9 @@ export class BlockMenuView<BSchema extends BlockSchema> {
     this.horizontalPosAnchor = (
       this.ttEditor.view.dom.firstChild! as HTMLElement
     ).getBoundingClientRect().x
+    this.scrollContainer = findScrollContainer(
+      this.ttEditor.view.dom as HTMLElement,
+    )
 
     this.blockMenu = blockMenuFactory(this.getStaticParams())
 
@@ -333,7 +398,13 @@ export class BlockMenuView<BSchema extends BlockSchema> {
    * when dragging / dropping to the side of the editor
    */
   onDragOver = (event: DragEvent) => {
-    if ((event as any).synthetic || !this.isDragging) {
+    if (!this.isDragging) {
+      return
+    }
+
+    this.handleAutoScroll(event)
+
+    if ((event as any).synthetic) {
       return
     }
     let pos = this.ttEditor.view.posAtCoords({
@@ -595,7 +666,10 @@ export class BlockMenuView<BSchema extends BlockSchema> {
         this.isDragging = true
         dragStart(event, this.ttEditor.view)
       },
-      blockDragEnd: () => unsetDragImage(),
+      blockDragEnd: () => {
+        this.isDragging = false
+        unsetDragImage()
+      },
       freezeMenu: () => {
         this.menuFrozen = true
       },
@@ -625,6 +699,30 @@ export class BlockMenuView<BSchema extends BlockSchema> {
   getDynamicParams(): BlockSideMenuDynamicParams<BSchema> {
     return {
       block: this.editor.getBlock(this.hoveredBlock!.getAttribute('data-id')!)!,
+    }
+  }
+
+  private handleAutoScroll(event: DragEvent) {
+    const {top, bottom} = getScrollBounds(this.scrollContainer)
+    const viewportAdjustedTop = Math.max(top, 0)
+    const viewportAdjustedBottom = Math.min(bottom, window.innerHeight)
+    const upperBoundary = viewportAdjustedTop + AUTO_SCROLL_MARGIN
+    const lowerBoundary = viewportAdjustedBottom - AUTO_SCROLL_MARGIN
+    const pointerY = event.clientY
+
+    if (pointerY < upperBoundary) {
+      const distance = Math.min(upperBoundary - pointerY, AUTO_SCROLL_MARGIN)
+      const intensity = distance / AUTO_SCROLL_MARGIN
+      const deltaY = -Math.ceil(intensity * AUTO_SCROLL_MAX_SPEED)
+      scrollContainerBy(this.scrollContainer, deltaY)
+      return
+    }
+
+    if (pointerY > lowerBoundary) {
+      const distance = Math.min(pointerY - lowerBoundary, AUTO_SCROLL_MARGIN)
+      const intensity = distance / AUTO_SCROLL_MARGIN
+      const deltaY = Math.ceil(intensity * AUTO_SCROLL_MAX_SPEED)
+      scrollContainerBy(this.scrollContainer, deltaY)
     }
   }
 }
