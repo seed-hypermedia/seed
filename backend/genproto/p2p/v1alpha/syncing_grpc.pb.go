@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -20,8 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Syncing_ReconcileBlobs_FullMethodName       = "/com.seed.p2p.v1alpha.Syncing/ReconcileBlobs"
-	Syncing_SyncResourceWithPeer_FullMethodName = "/com.seed.p2p.v1alpha.Syncing/SyncResourceWithPeer"
+	Syncing_ReconcileBlobs_FullMethodName = "/com.seed.p2p.v1alpha.Syncing/ReconcileBlobs"
 )
 
 // SyncingClient is the client API for Syncing service.
@@ -29,7 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SyncingClient interface {
 	ReconcileBlobs(ctx context.Context, in *ReconcileBlobsRequest, opts ...grpc.CallOption) (*ReconcileBlobsResponse, error)
-	SyncResourceWithPeer(ctx context.Context, in *SyncResourceWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type syncingClient struct {
@@ -50,22 +47,11 @@ func (c *syncingClient) ReconcileBlobs(ctx context.Context, in *ReconcileBlobsRe
 	return out, nil
 }
 
-func (c *syncingClient) SyncResourceWithPeer(ctx context.Context, in *SyncResourceWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Syncing_SyncResourceWithPeer_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // SyncingServer is the server API for Syncing service.
 // All implementations should embed UnimplementedSyncingServer
 // for forward compatibility.
 type SyncingServer interface {
 	ReconcileBlobs(context.Context, *ReconcileBlobsRequest) (*ReconcileBlobsResponse, error)
-	SyncResourceWithPeer(context.Context, *SyncResourceWithPeerRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedSyncingServer should be embedded to have
@@ -77,9 +63,6 @@ type UnimplementedSyncingServer struct{}
 
 func (UnimplementedSyncingServer) ReconcileBlobs(context.Context, *ReconcileBlobsRequest) (*ReconcileBlobsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReconcileBlobs not implemented")
-}
-func (UnimplementedSyncingServer) SyncResourceWithPeer(context.Context, *SyncResourceWithPeerRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SyncResourceWithPeer not implemented")
 }
 func (UnimplementedSyncingServer) testEmbeddedByValue() {}
 
@@ -119,24 +102,6 @@ func _Syncing_ReconcileBlobs_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Syncing_SyncResourceWithPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SyncResourceWithPeerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SyncingServer).SyncResourceWithPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Syncing_SyncResourceWithPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SyncingServer).SyncResourceWithPeer(ctx, req.(*SyncResourceWithPeerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Syncing_ServiceDesc is the grpc.ServiceDesc for Syncing service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -147,10 +112,6 @@ var Syncing_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReconcileBlobs",
 			Handler:    _Syncing_ReconcileBlobs_Handler,
-		},
-		{
-			MethodName: "SyncResourceWithPeer",
-			Handler:    _Syncing_SyncResourceWithPeer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

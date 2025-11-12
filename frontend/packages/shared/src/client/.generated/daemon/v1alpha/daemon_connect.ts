@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, SyncResourceWithPeerRequest, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -58,6 +58,17 @@ export const Daemon = {
     forceSync: {
       name: "ForceSync",
       I: ForceSyncRequest,
+      O: Empty,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Syncs a specific resource with a given peer.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SyncResourceWithPeer
+     */
+    syncResourceWithPeer: {
+      name: "SyncResourceWithPeer",
+      I: SyncResourceWithPeerRequest,
       O: Empty,
       kind: MethodKind.Unary,
     },

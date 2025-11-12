@@ -75,6 +75,11 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	daemon.RegisterDaemonServer(rpc, srv)
 }
 
+// SyncResourceWithPeer implements the corresponding gRPC method.
+func (srv *Server) SyncResourceWithPeer(_ context.Context, req *daemon.SyncResourceWithPeerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "SyncResourceWithPeer is not implemented yet")
+}
+
 // GenMnemonic returns a set of mnemonic words based on bip39 schema. Word count should be 12 or 15 or 18 or 21 or 24.
 func (srv *Server) GenMnemonic(_ context.Context, req *daemon.GenMnemonicRequest) (*daemon.GenMnemonicResponse, error) {
 	if req.WordCount == 0 {
