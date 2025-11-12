@@ -239,10 +239,9 @@ func (x *RegisterKeyRequest) GetName() string {
 
 type SyncResourceWithPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. Addresses of the Peer to sync with.
-	// comma separated list of multiaddrs, including peer ID.
-	// Only one peer is supported per request.
-	Peer string `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
+	// Required. Peer ID to sync with.
+	// No addresses are needed, just the pid
+	Pid string `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`
 	// Required. Resource IRI to sync. We will also sync
 	// related blobs to that resource. No wilcards are supported.
 	// Only documents resources can be specified. No single comments supported yet.
@@ -282,9 +281,9 @@ func (*SyncResourceWithPeerRequest) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *SyncResourceWithPeerRequest) GetPeer() string {
+func (x *SyncResourceWithPeerRequest) GetPid() string {
 	if x != nil {
-		return x.Peer
+		return x.Pid
 	}
 	return ""
 }
@@ -1308,9 +1307,9 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\n" +
 	"passphrase\x18\x02 \x01(\tR\n" +
 	"passphrase\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"M\n" +
-	"\x1bSyncResourceWithPeerRequest\x12\x12\n" +
-	"\x04peer\x18\x01 \x01(\tR\x04peer\x12\x1a\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"K\n" +
+	"\x1bSyncResourceWithPeerRequest\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x1a\n" +
 	"\bresource\x18\x02 \x01(\tR\bresource\"\x10\n" +
 	"\x0eGetInfoRequest\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +

@@ -189,13 +189,12 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
  */
 export class SyncResourceWithPeerRequest extends Message<SyncResourceWithPeerRequest> {
   /**
-   * Required. Addresses of the Peer to sync with.
-   * comma separated list of multiaddrs, including peer ID.
-   * Only one peer is supported per request.
+   * Required. Peer ID to sync with.
+   * No addresses are needed, just the pid
    *
-   * @generated from field: string peer = 1;
+   * @generated from field: string pid = 1;
    */
-  peer = "";
+  pid = "";
 
   /**
    * Required. Resource IRI to sync. We will also sync
@@ -215,7 +214,7 @@ export class SyncResourceWithPeerRequest extends Message<SyncResourceWithPeerReq
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.daemon.v1alpha.SyncResourceWithPeerRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "peer", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "pid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
