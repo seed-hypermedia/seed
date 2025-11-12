@@ -455,11 +455,12 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 			return err
 		}
 	}
-
-	blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-	if err != nil {
-		return err
-	}
+	/*
+		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
+			return err
+		}
+	*/
 	// Fill Capabilities and the rest of the related blob types.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -499,11 +500,13 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 				return err
 			}
 		}
-		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-		if err != nil {
-			return err
-		}
-		fmt.Println(blobCountBefore, "->", blobCountAfter)
+		/*
+			blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+			if err != nil {
+				return err
+			}
+			fmt.Println(blobCountBefore, "->", blobCountAfter)
+		*/
 	}
 
 	return nil
