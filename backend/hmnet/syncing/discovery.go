@@ -456,10 +456,10 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 		}
 	}
 
-	//blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-	//if err != nil {
-	//	return err
-	//}
+	blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+	if err != nil {
+		return err
+	}
 	// Fill Capabilities and the rest of the related blob types.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
@@ -473,57 +473,39 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 			return err
 		}
 	}
-	//blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-	//if err != nil {
-	//	return err
-	//}
-	//fmt.Println(blobCountBefore, "->", blobCountAfter)
+
 	// Fill All authors.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
-					WITH home_documents AS (
 					SELECT DISTINCT 
-					r.id as id,
-					sb.author as author
+					sb.id as id
 					FROM resources r 
 					JOIN structural_blobs sb ON sb.resource = r.id 
 					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs) 
-					AND type = 'Ref' AND length(r.iri) = 53 -- hm://<acc>
-					), genesis_blobs AS (
-					SELECT DISTINCT
-					sb.genesis_blob
-					FROM structural_blobs sb
-					JOIN home_documents hd
-					ON hd.id = sb.resource
-					WHERE genesis_blob is not null
-					)
-					SELECT *
-					FROM genesis_blobs
-					UNION ALL
-					SELECT DISTINCT
-					sb.id
-					FROM structural_blobs sb
-					JOIN home_documents hd
-					ON hd.id = sb.resource
-					WHERE sb.genesis_blob IN genesis_blobs
-					AND sb.author IN (select author from home_documents)`
+					AND type = 'Ref' AND length(r.iri) = 53 -- hm://<acc>`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
 		}
-	}
-	// Fill media files.
-	{
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
+		// Fill media files.
+		{
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
 				SELECT target
 				FROM blob_links bl
 				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
 				WHERE bl.source IN rbsr_blobs`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
+		}
+		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
 			return err
 		}
+		fmt.Println(blobCountBefore, "->", blobCountAfter)
 	}
+
 	return nil
 }
 
