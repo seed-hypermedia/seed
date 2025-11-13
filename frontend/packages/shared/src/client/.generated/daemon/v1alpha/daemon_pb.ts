@@ -185,6 +185,85 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
 }
 
 /**
+ * @generated from message com.seed.daemon.v1alpha.SyncingProgress
+ */
+export class SyncingProgress extends Message<SyncingProgress> {
+  /**
+   * Number of peers found during discovery.
+   *
+   * @generated from field: int32 peers_found = 1;
+   */
+  peersFound = 0;
+
+  /**
+   * Number of peers successfully synced.
+   *
+   * @generated from field: int32 peers_synced_ok = 2;
+   */
+  peersSyncedOk = 0;
+
+  /**
+   * Number of peers that failed to sync.
+   *
+   * @generated from field: int32 peers_failed = 3;
+   */
+  peersFailed = 0;
+
+  /**
+   * Number of blobs discovered for syncing.
+   *
+   * @generated from field: int32 blobs_discovered = 4;
+   */
+  blobsDiscovered = 0;
+
+  /**
+   * Number of blobs successfully downloaded.
+   *
+   * @generated from field: int32 blobs_downloaded = 5;
+   */
+  blobsDownloaded = 0;
+
+  /**
+   * Number of blobs that failed to download.
+   *
+   * @generated from field: int32 blobs_failed = 6;
+   */
+  blobsFailed = 0;
+
+  constructor(data?: PartialMessage<SyncingProgress>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.SyncingProgress";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "peers_found", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "peers_synced_ok", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "peers_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "blobs_discovered", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "blobs_downloaded", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "blobs_failed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SyncingProgress {
+    return new SyncingProgress().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SyncingProgress {
+    return new SyncingProgress().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SyncingProgress {
+    return new SyncingProgress().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SyncingProgress | PlainMessage<SyncingProgress> | undefined, b: SyncingProgress | PlainMessage<SyncingProgress> | undefined): boolean {
+    return proto3.util.equals(SyncingProgress, a, b);
+  }
+}
+
+/**
  * @generated from message com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
  */
 export class SyncResourcesWithPeerRequest extends Message<SyncResourcesWithPeerRequest> {
