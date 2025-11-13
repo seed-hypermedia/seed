@@ -176,9 +176,12 @@ export function HMFormattingToolbar<
     <>
       <div
         className="border-border bg-background z-50 w-fit rounded-md border p-1 shadow-md"
-        onMouseDown={(e) => e.preventDefault()}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
       >
-        <div className="flex w-full items-center justify-stretch gap-1">
+        <div className="text-foreground flex w-full items-center justify-stretch gap-1">
           {toggleStyles.map((item) => (
             <ToggleStyleButton
               key={item.style}
@@ -202,6 +205,7 @@ export function HMFormattingToolbar<
           {/* Text marker - dropdown on desktop, dialog on mobile */}
           {isMobile ? (
             <Button
+              type="button"
               size="icon"
               variant="ghost"
               className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
@@ -239,6 +243,7 @@ export function HMFormattingToolbar<
           {/* Text type - dropdown on desktop, dialog on mobile */}
           {isMobile ? (
             <Button
+              type="button"
               size="icon"
               variant="ghost"
               className="h-9 w-9 shrink-0 hover:bg-black/10 dark:hover:bg-white/10"
@@ -321,6 +326,7 @@ function ToggleStyleButton<
   return (
     <Tooltip content={name}>
       <Button
+        type="button"
         size="icon"
         variant="ghost"
         className={cn(

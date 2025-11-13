@@ -33,16 +33,25 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
 
   const {open, ...popoverProps} = usePopoverState()
 
+  const closePopover = useCallback(() => {
+    popoverProps.onOpenChange(false)
+  }, [popoverProps])
+
   useEditorSelectionChange(props.editor, () => {
     setText(props.editor.getSelectedText() || '')
     setUrl(props.editor.getSelectedLinkUrl() || '')
   })
 
   useEffect(() => {
-    props.editor.hyperlinkToolbar.on('update', (state) => {
-      setText(state.text || '')
-      setUrl(state.url || '')
-    })
+    const removeListener = props.editor.hyperlinkToolbar.on(
+      'update',
+      (state) => {
+        setText(state.text || '')
+        setUrl(state.url || '')
+      },
+    )
+
+    return () => removeListener()
   }, [props.editor])
 
   const setLink = useCallback(
@@ -50,11 +59,11 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       if (currentUrl) {
         deleteLink()
       }
-      popoverProps.onOpenChange(false)
+      closePopover()
       props.editor.focus()
       props.editor.createLink(url, text)
     },
-    [props.editor],
+    [closePopover, props.editor],
   )
 
   const deleteLink = () => {
@@ -97,11 +106,15 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
         </span>
       </PopoverTrigger>
 
-      <PopoverContent className="w-fit max-w-[500px] min-w-[400px] p-0">
+      <PopoverContent
+        className="format-toolbar-item border-border bg-background text-foreground w-fit max-w-[500px] min-w-[400px] border p-0 shadow-md dark:bg-neutral-900 dark:text-neutral-50"
+        side="bottom"
+        sideOffset={12}
+      >
         <LinkSearchInput
           initialUrl={url}
           onLinkSelect={(selectedUrl: string) => {
-            popoverProps.onOpenChange(false)
+            closePopover()
             props.editor.focus()
             if (url) {
               // TODO: find out why text needs to be here
@@ -110,7 +123,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
               setLink(selectedUrl, undefined)
             }
           }}
-          onCancel={() => popoverProps.onOpenChange(false)}
+          onCancel={closePopover}
           onDeleteLink={deleteLink}
         />
       </PopoverContent>

@@ -36,10 +36,15 @@ export const MobileLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   })
 
   useEffect(() => {
-    props.editor.hyperlinkToolbar.on('update', (state) => {
-      setText(state.text || '')
-      setUrl(state.url || '')
-    })
+    const removeListener = props.editor.hyperlinkToolbar.on(
+      'update',
+      (state) => {
+        setText(state.text || '')
+        setUrl(state.url || '')
+      },
+    )
+
+    return () => removeListener()
   }, [props.editor])
 
   const setLink = useCallback(
