@@ -78,13 +78,55 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 }
 
 // SyncResourcesWithPeer implements the corresponding gRPC method.
-func (srv *Server) SyncResourcesWithPeer(_ context.Context, req *daemon.SyncResourcesWithPeerRequest) (*emptypb.Empty, error) {
+func (srv *Server) SyncResourcesWithPeer(req *daemon.SyncResourcesWithPeerRequest, stream grpc.ServerStreamingServer[daemon.SyncingProgress]) error {
 	decodedPeer, err := peer.Decode(req.Pid)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
+		return status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
 	}
+	ctx := stream.Context()
+
 	prog := &syncing.DiscoveryProgress{}
-	return nil, srv.p2p.SyncResourcesWithPeer(context.Background(), decodedPeer, req.Resources, prog)
+	// make sure notifier is running if using the polling version
+	if prog.Updates() == nil {
+		prog.StartNotifier(ctx, 100*time.Millisecond)
+		prog.Notify()
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.p2p.SyncResourcesWithPeer(ctx, decodedPeer, req.Resources, prog)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case syncErr := <-errCh:
+			// final progress snapshot before returning
+			out := &daemon.SyncingProgress{
+				PeersFound:      prog.PeersFound.Load(),
+				PeersSyncedOk:   prog.PeersSyncedOK.Load(),
+				PeersFailed:     prog.PeersFailed.Load(),
+				BlobsDiscovered: prog.BlobsDiscovered.Load(),
+				BlobsDownloaded: prog.BlobsDownloaded.Load(),
+				BlobsFailed:     prog.BlobsFailed.Load(),
+			}
+			_ = stream.Send(out) // ignore send error on termination
+			return syncErr
+		case <-prog.Updates():
+			out := &daemon.SyncingProgress{
+				PeersFound:      prog.PeersFound.Load(),
+				PeersSyncedOk:   prog.PeersSyncedOK.Load(),
+				PeersFailed:     prog.PeersFailed.Load(),
+				BlobsDiscovered: prog.BlobsDiscovered.Load(),
+				BlobsDownloaded: prog.BlobsDownloaded.Load(),
+				BlobsFailed:     prog.BlobsFailed.Load(),
+			}
+			if err := stream.Send(out); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 // GenMnemonic returns a set of mnemonic words based on bip39 schema. Word count should be 12 or 15 or 18 or 21 or 24.
