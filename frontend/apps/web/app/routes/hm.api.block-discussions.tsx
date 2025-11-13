@@ -1,13 +1,10 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {parseFragment, unpackHmId} from '@shm/shared'
-import {BIG_INT} from '@shm/shared/constants'
-import {HMComment} from '@shm/shared/hm-types'
+import {createCommentsByReferenceResolver, unpackHmId} from '@shm/shared'
 import {ListCommentsByReferenceResponse} from '@shm/shared/models/comments-service'
-import {createBatchAccountsResolver} from '@shm/shared/models/entity'
 
-const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
+const loadCommentsByReference = createCommentsByReferenceResolver(grpcClient)
 
 export const loader = async ({
   request,
@@ -22,82 +19,7 @@ export const loader = async ({
   if (!targetId) throw new Error('targetId is required')
   if (!blockId) throw new Error('blockId is required')
 
-  let comments: HMComment[] = []
-  let authors = {}
-
-  // Fetch citations and filter for block-specific comments with error handling
-  try {
-    const citations = await grpcClient.entities.listEntityMentions({
-      id: targetId.id,
-      pageSize: BIG_INT,
-    })
-
-    const commentCitations = citations.mentions.filter((m) => {
-      if (m.sourceType != 'Comment') return false
-      const targetFragment = parseFragment(m.targetFragment)
-      if (!targetFragment) return false
-      return targetFragment.blockId == blockId
-    })
-
-    const commentIds = commentCitations
-      .map((c) => {
-        const id = unpackHmId(c.source)
-        if (!id) return null
-        return `${id.uid}/${id.path}`
-      })
-      .filter(Boolean) as Array<string>
-
-    if (commentIds.length > 0) {
-      try {
-        const res = await grpcClient.comments.batchGetComments({
-          ids: commentIds,
-        })
-
-        const authorAccounts = new Set<string>()
-
-        comments = res.comments
-          .sort((a, b) => {
-            const aTime =
-              a?.updateTime && typeof a?.updateTime == 'string'
-                ? new Date(a?.updateTime).getTime()
-                : 0
-            const bTime =
-              b?.updateTime && typeof b?.updateTime == 'string'
-                ? new Date(b?.updateTime).getTime()
-                : 1
-            return aTime - bTime // Newest first (descending order)
-          })
-          .map((c) => {
-            if (c.author && c.author.trim() !== '') {
-              authorAccounts.add(c.author)
-            }
-            return c.toJson({emitDefaultValues: true})
-          }) as Array<HMComment>
-
-        // Load authors with error handling
-        try {
-          const authorAccountUids = Array.from(authorAccounts)
-          if (authorAccountUids.length > 0) {
-            authors = await loadBatchAccounts(authorAccountUids)
-          }
-        } catch (e: any) {
-          console.error(
-            'Failed to load authors for block discussions:',
-            e.message,
-          )
-        }
-      } catch (e: any) {
-        console.error('Failed to batch get comments:', e.message)
-      }
-    }
-  } catch (e: any) {
-    console.error('Failed to load block discussion citations:', e.message)
-  }
-
-  const result: ListCommentsByReferenceResponse = {
-    comments,
-    authors,
-  }
+  const result = await loadCommentsByReference(targetId, blockId)
 
   return wrapJSON(result)
 }

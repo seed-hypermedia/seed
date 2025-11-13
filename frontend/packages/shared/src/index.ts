@@ -10,6 +10,7 @@ export * from './grpc-client'
 // @ts-expect-error - DeviceLinkSession naming conflict between modules
 export * from './hm-types'
 export * from './models/activity-service'
+export * from './models/comments-resolvers'
 export * from './models/email-notifications'
 export * from './models/payment-allocations'
 export * from './models/payments'
