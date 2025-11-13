@@ -134,6 +134,10 @@ func (m *mockedP2PNode) ForceSync() error {
 	return nil
 }
 
+func (m *mockedP2PNode) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error {
+	return nil
+}
+
 func (m *mockedP2PNode) ProtocolID() protocol.ID {
 	return protocol.ID(testProtocolID)
 }

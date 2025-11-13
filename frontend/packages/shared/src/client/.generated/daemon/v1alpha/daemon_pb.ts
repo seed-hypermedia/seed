@@ -185,9 +185,9 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
 }
 
 /**
- * @generated from message com.seed.daemon.v1alpha.SyncResourceWithPeerRequest
+ * @generated from message com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
  */
-export class SyncResourceWithPeerRequest extends Message<SyncResourceWithPeerRequest> {
+export class SyncResourcesWithPeerRequest extends Message<SyncResourcesWithPeerRequest> {
   /**
    * Required. Peer ID to sync with.
    * No addresses are needed, just the pid
@@ -197,41 +197,41 @@ export class SyncResourceWithPeerRequest extends Message<SyncResourceWithPeerReq
   pid = "";
 
   /**
-   * Required. Resource IRI to sync. We will also sync
-   * related blobs to that resource. No wilcards are supported.
+   * Required. Resource IRIs to sync. We will also sync
+   * related blobs to those resources. No wilcards are supported.
    * Only documents resources can be specified. No single comments supported yet.
    * See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
    *
-   * @generated from field: string resource = 2;
+   * @generated from field: repeated string resources = 2;
    */
-  resource = "";
+  resources: string[] = [];
 
-  constructor(data?: PartialMessage<SyncResourceWithPeerRequest>) {
+  constructor(data?: PartialMessage<SyncResourcesWithPeerRequest>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "com.seed.daemon.v1alpha.SyncResourceWithPeerRequest";
+  static readonly typeName = "com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "pid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "resource", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "resources", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SyncResourceWithPeerRequest {
-    return new SyncResourceWithPeerRequest().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SyncResourcesWithPeerRequest {
+    return new SyncResourcesWithPeerRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SyncResourceWithPeerRequest {
-    return new SyncResourceWithPeerRequest().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SyncResourcesWithPeerRequest {
+    return new SyncResourcesWithPeerRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SyncResourceWithPeerRequest {
-    return new SyncResourceWithPeerRequest().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SyncResourcesWithPeerRequest {
+    return new SyncResourcesWithPeerRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: SyncResourceWithPeerRequest | PlainMessage<SyncResourceWithPeerRequest> | undefined, b: SyncResourceWithPeerRequest | PlainMessage<SyncResourceWithPeerRequest> | undefined): boolean {
-    return proto3.util.equals(SyncResourceWithPeerRequest, a, b);
+  static equals(a: SyncResourcesWithPeerRequest | PlainMessage<SyncResourcesWithPeerRequest> | undefined, b: SyncResourcesWithPeerRequest | PlainMessage<SyncResourcesWithPeerRequest> | undefined): boolean {
+    return proto3.util.equals(SyncResourcesWithPeerRequest, a, b);
   }
 }
 

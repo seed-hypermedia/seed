@@ -237,34 +237,34 @@ func (x *RegisterKeyRequest) GetName() string {
 	return ""
 }
 
-type SyncResourceWithPeerRequest struct {
+type SyncResourcesWithPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Peer ID to sync with.
 	// No addresses are needed, just the pid
 	Pid string `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	// Required. Resource IRI to sync. We will also sync
-	// related blobs to that resource. No wilcards are supported.
+	// Required. Resource IRIs to sync. We will also sync
+	// related blobs to those resources. No wilcards are supported.
 	// Only documents resources can be specified. No single comments supported yet.
 	// See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
-	Resource      string `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	Resources     []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SyncResourceWithPeerRequest) Reset() {
-	*x = SyncResourceWithPeerRequest{}
+func (x *SyncResourcesWithPeerRequest) Reset() {
+	*x = SyncResourcesWithPeerRequest{}
 	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SyncResourceWithPeerRequest) String() string {
+func (x *SyncResourcesWithPeerRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SyncResourceWithPeerRequest) ProtoMessage() {}
+func (*SyncResourcesWithPeerRequest) ProtoMessage() {}
 
-func (x *SyncResourceWithPeerRequest) ProtoReflect() protoreflect.Message {
+func (x *SyncResourcesWithPeerRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -276,23 +276,23 @@ func (x *SyncResourceWithPeerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncResourceWithPeerRequest.ProtoReflect.Descriptor instead.
-func (*SyncResourceWithPeerRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SyncResourcesWithPeerRequest.ProtoReflect.Descriptor instead.
+func (*SyncResourcesWithPeerRequest) Descriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *SyncResourceWithPeerRequest) GetPid() string {
+func (x *SyncResourcesWithPeerRequest) GetPid() string {
 	if x != nil {
 		return x.Pid
 	}
 	return ""
 }
 
-func (x *SyncResourceWithPeerRequest) GetResource() string {
+func (x *SyncResourcesWithPeerRequest) GetResources() []string {
 	if x != nil {
-		return x.Resource
+		return x.Resources
 	}
-	return ""
+	return nil
 }
 
 // Request to get basic information about the running daemon.
@@ -1307,10 +1307,10 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\n" +
 	"passphrase\x18\x02 \x01(\tR\n" +
 	"passphrase\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"K\n" +
-	"\x1bSyncResourceWithPeerRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x1a\n" +
-	"\bresource\x18\x02 \x01(\tR\bresource\"\x10\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"N\n" +
+	"\x1cSyncResourcesWithPeerRequest\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x1c\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\"\x10\n" +
 	"\x0eGetInfoRequest\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +
 	"\x13ForceReindexRequest\"\x16\n" +
@@ -1370,14 +1370,14 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +
 	"\n" +
-	"\x06ACTIVE\x10\x032\xed\n" +
+	"\x06ACTIVE\x10\x032\xef\n" +
 	"\n" +
 	"\x06Daemon\x12h\n" +
 	"\vGenMnemonic\x12+.com.seed.daemon.v1alpha.GenMnemonicRequest\x1a,.com.seed.daemon.v1alpha.GenMnemonicResponse\x12]\n" +
 	"\vRegisterKey\x12+.com.seed.daemon.v1alpha.RegisterKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12Q\n" +
 	"\aGetInfo\x12'.com.seed.daemon.v1alpha.GetInfoRequest\x1a\x1d.com.seed.daemon.v1alpha.Info\x12N\n" +
-	"\tForceSync\x12).com.seed.daemon.v1alpha.ForceSyncRequest\x1a\x16.google.protobuf.Empty\x12d\n" +
-	"\x14SyncResourceWithPeer\x124.com.seed.daemon.v1alpha.SyncResourceWithPeerRequest\x1a\x16.google.protobuf.Empty\x12k\n" +
+	"\tForceSync\x12).com.seed.daemon.v1alpha.ForceSyncRequest\x1a\x16.google.protobuf.Empty\x12f\n" +
+	"\x15SyncResourcesWithPeer\x125.com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest\x1a\x16.google.protobuf.Empty\x12k\n" +
 	"\fForceReindex\x12,.com.seed.daemon.v1alpha.ForceReindexRequest\x1a-.com.seed.daemon.v1alpha.ForceReindexResponse\x12_\n" +
 	"\bListKeys\x12(.com.seed.daemon.v1alpha.ListKeysRequest\x1a).com.seed.daemon.v1alpha.ListKeysResponse\x12Y\n" +
 	"\tUpdateKey\x12).com.seed.daemon.v1alpha.UpdateKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12N\n" +
@@ -1408,7 +1408,7 @@ var file_daemon_v1alpha_daemon_proto_goTypes = []any{
 	(*GenMnemonicRequest)(nil),             // 1: com.seed.daemon.v1alpha.GenMnemonicRequest
 	(*GenMnemonicResponse)(nil),            // 2: com.seed.daemon.v1alpha.GenMnemonicResponse
 	(*RegisterKeyRequest)(nil),             // 3: com.seed.daemon.v1alpha.RegisterKeyRequest
-	(*SyncResourceWithPeerRequest)(nil),    // 4: com.seed.daemon.v1alpha.SyncResourceWithPeerRequest
+	(*SyncResourcesWithPeerRequest)(nil),   // 4: com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
 	(*GetInfoRequest)(nil),                 // 5: com.seed.daemon.v1alpha.GetInfoRequest
 	(*ForceSyncRequest)(nil),               // 6: com.seed.daemon.v1alpha.ForceSyncRequest
 	(*ForceReindexRequest)(nil),            // 7: com.seed.daemon.v1alpha.ForceReindexRequest
@@ -1444,7 +1444,7 @@ var file_daemon_v1alpha_daemon_proto_depIdxs = []int32{
 	3,  // 8: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
 	5,  // 9: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
 	6,  // 10: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
-	4,  // 11: com.seed.daemon.v1alpha.Daemon.SyncResourceWithPeer:input_type -> com.seed.daemon.v1alpha.SyncResourceWithPeerRequest
+	4,  // 11: com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer:input_type -> com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
 	7,  // 12: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
 	10, // 13: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
 	12, // 14: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
@@ -1458,7 +1458,7 @@ var file_daemon_v1alpha_daemon_proto_depIdxs = []int32{
 	24, // 22: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
 	23, // 23: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
 	26, // 24: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
-	26, // 25: com.seed.daemon.v1alpha.Daemon.SyncResourceWithPeer:output_type -> google.protobuf.Empty
+	26, // 25: com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer:output_type -> google.protobuf.Empty
 	8,  // 26: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
 	11, // 27: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
 	24, // 28: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
