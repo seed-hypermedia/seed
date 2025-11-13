@@ -24,7 +24,7 @@ const (
 	Daemon_RegisterKey_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
 	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
-	Daemon_SyncResourceWithPeer_FullMethodName    = "/com.seed.daemon.v1alpha.Daemon/SyncResourceWithPeer"
+	Daemon_SyncResourcesWithPeer_FullMethodName   = "/com.seed.daemon.v1alpha.Daemon/SyncResourcesWithPeer"
 	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
 	Daemon_UpdateKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
@@ -53,8 +53,8 @@ type DaemonClient interface {
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Syncs a specific resource with a given peer.
-	SyncResourceWithPeer(ctx context.Context, in *SyncResourceWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Syncs a list of resources (and their related blobs) with a given peer.
+	SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -130,10 +130,10 @@ func (c *daemonClient) ForceSync(ctx context.Context, in *ForceSyncRequest, opts
 	return out, nil
 }
 
-func (c *daemonClient) SyncResourceWithPeer(ctx context.Context, in *SyncResourceWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *daemonClient) SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Daemon_SyncResourceWithPeer_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Daemon_SyncResourcesWithPeer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +247,8 @@ type DaemonServer interface {
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
-	// Syncs a specific resource with a given peer.
-	SyncResourceWithPeer(context.Context, *SyncResourceWithPeerRequest) (*emptypb.Empty, error)
+	// Syncs a list of resources (and their related blobs) with a given peer.
+	SyncResourcesWithPeer(context.Context, *SyncResourcesWithPeerRequest) (*emptypb.Empty, error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -295,8 +295,8 @@ func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Inf
 func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceSync not implemented")
 }
-func (UnimplementedDaemonServer) SyncResourceWithPeer(context.Context, *SyncResourceWithPeerRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SyncResourceWithPeer not implemented")
+func (UnimplementedDaemonServer) SyncResourcesWithPeer(context.Context, *SyncResourcesWithPeerRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SyncResourcesWithPeer not implemented")
 }
 func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
@@ -417,20 +417,20 @@ func _Daemon_ForceSync_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Daemon_SyncResourceWithPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SyncResourceWithPeerRequest)
+func _Daemon_SyncResourcesWithPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncResourcesWithPeerRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DaemonServer).SyncResourceWithPeer(ctx, in)
+		return srv.(DaemonServer).SyncResourcesWithPeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Daemon_SyncResourceWithPeer_FullMethodName,
+		FullMethod: Daemon_SyncResourcesWithPeer_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServer).SyncResourceWithPeer(ctx, req.(*SyncResourceWithPeerRequest))
+		return srv.(DaemonServer).SyncResourcesWithPeer(ctx, req.(*SyncResourcesWithPeerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -621,8 +621,8 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Daemon_ForceSync_Handler,
 		},
 		{
-			MethodName: "SyncResourceWithPeer",
-			Handler:    _Daemon_SyncResourceWithPeer_Handler,
+			MethodName: "SyncResourcesWithPeer",
+			Handler:    _Daemon_SyncResourcesWithPeer_Handler,
 		},
 		{
 			MethodName: "ForceReindex",
