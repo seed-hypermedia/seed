@@ -89,6 +89,14 @@ var (
 	})
 )
 
+var hmRe = regexp.MustCompile(
+	`^hm://` +
+		`(?P<account>[A-Za-z0-9]+)` + // account (required)
+		`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
+		`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
+		`(?P<latest>&l)?$`, // latest flag (optional)
+)
+
 // Force metric to appear even if there's no blobs to sync.
 func init() {
 	MSyncingWantedBlobs.WithLabelValues("syncing").Set(0)
@@ -457,18 +465,11 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 }
 
 // SyncResourcesWithPeer syncs the given resources with a specific peer.
-// method is exposed for use externally, (pushing content to a peer)
+// method is exposed for use externally, (pushing content to a peer).
 func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error {
 	dkeys := make(colx.HashSet[discoveryKey], len(resources))
 	rkeys := map[string]bool{}
-	var hmRe = regexp.MustCompile(
-		`^hm://` +
-			`(?P<account>[A-Za-z0-9]+)` + // account (required)
-			`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
-			`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
-			`(?:#(?P<block>[A-Za-z0-9-_]+))?` + // block (optional)
-			`(?P<latest>&l)?$`, // latest flag (optional)
-	)
+
 	for _, r := range resources {
 		m := hmRe.FindStringSubmatch(r)
 		if m == nil {
