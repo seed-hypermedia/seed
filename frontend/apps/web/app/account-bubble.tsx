@@ -14,7 +14,14 @@ export function MyAccountBubble() {
   const keyPair = useLocalKeyPair()
   const myAccount = useAccount(keyPair?.id || undefined)
   const linkProps = useRouteLink(
-    keyPair ? {key: 'profile', id: hmId(keyPair.id)} : null,
+    keyPair
+      ? {
+          key: 'profile',
+          id: hmId(keyPair.id, {
+            latest: true,
+          }),
+        }
+      : null,
   )
   if (!media.gtSm) {
     return null

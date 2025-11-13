@@ -13,7 +13,10 @@ export function SiteLogo({
   const imageUrl = useImageUrl()
   const homeLinkProps = useRouteLink({
     key: 'document',
-    id,
+    id: {
+      ...id,
+      latest: true,
+    },
   })
   if (metadata?.seedExperimentalLogo) {
     return (

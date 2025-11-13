@@ -31,6 +31,7 @@ import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {SmallSiteHeader} from '@shm/ui/site-header'
+import {Spinner} from '@shm/ui/spinner'
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 import {Scanner, type IDetectedBarcode} from '@yudiel/react-qr-scanner'
 import {
@@ -53,7 +54,6 @@ import {postCBOR} from '../api'
 import {LocalWebIdentity} from '../auth'
 import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
 import type {DelegateDevicePayload} from './hm.api.delegate-device'
-import {Spinner} from '@shm/ui/spinner'
 
 type DeviceLinkPagePayload = {
   enableWebSigning: boolean
@@ -718,7 +718,7 @@ function GoHomeButton() {
     originHomeId
       ? {
           key: 'document',
-          id: originHomeId,
+          id: {...originHomeId, latest: true},
         }
       : null,
   )

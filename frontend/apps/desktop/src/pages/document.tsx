@@ -219,7 +219,6 @@ function DocumentPageContent({
   const onCommentDelete = useCallback(
     (commentId: string, signingAccountId?: string) => {
       if (!signingAccountId || !docId) return
-      console.log('-=- DELETE COMMENT', commentId, signingAccountId)
       deleteCommentDialog.open({
         onConfirm: () => {
           deleteComment.mutate({
