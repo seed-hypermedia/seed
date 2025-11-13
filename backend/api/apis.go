@@ -92,8 +92,8 @@ func (p *p2pNodeSubset) ForceSync() error {
 	return nil
 }
 
-func (p *p2pNodeSubset) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error {
-	return p.sync.SyncResourcesWithPeer(ctx, pid, resources)
+func (p *p2pNodeSubset) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error {
+	return p.sync.SyncResourcesWithPeer(ctx, pid, resources, prog)
 }
 
 func (p *p2pNodeSubset) ProtocolID() protocol.ID {
