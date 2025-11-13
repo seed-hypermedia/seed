@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, SyncResourceWithPeerRequest, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, SyncResourcesWithPeerRequest, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -62,13 +62,13 @@ export const Daemon = {
       kind: MethodKind.Unary,
     },
     /**
-     * Syncs a specific resource with a given peer.
+     * Syncs a list of resources (and their related blobs) with a given peer.
      *
-     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SyncResourceWithPeer
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer
      */
-    syncResourceWithPeer: {
-      name: "SyncResourceWithPeer",
-      I: SyncResourceWithPeerRequest,
+    syncResourcesWithPeer: {
+      name: "SyncResourcesWithPeer",
+      I: SyncResourcesWithPeerRequest,
       O: Empty,
       kind: MethodKind.Unary,
     },

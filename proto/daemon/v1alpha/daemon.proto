@@ -24,8 +24,8 @@ service Daemon {
   // Force-trigger periodic background sync of Seed objects.
   rpc ForceSync(ForceSyncRequest) returns (google.protobuf.Empty);
 
-  // Syncs a specific resource with a given peer.
-  rpc SyncResourceWithPeer(SyncResourceWithPeerRequest) returns (google.protobuf.Empty);
+  // Syncs a list of resources (and their related blobs) with a given peer.
+  rpc SyncResourcesWithPeer(SyncResourcesWithPeerRequest) returns (google.protobuf.Empty);
 
   // Forces the daemon to reindex the entire database.
   rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
@@ -90,16 +90,16 @@ message RegisterKeyRequest {
   string name = 3;
 }
 
-message SyncResourceWithPeerRequest {
+message SyncResourcesWithPeerRequest {
   // Required. Peer ID to sync with.
   // No addresses are needed, just the pid
   string pid = 1;
 
-  // Required. Resource IRI to sync. We will also sync
-  // related blobs to that resource. No wilcards are supported.
+  // Required. Resource IRIs to sync. We will also sync
+  // related blobs to those resources. No wilcards are supported.
   // Only documents resources can be specified. No single comments supported yet.
   // See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
-  string resource = 2;
+  repeated string resources = 2;
 }
 
 // Request to get basic information about the running daemon.

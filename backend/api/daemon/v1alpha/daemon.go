@@ -32,6 +32,7 @@ import (
 type Node interface {
 	AddrInfo() peer.AddrInfo
 	ForceSync() error
+	SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
 }
@@ -75,9 +76,13 @@ func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	daemon.RegisterDaemonServer(rpc, srv)
 }
 
-// SyncResourceWithPeer implements the corresponding gRPC method.
-func (srv *Server) SyncResourceWithPeer(_ context.Context, req *daemon.SyncResourceWithPeerRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "SyncResourceWithPeer is not implemented yet")
+// SyncResourcesWithPeer implements the corresponding gRPC method.
+func (srv *Server) SyncResourcesWithPeer(_ context.Context, req *daemon.SyncResourcesWithPeerRequest) (*emptypb.Empty, error) {
+	decodedPeer, err := peer.Decode(req.Pid)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
+	}
+	return nil, srv.p2p.SyncResourcesWithPeer(context.Background(), decodedPeer, req.Resources)
 }
 
 // GenMnemonic returns a set of mnemonic words based on bip39 schema. Word count should be 12 or 15 or 18 or 21 or 24.

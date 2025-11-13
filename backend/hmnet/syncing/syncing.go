@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"seed/backend/blob"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
@@ -453,6 +454,54 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	wg.Wait()
 
 	return res
+}
+
+// SyncResourcesWithPeer syncs the given resources with a specific peer.
+// method is exposed for use externally, (pushing content to a peer)
+func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error {
+	dkeys := make(colx.HashSet[discoveryKey], len(resources))
+	rkeys := map[string]bool{}
+	var hmRe = regexp.MustCompile(
+		`^hm://` +
+			`(?P<account>[A-Za-z0-9]+)` + // account (required)
+			`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
+			`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
+			`(?:#(?P<block>[A-Za-z0-9-_]+))?` + // block (optional)
+			`(?P<latest>&l)?$`, // latest flag (optional)
+	)
+	for _, r := range resources {
+		m := hmRe.FindStringSubmatch(r)
+		if m == nil {
+			return fmt.Errorf("invalid resource format: %s", r)
+		}
+
+		// Map name -> value
+		result := map[string]string{}
+		for i, name := range hmRe.SubexpNames() {
+			if i == 0 || name == "" {
+				continue
+			}
+			result[name] = m[i]
+		}
+		if _, ok := result["account"]; !ok || result["account"] == "" {
+			return fmt.Errorf("resource missing account: %s", r)
+		}
+		if _, ok := result["path"]; !ok {
+			result["path"] = ""
+		}
+		resource := "hm://" + result["account"] + result["path"]
+		dkeys.Put(discoveryKey{
+			IRI:       blob.IRI(resource),
+			Recursive: false,
+		})
+		rkeys[resource] = false
+	}
+
+	store, err := s.loadStore(ctx, dkeys)
+	if err != nil {
+		return fmt.Errorf("failed to create RBSR store: %w", err)
+	}
+	return s.syncWithPeer(ctx, pid, rkeys, store, &DiscoveryProgress{})
 }
 
 func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store, prog *DiscoveryProgress) error {
