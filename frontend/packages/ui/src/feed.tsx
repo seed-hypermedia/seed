@@ -797,6 +797,7 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
       id: hmId(event.docId.uid, {
         path: event.docId.path,
         version: event.document.version,
+        latest: false,
       }),
     }
 
