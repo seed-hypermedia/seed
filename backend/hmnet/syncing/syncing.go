@@ -432,7 +432,6 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
-	prog.PeersFound.Add(int32(len(subsMap)))
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -466,10 +465,9 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 // SyncResourcesWithPeer syncs the given resources with a specific peer.
 // method is exposed for use externally, (pushing content to a peer).
-func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error {
+func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *DiscoveryProgress) error {
 	dkeys := make(colx.HashSet[discoveryKey], len(resources))
 	rkeys := map[string]bool{}
-
 	for _, r := range resources {
 		m := hmRe.FindStringSubmatch(r)
 		if m == nil {
@@ -502,7 +500,13 @@ func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resour
 	if err != nil {
 		return fmt.Errorf("failed to create RBSR store: %w", err)
 	}
-	return s.syncWithPeer(ctx, pid, rkeys, store, &DiscoveryProgress{})
+	if err = s.syncWithPeer(ctx, pid, rkeys, store, prog); err != nil {
+		prog.PeersFailed.Add(1)
+		return err
+	} else {
+		prog.PeersSyncedOK.Add(1)
+	}
+	return nil
 }
 
 func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store, prog *DiscoveryProgress) error {
@@ -511,7 +515,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		s.log.Debug("Sync with self attempted")
 		return fmt.Errorf("Can't sync with self")
 	}
-
+	prog.PeersFound.Add(1)
 	{
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)

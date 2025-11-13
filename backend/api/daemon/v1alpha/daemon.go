@@ -9,6 +9,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/colx"
@@ -32,7 +33,7 @@ import (
 type Node interface {
 	AddrInfo() peer.AddrInfo
 	ForceSync() error
-	SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string) error
+	SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
 }
@@ -82,7 +83,8 @@ func (srv *Server) SyncResourcesWithPeer(_ context.Context, req *daemon.SyncReso
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
 	}
-	return nil, srv.p2p.SyncResourcesWithPeer(context.Background(), decodedPeer, req.Resources)
+	prog := &syncing.DiscoveryProgress{}
+	return nil, srv.p2p.SyncResourcesWithPeer(context.Background(), decodedPeer, req.Resources, prog)
 }
 
 // GenMnemonic returns a set of mnemonic words based on bip39 schema. Word count should be 12 or 15 or 18 or 21 or 24.
