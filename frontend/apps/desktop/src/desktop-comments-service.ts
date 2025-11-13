@@ -47,7 +47,10 @@ export class DesktopCommentsService implements CommentsService {
     if (!params.targetId.blockRef) {
       throw new Error('blockRef is required for listCommentsByReference')
     }
-    return await loadCommentsByReference(params.targetId, params.targetId.blockRef)
+    return await loadCommentsByReference(
+      params.targetId,
+      params.targetId.blockRef,
+    )
   }
 
   async deleteComment(params: DeleteCommentRequest): Promise<void> {

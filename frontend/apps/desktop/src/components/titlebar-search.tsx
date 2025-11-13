@@ -39,7 +39,7 @@ export function TitlebarTitleSearch() {
         <PopoverContent
           side="bottom"
           align="start"
-          className="no-window-drag w-full max-w-screen border-0 bg-transparent px-4 py-0 shadow-none"
+          className="no-window-drag w-full max-w-screen border-0 bg-transparent px-4 py-0 pb-4 shadow-none"
         >
           <div className="dark:bg-background border-border h-[260px] min-h-8/10 max-w-2xl overflow-hidden rounded-md border bg-white p-2 shadow-2xl">
             <SearchInput

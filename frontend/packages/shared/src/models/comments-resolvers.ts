@@ -95,7 +95,9 @@ async function loadDocumentMetadata(
 export function createCommentsResolver(client: GRPCClient) {
   const loadBatchAccounts = createBatchAccountsResolver(client)
 
-  return async (targetId: UnpackedHypermediaId): Promise<{
+  return async (
+    targetId: UnpackedHypermediaId,
+  ): Promise<{
     comments: HMComment[]
     authors: Record<string, HMMetadataPayload>
   }> => {
@@ -276,10 +278,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
         (d): d is HMExternalCommentGroup => d !== null,
       )
     } catch (e) {
-      console.error(
-        `Failed to load citing discussions for ${targetId.id}:`,
-        e,
-      )
+      console.error(`Failed to load citing discussions for ${targetId.id}:`, e)
     }
 
     // Load authors
@@ -401,7 +400,9 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
 export function createCommentsByIdResolver(client: GRPCClient) {
   const loadBatchAccounts = createBatchAccountsResolver(client)
 
-  return async (commentIds: string[]): Promise<{
+  return async (
+    commentIds: string[],
+  ): Promise<{
     comments: HMComment[]
     authors: Record<string, HMMetadataPayload>
   }> => {

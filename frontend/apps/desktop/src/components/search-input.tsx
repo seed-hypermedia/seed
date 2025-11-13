@@ -4,6 +4,8 @@ import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {loadWebLinkMeta} from '@/models/web-links'
 import {useSelectedAccountId} from '@/selected-account'
 import {trpc} from '@/trpc'
+import {parseDeepLink} from '@/utils/deep-links'
+import {useTriggerWindowEvent} from '@/utils/window-events'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -33,9 +35,7 @@ import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useEffect, useMemo, useRef, useState} from 'react'
-import {parseDeepLink} from '@/utils/deep-links'
-import {useTriggerWindowEvent} from '@/utils/window-events'
+import {useDeferredValue, useEffect, useMemo, useRef, useState} from 'react'
 
 export function SearchInput({
   onClose,
@@ -55,6 +55,9 @@ export function SearchInput({
   }) => void
 }) {
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
+  const isSearchPending = search !== deferredSearch
+
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
   const gwHost = useGatewayHost_DEPRECATED()
@@ -63,18 +66,18 @@ export function SearchInput({
   const selectedAccountId = useSelectedAccountId()
   const triggerWindowEvent = useTriggerWindowEvent()
 
-  const searchResults = useSearch(search, {
+  const searchResults = useSearch(deferredSearch, {
     includeBody: true,
-    contextSize: 48 - search.length,
+    contextSize: 48 - deferredSearch.length,
     perspectiveAccountUid: selectedAccountId ?? undefined,
   })
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   let queryItem: null | SearchResult = useMemo(() => {
     if (
-      isHypermediaScheme(search) ||
-      search.startsWith('http://') ||
-      search.startsWith('https://') ||
-      search.includes('.')
+      isHypermediaScheme(deferredSearch) ||
+      deferredSearch.startsWith('http://') ||
+      deferredSearch.startsWith('https://') ||
+      deferredSearch.includes('.')
     ) {
       return {
         key: 'mtt-link',
@@ -135,10 +138,11 @@ export function SearchInput({
       }
     }
     return null
-  }, [search, triggerWindowEvent])
+  }, [deferredSearch, search, triggerWindowEvent])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
+      ?.slice(0, 50) // Limit to 50 results for performance
       // ?.sort((a, b) => Number(!!b.id.latest) - Number(!!a.id.latest))
       ?.map((item, index) => {
         const title = item.title || item.id.uid
@@ -195,10 +199,18 @@ export function SearchInput({
           },
         }
       }) || []
-  const isDisplayingRecents = !search.length
+  const isDisplayingRecents = !deferredSearch.length
   const activeItems = isDisplayingRecents
     ? recentItems
     : [...(queryItem ? [queryItem] : []), ...searchItems]
+
+  console.log(
+    `🔍 Search="${search}" | Deferred="${deferredSearch}" | isPending=${isSearchPending} | isRecents=${isDisplayingRecents} | results=${
+      searchResults.data?.entities?.length || 0
+    } | activeItems=${activeItems.length} | SHOW_SPINNER=${
+      isSearchPending && !isDisplayingRecents
+    }`,
+  )
 
   useEffect(() => {
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
@@ -221,88 +233,102 @@ export function SearchInput({
           RECENT DOCUMENTS
         </SizableText>
       ) : null}
-      {activeItems.map((item, itemIndex) => {
-        const isSelected = focusedIndex === itemIndex
-        const sharedProps = {
-          selected: isSelected,
-          onFocus: () => setFocusedIndex(itemIndex),
-          onMouseEnter: () => setFocusedIndex(itemIndex),
-        }
+      {activeItems.length ? (
+        activeItems.map((item, itemIndex) => {
+          const isSelected = focusedIndex === itemIndex
+          const sharedProps = {
+            selected: isSelected,
+            onFocus: () => setFocusedIndex(itemIndex),
+            onMouseEnter: () => setFocusedIndex(itemIndex),
+          }
 
-        return (
-          <div
-            ref={(el) => (itemRefs.current[itemIndex] = el)}
-            key={item.key}
-            className="focus:outline-none"
-          >
-            {isDisplayingRecents ? (
-              <RecentSearchResultItem
-                item={{
-                  ...item,
-                  // key: item.id ? packHmId(item.id) : item.key,
-                  path: item.path || [],
-                  onFocus: sharedProps.onFocus,
-                  onMouseEnter: sharedProps.onMouseEnter,
-                  onSelect: () => item.onSelect?.(),
-                }}
-                selected={sharedProps.selected}
-                originHomeId={undefined}
-              />
-            ) : (
-              <SearchResultItem
-                item={{
-                  ...item,
-                  path: item.path || [],
-                  onFocus: sharedProps.onFocus,
-                  onMouseEnter: sharedProps.onMouseEnter,
-                }}
-                selected={sharedProps.selected}
-              />
-            )}
-            {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
-          </div>
-        )
-      })}
+          return (
+            <div
+              ref={(el) => (itemRefs.current[itemIndex] = el)}
+              key={item.key}
+              className="focus:outline-none"
+            >
+              {isDisplayingRecents ? (
+                <RecentSearchResultItem
+                  item={{
+                    ...item,
+                    // key: item.id ? packHmId(item.id) : item.key,
+                    path: item.path || [],
+                    onFocus: sharedProps.onFocus,
+                    onMouseEnter: sharedProps.onMouseEnter,
+                    onSelect: () => item.onSelect?.(),
+                  }}
+                  selected={sharedProps.selected}
+                  originHomeId={undefined}
+                />
+              ) : (
+                <SearchResultItem
+                  item={{
+                    ...item,
+                    path: item.path || [],
+                    onFocus: sharedProps.onFocus,
+                    onMouseEnter: sharedProps.onMouseEnter,
+                  }}
+                  selected={sharedProps.selected}
+                />
+              )}
+              {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
+            </div>
+          )
+        })
+      ) : !isSearchPending ? (
+        <div className="my-4 flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">No results found.</p>
+        </div>
+      ) : null}
     </>
   )
 
-  if (actionPromise) {
-    content = (
-      <div className="my-4 flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
   return (
-    <SearchInputUI
-      searchResults={activeItems || []}
-      inputProps={{
-        value: search,
-        onChangeText: setSearch,
-        disabled: !!actionPromise,
-      }}
-      onArrowDown={() => {
-        setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-      }}
-      onArrowUp={() => {
-        setFocusedIndex(
-          (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-        )
-      }}
-      onEscape={() => {
-        onClose?.()
-      }}
-      onEnter={() => {
-        const item = activeItems[focusedIndex]
-        if (item) {
+    <div className="relative">
+      {isSearchPending && !isDisplayingRecents ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            zIndex: 10,
+            height: 24,
+          }}
+        >
+          <Spinner className="text-black/50 dark:text-white/50" />
+        </div>
+      ) : null}
+      <SearchInputUI
+        searchResults={activeItems || []}
+        inputProps={{
+          value: search,
+          onChangeText: setSearch,
+          disabled: !!actionPromise,
+        }}
+        onArrowDown={() => {
+          setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+        }}
+        onArrowUp={() => {
+          setFocusedIndex(
+            (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+          )
+        }}
+        onEscape={() => {
           onClose?.()
-          item.onSelect?.()
-        }
-      }}
-      focusedIndex={focusedIndex}
-    >
-      {content}
-    </SearchInputUI>
+        }}
+        onEnter={() => {
+          const item = activeItems[focusedIndex]
+          if (item) {
+            onClose?.()
+            item.onSelect?.()
+          }
+        }}
+        focusedIndex={focusedIndex}
+      >
+        {content || <p>working...</p>}
+      </SearchInputUI>
+    </div>
   )
 }
 
