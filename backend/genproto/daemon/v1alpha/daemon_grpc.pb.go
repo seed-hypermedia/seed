@@ -54,7 +54,7 @@ type DaemonClient interface {
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Syncs a list of resources (and their related blobs) with a given peer.
-	SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -130,15 +130,24 @@ func (c *daemonClient) ForceSync(ctx context.Context, in *ForceSyncRequest, opts
 	return out, nil
 }
 
-func (c *daemonClient) SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *daemonClient) SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Daemon_SyncResourcesWithPeer_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Daemon_ServiceDesc.Streams[0], Daemon_SyncResourcesWithPeer_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[SyncResourcesWithPeerRequest, SyncingProgress]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Daemon_SyncResourcesWithPeerClient = grpc.ServerStreamingClient[SyncingProgress]
 
 func (c *daemonClient) ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -248,7 +257,7 @@ type DaemonServer interface {
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
 	// Syncs a list of resources (and their related blobs) with a given peer.
-	SyncResourcesWithPeer(context.Context, *SyncResourcesWithPeerRequest) (*emptypb.Empty, error)
+	SyncResourcesWithPeer(*SyncResourcesWithPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -295,8 +304,8 @@ func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Inf
 func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceSync not implemented")
 }
-func (UnimplementedDaemonServer) SyncResourcesWithPeer(context.Context, *SyncResourcesWithPeerRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SyncResourcesWithPeer not implemented")
+func (UnimplementedDaemonServer) SyncResourcesWithPeer(*SyncResourcesWithPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error {
+	return status.Errorf(codes.Unimplemented, "method SyncResourcesWithPeer not implemented")
 }
 func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
@@ -417,23 +426,16 @@ func _Daemon_ForceSync_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Daemon_SyncResourcesWithPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SyncResourcesWithPeerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _Daemon_SyncResourcesWithPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SyncResourcesWithPeerRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(DaemonServer).SyncResourcesWithPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Daemon_SyncResourcesWithPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DaemonServer).SyncResourcesWithPeer(ctx, req.(*SyncResourcesWithPeerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(DaemonServer).SyncResourcesWithPeer(m, &grpc.GenericServerStream[SyncResourcesWithPeerRequest, SyncingProgress]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Daemon_SyncResourcesWithPeerServer = grpc.ServerStreamingServer[SyncingProgress]
 
 func _Daemon_ForceReindex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ForceReindexRequest)
@@ -621,10 +623,6 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Daemon_ForceSync_Handler,
 		},
 		{
-			MethodName: "SyncResourcesWithPeer",
-			Handler:    _Daemon_SyncResourcesWithPeer_Handler,
-		},
-		{
 			MethodName: "ForceReindex",
 			Handler:    _Daemon_ForceReindex_Handler,
 		},
@@ -661,6 +659,12 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Daemon_SignData_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SyncResourcesWithPeer",
+			Handler:       _Daemon_SyncResourcesWithPeer_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "daemon/v1alpha/daemon.proto",
 }

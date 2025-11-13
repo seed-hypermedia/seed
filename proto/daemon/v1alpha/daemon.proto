@@ -25,7 +25,7 @@ service Daemon {
   rpc ForceSync(ForceSyncRequest) returns (google.protobuf.Empty);
 
   // Syncs a list of resources (and their related blobs) with a given peer.
-  rpc SyncResourcesWithPeer(SyncResourcesWithPeerRequest) returns (google.protobuf.Empty);
+  rpc SyncResourcesWithPeer(SyncResourcesWithPeerRequest) returns (stream SyncingProgress);
 
   // Forces the daemon to reindex the entire database.
   rpc ForceReindex(ForceReindexRequest) returns (ForceReindexResponse);
@@ -88,6 +88,26 @@ message RegisterKeyRequest {
   // Required. Private name/label for the signing key, to easily identify keys when they are more than one.
   // Name must be unique across all the registered keys.
   string name = 3;
+}
+
+message SyncingProgress {
+  // Number of peers found during discovery.
+  int32 peers_found = 1;
+
+  // Number of peers successfully synced.
+  int32 peers_synced_ok = 2;
+
+  // Number of peers that failed to sync.
+  int32 peers_failed = 3;
+
+  // Number of blobs discovered for syncing.
+  int32 blobs_discovered = 4;
+
+  // Number of blobs successfully downloaded.
+  int32 blobs_downloaded = 5;
+
+  // Number of blobs that failed to download.
+  int32 blobs_failed = 6;
 }
 
 message SyncResourcesWithPeerRequest {
