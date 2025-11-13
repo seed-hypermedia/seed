@@ -496,9 +496,8 @@ func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resour
 	if err = s.syncWithPeer(ctx, pid, rkeys, store, prog); err != nil {
 		prog.PeersFailed.Add(1)
 		return err
-	} else {
-		prog.PeersSyncedOK.Add(1)
 	}
+	prog.PeersSyncedOK.Add(1)
 	return nil
 }
 
@@ -514,7 +513,6 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
-	s.log.Debug("SyncWithPeer called")
 	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
 		s.log.Debug("Could not get syncing client", zap.Error(err))

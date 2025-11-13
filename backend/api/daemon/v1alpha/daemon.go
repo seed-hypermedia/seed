@@ -83,14 +83,11 @@ func (srv *Server) SyncResourcesWithPeer(req *daemon.SyncResourcesWithPeerReques
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
 	}
-	ctx := stream.Context()
-
-	prog := &syncing.DiscoveryProgress{}
-	// make sure notifier is running if using the polling version
-	if prog.Updates() == nil {
-		prog.StartNotifier(ctx, 100*time.Millisecond)
-		prog.Notify()
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	prog := syncing.NewDiscoveryProgress()
+	prog.StartNotifier(ctx, 100*time.Millisecond)
+	prog.Notify()
 
 	errCh := make(chan error, 1)
 	go func() {
