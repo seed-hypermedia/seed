@@ -5,6 +5,7 @@ go 1.25.2
 require (
 	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797
 	github.com/RoaringBitmap/roaring/v2 v2.4.2
+	github.com/abiosoft/ishell/v2 v2.0.2
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/btcutil v1.1.2
 	github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6
@@ -63,11 +64,15 @@ require (
 
 require (
 	github.com/Jorropo/jsync v1.0.1 // indirect
+	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
+	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/alessio/shellescape v1.4.1 // indirect
-	github.com/bits-and-blooms/bitset v1.12.0 // indirect
+	github.com/bits-and-blooms/bitset v1.22.0 // indirect
 	github.com/danieljoos/wincred v1.2.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
+	github.com/fatih/color v1.12.0 // indirect
 	github.com/filecoin-project/go-clock v0.1.0 // indirect
+	github.com/flynn-archive/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
 	github.com/gammazero/chanqueue v1.1.1 // indirect
 	github.com/gammazero/deque v1.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -76,6 +81,7 @@ require (
 	github.com/ipfs/go-dsqueue v0.0.5 // indirect
 	github.com/libp2p/go-libp2p-record v0.3.1 // indirect
 	github.com/libp2p/go-yamux/v5 v5.0.1 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -98,7 +104,7 @@ require (
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.2 // indirect
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
