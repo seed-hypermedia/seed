@@ -498,7 +498,6 @@ export function useCommentEditor(
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, targetDocId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
-      invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])
 
       onSuccess?.({id: newComment.id})

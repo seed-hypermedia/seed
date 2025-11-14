@@ -13,8 +13,6 @@ export const queryKeys = {
 
   // feed
   FEED: 'FEED', // docId?: boolean
-  RESOURCE_FEED: 'RESOURCE_FEED', //, resourceId: string
-  RESOURCE_FEED_LATEST_EVENT: 'RESOURCE_FEED_LATEST_EVENT', //, resourceId: string
 
   // daemon
   GET_DAEMON_INFO: 'GET_DAEMON_INFO',
@@ -51,7 +49,6 @@ export const queryKeys = {
 
   // comments
   COMMENT: 'COMMENT', //, commentId: string
-  COMMENTS_BY_IDS: 'COMMENTS_BY_IDS', //, commentIds: string[]
 
   // web-links
   GET_URL: 'GET_URL',
@@ -122,8 +119,6 @@ export function labelOfQueryKey(key: QueryKey) {
     // feed
     case queryKeys.FEED:
       return 'Activity Feed'
-    case queryKeys.RESOURCE_FEED_LATEST_EVENT:
-      return 'Activity Feed Latest Event'
 
     // daemon
     case queryKeys.GET_DAEMON_INFO:

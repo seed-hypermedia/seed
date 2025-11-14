@@ -106,8 +106,6 @@ export function useUndeleteEntity(
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       }
       invalidateQueries([queryKeys.FEED])
-      invalidateQueries([queryKeys.RESOURCE_FEED])
-      invalidateQueries([queryKeys.RESOURCE_FEED_LATEST_EVENT])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.DELETED])
@@ -202,7 +200,14 @@ export async function loadAccount(
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
-      id: hmId(accountUid),
+      id: hmId(accountUid, {
+        // this is mega confusing, sorry. We need to include this version of the home document so we know when to invalidate the account after discovery completes.
+        // it is technically incorrect, because the version should be the version of the profile, not the fallback home document where we currently load account metadata from.
+        // one day we can have improved data normalization in the client, and the backend should give details if the metadata is coming from the profile or the home doc.
+        // this is used by discoveryResultWithLatestVersion to invalidate the account after discovery completes
+        version: serverAccount.homeDocumentInfo?.version,
+        // If this confuses you, ask Eric and hopefully he still remembers this.
+      }),
       metadata,
     } as HMMetadataPayload
   } catch (error) {
@@ -224,18 +229,34 @@ function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
+  function doInvalidation() {
+    // console.log('[sync] new version discovered for entity', id, version)
+    invalidateQueries([queryKeys.ENTITY, id.id])
+    invalidateQueries([queryKeys.ACCOUNT, id.uid])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    // the feed and discussion queries load account metadata, so we need to invalidate them too. rather aggressive invalidation
+    invalidateQueries([queryKeys.FEED])
+    invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
+    invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
+    invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+    invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
+    invalidateQueries([queryKeys.ACTIVITY_FEED])
+  }
   const lastEntity = queryClient.getQueryData<HMEntityContent>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
   ])
   if (lastEntity && lastEntity?.document?.version !== version) {
-    // console.log('[sync] new version discovered for entity', id, version)
-    invalidateQueries([queryKeys.ENTITY, id.id])
-    invalidateQueries([queryKeys.ACCOUNT, id.uid])
-    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    doInvalidation()
   }
-  // we should also invalidate the queryKeys.ACCOUNT entry in the cache
+  const lastAccount = queryClient.getQueryData<HMMetadataPayload>([
+    queryKeys.ACCOUNT,
+    id.uid,
+  ])
+  if (lastAccount && lastAccount.id.version !== version) {
+    doInvalidation()
+  }
 }
 
 export async function discoverDocument(
