@@ -94,4 +94,13 @@ export interface CommentsService {
    * Web: Would call DELETE /hm/api/comments/:id
    */
   deleteComment(params: DeleteCommentRequest): Promise<void>
+
+  /**
+   * Sorry about this hack, I know its a deviation from our elegant patterns here
+   *
+   * On desktop we have a problem where authors are not syncing for the comments. This is a desktop-only situation so we provide this hook that is a no-op on web
+   *
+   * This *should be temporary* while the syncing system is improved in the daemon. Famous last words, I know!
+   */
+  useHackyAuthorsSubscriptions: (authorIds: string[]) => void
 }

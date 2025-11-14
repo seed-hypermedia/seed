@@ -131,6 +131,11 @@ export function useBlockDiscussionsService(
   })
 }
 
+export function useHackyAuthorsSubscriptions(authorIds: string[]) {
+  const context = useCommentsServiceContext()!
+  context.service!.useHackyAuthorsSubscriptions(authorIds)
+}
+
 export function isRouteEqualToCommentTarget({
   id,
   comment,

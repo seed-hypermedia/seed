@@ -81,4 +81,8 @@ export class WebCommentsService implements CommentsService {
     // await fetch(`/hm/api/comments/${params.commentId}`, { method: 'DELETE' })
     throw new Error('Delete comment not yet implemented for web')
   }
+
+  useHackyAuthorsSubscriptions(authorIds: string[]) {
+    // no-op on web, we expect that author info will be pushed to the server already.
+  }
 }

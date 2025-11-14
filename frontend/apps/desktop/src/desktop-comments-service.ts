@@ -3,6 +3,7 @@ import {
   createCommentsByReferenceResolver,
   createCommentsResolver,
   createDiscussionsResolver,
+  hmId,
 } from '@shm/shared'
 import {
   CommentsService,
@@ -15,7 +16,9 @@ import {
   ListDiscussionsRequest,
   ListDiscussionsResponse,
 } from '@shm/shared/models/comments-service'
+import {useMemo} from 'react'
 import {grpcClient} from './grpc-client'
+import {useSubscribedResources} from './models/entities'
 
 const loadComments = createCommentsResolver(grpcClient)
 const loadDiscussions = createDiscussionsResolver(grpcClient)
@@ -33,6 +36,15 @@ export class DesktopCommentsService implements CommentsService {
     params: ListDiscussionsRequest,
   ): Promise<ListDiscussionsResponse> {
     return await loadDiscussions(params.targetId, params.commentId)
+  }
+
+  useHackyAuthorsSubscriptions(authorIds: string[]) {
+    useSubscribedResources(
+      useMemo(
+        () => authorIds.map((id) => ({id: hmId(id), recusive: false})),
+        [authorIds],
+      ),
+    )
   }
 
   async listCommentsById(

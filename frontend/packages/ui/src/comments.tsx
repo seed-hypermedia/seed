@@ -22,6 +22,7 @@ import {
   useCommentsService,
   useCommentsServiceContext,
   useDiscussionsService,
+  useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {useResource} from '@shm/shared/models/entity'
@@ -114,6 +115,26 @@ export function CommentDiscussions({
     commentsService.data?.comments,
     commentId,
   )
+
+  // Subscribe to all authors in this discussion
+  const allAuthorIds = useMemo(() => {
+    const authors = new Set<string>()
+    if (parentThread?.thread) {
+      parentThread.thread.forEach((c) => {
+        if (c.author) authors.add(c.author)
+      })
+    }
+    if (commentGroupReplies.data) {
+      commentGroupReplies.data.forEach((cg) => {
+        cg.comments.forEach((c) => {
+          if (c.author) authors.add(c.author)
+        })
+      })
+    }
+    return Array.from(authors)
+  }, [parentThread?.thread, commentGroupReplies.data])
+
+  useHackyAuthorsSubscriptions(allAuthorIds)
 
   const commentFound = commentsService.data?.comments?.some(
     (c) => c.id === commentId,
@@ -332,6 +353,32 @@ export function Discussions({
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
+
+  // Subscribe to all authors in discussions
+  const allAuthorIds = useMemo(() => {
+    const authors = new Set<string>()
+    if (discussionsService.data?.discussions) {
+      discussionsService.data.discussions.forEach((cg) => {
+        cg.comments.forEach((c) => {
+          if (c.author) authors.add(c.author)
+        })
+      })
+    }
+    if (discussionsService.data?.citingDiscussions) {
+      discussionsService.data.citingDiscussions.forEach((cg) => {
+        cg.comments.forEach((c) => {
+          if (c.author) authors.add(c.author)
+        })
+      })
+    }
+    return Array.from(authors)
+  }, [
+    discussionsService.data?.discussions,
+    discussionsService.data?.citingDiscussions,
+  ])
+
+  useHackyAuthorsSubscriptions(allAuthorIds)
+
   let panelContent = null
   console.log('discussionsService', discussionsService.data)
   if (discussionsService.isLoading && !discussionsService.data) {
@@ -413,6 +460,20 @@ export function BlockDiscussions({
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
+
+  // Subscribe to all authors in block discussions
+  const allAuthorIds = useMemo(() => {
+    const authors = new Set<string>()
+    if (commentsService.data?.comments) {
+      commentsService.data.comments.forEach((c) => {
+        if (c.author) authors.add(c.author)
+      })
+    }
+    return Array.from(authors)
+  }, [commentsService.data?.comments])
+
+  useHackyAuthorsSubscriptions(allAuthorIds)
+
   let quotedContent = null
   let panelContent = null
 
