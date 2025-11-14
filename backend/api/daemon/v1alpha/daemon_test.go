@@ -6,6 +6,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	daemon "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/storage"
 	"testing"
 
@@ -131,6 +132,10 @@ type mockedP2PNode struct{}
 const testProtocolID = "/seed/testing/1.0.0"
 
 func (m *mockedP2PNode) ForceSync() error {
+	return nil
+}
+
+func (m *mockedP2PNode) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error {
 	return nil
 }
 

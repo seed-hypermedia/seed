@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"seed/backend/blob"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
@@ -87,6 +88,14 @@ var (
 			0.99: 0.001,
 		},
 	})
+)
+
+var hmRe = regexp.MustCompile(
+	`^hm://` +
+		`(?P<account>[A-Za-z0-9]+)` + // account (required)
+		`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
+		`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
+		`(?P<latest>&l)?$`, // latest flag (optional)
 )
 
 // Force metric to appear even if there's no blobs to sync.
@@ -416,7 +425,6 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
-	prog.PeersFound.Add(int32(len(subsMap)))
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -448,19 +456,63 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
+// SyncResourcesWithPeer syncs the given resources with a specific peer.
+// method is exposed for use externally, (pushing content to a peer).
+func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *DiscoveryProgress) error {
+	dkeys := make(colx.HashSet[discoveryKey], len(resources))
+	rkeys := map[string]bool{}
+	for _, r := range resources {
+		m := hmRe.FindStringSubmatch(r)
+		if m == nil {
+			return fmt.Errorf("invalid resource format: %s", r)
+		}
+
+		// Map name -> value
+		result := map[string]string{}
+		for i, name := range hmRe.SubexpNames() {
+			if i == 0 || name == "" {
+				continue
+			}
+			result[name] = m[i]
+		}
+		if _, ok := result["account"]; !ok || result["account"] == "" {
+			return fmt.Errorf("resource missing account: %s", r)
+		}
+		if _, ok := result["path"]; !ok {
+			result["path"] = ""
+		}
+		resource := "hm://" + result["account"] + result["path"]
+		dkeys.Put(discoveryKey{
+			IRI:       blob.IRI(resource),
+			Recursive: false,
+		})
+		rkeys[resource] = false
+	}
+
+	store, err := s.loadStore(ctx, dkeys)
+	if err != nil {
+		return fmt.Errorf("failed to create RBSR store: %w", err)
+	}
+	if err = s.syncWithPeer(ctx, pid, rkeys, store, prog); err != nil {
+		prog.PeersFailed.Add(1)
+		return err
+	}
+	prog.PeersSyncedOK.Add(1)
+	return nil
+}
+
 func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store, prog *DiscoveryProgress) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
 		return fmt.Errorf("Can't sync with self")
 	}
-
+	prog.PeersFound.Add(1)
 	{
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
-	s.log.Debug("SyncWithPeer called")
 	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
 		s.log.Debug("Could not get syncing client", zap.Error(err))
