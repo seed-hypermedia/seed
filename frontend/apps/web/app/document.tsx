@@ -655,7 +655,7 @@ function InnerDocumentPage(
                               >
                                 <Feed
                                   commentEditor={<WebCommenting docId={id} />}
-                                  filterResource={`${originHomeId.id}*`}
+                                  filterResource={`${id.id}*`}
                                   currentAccount={currentAccount.data?.id.uid}
                                 />
                               </Suspense>
