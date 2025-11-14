@@ -1,3 +1,4 @@
+import {hmId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import type {SiteDocumentPayload} from './loaders'
@@ -17,6 +18,7 @@ export function NotFoundPage({
   return (
     <div className="flex h-screen w-screen flex-col">
       <WebSiteHeader
+        siteHomeId={hmId(id.uid)}
         noScroll={false}
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
@@ -25,7 +27,6 @@ export function NotFoundPage({
         supportQueries={supportQueries}
         origin={origin}
         isLatest={isLatest}
-        handleToggleFeed={() => {}}
       />
       <div className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">

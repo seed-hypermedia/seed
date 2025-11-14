@@ -3,7 +3,6 @@ import {
   HMDocument,
   HMEntityContent,
   HMMetadata,
-  hostnameStripProtocol,
   SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
@@ -42,7 +41,7 @@ import {cn} from './utils'
 const getNavItemWidth = () => 150
 
 export function SiteHeader({
-  originHomeId,
+  siteHomeId,
   docId,
   items,
   homeNavigationItems,
@@ -54,15 +53,13 @@ export function SiteHeader({
   onBlockFocus,
   onShowMobileMenu,
   hideSiteBarClassName,
-  origin,
   isLatest = true,
   editNavPane,
-  handleToggleFeed,
   isMainFeedVisible = false,
   wrapperClassName,
   notifyServiceHost,
 }: {
-  originHomeId: UnpackedHypermediaId | null
+  siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   items?: DocNavigationItem[] | null
   homeNavigationItems?: DocNavigationItem[]
@@ -74,10 +71,8 @@ export function SiteHeader({
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
-  origin?: string
   isLatest?: boolean
   editNavPane?: React.ReactNode
-  handleToggleFeed: () => void
   isMainFeedVisible: boolean
   wrapperClassName?: string
   notifyServiceHost?: string
@@ -110,9 +105,9 @@ export function SiteHeader({
       >
         <Menu size={20} />
       </Button>
-      {originHomeId ? (
+      {siteHomeId ? (
         <div className="hidden md:block">
-          <HeaderSearch originHomeId={originHomeId} />
+          <HeaderSearch siteHomeId={siteHomeId} />
         </div>
       ) : null}
     </>
@@ -157,9 +152,7 @@ export function SiteHeader({
       {docId && document ? (
         <GotoLatestBanner isLatest={isLatest} id={docId} document={document} />
       ) : null}
-      {docId && origin && originHomeId && originHomeId.uid !== docId.uid ? (
-        <HypermediaHostBanner origin={origin} />
-      ) : null}
+
       <header
         ref={headerRef}
         className={cn(
@@ -213,7 +206,7 @@ export function SiteHeader({
             isCenterLayout={isCenterLayout}
             editNavPane={editNavPane}
             isMainFeedVisible={isMainFeedVisible}
-            handleToggleFeed={handleToggleFeed}
+            siteHomeId={siteHomeId}
           />
         </div>
 
@@ -236,7 +229,7 @@ export function SiteHeader({
           renderContent={() => (
             <>
               <MobileSearch
-                originHomeId={originHomeId}
+                siteHomeId={siteHomeId}
                 // @ts-expect-error
                 onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
@@ -444,17 +437,17 @@ function HeaderLinkItem({
 export function SiteHeaderMenu({
   items,
   docId,
+  siteHomeId,
   isCenterLayout = false,
   editNavPane,
   isMainFeedVisible = false,
-  handleToggleFeed,
 }: {
   items?: DocNavigationItem[] | null
   docId: UnpackedHypermediaId | null
+  siteHomeId: UnpackedHypermediaId
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
   isMainFeedVisible?: boolean
-  handleToggleFeed?: () => void
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
@@ -492,6 +485,11 @@ export function SiteHeaderMenu({
       gapWidth: 20,
     })
 
+  const feedLinkProps = useRouteLink({
+    key: 'feed',
+    id: siteHomeId,
+  })
+
   // Track container width for responsive Feed button
   useIsomorphicLayoutEffect(() => {
     if (!containerRef.current) return
@@ -512,44 +510,6 @@ export function SiteHeaderMenu({
 
   // Show text only when container is larger than 500px
   const showFeedText = containerWidth > 500
-
-  let feedLinkButton = handleToggleFeed ? (
-    <Tooltip content="Site Feed">
-      <a
-        ref={feedLinkButtonRef}
-        className={cn(
-          'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
-          isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
-          'hover:text-foreground',
-        )}
-        onClick={handleToggleFeed}
-        onMouseEnter={() => {
-          import('./feed').catch(() => {})
-        }}
-      >
-        <Sparkle
-          className={cn(
-            'size-4 flex-none shrink-0',
-            isMainFeedVisible
-              ? 'text-foreground text-bold'
-              : 'text-muted-foreground',
-          )}
-        />
-
-        {showFeedText && (
-          <span
-            className={cn(
-              isMainFeedVisible
-                ? 'text-foreground text-bold'
-                : 'text-muted-foreground',
-            )}
-          >
-            Feed
-          </span>
-        )}
-      </a>
-    </Tooltip>
-  ) : null
 
   return (
     <div
@@ -629,7 +589,41 @@ export function SiteHeaderMenu({
           </DropdownMenu>
         </Tooltip>
       )}
-      {feedLinkButton}
+      <Tooltip content="Site Feed">
+        <a
+          ref={feedLinkButtonRef}
+          className={cn(
+            'flex cursor-pointer items-center gap-2 truncate px-1 font-bold transition-colors select-none',
+            isMainFeedVisible ? 'text-foreground' : 'text-muted-foreground',
+            'hover:text-foreground',
+          )}
+          onMouseEnter={() => {
+            import('./feed').catch(() => {})
+          }}
+          {...feedLinkProps}
+        >
+          <Sparkle
+            className={cn(
+              'size-4 flex-none shrink-0',
+              isMainFeedVisible
+                ? 'text-foreground text-bold'
+                : 'text-muted-foreground',
+            )}
+          />
+
+          {showFeedText && (
+            <span
+              className={cn(
+                isMainFeedVisible
+                  ? 'text-foreground text-bold'
+                  : 'text-muted-foreground',
+              )}
+            >
+              Feed
+            </span>
+          )}
+        </a>
+      </Tooltip>
     </div>
   )
 }
@@ -722,23 +716,6 @@ function GotoLatestBanner({
       </div>
     </div>
   ) : null
-}
-
-function HypermediaHostBanner({origin}: {origin?: string}) {
-  return (
-    <div className="bg-primary w-full p-1">
-      <p className="flex flex-wrap items-center justify-center gap-1 text-sm text-white">
-        <span>Hosted on</span>
-        <a href="/" className="underline">
-          {hostnameStripProtocol(origin)}
-        </a>
-        <span>via the</span>
-        <a href="https://hyper.media" target="_blank" className="underline">
-          Hypermedia Protocol
-        </a>
-      </p>
-    </div>
-  )
 }
 
 export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'

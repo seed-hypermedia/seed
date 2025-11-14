@@ -25,6 +25,21 @@ export function Button({
   )
 }
 
+export function ButtonLink({
+  className,
+  variant,
+  size,
+  ...props
+}: React.ComponentProps<'a'> & VariantProps<typeof buttonVariants>) {
+  return (
+    <a
+      data-slot="button-link"
+      className={cn(buttonVariants({variant, size, className}))}
+      {...props}
+    />
+  )
+}
+
 export type ButtonProps = React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean

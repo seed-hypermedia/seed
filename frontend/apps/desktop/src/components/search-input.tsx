@@ -259,7 +259,6 @@ export function SearchInput({
                     onSelect: () => item.onSelect?.(),
                   }}
                   selected={sharedProps.selected}
-                  originHomeId={undefined}
                 />
               ) : (
                 <SearchResultItem

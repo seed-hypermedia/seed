@@ -174,6 +174,7 @@ export function routeToHref(
           {...docId, hostname: null},
           {
             originHomeId: options.originHomeId,
+            feed: docRoute.key === 'feed',
           },
         )
   }

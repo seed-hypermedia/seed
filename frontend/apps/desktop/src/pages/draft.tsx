@@ -649,7 +649,7 @@ function DraftAppHeader({
   if (!siteHomeEntity) return null
   return (
     <SiteHeader
-      originHomeId={siteHomeEntity.id}
+      siteHomeId={siteHomeEntity.id}
       items={displayNavItems}
       docId={docId}
       document={document}
@@ -677,7 +677,6 @@ function DraftAppHeader({
         ) : null
       }
       supportDocuments={[siteHomeEntity]}
-      handleToggleFeed={() => {}}
       isMainFeedVisible={false}
       notifyServiceHost={notifyServiceHost}
     />

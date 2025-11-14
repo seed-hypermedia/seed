@@ -8,12 +8,12 @@ import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
-import {useLoaderData, useSearchParams} from '@remix-run/react'
+import {useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
-import {useCallback, useEffect, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {z} from 'zod'
 import {Container} from '../ui/container'
 
@@ -177,19 +177,6 @@ export default function DownloadPage() {
       />,
     )
   }
-  const [searchParams, setSearchParams] = useSearchParams()
-  const handleToggleFeed = useCallback(() => {
-    const currentFeed = searchParams.get('feed') === 'true'
-    setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev)
-      if (currentFeed) {
-        newParams.delete('feed')
-      } else {
-        newParams.set('feed', 'true')
-      }
-      return newParams
-    })
-  }, [searchParams, setSearchParams])
   return (
     <WebSiteProvider
       origin={origin}
@@ -203,12 +190,12 @@ export default function DownloadPage() {
         <WebSiteHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
+          siteHomeId={originHomeId}
           docId={id}
           document={document}
           supportDocuments={supportDocuments}
           supportQueries={supportQueries}
           origin={origin}
-          handleToggleFeed={handleToggleFeed}
         />
         <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
           <Container className="gap-4 px-6">

@@ -64,6 +64,7 @@ export function createWebHMUrl(
     latest,
     path,
     originHomeId,
+    feed,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -72,6 +73,7 @@ export function createWebHMUrl(
     latest?: boolean | null
     path?: string[] | null
     originHomeId?: UnpackedHypermediaId
+    feed?: boolean
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -89,7 +91,7 @@ export function createWebHMUrl(
     res += `/${path.join('/')}`
   }
   if (res === '') res = '/'
-  res += getHMQueryString({latest, version})
+  res += getHMQueryString({latest, version, feed})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -97,9 +99,11 @@ export function createWebHMUrl(
 }
 
 function getHMQueryString({
+  feed,
   version,
   latest,
 }: {
+  feed?: boolean
   version?: string | null
   latest?: boolean | null
 }) {
@@ -109,6 +113,9 @@ function getHMQueryString({
   }
   if (latest) {
     query.l = null
+  }
+  if (feed) {
+    query.feed = 'true'
   }
   return serializeQueryString(query)
 }
@@ -262,6 +269,7 @@ export function idToUrl(
   hmId: UnpackedHypermediaId,
   opts?: {
     originHomeId?: UnpackedHypermediaId
+    feed?: boolean
   },
 ) {
   return createWebHMUrl(hmId.uid, {
@@ -271,6 +279,7 @@ export function idToUrl(
     path: hmId.path,
     hostname: hmId.hostname,
     originHomeId: opts?.originHomeId,
+    feed: opts?.feed,
   })
 }
 

@@ -26,16 +26,16 @@ import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 export function MobileSearch({
-  originHomeId,
+  siteHomeId,
   onSelect,
 }: {
-  originHomeId: UnpackedHypermediaId | null
+  siteHomeId: UnpackedHypermediaId | null
   onSelect: () => void
 }) {
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
-    accountUid: originHomeId?.uid,
+    accountUid: siteHomeId?.uid,
     includeBody: false,
     contextSize: 48 - searchValue.length,
   })
@@ -94,7 +94,7 @@ export function MobileSearch({
                     ...item,
                   }}
                   onSelect={onSelect}
-                  originHomeId={originHomeId}
+                  siteHomeId={siteHomeId}
                   selected={false}
                 />
               </Fragment>
@@ -107,15 +107,15 @@ export function MobileSearch({
 }
 
 export function HeaderSearch({
-  originHomeId,
+  siteHomeId,
 }: {
-  originHomeId: UnpackedHypermediaId | null
+  siteHomeId: UnpackedHypermediaId | null
 }) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
-    accountUid: originHomeId?.uid,
+    accountUid: siteHomeId?.uid,
     includeBody: false,
     contextSize: 48 - searchValue.length,
   })
@@ -297,7 +297,7 @@ export function HeaderSearch({
                           >
                             <SearchResultItem
                               item={item}
-                              originHomeId={originHomeId}
+                              siteHomeId={siteHomeId}
                               selected={focusedIndex === index}
                               // onSelect={() => {
                               //   popoverState.onOpenChange(false)
@@ -327,14 +327,14 @@ export function HeaderSearch({
 
 export function SearchResultItem({
   item,
-  originHomeId,
+  siteHomeId,
   selected = false,
   className,
   onSelect,
   ...props
 }: {
   item: SearchResult
-  originHomeId?: UnpackedHypermediaId | null
+  siteHomeId?: UnpackedHypermediaId | null
   selected: boolean
   className?: string
   onSelect?: () => void
@@ -448,7 +448,7 @@ export function SearchResultItem({
 export function RecentSearchResultItem({
   item,
   selected,
-  originHomeId,
+  siteHomeId,
 }: {
   item: {
     key: string
@@ -461,7 +461,7 @@ export function RecentSearchResultItem({
     onMouseEnter: () => void
   }
   selected: boolean
-  originHomeId?: UnpackedHypermediaId | null
+  siteHomeId?: UnpackedHypermediaId | null
 }) {
   let path = normalizePath(item.path.slice(0, -1))
   if (item.id) {
@@ -485,7 +485,7 @@ export function RecentSearchResultItem({
         ...item,
       }}
       selected={selected}
-      originHomeId={originHomeId}
+      siteHomeId={siteHomeId}
     />
   )
 }

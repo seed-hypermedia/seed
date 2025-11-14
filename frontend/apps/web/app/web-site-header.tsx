@@ -10,23 +10,26 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
+export type WebSiteHeaderProps = {
+  noScroll?: boolean
+  homeMetadata: HMMetadata | null
+  originHomeId: UnpackedHypermediaId
+  siteHomeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId | null
+  document?: HMDocument
+  supportDocuments?: HMEntityContent[]
+  supportQueries?: HMQueryResult[]
+  origin?: string
+  isLatest?: boolean
+  hideSiteBarClassName?: AutoHideSiteHeaderClassName
+}
+
 export function WebSiteHeader(
-  props: React.PropsWithChildren<{
-    noScroll?: boolean
-    homeMetadata: HMMetadata | null
-    originHomeId: UnpackedHypermediaId | null
-    docId: UnpackedHypermediaId | null
-    document?: HMDocument
-    supportDocuments?: HMEntityContent[]
-    supportQueries?: HMQueryResult[]
-    origin?: string
-    isLatest?: boolean
-    hideSiteBarClassName?: AutoHideSiteHeaderClassName
-    handleToggleFeed: () => void
-  }>,
+  props: React.PropsWithChildren<WebSiteHeaderProps>,
 ) {
   const [searchParams] = useSearchParams()
   const isCenterLayout =
@@ -73,32 +76,37 @@ export function WebSiteHeader(
       : getDirectoryItems(props)
 
   return (
-    <SiteHeader
-      {...props}
-      hideSiteBarClassName={props.hideSiteBarClassName}
-      isCenterLayout={isCenterLayout}
-      items={items}
-      homeNavigationItems={homeNavigationItems}
-      directoryItems={directoryItems}
-      origin={props.origin}
-      onBlockFocus={(blockId) => {
-        const element = document.getElementById(blockId)
-        if (element) {
-          element.scrollIntoView({behavior: 'smooth', block: 'start'})
-        }
-      }}
-      onShowMobileMenu={(open) => {
-        if (open) {
-          document.body.style.overflow = 'hidden'
-        } else {
-          document.body.style.overflow = 'auto'
-        }
-      }}
-      handleToggleFeed={props.handleToggleFeed}
-      isMainFeedVisible={searchParams.get('feed') === 'true'}
-      wrapperClassName="fixed sm:static"
-      notifyServiceHost={NOTIFY_SERVICE_HOST}
-    />
+    <>
+      {origin &&
+      props.siteHomeId &&
+      props.siteHomeId.uid !== props.originHomeId.uid ? (
+        <HypermediaHostBanner origin={origin} />
+      ) : null}
+      <SiteHeader
+        {...props}
+        hideSiteBarClassName={props.hideSiteBarClassName}
+        isCenterLayout={isCenterLayout}
+        items={items}
+        homeNavigationItems={homeNavigationItems}
+        directoryItems={directoryItems}
+        onBlockFocus={(blockId) => {
+          const element = document.getElementById(blockId)
+          if (element) {
+            element.scrollIntoView({behavior: 'smooth', block: 'start'})
+          }
+        }}
+        onShowMobileMenu={(open) => {
+          if (open) {
+            document.body.style.overflow = 'hidden'
+          } else {
+            document.body.style.overflow = 'auto'
+          }
+        }}
+        isMainFeedVisible={searchParams.get('feed') === 'true'}
+        wrapperClassName="fixed sm:static"
+        notifyServiceHost={NOTIFY_SERVICE_HOST}
+      />
+    </>
   )
 }
 

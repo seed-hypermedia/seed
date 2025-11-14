@@ -367,7 +367,7 @@ function _AppDocSiteHeader({
   if (route.key != 'document' && route.key != 'feed') return null
   return (
     <SiteHeader
-      originHomeId={hmId(siteHomeEntity.id.uid)}
+      siteHomeId={siteHomeEntity.id}
       items={navItems}
       docId={docId}
       isCenterLayout={
@@ -384,13 +384,6 @@ function _AppDocSiteHeader({
         onScrollParamSet(isShown)
       }}
       isMainFeedVisible={route.key == 'feed'}
-      handleToggleFeed={() => {
-        replace({
-          ...route,
-          key: route.key == 'document' ? 'feed' : 'document',
-          accessory: route.key == 'document' ? null : route.accessory,
-        })
-      }}
       notifyServiceHost={notifyServiceHost}
     />
   )

@@ -1,5 +1,6 @@
 import {useFullRender} from '@/cache-policy'
 import {links as documentLinks, DocumentPage} from '@/document'
+import {FeedPage} from '@/feed'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
@@ -206,6 +207,11 @@ export default function UnifiedDocumentPage() {
         code={data.daemonError.code}
       />
     )
+  }
+
+  // Show feed page if feed param is present
+  if (data.feed) {
+    return <FeedPage {...data} />
   }
 
   return <DocumentPage {...data} />
