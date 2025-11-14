@@ -458,10 +458,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	}
 	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
 	cleanQuery := re.ReplaceAllString(in.Query, "")
+	// collapse multiple spaces to a single space
+	cleanQuery = strings.Join(strings.Fields(cleanQuery), " ")
+	fmt.Println(cleanQuery)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
 
+	fmt.Println(cleanQuery)
 	var bodyMatches []fuzzy.Match
 	const entityTypeTitle = "title"
 	var entityTypeContact, entityTypeDoc, entityTypeComment interface{}
@@ -506,6 +510,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
 	//before := time.Now()
+	fmt.Println(ftsStr, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, loggedAccountID, iriGlob, resultsLmit)
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var res searchResult
