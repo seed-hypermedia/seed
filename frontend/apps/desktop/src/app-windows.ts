@@ -171,6 +171,31 @@ export function getWindowNavState() {
   return windowNavState
 }
 
+/**
+ * Gets the most recently focused window, even if app is in background.
+ * Used by auto-updater to send notifications when app isn't focused.
+ */
+export function getLastFocusedWindow(): BrowserWindow | null {
+  // Try last focused window by ID
+  if (lastFocusedWindowId) {
+    const window = allWindows.get(lastFocusedWindowId)
+    if (window && !window.isDestroyed()) {
+      return window
+    }
+  }
+
+  // Fallback to currently focused window
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && !focused.isDestroyed()) {
+    return focused
+  }
+
+  // Last resort: any available window
+  const allWins = Array.from(allWindows.values())
+  const anyWindow = allWins.find((win) => !win.isDestroyed())
+  return anyWindow || null
+}
+
 let isExpectingQuit = false
 app.addListener('before-quit', () => {
   isExpectingQuit = true

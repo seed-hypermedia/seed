@@ -6,6 +6,7 @@ import {
 import {app, BrowserWindow, ipcMain, session, shell} from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import {getLastFocusedWindow} from './app-windows'
 import * as log from './logger'
 import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
 
@@ -170,7 +171,7 @@ function handleFlatpakUpdates() {
   )
 
   // Send notification to user about Flatpak updates
-  const win = BrowserWindow.getFocusedWindow()
+  const win = getLastFocusedWindow()
   if (win) {
     win.webContents.send('auto-update:status', {
       type: 'flatpak-info',
@@ -186,7 +187,7 @@ function handleAppImageUpdates() {
   )
 
   // Send notification to user about AppImage updates
-  const win = BrowserWindow.getFocusedWindow()
+  const win = getLastFocusedWindow()
   if (win) {
     win.webContents.send('auto-update:status', {
       type: 'appimage-info',
@@ -268,7 +269,7 @@ export class AutoUpdater {
     })
 
     ipcMain.on('auto-update:set-status', (_, status: UpdateStatus) => {
-      const win = BrowserWindow.getFocusedWindow()
+      const win = getLastFocusedWindow()
       if (win) {
         this.status = status
         win.webContents.send('auto-update:status', this.status)
@@ -314,7 +315,7 @@ export class AutoUpdater {
       `[AUTO-UPDATE] Platform: ${process.platform}, Architecture: ${process.arch}`,
     )
 
-    const win = BrowserWindow.getFocusedWindow()
+    const win = getLastFocusedWindow()
     if (!win) {
       log.error('[AUTO-UPDATE] No window found')
       return
@@ -437,7 +438,7 @@ export class AutoUpdater {
 
     // For all platforms, send update info to renderer to show the popup
     log.info('[AUTO-UPDATE] Sending event to renderer')
-    const win = BrowserWindow.getFocusedWindow()
+    const win = getLastFocusedWindow()
     if (!win) {
       log.error('[AUTO-UPDATE] No window found')
       return
@@ -488,7 +489,7 @@ export class AutoUpdater {
       throw new Error(`Failed to create temp directory: ${error}`)
     }
 
-    const win = BrowserWindow.getFocusedWindow()
+    const win = getLastFocusedWindow()
     log.info(`[AUTO-UPDATE] Active window ID: ${win?.id || 'none'}`)
 
     if (!win) {
