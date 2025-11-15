@@ -120,7 +120,8 @@ The codebase follows a monorepo structure using Yarn workspaces:
 ## Important Notes
 
 - Always run `yarn workspace @shm/shared build:types` before type checking to ensure types are built
-- Tests should be run automatically when modifying code with existing test files
+- **ALWAYS run tests yourself when writing or modifying code** - don't wait for user to run them
+- When creating new tests or modifying existing tests, run them immediately to verify they work
 - The desktop app uses Electron Forge for building and packaging
 - Web app uses Remix with server-side rendering
 - P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for production network
