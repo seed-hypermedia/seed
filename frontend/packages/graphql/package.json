@@ -1,0 +1,30 @@
+{
+  "name": "@shm/graphql",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest --run",
+    "test:w": "vitest",
+    "typecheck": "tsc --noEmit --project tsconfig.app.json",
+    "build:types": "tsc -p tsconfig.types.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "vitest": "^1.6.1"
+  },
+  "dependencies": {
+    "@urql/core": "^5.0.0",
+    "@urql/exchange-graphcache": "^7.0.0",
+    "react": "18.2.0",
+    "urql": "^4.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  }
+}

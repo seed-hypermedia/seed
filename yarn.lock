@@ -12628,6 +12628,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@shm/graphql@workspace:frontend/packages/graphql":
+  version: 0.0.0-use.local
+  resolution: "@shm/graphql@workspace:frontend/packages/graphql"
+  dependencies:
+    "@urql/core": ^5.0.0
+    "@urql/exchange-graphcache": ^7.0.0
+    react: 18.2.0
+    typescript: 5.8.3
+    urql: ^4.0.0
+    vitest: ^1.6.1
+  peerDependencies:
+    react: ^18.0.0
+  languageName: unknown
+  linkType: soft
+
 "@shm/landing@workspace:frontend/apps/landing":
   version: 0.0.0-use.local
   resolution: "@shm/landing@workspace:frontend/apps/landing"
@@ -15784,6 +15799,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@urql/core@npm:^5.0.0, @urql/core@npm:^5.1.1, @urql/core@npm:^5.1.2":
+  version: 5.2.0
+  resolution: "@urql/core@npm:5.2.0"
+  dependencies:
+    "@0no-co/graphql.web": ^1.0.13
+    wonka: ^6.3.2
+  checksum: 89c1959abd9230ba06ed5dc4cc5ea6585101c4b0c12894ddbdd1ec36d76b70799b819b999cbcaf154b6f9903eb6c2ba8eef6dff447bc5c9c1870878748868e85
+  languageName: node
+  linkType: hard
+
 "@urql/core@npm:^6.0.1":
   version: 6.0.1
   resolution: "@urql/core@npm:6.0.1"
@@ -15791,6 +15816,19 @@ __metadata:
     "@0no-co/graphql.web": ^1.0.13
     wonka: ^6.3.2
   checksum: 6cedd18dc9f386d361991c6cbde61dc45c1cac9dfa9db60274fdd9acec91185d176a5c63bb39593152490f539441e226db32bdf88cfba0af4488d90399e58482
+  languageName: node
+  linkType: hard
+
+"@urql/exchange-graphcache@npm:^7.0.0":
+  version: 7.2.4
+  resolution: "@urql/exchange-graphcache@npm:7.2.4"
+  dependencies:
+    "@0no-co/graphql.web": ^1.0.13
+    "@urql/core": ^5.1.2
+    wonka: ^6.3.2
+  peerDependencies:
+    "@urql/core": ^5.0.0
+  checksum: d153ba7715c0f8e4173d7bbf4b108b918ff16a8b40f74309f11a05781046f1f5f892fa2aa8d9932cf9bed7f963bb49a4016f707068d80c034b1453f231e58671
   languageName: node
   linkType: hard
 
@@ -38143,6 +38181,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"urql@npm:^4.0.0":
+  version: 4.2.2
+  resolution: "urql@npm:4.2.2"
+  dependencies:
+    "@urql/core": ^5.1.1
+    wonka: ^6.3.2
+  peerDependencies:
+    "@urql/core": ^5.0.0
+    react: ">= 16.8.0"
+  checksum: efdfec715abe9117a2580693d4f0ef5a2bec746624eb6b66d542210eb79c42ee8d38aed71c9a512db49d58b1a4ed1e99ff6c9e0dc5c23132f15b5dcd22c14ad5
+  languageName: node
+  linkType: hard
+
 "urql@npm:^5.0.1":
   version: 5.0.1
   resolution: "urql@npm:5.0.1"
@@ -38929,7 +38980,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^1.3.1":
+"vitest@npm:^1.3.1, vitest@npm:^1.6.1":
   version: 1.6.1
   resolution: "vitest@npm:1.6.1"
   dependencies:

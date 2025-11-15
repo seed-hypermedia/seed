@@ -75,6 +75,7 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+frontend/packages/graphql/dist/
 
 # os
 .DS_Store
