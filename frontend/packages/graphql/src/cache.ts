@@ -101,12 +101,12 @@ export const graphcacheConfig: CacheExchangeOpts = {
 
   resolvers: {
     Query: {
-      // Custom resolver for fetching resource from cache by IRI
-      getResource: (_parent, args) => {
-        const key = generateResourceKey(args.iri as string)
-        if (!key) return null
-        return {__typename: 'Resource', iri: args.iri}
-      },
+      // Commenting out custom resolver - urql will fetch from network
+      // getResource: (_parent, args) => {
+      //   const key = generateResourceKey(args.iri as string)
+      //   if (!key) return null
+      //   return {__typename: 'Resource', iri: args.iri}
+      // },
     },
   },
 
