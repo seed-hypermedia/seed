@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Resources_GetResource_FullMethodName = "/com.seed.documents.v3alpha.Resources/GetResource"
+	Resources_GetResource_FullMethodName         = "/com.seed.documents.v3alpha.Resources/GetResource"
+	Resources_PushResourcesToPeer_FullMethodName = "/com.seed.documents.v3alpha.Resources/PushResourcesToPeer"
 )
 
 // ResourcesClient is the client API for Resources service.
@@ -32,6 +33,8 @@ const (
 type ResourcesClient interface {
 	// Gets a single resource with a URL (technically IRI).
 	GetResource(ctx context.Context, in *GetResourceRequest, opts ...grpc.CallOption) (*Resource, error)
+	// Makes sure a resource (and their related blobs) are pushed to a given peer.
+	PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error)
 }
 
 type resourcesClient struct {
@@ -52,6 +55,25 @@ func (c *resourcesClient) GetResource(ctx context.Context, in *GetResourceReques
 	return out, nil
 }
 
+func (c *resourcesClient) PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Resources_ServiceDesc.Streams[0], Resources_PushResourcesToPeer_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PushResourcesToPeerRequest, SyncingProgress]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Resources_PushResourcesToPeerClient = grpc.ServerStreamingClient[SyncingProgress]
+
 // ResourcesServer is the server API for Resources service.
 // All implementations should embed UnimplementedResourcesServer
 // for forward compatibility.
@@ -62,6 +84,8 @@ func (c *resourcesClient) GetResource(ctx context.Context, in *GetResourceReques
 type ResourcesServer interface {
 	// Gets a single resource with a URL (technically IRI).
 	GetResource(context.Context, *GetResourceRequest) (*Resource, error)
+	// Makes sure a resource (and their related blobs) are pushed to a given peer.
+	PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error
 }
 
 // UnimplementedResourcesServer should be embedded to have
@@ -73,6 +97,9 @@ type UnimplementedResourcesServer struct{}
 
 func (UnimplementedResourcesServer) GetResource(context.Context, *GetResourceRequest) (*Resource, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResource not implemented")
+}
+func (UnimplementedResourcesServer) PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error {
+	return status.Errorf(codes.Unimplemented, "method PushResourcesToPeer not implemented")
 }
 func (UnimplementedResourcesServer) testEmbeddedByValue() {}
 
@@ -112,6 +139,17 @@ func _Resources_GetResource_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Resources_PushResourcesToPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PushResourcesToPeerRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ResourcesServer).PushResourcesToPeer(m, &grpc.GenericServerStream[PushResourcesToPeerRequest, SyncingProgress]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Resources_PushResourcesToPeerServer = grpc.ServerStreamingServer[SyncingProgress]
+
 // Resources_ServiceDesc is the grpc.ServiceDesc for Resources service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -124,6 +162,12 @@ var Resources_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Resources_GetResource_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "PushResourcesToPeer",
+			Handler:       _Resources_PushResourcesToPeer_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "documents/v3alpha/resources.proto",
 }

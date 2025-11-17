@@ -408,9 +408,9 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	}
 
 	// Create RBSR store for all subscriptions
-	dkeys := make(colx.HashSet[discoveryKey], len(subs))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(subs))
 	for _, subs := range subs {
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI("hm://" + subs.Account + subs.Path),
 			Recursive: subs.Recursive,
 		})
@@ -466,7 +466,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 // SyncResourcesWithPeer syncs the given resources with a specific peer.
 // method is exposed for use externally, (pushing content to a peer).
 func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *DiscoveryProgress) error {
-	dkeys := make(colx.HashSet[discoveryKey], len(resources))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(resources))
 	rkeys := map[string]bool{}
 	for _, r := range resources {
 		m := hmRe.FindStringSubmatch(r)
@@ -489,7 +489,7 @@ func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resour
 			result["path"] = ""
 		}
 		resource := "hm://" + result["account"] + result["path"]
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI(resource),
 			Recursive: false,
 		})

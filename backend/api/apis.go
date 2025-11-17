@@ -51,16 +51,16 @@ func New(
 	dlink *devicelink.Service,
 ) Server {
 	db := repo.DB()
-
+	proxy := &p2pProxy{node: node}
 	return Server{
 		Activity:    activity,
 		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}, idx, dlink),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(db, sync),
-		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel)),
+		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
-		P2PProxy:    &p2pProxy{node: node},
+		P2PProxy:    proxy,
 	}
 }
 

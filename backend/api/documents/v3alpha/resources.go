@@ -3,21 +3,119 @@ package documents
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// PushResourcesToPeer implements the corresponding gRPC method.
+func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, streamTx grpc.ServerStreamingServer[documents.SyncingProgress]) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	prog := syncing.NewDiscoveryProgress()
+	prog.StartNotifier(ctx, 100*time.Millisecond)
+	prog.Notify()
+	conn, cancel, err := srv.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire db connection: %w", err)
+	}
+	defer cancel()
+	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
+	for _, res := range req.Resources {
+		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(res)}] = struct{}{}
+	}
+	cids, err := syncing.GetRelatedMaterial(conn, dkeys)
+	if err != nil {
+		return err
+	}
+	request := &p2p.FetchBlobsRequest{}
+	for cid, _ := range cids {
+		request.Cids = append(request.Cids, cid.String())
+	}
+	if err := streamTx.Send(&documents.SyncingProgress{BlobsDiscovered: int32(len(cids))}); err != nil {
+		return err
+	}
+
+	pid, err := peer.Decode(req.Pid)
+	if err != nil {
+		return fmt.Errorf("failed to decode peer ID '%s': %w", req.Pid, err)
+	}
+	syncClient, err := srv.sync.SyncingClient(ctx, pid)
+	if err != nil {
+		return fmt.Errorf("Could not get p2p client: %w", err)
+	}
+	streamRx, err := syncClient.FetchBlobs(ctx, request)
+	if err != nil {
+		return fmt.Errorf("failed to start FetchBlobs RPC: %w", err)
+	}
+
+	for {
+		progIn, err := streamRx.Recv()
+		if err == io.EOF {
+			_ = streamTx.Send(progIn) // ignore send error on termination
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := streamTx.Send(progIn); err != nil {
+			return err
+		}
+	}
+	/*
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- srv.sync.FetchBlobs(request, stream)
+		}()
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case syncErr := <-errCh:
+					// final progress snapshot before returning
+					out := &documents.SyncingProgress{
+						PeersFound:      prog.PeersFound.Load(),
+						PeersSyncedOk:   prog.PeersSyncedOK.Load(),
+						PeersFailed:     prog.PeersFailed.Load(),
+						BlobsDiscovered: prog.BlobsDiscovered.Load(),
+						BlobsDownloaded: prog.BlobsDownloaded.Load(),
+						BlobsFailed:     prog.BlobsFailed.Load(),
+					}
+					_ = streamTx.Send(out) // ignore send error on termination
+					return syncErr
+				case <-prog.Updates():
+					out := &documents.SyncingProgress{
+						PeersFound:      prog.PeersFound.Load(),
+						PeersSyncedOk:   prog.PeersSyncedOK.Load(),
+						PeersFailed:     prog.PeersFailed.Load(),
+						BlobsDiscovered: prog.BlobsDiscovered.Load(),
+						BlobsDownloaded: prog.BlobsDownloaded.Load(),
+						BlobsFailed:     prog.BlobsFailed.Load(),
+					}
+					if err := streamTx.Send(out); err != nil {
+						return err
+					}
+				}
+			}
+	*/
+}
 
 // GetResource implements the corresponding gRPC method.
 func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceRequest) (*documents.Resource, error) {

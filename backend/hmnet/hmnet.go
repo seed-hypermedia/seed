@@ -247,7 +247,7 @@ func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
 	return n.client.Dial(ctx, pid)
 }
 
-// SyncingClient opens a connection with a remote node for syncing using RBSR algorithm.
+// SyncingClient opens a connection with a remote node for syncing.
 func (n *Node) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
 	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
 		return nil, err

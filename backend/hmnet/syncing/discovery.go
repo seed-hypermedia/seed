@@ -116,7 +116,6 @@ func (p *DiscoveryProgress) StartNotifier(ctx context.Context, interval time.Dur
 // other local object. This function blocks until either success or fails to find providers.
 func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
 	prog := NewDiscoveryProgress()
-	// poll 200ms; tune as needed
 	prog.StartNotifier(ctx, 200*time.Millisecond)
 	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, prog)
 }
@@ -133,7 +132,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		prog.StartNotifier(ctx, 200*time.Millisecond)
 		prog.Notify() // initial tick
 	}
-	// ...existing code...
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
@@ -181,8 +179,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 
 	// Create RBSR store once for reuse across all peers.
-	dkeys := colx.HashSet[discoveryKey]{
-		discoveryKey{
+	dkeys := colx.HashSet[DiscoveryKey]{
+		DiscoveryKey{
 			IRI:       entityID,
 			Version:   version,
 			Recursive: recursive,
@@ -255,7 +253,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 }
 
 // loadStore creates and populates an RBSR store for the given discovery keys.
-func (s *Service) loadStore(ctx context.Context, dkeys map[discoveryKey]struct{}) (rbsr.Store, error) {
+func (s *Service) loadStore(ctx context.Context, dkeys map[DiscoveryKey]struct{}) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -271,28 +269,48 @@ func (s *Service) loadStore(ctx context.Context, dkeys map[discoveryKey]struct{}
 	return store, nil
 }
 
-type discoveryKey struct {
-	IRI       blob.IRI
-	Version   blob.Version
+// DiscoveryKey is used to identify resources to discover.
+type DiscoveryKey struct {
+	// IRI is the identifier of the resource.
+	IRI blob.IRI
+
+	// Version is the specific version of the resource to discover.
+	Version blob.Version
+
+	// Recursive indicates whether to discover the path below the IRI as well.
 	Recursive bool
 }
 
-func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbsr.Store) error {
+func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbsr.Store) error {
+	cids, err := GetRelatedMaterial(conn, dkeys)
+	if err != nil {
+		return err
+	}
+	for c, ts := range cids {
+		if err := store.Insert(ts, strbytes.Bytes(c.KeyString())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetRelatedMaterial gets all the related material CIDs for the given discovery keys.
+func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) (cids map[cid.Cid]int64, err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
-
-	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
-		return err
+	cids = make(map[cid.Cid]int64)
+	if err = ensureTempTable(conn, "rbsr_iris"); err != nil {
+		return
 	}
 
-	if err := ensureTempTable(conn, "rbsr_blobs"); err != nil {
-		return err
+	if err = ensureTempTable(conn, "rbsr_blobs"); err != nil {
+		return
 	}
 
-	if err := fillTables(conn, dkeys); err != nil {
-		return err
+	if err = fillTables(conn, dkeys); err != nil {
+		return
 	}
 
-	var linkIRIs = make(map[discoveryKey]struct{})
+	var linkIRIs = make(map[DiscoveryKey]struct{})
 	// Fill Links.
 	{
 		const q = `
@@ -312,19 +330,19 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			WHERE rl.source IN linked_changes
 			GROUP BY r.iri, version, rl.is_pinned;`
 
-		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+		if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 			var iri = blob.IRI(stmt.ColumnText(0))
 			var version = blob.Version(stmt.ColumnText(2))
 			var isPinned = stmt.ColumnInt(1) != 0
-			dKey := discoveryKey{IRI: iri, Version: "", Recursive: false}
+			dKey := DiscoveryKey{IRI: iri, Version: "", Recursive: false}
 			if isPinned && version != "" {
 				// If it's pinned, we want to make sure we get the specific version.
-				dKey = discoveryKey{IRI: iri, Version: version, Recursive: false}
+				dKey = DiscoveryKey{IRI: iri, Version: version, Recursive: false}
 			}
 			linkIRIs[dKey] = struct{}{}
 			return nil
 		}); err != nil {
-			return err
+			return
 		}
 	}
 	// Fill Citations.
@@ -346,7 +364,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 					ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
 				END
 			WHERE resource_links.target IN rbsr_iris;`
-		if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+		if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 			var (
 				author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
 				tsid      = blob.TSID(stmt.ColumnText(1))
@@ -361,22 +379,23 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			if isDeleted {
 				return nil
 			}
-			dKey := discoveryKey{IRI: blob.IRI(source)}
+			dKey := DiscoveryKey{IRI: blob.IRI(source)}
 			linkIRIs[dKey] = struct{}{}
 			return nil
 		}); err != nil {
-			return err
+			return
 		}
 	}
-	if err := fillTables(conn, linkIRIs); err != nil {
-		return err
+	if err = fillTables(conn, linkIRIs); err != nil {
+		return
 	}
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
+	blobCountBefore := 0
 	for {
-		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		blobCountBefore, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return err
+			return
 		}
 
 		if blobCountBefore == 0 {
@@ -393,16 +412,15 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 				FROM structural_blobs
 				WHERE id IN rbsr_blobs 
 			)
-			AND sb.extra_attrs->>'deleted' is not true
 			AND sb.extra_attrs->>'role' = 'AGENT';`
 
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
+		if err = sqlitex.Exec(conn, q, nil); err != nil {
+			return
 		}
-
-		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		blobCountAfter := 0
+		blobCountAfter, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return err
+			return
 		}
 
 		if blobCountAfter == blobCountBefore {
@@ -420,10 +438,9 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			CROSS JOIN public_blobs pb ON pb.id = rb.id
 			CROSS JOIN structural_blobs sb ON sb.id = rb.id
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
-			WHERE sb.extra_attrs->>'deleted' is not true
 			ORDER BY sb.ts;`
 
-		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
+		if err = sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
 			var (
 				ts    = row.ColumnInt64(inc())
@@ -431,16 +448,16 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 				hash  = row.ColumnBytes(inc())
 			)
 			c := cid.NewCidV1(uint64(codec), hash)
-			return store.Insert(ts, strbytes.Bytes(c.KeyString()))
+			cids[c] = ts
+			return nil
 		}); err != nil {
-			return err
+			return
 		}
 	}
 
-	return nil
+	return
 }
-
-func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
+func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) error {
 	// Fill IRIs.
 	for dkey := range dkeys {
 		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
@@ -501,7 +518,6 @@ func fillTables(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}) error {
 				FROM structural_blobs sb
 				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 				WHERE resource IN rbsr_iris
-				AND sb.extra_attrs->>'deleted' is not true
 				AND type = 'Ref'`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {

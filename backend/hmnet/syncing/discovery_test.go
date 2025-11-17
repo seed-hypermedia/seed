@@ -17,8 +17,8 @@ func TestLoadExternalStore(t *testing.T) {
 	pool := loadLocalDB(t, "/home/julio/.config/Seed-local/daemon/db/db.sqlite")
 	store := rbsr.NewSliceStore()
 	// Create RBSR store once for reuse across all peers.
-	dKeys := colx.HashSet[discoveryKey]{
-		discoveryKey{
+	dKeys := colx.HashSet[DiscoveryKey]{
+		DiscoveryKey{
 			IRI: "hm://z6MkuMzdbZ3D7D9xgCi2gV2xosPNzzoy467qZugfH4JdUuhM/first-doc", // "hm://z6Mkq9emq1yUBq4KSeiSH5yzgNBJSnidPVqFnTpzjCdLxB3R/tests/doc1"
 		}: {},
 	}
