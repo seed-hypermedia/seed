@@ -1,10 +1,11 @@
 import {useSubscribeToNotifications} from '@shm/shared/models/email-notifications'
-import {useTx} from '@shm/shared/translation'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {
+  EmailNotificationsSuccess,
   UIEmailNotificationsForm,
   UIEmailNotificationsFormSchema,
 } from '@shm/ui/email-notifications'
+import {useState} from 'react'
 import {toast} from 'sonner'
 
 export function NotifSettingsDialog({
@@ -19,8 +20,7 @@ export function NotifSettingsDialog({
       toast.error(error.message)
     },
   })
-  const tx = useTx()
-
+  const [subscribedEmail, setSubscribedEmail] = useState<string | null>(null)
   const setEmailNotifications = async (
     formData: UIEmailNotificationsFormSchema,
   ) => {
@@ -36,19 +36,26 @@ export function NotifSettingsDialog({
       notifySiteDiscussions: formData.notifySiteDiscussions,
     })
   }
+  if (subscribedEmail) {
+    return (
+      <>
+        <DialogTitle>Subscription Complete!</DialogTitle>
+        <EmailNotificationsSuccess email={subscribedEmail} onClose={onClose} />
+      </>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      <DialogTitle>
-        {input.title || tx('Email Notification Settings')}
-      </DialogTitle>
-
+    <>
+      <DialogTitle>{input.title}</DialogTitle>
       <UIEmailNotificationsForm
         onClose={onClose}
-        onComplete={(email) => onClose()}
+        onComplete={(email) => {
+          setSubscribedEmail(email)
+        }}
         setEmailNotifications={setEmailNotifications}
         isPending={isPending}
       />
-    </div>
+    </>
   )
 }

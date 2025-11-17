@@ -17,6 +17,7 @@ import {useTxString} from '@shm/shared/translation'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {BlocksContentProvider} from '@shm/ui/document-content'
+import {EmailNotificationsSuccess} from '@shm/ui/email-notifications'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -462,7 +463,6 @@ export function useOpenUrlWeb() {
   }
 }
 
-// @ts-expect-error
 function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
   useEffect(() => {
     console.log('📧 EmailNotificationsPrompt mounted')
@@ -473,13 +473,13 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
 
   if (mode === 'prompt') {
     return (
-      <div className="flex flex-col gap-3">
+      <>
         <DialogTitle>Email Notifications</DialogTitle>
         <SizableText>
           Do you want to receive an email when someone mentions your or replies
           to your comments?
         </SizableText>
-        <div className="flex justify-end gap-3">
+        <div className="flex gap-3 justify-end">
           <Button variant="ghost" onClick={() => onClose()}>
             No Thanks
           </Button>
@@ -487,12 +487,12 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
             Yes, Notify Me
           </Button>
         </div>
-      </div>
+      </>
     )
   }
   if (mode === 'form') {
     return (
-      <div className="flex flex-col gap-3">
+      <>
         <DialogTitle>Email Notifications</DialogTitle>
         <EmailNotificationsForm
           onClose={onClose}
@@ -501,28 +501,16 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
             setSubscribedEmail(email)
           }}
         />
-      </div>
+      </>
     )
   }
   if (mode === 'success') {
     return (
-      <div className="flex flex-col gap-3">
-        <DialogTitle>Email Notifications</DialogTitle>
-        <SizableText>
-          Email notifications have been set for{' '}
-          <SizableText weight="bold">
-            {subscribedEmail || 'your email'}
-          </SizableText>
-          .
-        </SizableText>
-        <SizableText>
-          You can edit your notification preferences by clicking "Manage
-          Notifications" from any email you receive.
-        </SizableText>
-        <Button variant="default" onClick={() => onClose()}>
-          Done
-        </Button>
-      </div>
+      <>
+        <DialogTitle>Subscription Complete!</DialogTitle>
+        <EmailNotificationsSuccess email={subscribedEmail} onClose={onClose} />
+      </>
     )
   }
+  return null
 }

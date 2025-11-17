@@ -96,7 +96,7 @@ export function UIEmailNotificationsForm({
         />
       </div>
       <EmptyNotifWarning control={control} />
-      <div className="flex items-center justify-end gap-3">
+      <div className="flex gap-3 justify-end items-center">
         <Spinner hide={!isPending} />
         <Button
           variant="ghost"
@@ -151,5 +151,29 @@ function EmptyNotifWarning({
     <SizableText className="text-red-500">
       {tx('You will not receive any notifications.')}
     </SizableText>
+  )
+}
+
+export function EmailNotificationsSuccess({
+  email,
+  onClose,
+}: {
+  email?: string | null
+  onClose: () => void
+}) {
+  return (
+    <>
+      <SizableText>
+        Email notifications have been set for{' '}
+        <SizableText weight="bold">{email || 'your email'}</SizableText>.
+      </SizableText>
+      <SizableText>
+        You can edit your notification preferences by clicking "Manage
+        Notifications" from any email you receive.
+      </SizableText>
+      <Button variant="default" onClick={() => onClose()}>
+        Done
+      </Button>
+    </>
   )
 }
