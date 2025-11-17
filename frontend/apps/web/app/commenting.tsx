@@ -479,7 +479,7 @@ function EmailNotificationsPrompt({onClose}: {onClose: () => void}) {
           Do you want to receive an email when someone mentions your or replies
           to your comments?
         </SizableText>
-        <div className="flex gap-3 justify-end">
+        <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={() => onClose()}>
             No Thanks
           </Button>

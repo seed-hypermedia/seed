@@ -336,6 +336,27 @@ function InnerDocumentPage(
     }
   }, [comment?.id])
 
+  // Lock body scroll when mobile panel opens
+  useEffect(() => {
+    if (typeof window === 'undefined' || media.gtSm || !isMobilePanelOpen)
+      return
+
+    const scrollY = window.scrollY
+    const body = window.document.body
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+
+    return () => {
+      body.style.position = ''
+      body.style.top = ''
+      body.style.width = ''
+      body.style.overflow = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [isMobilePanelOpen, media.gtSm])
+
   const context = useUniversalAppContext()
   const onActivateBlock = useCallback(
     (blockId: string) => {

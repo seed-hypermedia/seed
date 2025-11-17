@@ -96,7 +96,7 @@ export function UIEmailNotificationsForm({
         />
       </div>
       <EmptyNotifWarning control={control} />
-      <div className="flex gap-3 justify-end items-center">
+      <div className="flex items-center justify-end gap-3">
         <Spinner hide={!isPending} />
         <Button
           variant="ghost"
