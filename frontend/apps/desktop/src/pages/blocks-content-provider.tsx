@@ -37,7 +37,6 @@ export function AppBlocksContentProvider({
   const route = useNavRoute()
   const experiments = useExperiments()
   const contacts = useSelectedAccountContacts()
-  const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const universalContext = useUniversalAppContext()
   const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
     new Set(),
@@ -58,7 +57,6 @@ export function AppBlocksContentProvider({
       <BlocksContentProvider
         showDevMenu={experiments.data?.pubContentDevMenu}
         layoutUnit={overrides.layoutUnit || contentLayoutUnit}
-        importWebFile={importWebFile}
         textUnit={overrides.textUnit || contentTextUnit}
         debug={false}
         contacts={contacts.data}
@@ -159,7 +157,6 @@ export type AppBlocksContentContextValue = {
     blockRef?: string
     blockRange?: BlockRange
   }
-  importWebFile?: any
   handleFileAttachment?: (
     file: File,
   ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>

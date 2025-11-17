@@ -41,7 +41,6 @@ export type BlocksContentContextValue = {
     blockRange?: BlockRange
   }
   contacts?: PlainMessage<Contact>[] | null
-  importWebFile?: any
   handleFileAttachment?: (
     file: File,
   ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>

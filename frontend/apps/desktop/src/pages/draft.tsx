@@ -409,7 +409,6 @@ function DocumentEditor({
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <AppBlocksContentProvider
             // onBlockSelect={onBlockSelect} // todo: allow copy block when editing doc
-            importWebFile={importWebFile}
           >
             <DraftCover
               draftActor={actor}

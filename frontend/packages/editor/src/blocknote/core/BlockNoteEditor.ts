@@ -143,6 +143,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   // TODO: check types
   linkExtensionOptions?: LinkExtensionOptions
   onMentionsQuery?: any
+  importWebFile?: ImportWebFileFunction
 }
 
 export type LinkExtensionOptions = {
@@ -150,6 +151,25 @@ export type LinkExtensionOptions = {
     url: string,
   ) => Promise<Partial<UnpackedHypermediaId> | null>
 }
+
+export type ImportWebFileResult =
+  | {
+      // Desktop result
+      cid: string
+      type: string
+      size: number
+    }
+  | {
+      // Web result
+      displaySrc: string
+      fileBinary: Uint8Array
+      type: string
+      size: number
+    }
+
+export type ImportWebFileFunction = (
+  url: string,
+) => Promise<ImportWebFileResult>
 
 const blockNoteTipTapOptions = {
   enableInputRules: true,
@@ -175,6 +195,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly slashMenu: SlashMenuProsemirrorPlugin<BSchema, any>
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
+
+  public readonly importWebFile?: ImportWebFileFunction
 
   constructor(
     private readonly options: Partial<BlockNoteEditorOptions<BSchema>> = {},
@@ -207,6 +229,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     )
     this.hyperlinkToolbar = new HyperlinkToolbarProsemirrorPlugin(this)
     this.linkMenu = new LinkMenuProsemirrorPlugin(this)
+    this.importWebFile = newOptions.importWebFile
 
     const extensions = getBlockNoteExtensions<BSchema>({
       editor: this,

@@ -468,6 +468,7 @@ export function useDraftEditor() {
   const saveDraft = trpc.drafts.write.useMutation()
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
+  const importWebFile = trpc.webImporting.importWebFile.useMutation()
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -518,6 +519,7 @@ export function useDraftEditor() {
       checkWebUrl: checkWebUrl.mutateAsync,
     },
     onMentionsQuery,
+    importWebFile: importWebFile.mutateAsync,
     blockSchema: hmBlockSchema,
     getSlashMenuItems: () => getSlashMenuItems({showNostr, docId: editId}),
     _tiptapOptions: {

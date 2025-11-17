@@ -256,7 +256,6 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <BlocksContentProvider
-        importWebFile={importWebFile}
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}
         debug={false}
@@ -274,6 +273,7 @@ export default function WebCommenting({
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
           onDiscardDraft={handleDiscardDraft}
+          importWebFile={importWebFile}
           submitButton={({getContent, reset}) => {
             return (
               <Tooltip

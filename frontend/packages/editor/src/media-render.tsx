@@ -113,14 +113,13 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
-  const {importWebFile} = useBlocksContentContext()
 
   useEditorSelectionChange(editor, () =>
     updateSelection(editor, block, setSelected),
   )
 
   useEffect(() => {
-    if (!uploading && hasSrc) {
+    if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
       // @ts-ignore
       if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {
@@ -130,44 +129,38 @@ export const MediaRender: React.FC<RenderProps> = ({
       }
       setUploading(true)
 
-      // Check if importWebFile has mutateAsync (desktop) or is a direct function (web)
-      if (typeof importWebFile?.mutateAsync === 'function') {
-        importWebFile
-          .mutateAsync(block.props.src)
-          .then(({cid, size}: {cid: string; size: number}) => {
-            setUploading(false)
+      editor.importWebFile(block.props.src)
+        .then((imageData) => {
+          setUploading(false)
+          // Desktop result
+          if ('cid' in imageData) {
             editor.updateBlock(block, {
               props: {
-                url: `ipfs://${cid}`,
-                size: size.toString(),
+                url: `ipfs://${imageData.cid}`,
+                size: imageData.size.toString(),
                 src: '',
               },
             })
-          })
-          .catch((e: any) => {
-            console.error('Failed to import web file (desktop):', e)
-            setUploading(false)
-          })
-      } else if (typeof importWebFile === 'function') {
-        importWebFile(block.props.src)
-          .then((data: any) => {
-            setUploading(false)
+          }
+          // Web result
+          else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
             editor.updateBlock(block, {
               props: {
-                displaySrc: data.displaySrc,
-                fileBinary: data.fileBinary,
-                size: data.size?.toString() || '',
+                displaySrc: imageData.displaySrc,
+                // @ts-expect-error - schema defines fileBinary as string but it's actually Uint8Array
+                fileBinary: imageData.fileBinary,
+                size: imageData.size?.toString() || '',
                 src: '',
               },
             })
-          })
-          .catch((e: any) => {
-            console.error('Failed to import web file (web):', e)
-            setUploading(false)
-          })
-      }
+          }
+        })
+        .catch((e: any) => {
+          console.error('Failed to import web file:', e)
+          setUploading(false)
+        })
     }
-  }, [hasSrc, block, uploading, editor, importWebFile])
+  }, [hasSrc, block, uploading, editor, editor.importWebFile])
 
   const assignMedia = (props: MediaType) => {
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs

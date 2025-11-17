@@ -50,6 +50,12 @@ export function useCommentEditor(
   onSubmit?: () => void,
   onMobileMentionTrigger?: () => void,
   onMobileSlashTrigger?: () => void,
+  importWebFile?: (url: string) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+    type: string
+    size: number
+  }>,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
@@ -78,6 +84,7 @@ export function useCommentEditor(
     blockSchema: hmBlockSchema,
     getSlashMenuItems: () => getSlashMenuItems(),
     onMentionsQuery,
+    importWebFile,
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -225,6 +232,7 @@ export function CommentEditor({
   initialBlocks,
   onContentChange,
   onAvatarPress,
+  importWebFile,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -257,6 +265,12 @@ export function CommentEditor({
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
+  importWebFile?: (url: string) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+    type: string
+    size: number
+  }>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -269,6 +283,7 @@ export function CommentEditor({
     () => setSubmitTrigger((prev) => prev + 1),
     isMobile ? () => setIsMentionsDialogOpen(true) : undefined,
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
+    importWebFile,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =

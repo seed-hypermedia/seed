@@ -1,4 +1,3 @@
-import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {getDaemonFileUrl, useFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'
@@ -78,86 +77,68 @@ const Render = (
   block: Block<HMBlockSchema>,
   editor: BlockNoteEditor<HMBlockSchema>,
 ) => {
-  const {importWebFile} = useBlocksContentContext()
-
   const submitImage = (
     url: string,
     assign: any,
     setFileName: any,
     setLoading: any,
   ) => {
+    if (!editor.importWebFile) {
+      setFileName({
+        name: 'Image import is not configured.',
+        color: 'red',
+      })
+      return
+    }
+
     if (isValidUrl(url)) {
       setLoading(true)
-      if (typeof importWebFile?.mutateAsync === 'function') {
-        timeoutPromise(importWebFile.mutateAsync(url), 5000, {
-          reason: 'Error fetching the image.',
+      timeoutPromise(editor.importWebFile(url), 5000, {
+        reason: 'Error fetching the image.',
+      })
+        .then((imageData) => {
+          setLoading(false)
+          // Check if this is desktop result (has cid)
+          if ('cid' in imageData) {
+            if (!imageData.type.includes('image')) {
+              setFileName({
+                name: 'The provided URL is not an image.',
+                color: 'red',
+              })
+              return
+            }
+            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+          }
+          // Web result (has displaySrc and fileBinary)
+          else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
+            if (!imageData.type.includes('image')) {
+              setFileName({
+                name: 'The provided URL is not an image.',
+                color: 'red',
+              })
+              return
+            }
+            assign({
+              props: {
+                fileBinary: imageData.fileBinary,
+                displaySrc: imageData.displaySrc,
+              },
+            } as MediaType)
+          } else {
+            const imgTypeSplit = imageData.type.split('/')
+            setFileName({
+              name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
+              color: 'red',
+            })
+          }
         })
-          .then((imageData) => {
-            setLoading(false)
-            if (imageData?.cid) {
-              if (!imageData.type.includes('image')) {
-                setFileName({
-                  name: 'The provided URL is not an image.',
-                  color: 'red',
-                })
-                return
-              }
-              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
-              setLoading(false)
-            } else {
-              let imgTypeSplit = imageData.type.split('/')
-              setFileName({
-                name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
-                color: 'red',
-              })
-              setLoading(false)
-            }
+        .catch((e) => {
+          setFileName({
+            name: e.reason || "Couldn't fetch the image from this URL.",
+            color: 'red',
           })
-          .catch((e) => {
-            setFileName({
-              name: e.reason,
-              color: 'red',
-            })
-            setLoading(false)
-          })
-      } else {
-        importWebFile(url)
-          // @ts-expect-error
-          .then((imageData) => {
-            setLoading(false)
-            if (imageData?.displaySrc && imageData?.fileBinary) {
-              if (!imageData.type.includes('image')) {
-                setFileName({
-                  name: 'The provided URL is not an image.',
-                  color: 'red',
-                })
-                return
-              }
-              assign({
-                props: {
-                  fileBinary: imageData.fileBinary,
-                  displaySrc: imageData.displaySrc,
-                },
-              } as MediaType)
-              setLoading(false)
-            } else {
-              let imgTypeSplit = imageData.type.split('/')
-              setFileName({
-                name: `uploadedImage.${imgTypeSplit[imgTypeSplit.length - 1]}`,
-                color: 'red',
-              })
-              setLoading(false)
-            }
-          })
-          // @ts-expect-error
-          .catch((e) => {
-            setFileName({
-              name: "Couldn't fetch the image from this URL due to restrictions. Please download it manually and upload it from your device.",
-              color: 'red',
-            })
-            setLoading(false)
-          })
-      }
+          setLoading(false)
+        })
     } else setFileName({name: 'The provided URL is invalid.', color: 'red'})
 
     const cursorPosition = editor.getTextCursorPosition()
@@ -199,7 +180,6 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const {importWebFile} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   useEffect(() => {
@@ -207,47 +187,37 @@ const display = ({
     if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
       const url = block.props.url
       // @ts-ignore
-      if (isValidUrl(url)) {
-        // Check if importWebFile has mutateAsync (desktop) or is a direct function (web)
-        if (typeof importWebFile?.mutateAsync === 'function') {
-          timeoutPromise(importWebFile.mutateAsync(url), 5000, {
-            reason: 'Error fetching the image.',
+      if (url && isValidUrl(url) && editor.importWebFile) {
+        timeoutPromise(editor.importWebFile(url), 5000, {
+          reason: 'Error fetching the image.',
+        })
+          .then((imageData) => {
+            // Desktop result
+            if ('cid' in imageData) {
+              if (!imageData.type.includes('image')) {
+                return
+              }
+              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+            }
+            // Web result
+            else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
+              if (!imageData.type.includes('image')) {
+                return
+              }
+              assign({
+                props: {
+                  fileBinary: imageData.fileBinary,
+                  displaySrc: imageData.displaySrc,
+                },
+              } as MediaType)
+            }
           })
-            .then((imageData) => {
-              if (imageData?.cid) {
-                if (!imageData.type.includes('image')) {
-                  return
-                }
-                assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
-              }
-            })
-            .catch((e) => {
-              console.error(e)
-            })
-        } else if (typeof importWebFile === 'function') {
-          importWebFile(url)
-            // @ts-expect-error
-            .then((imageData) => {
-              if (imageData?.displaySrc && imageData?.fileBinary) {
-                if (!imageData.type.includes('image')) {
-                  return
-                }
-                assign({
-                  props: {
-                    fileBinary: imageData.fileBinary,
-                    displaySrc: imageData.displaySrc,
-                  },
-                } as MediaType)
-              }
-            })
-            // @ts-expect-error
-            .catch((e) => {
-              console.error('Could not fetch image from URL:', e)
-            })
-        }
+          .catch((e) => {
+            console.error('Could not fetch image from URL:', e)
+          })
       }
     }
-  }, [])
+  }, [editor.importWebFile])
   const imageSrc =
     block.props.displaySrc ||
     (block.props.url
