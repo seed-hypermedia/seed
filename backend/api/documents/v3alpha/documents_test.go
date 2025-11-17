@@ -9,6 +9,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
+	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
@@ -20,6 +21,7 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1210,7 +1212,7 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
-	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"))
+	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), &mockedSyncingClient{})
 	return testServer{Server: srv, me: u}
 }
 
@@ -1637,4 +1639,10 @@ func TestRepublishDocument(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+}
+
+type mockedSyncingClient struct{}
+
+func (m *mockedSyncingClient) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
+	return nil, nil
 }

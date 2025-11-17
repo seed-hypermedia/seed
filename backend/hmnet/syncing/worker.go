@@ -211,9 +211,9 @@ func (sw *worker) sync(ctx context.Context) {
 		eids[eid] = subscription.Recursive
 	}
 	// Create RBSR store for the entities
-	dkeys := make(colx.HashSet[discoveryKey], len(eids))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(eids))
 	for eid, recursive := range eids {
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI(strings.TrimSuffix(eid, "/")),
 			Recursive: recursive,
 		})

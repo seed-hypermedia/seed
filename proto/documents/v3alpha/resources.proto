@@ -13,6 +13,9 @@ option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 service Resources {
   // Gets a single resource with a URL (technically IRI).
   rpc GetResource(GetResourceRequest) returns (Resource);
+
+  // Makes sure a resource (and their related blobs) are pushed to a given peer.
+  rpc PushResourcesToPeer(PushResourcesToPeerRequest) returns (stream SyncingProgress);
 }
 
 // Request to get a single resource by its IRI.
@@ -34,4 +37,36 @@ message Resource {
 
   // Optional. The version of the resource (when applicable).
   string version = 4;
+}
+
+message SyncingProgress {
+  // Number of peers found during discovery.
+  int32 peers_found = 1;
+
+  // Number of peers successfully synced.
+  int32 peers_synced_ok = 2;
+
+  // Number of peers that failed to sync.
+  int32 peers_failed = 3;
+
+  // Number of blobs discovered for syncing.
+  int32 blobs_discovered = 4;
+
+  // Number of blobs successfully downloaded.
+  int32 blobs_downloaded = 5;
+
+  // Number of blobs that failed to download.
+  int32 blobs_failed = 6;
+}
+
+message PushResourcesToPeerRequest {
+  // Required. Peer ID to push to.
+  // No addresses are needed, just the pid
+  string pid = 1;
+
+  // Required. Resource IRIs to push. We will also push
+  // related blobs to those resources. No wilcards are supported.
+  // Only documents resources can be specified. No single comments supported yet.
+  // See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
+  repeated string resources = 2;
 }

@@ -237,154 +237,6 @@ func (x *RegisterKeyRequest) GetName() string {
 	return ""
 }
 
-type SyncingProgress struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Number of peers found during discovery.
-	PeersFound int32 `protobuf:"varint,1,opt,name=peers_found,json=peersFound,proto3" json:"peers_found,omitempty"`
-	// Number of peers successfully synced.
-	PeersSyncedOk int32 `protobuf:"varint,2,opt,name=peers_synced_ok,json=peersSyncedOk,proto3" json:"peers_synced_ok,omitempty"`
-	// Number of peers that failed to sync.
-	PeersFailed int32 `protobuf:"varint,3,opt,name=peers_failed,json=peersFailed,proto3" json:"peers_failed,omitempty"`
-	// Number of blobs discovered for syncing.
-	BlobsDiscovered int32 `protobuf:"varint,4,opt,name=blobs_discovered,json=blobsDiscovered,proto3" json:"blobs_discovered,omitempty"`
-	// Number of blobs successfully downloaded.
-	BlobsDownloaded int32 `protobuf:"varint,5,opt,name=blobs_downloaded,json=blobsDownloaded,proto3" json:"blobs_downloaded,omitempty"`
-	// Number of blobs that failed to download.
-	BlobsFailed   int32 `protobuf:"varint,6,opt,name=blobs_failed,json=blobsFailed,proto3" json:"blobs_failed,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncingProgress) Reset() {
-	*x = SyncingProgress{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncingProgress) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncingProgress) ProtoMessage() {}
-
-func (x *SyncingProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncingProgress.ProtoReflect.Descriptor instead.
-func (*SyncingProgress) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *SyncingProgress) GetPeersFound() int32 {
-	if x != nil {
-		return x.PeersFound
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetPeersSyncedOk() int32 {
-	if x != nil {
-		return x.PeersSyncedOk
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetPeersFailed() int32 {
-	if x != nil {
-		return x.PeersFailed
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsDiscovered() int32 {
-	if x != nil {
-		return x.BlobsDiscovered
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsDownloaded() int32 {
-	if x != nil {
-		return x.BlobsDownloaded
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsFailed() int32 {
-	if x != nil {
-		return x.BlobsFailed
-	}
-	return 0
-}
-
-type SyncResourcesWithPeerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. Peer ID to sync with.
-	// No addresses are needed, just the pid
-	Pid string `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`
-	// Required. Resource IRIs to sync. We will also sync
-	// related blobs to those resources. No wilcards are supported.
-	// Only documents resources can be specified. No single comments supported yet.
-	// See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
-	Resources     []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncResourcesWithPeerRequest) Reset() {
-	*x = SyncResourcesWithPeerRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncResourcesWithPeerRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncResourcesWithPeerRequest) ProtoMessage() {}
-
-func (x *SyncResourcesWithPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncResourcesWithPeerRequest.ProtoReflect.Descriptor instead.
-func (*SyncResourcesWithPeerRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *SyncResourcesWithPeerRequest) GetPid() string {
-	if x != nil {
-		return x.Pid
-	}
-	return ""
-}
-
-func (x *SyncResourcesWithPeerRequest) GetResources() []string {
-	if x != nil {
-		return x.Resources
-	}
-	return nil
-}
-
 // Request to get basic information about the running daemon.
 type GetInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -394,7 +246,7 @@ type GetInfoRequest struct {
 
 func (x *GetInfoRequest) Reset() {
 	*x = GetInfoRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[5]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -406,7 +258,7 @@ func (x *GetInfoRequest) String() string {
 func (*GetInfoRequest) ProtoMessage() {}
 
 func (x *GetInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[5]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -419,7 +271,7 @@ func (x *GetInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetInfoRequest.ProtoReflect.Descriptor instead.
 func (*GetInfoRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{5}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{3}
 }
 
 // Request to force the syncing process.
@@ -431,7 +283,7 @@ type ForceSyncRequest struct {
 
 func (x *ForceSyncRequest) Reset() {
 	*x = ForceSyncRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -443,7 +295,7 @@ func (x *ForceSyncRequest) String() string {
 func (*ForceSyncRequest) ProtoMessage() {}
 
 func (x *ForceSyncRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -456,7 +308,7 @@ func (x *ForceSyncRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceSyncRequest.ProtoReflect.Descriptor instead.
 func (*ForceSyncRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{6}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{4}
 }
 
 // Request to force reindexing of the entire database.
@@ -468,7 +320,7 @@ type ForceReindexRequest struct {
 
 func (x *ForceReindexRequest) Reset() {
 	*x = ForceReindexRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -480,7 +332,7 @@ func (x *ForceReindexRequest) String() string {
 func (*ForceReindexRequest) ProtoMessage() {}
 
 func (x *ForceReindexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -493,7 +345,7 @@ func (x *ForceReindexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceReindexRequest.ProtoReflect.Descriptor instead.
 func (*ForceReindexRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{7}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{5}
 }
 
 // Response after forcing reindexing.
@@ -505,7 +357,7 @@ type ForceReindexResponse struct {
 
 func (x *ForceReindexResponse) Reset() {
 	*x = ForceReindexResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -517,7 +369,7 @@ func (x *ForceReindexResponse) String() string {
 func (*ForceReindexResponse) ProtoMessage() {}
 
 func (x *ForceReindexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -530,7 +382,7 @@ func (x *ForceReindexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceReindexResponse.ProtoReflect.Descriptor instead.
 func (*ForceReindexResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{8}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{6}
 }
 
 // Request to delete all keys.
@@ -542,7 +394,7 @@ type DeleteAllKeysRequest struct {
 
 func (x *DeleteAllKeysRequest) Reset() {
 	*x = DeleteAllKeysRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -554,7 +406,7 @@ func (x *DeleteAllKeysRequest) String() string {
 func (*DeleteAllKeysRequest) ProtoMessage() {}
 
 func (x *DeleteAllKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -567,7 +419,7 @@ func (x *DeleteAllKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllKeysRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllKeysRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{9}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{7}
 }
 
 // Request to list signing keys.
@@ -579,7 +431,7 @@ type ListKeysRequest struct {
 
 func (x *ListKeysRequest) Reset() {
 	*x = ListKeysRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -591,7 +443,7 @@ func (x *ListKeysRequest) String() string {
 func (*ListKeysRequest) ProtoMessage() {}
 
 func (x *ListKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -604,7 +456,7 @@ func (x *ListKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListKeysRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{10}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{8}
 }
 
 // Response with the list of registered signing keys.
@@ -618,7 +470,7 @@ type ListKeysResponse struct {
 
 func (x *ListKeysResponse) Reset() {
 	*x = ListKeysResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +482,7 @@ func (x *ListKeysResponse) String() string {
 func (*ListKeysResponse) ProtoMessage() {}
 
 func (x *ListKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,7 +495,7 @@ func (x *ListKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListKeysResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{11}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListKeysResponse) GetKeys() []*NamedKey {
@@ -666,7 +518,7 @@ type UpdateKeyRequest struct {
 
 func (x *UpdateKeyRequest) Reset() {
 	*x = UpdateKeyRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +530,7 @@ func (x *UpdateKeyRequest) String() string {
 func (*UpdateKeyRequest) ProtoMessage() {}
 
 func (x *UpdateKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +543,7 @@ func (x *UpdateKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateKeyRequest.ProtoReflect.Descriptor instead.
 func (*UpdateKeyRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{12}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdateKeyRequest) GetCurrentName() string {
@@ -719,7 +571,7 @@ type DeleteKeyRequest struct {
 
 func (x *DeleteKeyRequest) Reset() {
 	*x = DeleteKeyRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +583,7 @@ func (x *DeleteKeyRequest) String() string {
 func (*DeleteKeyRequest) ProtoMessage() {}
 
 func (x *DeleteKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +596,7 @@ func (x *DeleteKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteKeyRequest.ProtoReflect.Descriptor instead.
 func (*DeleteKeyRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{13}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DeleteKeyRequest) GetName() string {
@@ -766,7 +618,7 @@ type StoreBlobsRequest struct {
 
 func (x *StoreBlobsRequest) Reset() {
 	*x = StoreBlobsRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +630,7 @@ func (x *StoreBlobsRequest) String() string {
 func (*StoreBlobsRequest) ProtoMessage() {}
 
 func (x *StoreBlobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +643,7 @@ func (x *StoreBlobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreBlobsRequest.ProtoReflect.Descriptor instead.
 func (*StoreBlobsRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{14}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StoreBlobsRequest) GetBlobs() []*Blob {
@@ -813,7 +665,7 @@ type StoreBlobsResponse struct {
 
 func (x *StoreBlobsResponse) Reset() {
 	*x = StoreBlobsResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -825,7 +677,7 @@ func (x *StoreBlobsResponse) String() string {
 func (*StoreBlobsResponse) ProtoMessage() {}
 
 func (x *StoreBlobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -838,7 +690,7 @@ func (x *StoreBlobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoreBlobsResponse.ProtoReflect.Descriptor instead.
 func (*StoreBlobsResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{15}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StoreBlobsResponse) GetCids() []string {
@@ -862,7 +714,7 @@ type CreateDeviceLinkSessionRequest struct {
 
 func (x *CreateDeviceLinkSessionRequest) Reset() {
 	*x = CreateDeviceLinkSessionRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -874,7 +726,7 @@ func (x *CreateDeviceLinkSessionRequest) String() string {
 func (*CreateDeviceLinkSessionRequest) ProtoMessage() {}
 
 func (x *CreateDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -887,7 +739,7 @@ func (x *CreateDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateDeviceLinkSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateDeviceLinkSessionRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{16}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CreateDeviceLinkSessionRequest) GetSigningKeyName() string {
@@ -913,7 +765,7 @@ type GetDeviceLinkSessionRequest struct {
 
 func (x *GetDeviceLinkSessionRequest) Reset() {
 	*x = GetDeviceLinkSessionRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -925,7 +777,7 @@ func (x *GetDeviceLinkSessionRequest) String() string {
 func (*GetDeviceLinkSessionRequest) ProtoMessage() {}
 
 func (x *GetDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -938,7 +790,7 @@ func (x *GetDeviceLinkSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDeviceLinkSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetDeviceLinkSessionRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{17}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{15}
 }
 
 // Request to sign data.
@@ -954,7 +806,7 @@ type SignDataRequest struct {
 
 func (x *SignDataRequest) Reset() {
 	*x = SignDataRequest{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -966,7 +818,7 @@ func (x *SignDataRequest) String() string {
 func (*SignDataRequest) ProtoMessage() {}
 
 func (x *SignDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,7 +831,7 @@ func (x *SignDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignDataRequest.ProtoReflect.Descriptor instead.
 func (*SignDataRequest) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{18}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *SignDataRequest) GetSigningKeyName() string {
@@ -1007,7 +859,7 @@ type SignDataResponse struct {
 
 func (x *SignDataResponse) Reset() {
 	*x = SignDataResponse{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1019,7 +871,7 @@ func (x *SignDataResponse) String() string {
 func (*SignDataResponse) ProtoMessage() {}
 
 func (x *SignDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1032,7 +884,7 @@ func (x *SignDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignDataResponse.ProtoReflect.Descriptor instead.
 func (*SignDataResponse) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{19}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SignDataResponse) GetSignature() []byte {
@@ -1064,7 +916,7 @@ type DeviceLinkSession struct {
 
 func (x *DeviceLinkSession) Reset() {
 	*x = DeviceLinkSession{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1076,7 +928,7 @@ func (x *DeviceLinkSession) String() string {
 func (*DeviceLinkSession) ProtoMessage() {}
 
 func (x *DeviceLinkSession) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1089,7 +941,7 @@ func (x *DeviceLinkSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceLinkSession.ProtoReflect.Descriptor instead.
 func (*DeviceLinkSession) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{20}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeviceLinkSession) GetAddrInfo() *AddrInfo {
@@ -1145,7 +997,7 @@ type AddrInfo struct {
 
 func (x *AddrInfo) Reset() {
 	*x = AddrInfo{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1157,7 +1009,7 @@ func (x *AddrInfo) String() string {
 func (*AddrInfo) ProtoMessage() {}
 
 func (x *AddrInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1170,7 +1022,7 @@ func (x *AddrInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddrInfo.ProtoReflect.Descriptor instead.
 func (*AddrInfo) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{21}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AddrInfo) GetPeerId() string {
@@ -1202,7 +1054,7 @@ type Blob struct {
 
 func (x *Blob) Reset() {
 	*x = Blob{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1214,7 +1066,7 @@ func (x *Blob) String() string {
 func (*Blob) ProtoMessage() {}
 
 func (x *Blob) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1227,7 +1079,7 @@ func (x *Blob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Blob.ProtoReflect.Descriptor instead.
 func (*Blob) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Blob) GetCid() string {
@@ -1261,7 +1113,7 @@ type Info struct {
 
 func (x *Info) Reset() {
 	*x = Info{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1273,7 +1125,7 @@ func (x *Info) String() string {
 func (*Info) ProtoMessage() {}
 
 func (x *Info) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1286,7 +1138,7 @@ func (x *Info) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Info.ProtoReflect.Descriptor instead.
 func (*Info) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{23}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Info) GetState() State {
@@ -1333,7 +1185,7 @@ type NamedKey struct {
 
 func (x *NamedKey) Reset() {
 	*x = NamedKey{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1345,7 +1197,7 @@ func (x *NamedKey) String() string {
 func (*NamedKey) ProtoMessage() {}
 
 func (x *NamedKey) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[24]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1358,7 +1210,7 @@ func (x *NamedKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamedKey.ProtoReflect.Descriptor instead.
 func (*NamedKey) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{24}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *NamedKey) GetPublicKey() string {
@@ -1397,18 +1249,7 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\n" +
 	"passphrase\x18\x02 \x01(\tR\n" +
 	"passphrase\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"\xf6\x01\n" +
-	"\x0fSyncingProgress\x12\x1f\n" +
-	"\vpeers_found\x18\x01 \x01(\x05R\n" +
-	"peersFound\x12&\n" +
-	"\x0fpeers_synced_ok\x18\x02 \x01(\x05R\rpeersSyncedOk\x12!\n" +
-	"\fpeers_failed\x18\x03 \x01(\x05R\vpeersFailed\x12)\n" +
-	"\x10blobs_discovered\x18\x04 \x01(\x05R\x0fblobsDiscovered\x12)\n" +
-	"\x10blobs_downloaded\x18\x05 \x01(\x05R\x0fblobsDownloaded\x12!\n" +
-	"\fblobs_failed\x18\x06 \x01(\x05R\vblobsFailed\"N\n" +
-	"\x1cSyncResourcesWithPeerRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x1c\n" +
-	"\tresources\x18\x02 \x03(\tR\tresources\"\x10\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\"\x10\n" +
 	"\x0eGetInfoRequest\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +
 	"\x13ForceReindexRequest\"\x16\n" +
@@ -1468,13 +1309,13 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +
 	"\n" +
-	"\x06ACTIVE\x10\x032\x83\v\n" +
+	"\x06ACTIVE\x10\x032\x87\n" +
+	"\n" +
 	"\x06Daemon\x12h\n" +
 	"\vGenMnemonic\x12+.com.seed.daemon.v1alpha.GenMnemonicRequest\x1a,.com.seed.daemon.v1alpha.GenMnemonicResponse\x12]\n" +
 	"\vRegisterKey\x12+.com.seed.daemon.v1alpha.RegisterKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12Q\n" +
 	"\aGetInfo\x12'.com.seed.daemon.v1alpha.GetInfoRequest\x1a\x1d.com.seed.daemon.v1alpha.Info\x12N\n" +
-	"\tForceSync\x12).com.seed.daemon.v1alpha.ForceSyncRequest\x1a\x16.google.protobuf.Empty\x12z\n" +
-	"\x15SyncResourcesWithPeer\x125.com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest\x1a(.com.seed.daemon.v1alpha.SyncingProgress0\x01\x12k\n" +
+	"\tForceSync\x12).com.seed.daemon.v1alpha.ForceSyncRequest\x1a\x16.google.protobuf.Empty\x12k\n" +
 	"\fForceReindex\x12,.com.seed.daemon.v1alpha.ForceReindexRequest\x1a-.com.seed.daemon.v1alpha.ForceReindexResponse\x12_\n" +
 	"\bListKeys\x12(.com.seed.daemon.v1alpha.ListKeysRequest\x1a).com.seed.daemon.v1alpha.ListKeysResponse\x12Y\n" +
 	"\tUpdateKey\x12).com.seed.daemon.v1alpha.UpdateKeyRequest\x1a!.com.seed.daemon.v1alpha.NamedKey\x12N\n" +
@@ -1499,75 +1340,71 @@ func file_daemon_v1alpha_daemon_proto_rawDescGZIP() []byte {
 }
 
 var file_daemon_v1alpha_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_daemon_v1alpha_daemon_proto_goTypes = []any{
 	(State)(0),                             // 0: com.seed.daemon.v1alpha.State
 	(*GenMnemonicRequest)(nil),             // 1: com.seed.daemon.v1alpha.GenMnemonicRequest
 	(*GenMnemonicResponse)(nil),            // 2: com.seed.daemon.v1alpha.GenMnemonicResponse
 	(*RegisterKeyRequest)(nil),             // 3: com.seed.daemon.v1alpha.RegisterKeyRequest
-	(*SyncingProgress)(nil),                // 4: com.seed.daemon.v1alpha.SyncingProgress
-	(*SyncResourcesWithPeerRequest)(nil),   // 5: com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
-	(*GetInfoRequest)(nil),                 // 6: com.seed.daemon.v1alpha.GetInfoRequest
-	(*ForceSyncRequest)(nil),               // 7: com.seed.daemon.v1alpha.ForceSyncRequest
-	(*ForceReindexRequest)(nil),            // 8: com.seed.daemon.v1alpha.ForceReindexRequest
-	(*ForceReindexResponse)(nil),           // 9: com.seed.daemon.v1alpha.ForceReindexResponse
-	(*DeleteAllKeysRequest)(nil),           // 10: com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	(*ListKeysRequest)(nil),                // 11: com.seed.daemon.v1alpha.ListKeysRequest
-	(*ListKeysResponse)(nil),               // 12: com.seed.daemon.v1alpha.ListKeysResponse
-	(*UpdateKeyRequest)(nil),               // 13: com.seed.daemon.v1alpha.UpdateKeyRequest
-	(*DeleteKeyRequest)(nil),               // 14: com.seed.daemon.v1alpha.DeleteKeyRequest
-	(*StoreBlobsRequest)(nil),              // 15: com.seed.daemon.v1alpha.StoreBlobsRequest
-	(*StoreBlobsResponse)(nil),             // 16: com.seed.daemon.v1alpha.StoreBlobsResponse
-	(*CreateDeviceLinkSessionRequest)(nil), // 17: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	(*GetDeviceLinkSessionRequest)(nil),    // 18: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	(*SignDataRequest)(nil),                // 19: com.seed.daemon.v1alpha.SignDataRequest
-	(*SignDataResponse)(nil),               // 20: com.seed.daemon.v1alpha.SignDataResponse
-	(*DeviceLinkSession)(nil),              // 21: com.seed.daemon.v1alpha.DeviceLinkSession
-	(*AddrInfo)(nil),                       // 22: com.seed.daemon.v1alpha.AddrInfo
-	(*Blob)(nil),                           // 23: com.seed.daemon.v1alpha.Blob
-	(*Info)(nil),                           // 24: com.seed.daemon.v1alpha.Info
-	(*NamedKey)(nil),                       // 25: com.seed.daemon.v1alpha.NamedKey
-	(*timestamppb.Timestamp)(nil),          // 26: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 27: google.protobuf.Empty
+	(*GetInfoRequest)(nil),                 // 4: com.seed.daemon.v1alpha.GetInfoRequest
+	(*ForceSyncRequest)(nil),               // 5: com.seed.daemon.v1alpha.ForceSyncRequest
+	(*ForceReindexRequest)(nil),            // 6: com.seed.daemon.v1alpha.ForceReindexRequest
+	(*ForceReindexResponse)(nil),           // 7: com.seed.daemon.v1alpha.ForceReindexResponse
+	(*DeleteAllKeysRequest)(nil),           // 8: com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	(*ListKeysRequest)(nil),                // 9: com.seed.daemon.v1alpha.ListKeysRequest
+	(*ListKeysResponse)(nil),               // 10: com.seed.daemon.v1alpha.ListKeysResponse
+	(*UpdateKeyRequest)(nil),               // 11: com.seed.daemon.v1alpha.UpdateKeyRequest
+	(*DeleteKeyRequest)(nil),               // 12: com.seed.daemon.v1alpha.DeleteKeyRequest
+	(*StoreBlobsRequest)(nil),              // 13: com.seed.daemon.v1alpha.StoreBlobsRequest
+	(*StoreBlobsResponse)(nil),             // 14: com.seed.daemon.v1alpha.StoreBlobsResponse
+	(*CreateDeviceLinkSessionRequest)(nil), // 15: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	(*GetDeviceLinkSessionRequest)(nil),    // 16: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	(*SignDataRequest)(nil),                // 17: com.seed.daemon.v1alpha.SignDataRequest
+	(*SignDataResponse)(nil),               // 18: com.seed.daemon.v1alpha.SignDataResponse
+	(*DeviceLinkSession)(nil),              // 19: com.seed.daemon.v1alpha.DeviceLinkSession
+	(*AddrInfo)(nil),                       // 20: com.seed.daemon.v1alpha.AddrInfo
+	(*Blob)(nil),                           // 21: com.seed.daemon.v1alpha.Blob
+	(*Info)(nil),                           // 22: com.seed.daemon.v1alpha.Info
+	(*NamedKey)(nil),                       // 23: com.seed.daemon.v1alpha.NamedKey
+	(*timestamppb.Timestamp)(nil),          // 24: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                  // 25: google.protobuf.Empty
 }
 var file_daemon_v1alpha_daemon_proto_depIdxs = []int32{
-	25, // 0: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
-	23, // 1: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
-	22, // 2: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
-	26, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
-	26, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
+	23, // 0: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
+	21, // 1: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
+	20, // 2: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
+	24, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
+	24, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
 	0,  // 5: com.seed.daemon.v1alpha.Info.state:type_name -> com.seed.daemon.v1alpha.State
-	26, // 6: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
+	24, // 6: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
 	1,  // 7: com.seed.daemon.v1alpha.Daemon.GenMnemonic:input_type -> com.seed.daemon.v1alpha.GenMnemonicRequest
 	3,  // 8: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
-	6,  // 9: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
-	7,  // 10: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
-	5,  // 11: com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer:input_type -> com.seed.daemon.v1alpha.SyncResourcesWithPeerRequest
-	8,  // 12: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
-	11, // 13: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
-	13, // 14: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
-	14, // 15: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
-	10, // 16: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	15, // 17: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
-	17, // 18: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	18, // 19: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	19, // 20: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
-	2,  // 21: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
-	25, // 22: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	24, // 23: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
-	27, // 24: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
-	4,  // 25: com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer:output_type -> com.seed.daemon.v1alpha.SyncingProgress
-	9,  // 26: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
-	12, // 27: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
-	25, // 28: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	27, // 29: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
-	27, // 30: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
-	16, // 31: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
-	21, // 32: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	21, // 33: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	20, // 34: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
-	21, // [21:35] is the sub-list for method output_type
-	7,  // [7:21] is the sub-list for method input_type
+	4,  // 9: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
+	5,  // 10: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
+	6,  // 11: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
+	9,  // 12: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
+	11, // 13: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
+	12, // 14: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
+	8,  // 15: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	13, // 16: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
+	15, // 17: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	16, // 18: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	17, // 19: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
+	2,  // 20: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
+	23, // 21: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	22, // 22: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
+	25, // 23: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
+	7,  // 24: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
+	10, // 25: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
+	23, // 26: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	25, // 27: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
+	25, // 28: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
+	14, // 29: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
+	19, // 30: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	19, // 31: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	18, // 32: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
+	20, // [20:33] is the sub-list for method output_type
+	7,  // [7:20] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name
@@ -1584,7 +1421,7 @@ func file_daemon_v1alpha_daemon_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_daemon_v1alpha_daemon_proto_rawDesc), len(file_daemon_v1alpha_daemon_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   25,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

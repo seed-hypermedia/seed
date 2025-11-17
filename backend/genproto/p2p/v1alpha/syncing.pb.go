@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
+	v3alpha "seed/backend/genproto/documents/v3alpha"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -67,7 +68,52 @@ func (x SetReconciliationRange_Mode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SetReconciliationRange_Mode.Descriptor instead.
 func (SetReconciliationRange_Mode) EnumDescriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{3, 0}
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{4, 0}
+}
+
+type FetchBlobsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Required. Cids to fetch.
+	Cids          []string `protobuf:"bytes,1,rep,name=cids,proto3" json:"cids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FetchBlobsRequest) Reset() {
+	*x = FetchBlobsRequest{}
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FetchBlobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FetchBlobsRequest) ProtoMessage() {}
+
+func (x *FetchBlobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FetchBlobsRequest.ProtoReflect.Descriptor instead.
+func (*FetchBlobsRequest) Descriptor() ([]byte, []int) {
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *FetchBlobsRequest) GetCids() []string {
+	if x != nil {
+		return x.Cids
+	}
+	return nil
 }
 
 type ReconcileBlobsRequest struct {
@@ -83,7 +129,7 @@ type ReconcileBlobsRequest struct {
 
 func (x *ReconcileBlobsRequest) Reset() {
 	*x = ReconcileBlobsRequest{}
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[0]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -95,7 +141,7 @@ func (x *ReconcileBlobsRequest) String() string {
 func (*ReconcileBlobsRequest) ProtoMessage() {}
 
 func (x *ReconcileBlobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[0]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -108,7 +154,7 @@ func (x *ReconcileBlobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileBlobsRequest.ProtoReflect.Descriptor instead.
 func (*ReconcileBlobsRequest) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{0}
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ReconcileBlobsRequest) GetFilters() []*Filter {
@@ -134,7 +180,7 @@ type ReconcileBlobsResponse struct {
 
 func (x *ReconcileBlobsResponse) Reset() {
 	*x = ReconcileBlobsResponse{}
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[1]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -146,7 +192,7 @@ func (x *ReconcileBlobsResponse) String() string {
 func (*ReconcileBlobsResponse) ProtoMessage() {}
 
 func (x *ReconcileBlobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[1]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -159,7 +205,7 @@ func (x *ReconcileBlobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileBlobsResponse.ProtoReflect.Descriptor instead.
 func (*ReconcileBlobsResponse) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{1}
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ReconcileBlobsResponse) GetRanges() []*SetReconciliationRange {
@@ -183,7 +229,7 @@ type Filter struct {
 
 func (x *Filter) Reset() {
 	*x = Filter{}
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[2]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +241,7 @@ func (x *Filter) String() string {
 func (*Filter) ProtoMessage() {}
 
 func (x *Filter) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[2]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +254,7 @@ func (x *Filter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Filter.ProtoReflect.Descriptor instead.
 func (*Filter) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{2}
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Filter) GetResource() string {
@@ -243,7 +289,7 @@ type SetReconciliationRange struct {
 
 func (x *SetReconciliationRange) Reset() {
 	*x = SetReconciliationRange{}
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[3]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -255,7 +301,7 @@ func (x *SetReconciliationRange) String() string {
 func (*SetReconciliationRange) ProtoMessage() {}
 
 func (x *SetReconciliationRange) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[3]
+	mi := &file_p2p_v1alpha_syncing_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -268,7 +314,7 @@ func (x *SetReconciliationRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetReconciliationRange.ProtoReflect.Descriptor instead.
 func (*SetReconciliationRange) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{3}
+	return file_p2p_v1alpha_syncing_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SetReconciliationRange) GetMode() SetReconciliationRange_Mode {
@@ -310,7 +356,9 @@ var File_p2p_v1alpha_syncing_proto protoreflect.FileDescriptor
 
 const file_p2p_v1alpha_syncing_proto_rawDesc = "" +
 	"\n" +
-	"\x19p2p/v1alpha/syncing.proto\x12\x14com.seed.p2p.v1alpha\"\x95\x01\n" +
+	"\x19p2p/v1alpha/syncing.proto\x12\x14com.seed.p2p.v1alpha\x1a!documents/v3alpha/resources.proto\"'\n" +
+	"\x11FetchBlobsRequest\x12\x12\n" +
+	"\x04cids\x18\x01 \x03(\tR\x04cids\"\x95\x01\n" +
 	"\x15ReconcileBlobsRequest\x126\n" +
 	"\afilters\x18\x01 \x03(\v2\x1c.com.seed.p2p.v1alpha.FilterR\afilters\x12D\n" +
 	"\x06ranges\x18\x02 \x03(\v2,.com.seed.p2p.v1alpha.SetReconciliationRangeR\x06ranges\"^\n" +
@@ -329,9 +377,11 @@ const file_p2p_v1alpha_syncing_proto_rawDesc = "" +
 	"\x04Mode\x12\b\n" +
 	"\x04SKIP\x10\x00\x12\x0f\n" +
 	"\vFINGERPRINT\x10\x01\x12\b\n" +
-	"\x04LIST\x10\x022v\n" +
+	"\x04LIST\x10\x022\xdc\x01\n" +
 	"\aSyncing\x12k\n" +
-	"\x0eReconcileBlobs\x12+.com.seed.p2p.v1alpha.ReconcileBlobsRequest\x1a,.com.seed.p2p.v1alpha.ReconcileBlobsResponseB'Z%seed/backend/genproto/p2p/v1alpha;p2pb\x06proto3"
+	"\x0eReconcileBlobs\x12+.com.seed.p2p.v1alpha.ReconcileBlobsRequest\x1a,.com.seed.p2p.v1alpha.ReconcileBlobsResponse\x12d\n" +
+	"\n" +
+	"FetchBlobs\x12'.com.seed.p2p.v1alpha.FetchBlobsRequest\x1a+.com.seed.documents.v3alpha.SyncingProgress0\x01B'Z%seed/backend/genproto/p2p/v1alpha;p2pb\x06proto3"
 
 var (
 	file_p2p_v1alpha_syncing_proto_rawDescOnce sync.Once
@@ -346,23 +396,27 @@ func file_p2p_v1alpha_syncing_proto_rawDescGZIP() []byte {
 }
 
 var file_p2p_v1alpha_syncing_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_p2p_v1alpha_syncing_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_p2p_v1alpha_syncing_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_p2p_v1alpha_syncing_proto_goTypes = []any{
 	(SetReconciliationRange_Mode)(0), // 0: com.seed.p2p.v1alpha.SetReconciliationRange.Mode
-	(*ReconcileBlobsRequest)(nil),    // 1: com.seed.p2p.v1alpha.ReconcileBlobsRequest
-	(*ReconcileBlobsResponse)(nil),   // 2: com.seed.p2p.v1alpha.ReconcileBlobsResponse
-	(*Filter)(nil),                   // 3: com.seed.p2p.v1alpha.Filter
-	(*SetReconciliationRange)(nil),   // 4: com.seed.p2p.v1alpha.SetReconciliationRange
+	(*FetchBlobsRequest)(nil),        // 1: com.seed.p2p.v1alpha.FetchBlobsRequest
+	(*ReconcileBlobsRequest)(nil),    // 2: com.seed.p2p.v1alpha.ReconcileBlobsRequest
+	(*ReconcileBlobsResponse)(nil),   // 3: com.seed.p2p.v1alpha.ReconcileBlobsResponse
+	(*Filter)(nil),                   // 4: com.seed.p2p.v1alpha.Filter
+	(*SetReconciliationRange)(nil),   // 5: com.seed.p2p.v1alpha.SetReconciliationRange
+	(*v3alpha.SyncingProgress)(nil),  // 6: com.seed.documents.v3alpha.SyncingProgress
 }
 var file_p2p_v1alpha_syncing_proto_depIdxs = []int32{
-	3, // 0: com.seed.p2p.v1alpha.ReconcileBlobsRequest.filters:type_name -> com.seed.p2p.v1alpha.Filter
-	4, // 1: com.seed.p2p.v1alpha.ReconcileBlobsRequest.ranges:type_name -> com.seed.p2p.v1alpha.SetReconciliationRange
-	4, // 2: com.seed.p2p.v1alpha.ReconcileBlobsResponse.ranges:type_name -> com.seed.p2p.v1alpha.SetReconciliationRange
+	4, // 0: com.seed.p2p.v1alpha.ReconcileBlobsRequest.filters:type_name -> com.seed.p2p.v1alpha.Filter
+	5, // 1: com.seed.p2p.v1alpha.ReconcileBlobsRequest.ranges:type_name -> com.seed.p2p.v1alpha.SetReconciliationRange
+	5, // 2: com.seed.p2p.v1alpha.ReconcileBlobsResponse.ranges:type_name -> com.seed.p2p.v1alpha.SetReconciliationRange
 	0, // 3: com.seed.p2p.v1alpha.SetReconciliationRange.mode:type_name -> com.seed.p2p.v1alpha.SetReconciliationRange.Mode
-	1, // 4: com.seed.p2p.v1alpha.Syncing.ReconcileBlobs:input_type -> com.seed.p2p.v1alpha.ReconcileBlobsRequest
-	2, // 5: com.seed.p2p.v1alpha.Syncing.ReconcileBlobs:output_type -> com.seed.p2p.v1alpha.ReconcileBlobsResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
+	2, // 4: com.seed.p2p.v1alpha.Syncing.ReconcileBlobs:input_type -> com.seed.p2p.v1alpha.ReconcileBlobsRequest
+	1, // 5: com.seed.p2p.v1alpha.Syncing.FetchBlobs:input_type -> com.seed.p2p.v1alpha.FetchBlobsRequest
+	3, // 6: com.seed.p2p.v1alpha.Syncing.ReconcileBlobs:output_type -> com.seed.p2p.v1alpha.ReconcileBlobsResponse
+	6, // 7: com.seed.p2p.v1alpha.Syncing.FetchBlobs:output_type -> com.seed.documents.v3alpha.SyncingProgress
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
 	4, // [4:4] is the sub-list for extension extendee
 	0, // [0:4] is the sub-list for field type_name
@@ -379,7 +433,7 @@ func file_p2p_v1alpha_syncing_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_p2p_v1alpha_syncing_proto_rawDesc), len(file_p2p_v1alpha_syncing_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, SyncingProgress, SyncResourcesWithPeerRequest, UpdateKeyRequest } from "./daemon_pb";
+import { CreateDeviceLinkSessionRequest, DeleteAllKeysRequest, DeleteKeyRequest, DeviceLinkSession, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDeviceLinkSessionRequest, GetInfoRequest, Info, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, SignDataRequest, SignDataResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -60,17 +60,6 @@ export const Daemon = {
       I: ForceSyncRequest,
       O: Empty,
       kind: MethodKind.Unary,
-    },
-    /**
-     * Syncs a list of resources (and their related blobs) with a given peer.
-     *
-     * @generated from rpc com.seed.daemon.v1alpha.Daemon.SyncResourcesWithPeer
-     */
-    syncResourcesWithPeer: {
-      name: "SyncResourcesWithPeer",
-      I: SyncResourcesWithPeerRequest,
-      O: SyncingProgress,
-      kind: MethodKind.ServerStreaming,
     },
     /**
      * Forces the daemon to reindex the entire database.

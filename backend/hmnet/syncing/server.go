@@ -3,11 +3,14 @@ package syncing
 import (
 	"context"
 	"seed/backend/blob"
+	resources "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
@@ -30,6 +33,10 @@ func NewServer(db *sqlitex.Pool) *Server {
 // RegisterServer registers the instance with the gRPC server.
 func (s *Server) RegisterServer(srv grpc.ServiceRegistrar) {
 	p2p.RegisterSyncingServer(srv, s)
+}
+
+func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreamingServer[resources.SyncingProgress]) error {
+	return status.Error(codes.Unimplemented, "TODO: FetchBlobs is not implemented yet!!!")
 }
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
@@ -56,10 +63,10 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
-	dkeys := make(colx.HashSet[discoveryKey], len(filters))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(filters))
 	for _, f := range filters {
 		f.Resource = strings.TrimSuffix(f.Resource, "/")
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI(f.Resource),
 			Recursive: f.Recursive,
 		})
@@ -73,114 +80,3 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 
 	return store, store.Seal()
 }
-
-const qListAllBlobsStr = (`
-SELECT
-	blobs.codec,
-	blobs.multihash,
-	blobs.insert_time,
-	?
-FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-WHERE blobs.size >= 0
-ORDER BY sb.ts, blobs.multihash;
-`)
-
-// QListrelatedBlobsString gets blobs related to multiple eids
-const qListRelatedBlobsStr = `
-WITH RECURSIVE
-refs (id) AS (
-	SELECT id
-	FROM structural_blobs
-	WHERE type = 'Ref'
-	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
-
-// qListRelatedCapabilitiesStr gets blobs related to multiple eids
-const qListRelatedCapabilitiesStr = `)
-),
-capabilities (id) AS (
-	SELECT id
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
-
-// qListRelatedCommentsStr gets blobs related to multiple eids
-const qListRelatedCommentsStr = `)
-),
-comments (id) AS (
-	SELECT rl.source
-	FROM resource_links rl
-	WHERE rl.type GLOB 'comment/*'
-	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
-
-// qListRelatedEmbedsStr gets blobs related to multiple eids
-const qListRelatedEmbedsStr = `)
-),
-embeds (id) AS (
-	SELECT rl.source
-	FROM resource_links rl
-	WHERE rl.type GLOB 'doc/*'
-	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
-
-// qListRelatedBlobsContStr gets blobs related to multiple eids
-const qListRelatedBlobsContStr = `)
-),
-changes (id) AS (
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN refs r ON r.id = bl.source AND (bl.type = 'ref/head' OR bl.type GLOB 'metadata/*')
-	UNION
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN changes c ON c.id = bl.source
-	WHERE bl.type = 'change/dep'
-)
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN refs r ON r.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN changes ch ON ch.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN capabilities cap ON cap.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN comments co ON co.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN embeds eli ON eli.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-ORDER BY sb.ts, b.multihash;`

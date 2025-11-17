@@ -24,7 +24,6 @@ const (
 	Daemon_RegisterKey_FullMethodName             = "/com.seed.daemon.v1alpha.Daemon/RegisterKey"
 	Daemon_GetInfo_FullMethodName                 = "/com.seed.daemon.v1alpha.Daemon/GetInfo"
 	Daemon_ForceSync_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/ForceSync"
-	Daemon_SyncResourcesWithPeer_FullMethodName   = "/com.seed.daemon.v1alpha.Daemon/SyncResourcesWithPeer"
 	Daemon_ForceReindex_FullMethodName            = "/com.seed.daemon.v1alpha.Daemon/ForceReindex"
 	Daemon_ListKeys_FullMethodName                = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
 	Daemon_UpdateKey_FullMethodName               = "/com.seed.daemon.v1alpha.Daemon/UpdateKey"
@@ -53,8 +52,6 @@ type DaemonClient interface {
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(ctx context.Context, in *ForceSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Syncs a list of resources (and their related blobs) with a given peer.
-	SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error)
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -129,25 +126,6 @@ func (c *daemonClient) ForceSync(ctx context.Context, in *ForceSyncRequest, opts
 	}
 	return out, nil
 }
-
-func (c *daemonClient) SyncResourcesWithPeer(ctx context.Context, in *SyncResourcesWithPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Daemon_ServiceDesc.Streams[0], Daemon_SyncResourcesWithPeer_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[SyncResourcesWithPeerRequest, SyncingProgress]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Daemon_SyncResourcesWithPeerClient = grpc.ServerStreamingClient[SyncingProgress]
 
 func (c *daemonClient) ForceReindex(ctx context.Context, in *ForceReindexRequest, opts ...grpc.CallOption) (*ForceReindexResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -256,8 +234,6 @@ type DaemonServer interface {
 	GetInfo(context.Context, *GetInfoRequest) (*Info, error)
 	// Force-trigger periodic background sync of Seed objects.
 	ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error)
-	// Syncs a list of resources (and their related blobs) with a given peer.
-	SyncResourcesWithPeer(*SyncResourcesWithPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error
 	// Forces the daemon to reindex the entire database.
 	ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error)
 	// Lists all the signing keys registered on this Daemon.
@@ -303,9 +279,6 @@ func (UnimplementedDaemonServer) GetInfo(context.Context, *GetInfoRequest) (*Inf
 }
 func (UnimplementedDaemonServer) ForceSync(context.Context, *ForceSyncRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceSync not implemented")
-}
-func (UnimplementedDaemonServer) SyncResourcesWithPeer(*SyncResourcesWithPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error {
-	return status.Errorf(codes.Unimplemented, "method SyncResourcesWithPeer not implemented")
 }
 func (UnimplementedDaemonServer) ForceReindex(context.Context, *ForceReindexRequest) (*ForceReindexResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceReindex not implemented")
@@ -425,17 +398,6 @@ func _Daemon_ForceSync_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	return interceptor(ctx, in, info, handler)
 }
-
-func _Daemon_SyncResourcesWithPeer_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(SyncResourcesWithPeerRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(DaemonServer).SyncResourcesWithPeer(m, &grpc.GenericServerStream[SyncResourcesWithPeerRequest, SyncingProgress]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Daemon_SyncResourcesWithPeerServer = grpc.ServerStreamingServer[SyncingProgress]
 
 func _Daemon_ForceReindex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ForceReindexRequest)
@@ -659,12 +621,6 @@ var Daemon_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Daemon_SignData_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "SyncResourcesWithPeer",
-			Handler:       _Daemon_SyncResourcesWithPeer_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "daemon/v1alpha/daemon.proto",
 }

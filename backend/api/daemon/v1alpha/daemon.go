@@ -9,7 +9,6 @@ import (
 	"seed/backend/core"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
-	"seed/backend/hmnet/syncing"
 	"seed/backend/ipfs"
 	"seed/backend/storage"
 	"seed/backend/util/colx"
@@ -33,7 +32,6 @@ import (
 type Node interface {
 	AddrInfo() peer.AddrInfo
 	ForceSync() error
-	SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
 }
@@ -75,55 +73,6 @@ func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.
 // RegisterServer registers the server with the gRPC server.
 func (srv *Server) RegisterServer(rpc grpc.ServiceRegistrar) {
 	daemon.RegisterDaemonServer(rpc, srv)
-}
-
-// SyncResourcesWithPeer implements the corresponding gRPC method.
-func (srv *Server) SyncResourcesWithPeer(req *daemon.SyncResourcesWithPeerRequest, stream grpc.ServerStreamingServer[daemon.SyncingProgress]) error {
-	decodedPeer, err := peer.Decode(req.Pid)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to decode peer ID: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	prog := syncing.NewDiscoveryProgress()
-	prog.StartNotifier(ctx, 100*time.Millisecond)
-	prog.Notify()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.p2p.SyncResourcesWithPeer(ctx, decodedPeer, req.Resources, prog)
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case syncErr := <-errCh:
-			// final progress snapshot before returning
-			out := &daemon.SyncingProgress{
-				PeersFound:      prog.PeersFound.Load(),
-				PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-				PeersFailed:     prog.PeersFailed.Load(),
-				BlobsDiscovered: prog.BlobsDiscovered.Load(),
-				BlobsDownloaded: prog.BlobsDownloaded.Load(),
-				BlobsFailed:     prog.BlobsFailed.Load(),
-			}
-			_ = stream.Send(out) // ignore send error on termination
-			return syncErr
-		case <-prog.Updates():
-			out := &daemon.SyncingProgress{
-				PeersFound:      prog.PeersFound.Load(),
-				PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-				PeersFailed:     prog.PeersFailed.Load(),
-				BlobsDiscovered: prog.BlobsDiscovered.Load(),
-				BlobsDownloaded: prog.BlobsDownloaded.Load(),
-				BlobsFailed:     prog.BlobsFailed.Load(),
-			}
-			if err := stream.Send(out); err != nil {
-				return err
-			}
-		}
-	}
 }
 
 // GenMnemonic returns a set of mnemonic words based on bip39 schema. Word count should be 12 or 15 or 18 or 21 or 24.
