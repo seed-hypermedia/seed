@@ -56,6 +56,7 @@ import {
 import autoUpdate from './auto-update'
 import {startMainDaemon} from './daemon'
 import {startLocalServer, stopLocalServer} from './local-server'
+import {startGraphQLServer, stopGraphQLServer} from './graphql-server'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
@@ -130,8 +131,9 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
-  // Stop local server when app quits
+  // Stop servers when app quits
   stopLocalServer()
+  stopGraphQLServer()
 })
 
 app.whenReady().then(async () => {
@@ -188,6 +190,13 @@ app.whenReady().then(async () => {
     .then(() => {
       logger.info('DaemonStarted')
       return Promise.all([
+        startGraphQLServer()
+          .then((port) => {
+            logger.info(`GraphQL server started on port ${port}`)
+          })
+          .catch((err) => {
+            logger.error('GraphQL server failed to start:', err)
+          }),
         initDrafts().then(() => {
           logger.info('Drafts ready')
         }),

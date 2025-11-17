@@ -1,0 +1,23 @@
+{
+  "name": "@shm/graphql-server",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "build:types": "tsc -p tsconfig.types.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "5.8.3"
+  },
+  "dependencies": {
+    "@pothos/core": "^4.3.0",
+    "@shm/shared": "workspace:*",
+    "graphql": "^16.8.1"
+  }
+}

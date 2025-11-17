@@ -98,6 +98,7 @@ jobs:
           VITE_DESKTOP_P2P_PORT: "58000"
           VITE_DESKTOP_HTTP_PORT: "58001"
           VITE_DESKTOP_GRPC_PORT: "58002"
+          VITE_DESKTOP_GRAPHQL_PORT: "58004"
           VITE_DESKTOP_DESKTOP_APPDATA: "Seed.test"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
 
@@ -115,6 +116,7 @@ jobs:
           VITE_DESKTOP_P2P_PORT: "58000"
           VITE_DESKTOP_HTTP_PORT: "58001"
           VITE_DESKTOP_GRPC_PORT: "58002"
+          VITE_DESKTOP_GRAPHQL_PORT: "58004"
           VITE_DESKTOP_DESKTOP_APPDATA: "Seed.test"
           VITE_DESKTOP_HOSTNAME: "http://localhost"
 

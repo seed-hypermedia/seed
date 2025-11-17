@@ -57,6 +57,7 @@ var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
+var InspectResource = lazy(() => import('./inspect-resource'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
@@ -84,9 +85,9 @@ export default function Main({className}: {className?: string}) {
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
-      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
-        <div className="window-drag flex w-full items-center justify-center">
-          <TitleText className="text-center font-bold">Settings</TitleText>
+      <TitlebarWrapper className="h-6 bg-background min-h-6 dark:bg-black">
+        <div className="flex justify-center items-center w-full window-drag">
+          <TitleText className="font-bold text-center">Settings</TitleText>
           {platform !== 'darwin' && <WindowClose />}
         </div>
       </TitlebarWrapper>
@@ -107,9 +108,9 @@ export default function Main({className}: {className?: string}) {
     )
   } else if (windowType === 'deleted-content') {
     titlebar = (
-      <TitlebarWrapper className="bg-background h-6 min-h-6 dark:bg-black">
-        <div className="window-drag flex w-full items-center justify-center">
-          <TitleText className="text-center font-bold">
+      <TitlebarWrapper className="h-6 bg-background min-h-6 dark:bg-black">
+        <div className="flex justify-center items-center w-full window-drag">
+          <TitleText className="font-bold text-center">
             Review Deleted Content
           </TitleText>
           {platform !== 'darwin' && <WindowClose />}
@@ -169,7 +170,7 @@ function ConfirmConnectionDialogContent({
     <>
       <DialogTitle>Confirm Connection</DialogTitle>
       {connect.isLoading ? (
-        <div className="flex items-center justify-center">
+        <div className="flex justify-center items-center">
           <Spinner />
         </div>
       ) : null}
@@ -219,7 +220,7 @@ function PanelContent({children}: {children: ReactNode}) {
     <PanelGroup
       ref={ref}
       direction="horizontal"
-      className={cn('flex flex-1 overflow-hidden px-2')}
+      className={cn('flex overflow-hidden flex-1 px-2')}
       autoSaveId="main"
       storage={ctx.widthStorage}
     >
@@ -279,6 +280,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'profile':
       return {
         PageComponent: Profile,
+        Fallback: BaseLoading,
+      }
+    case 'inspect-resource':
+      return {
+        PageComponent: InspectResource,
         Fallback: BaseLoading,
       }
     default:

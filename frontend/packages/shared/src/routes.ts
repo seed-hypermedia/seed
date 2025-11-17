@@ -156,6 +156,12 @@ export const libraryRouteSchema = z.object({
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
+export const inspectResourceRouteSchema = z.object({
+  key: z.literal('inspect-resource'),
+  id: unpackedHmIdSchema,
+})
+export type InspectResourceRoute = z.infer<typeof inspectResourceRouteSchema>
+
 export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
   contactsRouteSchema,
@@ -170,6 +176,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftsSchema,
   deletedContentRouteSchema,
   feedRouteSchema,
+  inspectResourceRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
 

@@ -49,6 +49,11 @@ export const METRIC_SERVER_HTTP_PORT =
   process.env.VITE_METRIC_SERVER_HTTP_PORT ||
   56003
 
+export const DESKTOP_GRAPHQL_PORT =
+  IME.VITE_DESKTOP_GRAPHQL_PORT ||
+  process.env.VITE_DESKTOP_GRAPHQL_PORT ||
+  56004
+
 export const DAEMON_HOSTNAME =
   IME.VITE_DESKTOP_HOSTNAME || process.env.VITE_DESKTOP_HOSTNAME
 
@@ -93,6 +98,8 @@ export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
 export const DAEMON_FILE_URL = `${DAEMON_HTTP_URL}/ipfs`
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
+
+export const DESKTOP_GRAPHQL_URL = `${DAEMON_HOSTNAME || 'http://localhost'}:${DESKTOP_GRAPHQL_PORT}/hm/api/graphql`
 
 export const SITE_BASE_URL =
   WEB_ENV.SITE_BASE_URL || process.env.SEED_BASE_URL || 'https://hyper.media'

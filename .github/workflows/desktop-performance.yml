@@ -102,6 +102,7 @@ jobs:
           VITE_DESKTOP_P2P_PORT: "59000"
           VITE_DESKTOP_HTTP_PORT: "59001"
           VITE_DESKTOP_GRPC_PORT: "59002"
+          VITE_DESKTOP_GRAPHQL_PORT: "58004"
           VITE_METRIC_SERVER_HTTP_PORT: "59003"
           VITE_DESKTOP_APPDATA: "Seed-dev"
           VITE_DESKTOP_HOSTNAME: "http://localhost"

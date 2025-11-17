@@ -61,6 +61,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
+  Eye,
   FilePlus,
   ForwardIcon,
   GitFork,
@@ -160,7 +161,7 @@ export function DocOptionsButton({
             const success = (
               <>
                 <div className="flex max-w-[700px] flex-col gap-1.5">
-                  <SizableText className="text-wrap break-all">
+                  <SizableText className="break-all text-wrap">
                     Successfully exported document "{title}" to:{' '}
                     <b>{`${res}`}</b>.
                   </SizableText>
@@ -300,6 +301,15 @@ export function DocOptionsButton({
       },
     })
   }
+  const navigate = useNavigate()
+  menuItems.push({
+    key: 'inspect-resource',
+    label: 'Inspect Source',
+    icon: <Eye className="size-4" />,
+    onClick: () => {
+      navigate({key: 'inspect-resource', id: route.id})
+    },
+  })
 
   return (
     <>
@@ -383,7 +393,7 @@ function EditDocButton() {
     return (
       <>
         <div
-          className="fixed top-0 left-0 z-40 flex h-screen w-screen bg-black opacity-50"
+          className="flex fixed top-0 left-0 z-40 w-screen h-screen bg-black opacity-50"
           onClick={(e) => {
             e.stopPropagation()
             e.preventDefault()
@@ -399,7 +409,7 @@ function EditDocButton() {
         >
           <PopoverTrigger>{button}</PopoverTrigger>
           <PopoverContent>
-            <div className="border-border bg-background absolute -top-2 right-9 h-4 w-4 rotate-45 border border-r-transparent border-b-transparent" />
+            <div className="absolute -top-2 right-9 w-4 h-4 border rotate-45 border-border bg-background border-r-transparent border-b-transparent" />
             <div className="flex flex-col gap-2">
               <SizableText size="3xl" weight="bold">
                 Start Editing the Content
@@ -450,7 +460,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   if (!selectedAccount?.id) return null
   if ((editId || locationId) && !editIdWriteCap)
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex gap-2 items-center">
         <HMIcon
           size={18}
           id={selectedAccount?.id}
@@ -526,7 +536,7 @@ export function NavigationButtons() {
   const dispatch = useNavigationDispatch()
   if (!state) return null
   return (
-    <div className="no-window-drag flex">
+    <div className="flex no-window-drag">
       <Button
         size="icon"
         onClick={() => dispatch({type: 'pop'})}
@@ -593,10 +603,10 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
   }
 
   return (
-    <div className="ml-2 flex flex-1 items-center">
+    <div className="flex flex-1 items-center ml-2">
       {left || <div />}
       {ctx && (
-        <div className="no-window-drag relative z-10">
+        <div className="relative z-10 no-window-drag">
           <Tooltip
             content={tooltip}
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear

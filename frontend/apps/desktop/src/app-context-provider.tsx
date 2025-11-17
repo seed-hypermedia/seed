@@ -1,4 +1,6 @@
+import {GraphQLProvider} from '@shm/graphql'
 import {GRPCClient} from '@shm/shared/grpc-client'
+import {DESKTOP_GRAPHQL_URL} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClientProvider} from '@tanstack/react-query'
@@ -90,7 +92,13 @@ export function AppContextProvider({
   return (
     <AppContext.Provider value={appCtx}>
       <QueryClientProvider client={queryClient}>
-        <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
+        <GraphQLProvider
+          options={{
+            url: DESKTOP_GRAPHQL_URL,
+          }}
+        >
+          <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
+        </GraphQLProvider>
       </QueryClientProvider>
     </AppContext.Provider>
   )
