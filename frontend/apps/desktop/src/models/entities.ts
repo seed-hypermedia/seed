@@ -229,34 +229,18 @@ function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
-  function doInvalidation() {
-    // console.log('[sync] new version discovered for entity', id, version)
-    invalidateQueries([queryKeys.ENTITY, id.id])
-    invalidateQueries([queryKeys.ACCOUNT, id.uid])
-    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
-    // the feed and discussion queries load account metadata, so we need to invalidate them too. rather aggressive invalidation
-    invalidateQueries([queryKeys.FEED])
-    invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
-    invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
-    invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
-    invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-    invalidateQueries([queryKeys.ACTIVITY_FEED])
-  }
   const lastEntity = queryClient.getQueryData<HMEntityContent>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
   ])
   if (lastEntity && lastEntity?.document?.version !== version) {
-    doInvalidation()
+    // console.log('[sync] new version discovered for entity', id, version)
+    invalidateQueries([queryKeys.ENTITY, id.id])
+    invalidateQueries([queryKeys.ACCOUNT, id.uid])
+    invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   }
-  const lastAccount = queryClient.getQueryData<HMMetadataPayload>([
-    queryKeys.ACCOUNT,
-    id.uid,
-  ])
-  if (lastAccount && lastAccount.id.version !== version) {
-    doInvalidation()
-  }
+  // we should also invalidate the queryKeys.ACCOUNT entry in the cache
 }
 
 export async function discoverDocument(
