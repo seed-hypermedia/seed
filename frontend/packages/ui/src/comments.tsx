@@ -19,6 +19,7 @@ import {
 } from '@shm/shared'
 import {
   useBlockDiscussionsService,
+  useCommentReplyCount,
   useCommentsService,
   useCommentsServiceContext,
   useDiscussionsService,
@@ -605,9 +606,6 @@ export function CommentGroup({
             }
             authorId={comment.author}
             renderCommentContent={renderCommentContent}
-            replyCount={
-              isLastCommentInGroup ? commentGroup.moreCommentsCount : undefined
-            }
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
             currentAccountId={currentAccountId}
@@ -622,7 +620,6 @@ export function CommentGroup({
 
 export function Comment({
   comment,
-  replyCount,
   isFirst = true,
   isLast = false,
   authorMetadata,
@@ -638,7 +635,6 @@ export function Comment({
   externalTarget,
 }: {
   comment: HMComment
-  replyCount?: number
   isFirst?: boolean
   isLast?: boolean
   authorMetadata?: HMMetadata | null
@@ -678,6 +674,7 @@ export function Comment({
   }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
+  const {data: replyCount} = useCommentReplyCount({id: comment.id})
 
   const authorHmId =
     comment.author || authorId ? hmId(authorId || comment.author) : null

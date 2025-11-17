@@ -1,6 +1,8 @@
 import {
   CommentsService,
   DeleteCommentRequest,
+  GetReplyCountRequest,
+  GetReplyCountResponse,
   ListCommentsByIdRequest,
   ListCommentsByReferenceRequest,
   ListCommentsRequest,
@@ -84,5 +86,24 @@ export class WebCommentsService implements CommentsService {
 
   useHackyAuthorsSubscriptions(authorIds: string[]) {
     // no-op on web, we expect that author info will be pushed to the server already.
+  }
+
+  async getReplyCount(
+    params: GetReplyCountRequest,
+  ): Promise<GetReplyCountResponse> {
+    try {
+      let queryUrl = `/hm/api/comment-reply-count?targetId=${params.id}`
+      let res = await queryAPI<number | {error: string}>(queryUrl)
+
+      if (typeof res != 'number') {
+        console.error('API returned error for discussions:', res.error)
+        return 0
+      }
+
+      return res
+    } catch (error) {
+      console.error('Failed to load discussions:', error)
+      return 0
+    }
   }
 }

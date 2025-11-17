@@ -1,3 +1,4 @@
+import {GRPCClient} from '..'
 import {
   HMCommentGroup,
   HMCommentsPayload,
@@ -42,6 +43,9 @@ export type DeleteCommentRequest = {
   targetDocId: UnpackedHypermediaId
   signingAccountId: string
 }
+
+export type GetReplyCountRequest = {id: string}
+export type GetReplyCountResponse = number
 
 export interface CommentsService {
   /**
@@ -103,4 +107,23 @@ export interface CommentsService {
    * This *should be temporary* while the syncing system is improved in the daemon. Famous last words, I know!
    */
   useHackyAuthorsSubscriptions: (authorIds: string[]) => void
+
+  /**
+   *
+   * Get Comment reply count
+   * @param params {id: comment id}
+   */
+  getReplyCount(params: GetReplyCountRequest): Promise<GetReplyCountResponse>
+}
+
+export async function getCommentReplyCountImpl({
+  client,
+  params,
+}: {
+  client: GRPCClient
+  params: {id: string}
+}): Promise<number> {
+  let req = await client.comments.getCommentReplyCount(params)
+
+  return Number(req.replyCount)
 }

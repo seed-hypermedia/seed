@@ -8,6 +8,9 @@ import {
 import {
   CommentsService,
   DeleteCommentRequest,
+  getCommentReplyCountImpl,
+  GetReplyCountRequest,
+  GetReplyCountResponse,
   ListCommentsByIdRequest,
   ListCommentsByReferenceRequest,
   ListCommentsByReferenceResponse,
@@ -70,5 +73,9 @@ export class DesktopCommentsService implements CommentsService {
       id: params.commentId,
       signingKeyName: params.signingAccountId,
     })
+  }
+
+  getReplyCount(params: GetReplyCountRequest): Promise<GetReplyCountResponse> {
+    return getCommentReplyCountImpl({client: grpcClient, params})
   }
 }

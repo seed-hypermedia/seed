@@ -4,6 +4,7 @@ import {HMComment, UnpackedHypermediaId} from './hm-types'
 import {
   CommentsService,
   DeleteCommentRequest,
+  GetReplyCountRequest,
   ListCommentsByReferenceRequest,
   ListCommentsByReferenceResponse,
   ListCommentsResponse,
@@ -189,5 +190,16 @@ export function useDeleteComment() {
         queryKey: [queryKeys.ACTIVITY_FEED],
       })
     },
+  })
+}
+
+export function useCommentReplyCount({id}: GetReplyCountRequest) {
+  const context = useCommentsServiceContext()
+
+  return useQuery({
+    queryKey: [id, 'replyCount'],
+    queryFn: () => context.service?.getReplyCount({id}),
+    enabled: !!context.service,
+    retry: 1,
   })
 }
