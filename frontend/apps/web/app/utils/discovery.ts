@@ -30,10 +30,8 @@ export async function discoverDocument(
   }
   return await tryUntilSuccess(async () => {
     try {
-      console.log('will discoverEntity', discoverRequest)
       const discoverResp =
         await grpcClient.entities.discoverEntity(discoverRequest)
-      console.log('~~ discoverEntity resp', discoverResp.toJson())
       if (checkDiscoverySuccess(discoverResp.version))
         return {version: discoverResp.version}
       return null
