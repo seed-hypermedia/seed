@@ -1,8 +1,6 @@
 import {AppPlatform, useAppContext} from '@/app-context'
-import {lazy} from 'react'
-
-var ErrorBarMacos = lazy(() => import('./error-bar-macos'))
-var ErrorBarWindowsLinux = lazy(() => import('./error-bar-windows-linux'))
+import ErrorBarMacos from './error-bar-macos'
+import ErrorBarWindowsLinux from './error-bar-windows-linux'
 
 export function ErrorBar() {
   const {platform} = useAppContext()
