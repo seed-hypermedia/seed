@@ -224,33 +224,25 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			}
 		}
 
+		space, path, err := dkey.IRI.SpacePath()
+		if err != nil {
+			return err
+		}
+
 		// TODO(burdiyan): currently in our database we don't treat comments and other snapshot resources as resources.
 		// Instead comments belong to the document they target, which is different from how we think about them now —
 		// we now think about them as their own state-based resources.
 		// So here we implement a bit of a naughty workaround, to include the blobs into the syncing dataset
 		// if the requested path looks like a TSID of a state-based resource.
 		// We should refactor our database to treat comments as resources and remove this workaround in the future.
-		{
-			space, path, err := dkey.IRI.SpacePath()
-			if err != nil {
+		if tsid, ok := parseTSIDPath(path); ok {
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT id
+				FROM structural_blobs
+				WHERE extra_attrs->>'tsid' = :tsid
+				AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
+			if err := sqlitex.Exec(conn, q, nil, tsid, []byte(space)); err != nil {
 				return err
-			}
-			pathLen := len(path)
-			if pathLen == blob.MinTSIDLength || pathLen == blob.MaxTSIDLength {
-				tsidMaybe := path[1:] // Remove the leading slash from the path.
-				_, _, err := blob.TSID(tsidMaybe).Parse()
-				// Run this query if the path parses like a TSID.
-				// We don't care about the error because it's a best-effort scenario.
-				if err == nil {
-					const q = `INSERT OR IGNORE INTO rbsr_blobs
-						SELECT id
-						FROM structural_blobs
-						WHERE extra_attrs->>'tsid' = :tsid
-						AND author = (SELECT id FROM public_keys WHERE principal = :principal);`
-					if err := sqlitex.Exec(conn, q, nil, tsidMaybe, []byte(space)); err != nil {
-						return err
-					}
-				}
 			}
 		}
 	}
@@ -386,6 +378,29 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 	}
 
 	return nil
+}
+
+func parseTSIDPath(path string) (tsid blob.TSID, ok bool) {
+	if path == "" {
+		return "", false
+	}
+
+	if path[0] != '/' {
+		panic("isPathTSID: BUG: path doesn't have leading slash")
+	}
+
+	maybeTSID := path[1:]
+	l := len(maybeTSID)
+
+	if l < blob.MinTSIDLength || l > blob.MaxTSIDLength {
+		return "", false
+	}
+
+	if _, _, err := blob.TSID(maybeTSID).Parse(); err != nil {
+		return "", false
+	}
+
+	return blob.TSID(maybeTSID), true
 }
 
 func ensureTempTable(conn *sqlite.Conn, name string) error {
