@@ -1138,7 +1138,7 @@ function BlockContentParagraph({
       {...props}
       {...debugStyles(debug, 'blue')}
       className={cn(
-        'block-content block-paragraph content-inline',
+        'block-content block-paragraph content-inline break-words',
         comment && 'is-comment',
         blockStyles,
       )}
