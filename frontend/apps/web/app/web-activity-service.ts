@@ -43,22 +43,28 @@ export class WebActivityService implements ActivityService {
     event: HMEvent,
     currentAccount?: string,
   ): Promise<LoadedEvent | null> {
-    const response = await fetch('/api/activity/resolve-event', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({event, currentAccount}, (key, value) =>
-        typeof value === 'bigint' ? value.toString() : value,
-      ),
-    })
+    try {
+      const response = await fetch('/api/activity/resolve-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({event, currentAccount}, (_key, value) =>
+          typeof value === 'bigint' ? value.toString() : value,
+        ),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to resolve event')
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Failed to resolve event:', event, error)
+        return null
+      }
+
+      const wrappedResult = await response.json()
+      return unwrap<LoadedEvent | null>(wrappedResult)
+    } catch (error) {
+      console.error('Error resolving event:', event, error)
+      return null
     }
-
-    const wrappedResult = await response.json()
-    return unwrap<LoadedEvent | null>(wrappedResult)
   }
 }

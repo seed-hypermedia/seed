@@ -5,6 +5,7 @@ import {queryKeys} from './models/query-keys'
 
 type LoadedEventsResponse = {
   events: LoadedEvent[]
+  failedCount: number
   nextPageToken: string
 }
 
@@ -71,35 +72,54 @@ export function useActivityFeed({
     ],
     queryFn: async ({pageParam}): Promise<LoadedEventsResponse> => {
       if (!context.service) {
-        return {events: [], nextPageToken: ''}
+        return {events: [], failedCount: 0, nextPageToken: ''}
       }
 
-      // Fetch the page of events
-      const response = await context.service.listEvents({
-        pageSize,
-        filterAuthors,
-        filterEventType,
-        filterResource,
-        pageToken: pageParam as string | undefined,
-      })
+      try {
+        // Fetch the page of events
+        const response = await context.service.listEvents({
+          pageSize,
+          filterAuthors,
+          filterEventType,
+          filterResource,
+          pageToken: pageParam as string | undefined,
+        })
 
-      // Resolve all events in this page
-      const resolvedEvents = await Promise.all(
-        response.events.map((event) =>
-          context.service!.resolveEvent(event, currentAccount),
-        ),
-      )
+        // Resolve all events in this page with individual error handling
+        const resolvedEvents = await Promise.allSettled(
+          response.events.map((event) =>
+            context.service!.resolveEvent(event, currentAccount),
+          ),
+        )
 
-      const filteredEvents = resolvedEvents.filter((e) => !!e) as LoadedEvent[]
+        // Filter out failed promises and null values
+        const filteredEvents = resolvedEvents
+          .filter((result) => result.status === 'fulfilled' && result.value)
+          .map(
+            (result) => (result as PromiseFulfilledResult<LoadedEvent>).value,
+          )
 
-      return {
-        events: filteredEvents,
-        nextPageToken: response.nextPageToken,
+        // Count failures (rejected promises or null results)
+        const failedCount = resolvedEvents.filter(
+          (result) => result.status === 'rejected' || !result.value,
+        ).length
+
+        return {
+          events: filteredEvents,
+          failedCount,
+          nextPageToken: response.nextPageToken,
+        }
+      } catch (error) {
+        console.error('Activity feed query error:', error)
+        // Return empty results instead of throwing to prevent error boundary activation
+        return {events: [], failedCount: 0, nextPageToken: ''}
       }
     },
     getNextPageParam: (lastPage) => {
       return lastPage.nextPageToken || undefined
     },
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!context.service,
   })
 }
