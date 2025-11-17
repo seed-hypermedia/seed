@@ -947,7 +947,11 @@ export function BlockNodeContent({
           </Tooltip>
         ) : null}
         {media.gtSm ? (
-          <HoverCard openDelay={500} closeDelay={500}>
+          <HoverCard
+            openDelay={500}
+            closeDelay={500}
+            open={isHighlight || undefined}
+          >
             <HoverCardTrigger>
               <BlockContent
                 block={blockWithHighlights}
@@ -965,7 +969,7 @@ export function BlockNodeContent({
             </HoverCardContent>
           </HoverCard>
         ) : (
-          <Popover>
+          <Popover open={isHighlight || undefined}>
             <PopoverAnchor asChild>
               <div>
                 <PopoverTrigger asChild>
