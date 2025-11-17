@@ -13,6 +13,7 @@ import {Fragment, PropsWithChildren, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {Search} from './icons'
+import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {usePopoverState} from './use-popover-state'
 
@@ -519,6 +520,7 @@ export function SearchInput({
   onArrowUp,
   onEscape,
   onEnter,
+  loading,
 }: PropsWithChildren<{
   searchResults: Array<SearchResult>
   inputProps: {
@@ -531,15 +533,19 @@ export function SearchInput({
   onArrowDown: () => void
   onEnter: () => void
   focusedIndex: number
+  loading?: boolean
 }>) {
   return (
     <div className="flex h-full w-full flex-col gap-2">
       <div className="relative flex items-center gap-2 rounded-md">
         <Search className="absolute top-1/2 left-2.5 z-3 size-4 -translate-y-1/2" />
+        {loading ? (
+          <Spinner className="absolute top-1/2 right-2.5 z-3 size-4 -translate-y-1/2 text-black/50 dark:text-white/50" />
+        ) : null}
         <Input
           autoFocus={true}
           placeholder="Search Hypermedia documents"
-          className="w-full px-1 pl-8"
+          className="w-full px-1 pr-8 pl-8"
           {...inputProps}
           onKeyUp={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {
@@ -564,7 +570,7 @@ export function SearchInput({
           }}
         />
       </div>
-      <div className="h-full max-h-[200px] overflow-hidden">
+      <div className="max-h-[200px] min-h-0 flex-1 overflow-hidden">
         <ScrollArea className="h-full">{children}</ScrollArea>
       </div>
     </div>

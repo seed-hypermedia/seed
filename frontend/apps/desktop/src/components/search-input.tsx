@@ -32,7 +32,6 @@ import {
   SearchResultItem,
 } from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
-import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useDeferredValue, useEffect, useMemo, useRef, useState} from 'react'
@@ -284,50 +283,36 @@ export function SearchInput({
   )
 
   return (
-    <div className="relative">
-      {isSearchPending && !isDisplayingRecents ? (
-        <div
-          style={{
-            position: 'absolute',
-            top: 8,
-            right: 12,
-            zIndex: 10,
-            height: 24,
-          }}
-        >
-          <Spinner className="text-black/50 dark:text-white/50" />
-        </div>
-      ) : null}
-      <SearchInputUI
-        searchResults={activeItems || []}
-        inputProps={{
-          value: search,
-          onChangeText: setSearch,
-          disabled: !!actionPromise,
-        }}
-        onArrowDown={() => {
-          setFocusedIndex((prev) => (prev + 1) % activeItems.length)
-        }}
-        onArrowUp={() => {
-          setFocusedIndex(
-            (prev) => (prev - 1 + activeItems.length) % activeItems.length,
-          )
-        }}
-        onEscape={() => {
+    <SearchInputUI
+      searchResults={activeItems || []}
+      inputProps={{
+        value: search,
+        onChangeText: setSearch,
+        disabled: !!actionPromise,
+      }}
+      loading={searchResults.isLoading}
+      onArrowDown={() => {
+        setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+      }}
+      onArrowUp={() => {
+        setFocusedIndex(
+          (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+        )
+      }}
+      onEscape={() => {
+        onClose?.()
+      }}
+      onEnter={() => {
+        const item = activeItems[focusedIndex]
+        if (item) {
           onClose?.()
-        }}
-        onEnter={() => {
-          const item = activeItems[focusedIndex]
-          if (item) {
-            onClose?.()
-            item.onSelect?.()
-          }
-        }}
-        focusedIndex={focusedIndex}
-      >
-        {content || <p>working...</p>}
-      </SearchInputUI>
-    </div>
+          item.onSelect?.()
+        }
+      }}
+      focusedIndex={focusedIndex}
+    >
+      {content || <p>working...</p>}
+    </SearchInputUI>
   )
 }
 
