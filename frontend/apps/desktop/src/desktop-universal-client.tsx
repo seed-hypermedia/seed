@@ -5,24 +5,23 @@ import {
   loadBatchAccounts,
   loadResource,
   useAccountsMetadata,
-  useSubscribedResource,
-  useSubscribedResources,
 } from '@/models/entities'
 import {deleteRecent, loadRecents} from '@/models/recents'
 import {loadSearchQuery} from '@/models/search'
 import type {UnpackedHypermediaId} from '@shm/shared'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
 
 export const desktopUniversalClient: UniversalClient = {
   useResource: ((
     id: UnpackedHypermediaId | null | undefined,
-    options?: {recursive?: boolean},
+    _options?: {recursive?: boolean},
   ) => {
-    return useSubscribedResource(id, options?.recursive)
+    return useResource(id)
   }) as UniversalClient['useResource'],
   useResources: (ids: (UnpackedHypermediaId | null | undefined)[]) => {
-    return useSubscribedResources(ids.map((id) => ({id, recursive: false})))
+    return useResources(ids)
   },
   useDirectory: useListDirectory,
   useContacts: () => {
