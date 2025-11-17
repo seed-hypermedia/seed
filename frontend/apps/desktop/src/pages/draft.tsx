@@ -59,7 +59,7 @@ import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
-import {AppBlocksContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './blocks-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {

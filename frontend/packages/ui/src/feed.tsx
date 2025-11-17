@@ -26,11 +26,11 @@ import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
+import {BlocksContent} from './blocks-content'
 import {Button} from './button'
 import {CommentContent} from './comments'
 import {SizableText} from './components/text'
 import {copyTextToClipboard} from './copy-to-clipboard'
-import {BlocksContent} from './document-content'
 import {HMIcon} from './hm-icon'
 import {ReplyArrow} from './icons'
 import {
@@ -55,7 +55,9 @@ export function Feed({
   commentEditor,
   onCommentDelete,
   targetDomain,
+  size = 'md',
 }: {
+  size?: 'sm' | 'md'
   commentEditor: any
   filterResource: HMListEventsRequest['filterResource']
   filterAuthors?: HMListEventsRequest['filterAuthors']
@@ -205,6 +207,7 @@ export function Feed({
                     onCommentDelete={onCommentDelete}
                     currentAccount={currentAccount}
                     targetDomain={targetDomain}
+                    size={size}
                   />
                 </div>
                 <Separator />
@@ -222,6 +225,7 @@ export function Feed({
                 onCommentDelete={onCommentDelete}
                 currentAccount={currentAccount}
                 targetDomain={targetDomain}
+                size={size}
               />
               <Separator />
             </>
@@ -260,7 +264,7 @@ function EventHeaderContent({
 }) {
   const tx = useTxString()
   const getUrl = useResourceUrl(targetDomain)
-
+  console.log('event', event)
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (
@@ -279,7 +283,7 @@ function EventHeaderContent({
     }
 
     return (
-      <div className="flex w-full items-center justify-between gap-2">
+      <div className="group flex w-full items-center justify-between gap-2">
         <InlineDescriptor>
           <AuthorNameLink author={event.author} />{' '}
           {!isSingleResource && event.target ? (
@@ -567,6 +571,7 @@ function EventCommentWithReply({
   currentAccount,
   targetDomain,
   isSingleResource,
+  size,
 }: {
   event: LoadedCommentEvent
   route: NavRoute | null
@@ -574,6 +579,7 @@ function EventCommentWithReply({
   currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
+  size?: 'sm' | 'md'
 }) {
   const linkProps = useRouteLink(route)
   const tx = useTx()
@@ -582,7 +588,7 @@ function EventCommentWithReply({
     <div
       key={`${event.type}-${event.id}-${event.time}`}
       className={cn(
-        'hover:bg-background p-2 transition-colors dark:hover:bg-black/10',
+        'hover:bg-background group p-2 transition-colors dark:hover:bg-black/10',
       )}
       {...(route ? linkProps : {})}
     >
@@ -619,7 +625,7 @@ function EventCommentWithReply({
 
           <div className="flex-1 pb-6">
             <EventContent
-              size="sm"
+              size={size}
               event={{
                 ...event,
                 comment: event.replyingComment,
@@ -629,7 +635,7 @@ function EventCommentWithReply({
         </div>
       </div>
 
-      <div className="flex items-start gap-2">
+      <div className="group flex items-start gap-2">
         <div className="size-[24px]">
           {event.author?.id ? (
             <HMIcon
@@ -652,7 +658,7 @@ function EventCommentWithReply({
       <div className="relative flex gap-2">
         <div className={cn('w-[24px]')} />
         <div className="flex flex-1 flex-col gap-3">
-          <EventContent event={event} />
+          <EventContent size={size} event={event} />
           <div className="-ml-3">
             <Button
               size="xs"
@@ -717,7 +723,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
     return null
   }
 
-  return <BlocksContent blocks={[blockNode]} parentBlockId={null} />
+  return <BlocksContent blocks={[blockNode]} />
 }
 
 function RouteEventRow({
@@ -899,6 +905,7 @@ function EventItem({
   currentAccount,
   targetDomain,
   isSingleResource,
+  size,
 }: {
   event: LoadedEvent
   route: NavRoute | null
@@ -906,6 +913,7 @@ function EventItem({
   currentAccount?: string
   targetDomain?: string
   isSingleResource?: boolean
+  size?: 'sm' | 'md'
 }) {
   const currentRoute = useNavRoute()
   const linkProps = useRouteLink(
@@ -916,7 +924,7 @@ function EventItem({
   return (
     <div
       className={cn(
-        'hover:bg-background flex flex-col gap-2 p-2 py-4 transition-colors dark:hover:bg-black/10',
+        'hover:bg-background group flex flex-col gap-2 p-2 py-4 transition-colors dark:hover:bg-black/10',
         currentRoute.key == 'document' &&
           event.type == 'doc-update' &&
           event.docId.version == currentRoute.id.version &&
@@ -947,7 +955,11 @@ function EventItem({
         <div className="relative flex gap-2">
           <div className={cn('w-[24px]')} />
           <div className="flex flex-1 flex-col gap-3">
-            <EventContent isSingleResource={isSingleResource} event={event} />
+            <EventContent
+              size={size}
+              isSingleResource={isSingleResource}
+              event={event}
+            />
             {event.type == 'comment' ||
             (event.type == 'citation' && event.comment) ? (
               <div className="-ml-3">

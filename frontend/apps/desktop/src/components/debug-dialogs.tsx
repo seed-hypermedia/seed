@@ -1,14 +1,14 @@
-import {useState} from 'react'
-import {Button} from '@shm/ui/button'
 import {hmId, UnpackedHypermediaId} from '@shm/shared'
+import {IS_PROD_DESKTOP} from '@shm/shared/constants'
+import {Button} from '@shm/ui/button'
+import {useState} from 'react'
+import {dispatchOnboardingDialog} from './onboarding'
 import {
   usePublishSite,
-  useSeedHostDialog,
   useRemoveSiteDialog,
+  useSeedHostDialog,
 } from './publish-site'
 import {useTemplateDialog} from './site-template'
-import {dispatchOnboardingDialog} from './onboarding'
-import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 
 // Mock data for testing - create proper UnpackedHypermediaId
 // Using a valid-looking UID that matches the expected format
@@ -21,7 +21,7 @@ const MOCK_DOCUMENT_ROUTE = {
 }
 
 export function DebugDialogs() {
-  const [showDebug, setShowDebug] = useState(!IS_PROD_DESKTOP)
+  const [showDebug, setShowDebug] = useState(false)
   const publishSiteDialog = usePublishSite()
   const seedHostDialog = useSeedHostDialog()
   const removeSiteDialog = useRemoveSiteDialog()

@@ -13,11 +13,11 @@ import {
 } from '@shm/shared/hm-types'
 import {useUniversalAppContext} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {BlocksContentProvider} from '@shm/ui/document-content'
+import {BlocksContentProvider} from '@shm/ui/blocks-content'
 import {
   contentLayoutUnit,
   contentTextUnit,
-} from '@shm/ui/document-content-constants'
+} from '@shm/ui/blocks-content-constants'
 import {useState} from 'react'
 import {useDocumentUrl} from '../components/copy-reference-button'
 
@@ -99,7 +99,7 @@ export function AppBlocksContentProvider({
         }
         openUrl={openUrl}
         saveCidAsFile={saveCidAsFile}
-        routeParams={{
+        selection={{
           // @ts-expect-error
           uid: route.id?.uid || undefined,
           // @ts-expect-error
@@ -153,8 +153,7 @@ export type AppBlocksContentContextValue = {
   textUnit: number
   debug: boolean
   ffSerif?: boolean
-  comment?: boolean
-  routeParams?: {
+  selection?: {
     uid?: string
     version?: string
     blockRef?: string
@@ -169,4 +168,5 @@ export type AppBlocksContentContextValue = {
   supportQueries?: HMQueryResult[]
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
+  commentStyle?: boolean
 }

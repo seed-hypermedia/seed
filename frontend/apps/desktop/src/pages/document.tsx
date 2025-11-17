@@ -46,11 +46,11 @@ import {
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {BlocksContent} from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
-import {DocContent} from '@shm/ui/document-content'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -66,7 +66,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {AppBlocksContentProvider} from './document-content-provider'
+import {AppBlocksContentProvider} from './blocks-content-provider'
 
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
@@ -111,79 +111,77 @@ export default function DocumentPage() {
   return (
     <>
       <ActivityProvider service={activityService}>
-        <AppBlocksContentProvider>
-          <CommentsProvider
-            service={commentsService}
-            onReplyClick={(replyComment) => {
-              const targetRoute = isRouteEqualToCommentTarget({
-                id: route.id,
-                comment: replyComment,
-              })
+        <CommentsProvider
+          service={commentsService}
+          onReplyClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
 
-              if (targetRoute) {
-                push({
-                  key: 'document',
-                  id: targetRoute,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              } else {
-                console.log('targetRoute is the same. replacing...')
-                replace({
-                  ...route,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              }
-              triggerCommentDraftFocus(docId.id, replyComment.id)
-            }}
-            onReplyCountClick={(replyComment) => {
-              const targetRoute = isRouteEqualToCommentTarget({
-                id: route.id,
-                comment: replyComment,
+            if (targetRoute) {
+              push({
+                key: 'document',
+                id: targetRoute,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
               })
-              if (targetRoute) {
-                // comment target is not the same as the route, so we need to change the whole route
-                push({
-                  key: 'document',
-                  id: targetRoute,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              } else {
-                // comment target is the same as the route, so we can replace safely
-                replace({
-                  ...route,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              }
-            }}
-          >
-            <DocumentPageContent
-              docId={docId}
-              route={route}
-              replace={replace}
-              push={push}
-              mainPanelRef={mainPanelRef}
-              accessoryKey={accessoryKey}
-              templateDialogContent={templateDialogContent}
-              notifSettingsDialogContent={notifSettingsDialog.content}
-            />
-          </CommentsProvider>
-        </AppBlocksContentProvider>
+            } else {
+              console.log('targetRoute is the same. replacing...')
+              replace({
+                ...route,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+            triggerCommentDraftFocus(docId.id, replyComment.id)
+          }}
+          onReplyCountClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
+            if (targetRoute) {
+              // comment target is not the same as the route, so we need to change the whole route
+              push({
+                key: 'document',
+                id: targetRoute,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            } else {
+              // comment target is the same as the route, so we can replace safely
+              replace({
+                ...route,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+          }}
+        >
+          <DocumentPageContent
+            docId={docId}
+            route={route}
+            replace={replace}
+            push={push}
+            mainPanelRef={mainPanelRef}
+            accessoryKey={accessoryKey}
+            templateDialogContent={templateDialogContent}
+            notifSettingsDialogContent={notifSettingsDialog.content}
+          />
+        </CommentsProvider>
       </ActivityProvider>
     </>
   )
@@ -737,7 +735,7 @@ function DocPageContent({
   const document = resource.document
   return (
     <AppBlocksContentProvider
-      routeParams={{
+      selection={{
         uid: docRoute.id?.uid || undefined,
         version: docRoute.id?.version || undefined,
         blockRef: blockRef || undefined,
@@ -789,20 +787,9 @@ function DocPageContent({
       }}
       isBlockFocused={isBlockFocused}
     >
-      <DocContent
-        document={document}
+      <BlocksContent
+        blocks={document.content}
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
-        handleBlockReplace={() => {
-          if (route.key === 'document') {
-            // Remove block ref and range from the route.
-            replace({
-              ...route,
-              id: {...route.id, blockRef: null, blockRange: null},
-            })
-            return true
-          }
-          return false
-        }}
       />
     </AppBlocksContentProvider>
   )

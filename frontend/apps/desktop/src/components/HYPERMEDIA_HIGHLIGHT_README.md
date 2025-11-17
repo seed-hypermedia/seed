@@ -15,8 +15,8 @@ hovering over them.
 
 ### Broadcasting Events
 
-The document-content-provider.tsx contains hover handlers that broadcast events
-to all windows:
+The blocks-content-provider.tsx contains hover handlers that broadcast events to
+all windows:
 
 ```jsx
 onHoverIn={(id) => {
@@ -80,7 +80,7 @@ function createHighlightCSS(id: string): string {
 
 ## Key Files
 
-- **document-content-provider.tsx**: Contains the hover event handlers
+- **blocks-content-provider.tsx**: Contains the hover event handlers
 - **components/hypermedia-highlight.tsx**: Component that listens for events and
   applies highlights
 - **utils/window-events.ts**: Defines the event types

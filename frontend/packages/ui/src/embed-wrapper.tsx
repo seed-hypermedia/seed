@@ -1,7 +1,7 @@
 import {UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren} from 'react'
-import {blockStyles, useBlocksContentContext} from './document-content'
+import {blockStyles, useBlocksContentContext} from './blocks-content'
 import {cn} from './utils'
 
 export function EmbedWrapper({

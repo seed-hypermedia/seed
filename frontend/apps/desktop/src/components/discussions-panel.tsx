@@ -1,4 +1,4 @@
-import {AppBlocksContentProvider} from '@/pages/document-content-provider'
+import {AppBlocksContentProvider} from '@/pages/blocks-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'

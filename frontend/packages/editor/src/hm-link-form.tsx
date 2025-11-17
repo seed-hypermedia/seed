@@ -2,10 +2,10 @@ import {SearchResult} from '@shm/shared/editor-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {useBlocksContentContext} from '@shm/ui/document-content'
 import {SwitchField} from '@shm/ui/form-fields'
 import {
   AlignCenter,

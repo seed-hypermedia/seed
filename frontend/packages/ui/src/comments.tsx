@@ -41,14 +41,14 @@ import {
 } from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
-import {Button} from './button'
-import {copyTextToClipboard} from './copy-to-clipboard'
 import {
   BlocksContent,
   blocksContentContext,
   BlocksContentProvider,
   getBlockNodeById,
-} from './document-content'
+} from './blocks-content'
+import {Button} from './button'
+import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -659,16 +659,12 @@ export function Comment({
         onBlockCitationClick={() => {}}
         textUnit={14}
         layoutUnit={16}
-        comment
+        commentStyle
         debug={false}
         collapsedBlocks={new Set()}
         setCollapsedBlocks={() => {}}
       >
-        <BlocksContent
-          hideCollapseButtons
-          blocks={comment.content}
-          parentBlockId={null}
-        />
+        <BlocksContent hideCollapseButtons blocks={comment.content} />
       </BlocksContentProvider>
     )
   }
@@ -740,62 +736,60 @@ export function Comment({
       )}
 
       <div className="flex w-full flex-1 flex-col gap-1">
-        {heading ? (
-          <div className="inline">{heading}</div>
-        ) : (
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
-            {heading ? null : (
-              <InlineDescriptor>
-                {authorHmId ? (
-                  <AuthorNameLink
-                    author={{
-                      id: authorHmId,
-                      metadata: authorMetadata ?? undefined,
-                    }}
-                  />
-                ) : (
-                  <span>Someone</span>
-                )}{' '}
-                {externalTarget ? (
-                  <>
-                    <span>on</span>{' '}
-                    <button
-                      {...externalTargetLink}
-                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
-                    >
-                      {externalTarget.metadata?.name}
-                    </button>
-                  </>
-                ) : null}
-                <CommentDate comment={comment} />
-              </InlineDescriptor>
-            )}
-            <div className="flex items-center gap-2">
-              <Tooltip content={tx('Copy Comment Link')}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                  onClick={() => {
-                    const url = getUrl(hmId(comment.id))
-                    copyTextToClipboard(url)
-                    toast.success('Copied Comment URL')
+        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+          {heading ? (
+            <div className="inline">{heading}</div>
+          ) : (
+            <InlineDescriptor>
+              {authorHmId ? (
+                <AuthorNameLink
+                  author={{
+                    id: authorHmId,
+                    metadata: authorMetadata ?? undefined,
                   }}
-                >
-                  <Link className="size-3" />
-                </Button>
-              </Tooltip>
-              {currentAccountId == comment.author ? (
-                <OptionsDropdown
-                  side="bottom"
-                  align="end"
-                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                  menuItems={options}
                 />
+              ) : (
+                <span>Someone</span>
+              )}{' '}
+              {externalTarget ? (
+                <>
+                  <span>on</span>{' '}
+                  <button
+                    {...externalTargetLink}
+                    className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                  >
+                    {externalTarget.metadata?.name}
+                  </button>
+                </>
               ) : null}
-            </div>
+              <CommentDate comment={comment} />
+            </InlineDescriptor>
+          )}
+          <div className="flex items-center gap-2">
+            <Tooltip content={tx('Copy Comment Link')}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                onClick={() => {
+                  const url = getUrl(hmId(comment.id))
+                  copyTextToClipboard(url)
+                  toast.success('Copied Comment URL')
+                }}
+              >
+                <Link className="size-3" />
+              </Button>
+            </Tooltip>
+            {currentAccountId == comment.author ? (
+              <OptionsDropdown
+                side="bottom"
+                align="end"
+                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                menuItems={options}
+              />
+            ) : null}
           </div>
-        )}
+        </div>
 
         <div>{renderContent(comment)}</div>
         {!highlight && (
@@ -832,38 +826,22 @@ export function Comment({
 
 export function CommentContent({
   comment,
-  size = 'md',
+  size,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
 }) {
   const context = useContext(blocksContentContext)
-
-  const content = (
-    <BlocksContent
-      hideCollapseButtons
-      blocks={comment.content}
-      parentBlockId={null}
-    />
+  return (
+    <BlocksContentProvider
+      {...context}
+      commentStyle
+      textUnit={size === 'sm' ? 12 : context.textUnit}
+      layoutUnit={size === 'sm' ? 14 : context.layoutUnit}
+    >
+      <BlocksContent hideCollapseButtons blocks={comment.content} />
+    </BlocksContentProvider>
   )
-
-  if (size != 'md') {
-    return (
-      <BlocksContentProvider
-        comment
-        onBlockSelect={context?.onBlockSelect ?? null}
-        textUnit={12}
-        layoutUnit={14}
-        debug={context?.debug ?? false}
-        collapsedBlocks={context?.collapsedBlocks ?? new Set()}
-        setCollapsedBlocks={context?.setCollapsedBlocks ?? (() => {})}
-      >
-        {content}
-      </BlocksContentProvider>
-    )
-  } else {
-    return content
-  }
 }
 
 function CommentDate({comment}: {comment: HMComment}) {
@@ -902,7 +880,7 @@ export function QuotedDocBlock({
           {blockContent && (
             <BlocksContent
               blocks={[blockContent]}
-              parentBlockId={blockId}
+              // parentBlockId={blockId}
               hideCollapseButtons
             />
           )}

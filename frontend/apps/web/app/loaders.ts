@@ -51,7 +51,7 @@ import {
   HMRedirectError,
 } from '@shm/shared/models/entity'
 import {createResourceLoader} from '@shm/shared/resource-loader'
-import {getBlockNodeById} from '@shm/ui/document-content'
+import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config.server'

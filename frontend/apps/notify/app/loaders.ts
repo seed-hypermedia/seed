@@ -48,7 +48,7 @@ import {
   getErrorMessage,
   HMRedirectError,
 } from '@shm/shared/models/entity'
-import {getBlockNodeById} from '@shm/ui/document-content'
+import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
 import {discoverDocument} from './utils/discovery'

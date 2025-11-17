@@ -1,5 +1,5 @@
 import {useFullRender} from '@/cache-policy'
-import {links as documentLinks, DocumentPage} from '@/document'
+import {DocumentPage} from '@/document'
 import {FeedPage} from '@/feed'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
@@ -26,7 +26,7 @@ type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
 
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
-export const links = () => [...documentLinks()]
+// export const links = () => [...documentLinks()]
 
 export const documentPageMeta = ({
   data,

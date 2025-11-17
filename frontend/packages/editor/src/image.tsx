@@ -1,4 +1,4 @@
-import {useBlocksContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {getDaemonFileUrl, useFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'

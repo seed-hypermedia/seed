@@ -1,14 +1,14 @@
 import {HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {BlocksContent} from '@shm/ui/blocks-content'
 import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
 } from '@shm/ui/comments'
-import {BlocksContent} from '@shm/ui/document-content'
 import React, {useCallback} from 'react'
 
-import {WebBlocksContentProvider} from './doc-content-provider'
+import {WebBlocksContentProvider} from './blocks-content-provider'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
@@ -43,15 +43,11 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
             key={comment.id}
             originHomeId={homeId}
             siteHost={siteHost}
-            comment
+            commentStyle
             textUnit={14}
             layoutUnit={16}
           >
-            <BlocksContent
-              hideCollapseButtons
-              blocks={comment.content}
-              parentBlockId={null}
-            />
+            <BlocksContent hideCollapseButtons blocks={comment.content} />
           </WebBlocksContentProvider>
         )
       )
@@ -65,52 +61,33 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       blockRef: blockId,
     })
     return (
-      <WebBlocksContentProvider
-        originHomeId={homeId}
-        siteHost={siteHost}
-        textUnit={14}
-        layoutUnit={16}
-      >
-        <BlockDiscussions
-          targetId={targetId}
-          commentEditor={commentEditor}
-          targetDomain={targetDomain}
-          renderCommentContent={renderCommentContent}
-        />
-      </WebBlocksContentProvider>
+      <BlockDiscussions
+        targetId={targetId}
+        commentEditor={commentEditor}
+        targetDomain={targetDomain}
+        renderCommentContent={renderCommentContent}
+      />
     )
   }
 
   if (comment) {
     return (
-      <WebBlocksContentProvider
-        originHomeId={homeId}
-        siteHost={siteHost}
-        textUnit={14}
-      >
-        <CommentDiscussions
-          commentId={comment.id}
-          commentEditor={commentEditor}
-          targetId={props.docId}
-          renderCommentContent={renderCommentContent}
-          targetDomain={targetDomain}
-        />
-      </WebBlocksContentProvider>
-    )
-  }
-
-  return (
-    <WebBlocksContentProvider
-      originHomeId={homeId}
-      siteHost={siteHost}
-      textUnit={14}
-    >
-      <Discussions
+      <CommentDiscussions
+        commentId={comment.id}
         commentEditor={commentEditor}
         targetId={props.docId}
         renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
       />
-    </WebBlocksContentProvider>
+    )
+  }
+
+  return (
+    <Discussions
+      commentEditor={commentEditor}
+      targetId={props.docId}
+      renderCommentContent={renderCommentContent}
+      targetDomain={targetDomain}
+    />
   )
 }

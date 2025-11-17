@@ -1,7 +1,7 @@
 import {HMAccountsMetadata, HMDocumentInfo} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useMemo} from 'react'
-import {DocumentCardGrid} from './document-content'
+import {DocumentCardGrid} from './blocks-content'
 import {DocumentListItem} from './document-list-item'
 
 export interface QueryBlockContentProps {

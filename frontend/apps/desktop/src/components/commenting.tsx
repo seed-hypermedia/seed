@@ -2,7 +2,7 @@ import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
-import {AppBlocksContentProvider} from '@/pages/document-content-provider'
+import {AppBlocksContentProvider} from '@/pages/blocks-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {
   chromiumSupportedImageMimeTypes,
@@ -28,12 +28,13 @@ import {useStream} from '@shm/shared/use-stream'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/button'
 import {
   BlocksContent,
   getBlockNodeById,
   useBlocksContentContext,
-} from '@shm/ui/document-content'
+} from '@shm/ui/blocks-content'
+import {Button} from '@shm/ui/button'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -64,10 +65,20 @@ export function renderCommentContent(comment: HMComment) {
   }, [comment])
 
   return (
-    <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
+    <AppBlocksContentProvider
+      textUnit={14}
+      layoutUnit={16}
+      commentStyle
+      onBlockSelect={(blockId, blockRange) => {
+        console.log('=== onBlockSelect', blockId, blockRange)
+        // copyTextToClipboard(blockId)
+        copyUrlToClipboardWithFeedback('asdfg', 'Comment Block Link')
+        // comment.targetAccount
+      }}
+    >
       <div className="flex w-full flex-col">
         <CommentReference reference={data.reference} />
-        <BlocksContent blocks={data.content} parentBlockId={null} />
+        <BlocksContent blocks={data.content} />
       </div>
     </AppBlocksContentProvider>
   )
@@ -364,8 +375,8 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
-          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
+        <AppBlocksContentProvider commentStyle textUnit={14} layoutUnit={16}>
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} />
         </AppBlocksContentProvider>
       </div>
       <div
@@ -507,18 +518,10 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        <AppBlocksContentProvider
-          {...context}
-          comment
-          textUnit={14}
-          layoutUnit={16}
-        >
-          <BlocksContent
-            blocks={referenceContent}
-            parentBlockId={null}
-            expanded={false}
-            hideCollapseButtons
-          />
+        <AppBlocksContentProvider {...context} textUnit={14} layoutUnit={16}>
+          {referenceContent && (
+            <BlocksContent blocks={referenceContent} hideCollapseButtons />
+          )}
         </AppBlocksContentProvider>
       </div>
     </div>

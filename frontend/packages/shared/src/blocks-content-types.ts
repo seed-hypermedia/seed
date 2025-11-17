@@ -33,8 +33,8 @@ export type BlocksContentContextValue = {
   textUnit: number
   debug: boolean
   ffSerif?: boolean
-  comment?: boolean
-  routeParams?: {
+  commentStyle?: boolean
+  selection?: {
     uid?: string
     version?: string
     blockRef?: string

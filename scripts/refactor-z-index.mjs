@@ -34,7 +34,7 @@ const zIndexMappings = {
 
 // Files to refactor based on the plan
 const filesToRefactor = [
-  "frontend/packages/ui/src/document-content.tsx",
+  "frontend/packages/ui/src/blocks-content.tsx",
   "frontend/packages/editor/src/hm-link-form.tsx",
   "frontend/packages/editor/src/autocomplete.tsx",
   "frontend/packages/ui/src/site-header.tsx",

@@ -8,7 +8,7 @@ import {
   UnpackedHypermediaId,
   useUniversalAppContext,
 } from '@shm/shared'
-import {BlocksContentProvider} from '@shm/ui/document-content'
+import {BlocksContentProvider} from '@shm/ui/blocks-content'
 import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
 
@@ -19,8 +19,7 @@ export function WebBlocksContentProvider({
   siteHost,
   supportDocuments,
   supportQueries,
-  routeParams,
-  comment,
+  selection,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -28,6 +27,7 @@ export function WebBlocksContentProvider({
   onHoverOut,
   layoutUnit,
   textUnit,
+  commentStyle,
 }: {
   siteHost: string | undefined
   id?: UnpackedHypermediaId | undefined
@@ -35,13 +35,13 @@ export function WebBlocksContentProvider({
   children: React.ReactNode | JSX.Element
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
-  routeParams?: {
+  selection?: {
     uid?: string
     version?: string
     blockRef?: string
     blockRange?: BlockRange
   }
-  comment?: boolean
+  commentStyle?: boolean
   blockCitations?: Record<
     string,
     {
@@ -80,6 +80,7 @@ export function WebBlocksContentProvider({
       setCollapsedBlocks={setCollapsedBlocks}
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
+      commentStyle={commentStyle}
       onBlockSelect={
         id
           ? (blockId, blockRange) => {
@@ -150,11 +151,10 @@ export function WebBlocksContentProvider({
       }
       onBlockCommentClick={onBlockCommentClick}
       onBlockCitationClick={onBlockCitationClick}
-      routeParams={routeParams}
+      selection={selection}
       textUnit={textUnit || 18}
       layoutUnit={layoutUnit || 24}
       debug={false}
-      comment={comment}
       blockCitations={blockCitations}
     >
       {children}

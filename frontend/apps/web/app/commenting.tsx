@@ -14,9 +14,9 @@ import {
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
+import {BlocksContentProvider} from '@shm/ui/blocks-content'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {BlocksContentProvider} from '@shm/ui/document-content'
 import {EmailNotificationsSuccess} from '@shm/ui/email-notifications'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -260,7 +260,7 @@ export default function WebCommenting({
         openUrl={openUrl}
         handleFileAttachment={handleFileAttachment}
         debug={false}
-        comment
+        commentStyle
         onBlockSelect={null}
         layoutUnit={16}
         textUnit={14}

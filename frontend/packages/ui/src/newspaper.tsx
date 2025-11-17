@@ -8,7 +8,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {HTMLAttributes, useMemo} from 'react'
-import {useBlocksContentContext} from './document-content'
+import {useBlocksContentContext} from './blocks-content'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
 import {SizableText} from './text'

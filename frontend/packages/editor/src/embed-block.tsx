@@ -11,14 +11,13 @@ import {
   normalizeHmId,
   packHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Input} from '@shm/ui/components/input'
 import {
   BlockEmbedCard,
   BlockEmbedComments,
   BlockEmbedContent,
   ErrorBlock,
-  useBlocksContentContext,
-} from '@shm/ui/document-content'
+} from '@shm/ui/blocks-content'
+import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
@@ -253,7 +252,6 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
-  const {comment} = useBlocksContentContext()
   const recents = useRecents()
   const searchResults = useSearch(search, {
     includeBody: true,

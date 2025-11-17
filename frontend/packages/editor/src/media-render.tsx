@@ -1,8 +1,8 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {useBlocksContentContext} from '@shm/ui/document-content'
 import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
@@ -345,7 +345,7 @@ function MediaForm({
     },
   }
 
-  const {handleFileAttachment, comment} = useBlocksContentContext()
+  const {handleFileAttachment, commentStyle} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   const handleUpload = async (files: File[]) => {
@@ -437,7 +437,7 @@ function MediaForm({
           ? 'border-foreground/20 dark:border-foreground/30'
           : 'border-border',
         drag && 'border-dashed',
-        comment &&
+        commentStyle &&
           !drag &&
           !selected &&
           'border-border bg-black/5 dark:bg-white/10',
