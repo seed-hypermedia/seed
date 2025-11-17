@@ -129,7 +129,8 @@ export const MediaRender: React.FC<RenderProps> = ({
       }
       setUploading(true)
 
-      editor.importWebFile(block.props.src)
+      editor
+        .importWebFile(block.props.src)
         .then((imageData) => {
           setUploading(false)
           // Desktop result
@@ -338,7 +339,7 @@ function MediaForm({
     },
   }
 
-  const {handleFileAttachment, commentStyle} = useBlocksContentContext()
+  const {commentStyle} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   const handleUpload = async (files: File[]) => {
@@ -368,11 +369,13 @@ function MediaForm({
       return
     }
 
-    // @ts-ignore
-    const {name, size} = files[0]
-    if (handleFileAttachment) {
-      // @ts-ignore
-      const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
+    const file = files[0]
+    if (!file) {
+      throw new Error('No file selected')
+    }
+    const {name, size} = file
+    if (editor.handleFileAttachment) {
+      const {displaySrc, fileBinary} = await editor.handleFileAttachment(file)
       assign({
         props: {
           fileBinary,

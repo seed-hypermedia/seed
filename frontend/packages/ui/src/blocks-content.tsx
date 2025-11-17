@@ -184,7 +184,7 @@ export function BlocksContentProvider({
     >
       {children}
       {showDevMenu ? (
-        <div className="flex fixed right-16 bottom-16 z-50 flex-col gap-1 p-2 bg-white rounded-md border hover:bg-background border-border dark:bg-background">
+        <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
           <CheckboxField
             checked={debug}
             // @ts-ignore
@@ -344,7 +344,7 @@ export function BlocksContent({
           <Tooltip content={tx('copy_block_range', 'Copy Block Range')}>
             <Button
               size="icon"
-              className="relative border bg-background hover:bg-background border-border dark:bg-black dark:hover:bg-black"
+              className="bg-background hover:bg-background border-border relative border dark:bg-black dark:hover:bg-black"
               onClick={() => {
                 onBlockSelect(
                   state.context.blockId,
@@ -708,7 +708,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="opacity-50 size-3" />
+          <BlockQuote color="currentColor" className="size-3 opacity-50" />
           {citationsCount.citations ? (
             <SizableText color="muted" size="xs">
               {String(citationsCount.citations)}
@@ -737,7 +737,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <MessageSquare color="currentColor" className="opacity-50 size-3" />
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
         </Button>
       ) : null}
 
@@ -764,7 +764,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="opacity-50 size-3" />
+          <Link color="currentColor" className="size-3 opacity-50" />
         </Button>
       ) : null}
     </div>
@@ -787,7 +787,7 @@ export function BlockNodeContent({
             onBlockCitationClick?.(blockNode.block?.id)
           }}
         >
-          <BlockQuote color="currentColor" className="opacity-50 size-3" />
+          <BlockQuote color="currentColor" className="size-3 opacity-50" />
           {citationsCount.citations ? (
             <SizableText color="muted" size="xs">
               {String(citationsCount.citations)}
@@ -822,7 +822,7 @@ export function BlockNodeContent({
               : tx('Comment on this block')
           }
         >
-          <MessageSquare color="currentColor" className="opacity-50 size-3" />
+          <MessageSquare color="currentColor" className="size-3 opacity-50" />
           {citationsCount?.comments ? (
             <SizableText color="muted" size="xs">
               {String(citationsCount.comments)}
@@ -847,7 +847,7 @@ export function BlockNodeContent({
             }
           }}
         >
-          <Link color="currentColor" className="opacity-50 size-3" />
+          <Link color="currentColor" className="size-3 opacity-50" />
         </BubbleButton>
       ) : null}
     </div>
@@ -952,7 +952,7 @@ export function BlockNodeContent({
             <HoverCardContent
               side="top"
               align="end"
-              className="z-10 p-0 w-auto"
+              className="z-10 w-auto p-0"
             >
               {hoverCardContent}
             </HoverCardContent>
@@ -975,7 +975,7 @@ export function BlockNodeContent({
               side="top"
               align="end"
               sideOffset={8}
-              className="p-0 w-auto max-w-xs"
+              className="w-auto max-w-xs p-0"
             >
               {mobileCardContent}
             </PopoverContent>
@@ -1022,7 +1022,7 @@ export function BlockNodeContent({
                     <HoverCardContent
                       side="top"
                       align="end"
-                      className="z-10 p-0 w-auto"
+                      className="z-10 w-auto p-0"
                     >
                       {hoverCardContent}
                     </HoverCardContent>
@@ -1040,7 +1040,7 @@ export function BlockNodeContent({
                       side="left"
                       align="start"
                       sideOffset={8}
-                      className="p-0 w-auto max-w-xs"
+                      className="w-auto max-w-xs p-0"
                     >
                       {mobileCardContent}
                     </PopoverContent>
@@ -1264,7 +1264,7 @@ function BlockContentImage({
       onClick={handleClose}
     >
       <div
-        className="flex relative justify-center items-center size-full"
+        className="relative flex size-full items-center justify-center"
         onClick={(e) => {
           e.stopPropagation()
           handleClose()
@@ -1289,7 +1289,7 @@ function BlockContentImage({
         />
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 p-2 text-white rounded-full transition-colors bg-black/50 hover:bg-black/70"
+          className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
           aria-label="Close"
         >
           <X size={20} />
@@ -1304,7 +1304,7 @@ function BlockContentImage({
         {...props}
         ref={containerRef}
         className={cn(
-          'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-image',
+          'block-content block-image flex w-full max-w-full flex-col items-center gap-2 py-3',
           blockStyles,
         )}
         data-content-type="image"
@@ -1372,7 +1372,7 @@ function BlockContentVideo({
     <div
       {...props}
       className={cn(
-        'flex flex-col gap-2 items-center py-3 w-full max-w-full block-content block-video',
+        'block-content block-video flex w-full max-w-full flex-col items-center gap-2 py-3',
         blockStyles,
       )}
       data-content-type="video"
@@ -1385,7 +1385,7 @@ function BlockContentVideo({
     >
       {link ? (
         <div
-          className={cn('relative w-full max-w-full aspect-video')}
+          className={cn('relative aspect-video w-full max-w-full')}
           style={{
             width: getBlockAttribute(block.attributes, 'width')
               ? `${getBlockAttribute(block.attributes, 'width')}px`
@@ -1394,7 +1394,7 @@ function BlockContentVideo({
         >
           {isIpfs ? (
             <video
-              className={cn('absolute top-0 left-0 w-full h-full')}
+              className={cn('absolute top-0 left-0 h-full w-full')}
               contentEditable={false}
               playsInline
               controls
@@ -1410,7 +1410,7 @@ function BlockContentVideo({
           ) : (
             <>
               <iframe
-                className={cn('absolute top-0 left-0 w-full h-full')}
+                className={cn('absolute top-0 left-0 h-full w-full')}
                 src={getVideoIframeSrc(block.link)}
                 allowFullScreen
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1580,7 +1580,7 @@ function InlineContentView({
               key={index}
               {...linkProps}
               className={cn(
-                'break-all transition-colors cursor-pointer',
+                'cursor-pointer break-all transition-colors',
                 // link colors
                 'link text-link hover:text-link-hover',
               )}
@@ -1663,7 +1663,7 @@ export function BlockEmbedCard({
 
   if (doc.isInitialLoading)
     return (
-      <div className="flex justify-center items-center">
+      <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
@@ -1801,9 +1801,9 @@ export function ErrorBlock({
     <Tooltip
       content={debugData ? (open ? 'Hide debug Data' : 'Show debug data') : ''}
     >
-      <div className="flex flex-col flex-1 block-content block-unknown">
+      <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex overflow-hidden gap-2 p-2 bg-red-100 rounded-md border border-red-300 flex-start"
+          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1815,7 +1815,7 @@ export function ErrorBlock({
           <AlertCircle color="danger" className="size-3" />
         </div>
         {open ? (
-          <pre className="p-2 bg-gray-100 rounded-md border border-border dark:bg-gray-800">
+          <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
             <code className="font-mono text-xs wrap-break-word">
               {JSON.stringify(debugData, null, 4)}
             </code>
@@ -1913,7 +1913,7 @@ function CommentEmbedHeader({
     author.type === 'document' ? author.document?.metadata : undefined
   return (
     <div className="flex flex-wrap justify-between p-3">
-      <div className="flex gap-2 items-center">
+      <div className="flex items-center gap-2">
         {author.id && (
           <HMIcon
             size={24}
@@ -2290,9 +2290,9 @@ export function BlockNotFoundError({
   message: string
 }>) {
   return (
-    <div className="flex flex-col flex-1 p-2 bg-red-100/50 dark:bg-red-900/50">
-      <div className="flex gap-2 items-center p-4">
-        <AlertCircle className="text-red-500 flex-0" size={12} />
+    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
+      <div className="flex items-center gap-2 p-4">
+        <AlertCircle className="flex-0 text-red-500" size={12} />
         <SizableText className="flex-1" color="destructive">
           {message ? message : 'Error'}
         </SizableText>
@@ -2344,12 +2344,12 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
       data-name={getBlockAttribute(block.attributes, 'name')}
       data-size={getBlockAttribute(block.attributes, 'size')}
       className={cn(
-        'overflow-hidden relative p-4 rounded-md border block-content group block-file border-muted dark:border-muted',
+        'block-content group block-file border-muted dark:border-muted relative overflow-hidden rounded-md border p-4',
       )}
     >
-      <div className="flex relative flex-1 gap-2 items-center w-full">
+      <div className="relative flex w-full flex-1 items-center gap-2">
         <File size={18} className="flex-0" />
-        <SizableText className="overflow-hidden flex-1 text-sm truncate whitespace-nowrap select-text">
+        <SizableText className="flex-1 truncate overflow-hidden text-sm whitespace-nowrap select-text">
           {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
@@ -2361,7 +2361,7 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
       {fileCid && (
         <Button
           variant="brand"
-          className="absolute right-0 top-1/2 opacity-0 transition-opacity -translate-y-1/2 group-hover:opacity-100"
+          className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
           size="sm"
           asChild
         >
@@ -2412,7 +2412,7 @@ export function BlockContentButton({
       data-content-type="button"
       data-url={block.link}
       data-name={getBlockAttribute(block.attributes, 'name')}
-      className="flex flex-col w-full max-w-full select-none block-content block-button"
+      className="block-content block-button flex w-full max-w-full flex-col select-none"
       style={{
         justifyContent: alignment,
       }}
@@ -2434,7 +2434,7 @@ export function BlockContentButton({
       >
         <SizableText
           size="lg"
-          className="font-bold text-center text-white truncate"
+          className="truncate text-center font-bold text-white"
         >
           {getBlockAttribute(block.attributes, 'name')}
         </SizableText>
@@ -2513,7 +2513,7 @@ export function BlockContentWebEmbed({
     <div
       {...props}
       className={cn(
-        'overflow-hidden p-4 w-full rounded-md border border-border bg-background',
+        'border-border bg-background w-full overflow-hidden rounded-md border p-4',
         'x-post-container',
         blockStyles,
       )}
@@ -2533,7 +2533,7 @@ export function BlockContentWebEmbed({
       }}
     >
       {loading && (
-        <div className="flex justify-center items-center">
+        <div className="flex items-center justify-center">
           <Spinner />
         </div>
       )}
@@ -2596,7 +2596,7 @@ export function BlockContentCode({
       data-content-type="code"
       className={cn(
         blockStyles,
-        `overflow-auto w-full rounded-md border language-${language} border-border bg-background`,
+        `w-full overflow-auto rounded-md border language-${language} border-border bg-background`,
       )}
       style={
         {
@@ -2731,7 +2731,7 @@ export function BlockContentMath({
       data-content={block.text}
       ref={containerRef}
       className={cn(
-        'gap-2 py-3 w-full rounded-md border block-content block-katex bg-background border-border',
+        'block-content block-katex bg-background border-border w-full gap-2 rounded-md border py-3',
         blockStyles,
         isContentSmallerThanContainer ? 'items-center' : 'items-start',
         isContentSmallerThanContainer ? 'overflow-hidden' : 'overflow-scroll',
@@ -2746,8 +2746,8 @@ export function BlockContentMath({
         ref={mathRef}
         className={cn(
           isContentSmallerThanContainer
-            ? 'justify-center items-center'
-            : 'justify-start items-start',
+            ? 'items-center justify-center'
+            : 'items-start justify-start',
         )}
         dangerouslySetInnerHTML={{__html: tex || ''}}
       />
@@ -2799,7 +2799,7 @@ export function InlineEmbedButton({
 function RadioGroupItemWithLabel(props: {value: string; label: string}) {
   const id = `radiogroup-${props.value}`
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex items-center gap-2">
       <RadioGroupItem value={props.value} id={id} />
       <label className="text-xs" htmlFor={id}>
         {props.label}
@@ -2844,7 +2844,7 @@ export function DocumentCardGrid({
     )
   }, [columnCount])
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full flex-col">
       {firstItem ? (
         <div className="flex">
           <DocumentCard
@@ -2857,7 +2857,7 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {items?.length ? (
-        <div className="flex flex-wrap justify-center -mx-3 mt-2">
+        <div className="-mx-3 mt-2 flex flex-wrap justify-center">
           {items.map((item) => {
             if (!item) return null
             return (

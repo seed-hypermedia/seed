@@ -30,7 +30,11 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
-import {useResource, useResources} from '@shm/shared/models/entity'
+import {
+  documentMetadataParseAdjustments,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -1016,7 +1020,9 @@ export function useListSite(id?: UnpackedHypermediaId) {
         .map((d) => ({
           ...toPlainMessage(d),
           metadata: HMDocumentMetadataSchema.parse(
-            d.metadata?.toJson({emitDefaultValues: true}),
+            documentMetadataParseAdjustments(
+              d.metadata?.toJson({emitDefaultValues: true}),
+            ),
           ),
         }))
         .filter((doc) => {

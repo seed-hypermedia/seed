@@ -41,9 +41,6 @@ export type BlocksContentContextValue = {
     blockRange?: BlockRange
   }
   contacts?: PlainMessage<Contact>[] | null
-  handleFileAttachment?: (
-    file: File,
-  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
   openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]

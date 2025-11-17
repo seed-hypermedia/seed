@@ -59,7 +59,6 @@ import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
-import {AppBlocksContentProvider} from './blocks-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {
@@ -407,66 +406,62 @@ function DocumentEditor({
         className="flex flex-1 flex-col overflow-hidden"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
-          <AppBlocksContentProvider
-            // onBlockSelect={onBlockSelect} // todo: allow copy block when editing doc
-          >
-            <DraftCover
-              draftActor={actor}
-              // @ts-expect-error
-              disabled={!state.matches('editing')}
-              show={showCover}
-              // @ts-expect-error
-              setShow={setShowCover}
-              showOutline={showOutline}
-            />
-            <div ref={elementRef} className="draft-editor w-full flex-1">
-              <div {...wrapperProps}>
-                {showSidebars ? (
-                  <div
-                    // @ts-expect-error
-                    className={showCover ? 'mt-[152px]' : 'mt-[220px]'}
-                    onClick={(e) => e.stopPropagation()}
-                    {...sidebarProps}
-                  >
-                    <DocNavigationDraftLoader
-                      showCollapsed={showCollapsed}
-                      id={id}
-                      editor={editor}
-                    />
-                  </div>
-                ) : null}
-                <div {...mainContentProps}>
-                  {!isHomeDoc ? (
-                    <DraftMetadataEditor
-                      draftActor={actor}
-                      onEnter={() => {
-                        editor._tiptapEditor.commands.focus()
-                        editor._tiptapEditor.commands.setTextSelection(0)
-                      }}
-                      // disabled={!state.matches('ready')}
-                      showCover={showCover}
-                      setShowCover={setShowCover}
-                    />
-                  ) : null}
-                  <Container
-                    // @ts-expect-error
-                    paddingLeft="$4"
-                    marginBottom={300}
-                    onClick={(e: MouseEvent<HTMLDivElement>) => {
-                      // this prevents to fire handleFocusAtMousePos on click
-                      e.stopPropagation()
-                      // editor?._tiptapEditor.commands.focus()
-                    }}
-                  >
-                    {editor ? (
-                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                    ) : null}
-                  </Container>
+          <DraftCover
+            draftActor={actor}
+            // @ts-expect-error
+            disabled={!state.matches('editing')}
+            show={showCover}
+            // @ts-expect-error
+            setShow={setShowCover}
+            showOutline={showOutline}
+          />
+          <div ref={elementRef} className="draft-editor w-full flex-1">
+            <div {...wrapperProps}>
+              {showSidebars ? (
+                <div
+                  // @ts-expect-error
+                  className={showCover ? 'mt-[152px]' : 'mt-[220px]'}
+                  onClick={(e) => e.stopPropagation()}
+                  {...sidebarProps}
+                >
+                  <DocNavigationDraftLoader
+                    showCollapsed={showCollapsed}
+                    id={id}
+                    editor={editor}
+                  />
                 </div>
-                {showSidebars ? <div {...sidebarProps} /> : null}
+              ) : null}
+              <div {...mainContentProps}>
+                {!isHomeDoc ? (
+                  <DraftMetadataEditor
+                    draftActor={actor}
+                    onEnter={() => {
+                      editor._tiptapEditor.commands.focus()
+                      editor._tiptapEditor.commands.setTextSelection(0)
+                    }}
+                    // disabled={!state.matches('ready')}
+                    showCover={showCover}
+                    setShowCover={setShowCover}
+                  />
+                ) : null}
+                <Container
+                  // @ts-expect-error
+                  paddingLeft="$4"
+                  marginBottom={300}
+                  onClick={(e: MouseEvent<HTMLDivElement>) => {
+                    // this prevents to fire handleFocusAtMousePos on click
+                    e.stopPropagation()
+                    // editor?._tiptapEditor.commands.focus()
+                  }}
+                >
+                  {editor ? (
+                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                  ) : null}
+                </Container>
               </div>
+              {showSidebars ? <div {...sidebarProps} /> : null}
             </div>
-          </AppBlocksContentProvider>
+          </div>
         </ScrollArea>
       </div>
     )

@@ -56,6 +56,10 @@ export function useCommentEditor(
     type: string
     size: number
   }>,
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+  }>,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
@@ -85,6 +89,7 @@ export function useCommentEditor(
     getSlashMenuItems: () => getSlashMenuItems(),
     onMentionsQuery,
     importWebFile,
+    handleFileAttachment,
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -233,6 +238,7 @@ export function CommentEditor({
   onContentChange,
   onAvatarPress,
   importWebFile,
+  handleFileAttachment,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -271,6 +277,10 @@ export function CommentEditor({
     type: string
     size: number
   }>
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+  }>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -284,6 +294,7 @@ export function CommentEditor({
     isMobile ? () => setIsMentionsDialogOpen(true) : undefined,
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
     importWebFile,
+    handleFileAttachment,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =
@@ -307,7 +318,7 @@ export function CommentEditor({
   const [isEditorFocused, setIsEditorFocused] = useState(
     () => autoFocus || hasDraftContent || false,
   )
-  const {openUrl, handleFileAttachment} = useBlocksContentContext()
+  const {openUrl} = useBlocksContentContext()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)

@@ -157,9 +157,6 @@ export type AppBlocksContentContextValue = {
     blockRef?: string
     blockRange?: BlockRange
   }
-  handleFileAttachment?: (
-    file: File,
-  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
   openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
