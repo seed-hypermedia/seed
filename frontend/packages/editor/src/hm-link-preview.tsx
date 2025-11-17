@@ -65,10 +65,9 @@ export function HypermediaLinkPreview(
     const title = getTitle()
 
     if (type === 'link') {
-      const node = schema.nodes.paragraph.create(
-        null,
-        // @ts-ignore
-        schema.text(title, schema.marks['link'].create({href: props.url})),
+      const node = schema.text(
+        title,
+        schema.marks['link'].create({href: props.url}),
       )
       insertNode(
         props.editor,
@@ -226,23 +225,25 @@ function insertNode(
   node: Node,
 ) {
   const {state, view} = editor._tiptapEditor
-  const {selection} = state
-  const {$from} = selection
-  const blockInfo = getBlockInfoFromPos(state, selection.$anchor.pos)
+  const {posBeforeNode} = getNodeById(selectedId, state.doc)
+  const blockInfo = getBlockInfoFromPos(state, posBeforeNode + 1)
   let tr = state.tr
 
   // If mention or link is inline with other text the child count will be more than 1
   if (blockInfo.blockContent.node.content.childCount > 1) {
-    const $pos = state.doc.resolve($from.pos)
+    const $pos = state.doc.resolve(posBeforeNode + 1)
     let startPos = $pos.start()
     let endPos = $pos.end()
     let endContent = Fragment.empty
+
+    // Set start and end positions to the link or mention bounds instead of the whole block content
     if (prevType === 'link') {
       // @ts-ignore
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.marks.length > 0 && node.marks[0].attrs.href === link) {
           startPos = index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
-          endPos = index === 0 ? $pos.end() : $pos.start() + pos + text.length
+          // endPos = index === 0 ? $pos.end() : $pos.start() + pos + text.length
+          endPos = $pos.start() + pos + text.length
         } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
           endContent = endContent.addToEnd(node)
         }
@@ -252,41 +253,44 @@ function insertNode(
       $pos.parent.descendants((node, pos, _parent, index) => {
         if (node.type.name === 'inline-embed' && node.attrs.link === link) {
           startPos = index === 0 ? $pos.start() - 1 : $pos.start() + pos
-          endPos = index === 0 ? $pos.end() : $pos.start() + pos + 1
+          // endPos = index === 0 ? $pos.end() : $pos.start() + pos + 1
+          endPos = $pos.start() + pos + 1
         } else if (startPos !== $pos.start() && endPos !== $pos.end()) {
           endContent = endContent.addToEnd(node)
         }
       })
     }
 
-    const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
-    const nextBlockPos = $pos.end() + 2
-    const nextBlockContentPos = nextBlockPos + 2
-    const $nextBlockPos = state.doc.resolve(nextBlockContentPos)
-    if (
-      endContent.childCount &&
-      !(
-        endContent.childCount === 1 &&
-        endContent.firstChild?.textContent.trim() === ''
-      )
-    ) {
-      tr = tr.insert(nextBlockPos, newBlock)
+    tr = tr.replaceRangeWith(startPos, endPos, node)
 
-      const endNode = $pos.parent.copy(endContent)
-      tr = tr.replaceWith(
-        $nextBlockPos.before($nextBlockPos.depth),
-        nextBlockContentPos + 1,
-        endNode,
-      )
-    }
+    // const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+    // const nextBlockPos = $pos.end() + 2
+    // const nextBlockContentPos = nextBlockPos + 2
+    // const $nextBlockPos = state.doc.resolve(nextBlockContentPos)
+    // if (
+    //   endContent.childCount &&
+    //   !(
+    //     endContent.childCount === 1 &&
+    //     endContent.firstChild?.textContent.trim() === ''
+    //   )
+    // ) {
+    //   tr = tr.insert(nextBlockPos, newBlock)
 
-    tr = tr.insert(nextBlockPos, newBlock)
-    tr = tr.replaceWith(
-      $nextBlockPos.before($nextBlockPos.depth),
-      nextBlockContentPos + 1,
-      node,
-    )
-    tr = tr.deleteRange(startPos, $pos.end())
+    //   const endNode = $pos.parent.copy(endContent)
+    //   tr = tr.replaceWith(
+    //     $nextBlockPos.before($nextBlockPos.depth),
+    //     nextBlockContentPos + 1,
+    //     endNode,
+    //   )
+    // }
+
+    // tr = tr.insert(nextBlockPos, newBlock)
+    // tr = tr.replaceWith(
+    //   $nextBlockPos.before($nextBlockPos.depth),
+    //   nextBlockContentPos + 1,
+    //   node,
+    // )
+    // tr = tr.deleteRange(startPos, endPos)
   } else {
     const {posBeforeNode} = getNodeById(selectedId, state.doc)
     const blockInfo = getBlockInfoFromPos(state, posBeforeNode + 1)
