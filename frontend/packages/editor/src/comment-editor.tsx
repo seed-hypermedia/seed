@@ -640,7 +640,7 @@ export function CommentEditor({
         <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
           <div
             className={cn(
-              'comment-editor min-h-8 flex-1',
+              'comment-editor max-h-[160px] min-h-8 flex-1 overflow-y-auto md:max-h-full',
               isEditorFocused
                 ? 'justify-start px-3 pt-1 pb-2'
                 : 'justify-center',
