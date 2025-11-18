@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -46,11 +47,8 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		return err
 	}
 	request := &p2p.FetchBlobsRequest{}
-	for cid, _ := range cids {
+	for cid := range cids {
 		request.Cids = append(request.Cids, cid.String())
-	}
-	if err := streamTx.Send(&documents.SyncingProgress{BlobsDiscovered: int32(len(cids))}); err != nil {
-		return err
 	}
 
 	pid, err := peer.Decode(req.Pid)
@@ -59,7 +57,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	}
 	syncClient, err := srv.sync.SyncingClient(ctx, pid)
 	if err != nil {
-		return fmt.Errorf("Could not get p2p client: %w", err)
+		return fmt.Errorf("could not get p2p client: %w", err)
 	}
 	streamRx, err := syncClient.FetchBlobs(ctx, request)
 	if err != nil {
@@ -68,7 +66,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 
 	for {
 		progIn, err := streamRx.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			_ = streamTx.Send(progIn) // ignore send error on termination
 			return nil
 		}
