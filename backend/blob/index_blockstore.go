@@ -95,11 +95,6 @@ func (idx *Index) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 	return idx.bs.AllKeysChan(ctx)
 }
 
-// HashOnRead implements the IPFS Blockstore interface.
-func (idx *Index) HashOnRead(enabled bool) {
-	panic("BUG: DO NOT USE THIS!")
-}
-
 // Decompress decodes a compress blob content using the same codec as the underlying blockstore.
 //
 // TODO(burdiyan): this should probably not be exposed, but it is right now for convenience.

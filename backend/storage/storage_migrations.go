@@ -57,6 +57,47 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-11-18.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := scheduleReindex(conn); err != nil {
+			return err
+		}
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE public_blobs (
+    			id INTEGER PRIMARY KEY REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL
+       		) WITHOUT ROWID;
+
+			CREATE VIEW blob_links_with_types (
+			    source,
+			    source_type,
+			    link_type,
+			    target,
+			    target_type
+			) AS
+		    SELECT
+		        bl.source,
+		        COALESCE(sb1.type, 'Raw') AS source_type,
+		        bl.type AS link_type,
+		        bl.target,
+		        COALESCE(sb2.type, 'Raw') AS target_type
+		    FROM blob_links bl
+		    LEFT JOIN structural_blobs sb1 ON sb1.id = bl.source
+		    LEFT JOIN structural_blobs sb2 ON sb2.id = bl.target;
+
+			CREATE TABLE blob_visibility_rules (
+			    source_type TEXT NOT NULL,
+			    link_type TEXT NOT NULL,
+			    target_type TEXT NOT NULL,
+				PRIMARY KEY (source_type, link_type, target_type)
+			) WITHOUT ROWID;
+
+			INSERT INTO blob_visibility_rules VALUES
+			('Change', 'change/dep', 'Change'),
+			('Ref', 'ref/head', 'Change'),
+			('*', '*', 'DagPB'),
+			('*', '*', 'Raw');
+		`))
+	}},
+
 	{Version: "2025-08-04.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		// Remove trailing slashes from subscription IRIs and add a DB check to avoid it.
 		return sqlitex.ExecScript(conn, sqlfmt(`

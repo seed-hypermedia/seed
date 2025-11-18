@@ -41,15 +41,16 @@ type Ref struct {
 
 	Space_      core.Principal  `refmt:"space,omitempty"` // Use Space() method.
 	Path        string          `refmt:"path,omitempty"`
-	GenesisBlob cid.Cid         `refmt:"genesisBlob,omitempty"`
+	GenesisBlob cid.Cid         `refmt:"genesisBlob,omitempty"` // TODO(burdiyan): this should probably be deprecated and generation should be enough.
 	Capability  cid.Cid         `refmt:"capability,omitempty"`
 	Heads       []cid.Cid       `refmt:"heads"`
 	Redirect    *RedirectTarget `refmt:"redirect,omitempty"`
 	Generation  int64           `refmt:"generation,omitempty"`
+	Visibility  Visibility      `refmt:"visibility,omitempty"`
 }
 
 // NewRef creates a new Ref blob.
-func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time) (eb Encoded[*Ref], err error) {
+func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Principal, path string, heads []cid.Cid, ts time.Time, visibility Visibility) (eb Encoded[*Ref], err error) {
 	ru := &Ref{
 		BaseBlob: BaseBlob{
 			Type:   TypeRef,
@@ -60,6 +61,7 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 		GenesisBlob: genesis,
 		Heads:       heads,
 		Generation:  generation,
+		Visibility:  visibility,
 	}
 
 	if !kp.Principal().Equal(space) {
@@ -173,10 +175,11 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	c, v := eb.CID, eb.Decoded
 
 	type Meta struct {
-		Tombstone      bool   `json:"tombstone,omitempty"`
-		Generation     int64  `json:"generation,omitempty"`
-		RedirectTarget string `json:"redirect,omitempty"`
-		Republish      bool   `json:"republish,omitempty"`
+		Tombstone      bool       `json:"tombstone,omitempty"`
+		Generation     int64      `json:"generation,omitempty"`
+		RedirectTarget string     `json:"redirect,omitempty"`
+		Republish      bool       `json:"republish,omitempty"`
+		Visibility     Visibility `json:"visibility,omitempty"`
 	}
 
 	// We decided not to allow redirects or tombstones for home documents for now.
@@ -192,10 +195,11 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	}
 
 	var sb structuralBlob
+	// Refs have explicit visibility field.
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, TypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts)
+		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts, v.Visibility)
 	} else {
-		sb = newStructuralBlob(c, TypeRef, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{})
+		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{}, v.Visibility)
 	}
 
 	if v.GenesisBlob.Defined() {
@@ -204,6 +208,7 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 
 	meta := Meta{
 		Generation: v.Generation,
+		Visibility: v.Visibility,
 	}
 
 	switch {
@@ -224,6 +229,16 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 	// All the other cases are invalid.
 	default:
 		return fmt.Errorf("invalid Ref blob invariants %+v", v)
+	}
+
+	if v.Visibility == VisibilityPrivate {
+		if v.Path == "" {
+			return fmt.Errorf("invalid Ref: private Ref must have a path")
+		}
+
+		if v.Path[0] != '/' || strings.Count(v.Path, "/") != 1 {
+			return fmt.Errorf("invalid Ref: private Ref must have a single path segment with a single leading slash: got %s", v.Path)
+		}
 	}
 
 	sb.ExtraAttrs = meta
@@ -300,11 +315,12 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	isTombstone := v.IsTombstone()
+	refTime := v.Ts.UnixMilli()
 
 	if !isTombstone {
 		var queue []int64
 		for _, h := range v.Heads {
-			bsize, err := dbBlobsGetSize(conn, h.Hash())
+			bsize, err := dbBlobsGetSize(conn, h.Hash(), false)
 			if err != nil {
 				return err
 			}
@@ -382,15 +398,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 			return cmp.Compare(a.Ts, b.Ts)
 		})
 
-		if v.Redirect != nil {
-			redirectTarget, err := v.RedirectIRI()
-			if err != nil {
-				return err
-			}
-
-			dg.Metadata.set("$db.redirect", redirectTarget, v.Ts.UnixMilli())
-		}
-
 		for _, cm := range pendingChanges {
 			dg.ensureChangeApplied(cm)
 		}
@@ -409,7 +416,18 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		}
 	}
 
-	refTime := v.Ts.UnixMilli()
+	if v.Redirect != nil {
+		redirectTarget, err := v.RedirectIRI()
+		if err != nil {
+			return err
+		}
+
+		dg.Metadata.set("$db.redirect", redirectTarget, refTime)
+	}
+
+	if v.Visibility != "" {
+		dg.Metadata.set("$db.visibility", string(v.Visibility), refTime)
+	}
 
 	if isTombstone {
 		dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, refTime)

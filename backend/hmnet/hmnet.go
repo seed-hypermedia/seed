@@ -135,7 +135,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.IPFSBlockstore())
+	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.PublicBlockstore())
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -200,7 +200,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}()
 
 	rpc := &rpcMux{Node: n}
-	syn := syncing.NewServer(n.db, n.index)
+	syn := syncing.NewServer(n.db)
 	syn.RegisterServer(n.grpc)
 	p2p.RegisterP2PServer(n.grpc, rpc)
 	return n, nil
@@ -461,7 +461,6 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 
 	opts := []libp2p.Option{
 		libp2p.UserAgent(userAgent),
-
 		libp2p.EnableHolePunching(),
 	}
 

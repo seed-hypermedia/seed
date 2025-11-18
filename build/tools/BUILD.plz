@@ -21,14 +21,6 @@ go_binary(
     workdir = "../..",
 )
 
-go_binary(
-    name = "gqlgen",
-    srcs = [],
-    gomod = "//:gomod",
-    package = "github.com/99designs/gqlgen",
-    workdir = "../..",
-)
-
 yarn_binary(
     name = "protoc-gen-es",
     yarn_deps = "//:yarn",

@@ -82,7 +82,7 @@ func (srv *Server) CreateComment(ctx context.Context, in *documents.CreateCommen
 		}
 	}
 
-	eb, err := blob.NewComment(kp, "", space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), clock.MustNow())
+	eb, err := blob.NewComment(kp, "", space, in.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(in.Content), blob.VisibilityPublic, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +593,7 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 		}
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), clock.MustNow())
+	eb, err := blob.NewComment(kp, rid.TSID, space, comment.TargetPath, versionHeads, threadRoot, replyParent, commentContentFromProto(comment.Content), blob.VisibilityPublic, clock.MustNow())
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +650,7 @@ func (srv *Server) DeleteComment(ctx context.Context, in *documents.DeleteCommen
 		return nil, status.Errorf(codes.PermissionDenied, "only the original author can delete a comment")
 	}
 
-	eb, err := blob.NewComment(kp, rid.TSID, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, clock.MustNow())
+	eb, err := blob.NewComment(kp, rid.TSID, originalComment.Comment.Space(), originalComment.Comment.Path, originalComment.Comment.Version, cid.Undef, cid.Undef, nil, blob.VisibilityPublic, clock.MustNow())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to delete comment: %v", err)
 	}

@@ -149,7 +149,8 @@ func indexProfile(ictx *indexingCtx, id int64, eb Encoded[*Profile]) error {
 		}
 	}
 
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, owner, time.Time{})
+	// Contact blobs have public visibility.
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, owner, time.Time{}, VisibilityPublic)
 
 	signer, err := ictx.ensurePubKey(v.Signer)
 	if err != nil {

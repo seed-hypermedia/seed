@@ -358,6 +358,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 				b.codec,
 				b.multihash
 			FROM rbsr_blobs rb
+			CROSS JOIN public_blobs pb ON pb.id = rb.id
 			CROSS JOIN structural_blobs sb ON sb.id = rb.id
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
 			ORDER BY sb.ts;`

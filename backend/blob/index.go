@@ -1,7 +1,6 @@
 package blob
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,12 +10,10 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
-	"seed/backend/util/btree"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
 	"seed/backend/util/strbytes"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +21,6 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
-	blockstore "github.com/ipfs/boxo/blockstore"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
@@ -119,11 +115,6 @@ func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, 
 	return idx, nil
 }
 
-// IPFSBlockstore returns the blockstore used by the index.
-func (idx *Index) IPFSBlockstore() blockstore.Blockstore {
-	return idx.bs
-}
-
 func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
@@ -189,6 +180,10 @@ func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data [
 		}
 	}
 
+	if err := propagateVisibility(ictx, id); err != nil {
+		return fmt.Errorf("failed to propagate visibility for blob: %s (%d): %w", c.String(), id, err)
+	}
+
 	return err
 }
 
@@ -223,6 +218,7 @@ type ChangeRecord struct {
 	CID        cid.Cid
 	Data       *Change
 	Generation int64
+	Visibility Visibility
 }
 
 // iterChangesLatest iterates over changes for a given resource for the latest generation.
@@ -239,31 +235,86 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 		defer release()
 
-		generations, err := idx.loadGenerations(conn, resource)
-		if err != nil {
+		// Query the latest generation from document_generations table.
+		var dg documentGeneration
+		q := dqb.Select(
+			"dg.resource",
+			"dg.genesis_change_time",
+			"dg.last_change_time",
+			"dg.last_tombstone_ref_time",
+			"dg.last_alive_ref_time",
+			"dg.generation",
+			"dg.genesis",
+			"dg.last_comment",
+			"dg.last_comment_time",
+			"dg.comment_count",
+			"dg.heads",
+			"dg.changes",
+			"dg.change_count",
+			"dg.authors",
+			"dg.metadata",
+		).
+			From("document_generations dg", "resources r").
+			Where("r.id = dg.resource").
+			Where("r.iri = ?").
+			OrderBy("dg.generation DESC").
+			Limit("1").
+			String()
+
+		rows, discard, check := sqlitex.Query(conn, q, resource)
+		defer discard(&outErr)
+		found := false
+		for row := range rows {
+			if err := dg.fromRow(row); err != nil {
+				outErr = err
+				return
+			}
+			found = true
+		}
+		if err := check(); err != nil {
 			outErr = err
 			return
 		}
 
-		if len(generations) == 0 {
+		if !found {
 			return
 		}
 
-		maxRef := generations[0]
-
-		if maxRef.IsTombstone && maxRef.RedirectTarget == "" {
-			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
-			return
+		// Check for redirects.
+		var hasRedirect bool
+		var targetIRI IRI
+		if rt, ok := dg.Metadata["$db.redirect"]; ok {
+			hasRedirect = true
+			var ok bool
+			targetIRI, ok = rt.Value.(IRI)
+			if !ok {
+				// Try string conversion as fallback
+				if s, ok := rt.Value.(string); ok {
+					targetIRI = IRI(s)
+				} else {
+					outErr = fmt.Errorf("invalid redirect target type: %T", rt.Value)
+					return
+				}
+			}
 		}
 
-		if maxRef.RedirectTarget != "" {
-			space, path, err := maxRef.RedirectTarget.SpacePath()
+		// Check if it's a tombstone (deleted document).
+		// A document is deleted when last_tombstone_ref_time > last_alive_ref_time
+		isDeleted := dg.LastTombstoneRefTime > dg.LastAliveRefTime
+
+		// Handle redirects
+		if hasRedirect {
+			space, path, err := targetIRI.SpacePath()
 			if err != nil {
 				outErr = err
 				return
 			}
-			republish := !maxRef.IsTombstone // If it's a tombstone it's not a republish.
-			outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s (republish = %v)", resource, maxRef.RedirectTarget, republish).
+
+			// If it's deleted and has a redirect, it's a tombstone redirect (not republish)
+			// If it's not deleted and has a redirect, it's a republish
+			republish := !isDeleted
+
+			outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s (republish = %v)", resource, targetIRI, republish).
 				WithDetails(&documents.RedirectErrorDetails{
 					TargetAccount: space.String(),
 					TargetPath:    path,
@@ -272,27 +323,33 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 			return
 		}
 
-		var heads []int64
-		for i, gen := range generations {
-			// We only take into account those Refs that coincide with the latest generation and genesis.
-			if i > 0 && (gen.GenesisID != maxRef.GenesisID || gen.Generation != maxRef.Generation) {
-				continue
-			}
-
-			heads = append(heads, gen.Heads...)
+		// Check if it's a deleted document (tombstone without redirect).
+		if isDeleted {
+			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+			return
 		}
 
-		slices.Sort(heads)
-		heads = slices.Compact(heads)
+		// Convert the roaring bitmap to an array of change IDs.
+		var changeIDs []int64
+		if dg.Changes != nil {
+			it := dg.Changes.Iterator()
+			for it.HasNext() {
+				changeIDs = append(changeIDs, int64(it.Next())) //nolint:gosec // We know this should not overflow.
+			}
+		}
 
-		headJSON, err := json.Marshal(heads)
+		if len(changeIDs) == 0 {
+			return
+		}
+
+		changesJSON, err := json.Marshal(changeIDs)
 		if err != nil {
 			outErr = err
 			return
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headJSON))
+		rows, discard, check = sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(changesJSON))
 		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -318,7 +375,11 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 			rec := ChangeRecord{
 				CID:        chcid,
 				Data:       ch,
-				Generation: maxRef.Generation,
+				Generation: dg.Generation,
+			}
+
+			if v, ok := dg.Metadata["$db.visibility"]; ok {
+				rec.Visibility = Visibility(v.Value.(string))
 			}
 
 			if !yield(rec) {
@@ -400,72 +461,87 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 			}
 		}
 
-		generations, err := idx.loadGenerations(conn, resource)
+		// Query document generations sorted by most recent.
+		lookup := NewLookupCache(conn)
+		versionGenesisCID, err := lookup.CID(versionGenesis)
 		if err != nil {
 			outErr = err
 			return
 		}
 
-		if len(generations) == 0 {
-			return
-		}
+		q := dqb.Select(
+			"dg.resource",
+			"dg.genesis_change_time",
+			"dg.last_change_time",
+			"dg.last_tombstone_ref_time",
+			"dg.last_alive_ref_time",
+			"dg.generation",
+			"dg.genesis",
+			"dg.last_comment",
+			"dg.last_comment_time",
+			"dg.comment_count",
+			"dg.heads",
+			"dg.changes",
+			"dg.change_count",
+			"dg.authors",
+			"dg.metadata",
+		).
+			From("document_generations dg", "resources r").
+			Where("r.id = dg.resource").
+			Where("r.iri = ?").
+			Where("dg.genesis = ?").
+			OrderBy("dg.generation DESC").
+			String()
 
-		type lineageID struct {
-			Generation int64
-			GenesisID  int64
-		}
+		rows2, discard2, check2 := sqlitex.Query(conn, q, resource, versionGenesisCID.String())
+		defer discard2(&outErr)
 
-		filteredLineages := btree.New[lineageID, []int64](8, func(a, b lineageID) int {
-			if a.Generation < b.Generation {
-				return -1
-			}
-			if a.Generation > b.Generation {
-				return +1
-			}
-			return cmp.Compare(a.GenesisID, b.GenesisID)
-		})
+		var dg maybe.Value[documentGeneration]
+		var foundChanges []int64
 
-		for _, gen := range generations {
-			if gen.GenesisID != versionGenesis {
-				continue
-			}
-
-			linID := lineageID{Generation: gen.Generation, GenesisID: gen.GenesisID}
-
-			heads := filteredLineages.GetMaybe(linID)
-			heads = append(heads, gen.Heads...)
-			filteredLineages.Set(linID, heads)
-		}
-
-		if filteredLineages.Len() == 0 {
-			return
-		}
-
-		var versionGeneration maybe.Value[int64]
-	Loop:
-		for linID, linHeads := range filteredLineages.Items() {
-			graph, err := idx.resolveHeads(conn, linHeads)
-			if err != nil {
+		for row := range rows2 {
+			var g documentGeneration
+			if err := g.fromRow(row); err != nil {
 				outErr = err
 				return
 			}
 
-			// Check if all of our version components are in the graph.
-			// If they are we use this generation, otherwise we skip it.
-			for _, h := range headIDs {
-				_, ok := slices.BinarySearch(graph, h)
-				if ok {
-					versionGeneration = maybe.New(linID.Generation)
-					break Loop
+			// Check if any of our version heads are in this generation's changes.
+			if g.Changes != nil {
+				found := false
+				for _, h := range headIDs {
+					if g.Changes.Contains(uint64(h)) {
+						found = true
+						dg = maybe.New(g)
+
+						// Get all changes from this generation.
+						it := g.Changes.Iterator()
+						for it.HasNext() {
+							foundChanges = append(foundChanges, int64(it.Next())) //nolint:gosec // We know this should not overflow.
+						}
+						break
+					}
+				}
+				if found {
+					break
 				}
 			}
 		}
 
-		if !versionGeneration.IsSet() {
+		outErr = errors.Join(outErr, check2())
+
+		if !dg.IsSet() {
 			return
 		}
 
-		headsJSON, err := json.Marshal(headIDs)
+		// Now we need to get the subset of changes that are reachable from our heads.
+		graph, err := idx.resolveHeads(conn, headIDs)
+		if err != nil {
+			outErr = err
+			return
+		}
+
+		headsJSON, err := json.Marshal(graph)
 		if err != nil {
 			outErr = err
 			return
@@ -505,7 +581,11 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 			rec := ChangeRecord{
 				CID:        chcid,
 				Data:       ch,
-				Generation: versionGeneration.Value(),
+				Generation: dg.Value().Generation,
+			}
+
+			if v, ok := dg.Value().Metadata["$db.visibility"]; ok {
+				rec.Visibility = Visibility(v.Value.(string))
 			}
 
 			if !yield(rec) {
@@ -621,7 +701,7 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 
 	out := make([]int64, len(cids))
 	for i, c := range cids {
-		res, err := dbBlobsGetSize(conn, c.Hash())
+		res, err := dbBlobsGetSize(conn, c.Hash(), false)
 		if err != nil {
 			return nil, err
 		}
@@ -630,47 +710,6 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 		}
 
 		out[i] = res.BlobsID
-	}
-
-	return out, nil
-}
-
-func (idx *Index) loadGenerations(conn *sqlite.Conn, resource IRI) (out []generation, err error) {
-	rows, discard, check := sqlitex.Query(conn, qLoadGenerations(), resource, resource)
-	defer discard(&err)
-	for row := range rows {
-		seq := sqlite.NewIncrementor(0)
-		g := generation{
-			RefID:      row.ColumnInt64(seq()),
-			Generation: row.ColumnInt64(seq()),
-			GenesisID:  row.ColumnInt64(seq()),
-			AuthorID:   row.ColumnInt64(seq()),
-			Ts:         row.ColumnInt64(seq()),
-		}
-
-		{
-			isTomb := row.ColumnInt64(seq())
-			if isTomb != 0 && isTomb != 1 {
-				return nil, fmt.Errorf("BUG: invalid tombstone value %v", isTomb)
-			}
-
-			g.IsTombstone = isTomb == 1
-		}
-
-		{
-			g.RedirectTarget = IRI(row.ColumnText(seq()))
-		}
-
-		if err := json.Unmarshal(row.ColumnBytesUnsafe(seq()), &g.Heads); err != nil {
-			return nil, err
-		}
-
-		out = append(out, g)
-	}
-
-	err = errors.Join(err, check())
-	if err != nil {
-		return nil, err
 	}
 
 	return out, nil
@@ -755,47 +794,6 @@ type generation struct {
 	RedirectTarget IRI
 	Heads          []int64
 }
-
-// TODO: check caps for all parent docs explicitly, instead of relying on prefix matching,
-// because prefix matching doesn't know anything about hierarchical path structure,
-// and just matches strings naively, which may cause correctness issues.
-var qLoadGenerations = dqb.Str(`
-	WITH RECURSIVE
-	space (id, owner) AS (
-		SELECT id, owner FROM resources WHERE iri = :iri
-		LIMIT 1
-	),
-	authors (id) AS (
-		SELECT owner FROM space
-		UNION
-		SELECT extra_attrs->>'del'
-		FROM structural_blobs
-		WHERE type = 'Capability'
-		AND author = (SELECT owner FROM space LIMIT 1)
-		AND resource IN (SELECT id FROM resources WHERE :iri2 BETWEEN iri AND iri || '~~~~~~')
-	),
-	refs (id, generation, genesis, author, ts, is_tombstone, redirect_target, heads) AS (
-		SELECT
-			structural_blobs.id,
-			COALESCE(extra_attrs->>'generation', 0) AS generation,
-			genesis_blob,
-			author,
-			ts,
-			COALESCE(extra_attrs->>'tombstone', 0) AS is_tombstone,
-			COALESCE(extra_attrs->>'redirect', '') AS redirect_target,
-			JSON_GROUP_ARRAY(blob_links.target) AS heads
-		FROM structural_blobs
-		JOIN space ON space.id = structural_blobs.resource
-		JOIN authors ON authors.id = structural_blobs.author
-		LEFT JOIN blob_links ON blob_links.source = structural_blobs.id AND blob_links.type = 'ref/head'
-		WHERE structural_blobs.type = 'Ref'
-		GROUP BY generation, genesis_blob, author
-		HAVING ts = MAX(ts)
-	)
-	SELECT refs.*
-	FROM refs
-	ORDER BY refs.generation DESC, refs.ts DESC;
-`)
 
 // WalkCapabilities walks through capabilities for a specific resource.
 func (idx *Index) WalkCapabilities(ctx context.Context, resource IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
@@ -969,7 +967,7 @@ var qStashBlob = dqb.Str(`
 	INSERT OR IGNORE INTO stashed_blobs (id, reason, extra_attrs) VALUES (?, ?, ?);
 `)
 
-func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
+func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 	var (
 		blobAuthor   maybe.Value[int64]
 		blobResource maybe.Value[int64]
@@ -978,42 +976,42 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 		blobGenesis  maybe.Value[int64]
 	)
 
-	if b.Author != nil {
-		_, kid, err := idx.ensureAccount(b.Author)
+	if sb.Author != nil {
+		_, kid, err := idx.ensureAccount(sb.Author)
 		if err != nil {
 			return err
 		}
 		blobAuthor = maybe.New(kid)
 	}
 
-	if b.GenesisBlob.Defined() {
-		id, err := idx.ensureBlob(b.GenesisBlob)
+	if sb.GenesisBlob.Defined() {
+		id, err := idx.ensureBlob(sb.GenesisBlob)
 		if err != nil {
 			return err
 		}
 		blobGenesis = maybe.New(id)
 	}
 
-	if b.Resource.ID != "" {
-		rid, err := idx.ensureResource(b.Resource.ID)
+	if sb.Resource.ID != "" {
+		rid, err := idx.ensureResource(sb.Resource.ID)
 		if err != nil {
 			return err
 		}
 		blobResource = maybe.New(rid)
 
-		if b.Resource.GenesisBlob.Defined() {
-			if _, err := idx.ensureBlob(b.Resource.GenesisBlob); err != nil {
+		if sb.Resource.GenesisBlob.Defined() {
+			if _, err := idx.ensureBlob(sb.Resource.GenesisBlob); err != nil {
 				return err
 			}
 		}
 
-		if err := idx.ensureResourceMetadata(b.Resource.ID, b.Resource.GenesisBlob, b.Resource.Owner, b.Resource.CreateTime); err != nil {
+		if err := idx.ensureResourceMetadata(sb.Resource.ID, sb.Resource.GenesisBlob, sb.Resource.Owner, sb.Resource.CreateTime); err != nil {
 			return err
 		}
 	}
 
-	if b.ExtraAttrs != nil {
-		data, err := json.Marshal(b.ExtraAttrs)
+	if sb.ExtraAttrs != nil {
+		data, err := json.Marshal(sb.ExtraAttrs)
 		if err != nil {
 			return err
 		}
@@ -1021,15 +1019,15 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 		blobMeta = maybe.New(data)
 	}
 
-	if !b.Ts.IsZero() {
-		blobTime = maybe.New(b.Ts.UnixMilli())
+	if !sb.Ts.IsZero() {
+		blobTime = maybe.New(sb.Ts.UnixMilli())
 	}
 
-	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, string(b.Type), blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
+	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, string(sb.Type), blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
 		return err
 	}
 
-	for _, link := range b.BlobLinks {
+	for _, link := range sb.BlobLinks {
 		tgt, err := idx.ensureBlob(link.Target)
 		if err != nil {
 			return fmt.Errorf("failed to ensure link target blob %s: %w", link.Target, err)
@@ -1039,7 +1037,7 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 		}
 	}
 
-	for _, link := range b.ResourceLinks {
+	for _, link := range sb.ResourceLinks {
 		tgt, err := idx.ensureResource(link.Target)
 		if err != nil {
 			return fmt.Errorf("failed to ensure resource %s: %w", link.Target, err)
@@ -1052,6 +1050,12 @@ func (idx *indexingCtx) SaveBlob(b structuralBlob) error {
 
 		if err := dbResourceLinksInsert(idx.conn, idx.blobID, tgt, link.Type, link.IsPinned, meta); err != nil {
 			return fmt.Errorf("failed to insert resource link: %w", err)
+		}
+	}
+
+	if sb.Visibility == VisibilityPublic {
+		if _, err := markBlobPublic(idx.conn, idx.blobID); err != nil {
+			return fmt.Errorf("failed to mark blob as public: %w", err)
 		}
 	}
 
@@ -1138,7 +1142,7 @@ func (idx *indexingCtx) ensureBlob(c cid.Cid) (int64, error) {
 
 	codec, hash := ipfs.DecodeCID(c)
 
-	size, err := dbBlobsGetSize(idx.conn, hash)
+	size, err := dbBlobsGetSize(idx.conn, hash, false)
 	if err != nil {
 		return 0, err
 	}

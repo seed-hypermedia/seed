@@ -115,8 +115,8 @@ func dbFTSGetRawContent(conn *sqlite.Conn, FTSBlobID int64, FTSBlockID, FTSGenes
 	}
 	return rawContent, ftsVersion, nil
 }
-func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string, FTSTs time.Time, FTSGenesisMultihash string) error {
 
+func dbFTSInsertOrReplace(conn *sqlite.Conn, FTSContent, FTSType string, FTSBlobID int64, FTSBlockID, FTSVersion string, FTSTs time.Time, FTSGenesisMultihash string) error {
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetText(":FTSContent", FTSContent)
 		stmt.SetText(":FTSType", FTSType)
@@ -200,11 +200,12 @@ type blobsGetSizeResult struct {
 	BlobsSize int64
 }
 
-func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte) (blobsGetSizeResult, error) {
+func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (blobsGetSizeResult, error) {
 	var out blobsGetSizeResult
 
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetBytes(":blobsMultihash", blobsMultihash)
+		stmt.SetBool(":publicOnly", publicOnly)
 	}
 
 	onStep := func(i int, stmt *sqlite.Stmt) error {
@@ -226,9 +227,14 @@ func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte) (blobsGetSizeResul
 }
 
 var qBlobsGetSize = dqb.Str(`
-	SELECT blobs.id, blobs.size
+	SELECT
+		blobs.id,
+		blobs.size,
+		public_blobs.id IS NOT NULL AS is_public
 	FROM blobs INDEXED BY blobs_metadata_by_hash
+	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
 	WHERE blobs.multihash = :blobsMultihash
+	AND is_public >= :publicOnly
 `)
 
 func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {
@@ -510,117 +516,6 @@ var qResourcesMaybeSetGenesis = dqb.Str(`
 	SET genesis_blob = ?
 	WHERE id = ?
 	AND create_time IS NULL;
-`)
-
-func dbBlobsDelete(conn *sqlite.Conn, blobsMultihash []byte) (int64, error) {
-	var out int64
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetBytes(":blobsMultihash", blobsMultihash)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		if i > 1 {
-			return errors.New("BlobsDelete: more than one result return for a single-kind query")
-		}
-
-		out = stmt.ColumnInt64(0)
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, qBlobsDelete(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: BlobsDelete: %w", err)
-	}
-
-	return out, err
-}
-
-var qBlobsDelete = dqb.Str(`
-	DELETE FROM blobs
-	WHERE blobs.multihash = :blobsMultihash
-	RETURNING blobs.id
-`)
-
-type blobsListKnownResult struct {
-	BlobsID        int64
-	BlobsMultihash []byte
-	BlobsCodec     int64
-}
-
-func dbBlobsListKnown(conn *sqlite.Conn) ([]blobsListKnownResult, error) {
-	var out []blobsListKnownResult
-
-	before := func(stmt *sqlite.Stmt) {
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		out = append(out, blobsListKnownResult{
-			BlobsID:        stmt.ColumnInt64(0),
-			BlobsMultihash: stmt.ColumnBytes(1),
-			BlobsCodec:     stmt.ColumnInt64(2),
-		})
-
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, qBlobsListKnown(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: BlobsListKnown: %w", err)
-	}
-
-	return out, err
-}
-
-var qBlobsListKnown = dqb.Str(`
-	SELECT blobs.id, blobs.multihash, blobs.codec
-	FROM blobs INDEXED BY blobs_metadata
-	-- LEFT JOIN drafts ON drafts.blob = blobs.id
-	WHERE blobs.size >= 0
-	-- AND drafts.blob IS NULL
-	ORDER BY blobs.id
-`)
-
-type blobsGetResult struct {
-	BlobsID        int64
-	BlobsMultihash []byte
-	BlobsCodec     int64
-	BlobsData      []byte
-	BlobsSize      int64
-}
-
-func dbBlobsGet(conn *sqlite.Conn, blobsMultihash []byte) (blobsGetResult, error) {
-	var out blobsGetResult
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetBytes(":blobsMultihash", blobsMultihash)
-	}
-
-	onStep := func(i int, stmt *sqlite.Stmt) error {
-		if i > 1 {
-			return errors.New("BlobsGet: more than one result return for a single-kind query")
-		}
-
-		out.BlobsID = stmt.ColumnInt64(0)
-		out.BlobsMultihash = stmt.ColumnBytes(1)
-		out.BlobsCodec = stmt.ColumnInt64(2)
-		out.BlobsData = stmt.ColumnBytes(3)
-		out.BlobsSize = stmt.ColumnInt64(4)
-		return nil
-	}
-
-	err := sqlitegen.ExecStmt(conn, qBlobsGet(), before, onStep)
-	if err != nil {
-		err = fmt.Errorf("failed query: BlobsGet: %w", err)
-	}
-
-	return out, err
-}
-
-var qBlobsGet = dqb.Str(`
-	SELECT blobs.id, blobs.multihash, blobs.codec, blobs.data, blobs.size
-	FROM blobs
-	WHERE blobs.multihash = :blobsMultihash AND blobs.size >= 0
 `)
 
 func dbSetReindexTime(conn *sqlite.Conn, kvValue string) error {

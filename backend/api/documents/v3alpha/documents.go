@@ -159,6 +159,16 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 
 // CreateDocumentChange implements Documents API v3.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
+	}
+
+	iri, err := makeIRI(ns, in.Path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to make IRI from account=%s and path=%s: %v", in.Account, in.Path, err)
+	}
+
 	{
 		if in.Account == "" {
 			return nil, errutil.MissingArgument("account")
@@ -171,11 +181,17 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		if len(in.Changes) == 0 {
 			return nil, status.Errorf(codes.InvalidArgument, "at least one change is required")
 		}
-	}
 
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
+		if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			// Private documents must have a non-empty path with no slashes except the leading one.
+			if in.Path == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "root documents cannot be private")
+			}
+
+			if strings.Count(in.Path, "/") != 1 {
+				return nil, status.Errorf(codes.InvalidArgument, "private documents must have a simple path with only a leading slash (e.g., '/document-name'): got %s", in.Path)
+			}
+		}
 	}
 
 	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
@@ -202,11 +218,6 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	if err != nil {
 		// If the document is deleted we create a new one, to allow reusing the previously existing path.
 		if status.Code(err) != codes.FailedPrecondition {
-			return nil, err
-		}
-
-		iri, err := makeIRI(ns, in.Path)
-		if err != nil {
 			return nil, err
 		}
 
@@ -249,7 +260,14 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 	newBlobs = append(newBlobs, docChange)
 
-	ref, err := doc.Ref(kp)
+	var visibility blob.Visibility
+	if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		visibility = blob.VisibilityPrivate
+	} else {
+		visibility = blob.VisibilityPublic
+	}
+
+	ref, err := doc.Ref(kp, visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -1222,6 +1240,11 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			Generation: generation,
 		},
 		RedirectInfo: redirectInfo,
+		Visibility:   documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
+	}
+
+	if v, ok := attrs["$db.visibility"]; ok {
+		out.Visibility = docmodel.VisibilityToProto(blob.Visibility(v.Value.(string)))
 	}
 
 	return out, nil
@@ -1323,7 +1346,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			}
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, heads, ts, blob.VisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -1342,7 +1365,7 @@ func (srv *Server) CreateRef(ctx context.Context, in *documents.CreateRefRequest
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse genesis: %v", err)
 		}
 
-		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts)
+		refBlob, err = blob.NewRef(kp, in.Generation, genesis, ns, in.Path, nil, ts, blob.VisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -1534,7 +1557,7 @@ func (srv *Server) ensureProfileGenesis(ctx context.Context, kp *core.KeyPair) e
 		return err
 	}
 
-	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime())
+	ebr, err := blob.NewRef(kp, 0, ebc.CID, space, path, []cid.Cid{ebc.CID}, blob.ZeroUnixTime(), blob.VisibilityPublic)
 	if err != nil {
 		return err
 	}
@@ -1576,6 +1599,7 @@ func (srv *Server) loadDocument(ctx context.Context, account core.Principal, pat
 
 	changes, check := srv.idx.IterChanges(ctx, iri, heads)
 	for ch := range changes {
+		doc.SetVisibility(ch.Visibility)
 		if doc.Generation.IsSet() {
 			if doc.Generation.Value() != ch.Generation {
 				err = fmt.Errorf("BUG: IterChanges returned changes with different generations")
@@ -1677,5 +1701,6 @@ func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 		Genesis:        doc.Genesis,
 		Version:        doc.Version,
 		GenerationInfo: doc.GenerationInfo,
+		Visibility:     doc.Visibility,
 	}
 }

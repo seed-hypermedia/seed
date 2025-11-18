@@ -7,7 +7,6 @@ import (
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 
-	"github.com/ipfs/boxo/blockstore"
 	"google.golang.org/grpc"
 
 	"seed/backend/util/colx"
@@ -17,16 +16,14 @@ import (
 
 // Server is the RPC handler for the syncing service.
 type Server struct {
-	db    *sqlitex.Pool
-	blobs blockstore.Blockstore
+	db *sqlitex.Pool
 }
 
 // NewServer creates a new RPC handler instance.
 // It has to be further registered with the actual [grpc.Server].
-func NewServer(db *sqlitex.Pool, bs blockstore.Blockstore) *Server {
+func NewServer(db *sqlitex.Pool) *Server {
 	return &Server{
-		db:    db,
-		blobs: bs,
+		db: db,
 	}
 }
 
