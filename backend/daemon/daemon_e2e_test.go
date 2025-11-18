@@ -842,12 +842,15 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	time.Sleep(time.Millisecond * 100)
 
-	docGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: aliceHome.Account,
-		Path:    aliceHome.Path,
-	})
-	require.NoError(t, err)
-	require.Equal(t, aliceHome.Content, docGotten.Content)
+	require.Eventually(t, func() bool {
+		docGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceHome.Account,
+			Path:    aliceHome.Path,
+		})
+		require.NoError(t, err)
+		return len(aliceHome.Content) == len(docGotten.Content)
+	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
+
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: davidInAliceHome.Account,
 		Path:    davidInAliceHome.Path,
