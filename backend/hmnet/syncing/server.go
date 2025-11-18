@@ -49,9 +49,11 @@ multihash,
 codec
 FROM blobs
 WHERE codec IN (SELECT value from json_each(:codec_json))
-AND multihash IN (SELECT value from json_each(:multihash_json))
+AND unhex(multihash) IN (SELECT value from json_each(:mhash_json))
+AND size > 0
 `)
 
+// FetchBlobs fetches blobs from the peer that are not present locally.
 func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreamingServer[resources.SyncingProgress]) error {
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -71,8 +73,8 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 		codecs = append(codecs, fmt.Sprintf("%d", cID.Type()))
 		allWants = append(allWants, cID)
 	}
-	codecJson := "[" + strings.Join(codecs, ",") + "]"
-	mhashJson := "[" + strings.Join(mhashes, ",") + "]"
+	codecJSON := "[" + strings.Join(codecs, ",") + "]"
+	mhashJSON := "[" + strings.ToUpper(strings.Join(mhashes, ",")) + "]"
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, qGetBlobs(), func(stmt *sqlite.Stmt) error {
 			mhash := stmt.ColumnBytes(0)
@@ -80,7 +82,7 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 			cID := cid.NewCidV1(uint64(codec), mhash)
 			localHaves.Put(cID)
 			return nil
-		}, mhashJson, codecJson)
+		}, mhashJSON, codecJSON)
 	}); err != nil {
 		return err
 	}
