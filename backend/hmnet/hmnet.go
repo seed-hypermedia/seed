@@ -200,7 +200,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}()
 
 	rpc := &rpcMux{Node: n}
-	syn := syncing.NewServer(n.db)
+	syn := syncing.NewServer(n.db, n.index, n.Bitswap())
 	syn.RegisterServer(n.grpc)
 	p2p.RegisterP2PServer(n.grpc, rpc)
 	return n, nil
