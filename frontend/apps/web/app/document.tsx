@@ -46,7 +46,7 @@ import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
-import {ChevronLeft, MessageSquare, Sparkle} from 'lucide-react'
+import {ChevronLeft, HistoryIcon, MessageSquare} from 'lucide-react'
 import {
   Suspense,
   lazy,
@@ -966,7 +966,7 @@ function MobileInteractionCardCollapsed({
         </Button>
 
         <ButtonLink variant="ghost" {...feedLinkProps}>
-          <Sparkle className="text-muted-foreground size-4" />
+          <HistoryIcon className="text-muted-foreground size-4" />
         </ButtonLink>
 
         <Button

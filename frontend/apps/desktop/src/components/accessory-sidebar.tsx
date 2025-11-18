@@ -29,9 +29,9 @@ import {
   ChevronDown,
   ChevronLeft,
   Folder,
+  HistoryIcon,
   MessageSquare,
   Pencil,
-  Sparkle,
   Users,
 } from 'lucide-react'
 import {useEffect, useLayoutEffect, useMemo, useRef} from 'react'
@@ -322,7 +322,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
 const iconNames = {
   collaborators: Users,
   directory: Folder,
-  activity: Sparkle,
+  activity: HistoryIcon,
   discussions: MessageSquare,
   options: Pencil,
   contacts: Users,

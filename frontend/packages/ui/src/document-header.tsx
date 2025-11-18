@@ -6,7 +6,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {MessageSquare, Sparkle} from 'lucide-react'
+import {HistoryIcon, MessageSquare} from 'lucide-react'
 import {useMemo} from 'react'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
@@ -133,7 +133,9 @@ export function DocumentHeader({
                 {onFeedClick && (
                   <InteractionSummaryItem
                     label="Activity"
-                    icon={<Sparkle className="text-muted-foreground size-3" />}
+                    icon={
+                      <HistoryIcon className="text-muted-foreground size-3" />
+                    }
                     onClick={onFeedClick}
                     count={0}
                   />

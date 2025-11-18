@@ -16,7 +16,7 @@ import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Sparkle} from 'lucide-react'
+import {HistoryIcon} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -602,7 +602,7 @@ export function SiteHeaderMenu({
           }}
           {...feedLinkProps}
         >
-          <Sparkle
+          <HistoryIcon
             className={cn(
               'size-4 flex-none shrink-0',
               isMainFeedVisible

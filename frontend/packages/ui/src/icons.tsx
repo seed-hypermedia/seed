@@ -88,7 +88,6 @@ export {
   ShieldX,
   SlashSquareIcon,
   Smile,
-  Sparkles,
   // AsteriskSquare as SquareAsterisk,
   SquareAsterisk as SquareAsterisk,
   Star,

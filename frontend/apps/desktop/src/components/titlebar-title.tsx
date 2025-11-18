@@ -33,23 +33,14 @@ import {
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
-import {
-  AlertCircle,
-  Contact,
-  Copy,
-  File,
-  Library,
-  Sparkles,
-  Star,
-  X,
-} from '@shm/ui/icons'
+import {AlertCircle, Contact, Copy, File, Library, Star, X} from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {Sparkle} from 'lucide-react'
+import {HistoryIcon} from 'lucide-react'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
@@ -94,7 +85,7 @@ export function TitleContent({
   if (route.key === 'explore') {
     return (
       <>
-        <Sparkles className="size-4" />
+        <HistoryIcon className="size-4" />
         <TitleText {...titleProps}>Explore</TitleText>
       </>
     )
@@ -425,7 +416,7 @@ function BreadcrumbTitle({
             }
           }}
         >
-          <Sparkle className="size-3" />
+          <HistoryIcon className="size-3" />
           Feed
         </Button>
         {displayItems.flatMap((item, itemIndex) => {

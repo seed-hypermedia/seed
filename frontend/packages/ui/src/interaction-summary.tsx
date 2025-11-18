@@ -1,5 +1,5 @@
 import {pluralS} from '@shm/shared/utils/language'
-import {MessageSquare, Sparkle} from 'lucide-react'
+import {HistoryIcon, MessageSquare} from 'lucide-react'
 import {Button} from './button'
 import {Tooltip} from './tooltip'
 
@@ -25,7 +25,7 @@ export function DocInteractionSummary({
         label="activity"
         pluralLabel="activities"
         onClick={onFeedClick}
-        icon={<Sparkle className="size-3" color="currentColor" />}
+        icon={<HistoryIcon className="size-3" color="currentColor" />}
       />
 
       <InteractionSummaryItem

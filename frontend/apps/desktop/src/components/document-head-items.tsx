@@ -3,7 +3,7 @@ import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
 import {DonateButton} from '@shm/ui/donate-button'
 import {InteractionSummaryItem} from '@shm/ui/interaction-summary'
-import {MessageSquare, Sparkle} from 'lucide-react'
+import {HistoryIcon, MessageSquare} from 'lucide-react'
 
 export function DocumentHeadItems({
   docId,
@@ -25,7 +25,7 @@ export function DocumentHeadItems({
     <div className="flex items-center">
       <InteractionSummaryItem
         label="Activity"
-        icon={<Sparkle className="text-muted-foreground size-3" />}
+        icon={<HistoryIcon className="text-muted-foreground size-3" />}
         onClick={onFeedClick}
         count={0}
       />
