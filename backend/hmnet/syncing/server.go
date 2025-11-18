@@ -48,8 +48,7 @@ SELECT distinct
 multihash,
 codec
 FROM blobs
-WHERE codec IN (SELECT value from json_each(:codec_json))
-AND unhex(multihash) IN (SELECT value from json_each(:mhash_json))
+WHERE hex(multihash) IN (SELECT value from json_each(:mhash_json))
 AND size > 0
 `)
 
@@ -61,43 +60,57 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 	prog.StartNotifier(ctx, 100*time.Millisecond)
 	prog.Notify()
 	localHaves := make(colx.HashSet[cid.Cid], len(in.Cids))
-	codecs, mhashes := []string{}, []string{}
+	mhashes := []string{}
 	allWants := make([]cid.Cid, 0, len(in.Cids))
 	wants := make([]cid.Cid, 0, len(in.Cids))
 	for _, cstr := range in.Cids {
 		cID, err := cid.Parse(cstr)
 		if err != nil {
+			prog.PeersFailed.Add(1)
 			return fmt.Errorf("failed to parse cid '%s': %w", cstr, err)
 		}
 		mhashes = append(mhashes, cID.Hash().String())
-		codecs = append(codecs, fmt.Sprintf("%d", cID.Type()))
 		allWants = append(allWants, cID)
 	}
-	codecJSON := "[" + strings.Join(codecs, ",") + "]"
-	mhashJSON := "[" + strings.ToUpper(strings.Join(mhashes, ",")) + "]"
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.ExecTransient(conn, qGetBlobs(), func(stmt *sqlite.Stmt) error {
-			mhash := stmt.ColumnBytes(0)
-			codec := stmt.ColumnInt64(1)
-			cID := cid.NewCidV1(uint64(codec), mhash)
-			localHaves.Put(cID)
-			return nil
-		}, mhashJSON, codecJSON)
-	}); err != nil {
+	prog.PeersFound.Add(1)
+	progIn := &resources.SyncingProgress{
+		BlobsDiscovered: prog.BlobsDiscovered.Load(),
+		BlobsDownloaded: prog.BlobsDownloaded.Load(),
+		BlobsFailed:     prog.BlobsFailed.Load(),
+		PeersFailed:     prog.PeersFailed.Load(),
+		PeersFound:      prog.PeersFound.Load(),
+		PeersSyncedOk:   prog.PeersSyncedOK.Load()}
+	if err := stream.Send(progIn); err != nil {
 		return err
 	}
+
+	mhashJSON := "[\"" + strings.ToUpper(strings.Join(mhashes, "\",\"")) + "\"]"
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetBlobs(), func(stmt *sqlite.Stmt) error {
+			mhash := stmt.ColumnBytesUnsafe(0)
+			codec := stmt.ColumnInt64(1)
+			cID := cid.NewCidV1(uint64(codec), mhash)
+			fmt.Println("cID", cID)
+			localHaves.Put(cID)
+			return nil
+		}, mhashJSON)
+	}); err != nil {
+		prog.PeersFailed.Add(1)
+		return err
+	}
+
+	fmt.Println("localHaves", localHaves)
 	for _, want := range allWants {
 		if !localHaves.Has(want) {
 			prog.BlobsDiscovered.Add(1)
-			progIn := &resources.SyncingProgress{
-				BlobsDiscovered: prog.BlobsDiscovered.Load(),
-				BlobsDownloaded: prog.BlobsDownloaded.Load(),
-				BlobsFailed:     prog.BlobsFailed.Load(),
-				PeersFailed:     prog.PeersFailed.Load(),
-				PeersFound:      prog.PeersFound.Load(),
-				PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-			}
+			progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+			progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+			progIn.BlobsFailed = prog.BlobsFailed.Load()
+			progIn.PeersFailed = prog.PeersFailed.Load()
+			progIn.PeersFound = prog.PeersFound.Load()
+			progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
 			if err := stream.Send(progIn); err != nil {
+				prog.PeersFailed.Add(1)
 				return err
 			}
 			wants = append(wants, want)
@@ -121,14 +134,12 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 			prog.BlobsDownloaded.Add(1)
 			downloaded[i] = blk
 		}
-		progIn := &resources.SyncingProgress{
-			BlobsDiscovered: prog.BlobsDiscovered.Load(),
-			BlobsDownloaded: prog.BlobsDownloaded.Load(),
-			BlobsFailed:     prog.BlobsFailed.Load(),
-			PeersFailed:     prog.PeersFailed.Load(),
-			PeersFound:      prog.PeersFound.Load(),
-			PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-		}
+		progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+		progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+		progIn.BlobsFailed = prog.BlobsFailed.Load()
+		progIn.PeersFailed = prog.PeersFailed.Load()
+		progIn.PeersFound = prog.PeersFound.Load()
+		progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
 		if err := stream.Send(progIn); err != nil {
 			return err
 		}
@@ -138,14 +149,12 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 		return fmt.Errorf("failed to put blobs: %w", err)
 	}
 	prog.PeersSyncedOK.Add(1)
-	progIn := &resources.SyncingProgress{
-		BlobsDiscovered: prog.BlobsDiscovered.Load(),
-		BlobsDownloaded: prog.BlobsDownloaded.Load(),
-		BlobsFailed:     prog.BlobsFailed.Load(),
-		PeersFailed:     prog.PeersFailed.Load(),
-		PeersFound:      prog.PeersFound.Load(),
-		PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-	}
+	progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+	progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+	progIn.BlobsFailed = prog.BlobsFailed.Load()
+	progIn.PeersFailed = prog.PeersFailed.Load()
+	progIn.PeersFound = prog.PeersFound.Load()
+	progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
 
 	return stream.Send(progIn)
 }
