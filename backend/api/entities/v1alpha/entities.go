@@ -460,12 +460,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	cleanQuery := re.ReplaceAllString(in.Query, "")
 	// collapse multiple spaces to a single space
 	cleanQuery = strings.Join(strings.Fields(cleanQuery), " ")
-	fmt.Println(cleanQuery)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
-
-	fmt.Println(cleanQuery)
 	var bodyMatches []fuzzy.Match
 	const entityTypeTitle = "title"
 	var entityTypeContact, entityTypeDoc, entityTypeComment interface{}
