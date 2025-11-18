@@ -34,7 +34,7 @@ import {
   Sparkle,
   Users,
 } from 'lucide-react'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -65,6 +65,10 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   const docId = useRouteDocId()
   const panelsRef = useRef<ImperativePanelGroupHandle>(null)
   const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const prevAccessoryKey = useRef<Options[number]['key'] | undefined>(
+    accessoryKey,
+  )
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
   const tx = useTx()
@@ -158,6 +162,50 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     }
   }, [state?.accessoryWidth])
 
+  // Enforce 480px minimum when opening the accessory panel
+  useLayoutEffect(() => {
+    const isOpening =
+      prevAccessoryKey.current === undefined && accessoryKey !== undefined
+
+    console.log('[480px constraint] Effect running:', {
+      prevAccessoryKey: prevAccessoryKey.current,
+      currentAccessoryKey: accessoryKey,
+      isOpening,
+    })
+
+    if (isOpening) {
+      const container = containerRef.current
+      console.log('[480px constraint] Panel opening, container:', !!container)
+
+      if (container) {
+        // Get the container width
+        const containerWidth = container.getBoundingClientRect().width
+
+        console.log('[480px constraint] Container width:', containerWidth)
+
+        if (containerWidth) {
+          const storedPercent = state?.accessoryWidth || 20
+          const pixelValue = (storedPercent / 100) * containerWidth
+
+          console.log('[480px constraint] Width calculation:', {
+            storedPercent,
+            pixelValue,
+            needsAdjustment: pixelValue < 480,
+          })
+
+          // If the stored percentage would result in less than 480px, adjust it
+          if (pixelValue < 480) {
+            const newPercent = Math.min(50, (480 / containerWidth) * 100)
+            console.log('[480px constraint] Adjusting to:', newPercent)
+            dispatch({type: 'accessoryWidth', value: newPercent})
+          }
+        }
+      }
+    }
+
+    prevAccessoryKey.current = accessoryKey
+  }, [accessoryKey, state?.accessoryWidth, dispatch])
+
   let accessoryTitle = tx('Document Activity')
   if (accessoryKey == 'collaborators') {
     accessoryTitle = tx('Collaborators')
@@ -172,7 +220,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   }
 
   return (
-    <div className="flex h-full flex-1">
+    <div ref={containerRef} className="flex h-full flex-1">
       <PanelGroup
         direction="horizontal"
         ref={panelsRef}
