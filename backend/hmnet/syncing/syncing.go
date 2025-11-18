@@ -89,6 +89,7 @@ var (
 	})
 )
 
+// HmRe is the regular expression to parse IRIS with versions and latest flag.
 var HmRe = regexp.MustCompile(
 	`^hm://` +
 		`(?P<account>[A-Za-z0-9]+)` + // account (required)
