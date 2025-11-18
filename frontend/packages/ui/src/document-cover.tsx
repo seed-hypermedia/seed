@@ -1,8 +1,8 @@
-import {useImageUrl} from './get-file-url'
-import {cn} from './utils'
 import {X} from 'lucide-react'
 import {useCallback, useEffect, useState} from 'react'
 import {createPortal} from 'react-dom'
+import {useImageUrl} from './get-file-url'
+import {cn} from './utils'
 
 interface DocumentCoverProps {
   cover?: string
@@ -100,7 +100,7 @@ export function DocumentCover({cover, className}: DocumentCoverProps) {
       <div
         className={cn(
           'relative h-[25vh] w-full flex-shrink-0 cursor-pointer',
-          cover ? 'bg-transparent' : 'bg-secondary',
+          cover ? 'bg-transparent' : 'bg-accent',
           className,
         )}
         onClick={handleDoubleClick}

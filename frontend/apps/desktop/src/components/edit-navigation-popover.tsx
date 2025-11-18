@@ -344,7 +344,7 @@ function HMDocURLInput({
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'border-color8 text-md bg-secondary align-center line-clamp-1 w-full overflow-hidden rounded-sm border-1 p-1 px-3 text-clip',
+              'border-color8 text-md bg-accent text-accent-foreground align-center line-clamp-1 w-full overflow-hidden rounded-sm border-1 p-1 px-3 text-clip',
               fontClass,
             )}
           >
