@@ -1,6 +1,5 @@
 import _ from 'lodash'
 import {Button, ButtonProps} from './button'
-import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 export function FeedFilters({
@@ -10,11 +9,13 @@ export function FeedFilters({
   onFilterChange: any
   filterEventType?: Array<string>
 }) {
+  console.log('== filterEventType', filterEventType?.length == 0)
   return (
     <div className="-mx-1 flex gap-2 py-2">
       <PredefinedFilter
         className={cn(
-          _.isEqual(filterEventType, []) &&
+          !!filterEventType &&
+            filterEventType?.length == 0 &&
             'border-black/15 bg-black/10 bg-red-500 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
         onClick={() => onFilterChange({filterEventType: []})}
@@ -62,18 +63,6 @@ export function FeedFilters({
       >
         Citation
       </PredefinedFilter>
-      {!!filterEventType && filterEventType?.length != 0 ? (
-        <Tooltip content="Clear Filters">
-          <Button
-            size="xs"
-            className="opacity-50"
-            variant="ghost"
-            onClick={() => onFilterChange([])}
-          >
-            clear
-          </Button>
-        </Tooltip>
-      ) : null}
       {/* <MoreFilters /> */}
     </div>
   )

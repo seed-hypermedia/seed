@@ -4,7 +4,7 @@ import {useAppContext} from '@/app-context'
 import {useStream} from '@shm/shared/use-stream'
 import useMedia from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
-import {ReactNode, useEffect, useRef, useState} from 'react'
+import {ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {
   ImperativePanelHandle,
   Panel,
@@ -31,23 +31,72 @@ export function GenericSidebarContainer({
   const isHoverVisible = useStream(ctx.isHoverVisible)
   const isVisible = isLocked || isHoverVisible
   const ref = useRef<ImperativePanelHandle>(null)
+  const panelContentRef = useRef<HTMLDivElement>(null)
+  const prevIsLocked = useRef<boolean | undefined>(undefined)
   const media = useMedia()
 
   const [wasLocked, setWasLocked] = useState(isLocked)
 
   const {platform} = useAppContext()
 
-  useEffect(() => {
-    // this is needed to sync the panel size with the isLocked state
+  // Enforce 250px minimum when locking sidebar open
+  useLayoutEffect(() => {
+    const isOpening = prevIsLocked.current === false && isLocked === true
+    const isInitialMount =
+      prevIsLocked.current === undefined && isLocked === true
+
+    console.log('[250px constraint] Effect running:', {
+      prevIsLocked: prevIsLocked.current,
+      currentIsLocked: isLocked,
+      isOpening,
+      isInitialMount,
+    })
+
     const panel = ref.current
     if (!panel) return
-    if (isLocked) {
-      panel.resize(15)
-      panel.expand()
-    } else {
-      panel.collapse()
+
+    try {
+      if (isLocked && (isOpening || isInitialMount)) {
+        // Use requestAnimationFrame to ensure layout is complete before measuring
+        requestAnimationFrame(() => {
+          // Use window width as the container since we can't reliably measure the PanelGroup
+          const containerWidth = window.innerWidth
+          const storedPercent = sidebarWidth || 15
+          const pixelValue = (storedPercent / 100) * containerWidth
+
+          console.log('[250px constraint] Width calculation:', {
+            windowWidth: containerWidth,
+            storedPercent,
+            pixelValue,
+            needsAdjustment: pixelValue < 250,
+          })
+
+          // If the stored percentage would result in less than 250px, adjust it
+          if (pixelValue < 250) {
+            const newPercent = Math.min(30, (250 / containerWidth) * 100)
+            console.log('[250px constraint] Adjusting to:', newPercent)
+            panel.resize(newPercent)
+            ctx.onSidebarResize(newPercent)
+          }
+          // Otherwise don't resize - let it use the stored value naturally
+        })
+        panel.expand()
+      } else if (isLocked && !isOpening && !isInitialMount) {
+        // Just sync the size without enforcing minimum
+        panel.resize(sidebarWidth || 15)
+        panel.expand()
+      } else if (!isLocked) {
+        panel.collapse()
+      }
+    } catch (error) {
+      console.log(
+        '[250px constraint] Panel operation failed (panel not ready yet):',
+        error,
+      )
     }
-  }, [isLocked])
+
+    prevIsLocked.current = isLocked
+  }, [isLocked, sidebarWidth, ctx])
 
   useEffect(() => {
     // This is needed to ensure the left sidebar is not visible on mobile. and if it was locked, it will be expanded when on desktop.
@@ -103,6 +152,7 @@ export function GenericSidebarContainer({
         }}
       >
         <div
+          ref={panelContentRef}
           className={cn(
             `flex h-full w-full flex-col pr-1 transition-all duration-200 ease-in-out`,
             isLocked
