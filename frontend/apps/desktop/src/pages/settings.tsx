@@ -1,7 +1,5 @@
 import {useIPC} from '@/app-context'
-import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
-import {IconForm} from '@/components/icon-form'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {useAllDocumentCapabilities} from '@/models/access-control'
@@ -59,9 +57,8 @@ import {Textarea} from '@shm/ui/components/textarea'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Field} from '@shm/ui/form-fields'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Copy, ExternalLink, Pencil} from '@shm/ui/icons'
+import {Copy, ExternalLink} from '@shm/ui/icons'
 import {
   Select,
   SelectContent,
@@ -334,63 +331,6 @@ export function DeveloperSettings() {
         </div>
       </SettingsSection>
       {/* <TestURLCheck /> */}
-    </>
-  )
-}
-
-export function ProfileForm({
-  profile,
-  accountId,
-}: {
-  profile: any // TODO: protile type
-  accountId: string
-}) {
-  const editProfileDialog = useEditProfileDialog()
-  function onCopy() {
-    copyTextToClipboard(accountId)
-    toast.success('Account ID copied!')
-  }
-  return (
-    <>
-      <div className="flex gap-4">
-        <div className="flex flex-shrink-0 flex-grow-0 flex-col items-center">
-          <IconForm url={getDaemonFileUrl(profile?.icon)} />
-        </div>
-        <div className="flex flex-1 flex-col gap-3">
-          <div className="flex flex-col">
-            <Label htmlFor="accountid">Account Id</Label>
-            <div className="flex">
-              <Input
-                className="user-select-none flex-1 rounded-r-none"
-                id="accountid"
-                disabled
-                value={accountId}
-                data-testid="account-id"
-              />
-              <Tooltip content="Copy your account id">
-                <Button
-                  size="iconSm"
-                  onClick={onCopy}
-                  className="rounded-l-none"
-                >
-                  <Copy className="size-4" />
-                </Button>
-              </Tooltip>
-            </div>
-          </div>
-          <div className="flex">
-            <Button
-              onClick={() => {
-                editProfileDialog.open('true')
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit My Profile
-            </Button>
-          </div>
-        </div>
-      </div>
-      {editProfileDialog.content}
     </>
   )
 }

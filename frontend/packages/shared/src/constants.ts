@@ -91,7 +91,6 @@ export const DAEMON_HTTP_URL =
 
 export const DAEMON_FILE_UPLOAD_URL = `${DAEMON_HTTP_URL}/ipfs/file-upload`
 
-export const DAEMON_FILE_URL = `${DAEMON_HTTP_URL}/ipfs`
 export const DAEMON_GRAPHQL_ENDPOINT = `${DAEMON_HOSTNAME}:${DAEMON_HTTP_PORT}/graphql`
 
 export const SITE_BASE_URL =
@@ -115,6 +114,8 @@ export const SEED_HOST_URL =
 
 export const SEED_ASSET_HOST =
   WEB_ENV.SEED_ASSET_HOST || process.env.SEED_ASSET_HOST || IME.SEED_ASSET_HOST
+
+export const DAEMON_FILE_URL = `${SEED_ASSET_HOST || DAEMON_HTTP_URL}/ipfs`
 
 export const WEB_IDENTITY_ORIGIN =
   WEB_ENV.WEB_IDENTITY_ORIGIN ||

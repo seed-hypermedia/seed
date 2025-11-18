@@ -8,7 +8,7 @@ import {
 } from '@shm/shared'
 import {BIG_INT, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
-import {findtIpfsUrlCid} from '@shm/ui/get-file-url'
+import {findIpfsUrlCid} from '@shm/ui/get-file-url'
 
 export async function discoverDocument(
   uid: string,
@@ -71,7 +71,7 @@ export async function discoverMedia(
         node.block.type === 'Image' ||
         (node.block.type === 'Video' && node.block.link)
       ) {
-        const cid = findtIpfsUrlCid(node.block.link)
+        const cid = findIpfsUrlCid(node.block.link)
         if (cid) {
           allReferencdeIpfsCids.add(cid)
         }
