@@ -375,14 +375,15 @@ function DocumentEditor({
   }, [cover])
 
   useEffect(() => {
-    if (!id?.id) return
-    return subscribeDraftFocus(id.id, (blockId: string) => {
+    const focusDocKey = id?.id || route.id
+    if (!focusDocKey) return
+    return subscribeDraftFocus(focusDocKey, (blockId: string) => {
       if (editor) {
         editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
         editor.setTextCursorPosition(blockId, 'end')
       }
     })
-  }, [id])
+  }, [id, route.id])
 
   const contacts = useSelectedAccountContacts()
 

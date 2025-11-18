@@ -13,6 +13,7 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
+import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {ReactNode, useMemo} from 'react'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {ButtonProps} from './button'
@@ -21,7 +22,6 @@ import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
 export function DocumentSmallListItem({
   metadata,
@@ -329,7 +329,7 @@ export function DraftOutline({
   onClick,
   outline = [],
 }: {
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId
   onActivateBlock: (blockId: string) => void
   indented?: number
   onClick?: ButtonProps['onClick']
@@ -365,7 +365,7 @@ function OutlineNode({
   onClick?: ButtonProps['onClick']
   onCloseNav?: () => void
   outlineProps?: any
-  docId: UnpackedHypermediaId
+  docId?: UnpackedHypermediaId
 }) {
   return (
     <>
@@ -389,7 +389,7 @@ function OutlineNode({
       {node.children?.length
         ? node.children.map((child) => {
             let childOutlineProps
-            if (outlineProps) {
+            if (outlineProps && docId) {
               childOutlineProps = useRouteLink(
                 {
                   key: 'document',

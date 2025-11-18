@@ -3,6 +3,7 @@ import {
   HMBlockNode,
   HMDraft,
   HMEntityContent,
+  HMInlineContent,
   UnpackedHypermediaId,
 } from '.'
 import {unpackHmId} from './utils'
@@ -143,14 +144,18 @@ export function getDraftNodesOutline(
   const outline: NodesOutline = []
   children.forEach((child) => {
     if (child.type === 'heading') {
+      // Extract text from inline content, filtering out non-text items
+      const title = child.content
+        .filter(
+          (c: HMInlineContent): c is Extract<HMInlineContent, {type: 'text'}> =>
+            c.type === 'text',
+        )
+        .map((c: Extract<HMInlineContent, {type: 'text'}>) => c.text)
+        .join('')
+
       outline.push({
         id: child.id,
-        title: child.content
-          // @ts-expect-error
-          .map((c) => {
-            if (c.type === 'text') return c.text
-          })
-          .join(''),
+        title: title || undefined,
         entityId: parentEntityId,
         children:
           child.children &&
