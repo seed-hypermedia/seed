@@ -14,8 +14,7 @@ export function FeedFilters({
     <div className="-mx-1 flex gap-2 py-2">
       <PredefinedFilter
         className={cn(
-          !!filterEventType &&
-            filterEventType?.length == 0 &&
+          (!filterEventType || filterEventType.length === 0) &&
             'border-black/15 bg-black/10 bg-red-500 hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 hover:dark:bg-white/15',
         )}
         onClick={() => onFilterChange({filterEventType: []})}
