@@ -9,6 +9,7 @@ import {
   ListDocumentsResponse,
   unpackHmId,
 } from '@shm/shared'
+import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 
 export type HMDirectory = PlainMessage<ListDocumentsResponse>
 
@@ -32,39 +33,18 @@ export const loader = async ({
     const res = await grpcClient.documents.listDocuments({
       account: id.uid,
     })
-    const pathPrefix = id.path ? '/' + id.path.join('/') : '/'
     const idPathLength = id.path?.length || 0
     const directory = res.documents
-      .map((d) => ({
-        ...toPlainMessage(d),
-        metadata: HMDocumentMetadataSchema.parse(
-          d.metadata?.toJson({emitDefaultValues: true}),
-        ),
-      }))
+      .map((d) => prepareHMDocumentInfo(d))
       .filter((doc) => {
-        if (doc.path === '/' || doc.path === '' || doc.path === pathPrefix) {
-          return false
-        }
-        if (!doc.path.startsWith(pathPrefix)) {
-          return false
-        }
+        if (doc.id.path?.length) return false
+        if (!doc.id.id.startsWith(id.id)) return false
         // For Children mode, only include direct children
         if (mode === 'Children') {
-          return doc.path.split('/').slice(1).length === idPathLength + 1
+          return doc.id.path?.length === idPathLength + 1
         }
         // For AllDescendants mode, include all descendants
         return true
-      })
-      .map((doc) => {
-        const docId = hmId(id.uid, {path: doc.path.split('/').slice(1)})
-        return {
-          ...doc,
-          type: 'document' as const,
-          account: docId.uid,
-          path: docId.path || [],
-          metadata: doc.metadata,
-          id: docId,
-        }
       })
     const allAuthors = new Set<string>()
     directory.forEach((doc) => {

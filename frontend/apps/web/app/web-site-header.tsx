@@ -2,16 +2,14 @@ import {useSearchParams} from '@remix-run/react'
 import {
   HMDocument,
   HMEntityContent,
-  hmId,
   HMMetadata,
   HMQueryResult,
-  normalizeDate,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
-import {DocNavigationItem} from '@shm/ui/navigation'
+import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
 
 export type WebSiteHeaderProps = {
@@ -67,13 +65,18 @@ export function WebSiteHeader(
 
   // Directory items for current document (only when not on home)
   const isHomeDoc = props.docId?.path?.length === 0
-  const directoryItems = isHomeDoc ? [] : getDirectoryItems(props)
+  const directoryItems = isHomeDoc
+    ? []
+    : props.siteHomeId
+    ? getSiteNavDirectory({
+        id: props.siteHomeId,
+        directory: props.supportQueries?.[0]?.results,
+      })
+    : []
 
   // For header menu: use home nav items if available, otherwise directory items
   const items: DocNavigationItem[] =
-    homeNavigationItems.length > 0
-      ? homeNavigationItems
-      : getDirectoryItems(props)
+    homeNavigationItems.length > 0 ? homeNavigationItems : directoryItems
 
   return (
     <>
@@ -108,35 +111,4 @@ export function WebSiteHeader(
       />
     </>
   )
-}
-
-function getDirectoryItems(props: {
-  supportQueries?: HMQueryResult[] | undefined
-  docId: UnpackedHypermediaId | null
-}): DocNavigationItem[] {
-  const supportQuery = props.supportQueries?.find(
-    (q) => q.in.uid === props.docId?.uid && !q.in.path?.length,
-  )
-  const directoryItems = supportQuery?.results
-    ?.filter((item) => {
-      return item.path.length === 1
-    })
-    ?.map((item) => {
-      const sortTime = normalizeDate(item.createTime)
-      if (!sortTime) return null
-      return {
-        isPublished: true,
-        isDraft: false,
-        key: item.path.join('/'),
-        id: hmId(item.account, {path: item.path}),
-        sortTime,
-        metadata: item.metadata,
-      }
-    })
-    .filter((item) => !!item)
-  directoryItems
-    ?.sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
-    .reverse()
-  // @ts-expect-error
-  return directoryItems
 }

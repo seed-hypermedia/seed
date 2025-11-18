@@ -1,3 +1,4 @@
+import {useOpenUrl} from '@shm/shared'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -115,7 +116,7 @@ const display = ({
 }: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const {openUrl} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
 
   const containerRef = useRef(null)
   const isInitialized = useRef(false)
@@ -193,8 +194,9 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
-        // @ts-expect-error
-        openUrl(block.props.link)
+        if (block.props.link) {
+          openUrl(block.props.link)
+        }
       }}
       styleProps={{
         padding: '$3',

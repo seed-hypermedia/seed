@@ -26,12 +26,11 @@ import {
   HMDraftMeta,
   HMEntityContent,
   HMNavigationItem,
-  HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 import {
-  documentMetadataParseAdjustments,
+  prepareHMDocumentInfo,
   useResource,
   useResources,
 } from '@shm/shared/models/entity'
@@ -823,10 +822,7 @@ export function usePublishToSite() {
               if (results) {
                 await Promise.all(
                   results.results.map(async (result) => {
-                    const id = hmId(result.account, {
-                      path: result.path,
-                      version: result.version,
-                    })
+                    const {id} = result
                     allReferenceIds.push(id)
                     await extractReferenceMaterials(id, document)
                   }),
@@ -941,33 +937,26 @@ export function usePublishToSite() {
   }
 }
 
+const loadQueryResults = getQueryResultsWithClient(grpcClient)
+
 export function queryListDirectory(
   id?: UnpackedHypermediaId | null,
+  options?: {mode?: 'Children' | 'AllDescendants'},
 ): UseQueryOptions<unknown, unknown, Array<HMDocumentInfo>> {
   return {
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid],
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, options?.mode],
     queryFn: async () => {
       if (!id) return []
-      const results = await grpcClient.documents.listDocuments({
-        account: id.uid,
-        pageSize: BIG_INT,
+      const results = await loadQueryResults({
+        includes: [
+          {
+            space: id.uid,
+            mode: 'Children',
+            path: hmIdPathToEntityQueryPath(id.path),
+          },
+        ],
       })
-      const docs: HMDocumentInfo[] = results.documents
-        .filter((doc) => {
-          return doc.path !== ''
-        })
-        .map((d) => ({
-          ...toPlainMessage(d),
-          type: 'document',
-          id: hmId(d.account, {
-            path: entityQueryPathToHmIdPath(d.path),
-          }).id,
-          metadata: HMDocumentMetadataSchema.parse(
-            d.metadata?.toJson({emitDefaultValues: true}),
-          ),
-          path: entityQueryPathToHmIdPath(d.path),
-        }))
-      return docs
+      return results?.results || []
     },
     enabled: !!id,
   } as const
@@ -977,34 +966,7 @@ export function useListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode: 'Children' | 'AllDescendants'},
 ): UseQueryResult<Array<HMDocumentInfo>> {
-  const fullSpace: UseQueryResult<Array<HMDocumentInfo>> = useQuery(
-    queryListDirectory(id),
-  )
-  // @ts-expect-error
-  const result: UseQueryResult<Array<HMDocumentInfo>> = {
-    ...fullSpace,
-    data: useMemo(() => {
-      if (!fullSpace.data) return []
-      return fullSpace.data.filter((doc) => {
-        if (!id) return false
-        // if doc.path (string[]) is not prefixed by id.path (string[]), return false
-        if (id.path && !id?.path.every((p, idx) => p === doc.path[idx]))
-          return false
-
-        if (id.path && id.path.length === doc.path.length) {
-          return !id.path.every((p, idx) => p === doc.path[idx])
-        }
-
-        // if options.mode is 'Children', check if the number of segments in doc.path is one more than the number of segments in id.path
-        if (options?.mode == 'Children') {
-          if (doc.path.length !== (id.path?.length || 0) + 1) return false
-        }
-
-        return true
-      })
-    }, [fullSpace.data, options?.mode, id?.path]),
-  }
-  return result
+  return useQuery(queryListDirectory(id, options))
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
@@ -1017,21 +979,11 @@ export function useListSite(id?: UnpackedHypermediaId) {
         pageSize: BIG_INT,
       })
       const docs = res.documents
-        .map((d) => ({
-          ...toPlainMessage(d),
-          metadata: HMDocumentMetadataSchema.parse(
-            documentMetadataParseAdjustments(
-              d.metadata?.toJson({emitDefaultValues: true}),
-            ),
-          ),
-        }))
+        .map((d) => prepareHMDocumentInfo(d))
         .filter((doc) => {
-          return doc.path !== ''
+          return doc.path.length > 0
         })
-        .map((doc) => {
-          return {...doc, path: doc.path.slice(1).split('/')}
-        })
-      return docs as HMDocumentInfo[]
+      return docs
     },
   })
 }
@@ -1262,18 +1214,11 @@ export function getDraftEditId(
 export function useSiteNavigationItems(
   siteHomeEntity: HMEntityContent | undefined | null,
 ): DocNavigationItem[] | null {
-  const homeDir = useListDirectory(siteHomeEntity?.id)
+  const homeDir = useListDirectory(siteHomeEntity?.id, {
+    mode: 'Children',
+  })
   const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)
-  const supportQueries = useMemo(() => {
-    const q: HMQueryResult[] = []
-    if (homeDir.data && siteHomeEntity?.id) {
-      q.push({in: siteHomeEntity.id, results: homeDir.data})
-    }
-    return q
-  }, [homeDir.data, siteHomeEntity?.id])
-
   if (!siteHomeEntity) return null
-
   const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
   const navItems: DocNavigationItem[] = navNode
     ? navNode.children
@@ -1293,7 +1238,7 @@ export function useSiteNavigationItems(
         .filter((b) => !!b) || []
     : getSiteNavDirectory({
         id: siteHomeEntity.id,
-        supportQueries,
+        directory: homeDir.data,
         drafts: drafts.data,
       })
   return navItems

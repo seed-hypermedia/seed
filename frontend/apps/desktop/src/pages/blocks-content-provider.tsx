@@ -95,7 +95,6 @@ export function AppBlocksContentProvider({
               }
             : null
         }
-        openUrl={openUrl}
         saveCidAsFile={saveCidAsFile}
         selection={{
           // @ts-expect-error
@@ -157,7 +156,6 @@ export type AppBlocksContentContextValue = {
     blockRef?: string
     blockRange?: BlockRange
   }
-  openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
   onHoverIn?: (id: UnpackedHypermediaId) => void

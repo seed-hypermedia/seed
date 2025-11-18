@@ -3,14 +3,11 @@ import * as z from 'zod'
 import {
   Contact,
   type Account,
-  type ActivitySummary,
   type Block,
   type BlockNode,
-  type Breadcrumb,
   type DeletedEntity,
   type Document,
   type DocumentChangeInfo,
-  type DocumentInfo,
 } from './client/grpc-types'
 
 export const ExactBlockRangeSchema = z.object({
@@ -661,9 +658,12 @@ export type HMDocumentOperationSetAttributes = {
   type: 'SetAttributes'
 }
 
-export type HMBreadcrumb = PlainMessage<Breadcrumb>
-
-export type HMActivitySummary = PlainMessage<ActivitySummary>
+export const HMBreadcrumbSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  isMissing: z.boolean().optional(),
+})
+export type HMBreadcrumb = z.infer<typeof HMBreadcrumbSchema>
 
 export type HMAccount = Omit<PlainMessage<Account>, 'metadata'> & {
   metadata?: HMMetadata
@@ -699,14 +699,44 @@ export type HMChangeSummary = PlainMessage<DocumentChangeInfo> & {
 
 export type HMBlockType = HMBlock['type']
 
-export type HMDocumentInfo = Omit<
-  PlainMessage<DocumentInfo>,
-  'path' | 'metadata'
-> & {
-  type: 'document'
-  path: string[]
-  metadata: HMMetadata
-}
+export const HMActivitySummarySchema = z.object({
+  latestCommentTime: HMTimestampSchema.optional(),
+  latestCommentId: z.string(),
+  commentCount: z.number(),
+  latestChangeTime: HMTimestampSchema,
+  isUnread: z.boolean(),
+})
+export type HMActivitySummary = z.infer<typeof HMActivitySummarySchema>
+
+export const HMGenerationInfoSchema = z.object({
+  genesis: z.string(),
+  generation: z.bigint(),
+})
+export type HMGenerationInfo = z.infer<typeof HMGenerationInfoSchema>
+
+export const HMRedirectInfoSchema = z.object({
+  type: z.literal('redirect'),
+  target: z.string(),
+})
+export type HMRedirectInfo = z.infer<typeof HMRedirectInfoSchema>
+
+export const HMDocumentInfoSchema = z.object({
+  type: z.literal('document'),
+  id: unpackedHmIdSchema,
+  path: z.array(z.string()),
+  authors: z.array(z.string()),
+  createTime: HMTimestampSchema,
+  updateTime: HMTimestampSchema,
+  sortTime: z.instanceof(Date),
+  genesis: z.string(),
+  version: z.string(),
+  breadcrumbs: z.array(HMBreadcrumbSchema),
+  activitySummary: HMActivitySummarySchema,
+  generationInfo: HMGenerationInfoSchema,
+  redirectInfo: HMRedirectInfoSchema.optional(),
+  metadata: HMDocumentMetadataSchema,
+})
+export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>
 
 export type HMChangeGroup = {
   id: string
@@ -896,28 +926,11 @@ export type HMQuery = z.infer<typeof HMQuerySchema>
 
 export type HMTimestamp = z.infer<typeof HMTimestampSchema>
 
-const HMLoadedQueryBlockResultSchema = z.object({
-  type: z.literal('document'),
-  path: z.array(z.string()),
-  metadata: HMDocumentMetadataSchema.nullable(),
-  account: z.string(),
-  version: z.string(),
-  createTime: HMTimestampSchema.optional(),
-  updateTime: HMTimestampSchema.optional(),
-  genesis: z.string(),
-  authors: HMAccountsMetadataSchema,
-  breadcrumbs: z.any(), // todo
-  activitySummary: z.any(),
-})
-export type HMLoadedQueryBlockResult = z.infer<
-  typeof HMLoadedQueryBlockResultSchema
->
-
 export const HMLoadedQuerySchema = z.object({
   type: z.literal('Query'),
   id: z.string(),
   query: HMQuerySchema,
-  results: z.array(HMLoadedQueryBlockResultSchema).nullable(),
+  results: z.array(HMDocumentInfoSchema).optional(),
 })
 
 export type HMLoadedQuery = z.infer<typeof HMLoadedQuerySchema>

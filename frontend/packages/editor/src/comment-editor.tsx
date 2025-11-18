@@ -1,4 +1,4 @@
-import {EditorBlock, writeableStateStream} from '@shm/shared'
+import {EditorBlock, useOpenUrl, writeableStateStream} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
@@ -318,7 +318,7 @@ export function CommentEditor({
   const [isEditorFocused, setIsEditorFocused] = useState(
     () => autoFocus || hasDraftContent || false,
   )
-  const {openUrl} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
@@ -698,7 +698,6 @@ export function CommentEditor({
             onDrop={onDrop}
           >
             {isEditorFocused ? (
-              // @ts-expect-error
               <HyperMediaEditorView editor={editor} openUrl={openUrl} />
             ) : (
               <Button

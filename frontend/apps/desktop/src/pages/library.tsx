@@ -189,18 +189,12 @@ export default function LibraryPage() {
                         icon: <CheckCheck className="size-4" />,
                         onClick: () => {
                           markAsRead(
-                            library.items
-                              ?.map((item) => {
-                                if (item.type === 'site') {
-                                  return hmId(item.id)
-                                }
-                                return hmId(item.account, {
-                                  path: item.path,
-                                })
-                              })
-                              .filter(
-                                (id) => id !== null,
-                              ) as UnpackedHypermediaId[],
+                            library.items?.map((item) => {
+                              if (item.type === 'site') {
+                                return hmId(item.id)
+                              }
+                              return item.id
+                            }) || [],
                           )
                         },
                       },
@@ -235,7 +229,7 @@ export default function LibraryPage() {
                   }
                   return (
                     <LibraryDocumentItem
-                      key={`${item.account}-${item.path}`}
+                      key={item.id.id}
                       item={item}
                       accountsMetadata={library.accountsMetadata || {}}
                     />
@@ -457,7 +451,9 @@ function LibrarySiteItem({
             </div>
             {siteDisplayActivitySummary && (
               <LibraryEntryCommentCount
-                activitySummary={siteDisplayActivitySummary}
+                activitySummary={
+                  siteDisplayActivitySummary as HMActivitySummary
+                }
               />
             )}
           </div>
@@ -465,7 +461,7 @@ function LibrarySiteItem({
             <LibraryEntryUpdateSummary
               accountsMetadata={accountsMetadata}
               latestComment={latestComment}
-              activitySummary={siteDisplayActivitySummary}
+              activitySummary={siteDisplayActivitySummary as HMActivitySummary}
             />
           )}
         </div>
@@ -499,9 +495,7 @@ export function LibraryDocumentItem({
 }) {
   const navigate = useNavigate()
   const metadata = item?.metadata
-  const id = hmId(item.account, {
-    path: item.path,
-  })
+  const id = item.id
   const {isSelecting, selectedDocIds, onSelect} = useContext(
     librarySelectionContext,
   )

@@ -256,7 +256,6 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <BlocksContentProvider
-        openUrl={openUrl}
         debug={false}
         commentStyle
         onBlockSelect={null}

@@ -6,15 +6,16 @@ import {
   HMComment,
   HMDocument,
   HMDocumentInfo,
-  HMDocumentMetadataSchema,
   HMLibraryDocument,
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {documentMetadataParseAdjustments} from '@shm/shared/models/entity'
+import {
+  documentMetadataParseAdjustments,
+  prepareHMDocumentInfo,
+} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {useQuery} from '@tanstack/react-query'
 import {useComments} from './comments'
 import {useContactList} from './contacts'
@@ -108,27 +109,13 @@ export function useLibrary({
     let documents = allDocuments.data
     if (displayMode === 'subscribed') {
       documents = documents?.filter(
-        (doc) =>
-          subscriptions.data?.find((sub) =>
-            isSubscribedBy(
-              hmId(doc.account, {
-                path: doc.path,
-              }),
-              sub,
-            ),
-          ),
+        (doc) => subscriptions.data?.find((sub) => isSubscribedBy(doc.id, sub)),
       )
     } else if (displayMode === 'favorites') {
       documents = documents?.filter(
         (doc) =>
           favorites?.find((fav) => {
-            return (
-              fav &&
-              fav.id ===
-                hmId(doc.account, {
-                  path: doc.path,
-                }).id
-            )
+            return fav && fav.id === doc.id.id
           }),
       )
     }
@@ -182,12 +169,7 @@ function useAllDocuments(enabled: boolean) {
         pageSize: BIG_INT,
       })
       return res.documents.map((docInfo) => {
-        return {
-          ...toPlainMessage(docInfo),
-          metadata: HMDocumentMetadataSchema.parse(docInfo.metadata),
-          type: 'document' as const,
-          path: entityQueryPathToHmIdPath(docInfo.path),
-        } as HMDocumentInfo
+        return prepareHMDocumentInfo(docInfo)
       })
     },
   })
@@ -211,14 +193,7 @@ export function useSiteLibrary(
         documentMetadataParseAdjustments(d.metadata)
       })
       return {
-        documents: res.documents.map((d) => {
-          const metadataJSON = d.metadata?.toJson({emitDefaultValues: true})
-          documentMetadataParseAdjustments(metadataJSON)
-          return {
-            ...toPlainMessage(d),
-            metadata: HMDocumentMetadataSchema.parse(metadataJSON),
-          }
-        }),
+        documents: res.documents.map((d) => prepareHMDocumentInfo(d)),
       }
     },
   })
@@ -230,14 +205,15 @@ export function useSiteLibrary(
   const comments = useComments(commentIds || [])
 
   const data =
-    siteDocuments.data?.documents.map((doc) => ({
-      ...doc,
-      path: entityQueryPathToHmIdPath(doc.path),
-      type: 'document' as const,
-      latestComment: comments.data?.find(
-        (c) => c?.id === doc.activitySummary?.latestCommentId,
-      ),
-    })) || []
+    siteDocuments.data?.documents.map(
+      (doc) =>
+        ({
+          ...doc,
+          latestComment: comments.data?.find(
+            (c) => c?.id === doc.activitySummary?.latestCommentId,
+          ),
+        }) satisfies HMLibraryDocument,
+    ) || []
 
   return {
     ...siteDocuments,

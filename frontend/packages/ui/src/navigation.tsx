@@ -2,14 +2,12 @@ import {
   getMetadataName,
   getNodesOutline,
   HMDocument,
+  HMDocumentInfo,
   HMEntityContent,
-  hmId,
   HMListedDraft,
   HMMetadata,
-  HMQueryResult,
   NavRoute,
   NodeOutline,
-  normalizeDate,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -116,23 +114,18 @@ export type DocNavigationItem = {
   id?: UnpackedHypermediaId
   webUrl?: string
   draftId?: string | null | undefined
+  sortTime?: Date
 }
 
 export function getSiteNavDirectory({
   id,
-  supportQueries,
+  directory,
   drafts,
 }: {
   id: UnpackedHypermediaId
-  supportQueries?: HMQueryResult[]
+  directory?: HMDocumentInfo[]
   drafts?: HMListedDraft[]
 }): DocNavigationItem[] {
-  const directory = supportQueries?.find(
-    (query) =>
-      query.in.uid === id.uid &&
-      (query.in.path || []).join('/') === (id.path || []).join('/'),
-  )
-  const idPath = id.path || []
   const editIds = new Set<string>(
     drafts
       // @ts-expect-error
@@ -151,44 +144,31 @@ export function getSiteNavDirectory({
             id: undefined,
             draftId: draft.id,
             metadata: draft.metadata,
-            // @ts-expect-error
             sortTime: new Date(draft.lastUpdateTime),
             isPublished: false,
           }) satisfies DocNavigationItem,
       ) || []
   const publishedItems: DocNavigationItem[] =
-    directory?.results
-      ?.filter((doc) => {
-        return (
-          (doc.path || []).join('/').startsWith(idPath.join('/')) &&
-          idPath.length === (doc.path || []).length - 1
-        )
-      })
-      ?.map((item) => {
-        const id = hmId(item.account, {path: item.path, latest: true})
-        const sortTime = normalizeDate(item.createTime)
-        if (!sortTime) return null
-        return {
-          key: id.id,
-          id,
-          metadata: item.metadata,
-          sortTime,
-          // isDraft: editIds.has(id.id),
-          draftId: editIds.has(id.id)
-            ? // @ts-expect-error
-              drafts?.find((d) => d.editId?.id === id.id)?.id
-            : undefined,
-          isPublished: true,
-        }
-      })
-      ?.filter((item) => !!item) || []
+    directory?.map((item) => {
+      const id = item.id
+      const sortTime = item.sortTime
+      return {
+        key: id.id,
+        id,
+        metadata: item.metadata,
+        sortTime,
+        draftId: editIds.has(id.id)
+          ? // @ts-expect-error
+            drafts?.find((d) => d.editId?.id === id.id)?.id
+          : undefined,
+        isPublished: true,
+      }
+    }) || []
   unpublishedDraftItems
-    // @ts-expect-error
-    .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
+    .sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0))
     .reverse()
   publishedItems
-    // @ts-expect-error
-    .sort((a, b) => b.sortTime.getTime() - a.sortTime.getTime())
+    .sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0))
     .reverse()
   const directoryItems: DocNavigationItem[] = [
     ...publishedItems,
@@ -229,40 +209,6 @@ export function getSiteNavDirectory({
 //     </YStack>
 //   );
 // }
-
-export function DocDirectory({
-  supportQueries,
-  id,
-  createDirItem,
-  onClick,
-  drafts,
-}: {
-  supportQueries?: HMQueryResult[]
-  id: UnpackedHypermediaId
-  createDirItem?: ((opts: {indented: number}) => ReactNode) | null
-  onClick?: ButtonProps['onClick']
-  drafts?: HMListedDraft[]
-}) {
-  const directoryItems = getSiteNavDirectory({id, supportQueries, drafts})
-  return (
-    <div className="flex flex-col gap-2.5">
-      {directoryItems
-        ? directoryItems.map((doc) => (
-            <DocumentSmallListItem
-              key={doc.draftId || doc.id?.path?.join('/') || doc.id?.id}
-              metadata={doc.metadata}
-              id={doc.id}
-              onClick={onClick}
-              indented={0}
-              draftId={doc.draftId}
-              isPublished={doc.isPublished}
-            />
-          ))
-        : null}
-      {createDirItem?.({indented: 0})}
-    </div>
-  )
-}
 
 export function useNodesOutline(
   document: HMDocument | null | undefined,

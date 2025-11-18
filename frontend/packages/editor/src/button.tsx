@@ -1,3 +1,4 @@
+import {useOpenUrl} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
@@ -76,8 +77,7 @@ const Render = (
   //   {value: 'fill-width', label: 'Fill width'},
   // ]
   // const [link, setLink] = useState(block.props.url)
-  // const openUrl = useOpenUrl()
-  const {openUrl} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
 
   const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {

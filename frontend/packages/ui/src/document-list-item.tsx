@@ -6,7 +6,6 @@ import {
   HMBreadcrumb,
   HMComment,
   HMDocumentInfo,
-  hmId,
   HMLibraryDocument,
   InteractionSummaryPayload,
   UnpackedHypermediaId,
@@ -49,10 +48,7 @@ export function DocumentListItem({
   indent = false,
   onClick,
 }: DocumentListItemProps) {
-  const id = hmId(item.account, {
-    path: item.path,
-    latest: true,
-  })
+  const id = item.id
 
   const metadata = item.metadata
   const itemActivitySummary =

@@ -690,7 +690,7 @@ function PathItemCard({
   }
   const directoryItems = getSiteNavDirectory({
     id: docId,
-    supportQueries,
+    directory: dir.data,
     drafts: drafts.data,
   })
   return (

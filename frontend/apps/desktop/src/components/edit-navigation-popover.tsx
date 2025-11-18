@@ -5,7 +5,7 @@ import {
   dropTargetForElements,
   monitorForElements,
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import {hmId, packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
+import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
@@ -409,7 +409,7 @@ function SearchUI({
         })
         .filter(Boolean) ?? []
     : dirList.data?.map((d, index) => {
-        const id = hmId(d.account, {path: d.path}).id
+        const id = d.id.id
         return {
           key: id,
           title: d.metadata.name || '',

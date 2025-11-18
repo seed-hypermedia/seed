@@ -41,7 +41,6 @@ export type BlocksContentContextValue = {
     blockRange?: BlockRange
   }
   contacts?: PlainMessage<Contact>[] | null
-  openUrl?: (url?: string, newWindow?: boolean) => void
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
   onHoverIn?: (id: UnpackedHypermediaId) => void

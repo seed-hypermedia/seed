@@ -21,6 +21,7 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMEmbedView,
+  HMEntityContent,
   HMInlineContent,
   HMResolvedResource,
   UnpackedHypermediaId,
@@ -2216,10 +2217,7 @@ function QueryBlock({
 
   // Batch load documents and authors
   const docIds = useMemo(
-    () =>
-      sortedItems.map((item) =>
-        hmId(item.account, {path: item.path, latest: true}),
-      ),
+    () => sortedItems.map((item) => item.id),
     [sortedItems],
   )
 
@@ -2232,11 +2230,11 @@ function QueryBlock({
   const accountsMetadata = client.useAccountsMetadata(authorIds)
 
   // Get entity helper function
-  function getEntity(path: string[]) {
+  function getEntity(id: UnpackedHypermediaId) {
     return (
       documents?.find(
         (document: any) =>
-          document.data?.id?.path?.join('/') === path?.join('/'),
+          document.data?.id?.path?.join('/') === id.path?.join('/'),
       )?.data || null
     )
   }
@@ -2269,6 +2267,7 @@ export function BlockContentQuery({block}: BlockContentProps<HMBlockQuery>) {
         columnCount={block.attributes.columnCount}
         banner={block.attributes.banner || false}
         accountsMetadata={{}}
+        getEntity={() => null}
       />
     )
   }
@@ -2830,9 +2829,9 @@ export function DocumentCardGrid({
   accountsMetadata,
   columnCount = 1,
 }: {
-  firstItem: {id: UnpackedHypermediaId; item: HMDocumentInfo} | null
-  items: Array<{id: UnpackedHypermediaId; item: HMDocumentInfo}>
-  getEntity: any
+  firstItem: HMDocumentInfo | undefined
+  items: Array<HMDocumentInfo>
+  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
   accountsMetadata: HMAccountsMetadata
   columnCount?: number
 }) {
@@ -2849,9 +2848,8 @@ export function DocumentCardGrid({
         <div className="flex">
           <DocumentCard
             banner
-            entity={getEntity(firstItem.item.path)}
+            entity={getEntity(firstItem.id)}
             docId={firstItem.id}
-            key={firstItem.item.path.join('/')}
             accountsMetadata={accountsMetadata}
           />
         </div>
@@ -2861,14 +2859,10 @@ export function DocumentCardGrid({
           {items.map((item) => {
             if (!item) return null
             return (
-              <div
-                className={cn(columnClasses, 'flex p-3')}
-                key={item.item.account + '/' + item.item.path.join('/')}
-              >
+              <div className={cn(columnClasses, 'flex p-3')} key={item.id.id}>
                 <DocumentCard
                   docId={item.id}
-                  entity={getEntity(item.item.path)}
-                  key={item.item.path.join('/')}
+                  entity={getEntity(item.id)}
                   accountsMetadata={accountsMetadata}
                 />
               </div>
