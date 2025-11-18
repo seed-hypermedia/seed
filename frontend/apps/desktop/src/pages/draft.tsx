@@ -383,7 +383,7 @@ function DocumentEditor({
         editor.setTextCursorPosition(blockId, 'end')
       }
     })
-  }, [id, route.id])
+  }, [id, route.id, editor])
 
   const contacts = useSelectedAccountContacts()
 
@@ -432,6 +432,7 @@ function DocumentEditor({
                     <DocNavigationDraftLoader
                       showCollapsed={showCollapsed}
                       id={id}
+                      editor={editor}
                     />
                   </div>
                 ) : null}

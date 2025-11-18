@@ -11,6 +11,7 @@ import {
 } from '@/models/documents'
 import {useSubscribedResource} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
+import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {
   getDraftNodesOutline,
   getNodesOutline,
@@ -27,7 +28,7 @@ import {
   DraftOutline,
   useNodesOutline,
 } from '@shm/ui/navigation'
-import {ReactNode, useMemo} from 'react'
+import {ReactNode, useEffect, useMemo, useState} from 'react'
 
 export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   const route = useNavRoute()
@@ -92,9 +93,11 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
 export function DocNavigationDraftLoader({
   showCollapsed,
   id,
+  editor,
 }: {
   showCollapsed: boolean
   id?: UnpackedHypermediaId
+  editor?: BlockNoteEditor
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -131,11 +134,27 @@ export function DocNavigationDraftLoader({
     siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
   const embeds = useDocumentEmbeds(document)
 
-  // Use draft outline if draft has content, otherwise fallback to document outline
+  // Force re-render when editor content changes
+  const [updateCounter, setUpdateCounter] = useState(0)
+  useEffect(() => {
+    if (!editor?._tiptapEditor) return
+    const handleUpdate = () => {
+      setUpdateCounter((c) => c + 1)
+    }
+    editor._tiptapEditor.on('update', handleUpdate)
+    return () => {
+      editor._tiptapEditor.off('update', handleUpdate)
+    }
+  }, [editor])
+
+  // Use editor's current blocks if available, otherwise fallback to saved draft content
   const draftOutline = useMemo(() => {
+    if (editor?.topLevelBlocks) {
+      return getDraftNodesOutline(editor.topLevelBlocks, id, embeds)
+    }
     if (!draft?.content) return []
     return getDraftNodesOutline(draft.content, id, embeds)
-  }, [id, draft, embeds])
+  }, [id, draft, embeds, editor, updateCounter])
 
   // Generate document outline as fallback
   const documentOutline = useMemo(() => {
@@ -146,19 +165,21 @@ export function DocNavigationDraftLoader({
   // Use draft outline if available, otherwise use document outline
   const outline = draftOutline.length > 0 ? draftOutline : documentOutline
 
-  if (!document || !siteListQuery || !metadata) return null
+  if (!outline.length) return null
+
+  const focusDocKey = id?.id ?? route.id
 
   return (
     <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
-      {id && outline.length > 0 ? (
-        <DraftOutline
-          outline={outline}
-          onActivateBlock={(blockId: string) => {
-            focusDraftBlock(id?.id, blockId)
-          }}
-          id={id}
-        />
-      ) : null}
+      <DraftOutline
+        outline={outline}
+        onActivateBlock={(blockId: string) => {
+          if (focusDocKey) {
+            focusDraftBlock(focusDocKey, blockId)
+          }
+        }}
+        id={id}
+      />
     </DocNavigationWrapper>
   )
 }
