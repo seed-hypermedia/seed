@@ -648,7 +648,7 @@ func TestSubscriptions(t *testing.T) {
 		Account: aliceHome.Account,
 		Path:    aliceHome.Path,
 	})
-	require.NoError(t, err, "bob is not explicitly subscribed to alice's home, but he should get it anyway as he has subscriptions to other alice's documents")
+	require.Error(t, err, "bob is not explicitly subscribed to alice's home, so should not have it")
 
 	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
@@ -788,8 +788,8 @@ func TestSubscriptions(t *testing.T) {
 
 	carolRoots, err := carol.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
 	require.NoError(t, err)
-	require.Len(t, carolRoots.Documents, 3, "Carol must have Alice's & Bob's root document and her own")
-	require.Equal(t, carolHome.Version, carolRoots.Documents[2].Version, "Carol must only have her own root document, because she is not explicitly subscribed to other roots")
+	require.Len(t, carolRoots.Documents, 1, "Carol must have Alice's & Bob's root document and her own")
+	require.Equal(t, carolHome.Version, carolRoots.Documents[0].Version, "Carol must only have her own root document, because she is not explicitly subscribed to other roots")
 
 	carolComment, err := carol.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: aliceHondaUpdated.Account,
@@ -826,12 +826,12 @@ func TestSubscriptions(t *testing.T) {
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: carolHome.Account,
 	})
-	require.NoError(t, err, "Commenter's profiles should not be missing they are part of related content")
+	require.Error(t, err, "Commenter's profiles might be missing and need to be fetched separately")
 
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: carolIdentity.Account.PublicKey.String(),
 	})
-	require.NoError(t, err, "bob is not subscribed to carol's home but he should get it anyway as he has a comment from her")
+	require.Error(t, err, "bob is not subscribed to carol's home")
 	time.Sleep(time.Millisecond * 100)
 
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
