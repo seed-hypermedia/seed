@@ -90,7 +90,6 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 			mhash := stmt.ColumnBytesUnsafe(0)
 			codec := stmt.ColumnInt64(1)
 			cID := cid.NewCidV1(uint64(codec), mhash)
-			fmt.Println("cID", cID)
 			localHaves.Put(cID)
 			return nil
 		}, mhashJSON)
@@ -99,7 +98,6 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 		return err
 	}
 
-	fmt.Println("localHaves", localHaves)
 	for _, want := range allWants {
 		if !localHaves.Has(want) {
 			prog.BlobsDiscovered.Add(1)
