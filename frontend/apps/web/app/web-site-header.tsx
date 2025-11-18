@@ -26,9 +26,10 @@ export type WebSiteHeaderProps = {
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
 }
 
-export function WebSiteHeader(
-  props: React.PropsWithChildren<WebSiteHeaderProps>,
-) {
+export function WebSiteHeader({
+  origin,
+  ...props
+}: React.PropsWithChildren<WebSiteHeaderProps>) {
   const [searchParams] = useSearchParams()
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' ||

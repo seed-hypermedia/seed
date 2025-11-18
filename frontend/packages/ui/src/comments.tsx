@@ -3,6 +3,7 @@ import {
   AlertDialogTitle,
 } from '@radix-ui/react-alert-dialog'
 import {
+  BlockRange,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -69,6 +70,7 @@ export function CommentDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
+  selection,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -78,6 +80,10 @@ export function CommentDiscussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  }
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const focusedCommentRef = useRef<HTMLDivElement>(null)
@@ -297,6 +303,7 @@ export function CommentDiscussions({
             isFirst={!(hasParents && showParents)}
             isLast={true}
             highlight
+            selection={selection}
           />
         </div>
       )}
@@ -633,6 +640,7 @@ export function Comment({
   targetDomain,
   heading,
   externalTarget,
+  selection,
 }: {
   comment: HMComment
   isFirst?: boolean
@@ -648,6 +656,10 @@ export function Comment({
   currentAccountId?: string
   heading?: ReactNode
   externalTarget?: HMMetadataPayload
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  }
 }) {
   const tx = useTxString()
   let renderContent = renderCommentContent
@@ -663,6 +675,7 @@ export function Comment({
         debug={false}
         collapsedBlocks={new Set()}
         setCollapsedBlocks={() => {}}
+        selection={selection}
       >
         <BlocksContent hideCollapseButtons blocks={comment.content} />
       </BlocksContentProvider>

@@ -11,11 +11,17 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
-import {queryClient, queryKeys} from '@shm/shared'
+import {
+  entityQueryPathToHmIdPath,
+  queryClient,
+  queryKeys,
+  routeToHref,
+} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback} from 'react'
 
 import {useSizeObserver} from '@/utils/use-size-observer'
+import {hmId} from '@shm/shared'
 import {
   HMBlockEmbed,
   HMComment,
@@ -37,6 +43,7 @@ import {Button} from '@shm/ui/button'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
@@ -69,11 +76,30 @@ export function renderCommentContent(comment: HMComment) {
       textUnit={14}
       layoutUnit={16}
       commentStyle
-      onBlockSelect={(blockId, blockRange) => {
-        console.log('=== onBlockSelect', blockId, blockRange)
-        // copyTextToClipboard(blockId)
-        copyUrlToClipboardWithFeedback('asdfg', 'Comment Block Link')
-        // comment.targetAccount
+      onBlockSelect={(blockId, opts) => {
+        if (opts?.copyToClipboard) {
+          const href = routeToHref({
+            key: 'document',
+            id: hmId(comment.targetAccount, {
+              path: entityQueryPathToHmIdPath(comment.targetPath),
+              version: comment.targetVersion,
+            }),
+            accessory: {
+              key: 'discussions',
+              openComment: comment.id,
+              openBlockId: blockId,
+              blockRange: opts, // todo: strip the copyToClipboard flag
+            },
+          })
+          if (!href) {
+            toast.error('Failed to generate comment block link')
+            return
+          }
+          console.log('=== onBlockSelect', {href, comment, blockId, opts})
+          copyUrlToClipboardWithFeedback(href, 'Comment Block Link')
+        } else {
+          toast('Will focus this block')
+        }
       }}
     >
       <div className="flex w-full flex-col">

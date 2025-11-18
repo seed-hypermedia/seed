@@ -2,8 +2,8 @@ import {useAppContext} from '@/app-context'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
+import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
   BlockRange,
   ExpandedBlockRange,
@@ -142,7 +142,7 @@ export type AppBlocksContentContextValue = {
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockSelect:
     | null
-    | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
+    | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
   onBlockCommentClick?:
     | null
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)

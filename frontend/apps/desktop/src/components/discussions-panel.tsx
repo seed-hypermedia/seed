@@ -96,6 +96,10 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
+          selection={{
+            blockId: accessory.openBlockId,
+            blockRange: accessory.blockRange || undefined,
+          }}
         />
       </AppBlocksContentProvider>
     )

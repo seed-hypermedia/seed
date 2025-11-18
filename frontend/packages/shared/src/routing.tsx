@@ -134,7 +134,7 @@ type UseRouteLinkOpts = {
 
 export function routeToHref(
   route: NavRoute | string,
-  options: {
+  options?: {
     hmUrlHref?: boolean
     originHomeId?: UnpackedHypermediaId
     origin?: string | null
@@ -154,26 +154,28 @@ export function routeToHref(
       : route.key == 'document' || route.key == 'feed'
       ? route.id
       : null
-  const activeCommentId =
-    docRoute?.accessory?.key == 'discussions'
-      ? docRoute.accessory?.openComment
-      : null
+  const activeCommentAccessory =
+    docRoute?.accessory?.key == 'discussions' ? docRoute.accessory : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
-  } else if (activeCommentId) {
+  } else if (activeCommentAccessory && activeCommentAccessory.openComment) {
+    const activeCommentId = activeCommentAccessory.openComment
     const [accountUid, commentTsid] = activeCommentId.split('/')
-    // @ts-ignore
-    const commentId = hmId(accountUid, {path: [commentTsid]})
-
-    href = options.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
+    if (!accountUid || !commentTsid) return undefined
+    const commentId = hmId(accountUid, {
+      path: [commentTsid],
+      blockRef: activeCommentAccessory.openBlockId,
+      blockRange: activeCommentAccessory.blockRange,
+    })
+    href = options?.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
-    href = options.hmUrlHref
+    href = options?.hmUrlHref
       ? createHMUrl(docId)
       : idToUrl(
           {...docId, hostname: null},
           {
-            originHomeId: options.originHomeId,
+            originHomeId: options?.originHomeId,
             feed: docRoute.key === 'feed',
           },
         )
