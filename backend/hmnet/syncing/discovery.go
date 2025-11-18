@@ -282,7 +282,7 @@ type DiscoveryKey struct {
 }
 
 func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbsr.Store) error {
-	cids, err := GetRelatedMaterial(conn, dkeys)
+	cids, err := GetRelatedMaterial(conn, dkeys, false)
 	if err != nil {
 		return err
 	}
@@ -295,7 +295,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbs
 }
 
 // GetRelatedMaterial gets all the related material CIDs for the given discovery keys.
-func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) (cids map[cid.Cid]int64, err error) {
+func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids map[cid.Cid]int64, err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
 	cids = make(map[cid.Cid]int64)
 	if err = ensureTempTable(conn, "rbsr_iris"); err != nil {
@@ -306,88 +306,89 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) (cid
 		return
 	}
 
-	if err = fillTables(conn, dkeys); err != nil {
+	if err = fillTables(conn, dkeys, includeLinksCitationsAccounts); err != nil {
 		return
 	}
+	if includeLinksCitationsAccounts {
+		var linkIRIs = make(map[DiscoveryKey]struct{})
+		// Fill Links.
+		{
+			const q = `
+				WITH genesis (id) AS (
+					SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
+				), linked_changes (id) AS (
+					SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
+					AND structural_blobs.extra_attrs->>'deleted' is not true
+					UNION ALL
+					SELECT id from genesis
+				)
+				SELECT r.iri,
+				rl.is_pinned,
+				rl.extra_attrs->>'v' AS version
+				FROM resources r
+				JOIN resource_links rl ON r.id = rl.target
+				WHERE rl.source IN linked_changes
+				GROUP BY r.iri, version, rl.is_pinned;`
 
-	var linkIRIs = make(map[DiscoveryKey]struct{})
-	// Fill Links.
-	{
-		const q = `
-			WITH genesis (id) AS (
-				SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
-			), linked_changes (id) AS (
-				SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
-				AND structural_blobs.extra_attrs->>'deleted' is not true
-				UNION ALL
-				SELECT id from genesis
-			)
-			SELECT r.iri,
-			rl.is_pinned,
-			rl.extra_attrs->>'v' AS version
-			FROM resources r
-			JOIN resource_links rl ON r.id = rl.target
-			WHERE rl.source IN linked_changes
-			GROUP BY r.iri, version, rl.is_pinned;`
-
-		if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
-			var iri = blob.IRI(stmt.ColumnText(0))
-			var version = blob.Version(stmt.ColumnText(2))
-			var isPinned = stmt.ColumnInt(1) != 0
-			dKey := DiscoveryKey{IRI: iri, Version: "", Recursive: false}
-			if isPinned && version != "" {
-				// If it's pinned, we want to make sure we get the specific version.
-				dKey = DiscoveryKey{IRI: iri, Version: version, Recursive: false}
-			}
-			linkIRIs[dKey] = struct{}{}
-			return nil
-		}); err != nil {
-			return
-		}
-	}
-	// Fill Citations.
-	{
-		const q = `
-			SELECT distinct
-				public_keys.principal AS main_author,
-				structural_blobs.extra_attrs->>'tsid' AS tsid,
-				structural_blobs.extra_attrs->>'deleted' as is_deleted,
-				r.iri AS source_iri,
-				structural_blobs.type AS blob_type
-			FROM resource_links
-			JOIN structural_blobs ON structural_blobs.id = resource_links.source
-			JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
-			JOIN public_keys ON public_keys.id = structural_blobs.author
-			LEFT JOIN resources r
-			ON r.genesis_blob = CASE
-					WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
-					ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
-				END
-			WHERE resource_links.target IN rbsr_iris;`
-		if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
-			var (
-				author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
-				tsid      = blob.TSID(stmt.ColumnText(1))
-				isDeleted = stmt.ColumnText(2) == "1"
-				source    = stmt.ColumnText(3)
-				blobType  = stmt.ColumnText(4)
-			)
-
-			if blobType == "Comment" {
-				source = "hm://" + author + "/" + tsid.String()
-			}
-			if isDeleted {
+			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				var iri = blob.IRI(stmt.ColumnText(0))
+				var version = blob.Version(stmt.ColumnText(2))
+				var isPinned = stmt.ColumnInt(1) != 0
+				dKey := DiscoveryKey{IRI: iri, Version: "", Recursive: false}
+				if isPinned && version != "" {
+					// If it's pinned, we want to make sure we get the specific version.
+					dKey = DiscoveryKey{IRI: iri, Version: version, Recursive: false}
+				}
+				linkIRIs[dKey] = struct{}{}
 				return nil
+			}); err != nil {
+				return
 			}
-			dKey := DiscoveryKey{IRI: blob.IRI(source)}
-			linkIRIs[dKey] = struct{}{}
-			return nil
-		}); err != nil {
+		}
+		// Fill Citations.
+		{
+			const q = `
+				SELECT distinct
+					public_keys.principal AS main_author,
+					structural_blobs.extra_attrs->>'tsid' AS tsid,
+					structural_blobs.extra_attrs->>'deleted' as is_deleted,
+					r.iri AS source_iri,
+					structural_blobs.type AS blob_type
+				FROM resource_links
+				JOIN structural_blobs ON structural_blobs.id = resource_links.source
+				JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+				JOIN public_keys ON public_keys.id = structural_blobs.author
+				LEFT JOIN resources r
+				ON r.genesis_blob = CASE
+						WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
+						ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
+					END
+				WHERE resource_links.target IN rbsr_iris;`
+			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				var (
+					author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
+					tsid      = blob.TSID(stmt.ColumnText(1))
+					isDeleted = stmt.ColumnText(2) == "1"
+					source    = stmt.ColumnText(3)
+					blobType  = stmt.ColumnText(4)
+				)
+
+				if blobType == "Comment" {
+					source = "hm://" + author + "/" + tsid.String()
+				}
+				if isDeleted {
+					return nil
+				}
+				dKey := DiscoveryKey{IRI: blob.IRI(source)}
+				linkIRIs[dKey] = struct{}{}
+				return nil
+			}); err != nil {
+				return
+			}
+		}
+		if err = fillTables(conn, linkIRIs, true); err != nil {
 			return
 		}
-	}
-	if err = fillTables(conn, linkIRIs); err != nil {
-		return
 	}
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
@@ -457,7 +458,8 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) (cid
 
 	return
 }
-func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) error {
+
+func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {
 	// Fill IRIs.
 	for dkey := range dkeys {
 		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
@@ -566,8 +568,9 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}) error {
 		}
 	}
 
-	// Fill All authors.
-	{
+	// Fill All authors and their related blobs.
+	if includeAccounts {
+		// Fill All authors.
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT DISTINCT 
 					sb.id as id

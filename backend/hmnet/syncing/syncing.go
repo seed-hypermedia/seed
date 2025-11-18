@@ -89,7 +89,7 @@ var (
 	})
 )
 
-var hmRe = regexp.MustCompile(
+var HmRe = regexp.MustCompile(
 	`^hm://` +
 		`(?P<account>[A-Za-z0-9]+)` + // account (required)
 		`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
@@ -469,14 +469,13 @@ func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resour
 	dkeys := make(colx.HashSet[DiscoveryKey], len(resources))
 	rkeys := map[string]bool{}
 	for _, r := range resources {
-		m := hmRe.FindStringSubmatch(r)
+		m := HmRe.FindStringSubmatch(r)
 		if m == nil {
 			return fmt.Errorf("invalid resource format: %s", r)
 		}
 
-		// Map name -> value
 		result := map[string]string{}
-		for i, name := range hmRe.SubexpNames() {
+		for i, name := range HmRe.SubexpNames() {
 			if i == 0 || name == "" {
 				continue
 			}

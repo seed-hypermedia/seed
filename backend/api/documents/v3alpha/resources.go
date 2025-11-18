@@ -40,9 +40,27 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	defer cancel()
 	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
 	for _, res := range req.Resources {
-		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(res)}] = struct{}{}
+		m := syncing.HmRe.FindStringSubmatch(res)
+		if m == nil {
+			return fmt.Errorf("invalid resource format: %s", res)
+		}
+		result := map[string]string{}
+		for i, name := range syncing.HmRe.SubexpNames() {
+			if i == 0 || name == "" {
+				continue
+			}
+			result[name] = m[i]
+		}
+		if _, ok := result["account"]; !ok || result["account"] == "" {
+			return fmt.Errorf("resource missing account: %s", res)
+		}
+		if _, ok := result["path"]; !ok {
+			result["path"] = ""
+		}
+		resource := "hm://" + result["account"] + result["path"]
+		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource)}] = struct{}{}
 	}
-	cids, err := syncing.GetRelatedMaterial(conn, dkeys)
+	cids, err := syncing.GetRelatedMaterial(conn, dkeys, true)
 	if err != nil {
 		return err
 	}
