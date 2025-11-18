@@ -179,7 +179,7 @@ export const MediaRender: React.FC<RenderProps> = ({
       <Button
         contentEditable={false}
         size="lg"
-        className="justify-start w-full"
+        className="w-full justify-start"
       >
         uploading...
       </Button>
@@ -440,14 +440,14 @@ function MediaForm({
       {...(isEmbed ? {} : dragProps)}
     >
       {drag && !isEmbed && (
-        <div className="flex absolute top-0 left-0 justify-center items-center w-full h-full rounded-sm z-5 bg-white/50">
+        <div className="absolute top-0 left-0 z-5 flex h-full w-full items-center justify-center rounded-sm bg-white/50">
           <SizableText weight="bold">DROP MEDIA HERE</SizableText>
         </div>
       )}
-      <div className="flex items-center p-4 rounded-sm">
+      <div className="flex items-center rounded-sm p-4">
         {mediaType !== 'file' ? (
-          <div className="flex flex-col flex-1">
-            <div className="flex flex-1 gap-3 w-full">
+          <div className="flex flex-1 flex-col">
+            <div className="flex w-full flex-1 gap-3">
               {CustomInput ? (
                 <CustomInput
                   editor={editor}
@@ -458,7 +458,7 @@ function MediaForm({
                 />
               ) : (
                 <Input
-                  className="pl-3 max-w-full border-muted-foreground/30 focus-visible:border-ring text-foreground"
+                  className="border-muted-foreground/30 focus-visible:border-ring text-foreground max-w-full pl-3"
                   placeholder={`Input ${
                     mediaType === 'web-embed' ? 'X.com or Instagram' : mediaType
                   } URL here...`}
@@ -482,7 +482,7 @@ function MediaForm({
                     <Button
                       variant="default"
                       size="sm"
-                      className="font-semibold shrink-0"
+                      className="shrink-0 font-semibold"
                       disabled={fileName.color === 'red'}
                       onClick={() => {
                         if (url) {
@@ -526,7 +526,7 @@ function MediaForm({
                   contentEditable={false}
                   variant="default"
                   size="sm"
-                  className="font-semibold shrink-0"
+                  className="shrink-0 font-semibold"
                   style={{
                     backgroundColor:
                       fileName.color === 'red'
@@ -555,16 +555,16 @@ function MediaForm({
             )}
           </div>
         ) : (
-          <div className="flex justify-center items-center w-full h-12 rounded-md border-2 transition-colors cursor-pointer border-muted-foreground/30 bg-muted/50 hover:border-foreground/30 hover:bg-muted">
+          <div className="border-muted-foreground/30 bg-muted/50 hover:border-foreground/30 hover:bg-muted flex h-12 w-full cursor-pointer items-center justify-center rounded-md border-2 transition-colors">
             <Label
               contentEditable={false}
               htmlFor={'file-upload' + block.id}
-              className="flex gap-2 justify-center items-center w-full h-full cursor-pointer select-none"
+              className="flex h-full w-full cursor-pointer items-center justify-center gap-2 select-none"
             >
               {!drag && (
                 <>
                   <Upload className="size-4" />
-                  <SizableText className="overflow-hidden font-medium truncate whitespace-nowrap">
+                  <SizableText className="truncate overflow-hidden font-medium whitespace-nowrap">
                     Upload File
                   </SizableText>
                 </>
