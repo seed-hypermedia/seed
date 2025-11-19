@@ -1009,7 +1009,26 @@ export function BlockNodeContent({
                 {media.gtSm ? (
                   <HoverCard openDelay={0}>
                     <HoverCardTrigger>
-                      <Badge variant="outline">{blockCitationCount}</Badge>
+                      <Badge
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          if (blockNode.block?.id) {
+                            onBlockCommentClick?.(
+                              blockNode.block.id,
+                              undefined,
+                              citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                            )
+                          } else {
+                            console.error(
+                              'onBlockCommentClick Error: no blockId available',
+                            )
+                          }
+                        }}
+                        variant="outline"
+                      >
+                        {blockCitationCount}
+                      </Badge>
                     </HoverCardTrigger>
                     <HoverCardContent
                       side="top"
