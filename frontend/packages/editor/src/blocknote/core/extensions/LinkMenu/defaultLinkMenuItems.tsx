@@ -1,5 +1,3 @@
-import {HMBlockSchema} from '../../../../schema'
-import {youtubeParser} from '../../../../utils'
 import {
   createHMUrl,
   isHypermediaScheme,
@@ -20,7 +18,9 @@ import {
   VideoIcon,
 } from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
-import {Fragment, Node} from '@tiptap/pm/model'
+import {Fragment, Mark, Node} from '@tiptap/pm/model'
+import {HMBlockSchema} from '../../../../schema'
+import {youtubeParser} from '../../../../utils'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {getBlockInfoFromPos} from '../Blocks/helpers/getBlockInfoFromPos'
 import {LinkMenuItem} from './LinkMenuItem'
@@ -301,37 +301,135 @@ function insertNode(
   // If inserted link inline with other text (child count will be more than 1)
   if (blockInfo.blockContent.node.content.childCount > 1) {
     const $pos = state.doc.resolve($from.pos)
-    let originalStartContent = state.doc.cut(
-      $pos.start(),
-      $pos.pos - ref.length,
-    )
-    let originalLastContent = state.doc.cut($pos.pos, $pos.end())
-    const originalContent: Node[] = []
-    // @ts-ignore
-    originalStartContent.descendants((childNode) => {
-      if (childNode.type.name === 'text') originalContent.push(childNode)
-    })
-    // @ts-ignore
-    originalLastContent.descendants((childNode) => {
-      if (childNode.type.name === 'text') originalContent.push(childNode)
-    })
-    const originalNode = schema.node(
-      blockInfo.blockContentType,
-      blockInfo.blockContent.node.attrs,
-      originalContent,
-    )
+    let linkStartPos: number | null = null
+    let linkEndPos: number | null = null
+    const beforeLinkContent: Node[] = []
+    const afterLinkContent: Node[] = []
 
-    const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
-    const nextBlockPos = $pos.end() + 2
-    const nextBlockContentPos = nextBlockPos + 2
-    tr = tr.insert(nextBlockPos, newBlock)
-    const $nextBlockPos = state.doc.resolve(nextBlockContentPos)
-    tr = tr.replaceWith(
-      $nextBlockPos.before($nextBlockPos.depth),
-      nextBlockContentPos + 1,
-      node,
-    )
-    tr = tr.replaceWith($pos.before($pos.depth), $pos.end(), originalNode)
+    // Find the actual link mark position by iterating through descendants
+    const cursorPos = $from.pos
+    // @ts-ignore
+    $pos.parent.descendants((childNode, pos, _parent, index) => {
+      const linkMark = childNode.marks?.find(
+        (mark: Mark) => mark.type.name === 'link' && mark.attrs.href === ref,
+      )
+
+      const childStartPos =
+        index === 0 ? $pos.start() + pos - 2 : $pos.start() + pos
+      const childEndPos = childStartPos + (childNode.text?.length || 0)
+
+      // Check if this link contains the cursor position
+      if (linkMark && linkStartPos === null) {
+        // Check if cursor is within this link's range
+        if (cursorPos >= childStartPos && cursorPos <= childEndPos) {
+          linkStartPos = childStartPos
+          linkEndPos = childEndPos
+        } else {
+          if (childNode.type.name === 'text') {
+            beforeLinkContent.push(childNode)
+          }
+          return
+        }
+      }
+
+      if (linkStartPos === null) {
+        // Content before the link
+        if (childNode.type.name === 'text') {
+          beforeLinkContent.push(childNode)
+        }
+      } else if (
+        linkStartPos !== null &&
+        linkEndPos !== null &&
+        childStartPos >= linkEndPos
+      ) {
+        // Content after the link
+        if (childNode.type.name === 'text') {
+          afterLinkContent.push(childNode)
+        }
+      }
+    })
+
+    if (linkStartPos !== null && linkEndPos !== null) {
+      // Split the text
+      const blockContentStartPos = blockInfo.blockContent.beforePos
+      const blockContentEndPos = blockInfo.blockContent.afterPos
+
+      // Replace the current block content with only text before the link
+      const beforeLinkNode =
+        beforeLinkContent.length > 0
+          ? schema.node(
+              blockInfo.blockContentType,
+              blockInfo.blockContent.node.attrs,
+              beforeLinkContent,
+            )
+          : null
+
+      if (beforeLinkNode) {
+        tr = tr.replaceWith(
+          blockContentStartPos,
+          blockContentEndPos,
+          beforeLinkNode,
+        )
+      } else {
+        // If no content before, replace with empty paragraph
+        const paragraphNode = schema.nodes.paragraph.create()
+        tr = tr.replaceWith(
+          blockContentStartPos,
+          blockContentEndPos,
+          paragraphNode,
+        )
+      }
+
+      // Insert the embed block after the current block
+      const nextBlockPos = blockInfo.block.afterPos
+      const mappedNextBlockPos = tr.mapping.map(nextBlockPos)
+      const embedBlock = state.schema.nodes['blockContainer'].createAndFill()!
+      tr = tr.insert(mappedNextBlockPos, embedBlock)
+
+      // Resolve position in the updated document to insert the embed node
+      const $embedBlockPos = tr.doc.resolve(mappedNextBlockPos + 1)
+      const embedBlockContentPos = $embedBlockPos.pos
+      tr = tr.replaceWith(
+        $embedBlockPos.before($embedBlockPos.depth),
+        embedBlockContentPos + 1,
+        node,
+      )
+
+      // If there's text after the link, insert it in a new block after the embed
+      if (afterLinkContent.length > 0) {
+        const afterLinkNode = schema.node(
+          blockInfo.blockContentType,
+          blockInfo.blockContent.node.attrs,
+          afterLinkContent,
+        )
+
+        // Calculate position after the embed block by resolving it in the updated document
+        const currentDoc = tr.doc
+        const insertedEmbedBlock = tr.doc.nodeAt(mappedNextBlockPos)
+        if (insertedEmbedBlock) {
+          const embedBlockAfterPos =
+            mappedNextBlockPos + insertedEmbedBlock.nodeSize
+          const afterTextBlock =
+            state.schema.nodes['blockContainer'].createAndFill()!
+          tr = tr.insert(embedBlockAfterPos, afterTextBlock)
+
+          // Insert the after-link text into the new block (resolve position after inserting afterTextBlock)
+          const insertedAfterTextBlock = tr.doc.nodeAt(embedBlockAfterPos)
+          if (insertedAfterTextBlock) {
+            const $afterTextBlockPos = tr.doc.resolve(embedBlockAfterPos + 1)
+            const afterTextBlockContentPos = $afterTextBlockPos.pos
+            tr = tr.replaceWith(
+              $afterTextBlockPos.before($afterTextBlockPos.depth),
+              afterTextBlockContentPos + 1,
+              afterLinkNode,
+            )
+          }
+        }
+      }
+    } else {
+      // Fallback: if can't find the link, replace the whole block
+      tr = tr.replaceWith($from.before($from.depth), $from.pos, node)
+    }
   } else {
     tr = tr.replaceWith($from.before($from.depth), $from.pos, node)
   }
