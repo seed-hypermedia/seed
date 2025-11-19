@@ -1,23 +1,22 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
   hmId,
-  ListDocumentsResponse,
   unpackHmId,
 } from '@shm/shared'
-import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
-
-export type HMDirectory = PlainMessage<ListDocumentsResponse>
+import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 
 export type DirectoryPayload = {
   directory?: HMDocumentInfo[]
   accountsMetadata?: HMAccountsMetadata
   error?: string
 }
+
+const loadQueryResults = getQueryResultsWithClient(grpcClient)
 
 export const loader = async ({
   request,
@@ -26,26 +25,22 @@ export const loader = async ({
 }): Promise<WrappedResponse<DirectoryPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
-  const mode = url.searchParams.get('mode') || 'Children'
+  const mode = (url.searchParams.get('mode') || 'Children') as
+    | 'Children'
+    | 'AllDescendants'
   if (!id) throw new Error('id is required')
   let result: DirectoryPayload
   try {
-    const res = await grpcClient.documents.listDocuments({
-      account: id.uid,
+    const queryResult = await loadQueryResults({
+      includes: [
+        {
+          space: id.uid,
+          mode,
+          path: id.path?.join('/'),
+        },
+      ],
     })
-    const idPathLength = id.path?.length || 0
-    const directory = res.documents
-      .map((d) => prepareHMDocumentInfo(d))
-      .filter((doc) => {
-        if (doc.id.path?.length) return false
-        if (!doc.id.id.startsWith(id.id)) return false
-        // For Children mode, only include direct children
-        if (mode === 'Children') {
-          return doc.id.path?.length === idPathLength + 1
-        }
-        // For AllDescendants mode, include all descendants
-        return true
-      })
+    const directory = queryResult?.results || []
     const allAuthors = new Set<string>()
     directory.forEach((doc) => {
       doc.authors.forEach((author) => allAuthors.add(author))
