@@ -1,4 +1,3 @@
-import {getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
@@ -20,7 +19,7 @@ import {
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
-import {Mark, MarkType} from '@tiptap/pm/model'
+import {Fragment, Mark, MarkType} from '@tiptap/pm/model'
 import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {find} from 'linkifyjs'
@@ -121,6 +120,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           isPublicGatewayLink(textContent, options.gwUrl)
             ? unpackHmId(textContent)
             : null
+
         if (!selection.empty && options.linkOnPaste) {
           const pastedLink = unpackedHmId
             ? packHmId(unpackedHmId)
@@ -550,6 +550,16 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return true
         }
 
+        let hasBlockLevelNodes = false
+        slice.content.forEach((node: any) => {
+          if (
+            node.type.name === 'blockGroup' ||
+            node.type.name === 'blockContainer'
+          ) {
+            hasBlockLevelNodes = true
+          }
+        })
+
         // Check if there are any links in the pasted content
         let hasLinksInContent = false
 
@@ -561,8 +571,60 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }
         })
 
-        // If no links, let other plugins handle the paste
-        if (!hasLinksInContent) {
+        if (!hasBlockLevelNodes && !hasLinksInContent) {
+          return false
+        }
+
+        // Extract inline content from slice
+        // If slice contains block-level nodes, we need to extract the inline content
+        // from within the blockContent nodes, not insert the block-level nodes themselves
+        const inlineContentNodes: any[] = []
+        let hasBlockGroup = false
+
+        slice.content.forEach((node: any) => {
+          if (node.type.name === 'blockGroup') {
+            hasBlockGroup = true
+            // Extract content from all blockContainers within the blockGroup
+            let hasBlockContainers = false
+            node.forEach((child: any) => {
+              if (child.type.name === 'blockContainer') {
+                hasBlockContainers = true
+                // Find blockContent node within blockContainer
+                child.forEach((innerChild: any) => {
+                  if (innerChild.type.spec.group === 'blockContent') {
+                    // Extract all inline nodes from blockContent
+                    innerChild.forEach((inlineNode: any) => {
+                      inlineContentNodes.push(inlineNode)
+                    })
+                  }
+                })
+              }
+            })
+            // Check if blockGroup has inline content as a child
+            if (!hasBlockContainers && node.childCount > 0) {
+              node.forEach((child: any) => {
+                if (child.isInline || child.type.name === 'text') {
+                  inlineContentNodes.push(child)
+                }
+              })
+            }
+          } else if (node.type.name === 'blockContainer') {
+            hasBlockGroup = true
+            // Extract content from blockContent within blockContainer
+            node.forEach((child: any) => {
+              if (child.type.spec.group === 'blockContent') {
+                child.forEach((inlineNode: any) => {
+                  inlineContentNodes.push(inlineNode)
+                })
+              }
+            })
+          } else {
+            // Regular inline node, add it directly
+            inlineContentNodes.push(node)
+          }
+        })
+
+        if (inlineContentNodes.length === 0) {
           return false
         }
 
@@ -572,46 +634,52 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           tr.delete(selection.from, selection.to)
         }
 
-        // Insert the slice content
-        const blockContentInfo = getBlockInfoFromPos(
-          state,
-          selection.from,
-        ).blockContent
-
-        tr.replaceWith(
-          blockContentInfo.beforePos,
-          blockContentInfo.afterPos,
-          slice.content,
-        )
+        // Insert the inline content at the cursor position, not replacing the entire block
+        const insertPos = selection.from
+        const inlineFragment = Fragment.from(inlineContentNodes)
+        tr.replaceWith(insertPos, insertPos, inlineFragment)
 
         // Apply link marks to the inserted content
-        slice.content.forEach((node: any) => {
-          if (node.type.name === 'blockGroup') return
+        if (hasLinksInContent) {
+          // Search for links in all inserted text nodes using the inline content we extracted
+          let textOffset = 0
+          inlineContentNodes.forEach((node: any, index: number) => {
+            if (node.type.name !== 'text') {
+              const nodeSize = node.nodeSize || node.text?.length || 0
+              textOffset += nodeSize
+              return
+            }
 
-          const nodeText = node.textContent || ''
-          const fragmentLinks = find(nodeText) || []
+            const nodeText = node.textContent || ''
+            const fragmentLinks = find(nodeText) || []
 
-          if (fragmentLinks.length > 0) {
-            const base = selection.from
+            if (fragmentLinks.length > 0) {
+              // Calculate positions in the document after insertion
+              const nodeStartInDoc = insertPos + textOffset
+              fragmentLinks.forEach((link: any) => {
+                const from = nodeStartInDoc + link.start
+                const to = nodeStartInDoc + link.end
 
-            fragmentLinks.forEach((link: any) => {
-              const from = base + link.start
-              const to = base + link.end
+                const markType = options.type
+                // Check if mark already exists in the updated document
+                const updatedDoc = tr.doc
+                const hasMark = updatedDoc.rangeHasMark(from, to, markType)
 
-              const markType = options.type
-              const hasMark = tr.doc.rangeHasMark(from, to, markType)
+                if (!hasMark) {
+                  const id = nanoid(8)
+                  tr.addMark(
+                    from,
+                    to,
+                    markType.create({href: link.href, id}),
+                  ).setMeta('hmPlugin:uncheckedLink', id)
+                }
+              })
+            }
 
-              if (!hasMark) {
-                const id = nanoid(8)
-                tr.addMark(
-                  from,
-                  to,
-                  markType.create({href: link.href, id}),
-                ).setMeta('hmPlugin:uncheckedLink', id)
-              }
-            })
-          }
-        })
+            // Update offset for next iteration
+            textOffset += nodeText.length
+          })
+        }
 
         view.dispatch(tr)
         return true

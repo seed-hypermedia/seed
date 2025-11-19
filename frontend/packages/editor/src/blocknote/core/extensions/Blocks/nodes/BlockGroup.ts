@@ -220,8 +220,24 @@ export const BlockGroup = Node.create<{
             }
 
             // Transform pasted content to ensure all nodes are properly wrapped
-            const transformFragment = (fragment: any, schema: any): any => {
+            const transformFragment = (
+              fragment: any,
+              schema: any,
+              view: any,
+            ): any => {
               const nodes: any[] = []
+              const {selection} = view.state
+              const $from = selection.$from
+
+              // Preserve inline nodes if pasting into inline content
+              let isPastingIntoInlineContent = false
+              for (let d = $from.depth; d > 0; d--) {
+                const node = $from.node(d)
+                if (node.type.spec.group === 'blockContent') {
+                  isPastingIntoInlineContent = true
+                  break
+                }
+              }
 
               fragment.forEach((node: any, index: number) => {
                 if (node.type.name === 'blockGroup') {
@@ -244,8 +260,10 @@ export const BlockGroup = Node.create<{
                   }
                 } else if (node.type.name === 'blockContainer') {
                   nodes.push(node)
+                } else if (isPastingIntoInlineContent && node.isInline) {
+                  nodes.push(node)
                 } else {
-                  // Wrap content nodes in blockContainer
+                  // Wrap block-level content nodes in blockContainer
                   const blockContainer = schema.nodes['blockContainer']!.create(
                     null,
                     node,
@@ -257,7 +275,11 @@ export const BlockGroup = Node.create<{
               return Fragment.from(nodes)
             }
 
-            const transformedContent = transformFragment(slice.content, schema)
+            const transformedContent = transformFragment(
+              slice.content,
+              schema,
+              view,
+            )
 
             // Adjust openStart and openEnd for the transformed structure
             // When we wrap nodes in new containers, we create closed boundaries
