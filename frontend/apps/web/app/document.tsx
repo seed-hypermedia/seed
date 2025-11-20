@@ -548,7 +548,6 @@ function InnerDocumentPage(
 
   // Only initialize activity/comments services when needed (activity is enabled)
   const shouldInitializeActivity = activityEnabled
-
   return (
     <Suspense
       fallback={
@@ -650,29 +649,41 @@ function InnerDocumentPage(
                               commentsCount={
                                 interactionSummary.data?.comments || 0
                               }
-                              onCommentsClick={() => {
-                                setDocumentPanel({
-                                  type: 'discussions',
-                                  blockId: undefined,
-                                })
-                                if (!media.gtSm) {
-                                  setMobilePanelOpen(true)
-                                }
-                              }}
-                              onFeedClick={() => {
-                                setDocumentPanel({type: 'activity'})
-                                if (!media.gtSm) {
-                                  setMobilePanelOpen(true)
-                                }
-                              }}
+                              onCommentsClick={
+                                activityEnabled
+                                  ? () => {
+                                      setDocumentPanel({
+                                        type: 'discussions',
+                                        blockId: undefined,
+                                      })
+                                      if (!media.gtSm) {
+                                        setMobilePanelOpen(true)
+                                      }
+                                    }
+                                  : commentsDisabledToast
+                              }
+                              onFeedClick={
+                                activityEnabled
+                                  ? () => {
+                                      setDocumentPanel({type: 'activity'})
+                                      if (!media.gtSm) {
+                                        setMobilePanelOpen(true)
+                                      }
+                                    }
+                                  : activityDisabledToast
+                              }
                             />
                           )}
                           <BlocksContentProvider
                             onBlockCitationClick={
-                              activityEnabled ? onBlockCitationClick : undefined
+                              activityEnabled
+                                ? onBlockCitationClick
+                                : activityDisabledToast
                             }
                             onBlockCommentClick={
-                              activityEnabled ? onBlockCommentClick : undefined
+                              activityEnabled
+                                ? onBlockCommentClick
+                                : commentsDisabledToast
                             }
                             onBlockSelect={(blockId, blockRange) => {
                               const shouldCopy =
@@ -889,6 +900,14 @@ function InnerDocumentPage(
       </ActivityProvider>
     </Suspense>
   )
+}
+
+function activityDisabledToast() {
+  toast.error('Activity is not enabled for this document')
+}
+
+function commentsDisabledToast() {
+  toast.error('Comments are not enabled for this document')
 }
 
 function MobileInteractionCardCollapsed({
