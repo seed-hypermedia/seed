@@ -1,6 +1,7 @@
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
+import {useSelectedAccountContacts} from '@/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client, trpc} from '@/trpc'
 import {UnpackedHypermediaId} from '@shm/shared'
@@ -104,6 +105,8 @@ export function NavigationContainer({
 
   const experiments = trpc.experiments.get.useQuery().data
 
+  const contacts = useSelectedAccountContacts()
+
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
@@ -139,6 +142,7 @@ export function NavigationContainer({
         navigation.dispatch({type: 'selectedIdentity', value: keyId})
       }}
       universalClient={desktopUniversalClient}
+      contacts={contacts.data}
     >
       <NavContextProvider value={navigation}>
         {children}

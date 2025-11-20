@@ -10,7 +10,11 @@ import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
-import {onlineManager, QueryKey} from '@tanstack/react-query'
+import {
+  onlineManager,
+  QueryClientProvider,
+  QueryKey,
+} from '@tanstack/react-query'
 import {ipcLink} from 'electron-trpc/renderer'
 import React, {Suspense, useEffect, useMemo, useState} from 'react'
 import ReactDOM from 'react-dom/client'
@@ -412,77 +416,79 @@ function MainApp({}: {}) {
 
   if (daemonState?.t == 'ready') {
     return (
-      <AppContextProvider
-        grpcClient={grpcClient}
-        platform={appInfo.platform()}
-        ipc={ipc}
-        externalOpen={async (url: string) => {
-          ipc.send?.('open-external-link', url)
-        }}
-        openDirectory={async (directory: string) => {
-          ipc.send?.('open-directory', directory)
-        }}
-        saveCidAsFile={async (cid: string, name: string) => {
-          ipc.send?.('save-file', {cid, name})
-        }}
-        openMarkdownFiles={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownFiles(accountId)
-        }}
-        openMarkdownDirectories={(accountId: string) => {
-          // @ts-ignore
-          return window.docImport.openMarkdownDirectories(accountId)
-        }}
-        readMediaFile={(filePath: string) => {
-          // @ts-ignore
-          return window.docImport.readMediaFile(filePath)
-        }}
-        exportDocument={async (
-          title: string,
-          markdownContent: string,
-          mediaFiles: {url: string; filename: string; placeholder: string}[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocument(
-            title,
-            markdownContent,
-            mediaFiles,
-          )
-        }}
-        exportDocuments={async (
-          documents: {
-            title: string
-            markdown: {
-              markdownContent: string
-              mediaFiles: {
-                url: string
-                filename: string
-                placeholder: string
-              }[]
-            }
-          }[],
-        ) => {
-          // @ts-ignore
-          return window.docExport.exportDocuments(documents)
-        }}
-        windowUtils={windowUtils}
-        darkMode={isDarkMode}
-      >
-        <Suspense fallback={<SpinnerWithText message="" />}>
-          <ErrorBoundary
-            FallbackComponent={RootAppError}
-            onReset={() => {
-              window.location.reload()
-            }}
-          >
-            <NavigationContainer initialNav={window.initNavState}>
-              {mainContent}
-              {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
-            </NavigationContainer>
-            <Toaster />
-          </ErrorBoundary>
-        </Suspense>
-      </AppContextProvider>
+      <QueryClientProvider client={queryClient}>
+        <AppContextProvider
+          grpcClient={grpcClient}
+          platform={appInfo.platform()}
+          ipc={ipc}
+          externalOpen={async (url: string) => {
+            ipc.send?.('open-external-link', url)
+          }}
+          openDirectory={async (directory: string) => {
+            ipc.send?.('open-directory', directory)
+          }}
+          saveCidAsFile={async (cid: string, name: string) => {
+            ipc.send?.('save-file', {cid, name})
+          }}
+          openMarkdownFiles={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownFiles(accountId)
+          }}
+          openMarkdownDirectories={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openMarkdownDirectories(accountId)
+          }}
+          readMediaFile={(filePath: string) => {
+            // @ts-ignore
+            return window.docImport.readMediaFile(filePath)
+          }}
+          exportDocument={async (
+            title: string,
+            markdownContent: string,
+            mediaFiles: {url: string; filename: string; placeholder: string}[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocument(
+              title,
+              markdownContent,
+              mediaFiles,
+            )
+          }}
+          exportDocuments={async (
+            documents: {
+              title: string
+              markdown: {
+                markdownContent: string
+                mediaFiles: {
+                  url: string
+                  filename: string
+                  placeholder: string
+                }[]
+              }
+            }[],
+          ) => {
+            // @ts-ignore
+            return window.docExport.exportDocuments(documents)
+          }}
+          windowUtils={windowUtils}
+          darkMode={isDarkMode}
+        >
+          <Suspense fallback={<SpinnerWithText message="" />}>
+            <ErrorBoundary
+              FallbackComponent={RootAppError}
+              onReset={() => {
+                window.location.reload()
+              }}
+            >
+              <NavigationContainer initialNav={window.initNavState}>
+                {mainContent}
+                {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
+              </NavigationContainer>
+              <Toaster />
+            </ErrorBoundary>
+          </Suspense>
+        </AppContextProvider>
+      </QueryClientProvider>
     )
   } else if (daemonState?.t == 'error') {
     console.error('Daemon error', daemonState?.message)

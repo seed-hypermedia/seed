@@ -1,10 +1,11 @@
+import {PlainMessage} from '@bufbuild/protobuf'
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import type {UniversalClient} from './universal-client'
+import type {Contact, UniversalClient} from './universal-client'
 import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
@@ -50,6 +51,7 @@ type UniversalAppContextValue = {
   universalClient?: UniversalClient
 
   experiments?: AppExperiments
+  contacts?: PlainMessage<Contact>[]
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -75,6 +77,7 @@ export function UniversalAppProvider(props: {
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
   experiments?: AppExperiments
+  contacts?: PlainMessage<Contact>[]
 }) {
   return (
     <UniversalAppContext.Provider
@@ -93,6 +96,7 @@ export function UniversalAppProvider(props: {
         setSelectedIdentity: props.setSelectedIdentity,
         universalClient: props.universalClient,
         experiments: props.experiments,
+        contacts: props.contacts,
       }}
     >
       {props.children as any}

@@ -1,7 +1,5 @@
 import {GRPCClient} from '@shm/shared/grpc-client'
-import {queryClient} from '@shm/shared/models/query-client'
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {QueryClientProvider} from '@tanstack/react-query'
 import {ReactNode, useEffect, useMemo} from 'react'
 import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
@@ -92,9 +90,7 @@ export function AppContextProvider({
   )
   return (
     <AppContext.Provider value={appCtx}>
-      <QueryClientProvider client={queryClient}>
-        <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
-      </QueryClientProvider>
+      <StyleProvider darkMode={darkMode}>{children}</StyleProvider>
     </AppContext.Provider>
   )
 }
