@@ -6,7 +6,6 @@ import {
   HMBreadcrumb,
   HMComment,
   HMDocumentInfo,
-  hmId,
   HMLibraryDocument,
   InteractionSummaryPayload,
   UnpackedHypermediaId,
@@ -49,10 +48,7 @@ export function DocumentListItem({
   indent = false,
   onClick,
 }: DocumentListItemProps) {
-  const id = hmId(item.account, {
-    path: item.path,
-    latest: true,
-  })
+  const id = item.id
 
   const metadata = item.metadata
   const itemActivitySummary =
@@ -101,7 +97,7 @@ export function DocumentListItem({
         className,
       )}
     >
-      <a data-docid={id.id} {...linkProps} onClick={handleClick}>
+      <a data-resourceid={id.id} {...linkProps} onClick={handleClick}>
         {indent && <div className="size-8 shrink-0" />}
         <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
         <div className="flex flex-1 flex-col overflow-hidden">

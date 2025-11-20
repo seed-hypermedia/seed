@@ -3,6 +3,7 @@ import {
   AlertDialogTitle,
 } from '@radix-ui/react-alert-dialog'
 import {
+  BlockRange,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -17,6 +18,7 @@ import {
   useCommentParents,
   useRouteLink,
 } from '@shm/shared'
+
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -32,7 +34,6 @@ import {useResourceUrl} from '@shm/shared/url'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -41,14 +42,13 @@ import {
 } from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
-import {Button} from './button'
-import {copyTextToClipboard} from './copy-to-clipboard'
 import {
   BlocksContent,
-  blocksContentContext,
   BlocksContentProvider,
   getBlockNodeById,
-} from './document-content'
+} from './blocks-content'
+import {Button} from './button'
+import {copyTextToClipboard} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -64,20 +64,23 @@ const avatarSize = 18
 export function CommentDiscussions({
   targetId,
   commentId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
+  selection,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  }
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const focusedCommentRef = useRef<HTMLDivElement>(null)
@@ -266,7 +269,6 @@ export function CommentDiscussions({
                 authorMetadata={
                   commentsService.data?.authors?.[comment.author]?.metadata
                 }
-                renderCommentContent={renderCommentContent}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
                 onCommentDelete={onCommentDelete}
@@ -290,13 +292,13 @@ export function CommentDiscussions({
             authorMetadata={
               commentsService.data?.authors?.[focusedComment.author]?.metadata
             }
-            renderCommentContent={renderCommentContent}
             targetDomain={targetDomain}
             currentAccountId={currentAccountId}
             onCommentDelete={onCommentDelete}
             isFirst={!(hasParents && showParents)}
             isLast={true}
             highlight
+            selection={selection}
           />
         </div>
       )}
@@ -321,7 +323,6 @@ export function CommentDiscussions({
                 key={cg.id}
                 commentGroup={cg}
                 authors={commentsService.data?.authors}
-                renderCommentContent={renderCommentContent}
                 onCommentDelete={onCommentDelete}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
@@ -339,7 +340,6 @@ export function CommentDiscussions({
 export function Discussions({
   targetId,
   commentId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
@@ -347,7 +347,6 @@ export function Discussions({
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -381,7 +380,6 @@ export function Discussions({
   useHackyAuthorsSubscriptions(allAuthorIds)
 
   let panelContent = null
-  console.log('discussionsService', discussionsService.data)
   if (discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
       <div className="flex items-center justify-center">
@@ -409,7 +407,6 @@ export function Discussions({
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
-                  renderCommentContent={renderCommentContent}
                   enableReplies
                   targetDomain={targetDomain}
                   currentAccountId={currentAccountId}
@@ -424,7 +421,6 @@ export function Discussions({
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
-                  renderCommentContent={renderCommentContent}
                   enableReplies
                   targetDomain={targetDomain}
                   currentAccountId={currentAccountId}
@@ -446,14 +442,12 @@ export function Discussions({
 
 export function BlockDiscussions({
   targetId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
-  renderCommentContent?: (comment: HMComment) => ReactNode
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -531,7 +525,6 @@ export function BlockDiscussions({
                 }
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
-                renderCommentContent={renderCommentContent}
                 onCommentDelete={onCommentDelete}
               />
             </div>
@@ -554,7 +547,6 @@ export function BlockDiscussions({
 export function CommentGroup({
   commentGroup,
   authors,
-  renderCommentContent,
   enableReplies = true,
   highlightLastComment = false,
   targetDomain,
@@ -563,7 +555,6 @@ export function CommentGroup({
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
   authors?: ListDiscussionsResponse['authors']
-  renderCommentContent?: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   highlightLastComment?: boolean
   currentAccountId?: string
@@ -605,7 +596,6 @@ export function CommentGroup({
               comment.author ? authors?.[comment.author]?.metadata : null
             }
             authorId={comment.author}
-            renderCommentContent={renderCommentContent}
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
             currentAccountId={currentAccountId}
@@ -624,7 +614,6 @@ export function Comment({
   isLast = false,
   authorMetadata,
   authorId,
-  renderCommentContent,
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
@@ -633,13 +622,13 @@ export function Comment({
   targetDomain,
   heading,
   externalTarget,
+  selection,
 }: {
   comment: HMComment
   isFirst?: boolean
   isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
-  renderCommentContent?: (comment: HMComment) => ReactNode
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
@@ -648,30 +637,13 @@ export function Comment({
   currentAccountId?: string
   heading?: ReactNode
   externalTarget?: HMMetadataPayload
-}) {
-  const tx = useTxString()
-  let renderContent = renderCommentContent
-  if (!renderContent) {
-    renderContent = (comment) => (
-      <BlocksContentProvider
-        onBlockSelect={() => {}}
-        onBlockCommentClick={() => {}}
-        onBlockCitationClick={() => {}}
-        textUnit={14}
-        layoutUnit={16}
-        comment
-        debug={false}
-        collapsedBlocks={new Set()}
-        setCollapsedBlocks={() => {}}
-      >
-        <BlocksContent
-          hideCollapseButtons
-          blocks={comment.content}
-          parentBlockId={null}
-        />
-      </BlocksContentProvider>
-    )
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
   }
+}) {
+  selection // avoid lint error for now. // todo: actually use the selection to highlight
+  const tx = useTxString()
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
@@ -740,64 +712,62 @@ export function Comment({
       )}
 
       <div className="flex w-full flex-1 flex-col gap-1">
-        {heading ? (
-          <div className="inline">{heading}</div>
-        ) : (
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
-            {heading ? null : (
-              <InlineDescriptor>
-                {authorHmId ? (
-                  <AuthorNameLink
-                    author={{
-                      id: authorHmId,
-                      metadata: authorMetadata ?? undefined,
-                    }}
-                  />
-                ) : (
-                  <span>Someone</span>
-                )}{' '}
-                {externalTarget ? (
-                  <>
-                    <span>on</span>{' '}
-                    <button
-                      {...externalTargetLink}
-                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
-                    >
-                      {externalTarget.metadata?.name}
-                    </button>
-                  </>
-                ) : null}
-                <CommentDate comment={comment} />
-              </InlineDescriptor>
-            )}
-            <div className="flex items-center gap-2">
-              <Tooltip content={tx('Copy Comment Link')}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                  onClick={() => {
-                    const url = getUrl(hmId(comment.id))
-                    copyTextToClipboard(url)
-                    toast.success('Copied Comment URL')
+        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+          {heading ? (
+            <div className="inline">{heading}</div>
+          ) : (
+            <InlineDescriptor>
+              {authorHmId ? (
+                <AuthorNameLink
+                  author={{
+                    id: authorHmId,
+                    metadata: authorMetadata ?? undefined,
                   }}
-                >
-                  <Link className="size-3" />
-                </Button>
-              </Tooltip>
-              {currentAccountId == comment.author ? (
-                <OptionsDropdown
-                  side="bottom"
-                  align="end"
-                  className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                  menuItems={options}
                 />
+              ) : (
+                <span>Someone</span>
+              )}{' '}
+              {externalTarget ? (
+                <>
+                  <span>on</span>{' '}
+                  <button
+                    {...externalTargetLink}
+                    className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                  >
+                    {externalTarget.metadata?.name}
+                  </button>
+                </>
               ) : null}
-            </div>
+              <CommentDate comment={comment} />
+            </InlineDescriptor>
+          )}
+          <div className="flex items-center gap-2">
+            <Tooltip content={tx('Copy Comment Link')}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                onClick={() => {
+                  const url = getUrl(hmId(comment.id))
+                  copyTextToClipboard(url)
+                  toast.success('Copied Comment URL')
+                }}
+              >
+                <Link className="size-3" />
+              </Button>
+            </Tooltip>
+            {currentAccountId == comment.author ? (
+              <OptionsDropdown
+                side="bottom"
+                align="end"
+                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                menuItems={options}
+              />
+            ) : null}
           </div>
-        )}
+        </div>
 
-        <div>{renderContent(comment)}</div>
+        <CommentContent comment={comment} />
         {!highlight && (
           <div
             className={cn(
@@ -832,38 +802,32 @@ export function Comment({
 
 export function CommentContent({
   comment,
-  size = 'md',
+  size,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
 }) {
-  const context = useContext(blocksContentContext)
-
-  const content = (
-    <BlocksContent
-      hideCollapseButtons
-      blocks={comment.content}
-      parentBlockId={null}
-    />
+  // const commentIdParts = comment.id.split('/')
+  // const _commentId = hmId(commentIdParts[0]!, {
+  //   path: [commentIdParts[1]!],
+  // })
+  const textUnit = size === 'sm' ? 12 : 14
+  const layoutUnit = size === 'sm' ? 14 : 16
+  return (
+    <BlocksContentProvider
+      key={comment.id}
+      // onBlockSelect={(blockId, blockRange) => {
+      //   // todo
+      //   toast.error('Not implemented discussions-panel onBlockSelect')
+      //   console.log('blockId', blockId, blockRange)
+      // }}
+      commentStyle
+      textUnit={textUnit}
+      layoutUnit={layoutUnit}
+    >
+      <BlocksContent hideCollapseButtons blocks={comment.content} />
+    </BlocksContentProvider>
   )
-
-  if (size != 'md') {
-    return (
-      <BlocksContentProvider
-        comment
-        onBlockSelect={context?.onBlockSelect ?? null}
-        textUnit={12}
-        layoutUnit={14}
-        debug={context?.debug ?? false}
-        collapsedBlocks={context?.collapsedBlocks ?? new Set()}
-        setCollapsedBlocks={context?.setCollapsedBlocks ?? (() => {})}
-      >
-        {content}
-      </BlocksContentProvider>
-    )
-  } else {
-    return content
-  }
 }
 
 function CommentDate({comment}: {comment: HMComment}) {
@@ -902,7 +866,7 @@ export function QuotedDocBlock({
           {blockContent && (
             <BlocksContent
               blocks={[blockContent]}
-              parentBlockId={blockId}
+              // parentBlockId={blockId}
               hideCollapseButtons
             />
           )}

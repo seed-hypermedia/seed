@@ -1,22 +1,22 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMDocumentMetadataSchema,
   hmId,
-  ListDocumentsResponse,
   unpackHmId,
 } from '@shm/shared'
-
-export type HMDirectory = PlainMessage<ListDocumentsResponse>
+import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 
 export type DirectoryPayload = {
   directory?: HMDocumentInfo[]
   accountsMetadata?: HMAccountsMetadata
   error?: string
 }
+
+const loadQueryResults = getQueryResultsWithClient(grpcClient)
 
 export const loader = async ({
   request,
@@ -25,47 +25,22 @@ export const loader = async ({
 }): Promise<WrappedResponse<DirectoryPayload>> => {
   const url = new URL(request.url)
   const id = unpackHmId(url.searchParams.get('id') || undefined)
-  const mode = url.searchParams.get('mode') || 'Children'
+  const mode = (url.searchParams.get('mode') || 'Children') as
+    | 'Children'
+    | 'AllDescendants'
   if (!id) throw new Error('id is required')
   let result: DirectoryPayload
   try {
-    const res = await grpcClient.documents.listDocuments({
-      account: id.uid,
+    const queryResult = await loadQueryResults({
+      includes: [
+        {
+          space: id.uid,
+          mode,
+          path: id.path?.join('/'),
+        },
+      ],
     })
-    const pathPrefix = id.path ? '/' + id.path.join('/') : '/'
-    const idPathLength = id.path?.length || 0
-    const directory = res.documents
-      .map((d) => ({
-        ...toPlainMessage(d),
-        metadata: HMDocumentMetadataSchema.parse(
-          d.metadata?.toJson({emitDefaultValues: true}),
-        ),
-      }))
-      .filter((doc) => {
-        if (doc.path === '/' || doc.path === '' || doc.path === pathPrefix) {
-          return false
-        }
-        if (!doc.path.startsWith(pathPrefix)) {
-          return false
-        }
-        // For Children mode, only include direct children
-        if (mode === 'Children') {
-          return doc.path.split('/').slice(1).length === idPathLength + 1
-        }
-        // For AllDescendants mode, include all descendants
-        return true
-      })
-      .map((doc) => {
-        const docId = hmId(id.uid, {path: doc.path.split('/').slice(1)})
-        return {
-          ...doc,
-          type: 'document' as const,
-          account: docId.uid,
-          path: docId.path || [],
-          metadata: doc.metadata,
-          id: docId,
-        }
-      })
+    const directory = queryResult?.results || []
     const allAuthors = new Set<string>()
     directory.forEach((doc) => {
       doc.authors.forEach((author) => allAuthors.add(author))

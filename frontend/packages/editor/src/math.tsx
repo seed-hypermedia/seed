@@ -5,7 +5,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/blocks-content'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
@@ -51,8 +51,7 @@ const Render = (
   const containerRef = useRef<HTMLDivElement>(null)
   const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
     useState(true)
-  const [error, setError] = useState<string>()
-  const {comment} = useBlocksContentContext()
+  const {commentStyle} = useBlocksContentContext()
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
@@ -195,7 +194,7 @@ const Render = (
         'flex w-full flex-col overflow-hidden rounded-md border-2 transition-colors',
         selected
           ? 'border-foreground/20 dark:border-foreground/30 bg-muted'
-          : comment
+          : commentStyle
           ? 'border-border bg-black/5 dark:bg-white/10'
           : 'bg-muted border-border',
         'hover:bg-black/3 dark:hover:bg-white/3',

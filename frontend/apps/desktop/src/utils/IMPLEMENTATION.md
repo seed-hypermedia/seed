@@ -167,7 +167,7 @@ To test the hypermedia hover system:
 Common issues and solutions:
 
 - **Styles not applying**: Check that the selector matches elements in the DOM
-  (e.g., `data-blockid` or `data-docid` attributes)
+  (e.g., `data-blockid` or `data-resourceid` attributes)
 - **Events not reaching other windows**: Verify that the broadcast IPC system is
   working
 - **Style conflicts**: The system uses `!important` to override other styles;

@@ -1,5 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {triggerCommentDraftFocus} from '@/components/commenting'
+import {useDocumentUrl} from '@/components/copy-reference-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
@@ -46,11 +47,15 @@ import {
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {
+  BlockRangeSelectOptions,
+  BlocksContent,
+  BlocksContentProvider,
+} from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
-import {DocContent} from '@shm/ui/document-content'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
@@ -66,7 +71,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {AppBlocksContentProvider} from './document-content-provider'
 
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
@@ -111,79 +115,77 @@ export default function DocumentPage() {
   return (
     <>
       <ActivityProvider service={activityService}>
-        <AppBlocksContentProvider>
-          <CommentsProvider
-            service={commentsService}
-            onReplyClick={(replyComment) => {
-              const targetRoute = isRouteEqualToCommentTarget({
-                id: route.id,
-                comment: replyComment,
-              })
+        <CommentsProvider
+          service={commentsService}
+          onReplyClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
 
-              if (targetRoute) {
-                push({
-                  key: 'document',
-                  id: targetRoute,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              } else {
-                console.log('targetRoute is the same. replacing...')
-                replace({
-                  ...route,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              }
-              triggerCommentDraftFocus(docId.id, replyComment.id)
-            }}
-            onReplyCountClick={(replyComment) => {
-              const targetRoute = isRouteEqualToCommentTarget({
-                id: route.id,
-                comment: replyComment,
+            if (targetRoute) {
+              push({
+                key: 'document',
+                id: targetRoute,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
               })
-              if (targetRoute) {
-                // comment target is not the same as the route, so we need to change the whole route
-                push({
-                  key: 'document',
-                  id: targetRoute,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              } else {
-                // comment target is the same as the route, so we can replace safely
-                replace({
-                  ...route,
-                  accessory: {
-                    key: 'discussions',
-                    openComment: replyComment.id,
-                    isReplying: true,
-                  },
-                })
-              }
-            }}
-          >
-            <DocumentPageContent
-              docId={docId}
-              route={route}
-              replace={replace}
-              push={push}
-              mainPanelRef={mainPanelRef}
-              accessoryKey={accessoryKey}
-              templateDialogContent={templateDialogContent}
-              notifSettingsDialogContent={notifSettingsDialog.content}
-            />
-          </CommentsProvider>
-        </AppBlocksContentProvider>
+            } else {
+              console.log('targetRoute is the same. replacing...')
+              replace({
+                ...route,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+            triggerCommentDraftFocus(docId.id, replyComment.id)
+          }}
+          onReplyCountClick={(replyComment) => {
+            const targetRoute = isRouteEqualToCommentTarget({
+              id: route.id,
+              comment: replyComment,
+            })
+            if (targetRoute) {
+              // comment target is not the same as the route, so we need to change the whole route
+              push({
+                key: 'document',
+                id: targetRoute,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            } else {
+              // comment target is the same as the route, so we can replace safely
+              replace({
+                ...route,
+                accessory: {
+                  key: 'discussions',
+                  openComment: replyComment.id,
+                  isReplying: true,
+                },
+              })
+            }
+          }}
+        >
+          <DocumentPageContent
+            docId={docId}
+            route={route}
+            replace={replace}
+            push={push}
+            mainPanelRef={mainPanelRef}
+            accessoryKey={accessoryKey}
+            templateDialogContent={templateDialogContent}
+            notifSettingsDialogContent={notifSettingsDialog.content}
+          />
+        </CommentsProvider>
       </ActivityProvider>
     </>
   )
@@ -735,75 +737,116 @@ function DocPageContent({
   if (!docRoute) return null
   if (resource?.type !== 'document') return null
   const document = resource.document
+
+  const reference = useDocumentUrl({docId: resource.id, isBlockFocused})
+
   return (
-    <AppBlocksContentProvider
-      routeParams={{
-        uid: docRoute.id?.uid || undefined,
-        version: docRoute.id?.version || undefined,
-        blockRef: blockRef || undefined,
-        blockRange: blockRange || undefined,
-      }}
-      blockCitations={useMemo(() => {
-        if (!citations.data) return {}
-        return calculateBlockCitations(citations.data)
-      }, [citations.data])}
-      onBlockCitationClick={(blockId) => {
-        if (!docRoute) return
-        replace({
-          ...docRoute,
-          id: {
-            ...docRoute.id,
-            blockRef: blockId || null,
-            blockRange: null,
-          },
-          accessory: {
-            key: 'discussions',
-            openBlockId: blockId || undefined,
-          },
-        })
-      }}
-      docId={resource.id}
-      onBlockCommentClick={(blockId, blockRangeInput) => {
-        if (route.key !== 'document') return
-        if (!blockId) return
-        const blockRange =
-          blockRangeInput &&
-          'start' in blockRangeInput &&
-          'end' in blockRangeInput
-            ? blockRangeInput
-            : null
-        replace({
-          ...route,
-          id: {
-            ...route.id,
-            blockRef: blockId,
-            blockRange,
-          },
-          accessory: {
-            key: 'discussions',
-            openBlockId: blockId,
-            blockRange,
-            autoFocus: true,
-          },
-        })
-      }}
-      isBlockFocused={isBlockFocused}
-    >
-      <DocContent
-        document={document}
-        focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
-        handleBlockReplace={() => {
-          if (route.key === 'document') {
-            // Remove block ref and range from the route.
-            replace({
-              ...route,
-              id: {...route.id, blockRef: null, blockRange: null},
-            })
-            return true
-          }
-          return false
+    <>
+      <BlocksContentProvider
+        selection={{
+          uid: docRoute.id?.uid || undefined,
+          version: docRoute.id?.version || undefined,
+          blockRef: blockRef || undefined,
+          blockRange: blockRange || undefined,
         }}
-      />
-    </AppBlocksContentProvider>
+        blockCitations={useMemo(() => {
+          if (!citations.data) return {}
+          return calculateBlockCitations(citations.data)
+        }, [citations.data])}
+        onBlockCitationClick={(blockId) => {
+          if (!docRoute) return
+          replace({
+            ...docRoute,
+            id: {
+              ...docRoute.id,
+              blockRef: blockId || null,
+              blockRange: null,
+            },
+            accessory: {
+              key: 'discussions',
+              openBlockId: blockId || undefined,
+            },
+          })
+        }}
+        onBlockCommentClick={(blockId, blockRangeInput) => {
+          if (route.key !== 'document') return
+          if (!blockId) return
+          const blockRange =
+            blockRangeInput &&
+            'start' in blockRangeInput &&
+            'end' in blockRangeInput
+              ? blockRangeInput
+              : null
+          replace({
+            ...route,
+            id: {
+              ...route.id,
+              blockRef: blockId,
+              blockRange,
+            },
+            accessory: {
+              key: 'discussions',
+              openBlockId: blockId,
+              blockRange,
+              autoFocus: true,
+            },
+          })
+        }}
+        onBlockSelect={
+          reference
+            ? useCallback(
+                (
+                  blockId: string,
+                  blockRangeInput?: BlockRangeSelectOptions,
+                ) => {
+                  const shouldCopy = blockRangeInput?.copyToClipboard !== false
+                  if (blockId && reference && shouldCopy) {
+                    reference.onCopy(
+                      blockId,
+                      blockRangeInput || {expanded: true},
+                    )
+                  }
+                  if (
+                    route.key === 'document' &&
+                    blockRangeInput?.copyToClipboard !== true
+                  ) {
+                    const element = window.document.getElementById(blockId)
+                    if (element) {
+                      element.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      })
+                    }
+
+                    replace({
+                      ...route,
+                      id: {
+                        ...route.id,
+                        blockRef: blockId,
+                        blockRange:
+                          blockRangeInput &&
+                          'start' in blockRangeInput &&
+                          'end' in blockRangeInput
+                            ? {
+                                start: blockRangeInput.start,
+                                end: blockRangeInput.end,
+                              }
+                            : null,
+                      },
+                    })
+                  }
+                },
+                [route, replace, reference],
+              )
+            : null
+        }
+      >
+        <BlocksContent
+          blocks={document.content}
+          focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
+        />
+      </BlocksContentProvider>
+      {reference?.content}
+    </>
   )
 }

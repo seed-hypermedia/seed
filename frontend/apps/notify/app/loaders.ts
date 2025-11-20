@@ -48,7 +48,7 @@ import {
   getErrorMessage,
   HMRedirectError,
 } from '@shm/shared/models/entity'
-import {getBlockNodeById} from '@shm/ui/document-content'
+import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
 import {discoverDocument} from './utils/discovery'
@@ -294,7 +294,7 @@ async function loadResourcePayload(
       queryBlockQueries
         .flatMap((item) => item.results)
         .map(async (item) => {
-          const id = hmId(item.account, {path: item.path})
+          const id = item.id
           const document = await getDocument(id)
           document.authors.forEach((author) => {
             if (!alreadySupportDocIds.has(hmId(author).id)) {
@@ -618,14 +618,7 @@ async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
       type: 'Query',
       id: block.id,
       query: block.attributes.query,
-      results: q?.results
-        ? await Promise.all(
-            q.results.map(async (result) => ({
-              ...result,
-              authors: await loadAuthors(result.authors),
-            })),
-          )
-        : null,
+      results: q?.results,
     }
   }
   return {

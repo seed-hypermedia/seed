@@ -1,8 +1,8 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
-import {useBlocksContentContext} from '@shm/ui/document-content'
 import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
@@ -113,14 +113,13 @@ export const MediaRender: React.FC<RenderProps> = ({
   const [selected, setSelected] = useState(false)
   const [uploading, setUploading] = useState(false)
   const hasSrc = !!block.props?.src
-  const {importWebFile} = useBlocksContentContext()
 
   useEditorSelectionChange(editor, () =>
     updateSelection(editor, block, setSelected),
   )
 
   useEffect(() => {
-    if (!uploading && hasSrc) {
+    if (!uploading && hasSrc && editor.importWebFile && block.props.src) {
       // @ts-ignore
       if (block.props.src.startsWith('ipfs')) {
         editor.updateBlock(block, {
@@ -130,44 +129,39 @@ export const MediaRender: React.FC<RenderProps> = ({
       }
       setUploading(true)
 
-      // Check if importWebFile has mutateAsync (desktop) or is a direct function (web)
-      if (typeof importWebFile?.mutateAsync === 'function') {
-        importWebFile
-          .mutateAsync(block.props.src)
-          .then(({cid, size}: {cid: string; size: number}) => {
-            setUploading(false)
+      editor
+        .importWebFile(block.props.src)
+        .then((imageData) => {
+          setUploading(false)
+          // Desktop result
+          if ('cid' in imageData) {
             editor.updateBlock(block, {
               props: {
-                url: `ipfs://${cid}`,
-                size: size.toString(),
+                url: `ipfs://${imageData.cid}`,
+                size: imageData.size.toString(),
                 src: '',
               },
             })
-          })
-          .catch((e: any) => {
-            console.error('Failed to import web file (desktop):', e)
-            setUploading(false)
-          })
-      } else if (typeof importWebFile === 'function') {
-        importWebFile(block.props.src)
-          .then((data: any) => {
-            setUploading(false)
+          }
+          // Web result
+          else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
             editor.updateBlock(block, {
               props: {
-                displaySrc: data.displaySrc,
-                fileBinary: data.fileBinary,
-                size: data.size?.toString() || '',
+                displaySrc: imageData.displaySrc,
+                // @ts-expect-error - schema defines fileBinary as string but it's actually Uint8Array
+                fileBinary: imageData.fileBinary,
+                size: imageData.size?.toString() || '',
                 src: '',
               },
             })
-          })
-          .catch((e: any) => {
-            console.error('Failed to import web file (web):', e)
-            setUploading(false)
-          })
-      }
+          }
+        })
+        .catch((e: any) => {
+          console.error('Failed to import web file:', e)
+          setUploading(false)
+        })
     }
-  }, [hasSrc, block, uploading, editor, importWebFile])
+  }, [hasSrc, block, uploading, editor, editor.importWebFile])
 
   const assignMedia = (props: MediaType) => {
     // we used to spread the current block.props into the new props, but now we just overwrite the whole thing because it was causing bugs
@@ -345,13 +339,16 @@ function MediaForm({
     },
   }
 
-  const {handleFileAttachment, comment} = useBlocksContentContext()
+  const {commentStyle} = useBlocksContentContext()
   const getFileUrl = useFileUrl()
 
   const handleUpload = async (files: File[]) => {
-    // @ts-ignore
-    if (validateFile && !validateFile(files[0])) {
-      return
+    const file = files[0]
+    if (!file) {
+      throw new Error('No file selected')
+    }
+    if (validateFile && !validateFile(file)) {
+      throw new Error('File is not valid')
     }
 
     const largeFileIndex = files.findIndex((file) => file.size > MaxFileSizeB)
@@ -375,11 +372,9 @@ function MediaForm({
       return
     }
 
-    // @ts-ignore
-    const {name, size} = files[0]
-    if (handleFileAttachment) {
-      // @ts-ignore
-      const {displaySrc, fileBinary} = await handleFileAttachment(files[0])
+    const {name, size} = file
+    if (editor.handleFileAttachment) {
+      const {displaySrc, fileBinary} = await editor.handleFileAttachment(file)
       assign({
         props: {
           fileBinary,
@@ -437,7 +432,7 @@ function MediaForm({
           ? 'border-foreground/20 dark:border-foreground/30'
           : 'border-border',
         drag && 'border-dashed',
-        comment &&
+        commentStyle &&
           !drag &&
           !selected &&
           'border-border bg-black/5 dark:bg-white/10',

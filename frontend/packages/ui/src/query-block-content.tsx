@@ -1,7 +1,10 @@
-import {HMAccountsMetadata, HMDocumentInfo} from '@shm/shared'
-import {hmId} from '@shm/shared/utils/entity-id-url'
-import {useMemo} from 'react'
-import {DocumentCardGrid} from './document-content'
+import {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  HMEntityContent,
+  UnpackedHypermediaId,
+} from '@shm/shared'
+import {DocumentCardGrid} from './blocks-content'
 import {DocumentListItem} from './document-list-item'
 
 export interface QueryBlockContentProps {
@@ -10,7 +13,7 @@ export interface QueryBlockContentProps {
   columnCount?: string | number
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
-  getEntity?: (path: string[]) => any
+  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
 }
 
 export function QueryBlockContent({
@@ -49,27 +52,16 @@ function QueryBlockCardView({
   banner: boolean
   columnCount: string | number
   accountsMetadata: HMAccountsMetadata
-  getEntity?: (path: string[]) => any
+  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
 }) {
-  const docs = useMemo(() => {
-    return items.map((item) => {
-      const id = hmId(item.account, {
-        path: item.path,
-        latest: true,
-      })
-      return {id, item}
-    })
-  }, [items])
-
-  const firstItem = banner ? docs[0] : null
-  const restItems = banner ? docs.slice(1) : docs
+  const firstItem = banner ? items[0] : undefined
+  const restItems = banner ? items.slice(1) : items
 
   const columnCountNum =
     typeof columnCount === 'string' ? parseInt(columnCount, 10) : columnCount
 
   return (
     <DocumentCardGrid
-      // @ts-ignore
       firstItem={firstItem}
       items={restItems}
       getEntity={getEntity}
@@ -91,7 +83,7 @@ function QueryBlockListView({
       {items.map((item) => {
         return (
           <DocumentListItem
-            key={`${item.account}-${item.path?.join('/')}`}
+            key={item.id.id}
             item={item}
             accountsMetadata={accountsMetadata}
           />

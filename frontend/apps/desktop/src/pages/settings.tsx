@@ -10,7 +10,7 @@ import {
   useMyAccountIds,
   useSavedMnemonics,
 } from '@/models/daemon'
-import {useExperiments, useWriteExperiments} from '@/models/experiments'
+import {useWriteExperiments} from '@/models/experiments'
 import {
   useGatewayUrl,
   useNotifyServiceHost,
@@ -25,6 +25,7 @@ import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
+import {useUniversalAppContext} from '@shm/shared'
 import {
   COMMIT_HASH,
   LIGHTNING_API_URL,
@@ -270,10 +271,10 @@ function GeneralSettings() {
 }
 
 export function DeveloperSettings() {
-  const experiments = useExperiments()
+  const experiments = useUniversalAppContext().experiments
   const writeExperiments = useWriteExperiments()
-  const enabledDevTools = experiments.data?.developerTools
-  const enabledPubContentDevMenu = experiments.data?.pubContentDevMenu
+  const enabledDevTools = experiments?.developerTools
+  const enabledPubContentDevMenu = experiments?.pubContentDevMenu
   const openDraftLogs = trpc.diagnosis.openDraftLogFolder.useMutation()
   return (
     <>
@@ -1068,7 +1069,7 @@ function PushOnPublishSetting({}: {}) {
 }
 
 // function ExperimentsSettings({}: {}) {
-//   const experiments = useExperiments()
+//   const experiments = useUniversalAppContext().experiments
 //   const writeExperiments = useWriteExperiments()
 //   return (
 //     <div className="flex flex-col gap-3">

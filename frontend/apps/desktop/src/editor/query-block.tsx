@@ -135,18 +135,9 @@ function Render(
     return []
   }, [directoryItems, querySort, block.props.queryLimit])
 
-  const docResults = useResources(
-    sortedItems.map((item) =>
-      hmId(item.account, {
-        path: item.path,
-        latest: true,
-        version: item.version,
-      }),
-    ) || [],
-    {
-      enabled: !!directoryItems.data?.length || false,
-    },
-  )
+  const docResults = useResources(sortedItems.map((item) => item.id) || [], {
+    enabled: !!directoryItems.data?.length || false,
+  })
 
   useEditorSelectionChange(editor, updateSelection)
 
@@ -215,20 +206,12 @@ function Render(
   const navigate = useNavigate()
 
   // For Card view, we need getEntity function
-  const documents = useResources(
-    sortedItems.map((item) =>
-      hmId(item.account, {
-        path: item.path,
-        latest: true,
-      }),
-    ),
-  )
+  const documents = useResources(sortedItems.map((item) => item.id))
 
-  function getEntity(path: string[]) {
+  function getEntity(id: UnpackedHypermediaId) {
     return (
-      documents?.find(
-        (document) => document.data?.id?.path?.join('/') === path?.join('/'),
-      )?.data || null
+      documents?.find((document) => document.data?.id?.id === id.id)?.data ||
+      null
     )
   }
 

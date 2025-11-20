@@ -48,7 +48,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
               <SubDocumentItem
                 hideIcon
                 item={activityItem}
-                key={activityItem.account + '/' + activityItem.path.join('/')}
+                key={activityItem.id.id}
                 accountsMetadata={accounts.data?.accountsMetadata || {}}
               />
             )

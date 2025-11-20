@@ -293,10 +293,7 @@ async function updateEntitySubscription(sub: EntitySubscription) {
           // @ts-expect-error
           .then((newDir: HMDocumentInfo[]) => {
             newDir.forEach((doc) => {
-              discoveryResultWithLatestVersion(
-                hmId(doc.account, {path: doc.path}),
-                doc.version,
-              )
+              discoveryResultWithLatestVersion(doc.id, doc.version)
             })
           })
       }

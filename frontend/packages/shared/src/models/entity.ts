@@ -1,14 +1,24 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
+import {
+  PlainMessage,
+  Struct,
+  Timestamp,
+  toPlainMessage,
+} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {RedirectErrorDetails} from '../client'
+import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
 import {GRPCClient} from '../grpc-client'
 import {
+  HMDocumentInfo,
+  HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
+  HMMetadata,
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
+  HMTimestamp,
+  HMTimestampSchema,
   UnpackedHypermediaId,
 } from '../hm-types'
 import {useUniversalClient} from '../routing'
@@ -19,6 +29,48 @@ export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
     metadata.theme = undefined
   }
+}
+
+export function prepareHMDocumentMetadata(
+  metadata: Struct | undefined,
+): HMMetadata {
+  const docMeta = metadata?.toJson() || {}
+  documentMetadataParseAdjustments(docMeta)
+  return HMDocumentMetadataSchema.parse(docMeta)
+}
+
+export function prepareHMDate(
+  date: PlainMessage<Timestamp> | undefined,
+): HMTimestamp | undefined {
+  if (!date) return undefined
+  const d = toPlainMessage(date)
+  return HMTimestampSchema.parse(d)
+}
+
+export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
+  const docInfo = toPlainMessage(doc)
+  const path = entityQueryPathToHmIdPath(docInfo.path)
+  const createTime = prepareHMDate(docInfo.createTime)
+  let sortTime: Date
+  if (!createTime) {
+    sortTime = new Date(0)
+  } else if (typeof createTime === 'string') {
+    sortTime = new Date(createTime)
+  } else {
+    sortTime = new Date(
+      Number(createTime.seconds) * 1000 + createTime.nanos / 1000000,
+    )
+  }
+  return HMDocumentInfoSchema.parse({
+    ...docInfo,
+    metadata: prepareHMDocumentMetadata(doc.metadata),
+    type: 'document',
+    createTime,
+    updateTime: prepareHMDate(docInfo.updateTime),
+    sortTime,
+    id: hmId(docInfo.account, {path, version: docInfo.version, latest: true}),
+    path,
+  } as const)
 }
 
 export function documentParseAdjustments(document: any) {

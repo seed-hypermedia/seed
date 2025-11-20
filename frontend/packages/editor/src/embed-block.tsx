@@ -11,14 +11,12 @@ import {
   normalizeHmId,
   packHmId,
 } from '@shm/shared/utils/entity-id-url'
-import {Input} from '@shm/ui/components/input'
 import {
   BlockEmbedCard,
-  BlockEmbedComments,
   BlockEmbedContent,
   ErrorBlock,
-  useBlocksContentContext,
-} from '@shm/ui/document-content'
+} from '@shm/ui/blocks-content'
+import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
 import {RecentSearchResultItem, SearchResultItem} from '@shm/ui/search'
 import {Separator} from '@shm/ui/separator'
@@ -232,8 +230,8 @@ function EmbedContent({
 }) {
   if (block.attributes.view === 'Card')
     return <BlockEmbedCard block={block} parentBlockId={parentBlockId} />
-  if (block.attributes.view === 'Comments')
-    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
+  if (block.attributes.view === 'Comments') return <div>Discussions View</div>
+  // return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
   // if (block.attributes.view === 'Content') // content is the default
   return <BlockEmbedContent block={block} parentBlockId={parentBlockId} />
 }
@@ -253,14 +251,11 @@ const EmbedLauncherInput = ({
 }) => {
   const [search, setSearch] = useState('')
   const [focused, setFocused] = useState(false)
-  const {comment} = useBlocksContentContext()
   const recents = useRecents()
   const searchResults = useSearch(search, {
     includeBody: true,
     contextSize: 20 - search.length,
   })
-
-  console.log(`== ~ EmbedLauncherInput ~ searchResults:`, searchResults)
 
   const searchItems: SwitcherItem[] =
     searchResults.data?.entities

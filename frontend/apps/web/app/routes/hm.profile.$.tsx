@@ -5,7 +5,6 @@ import {
   LogoutButton,
   useLocalKeyPair,
 } from '@/auth'
-import {WebBlocksContentProvider} from '@/doc-content-provider'
 import {getMetadata, getOriginRequestData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
@@ -109,39 +108,31 @@ function ProfilePageContent({
         )}
         <PageContainer>
           <ActivityProvider service={activityService}>
-            <WebBlocksContentProvider
-              siteHost={siteHost}
-              originHomeId={originHomeId}
-              comment
-              textUnit={16}
-              layoutUnit={18}
-            >
-              <HMProfilePage
-                profile={{
-                  id: profile.id,
-                  metadata: displayMetadata,
-                  hasSite: profile.hasSite,
-                }}
-                onEditProfile={() =>
-                  editProfileDialog.open({accountUid: profile.id.uid})
-                }
-                currentAccount={currentAccount}
-                headerButtons={
-                  isCurrentAccount ? (
-                    <>
-                      <LogoutButton />
-                      <Button
-                        variant="outline"
-                        onClick={() => linkKeysDialog.open({})}
-                      >
-                        <KeySquare className="size-4" />
-                        Link Keys
-                      </Button>
-                    </>
-                  ) : null
-                }
-              />
-            </WebBlocksContentProvider>
+            <HMProfilePage
+              profile={{
+                id: profile.id,
+                metadata: displayMetadata,
+                hasSite: profile.hasSite,
+              }}
+              onEditProfile={() =>
+                editProfileDialog.open({accountUid: profile.id.uid})
+              }
+              currentAccount={currentAccount}
+              headerButtons={
+                isCurrentAccount ? (
+                  <>
+                    <LogoutButton />
+                    <Button
+                      variant="outline"
+                      onClick={() => linkKeysDialog.open({})}
+                    >
+                      <KeySquare className="size-4" />
+                      Link Keys
+                    </Button>
+                  </>
+                ) : null
+              }
+            />
           </ActivityProvider>
         </PageContainer>
         <MyAccountBubble />

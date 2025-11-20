@@ -1,4 +1,3 @@
-import {AppBlocksContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -15,7 +14,7 @@ import {
   useDeleteCommentDialog,
 } from '@shm/ui/comments'
 import {memo, useCallback} from 'react'
-import {CommentBox, renderCommentContent} from './commenting'
+import {CommentBox} from './commenting'
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
@@ -70,7 +69,7 @@ function _DiscussionsPanel(props: {
       blockRef: accessory.openBlockId,
     })
     return (
-      <AppBlocksContentProvider docId={targetId} textUnit={14} layoutUnit={16}>
+      <>
         {deleteCommentDialog.content}
         <BlockDiscussions
           targetId={targetId}
@@ -78,40 +77,41 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
-          renderCommentContent={renderCommentContent}
         />
-      </AppBlocksContentProvider>
+      </>
     )
   }
 
   if (accessory.openComment) {
     return (
-      <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+      <>
         {deleteCommentDialog.content}
         <CommentDiscussions
           commentId={accessory.openComment}
           commentEditor={commentEditor}
           targetId={docId}
-          renderCommentContent={renderCommentContent}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
+          selection={{
+            blockId: accessory.openBlockId,
+            blockRange: accessory.blockRange || undefined,
+          }}
         />
-      </AppBlocksContentProvider>
+      </>
     )
   }
 
   return (
-    <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+    <>
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
         targetId={docId}
-        renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
       />
-    </AppBlocksContentProvider>
+    </>
   )
 }

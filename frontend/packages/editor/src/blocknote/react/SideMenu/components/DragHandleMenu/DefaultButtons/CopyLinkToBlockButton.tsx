@@ -1,4 +1,4 @@
-import {useBlocksContentContext} from '@shm/ui/document-content'
+import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {Link} from '@shm/ui/icons'
 import {BlockSchema} from '../../../../../core'
 import {DragHandleMenuProps} from '../DragHandleMenu'

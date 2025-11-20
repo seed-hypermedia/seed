@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {BlockRangeSchema, unpackedHmIdSchema} from '.'
+import {BlockRangeSchema, unpackedHmIdSchema} from './hm-types'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 

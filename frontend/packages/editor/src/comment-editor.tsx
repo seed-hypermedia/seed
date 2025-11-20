@@ -1,4 +1,4 @@
-import {EditorBlock, writeableStateStream} from '@shm/shared'
+import {EditorBlock, useOpenUrl, writeableStateStream} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
@@ -12,7 +12,7 @@ import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/blocks-content'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -49,6 +49,16 @@ export function useCommentEditor(
   onSubmit?: () => void,
   onMobileMentionTrigger?: () => void,
   onMobileSlashTrigger?: () => void,
+  importWebFile?: (url: string) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+    type: string
+    size: number
+  }>,
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+  }>,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
 
@@ -77,6 +87,8 @@ export function useCommentEditor(
     blockSchema: hmBlockSchema,
     getSlashMenuItems: () => getSlashMenuItems(),
     onMentionsQuery,
+    importWebFile,
+    handleFileAttachment,
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -224,6 +236,8 @@ export function CommentEditor({
   initialBlocks,
   onContentChange,
   onAvatarPress,
+  importWebFile,
+  handleFileAttachment,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -256,6 +270,16 @@ export function CommentEditor({
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
+  importWebFile?: (url: string) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+    type: string
+    size: number
+  }>
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc: string
+    fileBinary: Uint8Array
+  }>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -268,6 +292,8 @@ export function CommentEditor({
     () => setSubmitTrigger((prev) => prev + 1),
     isMobile ? () => setIsMentionsDialogOpen(true) : undefined,
     isMobile ? () => setIsSlashDialogOpen(true) : undefined,
+    importWebFile,
+    handleFileAttachment,
   )
   // Check if we have non-empty draft content
   const hasDraftContent =
@@ -291,7 +317,7 @@ export function CommentEditor({
   const [isEditorFocused, setIsEditorFocused] = useState(
     () => autoFocus || hasDraftContent || false,
   )
-  const {openUrl, handleFileAttachment} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
   const [isDragging, setIsDragging] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
@@ -671,7 +697,6 @@ export function CommentEditor({
             onDrop={onDrop}
           >
             {isEditorFocused ? (
-              // @ts-expect-error
               <HyperMediaEditorView editor={editor} openUrl={openUrl} />
             ) : (
               <Button

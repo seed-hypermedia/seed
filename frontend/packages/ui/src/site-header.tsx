@@ -418,7 +418,10 @@ function HeaderLinkItem({
       : webUrl || null,
   )
   return (
-    <div className={cn('flex items-center gap-1 px-1')} data-docid={id?.id}>
+    <div
+      className={cn('flex items-center gap-1 px-1')}
+      data-resourceid={id?.id}
+    >
       <a
         className={cn(
           'cursor-pointer truncate px-1 font-bold transition-colors select-none',

@@ -59,7 +59,6 @@ import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
-import {AppBlocksContentProvider} from './document-content-provider'
 import './draft-page.css'
 
 export default function DraftPage() {
@@ -241,7 +240,7 @@ export default function DraftPage() {
           }
         }}
       >
-        <div className="flex h-full flex-1">
+        <div className="flex flex-1 h-full">
           <AccessoryLayout
             accessory={accessory}
             accessoryKey={accessoryKey}
@@ -257,7 +256,7 @@ export default function DraftPage() {
             <div
               className={cn(
                 panelContainerStyles,
-                'dark:bg-background flex flex-col bg-white',
+                'flex flex-col bg-white dark:bg-background',
               )}
             >
               <DraftRebaseBanner />
@@ -404,75 +403,70 @@ function DocumentEditor({
         // @ts-expect-error
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex flex-1 flex-col overflow-hidden"
+        className="flex overflow-hidden flex-col flex-1"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
-          <AppBlocksContentProvider
-            // onBlockSelect={onBlockSelect} // todo: allow copy block when editing doc
-            importWebFile={importWebFile}
-          >
-            <DraftCover
-              draftActor={actor}
-              // @ts-expect-error
-              disabled={!state.matches('editing')}
-              show={showCover}
-              // @ts-expect-error
-              setShow={setShowCover}
-              showOutline={showOutline}
-            />
-            <div ref={elementRef} className="draft-editor w-full flex-1">
-              <div {...wrapperProps}>
-                {showSidebars ? (
-                  <div
-                    {...sidebarProps}
-                    className={`${sidebarProps.className || ''} flex flex-col`}
-                    style={{
-                      ...sidebarProps.style,
-                      marginTop: showCover ? 150 : 210,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
-                      <DocNavigationDraftLoader
-                        showCollapsed={showCollapsed}
-                        id={id}
-                        editor={editor}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-                <div {...mainContentProps}>
-                  {!isHomeDoc ? (
-                    <DraftMetadataEditor
-                      draftActor={actor}
-                      onEnter={() => {
-                        editor._tiptapEditor.commands.focus()
-                        editor._tiptapEditor.commands.setTextSelection(0)
-                      }}
-                      // disabled={!state.matches('ready')}
-                      showCover={showCover}
-                      setShowCover={setShowCover}
+          <DraftCover
+            draftActor={actor}
+            // @ts-expect-error
+            disabled={!state.matches('editing')}
+            show={showCover}
+            // @ts-expect-error
+            setShow={setShowCover}
+            showOutline={showOutline}
+          />
+          <div ref={elementRef} className="flex-1 w-full draft-editor">
+            <div {...wrapperProps}>
+              {showSidebars ? (
+                <div
+                  {...sidebarProps}
+                  className={`${sidebarProps.className || ''} flex flex-col`}
+                  style={{
+                    ...sidebarProps.style,
+                    marginTop: showCover ? 150 : 210,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex overflow-scroll flex-col h-full hide-scrollbar">
+                    <DocNavigationDraftLoader
+                      showCollapsed={showCollapsed}
+                      id={id}
+                      editor={editor}
                     />
-                  ) : null}
-                  <Container
-                    // @ts-expect-error
-                    paddingLeft="$4"
-                    marginBottom={300}
-                    onClick={(e: MouseEvent<HTMLDivElement>) => {
-                      // this prevents to fire handleFocusAtMousePos on click
-                      e.stopPropagation()
-                      // editor?._tiptapEditor.commands.focus()
-                    }}
-                  >
-                    {editor ? (
-                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                    ) : null}
-                  </Container>
+                  </div>
                 </div>
-                {showSidebars ? <div {...sidebarProps} /> : null}
+              ) : null}
+              <div {...mainContentProps}>
+                {!isHomeDoc ? (
+                  <DraftMetadataEditor
+                    draftActor={actor}
+                    onEnter={() => {
+                      editor._tiptapEditor.commands.focus()
+                      editor._tiptapEditor.commands.setTextSelection(0)
+                    }}
+                    // disabled={!state.matches('ready')}
+                    showCover={showCover}
+                    setShowCover={setShowCover}
+                  />
+                ) : null}
+                <Container
+                  // @ts-expect-error
+                  paddingLeft="$4"
+                  marginBottom={300}
+                  onClick={(e: MouseEvent<HTMLDivElement>) => {
+                    // this prevents to fire handleFocusAtMousePos on click
+                    e.stopPropagation()
+                    // editor?._tiptapEditor.commands.focus()
+                  }}
+                >
+                  {editor ? (
+                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                  ) : null}
+                </Container>
               </div>
+              {showSidebars ? <div {...sidebarProps} /> : null}
             </div>
-          </AppBlocksContentProvider>
+          </div>
         </ScrollArea>
       </div>
     )
@@ -787,7 +781,7 @@ function DraftMetadataEditor({
           paddingTop: !showCover ? '60px' : '24px',
         }}
       >
-        <div className="group-header z-1 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 group-header z-1">
           <textarea
             disabled={disabled}
             id="draft-name-input"
@@ -799,7 +793,7 @@ function DraftMetadataEditor({
                 onEnter()
               }
             }}
-            className="w-full resize-none border-none border-transparent text-4xl font-bold shadow-none ring-0 ring-transparent" // trying to hide extra content that flashes when pasting multi-line text into the title
+            className="w-full text-4xl font-bold border-transparent border-none ring-0 ring-transparent shadow-none resize-none" // trying to hide extra content that flashes when pasting multi-line text into the title
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
             onChange={(e) => {
@@ -934,7 +928,7 @@ function DraftRebaseBanner() {
 
   if (isRebasing) {
     return (
-      <div className="flex border-0 border-b border-solid bg-yellow-100 p-4 text-black">
+      <div className="flex p-4 text-black bg-yellow-100 border-0 border-b border-solid">
         <div className="mr-2">
           <Spinner className="size-4" />
         </div>

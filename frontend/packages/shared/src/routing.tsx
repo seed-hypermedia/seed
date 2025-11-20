@@ -1,15 +1,29 @@
+import {PlainMessage} from '@bufbuild/protobuf'
 import {createContext, useContext} from 'react'
+import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import type {UniversalClient} from './universal-client'
+import type {Contact, UniversalClient} from './universal-client'
 import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
 export type {UniversalClient}
+
+export const appExperimentsSchema = z
+  .object({
+    hosting: z.boolean().optional(),
+    webImporting: z.boolean().optional(),
+    nostr: z.boolean().optional(),
+    developerTools: z.boolean().optional(),
+    pubContentDevMenu: z.boolean().optional(),
+    newLibrary: z.boolean().optional(),
+  })
+  .strict()
+export type AppExperiments = z.infer<typeof appExperimentsSchema>
 
 type UniversalAppContextValue = {
   ipfsFileUrl?: string
@@ -26,12 +40,20 @@ type UniversalAppContextValue = {
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
+  // you must be confused at this point, because I wrote this and I got confused! Here's why we do it:
+  // when you copy content from the desktop app, you want to copy the <a> tags with full hm:// URLs, so they can be properly copy-pasted in an offline context.
+  // ask Eric if you have questions.
   hmUrlHref?: boolean
 
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
+
+  experiments?: AppExperiments
+  contacts?: PlainMessage<Contact>[]
+  broadcastEvent?: (event: AppEvent) => void
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -40,6 +62,16 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
     console.error('UniversalAppContext not set. Can not openUrl')
   },
 })
+
+type AppEvent =
+  | {
+      type: 'hypermediaHoverIn'
+      id: UnpackedHypermediaId
+    }
+  | {
+      type: 'hypermediaHoverOut'
+      id: UnpackedHypermediaId
+    }
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode
@@ -56,6 +88,10 @@ export function UniversalAppProvider(props: {
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
+  experiments?: AppExperiments
+  contacts?: PlainMessage<Contact>[]
+  broadcastEvent?: (event: AppEvent) => void
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }) {
   return (
     <UniversalAppContext.Provider
@@ -73,6 +109,10 @@ export function UniversalAppProvider(props: {
         selectedIdentity: props.selectedIdentity,
         setSelectedIdentity: props.setSelectedIdentity,
         universalClient: props.universalClient,
+        experiments: props.experiments,
+        contacts: props.contacts,
+        broadcastEvent: props.broadcastEvent,
+        saveCidAsFile: props.saveCidAsFile,
       }}
     >
       {props.children as any}
@@ -134,7 +174,7 @@ type UseRouteLinkOpts = {
 
 export function routeToHref(
   route: NavRoute | string,
-  options: {
+  options?: {
     hmUrlHref?: boolean
     originHomeId?: UnpackedHypermediaId
     origin?: string | null
@@ -154,26 +194,29 @@ export function routeToHref(
       : route.key == 'document' || route.key == 'feed'
       ? route.id
       : null
-  const activeCommentId =
-    docRoute?.accessory?.key == 'discussions'
-      ? docRoute.accessory?.openComment
-      : null
+  const activeCommentAccessory =
+    docRoute?.accessory?.key == 'discussions' ? docRoute.accessory : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
-  } else if (activeCommentId) {
+  } else if (activeCommentAccessory && activeCommentAccessory.openComment) {
+    const activeCommentId = activeCommentAccessory.openComment
     const [accountUid, commentTsid] = activeCommentId.split('/')
-    // @ts-ignore
-    const commentId = hmId(accountUid, {path: [commentTsid]})
-
-    href = options.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
+    if (!accountUid || !commentTsid) return undefined
+    const commentId = hmId(accountUid, {
+      path: [commentTsid],
+      blockRef: activeCommentAccessory.openBlockId,
+      blockRange: activeCommentAccessory.blockRange,
+      hostname: options?.origin,
+    })
+    href = options?.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
-    href = options.hmUrlHref
+    href = options?.hmUrlHref
       ? createHMUrl(docId)
       : idToUrl(
           {...docId, hostname: null},
           {
-            originHomeId: options.originHomeId,
+            originHomeId: options?.originHomeId,
             feed: docRoute.key === 'feed',
           },
         )

@@ -1,3 +1,4 @@
+import {useOpenUrl} from '@shm/shared'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -8,7 +9,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useRef, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/blocks-content'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
@@ -115,7 +116,7 @@ const display = ({
 }: DisplayComponentProps) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
-  const {openUrl} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
 
   const containerRef = useRef(null)
   const isInitialized = useRef(false)
@@ -193,8 +194,9 @@ const display = ({
       setSelected={setSelected}
       assign={assign}
       onPress={() => {
-        // @ts-expect-error
-        openUrl(block.props.link)
+        if (block.props.link) {
+          openUrl(block.props.link)
+        }
       }}
       styleProps={{
         padding: '$3',

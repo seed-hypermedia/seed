@@ -2,7 +2,6 @@ import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
-import {AppBlocksContentProvider} from '@/pages/document-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {
   chromiumSupportedImageMimeTypes,
@@ -17,8 +16,6 @@ import {useCallback} from 'react'
 
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {
-  HMBlockEmbed,
-  HMComment,
   HMCommentDraft,
   HMCommentGroup,
   UnpackedHypermediaId,
@@ -28,49 +25,78 @@ import {useStream} from '@shm/shared/use-stream'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/button'
 import {
   BlocksContent,
+  BlocksContentProvider,
   getBlockNodeById,
   useBlocksContentContext,
-} from '@shm/ui/document-content'
+} from '@shm/ui/blocks-content'
+import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 
-export function renderCommentContent(comment: HMComment) {
-  const data: HMComment & {reference: string | null} = useMemo(() => {
-    if (comment.content.length === 1) {
-      let parentBlock = comment.content[0]
-      // @ts-ignore
-      if (parentBlock.block.type === 'Embed') {
-        return {
-          ...comment,
-          // @ts-ignore
-          reference: (parentBlock.block as HMBlockEmbed).link,
-          // @ts-ignore
-          content: parentBlock.children || [],
-        }
-      }
-    }
+// export function renderCommentContent(
+//   comment: HMComment,
+//   getUrl: (hmId: UnpackedHypermediaId) => string,
+// ) {
+//   const data: HMComment & {reference: string | null} = useMemo(() => {
+//     if (comment.content.length === 1) {
+//       let parentBlock = comment.content[0]
+//       // @ts-ignore
+//       if (parentBlock.block.type === 'Embed') {
+//         return {
+//           ...comment,
+//           // @ts-ignore
+//           reference: (parentBlock.block as HMBlockEmbed).link,
+//           // @ts-ignore
+//           content: parentBlock.children || [],
+//         }
+//       }
+//     }
 
-    return {
-      ...comment,
-      reference: null,
-    }
-  }, [comment])
+//     return {
+//       ...comment,
+//       reference: null,
+//     }
+//   }, [comment])
 
-  return (
-    <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
-      <div className="flex w-full flex-col">
-        <CommentReference reference={data.reference} />
-        <BlocksContent blocks={data.content} parentBlockId={null} />
-      </div>
-    </AppBlocksContentProvider>
-  )
-}
+//   const commentIdParts = comment.id.split('/')
+//   const commentAuthorId = commentIdParts[0]!
+//   const commentTSID = commentIdParts[1]!
+
+//   return (
+//     <BlocksContentProvider
+//       textUnit={14}
+//       layoutUnit={16}
+//       commentStyle
+//       onBlockSelect={(blockId, opts) => {
+//         if (opts?.copyToClipboard) {
+//           const commentResourceId = hmId(commentAuthorId, {
+//             path: [commentTSID],
+//             blockRef: blockId,
+//             blockRange: opts,
+//           })
+//           const href = getUrl(commentResourceId)
+//           if (!href) {
+//             toast.error('Failed to generate comment block link')
+//             return
+//           }
+//           copyUrlToClipboardWithFeedback(href, 'Comment Block')
+//         } else {
+//           toast('Will focus this block')
+//         }
+//       }}
+//     >
+//       <div className="flex flex-col w-full">
+//         <CommentReference reference={data.reference} />
+//         <BlocksContent blocks={data.content} />
+//       </div>
+//     </BlocksContentProvider>
+//   )
+// }
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
@@ -363,9 +389,9 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <AppBlocksContentProvider comment textUnit={14} layoutUnit={16}>
-          <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
-        </AppBlocksContentProvider>
+        <BlocksContentProvider commentStyle textUnit={14} layoutUnit={16}>
+          <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+        </BlocksContentProvider>
       </div>
       <div
         className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
@@ -495,19 +521,11 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        <AppBlocksContentProvider
-          {...context}
-          comment
-          textUnit={14}
-          layoutUnit={16}
-        >
-          <BlocksContent
-            blocks={referenceContent}
-            parentBlockId={null}
-            expanded={false}
-            hideCollapseButtons
-          />
-        </AppBlocksContentProvider>
+        <BlocksContentProvider {...context} textUnit={14} layoutUnit={16}>
+          {referenceContent && (
+            <BlocksContent blocks={referenceContent} hideCollapseButtons />
+          )}
+        </BlocksContentProvider>
       </div>
     </div>
   )

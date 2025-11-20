@@ -15,8 +15,8 @@ hovering over them.
 
 ### Broadcasting Events
 
-The document-content-provider.tsx contains hover handlers that broadcast events
-to all windows:
+The blocks-content-provider.tsx contains hover handlers that broadcast events to
+all windows:
 
 ```jsx
 onHoverIn={(id) => {
@@ -71,7 +71,7 @@ The system dynamically generates CSS that targets elements with matching IDs:
 function createHighlightCSS(id: string): string {
   return `
     [data-blockid="${id}"],
-    [data-docid="${id}"] {
+    [data-resourceid="${id}"] {
       background-color: ${highlightColor} !important;
     }
   `
@@ -80,7 +80,7 @@ function createHighlightCSS(id: string): string {
 
 ## Key Files
 
-- **document-content-provider.tsx**: Contains the hover event handlers
+- **blocks-content-provider.tsx**: Contains the hover event handlers
 - **components/hypermedia-highlight.tsx**: Component that listens for events and
   applies highlights
 - **utils/window-events.ts**: Defines the event types
@@ -99,7 +99,7 @@ HypermediaHighlight component:
 
 ## Troubleshooting
 
-- **No highlighting**: Make sure elements have `data-blockid` or `data-docid`
-  attributes matching the ID being sent
+- **No highlighting**: Make sure elements have `data-blockid` or
+  `data-resourceid` attributes matching the ID being sent
 - **Events not working**: Check browser console for errors in the broadcast
   mechanism

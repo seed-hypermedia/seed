@@ -11,7 +11,7 @@ import {
   HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
-import {unpackHmId} from './utils'
+import {normalizeDate, unpackHmId} from './utils'
 
 // Check if a block has meaningful content
 export function hasBlockContent(block: HMBlockNode): boolean {
@@ -137,7 +137,7 @@ function lastUpdateSort(a: HMDocumentInfo, b: HMDocumentInfo) {
 }
 
 function lastUpdateOfEntry(entry: HMDocumentInfo) {
-  return entry.updateTime?.seconds ? Number(entry.updateTime?.seconds) : 0
+  return normalizeDate(entry.updateTime)?.getTime() || 0
 }
 
 function createTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
@@ -145,7 +145,7 @@ function createTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
 }
 
 function createTimeOfEntry(entry: HMDocumentInfo) {
-  return entry.createTime?.seconds ? Number(entry.createTime?.seconds) : 0
+  return normalizeDate(entry.createTime)?.getTime() || 0
 }
 
 function displayPublishTimeSort(a: HMDocumentInfo, b: HMDocumentInfo) {
@@ -158,8 +158,7 @@ function displayPublishTimeOfEntry(entry: HMDocumentInfo): number {
     const timestamp = Date.parse(dateStr)
     if (!isNaN(timestamp)) return timestamp
   }
-
-  return entry.updateTime?.seconds ? Number(entry.updateTime.seconds) * 1000 : 0
+  return normalizeDate(entry.updateTime)?.getTime() || 0
 }
 
 function titleOfEntry(entry: HMDocumentInfo) {

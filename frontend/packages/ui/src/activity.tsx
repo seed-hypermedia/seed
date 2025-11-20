@@ -4,7 +4,6 @@ import {
   HMAccountsMetadata,
   HMActivitySummary,
   HMComment,
-  hmId,
   HMLibraryDocument,
   normalizeDate,
   plainTextOfContent,
@@ -29,9 +28,7 @@ export function SubDocumentItem({
   hideIcon?: boolean
 }) {
   const metadata = item?.metadata
-  const id = hmId(item.account, {
-    path: item.path,
-  })
+  const id = item.id
   const isRead = markedAsRead || !item.activitySummary?.isUnread
   const linkProps = useRouteLink({key: 'document', id})
   return (

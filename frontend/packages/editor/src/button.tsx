@@ -1,9 +1,10 @@
+import {useOpenUrl} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {useEffect, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/document-content'
+import {useBlocksContentContext} from '../../ui/src/blocks-content'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {Block} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import {defaultProps} from './blocknote/core/extensions/Blocks/api/defaultBlocks'
@@ -76,8 +77,7 @@ const Render = (
   //   {value: 'fill-width', label: 'Fill width'},
   // ]
   // const [link, setLink] = useState(block.props.url)
-  // const openUrl = useOpenUrl()
-  const {openUrl} = useBlocksContentContext()
+  const openUrl = useOpenUrl()
 
   const assign = (newProps: ButtonType) => {
     editor.updateBlock(block.id, {
