@@ -7,6 +7,7 @@ import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
@@ -134,9 +135,9 @@ function DocumentMention({
   selected?: boolean
 }) {
   const entity = useResource(unpackedRef)
-
+  const highlight = useHighlighter()
   return (
-    <MentionText selected={selected}>
+    <MentionText selected={selected} {...highlight(unpackedRef)}>
       {entity.data && 'document' in entity.data && entity.data.document
         ? getDocumentTitle(entity.data.document)
         : unpackedRef.id}
@@ -152,10 +153,11 @@ function ContactMention({
   selected?: boolean
 }) {
   const {contacts} = useUniversalAppContext()
+  const highlight = useHighlighter()
   const entity = useAccount(unpackedRef.uid)
 
   return (
-    <MentionText selected={selected}>
+    <MentionText selected={selected} {...highlight(unpackedRef)}>
       {
         getContactMetadata(unpackedRef.uid, entity.data?.metadata, contacts)
           .name
@@ -173,6 +175,7 @@ export function MentionText(props: any) {
         fontSize: 'inherit',
         fontFamily: 'inherit',
       }}
+      {...props}
     >
       {props.children}
     </SizableText>

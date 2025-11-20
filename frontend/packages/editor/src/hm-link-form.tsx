@@ -1,12 +1,12 @@
 import {SearchResult} from '@shm/shared/editor-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
-import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useBlocksContentContext} from '@shm/ui/blocks-content'
+import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {SwitchField} from '@shm/ui/form-fields'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {
   AlignCenter,
   AlignLeft,
@@ -67,7 +67,6 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const [_text, setText] = useState(props.text || '')
   const [selectedType, setSelectedType] = useState(props.type)
   const unpacked = unpackHmId(_url)
-  const {collapsedBlocks, setCollapsedBlocks} = useBlocksContentContext()
   const isSeedLink = !!unpacked
   const isLatestVersion = isSeedLink ? unpacked.latest !== false : false
 
@@ -136,7 +135,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               props.updateLink(newUrl, _text, false)
             }}
           />
-          {props.type === 'embed' && (
+          {/* {props.type === 'embed' && (
             <SwitchField
               label="Expand Block"
               id="expand"
@@ -165,7 +164,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
                 setCollapsedBlocks(props.id, !checked)
               }}
             />
-          )}
+          )} */}
         </div>
       )}
       {props.toolbarProps?.alignment && (
@@ -368,7 +367,7 @@ const SearchInput = ({
   // const activeItems = isDisplayingRecents ? recentItems : searchItems
   const activeItems = searchItems
   const [focusedIndex, setFocusedIndex] = useState(0)
-
+  const highlight = useHighlighter()
   useEffect(() => {
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)
   }, [focusedIndex, activeItems])
@@ -444,6 +443,7 @@ const SearchInput = ({
           }
         }}
         placeholder="Open Seed Document..."
+        {...highlight(unpackedId)}
         onKeyDown={(e) => {
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)

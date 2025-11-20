@@ -15,6 +15,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {ReactNode, useMemo} from 'react'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {ButtonProps} from './button'
+import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
 import {useMedia} from './use-media'
@@ -50,7 +51,7 @@ export function DocumentSmallListItem({
   }
   const linkProps = useRouteLink(route, {onPress: onClick})
   const color = isPublished === false ? '$color11' : undefined
-
+  const highlight = useHighlighter()
   if (items)
     return (
       <SmallCollapsableListItem
@@ -89,6 +90,7 @@ export function DocumentSmallListItem({
       color={color}
       key={draftId || id?.id}
       title={getMetadataName(metadata)}
+      {...highlight(id)}
       icon={
         id && (
           <HMIcon

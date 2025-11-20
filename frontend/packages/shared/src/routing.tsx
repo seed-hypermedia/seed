@@ -63,7 +63,7 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
   },
 })
 
-type AppEvent =
+export type AppEvent =
   | {
       type: 'hypermediaHoverIn'
       id: UnpackedHypermediaId

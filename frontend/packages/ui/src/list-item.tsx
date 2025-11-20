@@ -1,3 +1,4 @@
+import {unpackHmId} from '@shm/shared'
 import {ArrowDownRight, ChevronDown, ChevronRight} from 'lucide-react'
 import {
   ComponentProps,
@@ -8,6 +9,7 @@ import {
 } from 'react'
 import {Button, ButtonProps} from './button'
 import {DraftBadge} from './draft-badge'
+import {useHighlighter} from './highlight-context'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -88,6 +90,7 @@ export function SmallListItem({
   docId?: string
 }) {
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
+  const highlighter = useHighlighter()
 
   return (
     <Button
@@ -101,8 +104,7 @@ export function SmallListItem({
       style={{
         paddingLeft: Math.max(0, indent) * 22 + 12,
       }}
-      // this data attribute is used by the hypermedia highlight component
-      data-resourceid={docId}
+      {...(docId ? highlighter(unpackHmId(docId)!) : {})}
       {...props}
     >
       <div className="flex flex-1 items-start gap-2 overflow-hidden">

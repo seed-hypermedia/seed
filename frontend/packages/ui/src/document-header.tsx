@@ -11,6 +11,7 @@ import {useMemo} from 'react'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {DonateButton} from './donate-button'
+import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
 import {InteractionSummaryItem} from './interaction-summary'
@@ -44,6 +45,7 @@ export function DocumentHeader({
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
+  const highlighter = useHighlighter()
 
   return (
     <Container
@@ -72,7 +74,7 @@ export function DocumentHeader({
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <Breadcrumbs breadcrumbs={breadcrumbs} />
         ) : null}
-        <SizableText size="4xl" weight="bold">
+        <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
           {docMetadata?.name}
         </SizableText>
         {docMetadata?.summary ? (

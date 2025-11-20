@@ -240,7 +240,7 @@ export default function DraftPage() {
           }
         }}
       >
-        <div className="flex flex-1 h-full">
+        <div className="flex h-full flex-1">
           <AccessoryLayout
             accessory={accessory}
             accessoryKey={accessoryKey}
@@ -256,7 +256,7 @@ export default function DraftPage() {
             <div
               className={cn(
                 panelContainerStyles,
-                'flex flex-col bg-white dark:bg-background',
+                'dark:bg-background flex flex-col bg-white',
               )}
             >
               <DraftRebaseBanner />
@@ -403,7 +403,7 @@ function DocumentEditor({
         // @ts-expect-error
         onDrop={onDrop}
         onClick={handleFocusAtMousePos}
-        className="flex overflow-hidden flex-col flex-1"
+        className="flex flex-1 flex-col overflow-hidden"
       >
         <ScrollArea onScroll={() => dispatchScroll(true)}>
           <DraftCover
@@ -415,7 +415,7 @@ function DocumentEditor({
             setShow={setShowCover}
             showOutline={showOutline}
           />
-          <div ref={elementRef} className="flex-1 w-full draft-editor">
+          <div ref={elementRef} className="draft-editor w-full flex-1">
             <div {...wrapperProps}>
               {showSidebars ? (
                 <div
@@ -427,7 +427,7 @@ function DocumentEditor({
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex overflow-scroll flex-col h-full hide-scrollbar">
+                  <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
                     <DocNavigationDraftLoader
                       showCollapsed={showCollapsed}
                       id={id}
@@ -781,7 +781,7 @@ function DraftMetadataEditor({
           paddingTop: !showCover ? '60px' : '24px',
         }}
       >
-        <div className="flex flex-col gap-4 group-header z-1">
+        <div className="group-header z-1 flex flex-col gap-4">
           <textarea
             disabled={disabled}
             id="draft-name-input"
@@ -793,7 +793,7 @@ function DraftMetadataEditor({
                 onEnter()
               }
             }}
-            className="w-full text-4xl font-bold border-transparent border-none ring-0 ring-transparent shadow-none resize-none" // trying to hide extra content that flashes when pasting multi-line text into the title
+            className="w-full resize-none border-none border-transparent text-4xl font-bold shadow-none ring-0 ring-transparent" // trying to hide extra content that flashes when pasting multi-line text into the title
             defaultValue={name?.trim() || ''} // this is still a controlled input because of the value comparison in useLayoutEffect
             // value={title}
             onChange={(e) => {
@@ -928,7 +928,7 @@ function DraftRebaseBanner() {
 
   if (isRebasing) {
     return (
-      <div className="flex p-4 text-black bg-yellow-100 border-0 border-b border-solid">
+      <div className="flex border-0 border-b border-solid bg-yellow-100 p-4 text-black">
         <div className="mr-2">
           <Spinner className="size-4" />
         </div>

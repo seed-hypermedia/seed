@@ -33,6 +33,7 @@ import {
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {
   AlertCircle,
   Contact,
@@ -563,6 +564,8 @@ function BreadcrumbItem({
 }) {
   const navigate = useNavigate()
   const observerRef = useSizeObserver(onSize)
+  const highlighter = useHighlighter()
+
   if (details.isLoading) {
     return (
       <div className="flex items-center justify-center">
@@ -612,6 +615,7 @@ function BreadcrumbItem({
     <div
       className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden"
       style={textStyle}
+      {...highlighter(details.id)}
     >
       <TitleText className={cn('min-w-0 flex-1 truncate font-bold')}>
         {details.name}
@@ -626,6 +630,7 @@ function BreadcrumbItem({
       }}
       className={cn('no-window-drag font-normal', maxWidth ? 'truncate' : '')}
       style={textStyle}
+      {...highlighter(details.id)}
     >
       {details.name}
     </TitleTextButton>

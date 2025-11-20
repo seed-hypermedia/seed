@@ -6,6 +6,7 @@ import {
 } from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
 import {Fragment, Node} from '@tiptap/pm/model'
 import {useEffect, useMemo, useState} from 'react'
@@ -47,6 +48,7 @@ export function HypermediaLinkPreview(
       setIsEditing(false)
     }
   }, [props.stopEditing, isEditing])
+  const highlight = useHighlighter()
 
   function handleChangeBlockType(type: string) {
     const tiptap = props.editor._tiptapEditor
@@ -172,6 +174,7 @@ export function HypermediaLinkPreview(
           <div
             className="flex flex-1 cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
             onClick={() => props.openUrl(props.url)}
+            {...highlight(unpackedRef)}
           >
             <SizableText
               size="lg"

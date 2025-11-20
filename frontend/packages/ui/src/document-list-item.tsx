@@ -15,6 +15,7 @@ import {MessageSquare} from 'lucide-react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
 import {FacePile} from './face-pile'
+import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {SizableText} from './text'
 import {cn} from './utils'
@@ -88,10 +89,13 @@ export function DocumentListItem({
     }
   }
 
+  const highlighter = useHighlighter()
+
   return (
     <Button
       asChild
       variant="ghost"
+      {...highlighter(id)}
       className={cn(
         'h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black',
         className,

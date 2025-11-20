@@ -743,6 +743,7 @@ function DocPageContent({
   return (
     <>
       <BlocksContentProvider
+        resourceId={resource.id}
         selection={{
           uid: docRoute.id?.uid || undefined,
           version: docRoute.id?.version || undefined,

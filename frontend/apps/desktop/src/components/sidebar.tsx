@@ -9,6 +9,7 @@ import {useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
@@ -32,7 +33,7 @@ export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
-
+  const highlighter = useHighlighter()
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => <SidebarFooter isSidebarVisible={isVisible} />}
@@ -53,6 +54,7 @@ export function MainAppSidebar() {
         bold
         title="Home"
         icon={<Home className="size-4" />}
+        {...highlighter(hmId(selectedAccountId))}
       />
       <SmallListItem
         active={route.key == 'library'}

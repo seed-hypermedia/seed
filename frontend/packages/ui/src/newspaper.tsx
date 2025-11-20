@@ -8,9 +8,9 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {HTMLAttributes, useMemo} from 'react'
-import {useBlocksContentContext} from './blocks-content'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
+import {useHighlighter} from './highlight-context'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -32,7 +32,7 @@ export function DocumentCard({
   onMouseLeave?: (id: UnpackedHypermediaId) => void
   banner?: boolean
 }) {
-  const {onHoverIn, onHoverOut} = useBlocksContentContext()
+  const highlighter = useHighlighter()
   const linkProps = useRouteLink(docId ? {key: 'document', id: docId} : null)
   const imageUrl = useImageUrl()
 
@@ -48,13 +48,11 @@ export function DocumentCard({
     : undefined
 
   const sharedProps = {
-    'data-resourceid': docId?.id,
+    ...highlighter(docId),
     className: cn(
       'hover:bg-accent dark:hover:bg-accent @container flex min-h-[200px] flex-1 overflow-hidden rounded-lg bg-white shadow-md transition-colors duration-300 dark:bg-black',
       banner && 'rounded-xl md:min-h-[240px] lg:min-h-[280px]',
     ),
-    onMouseEnter: docId ? () => onHoverIn?.(docId) : undefined,
-    onMouseLeave: docId ? () => onHoverOut?.(docId) : undefined,
   }
 
   const content = (

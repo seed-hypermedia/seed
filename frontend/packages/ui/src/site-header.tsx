@@ -23,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './components/dropdown-menu'
+import {useHighlighter} from './highlight-context'
 import {
   DocNavigationItem,
   DocumentOutline,
@@ -403,6 +404,7 @@ function HeaderLinkItem({
   active: boolean
   webUrl?: string | undefined
 }) {
+  const highlighter = useHighlighter()
   const linkProps = useRouteLink(
     draftId
       ? {
@@ -418,10 +420,7 @@ function HeaderLinkItem({
       : webUrl || null,
   )
   return (
-    <div
-      className={cn('flex items-center gap-1 px-1')}
-      data-resourceid={id?.id}
-    >
+    <div className={cn('flex items-center gap-1 px-1')} {...highlighter(id)}>
       <a
         className={cn(
           'cursor-pointer truncate px-1 font-bold transition-colors select-none',

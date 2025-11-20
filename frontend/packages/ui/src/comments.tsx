@@ -4,6 +4,7 @@ import {
 } from '@radix-ui/react-alert-dialog'
 import {
   BlockRange,
+  commentIdToHmId,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -815,6 +816,7 @@ export function CommentContent({
   const layoutUnit = size === 'sm' ? 14 : 16
   return (
     <BlocksContentProvider
+      resourceId={commentIdToHmId(comment.id)}
       key={comment.id}
       // onBlockSelect={(blockId, blockRange) => {
       //   // todo

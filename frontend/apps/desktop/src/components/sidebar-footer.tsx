@@ -1,6 +1,6 @@
 import {useMyAccounts} from '@/models/daemon'
 import {useNavigate} from '@/utils/useNavigate'
-import {useUniversalAppContext} from '@shm/shared'
+import {hmId, useUniversalAppContext} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
 import {Button} from '@shm/ui/button'
 import {
@@ -11,6 +11,7 @@ import {
 
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -77,6 +78,7 @@ export function SidebarFooter({
       setIsOpen(false)
     }
   }, [isSidebarVisible])
+  const highlighter = useHighlighter()
 
   if (!selectedIdentityValue) {
     return (
@@ -89,7 +91,10 @@ export function SidebarFooter({
   return (
     <div className="dark:bg-background border-border bg-background mb-2 flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3">
+        <PopoverTrigger
+          className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3"
+          {...highlighter(hmId(selectedIdentityValue))}
+        >
           <>
             {/* <Button className="justify-start items-center pr-3 pl-2 w-full min-w-0 bg-transparent bg-blue-500 rounded-sm hover:bg-gray-200"> */}
             {selectedAccount?.data ? (
@@ -130,6 +135,7 @@ export function SidebarFooter({
                     setSelectedIdentity?.(option.id.uid || null)
                     setIsOpen(false)
                   }}
+                  {...highlighter(option.id)}
                 >
                   {option.id ? (
                     <HMIcon

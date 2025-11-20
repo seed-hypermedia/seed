@@ -1,5 +1,6 @@
 import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useImageUrl} from './get-file-url'
+import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {cn} from './utils'
 
@@ -11,6 +12,7 @@ export function SiteLogo({
   metadata?: HMMetadata | null
 }) {
   const imageUrl = useImageUrl()
+  const highlighter = useHighlighter()
   const homeLinkProps = useRouteLink({
     key: 'document',
     id: {
@@ -23,6 +25,7 @@ export function SiteLogo({
       <div
         className={cn('flex flex-1 items-center justify-center')}
         style={{height: '60px'}}
+        {...highlighter(id)}
       >
         <a
           {...homeLinkProps}
@@ -43,6 +46,7 @@ export function SiteLogo({
       {...homeLinkProps}
       data-resourceid={id.id}
       className={cn('flex items-center justify-center gap-2')}
+      {...highlighter(id)}
     >
       <HMIcon size={24} id={id} name={metadata?.name} icon={metadata?.icon} />
       <p

@@ -1,6 +1,5 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts} from '@/models/contacts'
-import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {
@@ -22,81 +21,14 @@ import {
 } from '@shm/shared/hm-types'
 import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
 import {useStream} from '@shm/shared/use-stream'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
-import {
-  BlocksContent,
-  BlocksContentProvider,
-  getBlockNodeById,
-  useBlocksContentContext,
-} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
-import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
+import {memo, MouseEvent, useEffect, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
-
-// export function renderCommentContent(
-//   comment: HMComment,
-//   getUrl: (hmId: UnpackedHypermediaId) => string,
-// ) {
-//   const data: HMComment & {reference: string | null} = useMemo(() => {
-//     if (comment.content.length === 1) {
-//       let parentBlock = comment.content[0]
-//       // @ts-ignore
-//       if (parentBlock.block.type === 'Embed') {
-//         return {
-//           ...comment,
-//           // @ts-ignore
-//           reference: (parentBlock.block as HMBlockEmbed).link,
-//           // @ts-ignore
-//           content: parentBlock.children || [],
-//         }
-//       }
-//     }
-
-//     return {
-//       ...comment,
-//       reference: null,
-//     }
-//   }, [comment])
-
-//   const commentIdParts = comment.id.split('/')
-//   const commentAuthorId = commentIdParts[0]!
-//   const commentTSID = commentIdParts[1]!
-
-//   return (
-//     <BlocksContentProvider
-//       textUnit={14}
-//       layoutUnit={16}
-//       commentStyle
-//       onBlockSelect={(blockId, opts) => {
-//         if (opts?.copyToClipboard) {
-//           const commentResourceId = hmId(commentAuthorId, {
-//             path: [commentTSID],
-//             blockRef: blockId,
-//             blockRange: opts,
-//           })
-//           const href = getUrl(commentResourceId)
-//           if (!href) {
-//             toast.error('Failed to generate comment block link')
-//             return
-//           }
-//           copyUrlToClipboardWithFeedback(href, 'Comment Block')
-//         } else {
-//           toast('Will focus this block')
-//         }
-//       }}
-//     >
-//       <div className="flex flex-col w-full">
-//         <CommentReference reference={data.reference} />
-//         <BlocksContent blocks={data.content} />
-//       </div>
-//     </BlocksContentProvider>
-//   )
-// }
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
@@ -389,9 +321,7 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <BlocksContentProvider commentStyle textUnit={14} layoutUnit={16}>
-          <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-        </BlocksContentProvider>
+        <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
       </div>
       <div
         className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
@@ -433,100 +363,5 @@ function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
         backgroundColor: currentIsSaved ? 'transparent' : '#eab308',
       }}
     />
-  )
-}
-
-function CommentReference({reference}: {reference: string | null}) {
-  const route = useNavRoute()
-  const navigate = useNavigate('replace')
-  const context = useBlocksContentContext()
-  const referenceId = useMemo(() => {
-    if (!reference) return null
-    return unpackHmId(reference)
-  }, [reference])
-
-  const referenceData = useSubscribedResource(referenceId)
-
-  const referenceContent = useMemo(() => {
-    const content =
-      // @ts-ignore
-      referenceData.data?.type == 'document'
-        ? // @ts-ignore
-          referenceData.data.document?.content
-        : undefined
-    // @ts-ignore
-    if (!referenceData.data) return null
-    if (referenceId?.blockRef) {
-      let bn = getBlockNodeById(content || [], referenceId.blockRef)
-      if (bn) {
-        return [bn]
-      } else {
-        return content || []
-      }
-    }
-
-    return content || []
-    // @ts-ignore
-  }, [referenceData.data])
-
-  const highlight = useMemo(() => {
-    if (!referenceId) return false
-    if (route.key != 'document' && route.key != 'feed') return false
-    if (!route.id) return false
-    if (!referenceId.blockRef) return false
-    return referenceId.blockRef == route.id.blockRef
-  }, [route, referenceId])
-
-  {
-    /* @ts-ignore */
-  }
-  if (!referenceData.data) return null
-
-  return (
-    <div
-      className={`border-l-primary m-2 ml-0.5 flex w-full cursor-pointer items-center gap-3 border-l-2 ${
-        highlight ? 'bg-accent text-accent-foreground' : 'bg-transparent'
-      }`}
-      onMouseEnter={() => {
-        if (referenceId) {
-          context.onHoverIn?.(referenceId)
-        }
-      }}
-      onMouseLeave={() => {
-        if (referenceId) {
-          context.onHoverOut?.(referenceId)
-        }
-      }}
-      onClick={() => {
-        if (
-          (route.key == 'document' || route.key == 'feed') &&
-          referenceId?.blockRef
-        ) {
-          navigate({
-            ...route,
-            // @ts-expect-error
-            isBlockFocused: route.key == 'feed' ? undefined : false,
-            id: {
-              ...route.id,
-              blockRef: referenceId.blockRef,
-              blockRange:
-                referenceId.blockRange &&
-                'start' in referenceId.blockRange &&
-                'end' in referenceId.blockRange
-                  ? referenceId.blockRange
-                  : null,
-            },
-          })
-        }
-      }}
-    >
-      <div className="flex-1 opacity-50">
-        <BlocksContentProvider {...context} textUnit={14} layoutUnit={16}>
-          {referenceContent && (
-            <BlocksContent blocks={referenceContent} hideCollapseButtons />
-          )}
-        </BlocksContentProvider>
-      </div>
-    </div>
   )
 }

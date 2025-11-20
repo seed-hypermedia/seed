@@ -33,6 +33,15 @@ export function createSiteUrl({
   return res
 }
 
+export function commentIdToHmId(commentId: string): UnpackedHypermediaId {
+  const commentIdParts = commentId.split('/')
+  const uid = commentIdParts[0]!
+  const tsid = commentIdParts[1]!
+  return hmId(uid, {
+    path: [tsid],
+  })
+}
+
 export function createHMUrl({
   uid,
   path,

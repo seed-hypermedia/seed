@@ -7,7 +7,7 @@ import {client, trpc} from '@/trpc'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
-import {UniversalAppProvider} from '@shm/shared/routing'
+import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
 import {
   NavAction,
   NavContextProvider,
@@ -143,6 +143,10 @@ export function NavigationContainer({
       }}
       universalClient={desktopUniversalClient}
       contacts={contacts.data}
+      broadcastEvent={(event: AppEvent) => {
+        // @ts-expect-error
+        window.ipc?.broadcast(event)
+      }}
     >
       <NavContextProvider value={navigation}>
         {children}

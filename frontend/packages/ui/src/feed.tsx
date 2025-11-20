@@ -724,7 +724,7 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   }
 
   return (
-    <BlocksContentProvider textUnit={14} layoutUnit={16}>
+    <BlocksContentProvider textUnit={14} layoutUnit={16} resourceId={sourceId}>
       <BlocksContent blocks={[blockNode]} />
     </BlocksContentProvider>
   )
