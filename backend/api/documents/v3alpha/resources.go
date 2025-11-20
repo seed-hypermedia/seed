@@ -30,9 +30,6 @@ import (
 func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, streamTx grpc.ServerStreamingServer[documents.SyncingProgress]) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	prog := syncing.NewDiscoveryProgress()
-	prog.StartNotifier(ctx, 100*time.Millisecond)
-	prog.Notify()
 	conn, cancel, err := srv.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire db connection: %w", err)
@@ -95,42 +92,6 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 			return err
 		}
 	}
-	/*
-		errCh := make(chan error, 1)
-		go func() {
-			errCh <- srv.sync.FetchBlobs(request, stream)
-		}()
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case syncErr := <-errCh:
-					// final progress snapshot before returning
-					out := &documents.SyncingProgress{
-						PeersFound:      prog.PeersFound.Load(),
-						PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-						PeersFailed:     prog.PeersFailed.Load(),
-						BlobsDiscovered: prog.BlobsDiscovered.Load(),
-						BlobsDownloaded: prog.BlobsDownloaded.Load(),
-						BlobsFailed:     prog.BlobsFailed.Load(),
-					}
-					_ = streamTx.Send(out) // ignore send error on termination
-					return syncErr
-				case <-prog.Updates():
-					out := &documents.SyncingProgress{
-						PeersFound:      prog.PeersFound.Load(),
-						PeersSyncedOk:   prog.PeersSyncedOK.Load(),
-						PeersFailed:     prog.PeersFailed.Load(),
-						BlobsDiscovered: prog.BlobsDiscovered.Load(),
-						BlobsDownloaded: prog.BlobsDownloaded.Load(),
-						BlobsFailed:     prog.BlobsFailed.Load(),
-					}
-					if err := streamTx.Send(out); err != nil {
-						return err
-					}
-				}
-			}
-	*/
 }
 
 // GetResource implements the corresponding gRPC method.

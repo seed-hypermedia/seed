@@ -8,7 +8,6 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
-	"time"
 
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
@@ -57,8 +56,6 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 	prog := NewDiscoveryProgress()
-	prog.StartNotifier(ctx, 100*time.Millisecond)
-	prog.Notify()
 	localHaves := make(colx.HashSet[cid.Cid], len(in.Cids))
 	mhashes := []string{}
 	allWants := make([]cid.Cid, 0, len(in.Cids))
