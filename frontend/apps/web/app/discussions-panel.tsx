@@ -1,12 +1,10 @@
 import {HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
 import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
 } from '@shm/ui/comments'
-import {toast} from '@shm/ui/toast'
 import React from 'react'
 
 type DiscussionsPanelProps = {
@@ -20,28 +18,6 @@ type DiscussionsPanelProps = {
   blockId?: string
   commentEditor?: React.ReactNode
   targetDomain?: string
-}
-
-export function renderCommentContent(comment: HMComment) {
-  const commentIdParts = comment.id.split('/')
-  const _commentId = hmId(commentIdParts[0]!, {
-    path: [commentIdParts[1]!],
-  })
-  return (
-    <BlocksContentProvider
-      key={comment.id}
-      onBlockSelect={(blockId, blockRange) => {
-        // todo
-        toast.error('Not implemented discussions-panel onBlockSelect')
-        console.log('blockId', blockId, blockRange)
-      }}
-      commentStyle
-      textUnit={14}
-      layoutUnit={16}
-    >
-      <BlocksContent hideCollapseButtons blocks={comment.content} />
-    </BlocksContentProvider>
-  )
 }
 
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
@@ -59,7 +35,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         targetId={targetId}
         commentEditor={commentEditor}
         targetDomain={targetDomain}
-        renderCommentContent={renderCommentContent}
       />
     )
   }
@@ -70,7 +45,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
         commentId={comment.id}
         commentEditor={commentEditor}
         targetId={props.docId}
-        renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
       />
     )
@@ -80,7 +54,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     <Discussions
       commentEditor={commentEditor}
       targetId={props.docId}
-      renderCommentContent={renderCommentContent}
       targetDomain={targetDomain}
     />
   )

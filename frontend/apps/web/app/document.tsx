@@ -66,7 +66,6 @@ import {
 import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
-import {renderCommentContent} from './discussions-panel'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
@@ -736,10 +735,7 @@ function InnerDocumentPage(
                               blockRange: blockRange,
                             }}
                           >
-                            <BlocksContent
-                              blocks={document.content}
-                              renderCommentContent={renderCommentContent}
-                            />
+                            <BlocksContent blocks={document.content} />
                           </BlocksContentProvider>
                         </div>
                         {showSidebars ? (

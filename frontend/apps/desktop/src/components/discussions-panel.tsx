@@ -14,7 +14,7 @@ import {
   useDeleteCommentDialog,
 } from '@shm/ui/comments'
 import {memo, useCallback} from 'react'
-import {CommentBox, renderCommentContent} from './commenting'
+import {CommentBox} from './commenting'
 
 export const DiscussionsPanel = memo(_DiscussionsPanel)
 
@@ -77,7 +77,6 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
-          renderCommentContent={renderCommentContent}
         />
       </>
     )
@@ -91,7 +90,6 @@ function _DiscussionsPanel(props: {
           commentId={accessory.openComment}
           commentEditor={commentEditor}
           targetId={docId}
-          renderCommentContent={renderCommentContent}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
@@ -110,7 +108,6 @@ function _DiscussionsPanel(props: {
       <Discussions
         commentEditor={commentEditor}
         targetId={docId}
-        renderCommentContent={renderCommentContent}
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}

@@ -34,7 +34,6 @@ import {useResourceUrl} from '@shm/shared/url'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -45,9 +44,7 @@ import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {
   BlocksContent,
-  blocksContentContext,
   BlocksContentProvider,
-  CommentRenderer,
   getBlockNodeById,
 } from './blocks-content'
 import {Button} from './button'
@@ -67,7 +64,6 @@ const avatarSize = 18
 export function CommentDiscussions({
   targetId,
   commentId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
@@ -76,7 +72,6 @@ export function CommentDiscussions({
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
   targetDomain?: string
@@ -274,7 +269,6 @@ export function CommentDiscussions({
                 authorMetadata={
                   commentsService.data?.authors?.[comment.author]?.metadata
                 }
-                renderCommentContent={renderCommentContent}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
                 onCommentDelete={onCommentDelete}
@@ -298,7 +292,6 @@ export function CommentDiscussions({
             authorMetadata={
               commentsService.data?.authors?.[focusedComment.author]?.metadata
             }
-            renderCommentContent={renderCommentContent}
             targetDomain={targetDomain}
             currentAccountId={currentAccountId}
             onCommentDelete={onCommentDelete}
@@ -330,7 +323,6 @@ export function CommentDiscussions({
                 key={cg.id}
                 commentGroup={cg}
                 authors={commentsService.data?.authors}
-                renderCommentContent={renderCommentContent}
                 onCommentDelete={onCommentDelete}
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
@@ -348,7 +340,6 @@ export function CommentDiscussions({
 export function Discussions({
   targetId,
   commentId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
@@ -356,7 +347,6 @@ export function Discussions({
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -417,7 +407,6 @@ export function Discussions({
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
-                  renderCommentContent={renderCommentContent}
                   enableReplies
                   targetDomain={targetDomain}
                   currentAccountId={currentAccountId}
@@ -432,7 +421,6 @@ export function Discussions({
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
-                  renderCommentContent={renderCommentContent}
                   enableReplies
                   targetDomain={targetDomain}
                   currentAccountId={currentAccountId}
@@ -454,14 +442,12 @@ export function Discussions({
 
 export function BlockDiscussions({
   targetId,
-  renderCommentContent,
   commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
-  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -539,7 +525,6 @@ export function BlockDiscussions({
                 }
                 targetDomain={targetDomain}
                 currentAccountId={currentAccountId}
-                renderCommentContent={renderCommentContent}
                 onCommentDelete={onCommentDelete}
               />
             </div>
@@ -562,7 +547,6 @@ export function BlockDiscussions({
 export function CommentGroup({
   commentGroup,
   authors,
-  renderCommentContent,
   enableReplies = true,
   highlightLastComment = false,
   targetDomain,
@@ -571,7 +555,6 @@ export function CommentGroup({
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
   authors?: ListDiscussionsResponse['authors']
-  renderCommentContent: CommentRenderer
   enableReplies?: boolean
   highlightLastComment?: boolean
   currentAccountId?: string
@@ -613,7 +596,6 @@ export function CommentGroup({
               comment.author ? authors?.[comment.author]?.metadata : null
             }
             authorId={comment.author}
-            renderCommentContent={renderCommentContent}
             enableReplies={enableReplies}
             highlight={highlightLastComment && isLastCommentInGroup}
             currentAccountId={currentAccountId}
@@ -632,7 +614,6 @@ export function Comment({
   isLast = false,
   authorMetadata,
   authorId,
-  renderCommentContent,
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
@@ -648,7 +629,6 @@ export function Comment({
   isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
-  renderCommentContent: CommentRenderer
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
@@ -662,6 +642,7 @@ export function Comment({
     blockRange?: BlockRange
   }
 }) {
+  selection // avoid lint error for now. // todo: actually use the selection to highlight
   const tx = useTxString()
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
@@ -786,7 +767,7 @@ export function Comment({
           </div>
         </div>
 
-        <div>{renderCommentContent(comment, getUrl, selection)}</div>
+        <CommentContent comment={comment} />
         {!highlight && (
           <div
             className={cn(
@@ -826,13 +807,22 @@ export function CommentContent({
   comment: HMComment
   size?: 'sm' | 'md'
 }) {
-  const context = useContext(blocksContentContext)
+  // const commentIdParts = comment.id.split('/')
+  // const _commentId = hmId(commentIdParts[0]!, {
+  //   path: [commentIdParts[1]!],
+  // })
+  size // avoid lint error for now.
   return (
     <BlocksContentProvider
-      {...context}
+      key={comment.id}
+      // onBlockSelect={(blockId, blockRange) => {
+      //   // todo
+      //   toast.error('Not implemented discussions-panel onBlockSelect')
+      //   console.log('blockId', blockId, blockRange)
+      // }}
       commentStyle
-      textUnit={size === 'sm' ? 12 : context.textUnit}
-      layoutUnit={size === 'sm' ? 14 : context.layoutUnit}
+      textUnit={14}
+      layoutUnit={16}
     >
       <BlocksContent hideCollapseButtons blocks={comment.content} />
     </BlocksContentProvider>

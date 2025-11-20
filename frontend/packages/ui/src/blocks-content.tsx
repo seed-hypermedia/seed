@@ -117,8 +117,6 @@ import {cn} from './utils'
 
 import {ExpandedBlockRange, HMCitation} from '@shm/shared/hm-types'
 
-import {ReactNode} from 'react'
-
 export type BlockRangeSelectOptions = (BlockRange | ExpandedBlockRange) & {
   copyToClipboard?: boolean
 }
@@ -169,17 +167,7 @@ export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
   style?: React.CSSProperties
-  renderCommentContent?: CommentRenderer
 }
-
-export type CommentRenderer = (
-  comment: HMComment,
-  getUrl: (hmId: UnpackedHypermediaId) => string,
-  selection?: {
-    blockId?: string
-    blockRange?: BlockRange
-  },
-) => ReactNode
 
 const defaultBlocksContentContext: BlocksContentContextValue = {
   layoutUnit: contentLayoutUnit,
@@ -347,7 +335,6 @@ export function BlocksContent({
   focusBlockId,
   maxBlockCount,
   hideCollapseButtons = false,
-  renderCommentContent,
   ...props
 }: {
   blocks: HMBlockNode[]
@@ -355,7 +342,6 @@ export function BlocksContent({
   maxBlockCount?: number
   marginVertical?: any
   hideCollapseButtons?: boolean
-  renderCommentContent?: CommentRenderer
 }) {
   const media = useMedia()
   const {wrapper, bubble, coords, state, actor} = useRangeSelection(blocks)
@@ -445,7 +431,6 @@ export function BlocksContent({
         blocks={displayBlocks}
         parentBlockId={null}
         hideCollapseButtons={hideCollapseButtons}
-        renderCommentContent={renderCommentContent}
       />
     </div>
   )
@@ -457,13 +442,11 @@ function _BlocksContent({
   parentBlockId,
   hideCollapseButtons = false,
   expanded = true,
-  renderCommentContent,
 }: {
   blocks?: Array<HMBlockNode> | null
   parentBlockId: string | null
   hideCollapseButtons?: boolean
   expanded?: boolean
-  renderCommentContent?: CommentRenderer
 }) {
   const {onBlockSelect, selection} = useBlocksContentContext()
 
@@ -503,7 +486,6 @@ function _BlocksContent({
               listLevel={1}
               index={idx}
               expanded={expanded}
-              renderCommentContent={renderCommentContent}
               handleBlockClick={
                 bn.block?.id ? createBlockClickHandler(bn.block.id) : undefined
               }
@@ -587,7 +569,6 @@ export function BlockNodeContent({
   parentBlockId,
   hideCollapseButtons = false,
   handleBlockClick,
-  renderCommentContent,
 }: {
   isFirstChild: boolean
   blockNode: HMBlockNode
@@ -601,7 +582,6 @@ export function BlockNodeContent({
   parentBlockId: string | null
   hideCollapseButtons?: boolean
   handleBlockClick?: () => void
-  renderCommentContent?: CommentRenderer
 }) {
   const {
     layoutUnit,
@@ -671,7 +651,6 @@ export function BlockNodeContent({
                 : listLevel
             }
             index={index}
-            renderCommentContent={renderCommentContent}
             parentBlockId={blockNode.block?.id || null}
             embedDepth={embedDepth ? embedDepth + 1 : embedDepth}
             expanded={_expanded}
@@ -1027,7 +1006,6 @@ export function BlockNodeContent({
                 block={blockWithHighlights}
                 depth={depth}
                 parentBlockId={parentBlockId}
-                renderCommentContent={renderCommentContent}
                 // {...interactiveProps}
               />
             </HoverCardTrigger>
@@ -1209,17 +1187,7 @@ function BlockContent(props: BlockContentProps) {
     if (props.block.attributes.view === 'Card')
       return <BlockEmbedCard {...props} {...dataProps} block={embedBlock} />
     if (props.block.attributes.view === 'Comments') {
-      if (props.renderCommentContent) {
-        return (
-          <BlockEmbedComments
-            {...props}
-            {...dataProps}
-            block={embedBlock}
-            renderCommentContent={props.renderCommentContent}
-          />
-        )
-      }
-      return <ErrorBlock message="Comments embed is not supported here" />
+      return <BlockEmbedComments {...props} {...dataProps} block={embedBlock} />
     }
     // if (props.block.attributes.view === 'Content') // content is the default
     return <BlockEmbedContent {...props} {...dataProps} block={embedBlock} />
@@ -1871,10 +1839,7 @@ export function BlockEmbedContent({
 export function BlockEmbedComments({
   parentBlockId,
   block,
-  renderCommentContent,
-}: Omit<BlockContentProps<HMBlockEmbed>, 'renderCommentContent'> & {
-  renderCommentContent: CommentRenderer
-}) {
+}: BlockContentProps<HMBlockEmbed>) {
   const client = useUniversalClient()
   const id = unpackHmId(block.link)
 
@@ -1887,7 +1852,6 @@ export function BlockEmbedComments({
   return (
     <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder noClick>
       <Discussions
-        renderCommentContent={renderCommentContent}
         commentEditor={
           <div
             onClick={(e) => {

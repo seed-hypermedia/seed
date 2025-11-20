@@ -15,10 +15,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback} from 'react'
 
 import {useSizeObserver} from '@/utils/use-size-observer'
-import {hmId} from '@shm/shared'
 import {
-  HMBlockEmbed,
-  HMComment,
   HMCommentDraft,
   HMCommentGroup,
   UnpackedHypermediaId,
@@ -35,74 +32,72 @@ import {
   useBlocksContentContext,
 } from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
-import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Trash} from '@shm/ui/icons'
-import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 
-export function renderCommentContent(
-  comment: HMComment,
-  getUrl: (hmId: UnpackedHypermediaId) => string,
-) {
-  const data: HMComment & {reference: string | null} = useMemo(() => {
-    if (comment.content.length === 1) {
-      let parentBlock = comment.content[0]
-      // @ts-ignore
-      if (parentBlock.block.type === 'Embed') {
-        return {
-          ...comment,
-          // @ts-ignore
-          reference: (parentBlock.block as HMBlockEmbed).link,
-          // @ts-ignore
-          content: parentBlock.children || [],
-        }
-      }
-    }
+// export function renderCommentContent(
+//   comment: HMComment,
+//   getUrl: (hmId: UnpackedHypermediaId) => string,
+// ) {
+//   const data: HMComment & {reference: string | null} = useMemo(() => {
+//     if (comment.content.length === 1) {
+//       let parentBlock = comment.content[0]
+//       // @ts-ignore
+//       if (parentBlock.block.type === 'Embed') {
+//         return {
+//           ...comment,
+//           // @ts-ignore
+//           reference: (parentBlock.block as HMBlockEmbed).link,
+//           // @ts-ignore
+//           content: parentBlock.children || [],
+//         }
+//       }
+//     }
 
-    return {
-      ...comment,
-      reference: null,
-    }
-  }, [comment])
+//     return {
+//       ...comment,
+//       reference: null,
+//     }
+//   }, [comment])
 
-  const commentIdParts = comment.id.split('/')
-  const commentAuthorId = commentIdParts[0]!
-  const commentTSID = commentIdParts[1]!
+//   const commentIdParts = comment.id.split('/')
+//   const commentAuthorId = commentIdParts[0]!
+//   const commentTSID = commentIdParts[1]!
 
-  return (
-    <BlocksContentProvider
-      textUnit={14}
-      layoutUnit={16}
-      commentStyle
-      onBlockSelect={(blockId, opts) => {
-        if (opts?.copyToClipboard) {
-          const commentResourceId = hmId(commentAuthorId, {
-            path: [commentTSID],
-            blockRef: blockId,
-            blockRange: opts,
-          })
-          const href = getUrl(commentResourceId)
-          if (!href) {
-            toast.error('Failed to generate comment block link')
-            return
-          }
-          copyUrlToClipboardWithFeedback(href, 'Comment Block')
-        } else {
-          toast('Will focus this block')
-        }
-      }}
-    >
-      <div className="flex w-full flex-col">
-        <CommentReference reference={data.reference} />
-        <BlocksContent blocks={data.content} />
-      </div>
-    </BlocksContentProvider>
-  )
-}
+//   return (
+//     <BlocksContentProvider
+//       textUnit={14}
+//       layoutUnit={16}
+//       commentStyle
+//       onBlockSelect={(blockId, opts) => {
+//         if (opts?.copyToClipboard) {
+//           const commentResourceId = hmId(commentAuthorId, {
+//             path: [commentTSID],
+//             blockRef: blockId,
+//             blockRange: opts,
+//           })
+//           const href = getUrl(commentResourceId)
+//           if (!href) {
+//             toast.error('Failed to generate comment block link')
+//             return
+//           }
+//           copyUrlToClipboardWithFeedback(href, 'Comment Block')
+//         } else {
+//           toast('Will focus this block')
+//         }
+//       }}
+//     >
+//       <div className="flex flex-col w-full">
+//         <CommentReference reference={data.reference} />
+//         <BlocksContent blocks={data.content} />
+//       </div>
+//     </BlocksContentProvider>
+//   )
+// }
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],

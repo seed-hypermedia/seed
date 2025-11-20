@@ -1,8 +1,5 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {
-  renderCommentContent,
-  triggerCommentDraftFocus,
-} from '@/components/commenting'
+import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentUrl} from '@/components/copy-reference-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
@@ -845,7 +842,6 @@ function DocPageContent({
         }
       >
         <BlocksContent
-          renderCommentContent={renderCommentContent}
           blocks={document.content}
           focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         />
