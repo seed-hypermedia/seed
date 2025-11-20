@@ -1,4 +1,3 @@
-import {AppBlocksContentProvider} from '@/pages/blocks-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -70,7 +69,7 @@ function _DiscussionsPanel(props: {
       blockRef: accessory.openBlockId,
     })
     return (
-      <AppBlocksContentProvider docId={targetId} textUnit={14} layoutUnit={16}>
+      <>
         {deleteCommentDialog.content}
         <BlockDiscussions
           targetId={targetId}
@@ -80,13 +79,13 @@ function _DiscussionsPanel(props: {
           onCommentDelete={onCommentDelete}
           renderCommentContent={renderCommentContent}
         />
-      </AppBlocksContentProvider>
+      </>
     )
   }
 
   if (accessory.openComment) {
     return (
-      <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+      <>
         {deleteCommentDialog.content}
         <CommentDiscussions
           commentId={accessory.openComment}
@@ -101,12 +100,12 @@ function _DiscussionsPanel(props: {
             blockRange: accessory.blockRange || undefined,
           }}
         />
-      </AppBlocksContentProvider>
+      </>
     )
   }
 
   return (
-    <AppBlocksContentProvider docId={docId} textUnit={14} layoutUnit={16}>
+    <>
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
@@ -116,6 +115,6 @@ function _DiscussionsPanel(props: {
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
       />
-    </AppBlocksContentProvider>
+    </>
   )
 }

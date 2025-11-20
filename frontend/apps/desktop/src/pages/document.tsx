@@ -3,6 +3,7 @@ import {
   renderCommentContent,
   triggerCommentDraftFocus,
 } from '@/components/commenting'
+import {useDocumentUrl} from '@/components/copy-reference-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
@@ -41,6 +42,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
+import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -736,65 +738,117 @@ function DocPageContent({
   if (!docRoute) return null
   if (resource?.type !== 'document') return null
   const document = resource.document
+
+  const reference = useDocumentUrl({docId: resource.id, isBlockFocused})
+
   return (
-    <AppBlocksContentProvider
-      selection={{
-        uid: docRoute.id?.uid || undefined,
-        version: docRoute.id?.version || undefined,
-        blockRef: blockRef || undefined,
-        blockRange: blockRange || undefined,
-      }}
-      blockCitations={useMemo(() => {
-        if (!citations.data) return {}
-        return calculateBlockCitations(citations.data)
-      }, [citations.data])}
-      onBlockCitationClick={(blockId) => {
-        if (!docRoute) return
-        replace({
-          ...docRoute,
-          id: {
-            ...docRoute.id,
-            blockRef: blockId || null,
-            blockRange: null,
-          },
-          accessory: {
-            key: 'discussions',
-            openBlockId: blockId || undefined,
-          },
-        })
-      }}
-      docId={resource.id}
-      onBlockCommentClick={(blockId, blockRangeInput) => {
-        if (route.key !== 'document') return
-        if (!blockId) return
-        const blockRange =
-          blockRangeInput &&
-          'start' in blockRangeInput &&
-          'end' in blockRangeInput
-            ? blockRangeInput
+    <>
+      <AppBlocksContentProvider
+        selection={{
+          uid: docRoute.id?.uid || undefined,
+          version: docRoute.id?.version || undefined,
+          blockRef: blockRef || undefined,
+          blockRange: blockRange || undefined,
+        }}
+        blockCitations={useMemo(() => {
+          if (!citations.data) return {}
+          return calculateBlockCitations(citations.data)
+        }, [citations.data])}
+        onBlockCitationClick={(blockId) => {
+          if (!docRoute) return
+          replace({
+            ...docRoute,
+            id: {
+              ...docRoute.id,
+              blockRef: blockId || null,
+              blockRange: null,
+            },
+            accessory: {
+              key: 'discussions',
+              openBlockId: blockId || undefined,
+            },
+          })
+        }}
+        onBlockCommentClick={(blockId, blockRangeInput) => {
+          if (route.key !== 'document') return
+          if (!blockId) return
+          const blockRange =
+            blockRangeInput &&
+            'start' in blockRangeInput &&
+            'end' in blockRangeInput
+              ? blockRangeInput
+              : null
+          replace({
+            ...route,
+            id: {
+              ...route.id,
+              blockRef: blockId,
+              blockRange,
+            },
+            accessory: {
+              key: 'discussions',
+              openBlockId: blockId,
+              blockRange,
+              autoFocus: true,
+            },
+          })
+        }}
+        onBlockSelect={
+          reference
+            ? useCallback(
+                (
+                  blockId: string,
+                  blockRangeInput?: BlockRangeSelectOptions,
+                ) => {
+                  const shouldCopy = blockRangeInput?.copyToClipboard !== false
+                  if (blockId && reference && shouldCopy) {
+                    reference.onCopy(
+                      blockId,
+                      blockRangeInput || {expanded: true},
+                    )
+                  }
+                  if (
+                    route.key === 'document' &&
+                    blockRangeInput?.copyToClipboard !== true
+                  ) {
+                    const element = window.document.getElementById(blockId)
+                    if (element) {
+                      element.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      })
+                    }
+
+                    replace({
+                      ...route,
+                      id: {
+                        ...route.id,
+                        blockRef: blockId,
+                        blockRange:
+                          blockRangeInput &&
+                          'start' in blockRangeInput &&
+                          'end' in blockRangeInput
+                            ? {
+                                start: blockRangeInput.start,
+                                end: blockRangeInput.end,
+                              }
+                            : null,
+                      },
+                    })
+                  }
+                },
+                [route, replace, reference],
+              )
             : null
-        replace({
-          ...route,
-          id: {
-            ...route.id,
-            blockRef: blockId,
-            blockRange,
-          },
-          accessory: {
-            key: 'discussions',
-            openBlockId: blockId,
-            blockRange,
-            autoFocus: true,
-          },
-        })
-      }}
-      isBlockFocused={isBlockFocused}
-    >
-      <BlocksContent
-        renderCommentContent={renderCommentContent}
-        blocks={document.content}
-        focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
-      />
-    </AppBlocksContentProvider>
+        }
+      >
+        <BlocksContent
+          renderCommentContent={renderCommentContent}
+          blocks={document.content}
+          focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
+        />
+      </AppBlocksContentProvider>
+      {reference?.content}
+    </>
   )
 }

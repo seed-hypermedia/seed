@@ -1,5 +1,4 @@
 import {useAppContext} from '@/app-context'
-import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
 import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
@@ -16,20 +15,12 @@ import {
   contentTextUnit,
 } from '@shm/ui/blocks-content-constants'
 import {useState} from 'react'
-import {useDocumentUrl} from '../components/copy-reference-button'
 
 export function AppBlocksContentProvider({
   children,
-  docId,
-  isBlockFocused = false,
   ...overrides
-}: React.PropsWithChildren<Partial<AppBlocksContentContextValue>> & {
-  docId?: UnpackedHypermediaId
-  isBlockFocused?: boolean
-}) {
+}: React.PropsWithChildren<Partial<AppBlocksContentContextValue>> & {}) {
   const {saveCidAsFile} = useAppContext()
-  const reference = useDocumentUrl({docId, isBlockFocused})
-  const replace = useNavigate('replace')
   const route = useNavRoute()
   const {experiments, contacts} = useUniversalAppContext()
   const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
@@ -56,39 +47,6 @@ export function AppBlocksContentProvider({
         contacts={contacts}
         collapsedBlocks={collapsedBlocks}
         setCollapsedBlocks={setCollapsedBlocks}
-        onBlockSelect={
-          reference
-            ? (blockId: string, blockRange) => {
-                const shouldCopy = blockRange?.copyToClipboard !== false
-                if (blockId && reference && shouldCopy) {
-                  reference.onCopy(blockId, blockRange || {expanded: true})
-                }
-                if (
-                  route.key === 'document' &&
-                  blockRange?.copyToClipboard !== true
-                ) {
-                  const element = window.document.getElementById(blockId)
-                  if (element) {
-                    element.scrollIntoView({behavior: 'smooth', block: 'start'})
-                  }
-
-                  replace({
-                    ...route,
-                    id: {
-                      ...route.id,
-                      blockRef: blockId,
-                      blockRange:
-                        blockRange &&
-                        'start' in blockRange &&
-                        'end' in blockRange
-                          ? {start: blockRange.start, end: blockRange.end}
-                          : null,
-                    },
-                  })
-                }
-              }
-            : null
-        }
         saveCidAsFile={saveCidAsFile}
         selection={{
           // @ts-expect-error
@@ -118,7 +76,6 @@ export function AppBlocksContentProvider({
       >
         {children}
       </BlocksContentProvider>
-      {reference?.content}
     </>
   )
 }
