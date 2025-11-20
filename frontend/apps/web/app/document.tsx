@@ -43,6 +43,7 @@ import {
 import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
@@ -584,8 +585,16 @@ function InnerDocumentPage(
               comment
               textUnit={14}
               layoutUnit={16}
-              onBlockCitationClick={onBlockCitationClick}
-              onBlockCommentClick={onBlockCommentClick}
+              onBlockCitationClick={
+                activityEnabled ? onBlockCitationClick : undefined
+              }
+              onBlockCommentClick={
+                activityEnabled
+                  ? onBlockCommentClick
+                  : () => {
+                      toast.info('The Activity is disabled on this document')
+                    }
+              }
             >
               <PanelGroup
                 direction="horizontal"
@@ -661,21 +670,37 @@ function InnerDocumentPage(
                                 commentsCount={
                                   interactionSummary.data?.comments || 0
                                 }
-                                onCommentsClick={() => {
-                                  setDocumentPanel({
-                                    type: 'discussions',
-                                    blockId: undefined,
-                                  })
-                                  if (!media.gtSm) {
-                                    setMobilePanelOpen(true)
-                                  }
-                                }}
-                                onFeedClick={() => {
-                                  setDocumentPanel({type: 'activity'})
-                                  if (!media.gtSm) {
-                                    setMobilePanelOpen(true)
-                                  }
-                                }}
+                                onCommentsClick={
+                                  activityEnabled
+                                    ? () => {
+                                        setDocumentPanel({
+                                          type: 'discussions',
+                                          blockId: undefined,
+                                        })
+                                        if (!media.gtSm) {
+                                          setMobilePanelOpen(true)
+                                        }
+                                      }
+                                    : () => {
+                                        toast.info(
+                                          'Commenting is disabled in this document',
+                                        )
+                                      }
+                                }
+                                onFeedClick={
+                                  activityEnabled
+                                    ? () => {
+                                        setDocumentPanel({type: 'activity'})
+                                        if (!media.gtSm) {
+                                          setMobilePanelOpen(true)
+                                        }
+                                      }
+                                    : () => {
+                                        toast.info(
+                                          'Commenting is disabled in this document',
+                                        )
+                                      }
+                                }
                               />
                             )}
                             <WebBlocksContentProvider
@@ -687,7 +712,11 @@ function InnerDocumentPage(
                               onBlockCommentClick={
                                 activityEnabled
                                   ? onBlockCommentClick
-                                  : undefined
+                                  : () => {
+                                      toast.info(
+                                        'Commenting is disabled in this document',
+                                      )
+                                    }
                               }
                               originHomeId={originHomeId}
                               id={{...id, version: document.version}}
