@@ -26,6 +26,9 @@ type UniversalAppContextValue = {
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
+  // you must be confused at this point, because I wrote this and I got confused! Here's why we do it:
+  // when you copy content from the desktop app, you want to copy the <a> tags with full hm:// URLs, so they can be properly copy-pasted in an offline context.
+  // ask Eric if you have questions.
   hmUrlHref?: boolean
 
   languagePack?: LanguagePack
@@ -167,6 +170,7 @@ export function routeToHref(
       path: [commentTsid],
       blockRef: activeCommentAccessory.openBlockId,
       blockRange: activeCommentAccessory.blockRange,
+      hostname: options?.origin,
     })
     href = options?.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {

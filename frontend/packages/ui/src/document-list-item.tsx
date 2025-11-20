@@ -97,7 +97,7 @@ export function DocumentListItem({
         className,
       )}
     >
-      <a data-docid={id.id} {...linkProps} onClick={handleClick}>
+      <a data-resourceid={id.id} {...linkProps} onClick={handleClick}>
         {indent && <div className="size-8 shrink-0" />}
         <HMIcon size={28} id={id} name={metadata?.name} icon={metadata?.icon} />
         <div className="flex flex-1 flex-col overflow-hidden">

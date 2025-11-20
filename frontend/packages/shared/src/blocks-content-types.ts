@@ -4,10 +4,12 @@ import {
   ExpandedBlockRange,
   HMBlock,
   HMCitation,
+  HMComment,
   HMEntityContent,
   HMQueryResult,
 } from './hm-types'
 
+import {ReactNode} from 'react'
 import {Contact} from './client'
 import {UnpackedHypermediaId} from './hm-types'
 
@@ -18,10 +20,11 @@ export type BlockRangeSelectOptions = (BlockRange | ExpandedBlockRange) & {
 export type BlocksContentContextValue = {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   citations?: HMCitation[]
-  onBlockCitationClick?: (blockId?: string | null) => void
-  onBlockSelect:
-    | null
+  onBlockCitationClick?: ((blockId?: string | null) => void) | null | undefined
+  onBlockSelect?:
     | ((blockId: string, blockRange?: BlockRangeSelectOptions) => void)
+    | null
+    | undefined
   onBlockCommentClick?:
     | null
     | ((
@@ -63,4 +66,14 @@ export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
   style?: React.CSSProperties
+  renderCommentContent?: CommentRenderer
 }
+
+export type CommentRenderer = (
+  comment: HMComment,
+  getUrl: (hmId: UnpackedHypermediaId) => string,
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  },
+) => ReactNode

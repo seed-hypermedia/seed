@@ -42,6 +42,7 @@ import {
 import {useAutoHideSiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
@@ -66,6 +67,7 @@ import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import {WebBlocksContentProvider} from './blocks-content-provider'
 import WebCommenting from './commenting'
+import {renderCommentContent} from './discussions-panel'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
@@ -402,8 +404,8 @@ function InnerDocumentPage(
   })
 
   const onBlockCitationClick = useCallback(
-    (blockId?: string) => {
-      setDocumentPanel({type: 'discussions', blockId: blockId})
+    (blockId?: string | null) => {
+      setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
 
       if (!media.gtSm) {
         const mainPanel = mainPanelRef.current
@@ -458,6 +460,8 @@ function InnerDocumentPage(
       }
     }
   }, [])
+
+  const navigate = useNavigate()
 
   const activitySummary = (
     <DocInteractionSummary
@@ -666,16 +670,65 @@ function InnerDocumentPage(
                             />
                           )}
                           <WebBlocksContentProvider
-                            // @ts-expect-error
                             onBlockCitationClick={
                               activityEnabled ? onBlockCitationClick : undefined
                             }
                             onBlockCommentClick={
                               activityEnabled ? onBlockCommentClick : undefined
                             }
-                            originHomeId={originHomeId}
-                            id={{...id, version: document.version}}
-                            siteHost={siteHost}
+                            onBlockSelect={(blockId, blockRange) => {
+                              const shouldCopy =
+                                blockRange?.copyToClipboard !== false
+                              const route = {
+                                key: 'document',
+                                id: {
+                                  uid: id.uid,
+                                  path: id.path,
+                                  version: id.version,
+                                  blockRef: blockId,
+                                  blockRange:
+                                    blockRange &&
+                                    'start' in blockRange &&
+                                    'end' in blockRange
+                                      ? {
+                                          start: blockRange.start,
+                                          end: blockRange.end,
+                                        }
+                                      : null,
+                                },
+                              } as NavRoute
+                              const href = routeToHref(route, {
+                                hmUrlHref: context.hmUrlHref,
+                                originHomeId: context.originHomeId,
+                              })
+                              if (!href) {
+                                toast.error('Failed to create block link')
+                                return
+                              }
+                              if (shouldCopy) {
+                                window.navigator.clipboard.writeText(
+                                  `${siteHost}${href}`,
+                                )
+                                toast.success('Block link copied to clipboard')
+                              }
+                              // Only navigate if we're not explicitly just copying
+                              if (blockRange?.copyToClipboard !== true) {
+                                // Scroll to block smoothly BEFORE updating URL
+                                const element =
+                                  window.document.getElementById(blockId)
+                                if (element) {
+                                  element.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'start',
+                                  })
+                                }
+
+                                navigate(href, {
+                                  replace: true,
+                                  preventScrollReset: true,
+                                })
+                              }
+                            }}
                             supportDocuments={supportDocuments}
                             supportQueries={supportQueries}
                             blockCitations={interactionSummary.data?.blocks}
@@ -686,7 +739,10 @@ function InnerDocumentPage(
                               blockRange: blockRange,
                             }}
                           >
-                            <BlocksContent blocks={document.content} />
+                            <BlocksContent
+                              blocks={document.content}
+                              renderCommentContent={renderCommentContent}
+                            />
                           </WebBlocksContentProvider>
                         </div>
                         {showSidebars ? (

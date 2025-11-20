@@ -153,7 +153,7 @@ export function LibraryListItem({
         // }
       }}
       // this data attribute is used by the hypermedia highlight component
-      data-docid={docId}
+      data-resourceid={docId}
       className={`group hover:bg-accent flex h-[60px] w-full cursor-pointer items-center justify-start border-0 bg-transparent px-4 py-1 shadow-sm transition-colors`}
     >
       {exportMode ? (

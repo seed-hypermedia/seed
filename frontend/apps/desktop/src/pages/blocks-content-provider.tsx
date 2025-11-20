@@ -1,7 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useExperiments} from '@/models/experiments'
-import {useOpenUrl} from '@/open-url'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
@@ -11,7 +10,6 @@ import {
   HMQueryResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useUniversalAppContext} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {BlocksContentProvider} from '@shm/ui/blocks-content'
 import {
@@ -31,13 +29,11 @@ export function AppBlocksContentProvider({
   isBlockFocused?: boolean
 }) {
   const {saveCidAsFile} = useAppContext()
-  const openUrl = useOpenUrl()
   const reference = useDocumentUrl({docId, isBlockFocused})
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const experiments = useExperiments()
   const contacts = useSelectedAccountContacts()
-  const universalContext = useUniversalAppContext()
   const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
     new Set(),
   )
@@ -109,14 +105,14 @@ export function AppBlocksContentProvider({
         onHoverIn={(id) => {
           // @ts-ignore - ipc access
           window.ipc?.broadcast({
-            key: 'hypermediaHoverIn',
+            type: 'hypermediaHoverIn',
             id,
           })
         }}
         onHoverOut={(id) => {
           // @ts-ignore - ipc access
           window.ipc?.broadcast({
-            key: 'hypermediaHoverOut',
+            type: 'hypermediaHoverOut',
             id,
           })
         }}
@@ -139,12 +135,14 @@ export type AppBlocksContentContextValue = {
       comments: number
     }
   >
-  onBlockCitationClick?: (blockId?: string | null) => void
+  onBlockCitationClick?: ((blockId?: string | null) => void) | null | undefined
   onBlockSelect:
     | null
+    | undefined
     | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
   onBlockCommentClick?:
     | null
+    | undefined
     | ((blockId: string, blockRange?: BlockRange | ExpandedBlockRange) => void)
   layoutUnit: number
   textUnit: number

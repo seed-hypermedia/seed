@@ -9,7 +9,6 @@ export function FeedFilters({
   onFilterChange: any
   filterEventType?: Array<string>
 }) {
-  console.log('== filterEventType', filterEventType?.length == 0)
   return (
     <div className="-mx-1 flex gap-2 py-2">
       <PredefinedFilter

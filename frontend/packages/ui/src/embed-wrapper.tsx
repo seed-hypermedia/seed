@@ -51,7 +51,7 @@ export function EmbedWrapper({
           ? id?.blockRef
           : undefined
       }
-      data-docid={id?.blockRef ? undefined : id?.id}
+      data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={
         noClick
           ? undefined

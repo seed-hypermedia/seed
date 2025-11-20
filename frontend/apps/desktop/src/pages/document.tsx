@@ -1,5 +1,8 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {triggerCommentDraftFocus} from '@/components/commenting'
+import {
+  renderCommentContent,
+  triggerCommentDraftFocus,
+} from '@/components/commenting'
 import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
@@ -788,6 +791,7 @@ function DocPageContent({
       isBlockFocused={isBlockFocused}
     >
       <BlocksContent
+        renderCommentContent={renderCommentContent}
         blocks={document.content}
         focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
       />

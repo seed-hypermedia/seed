@@ -102,7 +102,7 @@ export function SmallListItem({
         paddingLeft: Math.max(0, indent) * 22 + 12,
       }}
       // this data attribute is used by the hypermedia highlight component
-      data-docid={docId}
+      data-resourceid={docId}
       {...props}
     >
       <div className="flex flex-1 items-start gap-2 overflow-hidden">

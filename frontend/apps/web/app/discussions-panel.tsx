@@ -6,8 +6,9 @@ import {
   CommentDiscussions,
   Discussions,
 } from '@shm/ui/comments'
-import React, {useCallback} from 'react'
+import React from 'react'
 
+import {toast} from '@shm/ui/toast'
 import {WebBlocksContentProvider} from './blocks-content-provider'
 
 type DiscussionsPanelProps = {
@@ -23,37 +24,32 @@ type DiscussionsPanelProps = {
   targetDomain?: string
 }
 
+export function renderCommentContent(comment: HMComment) {
+  const commentIdParts = comment.id.split('/')
+  const _commentId = hmId(commentIdParts[0]!, {
+    path: [commentIdParts[1]!],
+  })
+  return (
+    <WebBlocksContentProvider
+      key={comment.id}
+      onBlockSelect={(blockId, blockRange) => {
+        // todo
+        toast.error('Not implemented discussions-panel onBlockSelect')
+        console.log('blockId', blockId, blockRange)
+      }}
+      commentStyle
+      textUnit={14}
+      layoutUnit={16}
+    >
+      <BlocksContent hideCollapseButtons blocks={comment.content} />
+    </WebBlocksContentProvider>
+  )
+}
+
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {
-    homeId,
-    comment,
-    blockId,
-    commentEditor,
-    siteHost,
-    targetDomain,
-    docId,
-  } = props
-  const renderCommentContent = useCallback(
-    (comment: HMComment) => {
-      return (
-        homeId && (
-          <WebBlocksContentProvider
-            key={comment.id}
-            originHomeId={homeId}
-            siteHost={siteHost}
-            commentStyle
-            textUnit={14}
-            layoutUnit={16}
-          >
-            <BlocksContent hideCollapseButtons blocks={comment.content} />
-          </WebBlocksContentProvider>
-        )
-      )
-    },
-    [homeId],
-  )
+  const {comment, blockId, commentEditor, targetDomain, docId} = props
 
   if (blockId) {
     const targetId = hmId(docId.uid, {

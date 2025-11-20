@@ -11,12 +11,7 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  entityQueryPathToHmIdPath,
-  queryClient,
-  queryKeys,
-  routeToHref,
-} from '@shm/shared'
+import {queryClient, queryKeys} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback} from 'react'
 
@@ -49,7 +44,10 @@ import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
 import {HyperMediaEditorView} from './editor'
 
-export function renderCommentContent(comment: HMComment) {
+export function renderCommentContent(
+  comment: HMComment,
+  getUrl: (hmId: UnpackedHypermediaId) => string,
+) {
   const data: HMComment & {reference: string | null} = useMemo(() => {
     if (comment.content.length === 1) {
       let parentBlock = comment.content[0]
@@ -71,6 +69,10 @@ export function renderCommentContent(comment: HMComment) {
     }
   }, [comment])
 
+  const commentIdParts = comment.id.split('/')
+  const commentAuthorId = commentIdParts[0]!
+  const commentTSID = commentIdParts[1]!
+
   return (
     <AppBlocksContentProvider
       textUnit={14}
@@ -78,25 +80,17 @@ export function renderCommentContent(comment: HMComment) {
       commentStyle
       onBlockSelect={(blockId, opts) => {
         if (opts?.copyToClipboard) {
-          const href = routeToHref({
-            key: 'document',
-            id: hmId(comment.targetAccount, {
-              path: entityQueryPathToHmIdPath(comment.targetPath),
-              version: comment.targetVersion,
-            }),
-            accessory: {
-              key: 'discussions',
-              openComment: comment.id,
-              openBlockId: blockId,
-              blockRange: opts, // todo: strip the copyToClipboard flag
-            },
+          const commentResourceId = hmId(commentAuthorId, {
+            path: [commentTSID],
+            blockRef: blockId,
+            blockRange: opts,
           })
+          const href = getUrl(commentResourceId)
           if (!href) {
             toast.error('Failed to generate comment block link')
             return
           }
-          console.log('=== onBlockSelect', {href, comment, blockId, opts})
-          copyUrlToClipboardWithFeedback(href, 'Comment Block Link')
+          copyUrlToClipboardWithFeedback(href, 'Comment Block')
         } else {
           toast('Will focus this block')
         }

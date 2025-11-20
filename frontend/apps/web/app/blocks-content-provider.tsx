@@ -1,22 +1,16 @@
-import {useNavigate} from '@remix-run/react'
 import {
   BlockRange,
   HMEntityContent,
   HMQueryResult,
-  NavRoute,
-  routeToHref,
   UnpackedHypermediaId,
-  useUniversalAppContext,
 } from '@shm/shared'
+import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {BlocksContentProvider} from '@shm/ui/blocks-content'
-import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
 
 export function WebBlocksContentProvider({
   children,
-  id,
-  originHomeId,
-  siteHost,
+  onBlockSelect,
   supportDocuments,
   supportQueries,
   selection,
@@ -29,9 +23,10 @@ export function WebBlocksContentProvider({
   textUnit,
   commentStyle,
 }: {
-  siteHost: string | undefined
-  id?: UnpackedHypermediaId | undefined
-  originHomeId: UnpackedHypermediaId | undefined
+  onBlockSelect?:
+    | ((blockId: string, blockRange?: BlockRangeSelectOptions) => void)
+    | null
+    | undefined
   children: React.ReactNode | JSX.Element
   supportDocuments?: HMEntityContent[]
   supportQueries?: HMQueryResult[]
@@ -51,13 +46,11 @@ export function WebBlocksContentProvider({
   >
   layoutUnit?: number
   textUnit?: number
-  onBlockCitationClick?: (blockId?: string | null) => void
-  onBlockCommentClick?: (blockId?: string | null) => void
+  onBlockCitationClick?: ((blockId?: string | null) => void) | undefined | null
+  onBlockCommentClick?: ((blockId?: string | null) => void) | undefined | null
   onHoverIn?: (id: UnpackedHypermediaId) => void
   onHoverOut?: (id: UnpackedHypermediaId) => void
 }) {
-  const navigate = useNavigate()
-  const context = useUniversalAppContext()
   const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
     new Set(),
   )
@@ -81,74 +74,7 @@ export function WebBlocksContentProvider({
       supportDocuments={supportDocuments}
       supportQueries={supportQueries}
       commentStyle={commentStyle}
-      onBlockSelect={
-        id
-          ? (blockId, blockRange) => {
-              const shouldCopy = blockRange?.copyToClipboard !== false
-              // const blockHref = getHref(
-              //   originHomeId,
-              //   {
-              //     ...id,
-              //     hostname: siteHost || null,
-              //     blockRange: blockRange || null,
-              //     blockRef: blockId,
-              //   },
-              //   id.version || undefined,
-              // )
-              // window.navigator.clipboard.writeText(blockHref)
-              // navigate(
-              //   window.location.pathname +
-              //     window.location.search +
-              //     `#${blockId}${
-              //       blockRange
-              //         ? 'start' in blockRange && 'end' in blockRange
-              //           ? `[${blockRange.start}:${blockRange.end}]`
-              //           : ''
-              //         : ''
-              //     }`,
-              //   {replace: true, preventScrollReset: true},
-              // )
-              const route = {
-                key: 'document',
-                id: {
-                  uid: id.uid,
-                  path: id.path,
-                  version: id.version,
-                  blockRef: blockId,
-                  blockRange:
-                    blockRange && 'start' in blockRange && 'end' in blockRange
-                      ? {start: blockRange.start, end: blockRange.end}
-                      : null,
-                },
-              } as NavRoute
-              const href = routeToHref(route, {
-                hmUrlHref: context.hmUrlHref,
-                originHomeId: context.originHomeId,
-              })
-              if (!href) {
-                toast.error('Failed to create block link')
-                return
-              }
-              if (shouldCopy) {
-                window.navigator.clipboard.writeText(`${siteHost}${href}`)
-                toast.success('Block link copied to clipboard')
-              }
-              // Only navigate if we're not explicitly just copying
-              if (blockRange?.copyToClipboard !== true) {
-                // Scroll to block smoothly BEFORE updating URL
-                const element = document.getElementById(blockId)
-                if (element) {
-                  element.scrollIntoView({behavior: 'smooth', block: 'start'})
-                }
-
-                navigate(href, {
-                  replace: true,
-                  preventScrollReset: true,
-                })
-              }
-            }
-          : null
-      }
+      onBlockSelect={onBlockSelect}
       onBlockCommentClick={onBlockCommentClick}
       onBlockCitationClick={onBlockCitationClick}
       selection={selection}

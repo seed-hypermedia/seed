@@ -71,7 +71,7 @@ The system dynamically generates CSS that targets elements with matching IDs:
 function createHighlightCSS(id: string): string {
   return `
     [data-blockid="${id}"],
-    [data-docid="${id}"] {
+    [data-resourceid="${id}"] {
       background-color: ${highlightColor} !important;
     }
   `
@@ -99,7 +99,7 @@ HypermediaHighlight component:
 
 ## Troubleshooting
 
-- **No highlighting**: Make sure elements have `data-blockid` or `data-docid`
-  attributes matching the ID being sent
+- **No highlighting**: Make sure elements have `data-blockid` or
+  `data-resourceid` attributes matching the ID being sent
 - **Events not working**: Check browser console for errors in the broadcast
   mechanism

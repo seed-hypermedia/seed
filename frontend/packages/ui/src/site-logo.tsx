@@ -26,6 +26,7 @@ export function SiteLogo({
       >
         <a
           {...homeLinkProps}
+          data-resourceid={id.id}
           className="flex h-full items-center justify-center"
         >
           <img
@@ -40,6 +41,7 @@ export function SiteLogo({
   return (
     <a
       {...homeLinkProps}
+      data-resourceid={id.id}
       className={cn('flex items-center justify-center gap-2')}
     >
       <HMIcon size={24} id={id} name={metadata?.name} icon={metadata?.icon} />

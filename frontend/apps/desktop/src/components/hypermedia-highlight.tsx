@@ -44,7 +44,7 @@ export function HypermediaHighlight({
       if (id.blockRef) {
         selectors.push(`[data-blockid="${id.blockRef}"]`)
       } else {
-        selectors.push(`[data-docid="${id.id}"]`)
+        selectors.push(`[data-resourceid="${id.id}"]`)
       }
     }
 
@@ -79,9 +79,9 @@ export function HypermediaHighlight({
     const unsubscribe = window.appWindowEvents?.subscribe((event: any) => {
       if (!styleRef.current) return
       if (typeof event === 'object') {
-        if (event.key === 'hypermediaHoverIn' && event.id) {
+        if (event.type === 'hypermediaHoverIn' && event.id) {
           styleRef.current.textContent = createHighlightCSS(event.id)
-        } else if (event.key === 'hypermediaHoverOut') {
+        } else if (event.type === 'hypermediaHoverOut') {
           styleRef.current.textContent = ''
         }
       }

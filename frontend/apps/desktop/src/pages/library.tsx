@@ -412,7 +412,7 @@ function LibrarySiteItem({
   return (
     <>
       <Button
-        data-docid={id.id}
+        data-resourceid={id.id}
         variant="ghost"
         className={cn(
           'h-auto! items-center gap-2 border-none bg-transparent px-4 py-2',
@@ -504,7 +504,7 @@ export function LibraryDocumentItem({
   return (
     <Button
       // this data attribute is used by the hypermedia highlight component
-      data-docid={id.id}
+      data-resourceid={id.id}
       variant="ghost"
       className={cn(
         'h-auto w-full items-center justify-start border-none bg-transparent px-4 py-2',

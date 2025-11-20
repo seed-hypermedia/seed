@@ -18,6 +18,7 @@ import {
   useCommentParents,
   useRouteLink,
 } from '@shm/shared'
+import {CommentRenderer} from '@shm/shared/blocks-content-types'
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -74,7 +75,7 @@ export function CommentDiscussions({
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent?: (comment: HMComment) => ReactNode
+  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
   targetDomain?: string
@@ -354,7 +355,7 @@ export function Discussions({
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  renderCommentContent?: (comment: HMComment) => ReactNode
+  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -388,7 +389,6 @@ export function Discussions({
   useHackyAuthorsSubscriptions(allAuthorIds)
 
   let panelContent = null
-  console.log('discussionsService', discussionsService.data)
   if (discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
       <div className="flex items-center justify-center">
@@ -460,7 +460,7 @@ export function BlockDiscussions({
   onCommentDelete,
 }: {
   targetId: UnpackedHypermediaId
-  renderCommentContent?: (comment: HMComment) => ReactNode
+  renderCommentContent: CommentRenderer
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
@@ -570,7 +570,7 @@ export function CommentGroup({
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
   authors?: ListDiscussionsResponse['authors']
-  renderCommentContent?: (comment: HMComment) => ReactNode
+  renderCommentContent: CommentRenderer
   enableReplies?: boolean
   highlightLastComment?: boolean
   currentAccountId?: string
@@ -647,7 +647,7 @@ export function Comment({
   isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
-  renderCommentContent?: (comment: HMComment) => ReactNode
+  renderCommentContent: CommentRenderer
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
@@ -662,25 +662,6 @@ export function Comment({
   }
 }) {
   const tx = useTxString()
-  let renderContent = renderCommentContent
-  if (!renderContent) {
-    renderContent = (comment) => (
-      <BlocksContentProvider
-        onBlockSelect={() => {}}
-        onBlockCommentClick={() => {}}
-        onBlockCitationClick={() => {}}
-        textUnit={14}
-        layoutUnit={16}
-        commentStyle
-        debug={false}
-        collapsedBlocks={new Set()}
-        setCollapsedBlocks={() => {}}
-        selection={selection}
-      >
-        <BlocksContent hideCollapseButtons blocks={comment.content} />
-      </BlocksContentProvider>
-    )
-  }
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
   const {data: replyCount} = useCommentReplyCount({id: comment.id})
@@ -804,7 +785,7 @@ export function Comment({
           </div>
         </div>
 
-        <div>{renderContent(comment)}</div>
+        <div>{renderCommentContent(comment, getUrl, selection)}</div>
         {!highlight && (
           <div
             className={cn(
