@@ -26,7 +26,7 @@ import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
-import {BlocksContent} from '@shm/ui/blocks-content'
+import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
 import {Button, ButtonLink} from '@shm/ui/button'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
@@ -65,7 +65,6 @@ import {
 } from 'react-resizable-panels'
 import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
-import {WebBlocksContentProvider} from './blocks-content-provider'
 import WebCommenting from './commenting'
 import {renderCommentContent} from './discussions-panel'
 import type {SiteDocumentPayload} from './loaders'
@@ -669,7 +668,7 @@ function InnerDocumentPage(
                               }}
                             />
                           )}
-                          <WebBlocksContentProvider
+                          <BlocksContentProvider
                             onBlockCitationClick={
                               activityEnabled ? onBlockCitationClick : undefined
                             }
@@ -729,8 +728,6 @@ function InnerDocumentPage(
                                 })
                               }
                             }}
-                            supportDocuments={supportDocuments}
-                            supportQueries={supportQueries}
                             blockCitations={interactionSummary.data?.blocks}
                             selection={{
                               uid: id.uid,
@@ -743,7 +740,7 @@ function InnerDocumentPage(
                               blocks={document.content}
                               renderCommentContent={renderCommentContent}
                             />
-                          </WebBlocksContentProvider>
+                          </BlocksContentProvider>
                         </div>
                         {showSidebars ? (
                           <div

@@ -44,14 +44,9 @@ import {
   useRangeSelection,
   useRouteLink,
   useRouteLinkHref,
+  useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {
-  BlockContentProps,
-  BlockRangeSelectOptions,
-  BlocksContentContextValue,
-  CommentRenderer,
-} from '@shm/shared/blocks-content-types'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -120,6 +115,72 @@ import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
 
+import {ExpandedBlockRange, HMCitation} from '@shm/shared/hm-types'
+
+import {ReactNode} from 'react'
+
+export type BlockRangeSelectOptions = (BlockRange | ExpandedBlockRange) & {
+  copyToClipboard?: boolean
+}
+
+export type BlocksContentContextProps = {
+  debugTop?: number
+  ffSerif?: boolean
+  contacts?: PlainMessage<Contact>[] | null
+  commentStyle?: boolean
+  selection?: {
+    uid?: string
+    version?: string
+    blockRef?: string
+    blockRange?: BlockRange
+  }
+  onBlockSelect?:
+    | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
+    | null
+    | undefined
+  onBlockCitationClick?: ((blockId?: string | null) => void) | undefined
+  onBlockCommentClick?:
+    | ((
+        blockId?: string | null,
+
+        blockRange?: BlockRange | ExpandedBlockRange | undefined,
+        startCommentingNow?: boolean,
+      ) => void)
+    | undefined
+  blockCitations?: Record<string, {citations: number; comments: number}> | null
+}
+
+export type BlocksContentContextValue = BlocksContentContextProps & {
+  layoutUnit: number
+  textUnit: number
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
+  citations?: HMCitation[]
+  debug: boolean
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
+  collapsedBlocks: Set<string>
+  setCollapsedBlocks: (id: string, val: boolean) => void
+}
+
+export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
+  block: BlockType
+  parentBlockId: string | null
+  depth?: number
+  onHoverIn?: (id: UnpackedHypermediaId) => void
+  onHoverOut?: (id: UnpackedHypermediaId) => void
+  style?: React.CSSProperties
+  renderCommentContent?: CommentRenderer
+}
+
+export type CommentRenderer = (
+  comment: HMComment,
+  getUrl: (hmId: UnpackedHypermediaId) => string,
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  },
+) => ReactNode
+
 const defaultBlocksContentContext: BlocksContentContextValue = {
   layoutUnit: contentLayoutUnit,
   textUnit: contentTextUnit,
@@ -135,27 +196,24 @@ export const blocksContentContext = createContext<BlocksContentContextValue>(
 export function BlocksContentProvider({
   children,
   debugTop = 0,
-  showDevMenu = false,
   commentStyle = false,
   selection = {},
-  layoutUnit = contentLayoutUnit,
-  textUnit = contentTextUnit,
-  contacts,
-  ...docContextContent
+  ...props
 }: PropsWithChildren<
-  BlocksContentContextValue & {
-    debugTop?: number
-    showDevMenu?: boolean
-    ffSerif?: boolean
-    contacts?: PlainMessage<Contact>[] | null
+  BlocksContentContextProps & {
+    layoutUnit?: number
+    textUnit?: number
   }
 >) {
+  const {experiments, contacts, broadcastEvent, saveCidAsFile} =
+    useUniversalAppContext()
+  const layoutUnit = props.layoutUnit ?? contentLayoutUnit
+  const textUnit = props.textUnit ?? contentTextUnit
   const [tUnit, setTUnit] = useState(textUnit)
   const [lUnit, setLUnit] = useState(layoutUnit)
   const [debug, setDebug] = useState(false)
   const [ffSerif, toggleSerif] = useState(true)
   const [collapsedBlocks, setCollapsed] = useState<Set<string>>(new Set())
-
   const setCollapsedBlocks = (id: string, val: boolean) => {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -167,11 +225,11 @@ export function BlocksContentProvider({
       return next
     })
   }
-
+  const showDevMenu = experiments?.pubContentDevMenu || false
   return (
     <blocksContentContext.Provider
       value={{
-        ...docContextContent,
+        ...props,
         layoutUnit: lUnit,
         textUnit: tUnit,
         debug,
@@ -181,6 +239,19 @@ export function BlocksContentProvider({
         collapsedBlocks,
         setCollapsedBlocks,
         contacts,
+        saveCidAsFile,
+        onHoverIn: (id) => {
+          broadcastEvent?.({
+            type: 'hypermediaHoverIn',
+            id,
+          })
+        },
+        onHoverOut: (id) => {
+          broadcastEvent?.({
+            type: 'hypermediaHoverOut',
+            id,
+          })
+        },
       }}
     >
       {children}
@@ -1918,8 +1989,6 @@ export function BlockEmbedContentComment({
         {...parentContext}
         onBlockSelect={embedOnBlockSelect}
         selection={{}}
-        citations={undefined}
-        blockCitations={undefined}
       >
         {comment && author && (
           <CommentEmbedHeader comment={comment} author={author} />
@@ -2108,9 +2177,6 @@ function BlockEmbedContentDocument(props: {
         {...parentContext}
         onBlockSelect={embedOnBlockSelect}
         selection={{}}
-        citations={undefined}
-        onBlockCommentClick={null}
-        blockCitations={undefined}
       >
         <BlockNodeList childrenType="Group">
           {!props.blockRef && document?.metadata?.name ? (

@@ -50,7 +50,6 @@ export type AppContext = {
     }[],
   ) => Promise<string>
   windowUtils: WindowUtils
-  saveCidAsFile: (cid: string, name: string) => Promise<void>
 }
 
 export const AppContext = createContext<AppContext | null>(null)

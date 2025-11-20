@@ -52,6 +52,8 @@ type UniversalAppContextValue = {
 
   experiments?: AppExperiments
   contacts?: PlainMessage<Contact>[]
+  broadcastEvent?: (event: AppEvent) => void
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -60,6 +62,16 @@ export const UniversalAppContext = createContext<UniversalAppContextValue>({
     console.error('UniversalAppContext not set. Can not openUrl')
   },
 })
+
+type AppEvent =
+  | {
+      type: 'hypermediaHoverIn'
+      id: UnpackedHypermediaId
+    }
+  | {
+      type: 'hypermediaHoverOut'
+      id: UnpackedHypermediaId
+    }
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode
@@ -78,6 +90,8 @@ export function UniversalAppProvider(props: {
   universalClient?: UniversalClient
   experiments?: AppExperiments
   contacts?: PlainMessage<Contact>[]
+  broadcastEvent?: (event: AppEvent) => void
+  saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }) {
   return (
     <UniversalAppContext.Provider
@@ -97,6 +111,8 @@ export function UniversalAppProvider(props: {
         universalClient: props.universalClient,
         experiments: props.experiments,
         contacts: props.contacts,
+        broadcastEvent: props.broadcastEvent,
+        saveCidAsFile: props.saveCidAsFile,
       }}
     >
       {props.children as any}

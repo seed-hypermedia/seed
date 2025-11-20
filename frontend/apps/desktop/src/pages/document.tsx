@@ -42,7 +42,6 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
-import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -51,7 +50,11 @@ import {
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {BlocksContent} from '@shm/ui/blocks-content'
+import {
+  BlockRangeSelectOptions,
+  BlocksContent,
+  BlocksContentProvider,
+} from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -71,7 +74,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
-import {AppBlocksContentProvider} from './blocks-content-provider'
 
 export default function DocumentPage() {
   const commentsService = new DesktopCommentsService()
@@ -743,7 +745,7 @@ function DocPageContent({
 
   return (
     <>
-      <AppBlocksContentProvider
+      <BlocksContentProvider
         selection={{
           uid: docRoute.id?.uid || undefined,
           version: docRoute.id?.version || undefined,
@@ -847,7 +849,7 @@ function DocPageContent({
           blocks={document.content}
           focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
         />
-      </AppBlocksContentProvider>
+      </BlocksContentProvider>
       {reference?.content}
     </>
   )

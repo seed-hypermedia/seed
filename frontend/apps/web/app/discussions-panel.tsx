@@ -1,15 +1,13 @@
 import {HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {BlocksContent} from '@shm/ui/blocks-content'
+import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
 import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
 } from '@shm/ui/comments'
-import React from 'react'
-
 import {toast} from '@shm/ui/toast'
-import {WebBlocksContentProvider} from './blocks-content-provider'
+import React from 'react'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
@@ -30,7 +28,7 @@ export function renderCommentContent(comment: HMComment) {
     path: [commentIdParts[1]!],
   })
   return (
-    <WebBlocksContentProvider
+    <BlocksContentProvider
       key={comment.id}
       onBlockSelect={(blockId, blockRange) => {
         // todo
@@ -42,7 +40,7 @@ export function renderCommentContent(comment: HMComment) {
       layoutUnit={16}
     >
       <BlocksContent hideCollapseButtons blocks={comment.content} />
-    </WebBlocksContentProvider>
+    </BlocksContentProvider>
   )
 }
 

@@ -18,7 +18,7 @@ import {
   useCommentParents,
   useRouteLink,
 } from '@shm/shared'
-import {CommentRenderer} from '@shm/shared/blocks-content-types'
+
 import {
   useBlockDiscussionsService,
   useCommentReplyCount,
@@ -47,6 +47,7 @@ import {
   BlocksContent,
   blocksContentContext,
   BlocksContentProvider,
+  CommentRenderer,
   getBlockNodeById,
 } from './blocks-content'
 import {Button} from './button'

@@ -2,7 +2,6 @@ import {useCommentDraft, useCommentEditor} from '@/models/comments'
 import {useContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useOpenUrl} from '@/open-url'
-import {AppBlocksContentProvider} from '@/pages/blocks-content-provider'
 import {useSelectedAccount} from '@/selected-account'
 import {
   chromiumSupportedImageMimeTypes,
@@ -31,6 +30,7 @@ import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
 import {
   BlocksContent,
+  BlocksContentProvider,
   getBlockNodeById,
   useBlocksContentContext,
 } from '@shm/ui/blocks-content'
@@ -74,7 +74,7 @@ export function renderCommentContent(
   const commentTSID = commentIdParts[1]!
 
   return (
-    <AppBlocksContentProvider
+    <BlocksContentProvider
       textUnit={14}
       layoutUnit={16}
       commentStyle
@@ -100,7 +100,7 @@ export function renderCommentContent(
         <CommentReference reference={data.reference} />
         <BlocksContent blocks={data.content} />
       </div>
-    </AppBlocksContentProvider>
+    </BlocksContentProvider>
   )
 }
 
@@ -395,9 +395,9 @@ function _CommentDraftEditor({
       }}
     >
       <div className="flex-1">
-        <AppBlocksContentProvider commentStyle textUnit={14} layoutUnit={16}>
+        <BlocksContentProvider commentStyle textUnit={14} layoutUnit={16}>
           <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-        </AppBlocksContentProvider>
+        </BlocksContentProvider>
       </div>
       <div
         className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
@@ -538,11 +538,11 @@ function CommentReference({reference}: {reference: string | null}) {
       }}
     >
       <div className="flex-1 opacity-50">
-        <AppBlocksContentProvider {...context} textUnit={14} layoutUnit={16}>
+        <BlocksContentProvider {...context} textUnit={14} layoutUnit={16}>
           {referenceContent && (
             <BlocksContent blocks={referenceContent} hideCollapseButtons />
           )}
-        </AppBlocksContentProvider>
+        </BlocksContentProvider>
       </div>
     </div>
   )
