@@ -419,16 +419,21 @@ function DocumentEditor({
             <div {...wrapperProps}>
               {showSidebars ? (
                 <div
-                  // @ts-expect-error
-                  className={showCover ? 'mt-[152px]' : 'mt-[220px]'}
-                  onClick={(e) => e.stopPropagation()}
                   {...sidebarProps}
+                  className={`${sidebarProps.className || ''} flex flex-col`}
+                  style={{
+                    ...sidebarProps.style,
+                    marginTop: showCover ? 150 : 210,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <DocNavigationDraftLoader
-                    showCollapsed={showCollapsed}
-                    id={id}
-                    editor={editor}
-                  />
+                  <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
+                    <DocNavigationDraftLoader
+                      showCollapsed={showCollapsed}
+                      id={id}
+                      editor={editor}
+                    />
+                  </div>
                 </div>
               ) : null}
               <div {...mainContentProps}>
