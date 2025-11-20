@@ -35,7 +35,6 @@ import {
   useBlocksContentContext,
 } from '@shm/ui/document-content'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Trash} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {SendHorizonal} from 'lucide-react'
 import {memo, MouseEvent, useEffect, useMemo, useState} from 'react'
@@ -391,17 +390,6 @@ function _CommentDraftEditor({
               disabled={!isSaved.get() || isSubmitting}
             >
               <SendHorizonal className="size-4" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Discard Comment Draft">
-            <Button
-              size="icon"
-              onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                e.stopPropagation()
-                onDiscard()
-              }}
-            >
-              <Trash className="text-destructive size-4" />
             </Button>
           </Tooltip>
         </div>

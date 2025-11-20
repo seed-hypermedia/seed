@@ -8,8 +8,7 @@ import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {LinkIcon} from '@shm/ui/hm-icon'
-import {AtSignIcon, ImageIcon, SlashSquareIcon, Trash} from '@shm/ui/icons'
-import {Tooltip} from '@shm/ui/tooltip'
+import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
@@ -733,23 +732,6 @@ export function CommentEditor({
                   reset,
                   getContent,
                 })}
-                {onDiscardDraft && (
-                  <Tooltip content="Discard Comment Draft">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        reset()
-                        setIsEditorFocused(false)
-                        isInitializedRef.current = false
-                        onDiscardDraft()
-                      }}
-                    >
-                      <Trash className="text-destructive size-4" />
-                    </Button>
-                  </Tooltip>
-                )}
               </div>
             </div>
           ) : null}
