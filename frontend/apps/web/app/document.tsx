@@ -94,7 +94,7 @@ type WebAccessory =
     }
   | {
       type: 'discussions'
-      blockId?: string
+      blockId?: string | null
       comment?: HMComment
     }
 const DEFAULT_MAIN_PANEL_SIZE = 65
@@ -403,7 +403,7 @@ function InnerDocumentPage(
 
   const onBlockCitationClick = useCallback(
     (blockId?: string | null) => {
-      setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
+      setDocumentPanel({type: 'discussions', blockId: blockId})
 
       if (!media.gtSm) {
         const mainPanel = mainPanelRef.current
@@ -494,7 +494,7 @@ function InnerDocumentPage(
         rootReplyCommentVersion={
           activePanel.comment?.threadRootVersion || activePanel.comment?.version
         }
-        quotingBlockId={activePanel.blockId}
+        quotingBlockId={activePanel.blockId || undefined}
       />
     ) : activePanel?.type === 'activity' ? (
       <WebCommenting docId={id} />
@@ -508,7 +508,7 @@ function InnerDocumentPage(
         <PanelWrapper>
           <WebDiscussionsPanel
             commentEditor={commentEditor}
-            blockId={activePanel.blockId}
+            blockId={activePanel.blockId || undefined}
             comment={activePanel.comment}
             setBlockId={onBlockCommentClick}
             docId={id}

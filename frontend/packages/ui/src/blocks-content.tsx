@@ -87,12 +87,6 @@ import {Button} from './button'
 import {Discussions} from './comments'
 import {Badge} from './components/badge'
 import {CheckboxField} from './components/checkbox'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverTrigger,
-} from './components/popover'
 import {RadioGroup, RadioGroupItem} from './components/radio-group'
 import {EmbedWrapper} from './embed-wrapper'
 import {BlankQueryBlockMessage} from './entity-card'
@@ -749,87 +743,6 @@ export function BlockNodeContent({
 
   const tx = useTxString()
 
-  // Mobile-friendly version without tooltips to avoid conflicts
-  const mobileCardContent = (
-    <div className="flex">
-      {citationsCount?.citations ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="rounded-sm select-none hover:opacity-100"
-          style={{
-            padding: layoutUnit / 4,
-            width: layoutUnit * 1.5,
-            height: layoutUnit * 1.25,
-          }}
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            onBlockCitationClick?.(blockNode.block?.id)
-          }}
-        >
-          <BlockQuote color="currentColor" className="size-3 opacity-50" />
-          {citationsCount.citations ? (
-            <SizableText color="muted" size="xs">
-              {String(citationsCount.citations)}
-            </SizableText>
-          ) : undefined}
-        </Button>
-      ) : null}
-
-      {onBlockCommentClick ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="rounded-sm select-none hover:opacity-100"
-          style={{
-            padding: layoutUnit / 4,
-            width: layoutUnit * 1.5,
-            height: layoutUnit * 1.25,
-          }}
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            if (blockNode.block?.id) {
-              onBlockCommentClick?.(blockNode.block?.id, undefined, true)
-            } else {
-              console.error('onBlockComment Error: no blockId available')
-            }
-          }}
-        >
-          <MessageSquare color="currentColor" className="size-3 opacity-50" />
-        </Button>
-      ) : null}
-
-      {onBlockSelect ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="rounded-sm select-none hover:opacity-100"
-          style={{
-            padding: layoutUnit / 4,
-            width: layoutUnit * 1.5,
-            height: layoutUnit * 1.25,
-          }}
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            if (blockNode.block?.id) {
-              onBlockSelect(blockNode.block.id, {
-                expanded: true,
-                copyToClipboard: true,
-              })
-            } else {
-              console.error('onBlockSelect Error: no blockId available')
-            }
-          }}
-        >
-          <Link color="currentColor" className="size-3 opacity-50" />
-        </Button>
-      ) : null}
-    </div>
-  )
-
   const hoverCardContent = (
     <div className="flex">
       {citationsCount?.citations ? (
@@ -873,13 +786,15 @@ export function BlockNodeContent({
             }
           }}
           tooltip={
-            citationsCount?.comments
-              ? tx(
-                  'block_comment_count',
-                  ({count}) => `${count} ${pluralS(count, 'comment')}`,
-                  {count: citationsCount.comments},
-                )
-              : tx('Comment on this block')
+            media.gtSm
+              ? citationsCount?.comments
+                ? tx(
+                    'block_comment_count',
+                    ({count}) => `${count} ${pluralS(count, 'comment')}`,
+                    {count: citationsCount.comments},
+                  )
+                : tx('Comment on this block')
+              : ''
           }
         >
           <MessageSquare color="currentColor" className="size-3 opacity-50" />
@@ -892,7 +807,11 @@ export function BlockNodeContent({
       ) : null}
       {onBlockSelect ? (
         <BubbleButton
-          tooltip={tx('copy_block_exact', 'Copy Block Link (Exact Version)')}
+          tooltip={
+            media.gtSm
+              ? tx('copy_block_exact', 'Copy Block Link (Exact Version)')
+              : ''
+          }
           layoutUnit={layoutUnit}
           onClick={(e) => {
             e.stopPropagation()
@@ -1018,28 +937,19 @@ export function BlockNodeContent({
             </HoverCardContent>
           </HoverCard>
         ) : (
-          <Popover open={isHighlight || undefined}>
-            <PopoverAnchor asChild>
-              <div>
-                <PopoverTrigger asChild>
-                  <BlockContent
-                    block={blockWithHighlights}
-                    depth={depth}
-                    parentBlockId={parentBlockId}
-                    // {...interactiveProps}
-                  />
-                </PopoverTrigger>
+          <>
+            {isHighlight ? (
+              <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
+                {hoverCardContent}
               </div>
-            </PopoverAnchor>
-            <PopoverContent
-              side="top"
-              align="end"
-              sideOffset={8}
-              className="w-auto max-w-xs p-0"
-            >
-              {mobileCardContent}
-            </PopoverContent>
-          </Popover>
+            ) : undefined}
+            <BlockContent
+              block={blockWithHighlights}
+              depth={depth}
+              parentBlockId={parentBlockId}
+              // {...interactiveProps}
+            />
+          </>
         )}
         {embedDepth
           ? null
@@ -1088,40 +998,27 @@ export function BlockNodeContent({
                     </HoverCardContent>
                   </HoverCard>
                 ) : (
-                  <Popover>
-                    <PopoverAnchor>
-                      <PopoverTrigger asChild>
-                        <Badge
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                            if (blockNode.block?.id) {
-                              onBlockCommentClick?.(
-                                blockNode.block.id,
-                                undefined,
-                                citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                              )
-                            } else {
-                              console.error(
-                                'onBlockCommentClick Error: no blockId available',
-                              )
-                            }
-                          }}
-                          variant="outline"
-                        >
-                          {blockCitationCount}
-                        </Badge>
-                      </PopoverTrigger>
-                    </PopoverAnchor>
-                    <PopoverContent
-                      side="left"
-                      align="start"
-                      sideOffset={8}
-                      className="w-auto max-w-xs p-0"
-                    >
-                      {mobileCardContent}
-                    </PopoverContent>
-                  </Popover>
+                  <Badge
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      if (blockNode.block?.id) {
+                        onBlockCommentClick?.(
+                          blockNode.block.id,
+                          undefined,
+                          citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                        )
+                      } else {
+                        console.error(
+                          'onBlockCommentClick Error: no blockId available',
+                        )
+                      }
+                    }}
+                    variant="outline"
+                    className="cursor-pointer"
+                  >
+                    {blockCitationCount}
+                  </Badge>
                 )}
               </div>
             )}
@@ -2962,21 +2859,29 @@ function BubbleButton({
   onClick: (e: React.MouseEvent) => void
   children: React.ReactNode
 }) {
-  return (
-    <Tooltip content={tooltip} delay={800}>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="rounded-sm select-none hover:opacity-100"
-        style={{
-          padding: layoutUnit / 4,
-        }}
-        onClick={onClick}
-      >
-        {children}
-      </Button>
-    </Tooltip>
+  let btn = (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="rounded-sm select-none hover:opacity-100"
+      style={{
+        padding: layoutUnit / 4,
+      }}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   )
+
+  if (tooltip) {
+    return (
+      <Tooltip content={tooltip} delay={800}>
+        {btn}
+      </Tooltip>
+    )
+  } else {
+    return btn
+  }
 }
 
 function InlineEmbed({
