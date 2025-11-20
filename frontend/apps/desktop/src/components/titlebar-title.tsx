@@ -33,14 +33,21 @@ import {
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
-import {AlertCircle, Contact, Copy, File, Library, Star, X} from '@shm/ui/icons'
+import {
+  AlertCircle,
+  Contact,
+  Copy,
+  File,
+  HistoryIcon,
+  Star,
+  X,
+} from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {HistoryIcon} from 'lucide-react'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
@@ -101,7 +108,7 @@ export function TitleContent({
   if (route.key === 'library') {
     return (
       <>
-        <Library className="size-4" />
+        {/* <Library className="size-4" /> */}
         <TitleText {...titleProps}>Library</TitleText>
       </>
     )
@@ -153,8 +160,6 @@ function BreadcrumbTitle({
   draft?: boolean
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
-  const navigate = useNavigate('push')
-  const route = useNavRoute()
   const contacts = useSelectedAccountContacts()
   const latestDoc = useResource({...entityId, version: null, latest: true})
   const isLatest =
@@ -394,31 +399,6 @@ function BreadcrumbTitle({
       className="flex items-center gap-2 overflow-hidden"
     >
       <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        <Button
-          className="no-window-drag"
-          variant={route.key == 'feed' ? 'default' : 'outline'}
-          size="xs"
-          onClick={() => {
-            console.log('=== ROUTING', route)
-            if (route.key == 'document') {
-              navigate({
-                key: 'feed',
-                id: route.id,
-                accessory: null,
-              })
-            } else if (route.key == 'feed') {
-              navigate({
-                ...route,
-                key: 'document',
-              })
-            } else {
-              console.log('FEED: impossible routing', route)
-            }
-          }}
-        >
-          <HistoryIcon className="size-3" />
-          Feed
-        </Button>
         {displayItems.flatMap((item, itemIndex) => {
           if (!item) return null
           return [

@@ -256,6 +256,7 @@ export function HistoryIcon({
 }: {
   color?: string
   size?: string | number
+  className?: string
 }) {
   return (
     <svg
