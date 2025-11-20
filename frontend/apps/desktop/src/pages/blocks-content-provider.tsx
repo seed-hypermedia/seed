@@ -1,7 +1,7 @@
 import {useAppContext} from '@/app-context'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {useExperiments} from '@/models/experiments'
 import {useNavigate} from '@/utils/useNavigate'
+import {useUniversalAppContext} from '@shm/shared'
 import {BlockRangeSelectOptions} from '@shm/shared/blocks-content-types'
 import {
   BlockRange,
@@ -32,7 +32,7 @@ export function AppBlocksContentProvider({
   const reference = useDocumentUrl({docId, isBlockFocused})
   const replace = useNavigate('replace')
   const route = useNavRoute()
-  const experiments = useExperiments()
+  const experiments = useUniversalAppContext().experiments
   const contacts = useSelectedAccountContacts()
   const [collapsedBlocks, setCollapsedBlocksState] = useState<Set<string>>(
     new Set(),
@@ -51,7 +51,7 @@ export function AppBlocksContentProvider({
   return (
     <>
       <BlocksContentProvider
-        showDevMenu={experiments.data?.pubContentDevMenu}
+        showDevMenu={experiments?.pubContentDevMenu}
         layoutUnit={overrides.layoutUnit || contentLayoutUnit}
         textUnit={overrides.textUnit || contentTextUnit}
         debug={false}

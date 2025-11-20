@@ -1,9 +1,8 @@
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
-import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {client} from '@/trpc'
+import {client, trpc} from '@/trpc'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
@@ -103,6 +102,8 @@ export function NavigationContainer({
     navigation,
   )
 
+  const experiments = trpc.experiments.get.useQuery().data
+
   return (
     <UniversalAppProvider
       ipfsFileUrl={DAEMON_FILE_URL}
@@ -113,6 +114,7 @@ export function NavigationContainer({
           navigation.dispatch({type: 'push', route})
         }
       }}
+      experiments={experiments}
       openRouteNewWindow={(route: NavRoute) => {
         const path = encodeRouteToPath(route)
         const currentState = navigation.state.get()
@@ -148,7 +150,7 @@ export function NavigationContainer({
 }
 
 function DevTools() {
-  const {data: experiments} = useExperiments()
+  const {data: experiments} = trpc.experiments.get.useQuery()
   const route = useNavRoute()
   const routeDialog = useAppDialog(RouteDialog)
   return experiments?.developerTools ? (

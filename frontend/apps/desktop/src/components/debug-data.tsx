@@ -1,10 +1,10 @@
+import {useUniversalAppContext} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {useState} from 'react'
-import {useHasDevTools} from '../models/experiments'
 
 export function DebugData({data}: {data: any}) {
-  const hasDevTools = useHasDevTools()
+  const hasDevTools = useUniversalAppContext().experiments?.developerTools
   const [debugValue, setDebugValue] = useState(false)
   if (!hasDevTools) return null
   return (

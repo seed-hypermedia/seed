@@ -1,4 +1,5 @@
 import {createContext, useContext} from 'react'
+import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import {UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
@@ -10,6 +11,18 @@ import {StateStream} from './utils/stream'
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
 export type {UniversalClient}
+
+export const appExperimentsSchema = z
+  .object({
+    hosting: z.boolean().optional(),
+    webImporting: z.boolean().optional(),
+    nostr: z.boolean().optional(),
+    developerTools: z.boolean().optional(),
+    pubContentDevMenu: z.boolean().optional(),
+    newLibrary: z.boolean().optional(),
+  })
+  .strict()
+export type AppExperiments = z.infer<typeof appExperimentsSchema>
 
 type UniversalAppContextValue = {
   ipfsFileUrl?: string
@@ -35,6 +48,8 @@ type UniversalAppContextValue = {
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
+
+  experiments?: AppExperiments
 }
 
 export const UniversalAppContext = createContext<UniversalAppContextValue>({
@@ -59,6 +74,7 @@ export function UniversalAppProvider(props: {
   selectedIdentity?: StateStream<string | null>
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
+  experiments?: AppExperiments
 }) {
   return (
     <UniversalAppContext.Provider
@@ -76,6 +92,7 @@ export function UniversalAppProvider(props: {
         selectedIdentity: props.selectedIdentity,
         setSelectedIdentity: props.setSelectedIdentity,
         universalClient: props.universalClient,
+        experiments: props.experiments,
       }}
     >
       {props.children as any}

@@ -2,11 +2,6 @@ import {trpc} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {toast} from '@shm/ui/toast'
 
-export function useExperiments() {
-  const experiments = trpc.experiments.get.useQuery()
-  return experiments
-}
-
 export function useWriteExperiments() {
   const writeExperiments = trpc.experiments.write.useMutation({
     onError() {
@@ -18,8 +13,4 @@ export function useWriteExperiments() {
     },
   })
   return writeExperiments
-}
-
-export function useHasDevTools() {
-  return !!useExperiments().data?.developerTools
 }

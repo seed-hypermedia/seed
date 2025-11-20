@@ -6,6 +6,7 @@ import {ReactNode, useEffect, useMemo} from 'react'
 import {AppContext, AppPlatform} from './app-context'
 import {AppIPC} from './app-ipc'
 import {WindowUtils} from './models/window-utils'
+import {trpc} from './trpc'
 
 export function AppContextProvider({
   children,
@@ -69,6 +70,7 @@ export function AppContextProvider({
   saveCidAsFile: (cid: string, name: string) => Promise<void>
   darkMode: boolean
 }) {
+  const experiments = trpc.experiments.get.useQuery().data
   const appCtx = useMemo(
     () => ({
       // platform: 'win32', // to test from macOS
@@ -84,8 +86,9 @@ export function AppContextProvider({
       exportDocuments,
       windowUtils,
       saveCidAsFile,
+      experiments,
     }),
-    [],
+    [experiments],
   )
   return (
     <AppContext.Provider value={appCtx}>
