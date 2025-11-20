@@ -1042,7 +1042,24 @@ export function BlockNodeContent({
                   <Popover>
                     <PopoverAnchor>
                       <PopoverTrigger asChild>
-                        <Badge variant="outline" className="cursor-pointer">
+                        <Badge
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            if (blockNode.block?.id) {
+                              onBlockCommentClick?.(
+                                blockNode.block.id,
+                                undefined,
+                                citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                              )
+                            } else {
+                              console.error(
+                                'onBlockCommentClick Error: no blockId available',
+                              )
+                            }
+                          }}
+                          variant="outline"
+                        >
                           {blockCitationCount}
                         </Badge>
                       </PopoverTrigger>
