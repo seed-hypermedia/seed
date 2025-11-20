@@ -811,7 +811,8 @@ export function CommentContent({
   // const _commentId = hmId(commentIdParts[0]!, {
   //   path: [commentIdParts[1]!],
   // })
-  size // avoid lint error for now.
+  const textUnit = size === 'sm' ? 12 : 14
+  const layoutUnit = size === 'sm' ? 14 : 16
   return (
     <BlocksContentProvider
       key={comment.id}
@@ -821,8 +822,8 @@ export function CommentContent({
       //   console.log('blockId', blockId, blockRange)
       // }}
       commentStyle
-      textUnit={14}
-      layoutUnit={16}
+      textUnit={textUnit}
+      layoutUnit={layoutUnit}
     >
       <BlocksContent hideCollapseButtons blocks={comment.content} />
     </BlocksContentProvider>

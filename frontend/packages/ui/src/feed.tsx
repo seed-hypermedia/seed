@@ -26,7 +26,7 @@ import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
-import {BlocksContent} from './blocks-content'
+import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {Button} from './button'
 import {CommentContent} from './comments'
 import {SizableText} from './components/text'
@@ -625,7 +625,7 @@ function EventCommentWithReply({
 
           <div className="flex-1 pb-6">
             <EventContent
-              size={size}
+              size={'sm'}
               event={{
                 ...event,
                 comment: event.replyingComment,
@@ -723,7 +723,11 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
     return null
   }
 
-  return <BlocksContent blocks={[blockNode]} />
+  return (
+    <BlocksContentProvider textUnit={14} layoutUnit={16}>
+      <BlocksContent blocks={[blockNode]} />
+    </BlocksContentProvider>
+  )
 }
 
 function RouteEventRow({
