@@ -2,11 +2,11 @@ import {
   AutocompletePopup,
   createAutoCompletePlugin,
 } from '@shm/editor/autocomplete'
+import {useUniversalAppContext} from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
 import {NodeViewWrapper, ReactNodeViewRenderer} from '@tiptap/react'
@@ -151,7 +151,7 @@ function ContactMention({
   unpackedRef: UnpackedHypermediaId
   selected?: boolean
 }) {
-  const {contacts} = useBlocksContentContext()
+  const {contacts} = useUniversalAppContext()
   const entity = useAccount(unpackedRef.uid)
 
   return (
