@@ -1,7 +1,8 @@
 import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '..'
 import {BIG_INT} from '../constants'
+import {queryBlockSortedItems} from '../content'
 import {GRPCClient} from '../grpc-client'
-import {hmId} from '../utils'
+import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {prepareHMDocumentInfo} from './entity'
 
 export function getDiretoryWithClient(client: GRPCClient) {
@@ -27,7 +28,7 @@ export function getDiretoryWithClient(client: GRPCClient) {
           // For Children mode, only include immediate children
           // (path should only be one level deeper than parent)
           const includeInDir =
-            doc.id.path?.length === (id.path?.length || 0) + 1
+            (doc.id.path?.length || 0) === (id.path?.length || 0) + 1
           return includeInDir
         }
         // For AllDescendants mode, include all nested documents
@@ -45,16 +46,23 @@ export function getQueryResultsWithClient(client: GRPCClient) {
   async function getQueryResults(
     query: HMQuery,
   ): Promise<HMQueryResult | null> {
-    const {includes} = query
+    const {includes, sort} = query
     if (includes.length !== 1) return null // only support one include for now
-    // @ts-ignore
-    const {path, mode, space} = includes[0]
+    const {path, mode, space} = includes[0]!
     const inId = hmId(space, {
-      path: path ? path.split('/') : [],
+      path: entityQueryPathToHmIdPath(path),
     })
     const dir = await getDirectory(inId, mode)
     if (!inId) return null
-    return {in: inId, results: dir, mode} satisfies HMQueryResult
+
+    // Apply sorting - default to UpdateTime descending if no sort specified
+    const sortedDir = sort
+      ? queryBlockSortedItems({entries: dir, sort})
+      : queryBlockSortedItems({
+          entries: dir,
+          sort: [{term: 'UpdateTime', reverse: false}],
+        })
+    return {in: inId, results: sortedDir, mode} satisfies HMQueryResult
   }
 
   return getQueryResults
