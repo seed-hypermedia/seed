@@ -858,6 +858,340 @@ func TestSubscriptions(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestPushing(t *testing.T) {
+	t.Parallel()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceIdentity := coretest.NewTester("alice")
+
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobIdentity := coretest.NewTester("bob")
+	ctx := context.Background()
+
+	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob not from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Toyota rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Because it sounds great",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Honda rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Because it sounds great",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways 2",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 100)
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceToyota.Account,
+		Path:    aliceToyota.Path,
+	})
+	require.Error(t, err)
+
+	var toyotaIRI = "hm://" + aliceToyota.Account + aliceToyota.Path
+	aliceConn, err := grpc.NewClient(alice.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer aliceConn.Close()
+
+	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+		Addrs: hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
+	})
+	require.NoError(t, err)
+
+	cli := documents.NewResourcesClient(aliceConn)
+	stream, err := cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
+		Pid:       bob.Net.AddrInfo().ID.String(),
+		Resources: []string{toyotaIRI},
+	})
+	require.NoError(t, err)
+
+	for {
+		prog, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		t.Logf("progress: %+v", prog)
+	}
+
+	bobGotAliceToyota, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceToyota.Account,
+		Path:    aliceToyota.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, aliceToyota.Content, bobGotAliceToyota.Content)
+
+	bobGotAliceHome, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHome.Account,
+		Path:    aliceHome.Path,
+	})
+	require.NoError(t, err)
+	require.Equal(t, aliceHome.Content, bobGotAliceHome.Content)
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHonda.Account,
+		Path:    aliceHonda.Path,
+	})
+	require.Error(t, err, "Honda is not yet related to Toyota so should not have been pushed")
+	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		BaseVersion:    aliceHonda.Version,
+		Path:           aliceHonda.Path,
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Here is a link to Toyota",
+					Link: "hm://" + aliceToyota.Account + aliceToyota.Path,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
+	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
+		Pid:       bob.Net.AddrInfo().ID.String(),
+		Resources: []string{toyotaIRI},
+	})
+	require.NoError(t, err)
+
+	for {
+		prog, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		t.Logf("progress: %+v", prog)
+	}
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHonda.Account,
+		Path:    aliceHonda.Path,
+	})
+	require.NoError(t, err, "A Backlink from Honda to toyota should cause Honda to be pushed")
+
+	var link = "hm://" + aliceHonda.Account + aliceHonda.Path
+	aliceToyotaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		BaseVersion:    aliceToyota.Version,
+		Path:           "/cars/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Modified Content",
+					Link: link,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
+	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
+		Pid:       bob.Net.AddrInfo().ID.String(),
+		Resources: []string{toyotaIRI},
+	})
+	require.NoError(t, err)
+
+	for {
+		prog, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		t.Logf("progress: %+v", prog)
+	}
+	bobGotAliceHonda, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHonda.Account,
+		Path:    aliceHonda.Path,
+	})
+	require.NoError(t, err, "A direct link to Honda from Toyota should cause Honda to be pushed")
+	require.Equal(t, aliceHondaUpdated.Content, bobGotAliceHonda.Content)
+
+	bobGotAliceToyotaUpdated, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceToyotaUpdated.Account,
+		Path:    aliceToyotaUpdated.Path,
+	})
+	require.NoError(t, err, "Toyota document should be available")
+	require.Equal(t, aliceToyotaUpdated.Content, bobGotAliceToyotaUpdated.Content)
+
+	bobComment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: aliceHondaUpdated.Account,
+		TargetPath:    aliceHondaUpdated.Path,
+		TargetVersion: aliceHondaUpdated.Version,
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "I'm carbobol!"},
+				Children: []*documents.BlockNode{
+					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Hope you're well"}},
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	bobConn, err := grpc.NewClient(bob.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer bobConn.Close()
+
+	_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: bobComment.Id,
+	})
+	require.Error(t, err, "Bob should not get a comment on Honda")
+
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobHome.Account,
+		Path:    bobHome.Path,
+	})
+	require.Error(t, err, "Bob's Home should not be there either")
+
+	cliBob := documents.NewResourcesClient(bobConn)
+	stream, err = cliBob.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
+		Pid:       alice.Net.AddrInfo().ID.String(),
+		Resources: []string{"hm://" + aliceHondaUpdated.Account + aliceHondaUpdated.Path},
+	})
+	require.NoError(t, err)
+
+	for {
+		prog, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		t.Logf("progress: %+v", prog)
+	}
+
+	aliceGotBobsComment, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: bobComment.Id,
+	})
+	require.NoError(t, err, "Alice should have gotten Bob's comment after the push")
+	require.Equal(t, bobComment.Content, aliceGotBobsComment.Content)
+	aliceGotBobsHome, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobHome.Account,
+		Path:    bobHome.Path,
+	})
+	require.NoError(t, err, "Bob's Home should be there as well now")
+	require.Equal(t, bobHome.Content, aliceGotBobsHome.Content)
+}
+
 func TestBug_BrokenFormattingAnnotations(t *testing.T) {
 	t.Parallel()
 
