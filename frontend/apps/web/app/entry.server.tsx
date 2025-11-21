@@ -6,7 +6,7 @@ import {PassThrough} from 'node:stream'
 import type {AppLoadContext, EntryContext} from '@remix-run/node'
 import {createReadableStreamFromReadable, redirect} from '@remix-run/node'
 import {RemixServer} from '@remix-run/react'
-import {hmId} from '@shm/shared'
+import {getCommentTargetId, hmId, packHmId} from '@shm/shared'
 import {
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
@@ -252,6 +252,10 @@ function getHmIdOfRequest(
   return hmId(originAccountId, {path: pathParts, version, latest})
 }
 
+function uriEncodedAuthors(authors: string[]) {
+  return authors.map((author) => encodeURIComponent(`hm://${author}`)).join(',')
+}
+
 async function handleOptionsRequest(request: Request) {
   const parsedRequest = parseRequest(request)
   const {hostname} = parsedRequest
@@ -274,12 +278,26 @@ async function handleOptionsRequest(request: Request) {
       if (resource.type === 'document') {
         headers['X-Hypermedia-Id'] = hmId.id
         headers['X-Hypermedia-Version'] = resource.document.version
+        headers['X-Hypermedia-Authors'] = uriEncodedAuthors(
+          resource.document.authors,
+        )
+        headers['X-Hypermedia-Type'] = 'Document'
         headers['X-Hypermedia-Title'] = encodeURIComponent(
           resource.document.metadata.name || '',
         )
       } else if (resource.type === 'comment') {
         headers['X-Hypermedia-Id'] = hmId.id
+        headers['X-Hypermedia-Authors'] = uriEncodedAuthors([
+          resource.comment.author,
+        ])
         headers['X-Hypermedia-Version'] = resource.comment.version
+        headers['X-Hypermedia-Type'] = 'Comment'
+        const targetId = getCommentTargetId(resource.comment)
+        if (targetId) {
+          headers['X-Hypermedia-Target'] = encodeURIComponent(
+            packHmId(targetId),
+          )
+        }
         headers['X-Hypermedia-Title'] = ''
       }
       return new Response(null, {

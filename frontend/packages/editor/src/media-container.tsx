@@ -1,5 +1,4 @@
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {useBlocksContentContext} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -48,7 +47,6 @@ export const MediaContainer = ({
   const [hover, setHover] = useState(false)
   const [drag, setDrag] = useState(false)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
-  const {commentStyle} = useBlocksContentContext()
 
   const handleDragReplace = async (file: File) => {
     if (file.size > MaxFileSizeB) {
@@ -211,7 +209,7 @@ export const MediaContainer = ({
             ? 'border-foreground/20 dark:border-foreground/30'
             : 'border-border',
           drag && 'border-dashed',
-          commentStyle && !drag && !selected
+          editor.commentEditor && !drag && !selected
             ? 'bg-black/5 dark:bg-white/10'
             : 'bg-muted',
           className ?? block.type,

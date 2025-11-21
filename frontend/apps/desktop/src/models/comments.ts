@@ -323,6 +323,7 @@ export function useCommentEditor(
 
   const gwUrl = useGatewayUrlStream()
   const editor = useBlockNote<typeof hmBlockSchema>({
+    commentEditor: true,
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
       if (isDeletingDraft.current) return
 

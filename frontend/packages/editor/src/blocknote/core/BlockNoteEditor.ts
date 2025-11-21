@@ -145,6 +145,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   onMentionsQuery?: any
   importWebFile?: ImportWebFileFunction
   handleFileAttachment?: HandleFileAttachmentFunction
+  commentEditor?: boolean
 }
 
 export type LinkExtensionOptions = {
@@ -201,6 +202,8 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly hyperlinkToolbar: HyperlinkToolbarProsemirrorPlugin<BSchema>
   public readonly linkMenu: LinkMenuProsemirrorPlugin<BSchema, any>
 
+  public readonly commentEditor?: boolean
+
   public readonly importWebFile?: ImportWebFileFunction
   public readonly handleFileAttachment?: HandleFileAttachmentFunction
 
@@ -226,7 +229,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       editable: options.editable || true,
       ...options,
     }
-
+    this.commentEditor = options.commentEditor
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(
