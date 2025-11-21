@@ -205,6 +205,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         nodeId,
         this.pmView,
         this,
+        this.hyperlinkToolbarState?.url,
       )
       markOrNode = nodeAndRange.markOrNode
       range = nodeAndRange.range
@@ -225,17 +226,33 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
     let range = this.selectedNodeRange || this.hoveredNodeRange
     const nodeId = this.hoveredId || this.hyperlinkToolbarState?.id
 
-    const nodeAndRange = getNodeAndRange(
-      markOrNode,
-      range,
-      nodeId,
-      this.pmView,
-      this,
-    )
-    markOrNode = nodeAndRange.markOrNode
-    range = nodeAndRange.range
-    if (this.hyperlinkToolbarState) {
-      const pos = range!.from
+    // Try to get the node and range after the document update
+    // This is needed when editing link text, as the document changes after each character
+    if (!range && nodeId) {
+      const nodeAndRange = getNodeAndRange(
+        undefined,
+        undefined,
+        nodeId,
+        this.pmView,
+        this,
+        this.hyperlinkToolbarState?.url,
+      )
+      if (nodeAndRange.range) {
+        markOrNode = nodeAndRange.markOrNode
+        range = nodeAndRange.range
+        // Update the same node/range that was originally set (selected or hovered)
+        if (this.selectedNode || this.selectedNodeRange) {
+          this.selectedNode = markOrNode
+          this.selectedNodeRange = range
+        } else if (this.hoveredNode || this.hoveredNodeRange) {
+          this.hoveredNode = markOrNode
+          this.hoveredNodeRange = range
+        }
+      }
+    }
+
+    if (this.hyperlinkToolbarState && range) {
+      const pos = range.from
       if (this.hyperlinkToolbarState.type === 'inline-embed') {
         tr = tr.setNodeMarkup(pos, null, {
           link: url,
@@ -259,17 +276,20 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         })
       } else {
         const newText = text.length ? text : ' '
-        const newLength = range!.from + newText.length
+        const newLength = range.from + newText.length
         tr = this.pmView.state.tr
-          .insertText(newText, range!.from, range!.to)
+          .insertText(newText, range.from, range.to)
           .addMark(
-            range!.from,
+            range.from,
             newLength,
             this.pmView.state.schema.mark('link', {href: url}),
           )
 
-        range!.to = newLength
+        range.to = newLength
       }
+    } else if (this.hyperlinkToolbarState && !range) {
+      console.error('Range is undefined', this.hyperlinkToolbarState)
+      return
     }
 
     this.isHoveringToolbar = true
@@ -316,6 +336,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
       nodeId,
       this.pmView,
       this,
+      this.hyperlinkToolbarState?.url,
     )
     markOrNode = nodeAndRange.markOrNode
     range = nodeAndRange.range
@@ -725,6 +746,7 @@ class HyperlinkToolbarView<BSchema extends BlockSchema> {
         this.hyperlinkToolbarState.id,
         this.pmView,
         this,
+        this.hyperlinkToolbarState.url,
       )
       if (
         this.hyperlinkToolbarState.type === 'link' &&
@@ -835,8 +857,9 @@ function getNodeAndRange(
   nodeId: string | undefined,
   view: EditorView,
   pluginView: HyperlinkToolbarView<any>,
+  url?: string,
 ) {
-  if (!markOrNode && !range && nodeId) {
+  if (!range && nodeId) {
     const {state} = view
     try {
       const {posBeforeNode} = getNodeById(nodeId, state.doc)
@@ -853,16 +876,32 @@ function getNodeAndRange(
             to: posBeforeNode + 1 + contentNode.nodeSize,
           }
         } else {
+          let foundLink = false
           // @ts-ignore
           contentNode.descendants((child, childPos) => {
             const linkMark = child.marks?.find(
               (mark) => mark.type.name === 'link',
             )
             if (linkMark) {
-              markOrNode = linkMark
-              range = {
-                from: posBeforeNode + 2 + childPos,
-                to: posBeforeNode + 2 + childPos + (child.text?.length || 1),
+              const absolutePos = posBeforeNode + 2 + childPos
+              const $pos = state.doc.resolve(absolutePos)
+              const markRange = getMarkRange(
+                $pos,
+                linkMark.type,
+                linkMark.attrs,
+              )
+              if (markRange) {
+                markOrNode = linkMark
+                range = markRange
+                foundLink = true
+              } else {
+                // Fallback to manual calculation if getMarkRange fails
+                markOrNode = linkMark
+                range = {
+                  from: absolutePos,
+                  to: absolutePos + (child.text?.length || 1),
+                }
+                foundLink = true
               }
               return false
             }
@@ -872,16 +911,42 @@ function getNodeAndRange(
                 from: posBeforeNode + 2 + childPos,
                 to: posBeforeNode + 2 + childPos + child.nodeSize,
               }
+              foundLink = true
               return false
             }
           })
+          if (!foundLink) {
+            // If link mark is missing, create a temporary mark that will be updated in updateHyperlink
+            if (contentNode.textContent && contentNode.textContent.length > 0) {
+              let textStartPos: number | null = null
+              // @ts-ignore
+              contentNode.descendants((child, childPos) => {
+                if (child.isText && textStartPos === null) {
+                  textStartPos = posBeforeNode + 2 + childPos
+                  return false
+                }
+              })
+              if (textStartPos !== null) {
+                range = {
+                  from: textStartPos,
+                  to: textStartPos + contentNode.textContent.length,
+                }
+                const linkMarkType = state.schema.marks.link
+                if (linkMarkType) {
+                  markOrNode = linkMarkType.create({
+                    href: url || '',
+                  }) as Mark
+                }
+                foundLink = true
+              }
+            }
+          }
         }
       }
     } catch (e) {
       let missingId
       state.doc.descendants((node, pos) => {
         if (node.attrs.id && node.attrs.id === nodeId) {
-          console.log(node)
           missingId = nodeId
         }
       })
