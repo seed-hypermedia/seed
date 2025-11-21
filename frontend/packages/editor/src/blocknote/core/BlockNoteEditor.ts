@@ -146,6 +146,7 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
   importWebFile?: ImportWebFileFunction
   handleFileAttachment?: HandleFileAttachmentFunction
   commentEditor?: boolean
+  getResourceUrl?: (blockId?: string | null) => string | undefined
 }
 
 export type LinkExtensionOptions = {
@@ -207,6 +208,10 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
   public readonly importWebFile?: ImportWebFileFunction
   public readonly handleFileAttachment?: HandleFileAttachmentFunction
 
+  public readonly getResourceUrl?: (
+    blockId?: string | null,
+  ) => string | undefined
+
   constructor(
     private readonly options: Partial<BlockNoteEditorOptions<BSchema>> = {},
   ) {
@@ -230,6 +235,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       ...options,
     }
     this.commentEditor = options.commentEditor
+    this.getResourceUrl = options.getResourceUrl
     this.sideMenu = new SideMenuProsemirrorPlugin(this)
     this.formattingToolbar = new FormattingToolbarProsemirrorPlugin(this)
     this.slashMenu = new SlashMenuProsemirrorPlugin(

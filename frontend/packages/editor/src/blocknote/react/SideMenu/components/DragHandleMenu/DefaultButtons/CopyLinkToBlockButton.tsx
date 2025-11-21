@@ -1,18 +1,19 @@
-import {useBlocksContentContext} from '@shm/ui/blocks-content'
+import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {Link} from '@shm/ui/icons'
-import {BlockSchema} from '../../../../../core'
+import {HMBlockSchema} from '../../../../../../schema'
 import {DragHandleMenuProps} from '../DragHandleMenu'
 import {DragHandleMenuItem} from '../DragHandleMenuItem'
 
-export const CopyLinkToBlockButton = <BSchema extends BlockSchema>({
+export function CopyLinkToBlockButton<BSchema extends HMBlockSchema>({
   block,
-}: DragHandleMenuProps<BSchema>) => {
-  const {onBlockSelect} = useBlocksContentContext()
-  if (!onBlockSelect) return null
+  editor,
+}: DragHandleMenuProps<BSchema>) {
+  const url = editor.getResourceUrl?.(block.id)
+  if (!url) return null
   return (
     <DragHandleMenuItem
       onClick={() => {
-        onBlockSelect(block.id)
+        copyUrlToClipboardWithFeedback(url, 'Block')
       }}
     >
       <div className="flex gap-2">

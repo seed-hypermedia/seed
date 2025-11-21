@@ -43,7 +43,12 @@ import {
   extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
-import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {
+  createHMUrl,
+  createWebHMUrl,
+  hmId,
+  unpackHmId,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   entityQueryPathToHmIdPath,
@@ -64,7 +69,7 @@ import {Extension, findParentNode} from '@tiptap/core'
 import {NodeSelection} from '@tiptap/pm/state'
 import {useMachine} from '@xstate/react'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
@@ -462,6 +467,25 @@ export function useDraftEditor() {
   const editEntity = useResource(editId)
   const editDocument =
     editEntity.data?.type === 'document' ? editEntity.data.document : undefined
+  const editHomeEntity = useResource(editId ? hmId(editId?.uid) : undefined)
+  const getResourceUrl = useRef<
+    (blockId?: string | null) => string | undefined
+  >(() => undefined)
+  useEffect(() => {
+    getResourceUrl.current = (blockId?: string | null) => {
+      if (!editId) return undefined
+      const siteHomeDoc =
+        editHomeEntity.data?.type === 'document'
+          ? editHomeEntity.data.document
+          : undefined
+      const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
+      return createWebHMUrl(editId.uid, {
+        path: editId.path,
+        hostname: siteHomeUrl || gwUrl.get(),
+        blockRef: blockId,
+      })
+    }
+  }, [editId, editHomeEntity.data])
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
@@ -520,6 +544,9 @@ export function useDraftEditor() {
       gwUrl,
       openUrl,
       checkWebUrl: checkWebUrl.mutateAsync,
+    },
+    getResourceUrl: (blockId?: string | null) => {
+      return getResourceUrl.current(blockId)
     },
     onMentionsQuery,
     importWebFile: importWebFile.mutateAsync,
