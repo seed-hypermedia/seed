@@ -65,7 +65,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
 
   if (!document || !siteListQuery || !outline.length) return null
 
-  if (outline.length <= 1) return null
+  // if (outline.length <= 1) return null
 
   return (
     <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
