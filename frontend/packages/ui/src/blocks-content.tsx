@@ -26,6 +26,7 @@ import {
   HMResolvedResource,
   UnpackedHypermediaId,
   clipContentBlocks,
+  entityQueryPathToHmIdPath,
   formatBytes,
   formattedDateMedium,
   getChildrenType,
@@ -35,7 +36,6 @@ import {
   hmBlockToEditorBlock,
   isHypermediaScheme,
   packHmId,
-  queryBlockSortedItems,
   unpackHmId,
   useHover,
   useLowlight,
@@ -2122,57 +2122,40 @@ function BlockEmbedContentDocument(props: {
   )
 }
 
-function QueryBlock({
-  id,
-  block,
-}: {
-  id: UnpackedHypermediaId
-  block: HMBlockQuery
-}) {
+function BlockContentQuery({block}: {block: HMBlockQuery}) {
   const client = useUniversalClient()
+  const queryInclude = block.attributes.query.includes[0]
+  const queryIncludeId = queryInclude
+    ? hmId(queryInclude.space, {
+        path: entityQueryPathToHmIdPath(queryInclude.path),
+      })
+    : null
 
   // Use universal client for directory listing
-  const directoryItems = client.useDirectory(id, {
-    mode: block.attributes.query.includes[0]?.mode,
+  const directoryItems = client.useDirectory(queryIncludeId, {
+    mode: queryInclude?.mode,
   })
 
   // Subscribe to query target
-  client.useResource(id, {recursive: true})
-
-  // Compute sorted items
-  const sortedItems = useMemo(() => {
-    const items = directoryItems?.data || []
-
-    // Sort and limit items
-    const sorted = queryBlockSortedItems({
-      entries: items,
-      sort: block.attributes.query.sort || [
-        {term: 'UpdateTime', reverse: false},
-      ],
-    })
-
-    return block.attributes.query.limit
-      ? sorted.slice(0, block.attributes.query.limit)
-      : sorted
-  }, [directoryItems, block.attributes.query])
+  client.useResource(queryIncludeId, {recursive: true})
 
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
     const ids = new Set<string>()
-    sortedItems.forEach(
+    directoryItems.data?.forEach(
       (item) => item.authors?.forEach((authorId: string) => ids.add(authorId)),
     )
     return Array.from(ids)
-  }, [sortedItems])
+  }, [directoryItems.data])
 
   // Batch load documents and authors
   const docIds = useMemo(
-    () => sortedItems.map((item) => item.id),
-    [sortedItems],
+    () => directoryItems.data?.map((item) => item.id),
+    [directoryItems.data],
   )
 
   const documents = client.useResources([
-    ...docIds,
+    ...(docIds || []),
     ...authorIds.map((uid: string) => hmId(uid)),
   ])
 
@@ -2191,7 +2174,7 @@ function QueryBlock({
 
   return (
     <QueryBlockContent
-      items={sortedItems}
+      items={directoryItems.data || []}
       style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
       banner={block.attributes.banner || false}
@@ -2199,37 +2182,6 @@ function QueryBlock({
       getEntity={getEntity}
     />
   )
-}
-
-// document -> BlockContentQuery -> QueryBlock (from embeds package)
-// editor -> QueryBlock -> EditorQueryBlock
-export function BlockContentQuery({block}: BlockContentProps<HMBlockQuery>) {
-  // Query blocks don't use block.link, they store target in attributes.query.includes
-  const includes = block.attributes.query.includes || []
-
-  // Empty includes means unconfigured query block - show empty state
-  if (includes.length === 0 || !includes[0]?.space) {
-    // Return empty QueryBlockContent to show "no results" state
-    return (
-      <QueryBlockContent
-        items={[]}
-        style={block.attributes.style || 'Card'}
-        columnCount={block.attributes.columnCount}
-        banner={block.attributes.banner || false}
-        accountsMetadata={{}}
-        getEntity={() => null}
-      />
-    )
-  }
-
-  const queryInclude = includes[0]
-  const id = hmId(queryInclude.space, {
-    path: queryInclude.path
-      ? queryInclude.path.split('/').filter(Boolean)
-      : null,
-  })
-
-  return <QueryBlock id={id} block={block} />
 }
 
 export function BlockNotFoundError({

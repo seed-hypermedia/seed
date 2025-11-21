@@ -951,7 +951,7 @@ export function queryListDirectory(
         includes: [
           {
             space: id.uid,
-            mode: 'Children',
+            mode: options?.mode || 'Children',
             path: hmIdPathToEntityQueryPath(id.path),
           },
         ],

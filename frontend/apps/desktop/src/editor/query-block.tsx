@@ -92,8 +92,6 @@ function Render(
   const [selected, setSelected] = useState(false)
   const tiptapEditor = editor._tiptapEditor
 
-  console.log(block.props.queryIncludes)
-
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
     return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
   }, [block.props.queryIncludes])
@@ -143,7 +141,6 @@ function Render(
 
   const assign = useCallback(
     (props: Partial<EditorQueryBlock['props']>) => {
-      console.log('ASSIGN', props)
       // @ts-ignore because we have literal string values here that should be ok.
       editor.updateBlock(block.id, {props})
     },
@@ -359,14 +356,12 @@ function QuerySettings({
             <div
               className="bg-background z-30 flex w-full max-w-[350px] flex-col gap-4 rounded-lg p-4 shadow-lg"
               onClick={(e) => {
-                console.log('CLICK MODAL')
                 e.stopPropagation()
               }}
             >
               <QuerySearch
                 selectedDocName={queryDocName}
                 onSelect={({id, route}) => {
-                  console.log('query-block SELECT', id, route)
                   if (id) {
                     const newVal: HMQueryBlockIncludes = [
                       {
@@ -379,7 +374,6 @@ function QuerySettings({
                           : 'AllDescendants',
                       },
                     ]
-                    // console.log('=== NEW VAL', id, newVal)
                     onValuesChange({
                       id,
                       props: {
@@ -446,7 +440,6 @@ function QuerySettings({
                 // @ts-ignore
                 value={querySort[0].term}
                 onValue={(value) => {
-                  console.log('SORT', querySort[0])
                   let newVal = [
                     {
                       ...querySort[0],

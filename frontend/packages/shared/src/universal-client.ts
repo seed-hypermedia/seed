@@ -1,4 +1,5 @@
 import {UseQueryResult} from '@tanstack/react-query'
+import type {Contact} from './client/grpc-types'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
@@ -6,11 +7,10 @@ import type {
   HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
-import type {Contact} from './client/grpc-types'
-import type {SearchPayload} from './models/search'
 import type {RecentsResult} from './models/recents'
+import type {SearchPayload} from './models/search'
 
-export type {Contact, SearchPayload, RecentsResult}
+export type {Contact, RecentsResult, SearchPayload}
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
@@ -27,7 +27,7 @@ export type UniversalClient = {
 
   // Directory listing (desktop: useListDirectory, web: context-based)
   useDirectory(
-    id: UnpackedHypermediaId,
+    id: UnpackedHypermediaId | null | undefined,
     options?: {mode?: string},
   ): UseQueryResult<HMDocumentInfo[]>
 
