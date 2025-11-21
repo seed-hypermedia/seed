@@ -116,6 +116,7 @@ function _CommentBox(props: {
         context={context}
         onDiscardDraft={() => {}}
         onSuccess={() => {
+          // Don't invalidate draft queries here - removeDraft mutation handles it via optimistic updates
           queryClient.invalidateQueries({
             queryKey: [queryKeys.DOCUMENT_ACTIVITY],
           })

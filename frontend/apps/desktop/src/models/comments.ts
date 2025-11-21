@@ -272,6 +272,15 @@ export function useCommentEditor(
     },
     onSuccess: () => {
       invalidateQueries(['trpc.comments.listCommentDrafts'])
+      invalidateQueries([
+        'trpc.comments.getCommentDraft',
+        {
+          targetDocId: targetDocId.id,
+          replyCommentId: commentId,
+          quotingBlockId: quotingBlockId,
+          context: context,
+        },
+      ])
       onDiscardDraft?.()
       isDeletingDraft.current = false
     },
@@ -473,6 +482,9 @@ export function useCommentEditor(
     },
     onSuccess: (newComment: HMComment) => {
       setIsSubmitting(false)
+
+      // Set flag and clear timeout BEFORE clearing editor to prevent race condition
+      isDeletingDraft.current = true
       clearTimeout(saveTimeoutRef.current)
 
       // Clear the editor
