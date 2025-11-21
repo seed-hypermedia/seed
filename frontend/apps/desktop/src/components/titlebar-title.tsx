@@ -178,12 +178,10 @@ function BreadcrumbTitle({
       const contents = entityContents[idIndex]
       let name: string
       if (id.path?.length) {
-        // @ts-ignore
         name = getDocumentTitle(contents.entity?.document) || ''
       } else {
         name = getContactMetadata(
           id.uid,
-          // @ts-ignore
           contents.entity?.document?.metadata,
           contacts.data,
         ).name
@@ -192,9 +190,7 @@ function BreadcrumbTitle({
         {
           name,
           fallbackName: id.path?.at(-1),
-          // @ts-ignore
           isError: contents.entity && !contents.entity.document,
-          // @ts-ignore
           isLoading: !contents.entity,
           id,
           crumbKey: `id-${idIndex}`,

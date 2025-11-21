@@ -11,7 +11,7 @@ import {
   HMDocumentInfo,
   HMMetadata,
 } from './hm-types'
-import {normalizeDate, unpackHmId} from './utils'
+import {entityQueryPathToHmIdPath, normalizeDate, unpackHmId} from './utils'
 
 // Check if a block has meaningful content
 export function hasBlockContent(block: HMBlockNode): boolean {
@@ -95,7 +95,11 @@ export function getDocumentTitle(document?: HMDocument | null) {
     return 'Error: document not found'
   }
 
-  return document.metadata?.name || document.account! + document.path!
+  return (
+    document.metadata?.name ||
+    entityQueryPathToHmIdPath(document.path)?.at(-1) ||
+    ''
+  )
 }
 
 export function getContactMetadata(
