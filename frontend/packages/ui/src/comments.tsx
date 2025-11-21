@@ -846,6 +846,7 @@ function CommentDate({comment}: {comment: HMComment}) {
 }
 
 export function QuotedDocBlock({
+  docId,
   blockId,
   doc,
 }: {
@@ -866,11 +867,13 @@ export function QuotedDocBlock({
         </div>
         <div className="flex-1">
           {blockContent && (
-            <BlocksContent
-              blocks={[blockContent]}
-              // parentBlockId={blockId}
-              hideCollapseButtons
-            />
+            <BlocksContentProvider resourceId={{...docId, blockRef: blockId}}>
+              <BlocksContent
+                blocks={[blockContent]}
+                // parentBlockId={blockId}
+                hideCollapseButtons
+              />
+            </BlocksContentProvider>
           )}
         </div>
       </div>
