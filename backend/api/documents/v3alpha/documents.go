@@ -30,6 +30,7 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -55,7 +56,7 @@ type Server struct {
 }
 
 type syncingClient interface {
-	SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error)
+	SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 }
 
 // NewServer creates a new Documents API v3 server.

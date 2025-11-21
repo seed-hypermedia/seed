@@ -31,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -106,7 +107,7 @@ func init() {
 
 // netDialFunc is a function of the Seed P2P node that creates an instance
 // of a Syncing RPC client for a given remote Device ID.
-type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
+type netDialFunc func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 
 // subscriptionMap is a map of peer IDs to an IRI and a boolean indicating whether it's a recursive subscription.
 type subscriptionMap map[peer.ID]map[string]bool
@@ -168,7 +169,7 @@ const peerRoutingConcurrency = 3 // how many concurrent requests for peer routin
 // P2PNode is a subset of the hmnet Node that is used by syncing service.
 type P2PNode interface {
 	Bitswap() *ipfs.Bitswap
-	SyncingClient(context.Context, peer.ID) (p2p.SyncingClient, error)
+	SyncingClient(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 	Client(context.Context, peer.ID) (p2p.P2PClient, error)
 	Libp2p() *ipfs.Libp2p
 	CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error)

@@ -248,8 +248,13 @@ func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
 }
 
 // SyncingClient opens a connection with a remote node for syncing.
-func (n *Node) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
-	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
+func (n *Node) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error) {
+	addrinfo := n.p2p.Peerstore().PeerInfo(pid)
+	if len(addrs) > 0 {
+		addrinfo.Addrs = append(addrinfo.Addrs, addrs...)
+	}
+
+	if err := n.Connect(ctx, addrinfo); err != nil {
 		return nil, err
 	}
 

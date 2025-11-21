@@ -269,9 +269,9 @@ func (x *SyncingProgress) GetBlobsFailed() int32 {
 
 type PushResourcesToPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required. Peer ID to push to.
-	// No addresses are needed, just the pid
-	Pid string `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	// A list of multiaddrs for the same peer ID to attempt p2p connection.
+	// For example `/ip4/10.0.0.1/tcp/55000/p2p/QmDeadBeef`.
+	Addrs []string `protobuf:"bytes,1,rep,name=addrs,proto3" json:"addrs,omitempty"`
 	// Required. Resource IRIs to push. We will also push
 	// related blobs to those resources. No wilcards are supported.
 	// Only documents resources can be specified. No single comments supported yet.
@@ -311,11 +311,11 @@ func (*PushResourcesToPeerRequest) Descriptor() ([]byte, []int) {
 	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *PushResourcesToPeerRequest) GetPid() string {
+func (x *PushResourcesToPeerRequest) GetAddrs() []string {
 	if x != nil {
-		return x.Pid
+		return x.Addrs
 	}
-	return ""
+	return nil
 }
 
 func (x *PushResourcesToPeerRequest) GetResources() []string {
@@ -345,9 +345,9 @@ const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\fpeers_failed\x18\x03 \x01(\x05R\vpeersFailed\x12)\n" +
 	"\x10blobs_discovered\x18\x04 \x01(\x05R\x0fblobsDiscovered\x12)\n" +
 	"\x10blobs_downloaded\x18\x05 \x01(\x05R\x0fblobsDownloaded\x12!\n" +
-	"\fblobs_failed\x18\x06 \x01(\x05R\vblobsFailed\"L\n" +
-	"\x1aPushResourcesToPeerRequest\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x1c\n" +
+	"\fblobs_failed\x18\x06 \x01(\x05R\vblobsFailed\"P\n" +
+	"\x1aPushResourcesToPeerRequest\x12\x14\n" +
+	"\x05addrs\x18\x01 \x03(\tR\x05addrs\x12\x1c\n" +
 	"\tresources\x18\x02 \x03(\tR\tresources2\xee\x01\n" +
 	"\tResources\x12c\n" +
 	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.Resource\x12|\n" +

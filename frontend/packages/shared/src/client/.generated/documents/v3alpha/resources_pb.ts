@@ -202,12 +202,12 @@ export class SyncingProgress extends Message<SyncingProgress> {
  */
 export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerRequest> {
   /**
-   * Required. Peer ID to push to.
-   * No addresses are needed, just the pid
+   * A list of multiaddrs for the same peer ID to attempt p2p connection.
+   * For example `/ip4/10.0.0.1/tcp/55000/p2p/QmDeadBeef`.
    *
-   * @generated from field: string pid = 1;
+   * @generated from field: repeated string addrs = 1;
    */
-  pid = "";
+  addrs: string[] = [];
 
   /**
    * Required. Resource IRIs to push. We will also push
@@ -227,7 +227,7 @@ export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerReque
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "com.seed.documents.v3alpha.PushResourcesToPeerRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "pid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 2, name: "resources", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 

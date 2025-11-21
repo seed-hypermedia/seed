@@ -1014,7 +1014,7 @@ func TestPushing(t *testing.T) {
 
 	cli := documents.NewResourcesClient(aliceConn)
 	stream, err := cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Pid:       bob.Net.AddrInfo().ID.String(),
+		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
 		Resources: []string{toyotaIRI},
 	})
 	require.NoError(t, err)
@@ -1066,7 +1066,7 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
 	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Pid:       bob.Net.AddrInfo().ID.String(),
+		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
 		Resources: []string{toyotaIRI},
 	})
 	require.NoError(t, err)
@@ -1105,7 +1105,7 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
 	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Pid:       bob.Net.AddrInfo().ID.String(),
+		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
 		Resources: []string{toyotaIRI},
 	})
 	require.NoError(t, err)
@@ -1165,7 +1165,7 @@ func TestPushing(t *testing.T) {
 
 	cliBob := documents.NewResourcesClient(bobConn)
 	stream, err = cliBob.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Pid:       alice.Net.AddrInfo().ID.String(),
+		Addrs:     hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 		Resources: []string{"hm://" + aliceHondaUpdated.Account + aliceHondaUpdated.Path},
 	})
 	require.NoError(t, err)
