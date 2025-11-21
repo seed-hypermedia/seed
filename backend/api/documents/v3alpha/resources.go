@@ -10,17 +10,18 @@ import (
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -66,11 +67,20 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		request.Cids = append(request.Cids, cid.String())
 	}
 
-	pid, err := peer.Decode(req.Pid)
-	if err != nil {
-		return fmt.Errorf("failed to decode peer ID '%s': %w", req.Pid, err)
+	// We want to support connecting to plain peer IDs, so we need to convert it into multiaddr.
+	if len(req.Addrs) == 1 {
+		addr := req.Addrs[0]
+		if !strings.Contains(addr, "/") {
+			req.Addrs[0] = "/p2p/" + addr
+		}
 	}
-	syncClient, err := srv.sync.SyncingClient(ctx, pid)
+
+	info, err := netutil.AddrInfoFromStrings(req.Addrs...)
+	if err != nil {
+		return fmt.Errorf("failed to parse multiaddr: %w", err)
+	}
+
+	syncClient, err := srv.sync.SyncingClient(ctx, info.ID, info.Addrs...)
 	if err != nil {
 		return fmt.Errorf("could not get p2p client: %w", err)
 	}

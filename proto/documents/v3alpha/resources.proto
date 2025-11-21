@@ -60,9 +60,9 @@ message SyncingProgress {
 }
 
 message PushResourcesToPeerRequest {
-  // Required. Peer ID to push to.
-  // No addresses are needed, just the pid
-  string pid = 1;
+  // A list of multiaddrs for the same peer ID to attempt p2p connection.
+  // For example `/ip4/10.0.0.1/tcp/55000/p2p/QmDeadBeef`.
+  repeated string addrs = 1;
 
   // Required. Resource IRIs to push. We will also push
   // related blobs to those resources. No wilcards are supported.

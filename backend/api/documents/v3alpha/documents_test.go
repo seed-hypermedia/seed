@@ -22,6 +22,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1643,6 +1644,6 @@ func TestRepublishDocument(t *testing.T) {
 
 type mockedSyncingClient struct{}
 
-func (m *mockedSyncingClient) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
+func (m *mockedSyncingClient) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error) {
 	return nil, nil
 }
