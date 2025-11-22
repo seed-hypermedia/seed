@@ -17,7 +17,6 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
@@ -53,11 +52,18 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		resource := "hm://" + result["account"] + result["path"]
 		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource)}] = struct{}{}
 	}
-	cids, err := syncing.GetRelatedMaterial(conn, dkeys, true)
-	if err != nil {
+
+	var cids map[cid.Cid]int64
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true)
+		return err
+	}); err != nil {
 		return err
 	}
-	request := &p2p.FetchBlobsRequest{}
+
+	request := &p2p.FetchBlobsRequest{
+		Cids: make([]string, 0, len(cids)),
+	}
 	for cid := range cids {
 		request.Cids = append(request.Cids, cid.String())
 	}
@@ -87,13 +93,13 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	for {
 		progIn, err := streamRx.Recv()
 		if errors.Is(err, io.EOF) {
-			_ = streamTx.Send(progIn) // ignore send error on termination
+			_ = stream.Send(progIn) // ignore send error on termination
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if err := streamTx.Send(progIn); err != nil {
+		if err := stream.Send(progIn); err != nil {
 			return err
 		}
 	}
