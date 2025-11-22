@@ -6,7 +6,6 @@ import (
 	"io"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
@@ -31,8 +30,7 @@ func (p *p2pProxy) RegisterServer(srv grpc.ServiceRegistrar) {
 }
 
 func (p *p2pProxy) FetchBlobs(in *p2p.FetchBlobsRequest, stream p2p.Syncing_FetchBlobsServer) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	ctx := stream.Context()
 	pid, err := p.targetPeer(ctx)
 	if err != nil {
 		return err
