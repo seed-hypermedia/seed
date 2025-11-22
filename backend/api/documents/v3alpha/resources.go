@@ -28,14 +28,9 @@ import (
 )
 
 // PushResourcesToPeer implements the corresponding gRPC method.
-func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, streamTx grpc.ServerStreamingServer[documents.SyncingProgress]) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	conn, cancel, err := srv.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to acquire db connection: %w", err)
-	}
-	defer cancel()
+func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, stream grpc.ServerStreamingServer[documents.SyncingProgress]) error {
+	ctx := stream.Context()
+
 	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
 	for _, res := range req.Resources {
 		m := syncing.HmRe.FindStringSubmatch(res)
