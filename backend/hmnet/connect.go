@@ -95,6 +95,7 @@ func (n *Node) connect(ctx context.Context, info peer.AddrInfo, force bool) (err
 				return err
 			}
 			if pid.String() != info.ID.String() {
+				n.log.Debug("found PID does not equal provided PID", zap.String("found", pid.String()), zap.String("provided", info.ID.String()))
 				return fmt.Errorf("found PID does not equal provided PID")
 			}
 			didHandshake = true

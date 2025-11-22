@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	v3alpha "seed/backend/genproto/documents/v3alpha"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -20,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Syncing_ReconcileBlobs_FullMethodName = "/com.seed.p2p.v1alpha.Syncing/ReconcileBlobs"
+	Syncing_FetchBlobs_FullMethodName     = "/com.seed.p2p.v1alpha.Syncing/FetchBlobs"
 )
 
 // SyncingClient is the client API for Syncing service.
@@ -27,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SyncingClient interface {
 	ReconcileBlobs(ctx context.Context, in *ReconcileBlobsRequest, opts ...grpc.CallOption) (*ReconcileBlobsResponse, error)
+	FetchBlobs(ctx context.Context, in *FetchBlobsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[v3alpha.SyncingProgress], error)
 }
 
 type syncingClient struct {
@@ -47,11 +50,31 @@ func (c *syncingClient) ReconcileBlobs(ctx context.Context, in *ReconcileBlobsRe
 	return out, nil
 }
 
+func (c *syncingClient) FetchBlobs(ctx context.Context, in *FetchBlobsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[v3alpha.SyncingProgress], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Syncing_ServiceDesc.Streams[0], Syncing_FetchBlobs_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FetchBlobsRequest, v3alpha.SyncingProgress]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Syncing_FetchBlobsClient = grpc.ServerStreamingClient[v3alpha.SyncingProgress]
+
 // SyncingServer is the server API for Syncing service.
 // All implementations should embed UnimplementedSyncingServer
 // for forward compatibility.
 type SyncingServer interface {
 	ReconcileBlobs(context.Context, *ReconcileBlobsRequest) (*ReconcileBlobsResponse, error)
+	FetchBlobs(*FetchBlobsRequest, grpc.ServerStreamingServer[v3alpha.SyncingProgress]) error
 }
 
 // UnimplementedSyncingServer should be embedded to have
@@ -63,6 +86,9 @@ type UnimplementedSyncingServer struct{}
 
 func (UnimplementedSyncingServer) ReconcileBlobs(context.Context, *ReconcileBlobsRequest) (*ReconcileBlobsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReconcileBlobs not implemented")
+}
+func (UnimplementedSyncingServer) FetchBlobs(*FetchBlobsRequest, grpc.ServerStreamingServer[v3alpha.SyncingProgress]) error {
+	return status.Errorf(codes.Unimplemented, "method FetchBlobs not implemented")
 }
 func (UnimplementedSyncingServer) testEmbeddedByValue() {}
 
@@ -102,6 +128,17 @@ func _Syncing_ReconcileBlobs_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Syncing_FetchBlobs_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FetchBlobsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SyncingServer).FetchBlobs(m, &grpc.GenericServerStream[FetchBlobsRequest, v3alpha.SyncingProgress]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Syncing_FetchBlobsServer = grpc.ServerStreamingServer[v3alpha.SyncingProgress]
+
 // Syncing_ServiceDesc is the grpc.ServiceDesc for Syncing service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +151,12 @@ var Syncing_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Syncing_ReconcileBlobs_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "FetchBlobs",
+			Handler:       _Syncing_FetchBlobs_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "p2p/v1alpha/syncing.proto",
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"seed/backend/blob"
+	"seed/backend/core"
 	docspb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing/rbsr"
@@ -39,13 +40,83 @@ type DiscoveryProgress struct {
 	BlobsDiscovered atomic.Int32
 	BlobsDownloaded atomic.Int32
 	BlobsFailed     atomic.Int32
+
+	// updates is a coalescing notification channel. A non-blocking send happens
+	// when any counter changes. Consumers can select on Updates().
+	updates chan struct{}
+}
+
+// NewDiscoveryProgress creates a progress tracker with an initialized notification channel.
+func NewDiscoveryProgress() *DiscoveryProgress {
+	return &DiscoveryProgress{
+		updates: make(chan struct{}, 1),
+	}
+}
+
+// Updates exposes a read-only channel that ticks whenever progress changes.
+func (p *DiscoveryProgress) Updates() <-chan struct{} {
+	return p.updates
+}
+
+// Notify triggers a non-blocking tick on the updates channel.
+func (p *DiscoveryProgress) Notify() {
+	if p.updates == nil {
+		// allow use with zero-value DiscoveryProgress
+		p.updates = make(chan struct{}, 1)
+	}
+	select {
+	case p.updates <- struct{}{}:
+	default:
+		// coalesce if a tick is already pending
+	}
+}
+
+// StartNotifier periodically checks counters and emits Notify() on change.
+// It stops when ctx is done.
+func (p *DiscoveryProgress) StartNotifier(ctx context.Context, interval time.Duration) {
+	// initialize channel if needed
+	if p.updates == nil {
+		p.updates = make(chan struct{}, 1)
+	}
+	prev := [6]int32{
+		p.PeersFound.Load(),
+		p.PeersSyncedOK.Load(),
+		p.PeersFailed.Load(),
+		p.BlobsDiscovered.Load(),
+		p.BlobsDownloaded.Load(),
+		p.BlobsFailed.Load(),
+	}
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cur := [6]int32{
+					p.PeersFound.Load(),
+					p.PeersSyncedOK.Load(),
+					p.PeersFailed.Load(),
+					p.BlobsDiscovered.Load(),
+					p.BlobsDownloaded.Load(),
+					p.BlobsFailed.Load(),
+				}
+				if cur != prev {
+					prev = cur
+					p.Notify()
+				}
+			}
+		}
+	}()
 }
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
 // If found, this function will store the object locally so that it can be gotten like any
 // other local object. This function blocks until either success or fails to find providers.
 func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
-	prog := &DiscoveryProgress{}
+	prog := NewDiscoveryProgress()
+	prog.StartNotifier(ctx, 200*time.Millisecond)
 	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, prog)
 }
 
@@ -55,8 +126,11 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
 
-	if s.resources == nil {
-		return "", fmt.Errorf("resource API is not set")
+	// Ensure notifier is running even if prog was a zero-value passed by caller
+	// (e.g. from backend/api/entities/v1alpha/entities.go)
+	if prog != nil && prog.updates == nil {
+		prog.StartNotifier(ctx, 200*time.Millisecond)
+		prog.Notify() // initial tick
 	}
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
 	defer cancel()
@@ -105,8 +179,8 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 
 	// Create RBSR store once for reuse across all peers.
-	dkeys := colx.HashSet[discoveryKey]{
-		discoveryKey{
+	dkeys := colx.HashSet[DiscoveryKey]{
+		DiscoveryKey{
 			IRI:       entityID,
 			Version:   version,
 			Recursive: recursive,
@@ -179,7 +253,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 }
 
 // loadStore creates and populates an RBSR store for the given discovery keys.
-func (s *Service) loadStore(ctx context.Context, dkeys map[discoveryKey]struct{}) (rbsr.Store, error) {
+func (s *Service) loadStore(ctx context.Context, dkeys map[DiscoveryKey]struct{}) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -195,31 +269,207 @@ func (s *Service) loadStore(ctx context.Context, dkeys map[discoveryKey]struct{}
 	return store, nil
 }
 
-type discoveryKey struct {
-	IRI       blob.IRI
-	Version   blob.Version
+// DiscoveryKey is used to identify resources to discover.
+type DiscoveryKey struct {
+	// IRI is the identifier of the resource.
+	IRI blob.IRI
+
+	// Version is the specific version of the resource to discover.
+	Version blob.Version
+
+	// Recursive indicates whether to discover the path below the IRI as well.
 	Recursive bool
 }
 
-func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbsr.Store) error {
-	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
+func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbsr.Store) error {
+	cids, err := GetRelatedMaterial(conn, dkeys, false)
+	if err != nil {
 		return err
 	}
+	for c, ts := range cids {
+		if err := store.Insert(ts, strbytes.Bytes(c.KeyString())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	if err := ensureTempTable(conn, "rbsr_blobs"); err != nil {
-		return err
+// GetRelatedMaterial gets all the related material CIDs for the given discovery keys.
+func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids map[cid.Cid]int64, err error) {
+	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
+	cids = make(map[cid.Cid]int64)
+	if err = ensureTempTable(conn, "rbsr_iris"); err != nil {
+		return
 	}
 
+	if err = ensureTempTable(conn, "rbsr_blobs"); err != nil {
+		return
+	}
+
+	if err = fillTables(conn, dkeys, includeLinksCitationsAccounts); err != nil {
+		return
+	}
+	if includeLinksCitationsAccounts {
+		var linkIRIs = make(map[DiscoveryKey]struct{})
+		// Fill Links.
+		{
+			const q = `
+				WITH genesis (id) AS (
+					SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
+				), linked_changes (id) AS (
+					SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
+					AND structural_blobs.extra_attrs->>'deleted' is not true
+					UNION ALL
+					SELECT id from genesis
+				)
+				SELECT r.iri,
+				rl.is_pinned,
+				rl.extra_attrs->>'v' AS version
+				FROM resources r
+				JOIN resource_links rl ON r.id = rl.target
+				WHERE rl.source IN linked_changes
+				GROUP BY r.iri, version, rl.is_pinned;`
+
+			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				var iri = blob.IRI(stmt.ColumnText(0))
+				var version = blob.Version(stmt.ColumnText(2))
+				var isPinned = stmt.ColumnInt(1) != 0
+				dKey := DiscoveryKey{IRI: iri, Version: "", Recursive: false}
+				if isPinned && version != "" {
+					// If it's pinned, we want to make sure we get the specific version.
+					dKey = DiscoveryKey{IRI: iri, Version: version, Recursive: false}
+				}
+				linkIRIs[dKey] = struct{}{}
+				return nil
+			}); err != nil {
+				return
+			}
+		}
+		// Fill Citations.
+		{
+			const q = `
+				SELECT distinct
+					public_keys.principal AS main_author,
+					structural_blobs.extra_attrs->>'tsid' AS tsid,
+					structural_blobs.extra_attrs->>'deleted' as is_deleted,
+					r.iri AS source_iri,
+					structural_blobs.type AS blob_type
+				FROM resource_links
+				JOIN structural_blobs ON structural_blobs.id = resource_links.source
+				JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
+				JOIN public_keys ON public_keys.id = structural_blobs.author
+				LEFT JOIN resources r
+				ON r.genesis_blob = CASE
+						WHEN structural_blobs.type != 'Change' THEN structural_blobs.genesis_blob
+						ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
+					END
+				WHERE resource_links.target IN rbsr_iris;`
+			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+				var (
+					author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
+					tsid      = blob.TSID(stmt.ColumnText(1))
+					isDeleted = stmt.ColumnText(2) == "1"
+					source    = stmt.ColumnText(3)
+					blobType  = stmt.ColumnText(4)
+				)
+
+				if blobType == "Comment" {
+					source = "hm://" + author + "/" + tsid.String()
+				}
+				if isDeleted {
+					return nil
+				}
+				dKey := DiscoveryKey{IRI: blob.IRI(source)}
+				linkIRIs[dKey] = struct{}{}
+				return nil
+			}); err != nil {
+				return
+			}
+		}
+		if err = fillTables(conn, linkIRIs, true); err != nil {
+			return
+		}
+	}
+	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
+	// until we can't find any more.
+	blobCountBefore := 0
+	for {
+		blobCountBefore, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
+			return
+		}
+
+		if blobCountBefore == 0 {
+			break
+		}
+
+		const q = `
+			INSERT OR IGNORE INTO rbsr_blobs
+			SELECT id
+			FROM structural_blobs sb
+			WHERE sb.type = 'Capability'
+			AND sb.extra_attrs->>'del' IN (
+				SELECT DISTINCT author
+				FROM structural_blobs
+				WHERE id IN rbsr_blobs 
+			)
+			AND sb.extra_attrs->>'role' = 'AGENT';`
+
+		if err = sqlitex.Exec(conn, q, nil); err != nil {
+			return
+		}
+		blobCountAfter := 0
+		blobCountAfter, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		if err != nil {
+			return
+		}
+
+		if blobCountAfter == blobCountBefore {
+			break
+		}
+	}
+
+	// Load blobs.
+	{
+		const q = `SELECT
+				sb.ts,
+				b.codec,
+				b.multihash
+			FROM rbsr_blobs rb
+			CROSS JOIN public_blobs pb ON pb.id = rb.id
+			CROSS JOIN structural_blobs sb ON sb.id = rb.id
+			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
+			ORDER BY sb.ts;`
+
+		if err = sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
+			inc := sqlite.NewIncrementor(0)
+			var (
+				ts    = row.ColumnInt64(inc())
+				codec = row.ColumnInt64(inc())
+				hash  = row.ColumnBytes(inc())
+			)
+			c := cid.NewCidV1(uint64(codec), hash)
+			cids[c] = ts
+			return nil
+		}); err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {
 	// Fill IRIs.
 	for dkey := range dkeys {
 		if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-			SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
+				SELECT id FROM resources WHERE iri = :iri;`, nil, string(dkey.IRI)); err != nil {
 			return err
 		}
 
 		if dkey.Recursive {
 			if err := sqlitex.Exec(conn, `INSERT OR IGNORE INTO rbsr_iris
-				SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
+					SELECT id FROM resources WHERE iri GLOB :pattern`, nil, string(dkey.IRI)+"/*"); err != nil {
 				return err
 			}
 		}
@@ -246,31 +496,31 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 			}
 		}
 	}
+	/*
+		// Follow all the redirect targets recursively.
+		{
+			const q = `WITH RECURSIVE t (id) AS (
+					SELECT * FROM rbsr_iris
+					UNION
+					SELECT resources.id
+					FROM structural_blobs sb, resources, t
+					WHERE (t.id = sb.resource AND sb.type = 'Ref')
+					AND sb.extra_attrs->>'redirect' IS NOT NULL
+					AND sb.extra_attrs->>'redirect' = resources.iri
+				)
+				SELECT * FROM t;`
 
-	// Follow all the redirect targets recursively.
-	{
-		const q = `WITH RECURSIVE t (id) AS (
-		    SELECT * FROM rbsr_iris
-		    UNION
-		    SELECT resources.id
-		    FROM structural_blobs sb, resources, t
-		    WHERE (t.id = sb.resource AND sb.type = 'Ref')
-		    AND sb.extra_attrs->>'redirect' IS NOT NULL
-		    AND sb.extra_attrs->>'redirect' = resources.iri
-		)
-		SELECT * FROM t;`
-
-		// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
-	}
-
+			// TODO(burdiyan): this query doesn't do anything, I forget why it's here.
+		}
+	*/
 	// Fill Refs.
 	{
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
-			SELECT sb.id
-			FROM structural_blobs sb
-			LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
-			WHERE resource IN rbsr_iris
-			AND type = 'Ref'`
+				SELECT sb.id
+				FROM structural_blobs sb
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+				WHERE resource IN rbsr_iris
+				AND type = 'Ref'`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
@@ -280,102 +530,77 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[discoveryKey]struct{}, store rbs
 	// Fill Changes based on Refs.
 	{
 		const q = `WITH RECURSIVE
-			changes (id) AS (
-			    SELECT target
-			    FROM blob_links bl
-			    JOIN rbsr_blobs rb ON rb.id = bl.source
-			        AND bl.type = 'ref/head'
-			    UNION
-			    SELECT target
-			    FROM blob_links bl
-			    JOIN changes c ON c.id = bl.source
-			        AND bl.type = 'change/dep'
-			)
-			INSERT OR IGNORE INTO rbsr_blobs
-			SELECT id FROM changes;`
+				changes (id) AS (
+					SELECT target
+					FROM blob_links bl
+					JOIN rbsr_blobs rb ON rb.id = bl.source
+						AND bl.type = 'ref/head'
+					UNION
+					SELECT target
+					FROM blob_links bl
+					JOIN changes c ON c.id = bl.source
+						AND bl.type = 'change/dep'
+				)
+				INSERT OR IGNORE INTO rbsr_blobs
+				SELECT id FROM changes;`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
 		}
 	}
-
-	// Fill Capabilities and the rest of the related blob types.
-	{
-		const q = `INSERT OR IGNORE INTO rbsr_blobs
-			SELECT sb.id
-			FROM structural_blobs sb
-			LEFT JOIN stashed_blobs ON stashed_blobs.id = sb.id
-			WHERE resource IN rbsr_iris
-			AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
-
-		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return err
-		}
-	}
-
-	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
-	// until we can't find any more.
-	for {
+	/*
 		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
 			return err
 		}
-
-		if blobCountBefore == 0 {
-			break
-		}
-
-		const q = `
-			INSERT OR IGNORE INTO rbsr_blobs
-			SELECT id
-			FROM structural_blobs sb
-			WHERE sb.type = 'Capability'
-			AND sb.extra_attrs->>'del' IN (
-				SELECT DISTINCT author
-				FROM structural_blobs
-				WHERE id IN rbsr_blobs
-			)
-			AND sb.extra_attrs->>'role' = 'AGENT';`
+	*/
+	// Fill Capabilities and the rest of the related blob types.
+	{
+		const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT sb.id
+				FROM structural_blobs sb
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+				WHERE resource IN rbsr_iris
+				AND sb.type IN ('Capability', 'Comment', 'Profile', 'Contact')`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
 		}
-
-		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
-		if err != nil {
-			return err
-		}
-
-		if blobCountAfter == blobCountBefore {
-			break
-		}
 	}
 
-	// Load blobs.
-	{
-		const q = `SELECT
-				sb.ts,
-				b.codec,
-				b.multihash
-			FROM rbsr_blobs rb
-			CROSS JOIN public_blobs pb ON pb.id = rb.id
-			CROSS JOIN structural_blobs sb ON sb.id = rb.id
-			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
-			ORDER BY sb.ts;`
+	// Fill All authors and their related blobs.
+	if includeAccounts {
+		// Fill All authors.
+		const q = `INSERT OR IGNORE INTO rbsr_blobs
+					SELECT DISTINCT 
+					sb.id as id
+					FROM resources r 
+					JOIN structural_blobs sb ON sb.resource = r.id 
+					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs) 
+					AND type = 'Ref' AND length(r.iri) = 53 -- hm://<acc>`
 
-		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
-			inc := sqlite.NewIncrementor(0)
-			var (
-				ts    = row.ColumnInt64(inc())
-				codec = row.ColumnInt64(inc())
-				hash  = row.ColumnBytes(inc())
-			)
-			c := cid.NewCidV1(uint64(codec), hash)
-
-			return store.Insert(ts, strbytes.Bytes(c.KeyString()))
-		}); err != nil {
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
 		}
+		// Fill media files.
+		{
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
+				SELECT target
+				FROM blob_links bl
+				LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = bl.target
+				WHERE bl.source IN rbsr_blobs`
+
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
+		}
+		/*
+			blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+			if err != nil {
+				return err
+			}
+			fmt.Println(blobCountBefore, "->", blobCountAfter)
+		*/
 	}
 
 	return nil

@@ -200,7 +200,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}()
 
 	rpc := &rpcMux{Node: n}
-	syn := syncing.NewServer(n.db)
+	syn := syncing.NewServer(n.db, n.index, n.Bitswap())
 	syn.RegisterServer(n.grpc)
 	p2p.RegisterP2PServer(n.grpc, rpc)
 	return n, nil
@@ -247,9 +247,14 @@ func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
 	return n.client.Dial(ctx, pid)
 }
 
-// SyncingClient opens a connection with a remote node for syncing using RBSR algorithm.
-func (n *Node) SyncingClient(ctx context.Context, pid peer.ID) (p2p.SyncingClient, error) {
-	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
+// SyncingClient opens a connection with a remote node for syncing.
+func (n *Node) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error) {
+	addrinfo := n.p2p.Peerstore().PeerInfo(pid)
+	if len(addrs) > 0 {
+		addrinfo.Addrs = append(addrinfo.Addrs, addrs...)
+	}
+
+	if err := n.Connect(ctx, addrinfo); err != nil {
 		return nil, err
 	}
 
