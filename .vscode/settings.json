@@ -44,14 +44,22 @@
   // Don't set tab size for Go here. Go uses TAB for tabs, not spaces, so everyone
   // is willing to chose their preffered width in their local settings without disrupting the file contents.
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
   },
-
   "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
   },
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
@@ -82,11 +90,10 @@
     "build.directoryFilters": ["-", "-plz-out", "+backend", "+proto", "+build"]
   },
   "go.lintTool": "golangci-lint",
-  "prettier.bracketSpacing": false,
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit"
-  },
+  "prettier.configPath": "frontend/.prettierrc",
+  "prettier.resolveGlobalModules": true,
+  "prettier.prettierPath": "./node_modules/prettier",
+  "prettier.documentSelectors": ["**/*.{ts,tsx,js,jsx,json,css,scss,md}"],
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   }
