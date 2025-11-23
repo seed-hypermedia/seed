@@ -411,7 +411,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			AND sb.extra_attrs->>'del' IN (
 				SELECT DISTINCT author
 				FROM structural_blobs
-				WHERE id IN rbsr_blobs 
+				WHERE id IN rbsr_blobs
 			)
 			AND sb.extra_attrs->>'role' = 'AGENT';`
 
@@ -572,11 +572,11 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 	if includeAccounts {
 		// Fill All authors.
 		const q = `INSERT OR IGNORE INTO rbsr_blobs
-					SELECT DISTINCT 
+					SELECT DISTINCT
 					sb.id as id
-					FROM resources r 
-					JOIN structural_blobs sb ON sb.resource = r.id 
-					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs) 
+					FROM resources r
+					JOIN structural_blobs sb ON sb.resource = r.id
+					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs)
 					AND type = 'Ref' AND length(r.iri) = 53 -- hm://<acc>`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
