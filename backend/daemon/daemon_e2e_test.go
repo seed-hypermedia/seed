@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"seed/backend/api/apitest"
@@ -17,6 +18,7 @@ import (
 	networking "seed/backend/genproto/networking/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
+	"seed/backend/ipfs"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
 	"slices"
@@ -24,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ipfs/boxo/files"
+	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -1116,13 +1120,29 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err, "Toyota document should be available")
 	require.Equal(t, aliceToyotaUpdated.Content, bobGotAliceToyotaUpdated.Content)
 
+	// Add a random UnixFS file on Bob.
+	// Make sure the file is bigger than min chunk size to make sure it's split into multiple blocks.
+	var fileCID cid.Cid
+	{
+		r := io.LimitReader(rand.New(rand.NewSource(1)), 4*1024*1024)
+		dag := bob.Index.DAGService()
+		f, err := ipfs.WriteUnixFSFile(dag, r)
+		require.NoError(t, err)
+		fileCID = f.Cid()
+	}
+
 	bobComment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
 		TargetVersion: aliceHondaUpdated.Version,
 		Content: []*documents.BlockNode{
 			{
-				Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "I'm carbobol!"},
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "I'm carbobol!",
+					Link: "ipfs://" + fileCID.String(),
+				},
 				Children: []*documents.BlockNode{
 					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Hope you're well"}},
 				},
@@ -1135,13 +1155,13 @@ func TestPushing(t *testing.T) {
 	_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 		Id: bobComment.Id,
 	})
-	require.Error(t, err, "Bob should not get a comment on Honda")
+	require.Error(t, err, "Alice must not have Bob's comment on honda")
 
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: bobHome.Account,
 		Path:    bobHome.Path,
 	})
-	require.Error(t, err, "Bob's Home should not be there either")
+	require.Error(t, err, "Alice must not have Bob's home document")
 
 	push(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
 
@@ -1157,6 +1177,21 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err, "Bob's Home should be there as well now")
 	require.Equal(t, bobHome.Content, aliceGotBobsHome.Content)
+
+	// Check that Alice got file linked in Bob's comment.
+	{
+		dag := alice.Index.DAGService()
+		root, err := dag.Get(t.Context(), fileCID)
+		require.NoError(t, err)
+		fileNode, err := unixfile.NewUnixfsFile(t.Context(), dag, root)
+		require.NoError(t, err)
+
+		file := fileNode.(files.File)
+		n, err := io.Copy(io.Discard, file)
+		require.NoError(t, err)
+
+		require.Equal(t, 4*1024*1024, n, "file received by alice must be 4 MB in size just like Bob created it")
+	}
 }
 
 func TestBug_BrokenFormattingAnnotations(t *testing.T) {
