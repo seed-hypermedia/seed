@@ -147,6 +147,8 @@ type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
 
+const initalizedWindows = new Set<string>()
+
 let windowsState =
   (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) ||
   ({} as Record<string, AppWindow>)
@@ -441,7 +443,9 @@ export function createAppWindow(
   })
 
   browserWindow.webContents.ipc.on('windowIsReady', (e) => {
+    if (initalizedWindows.has(windowId)) return
     browserWindow.show()
+    initalizedWindows.add(windowId)
   })
 
   function saveWindowPosition() {
