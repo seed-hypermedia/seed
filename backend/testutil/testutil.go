@@ -167,15 +167,30 @@ func ExportedFieldsFilter() cmp.Option {
 
 // MockedGRPCServerStream is a mocked gRPC server stream for testing server-side streaming gRPC methods.
 type MockedGRPCServerStream[T proto.Message] struct {
-	C chan T
+	C   chan T
+	ctx context.Context
 	grpc.ServerStream
+}
+
+// NewMockedGRPCServerStream creates a new instance of MockedGRPCServerStream.
+func NewMockedGRPCServerStream[T proto.Message](ctx context.Context) *MockedGRPCServerStream[T] {
+	return &MockedGRPCServerStream[T]{
+		C:   make(chan T, 10),
+		ctx: ctx,
+	}
+}
+
+// Context returns the context of the stream.
+func (m *MockedGRPCServerStream[T]) Context() context.Context {
+	return m.ctx
 }
 
 // Send implements a gRPC stream.
 func (m *MockedGRPCServerStream[T]) Send(msg T) error {
 	if m.C == nil {
-		m.C = make(chan T, 10)
+		panic("BUG: MockedGRPCServerStream.Send called without initializing channel")
 	}
+
 	m.C <- msg
 	return nil
 }

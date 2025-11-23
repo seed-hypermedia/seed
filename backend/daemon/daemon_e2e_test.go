@@ -995,38 +995,44 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	time.Sleep(time.Millisecond * 100)
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
 		Path:    aliceToyota.Path,
 	})
 	require.Error(t, err)
 
-	var toyotaIRI = "hm://" + aliceToyota.Account + aliceToyota.Path
-	aliceConn, err := grpc.NewClient(alice.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	defer aliceConn.Close()
-
-	_, err = alice.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
-	})
-	require.NoError(t, err)
-
-	cli := documents.NewResourcesClient(aliceConn)
-	stream, err := cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
-		Resources: []string{toyotaIRI},
-	})
-	require.NoError(t, err)
-
-	for {
-		prog, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
+	push := func(t *testing.T, src, dst *App, resources ...string) {
+		t.Helper()
+		if len(resources) == 0 {
+			t.Fatal("no resources to push")
 		}
-		require.NoError(t, err)
-		t.Logf("progress: %+v", prog)
+		stream := testutil.NewMockedGRPCServerStream[*documents.SyncingProgress](t.Context())
+		errc := make(chan error, 1)
+		go func() {
+			errc <- src.RPC.DocumentsV3.PushResourcesToPeer(&documents.PushResourcesToPeerRequest{
+				Addrs:     hmnet.AddrInfoToStrings(dst.Net.AddrInfo()),
+				Resources: resources,
+			}, stream)
+		}()
+		for {
+			select {
+			case <-t.Context().Done():
+				return
+			case err := <-errc:
+				if errors.Is(err, io.EOF) {
+					err = nil
+				}
+				require.NoError(t, err)
+				return
+			case prog := <-stream.C:
+				t.Log(prog)
+			}
+		}
 	}
+
+	var toyotaIRI = "hm://" + aliceToyota.Account + aliceToyota.Path
+
+	push(t, alice, bob, toyotaIRI)
 
 	bobGotAliceToyota, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
@@ -1065,20 +1071,9 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
-	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
-		Resources: []string{toyotaIRI},
-	})
-	require.NoError(t, err)
 
-	for {
-		prog, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		t.Logf("progress: %+v", prog)
-	}
+	push(t, alice, bob, toyotaIRI)
+
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
 		Path:    aliceHonda.Path,
@@ -1104,20 +1099,9 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
-	stream, err = cli.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Addrs:     hmnet.AddrInfoToStrings(bob.Net.AddrInfo()),
-		Resources: []string{toyotaIRI},
-	})
-	require.NoError(t, err)
 
-	for {
-		prog, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		t.Logf("progress: %+v", prog)
-	}
+	push(t, alice, bob, toyotaIRI)
+
 	bobGotAliceHonda, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
 		Path:    aliceHonda.Path,
@@ -1148,10 +1132,6 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bobConn, err := grpc.NewClient(bob.GRPCListener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	defer bobConn.Close()
-
 	_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 		Id: bobComment.Id,
 	})
@@ -1163,27 +1143,14 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err, "Bob's Home should not be there either")
 
-	cliBob := documents.NewResourcesClient(bobConn)
-	stream, err = cliBob.PushResourcesToPeer(ctx, &documents.PushResourcesToPeerRequest{
-		Addrs:     hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
-		Resources: []string{"hm://" + aliceHondaUpdated.Account + aliceHondaUpdated.Path},
-	})
-	require.NoError(t, err)
-
-	for {
-		prog, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		t.Logf("progress: %+v", prog)
-	}
+	push(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
 
 	aliceGotBobsComment, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 		Id: bobComment.Id,
 	})
 	require.NoError(t, err, "Alice should have gotten Bob's comment after the push")
 	require.Equal(t, bobComment.Content, aliceGotBobsComment.Content)
+
 	aliceGotBobsHome, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: bobHome.Account,
 		Path:    bobHome.Path,
