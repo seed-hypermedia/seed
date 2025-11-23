@@ -101,7 +101,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
     <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
       <TooltipProvider>
         {children}
-        <div className="fixed right-0 bottom-0 z-50 w-full h-auto">
+        <div className="fixed right-0 bottom-0 z-50 h-auto w-full">
           <Toaster theme={theme} />
         </div>
       </TooltipProvider>

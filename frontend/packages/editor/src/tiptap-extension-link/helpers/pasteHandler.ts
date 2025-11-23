@@ -454,100 +454,104 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            // @ts-expect-error
-            case 'web': {
-              const metaPromise = resolveHypermediaUrl(link.href)
-                .then((linkMetaResult) => {
-                  if (!linkMetaResult) return false
-                  const fullHmUrl = hmIdWithVersion(
-                    linkMetaResult.id,
-                    linkMetaResult.version,
-                    extractBlockRefOfUrl(link.href),
-                    extractBlockRangeOfUrl(link.href),
-                  )
+            case 'web':
+              {
+                const metaPromise = resolveHypermediaUrl(link.href)
+                  .then((linkMetaResult) => {
+                    if (!linkMetaResult) return false
+                    const fullHmUrl = hmIdWithVersion(
+                      linkMetaResult.id,
+                      linkMetaResult.version,
+                      extractBlockRefOfUrl(link.href),
+                      extractBlockRangeOfUrl(link.href),
+                    )
 
-                  const currentPos =
-                    view.state.selection.$from.pos - link.href.length
-                  if (linkMetaResult.title && fullHmUrl) {
-                    view.dispatch(
-                      view.state.tr
-                        .deleteRange(currentPos, currentPos + link.href.length)
-                        .insertText(linkMetaResult.title, currentPos)
-                        .addMark(
-                          currentPos,
-                          currentPos + linkMetaResult.title.length,
-                          options.editor.schema.mark('link', {
-                            href: fullHmUrl,
+                    const currentPos =
+                      view.state.selection.$from.pos - link.href.length
+                    if (linkMetaResult.title && fullHmUrl) {
+                      view.dispatch(
+                        view.state.tr
+                          .deleteRange(
+                            currentPos,
+                            currentPos + link.href.length,
+                          )
+                          .insertText(linkMetaResult.title, currentPos)
+                          .addMark(
+                            currentPos,
+                            currentPos + linkMetaResult.title.length,
+                            options.editor.schema.mark('link', {
+                              href: fullHmUrl,
+                            }),
+                          ),
+                      )
+                    }
+                    if (fullHmUrl) {
+                      view.dispatch(
+                        view.state.tr.setMeta(linkMenuPluginKey, {
+                          link: fullHmUrl,
+                          items: getLinkMenuItems({
+                            hmId: unpackHmId(fullHmUrl),
+                            isLoading: false,
+                            sourceUrl: fullHmUrl,
+                            title: linkMetaResult.title,
+                            gwUrl: options.gwUrl,
                           }),
-                        ),
-                    )
-                  }
-                  if (fullHmUrl) {
-                    view.dispatch(
-                      view.state.tr.setMeta(linkMenuPluginKey, {
-                        link: fullHmUrl,
-                        items: getLinkMenuItems({
-                          hmId: unpackHmId(fullHmUrl),
-                          isLoading: false,
-                          sourceUrl: fullHmUrl,
-                          title: linkMetaResult.title,
-                          gwUrl: options.gwUrl,
                         }),
-                      }),
-                    )
-                    return true
-                  }
-                  return false
-                })
-                .catch((err) => {
-                  console.log('ERROR FETCHING web link')
-                  console.log(err)
-                })
-              const mediaPromise = Promise.resolve(false)
-              // const mediaPromise = options
-              //   .checkWebUrl(link.href)
-              //   .then((response) => {
-              //     if (response && response.contentType) {
-              //       let type = response.contentType.split("/")[0];
-              //       if (type === "application") type = "file";
-              //       if (["image", "video", "file"].includes(type)) {
-              //         view.dispatch(
-              //           view.state.tr.setMeta(linkMenuPluginKey, {
-              //             link: link.href,
-              //             items: getLinkMenuItems({
-              //               isLoading: false,
-              //               media: type,
-              //               sourceUrl: link.href,
-              //               gwUrl: options.gwUrl,
-              //             }),
-              //           })
-              //         );
-              //         return true;
-              //       }
-              //     }
-              //   })
-              //   .catch((err) => {
-              //     console.log(err);
-              //   });
-              Promise.all([metaPromise, mediaPromise])
-                .then((results) => {
-                  const [embedResult, mediaResult] = results
-                  if (!embedResult && !mediaResult) {
-                    view.dispatch(
-                      view.state.tr.setMeta(linkMenuPluginKey, {
-                        items: getLinkMenuItems({
-                          isLoading: false,
-                          sourceUrl: link.href,
-                          gwUrl: options.gwUrl,
+                      )
+                      return true
+                    }
+                    return false
+                  })
+                  .catch((err) => {
+                    console.log('ERROR FETCHING web link')
+                    console.log(err)
+                  })
+                const mediaPromise = Promise.resolve(false)
+                // const mediaPromise = options
+                //   .checkWebUrl(link.href)
+                //   .then((response) => {
+                //     if (response && response.contentType) {
+                //       let type = response.contentType.split("/")[0];
+                //       if (type === "application") type = "file";
+                //       if (["image", "video", "file"].includes(type)) {
+                //         view.dispatch(
+                //           view.state.tr.setMeta(linkMenuPluginKey, {
+                //             link: link.href,
+                //             items: getLinkMenuItems({
+                //               isLoading: false,
+                //               media: type,
+                //               sourceUrl: link.href,
+                //               gwUrl: options.gwUrl,
+                //             }),
+                //           })
+                //         );
+                //         return true;
+                //       }
+                //     }
+                //   })
+                //   .catch((err) => {
+                //     console.log(err);
+                //   });
+                Promise.all([metaPromise, mediaPromise])
+                  .then((results) => {
+                    const [embedResult, mediaResult] = results
+                    if (!embedResult && !mediaResult) {
+                      view.dispatch(
+                        view.state.tr.setMeta(linkMenuPluginKey, {
+                          items: getLinkMenuItems({
+                            isLoading: false,
+                            sourceUrl: link.href,
+                            gwUrl: options.gwUrl,
+                          }),
                         }),
-                      }),
-                    )
-                  }
-                })
-                .catch((err) => {
-                  console.log(err)
-                })
-            }
+                      )
+                    }
+                  })
+                  .catch((err) => {
+                    console.log(err)
+                  })
+              }
+              break
             default:
               break
           }
@@ -801,7 +805,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }),
         )
         break
-      // @ts-expect-error
       case 'web': {
         const metaPromise = resolveHypermediaUrl(link.href)
           .then((linkMetaResult) => {
@@ -868,6 +871,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           .catch((err) => {
             console.log(err)
           })
+        break
       }
       default:
         break

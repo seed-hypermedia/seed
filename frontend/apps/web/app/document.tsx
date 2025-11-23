@@ -562,7 +562,7 @@ function InnerDocumentPage(
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center h-screen">
+        <div className="flex h-screen items-center justify-center">
           <Spinner />
         </div>
       }
@@ -575,7 +575,7 @@ function InnerDocumentPage(
           onReplyClick={onReplyClick}
           onReplyCountClick={onReplyCountClick}
         >
-          <div className="flex overflow-hidden flex-col w-screen h-screen max-h-screen bg-panel min-h-svh">
+          <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
             <WebSiteHeader
               hideSiteBarClassName={hideSiteBarClassName}
               noScroll={!!panel}
@@ -592,7 +592,7 @@ function InnerDocumentPage(
             <PanelGroup
               direction="horizontal"
               autoSaveId="web-document"
-              className="flex overflow-hidden flex-1 bg-white dark:bg-background"
+              className="dark:bg-background flex flex-1 overflow-hidden bg-white"
             >
               <Panel
                 ref={mainPanelRef}
@@ -600,9 +600,9 @@ function InnerDocumentPage(
                 id="main-panel"
                 className="h-full"
               >
-                <div className="flex relative flex-col h-full" ref={elementRef}>
+                <div className="relative flex h-full flex-col" ref={elementRef}>
                   {media.gtSm ? (
-                    <div className="absolute top-2 right-2 z-40 bg-white rounded-md shadow-md dark:bg-background">
+                    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
                       {!activePanel &&
                       activityEnabled &&
                       interactionSummary.data ? (
@@ -613,7 +613,7 @@ function InnerDocumentPage(
                     </div>
                   ) : null}
                   <div
-                    className="flex overflow-y-auto flex-col flex-1"
+                    className="flex flex-1 flex-col overflow-y-auto"
                     ref={mainScrollRef}
                   >
                     <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
@@ -634,7 +634,7 @@ function InnerDocumentPage(
                               marginTop: document.metadata?.cover ? 152 : 220,
                             }}
                           >
-                            <div className="overflow-scroll pb-6 hide-scrollbar">
+                            <div className="hide-scrollbar overflow-scroll pb-6">
                               <WebDocumentOutline
                                 showCollapsed={showCollapsed}
                                 supportDocuments={props.supportDocuments}
@@ -767,7 +767,7 @@ function InnerDocumentPage(
                         ) : null}
                       </div>
                       <MyAccountBubble />
-                      <div className="flex-none mb-6 shrink-0 grow-0 md:mb-0">
+                      <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
                         <PageFooter id={id} />
                       </div>
                     </div>
@@ -783,9 +783,9 @@ function InnerDocumentPage(
                     }
                     maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
                     minSize={media.gtSm ? 20 : 100}
-                    className="flex flex-col flex-1 h-full border-l border-sidebar-border"
+                    className="border-sidebar-border flex h-full flex-1 flex-col border-l"
                   >
-                    <div className="p-3 bg-white border-b dark:bg-background border-border">
+                    <div className="dark:bg-background border-border border-b bg-white p-3">
                       <div className="flex items-center">
                         {activePanel?.type === 'discussions' &&
                         (activePanel.comment || activePanel.blockId) ? (
@@ -793,7 +793,7 @@ function InnerDocumentPage(
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="flex-none mr-2"
+                              className="mr-2 flex-none"
                               onClick={() => {
                                 setDocumentPanel({
                                   type: 'discussions',
@@ -842,7 +842,7 @@ function InnerDocumentPage(
                         />
                       ) : null}
                     </div>
-                    <div className="overflow-hidden flex-1">{panel}</div>
+                    <div className="flex-1 overflow-hidden">{panel}</div>
                   </Panel>
                 </>
               ) : null}
@@ -866,8 +866,8 @@ function InnerDocumentPage(
                   )}
                 >
                   {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
-                  <div className="flex relative items-center p-3">
-                    <div className="flex-1 justify-center items-center">
+                  <div className="relative flex items-center p-3">
+                    <div className="flex-1 items-center justify-center">
                       {activitySummary}
                     </div>
                     <Button
@@ -878,13 +878,13 @@ function InnerDocumentPage(
                       <Close className="size-4" />
                     </Button>
                   </div>
-                  <div className="flex items-center px-5 py-2 text-left border-b border-border">
+                  <div className="border-border flex items-center border-b px-5 py-2 text-left">
                     {activePanel?.type === 'discussions' &&
                     activePanel.comment ? (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="flex-none mr-2"
+                        className="mr-2 flex-none"
                         onClick={() => {
                           setDocumentPanel({
                             type: 'discussions',
@@ -899,7 +899,7 @@ function InnerDocumentPage(
                     <Text weight="semibold">{panelTitle}</Text>
                   </div>
 
-                  <div className="flex overflow-hidden flex-col flex-1">
+                  <div className="flex flex-1 flex-col overflow-hidden">
                     {panel}
                   </div>
                 </div>
@@ -972,7 +972,7 @@ function MobileInteractionCardCollapsed({
   return (
     <>
       <div
-        className="flex fixed right-0 bottom-0 left-0 z-40 justify-between items-center p-2 bg-white rounded-t-md border dark:bg-background border-sidebar-border"
+        className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2"
         style={{
           boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
         }}
@@ -983,7 +983,7 @@ function MobileInteractionCardCollapsed({
       >
         <Button
           variant="ghost"
-          className="cursor-pointer min-w-20 shrink-0"
+          className="min-w-20 shrink-0 cursor-pointer"
           {...(handleAvatarClick
             ? {onClick: handleAvatarClick}
             : avatarLinkProps)}
@@ -1010,7 +1010,7 @@ function MobileInteractionCardCollapsed({
 
         <Button
           variant="ghost"
-          className="cursor-pointer min-w-20 shrink-0"
+          className="min-w-20 shrink-0 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation()
             onClick()
@@ -1021,7 +1021,7 @@ function MobileInteractionCardCollapsed({
             import('@shm/ui/feed').catch(() => {})
           }}
         >
-          <MessageSquare className="opacity-50 size-4" />
+          <MessageSquare className="size-4 opacity-50" />
           {commentsCount ? (
             <span className="text-xs opacity-50">{commentsCount}</span>
           ) : null}
@@ -1052,9 +1052,9 @@ function DocumentDiscoveryPage({
   }, [id])
   const tx = useTx()
   return (
-    <div className="flex flex-col w-screen h-screen">
-      <div className="flex flex-1 justify-center items-start px-4 py-12">
-        <div className="flex flex-col flex-1 gap-4 p-6 w-full max-w-lg bg-white rounded-lg border shadow-lg border-border dark:bg-background">
+    <div className="flex h-screen w-screen flex-col">
+      <div className="flex flex-1 items-start justify-center px-4 py-12">
+        <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <h2 className="text-2xl font-bold">
             {tx('looking_for_document', 'Looking for a document...')}
           </h2>
@@ -1110,7 +1110,7 @@ function WebDocumentOutline({
 
 function PanelError({error, resetErrorBoundary}: FallbackProps) {
   return (
-    <div className="flex flex-col gap-4 justify-center items-center self-stretch p-3 h-full align-middle bg-red-100">
+    <div className="flex h-full flex-col items-center justify-center gap-4 self-stretch bg-red-100 p-3 align-middle">
       <h3 className="text-xl font-bold text-red-800">Oops, we hit an error!</h3>
       <p className="text-red-600">{error.message}</p>
       <Button onClick={resetErrorBoundary} variant="destructive">
@@ -1122,7 +1122,7 @@ function PanelError({error, resetErrorBoundary}: FallbackProps) {
 
 function PanelLoading() {
   return (
-    <div className="flex justify-center items-center p-3 h-full">
+    <div className="flex h-full items-center justify-center p-3">
       <Spinner />
     </div>
   )
