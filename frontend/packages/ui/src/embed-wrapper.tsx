@@ -1,4 +1,4 @@
-import {UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
+import {NavRoute, UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren} from 'react'
 import {blockStyles} from './blocks-content'
@@ -13,7 +13,7 @@ export function EmbedWrapper({
   viewType = 'Content',
   hideBorder = false,
   isRange = false,
-  noClick = false,
+  route,
   ...props
 }: PropsWithChildren<
   {
@@ -23,7 +23,7 @@ export function EmbedWrapper({
     viewType?: 'Content' | 'Card' | 'Comments'
     hideBorder?: boolean
     isRange?: boolean
-    noClick?: boolean
+    route?: NavRoute
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const openRoute = useOpenRoute()
@@ -53,9 +53,8 @@ export function EmbedWrapper({
       }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={
-        noClick
-          ? undefined
-          : (e) => {
+        route
+          ? (e) => {
               e.stopPropagation()
               const selection = window.getSelection()
               const hasSelection = selection && selection.toString().length > 0
@@ -64,9 +63,10 @@ export function EmbedWrapper({
               }
               if (openRoute) {
                 e.preventDefault()
-                openRoute({key: 'document', id})
+                openRoute(route)
               }
             }
+          : undefined
       }
       {...highlight(id)}
       {...props}

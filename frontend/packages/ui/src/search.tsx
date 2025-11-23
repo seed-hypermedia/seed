@@ -65,9 +65,9 @@ export function MobileSearch({
       .filter(Boolean) ?? []
 
   return (
-    <div className="relative max-h-1/2 w-full gap-2 rounded-md p-2">
+    <div className="relative gap-2 p-2 w-full rounded-md max-h-1/2">
       <Input
-        className="w-full flex-1"
+        className="flex-1 w-full"
         value={searchValue}
         onChange={(e) => {
           setSearchValue(e.target.value)
@@ -202,11 +202,11 @@ export function HeaderSearch({
         </PopoverTrigger>
         <PopoverContent align="end" side="bottom" className="p-0">
           <div className="flex h-[calc(100vh-100px)] max-h-[600px] flex-col">
-            <div className="relative flex items-center gap-2 self-stretch p-2">
-              <Search className="absolute top-1/2 left-4 z-30 size-4 -translate-y-1/2" />
+            <div className="flex relative gap-2 items-center self-stretch p-2">
+              <Search className="absolute left-4 top-1/2 z-30 -translate-y-1/2 size-4" />
               <Input
                 value={searchValue}
-                className="h-8 flex-1 pl-8"
+                className="flex-1 pl-8 h-8"
                 onChange={(e) => {
                   setSearchValue(e.target.value)
                 }}
@@ -256,7 +256,7 @@ export function HeaderSearch({
                 }}
               />
             </div>
-            <div className="min-h-0 w-full max-w-2xl flex-1">
+            <div className="flex-1 w-full max-w-2xl min-h-0">
               <ScrollArea>
                 <div className="flex flex-col">
                   {searchItems.length > 0 ? (
@@ -312,7 +312,7 @@ export function HeaderSearch({
                       )
                     })
                   ) : (
-                    <div className="text-muted-foreground p-4 text-center">
+                    <div className="p-4 text-center text-muted-foreground">
                       No results found
                     </div>
                   )}
@@ -387,14 +387,14 @@ export function SearchResultItem({
     >
       {/* Icon column (only takes space if present) */}
       {item.icon && (
-        <div className="flex h-5 w-5 flex-none items-center justify-center">
+        <div className="flex flex-none justify-center items-center w-5 h-5">
           {unpackedId ? <HMIcon id={unpackedId} icon={item.icon} /> : null}
         </div>
       )}
 
       {/* Main (title/details) column */}
-      <div className="flex min-w-0 flex-1 flex-col justify-start gap-1">
-        <SizableText className="line-clamp-1 h-5 w-full truncate text-left font-sans font-medium">
+      <div className="flex flex-col flex-1 gap-1 justify-start min-w-0">
+        <SizableText className="w-full h-5 font-sans font-medium text-left truncate line-clamp-1">
           {!!item.path && unpackedId?.blockRef
             ? item.path[item.path?.length - 1]
             : highlightSearchMatch(item.title, item.searchQuery)}
@@ -404,20 +404,20 @@ export function SearchResultItem({
           <SizableText
             size="xs"
             weight="light"
-            className="line-clamp-1 flex-none text-left font-sans text-gray-400"
+            className="flex-none font-sans text-left text-gray-400 line-clamp-1"
           >
             ...{highlightSearchMatch(item.title, item.searchQuery)}...
           </SizableText>
         )}
 
         {!!item.path && (unpackedId?.latest || item.versionTime) && (
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            <div className="flex min-w-0 flex-1 items-center">
+          <div className="flex overflow-hidden gap-2 items-center min-w-0">
+            <div className="flex flex-1 items-center min-w-0">
               {!!item.path && (
                 <SizableText
                   size="xs"
                   weight="light"
-                  className="line-clamp-1 truncate font-sans text-gray-400"
+                  className="font-sans text-gray-400 truncate line-clamp-1"
                 >
                   {collapsedPath.join(' / ')}
                 </SizableText>
@@ -427,7 +427,7 @@ export function SearchResultItem({
             {/* Type column */}
             <Tooltip content={item.versionTime || 'No timestamp available'}>
               <SizableText
-                className="flex-none whitespace-nowrap text-gray-400"
+                className="flex-none text-gray-400 whitespace-nowrap"
                 size="xs"
                 weight="light"
                 color={unpackedId?.latest ? 'success' : 'default'}
@@ -446,21 +446,23 @@ export function SearchResultItem({
   )
 }
 
+export type SearchResultItem = {
+  key: string
+  title: string
+  subtitle?: string
+  path: string[]
+  id?: UnpackedHypermediaId
+  onSelect: () => void
+  onFocus: () => void
+  onMouseEnter: () => void
+}
+
 export function RecentSearchResultItem({
   item,
   selected,
   siteHomeId,
 }: {
-  item: {
-    key: string
-    title: string
-    subtitle?: string
-    path: string[]
-    id?: UnpackedHypermediaId
-    onSelect: () => void
-    onFocus: () => void
-    onMouseEnter: () => void
-  }
+  item: SearchResultItem
   selected: boolean
   siteHomeId?: UnpackedHypermediaId | null
 }) {
@@ -500,7 +502,7 @@ export function highlightSearchMatch(text: string, highlight: string = '') {
         const isMatch = part.toLowerCase() === highlight.toLowerCase()
         return isMatch ? (
           <SizableText
-            className="bg-brand-10 text-secondary-foreground inline-block rounded-md px-1 font-medium dark:text-white"
+            className="inline-block px-1 font-medium rounded-md bg-brand-10 text-secondary-foreground dark:text-white"
             key={i}
           >
             {part}
@@ -536,8 +538,8 @@ export function SearchInput({
   loading?: boolean
 }>) {
   return (
-    <div className="flex h-full w-full flex-col gap-2">
-      <div className="relative flex items-center gap-2 rounded-md">
+    <div className="flex flex-col gap-2 w-full h-full">
+      <div className="flex relative gap-2 items-center rounded-md">
         <Search className="absolute top-1/2 left-2.5 z-3 size-4 -translate-y-1/2" />
         {loading ? (
           <Spinner className="absolute top-1/2 right-2.5 z-3 size-4 -translate-y-1/2 text-black/50 dark:text-white/50" />
@@ -545,7 +547,7 @@ export function SearchInput({
         <Input
           autoFocus={true}
           placeholder="Search Hypermedia documents"
-          className="w-full px-1 pr-8 pl-8"
+          className="px-1 pr-8 pl-8 w-full"
           {...inputProps}
           onKeyUp={(e: React.KeyboardEvent<HTMLInputElement>) => {
             if (e.key === 'Escape') {

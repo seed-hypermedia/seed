@@ -10,21 +10,13 @@ import {
   type DocumentChangeInfo,
 } from './client/grpc-types'
 
-export const ExactBlockRangeSchema = z.object({
-  start: z.number(),
-  end: z.number(),
+export const BlockRangeSchema = z.object({
+  // a block range should either have start+end
+  start: z.number().optional(),
+  end: z.number().optional(),
+  // or have expanded bool
+  expanded: z.boolean().optional(),
 })
-export type ExactBlockRange = z.infer<typeof ExactBlockRangeSchema>
-
-export const ExpandedBlockRangeSchema = z.object({
-  expanded: z.boolean(),
-})
-export type ExpandedBlockRange = z.infer<typeof ExpandedBlockRangeSchema>
-
-export const BlockRangeSchema = z.union([
-  ExactBlockRangeSchema,
-  ExpandedBlockRangeSchema,
-])
 export type BlockRange = z.infer<typeof BlockRangeSchema>
 
 export const unpackedHmIdSchema = z.object({
@@ -1139,16 +1131,9 @@ export const DeviceLinkSessionSchema = z.object({
 
 export type DeviceLinkSession = z.infer<typeof DeviceLinkSessionSchema>
 
-export const ParsedFragmentSchema = z.discriminatedUnion('type', [
-  ExpandedBlockRangeSchema.extend({
-    type: z.literal('block'),
-    blockId: z.string(),
-  }),
-  ExactBlockRangeSchema.extend({
-    type: z.literal('block-range'),
-    blockId: z.string(),
-  }),
-])
+export const ParsedFragmentSchema = BlockRangeSchema.extend({
+  blockId: z.string(),
+})
 export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
 
 const HMCitationCommentSourceSchema = z.object({

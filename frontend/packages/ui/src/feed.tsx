@@ -264,7 +264,6 @@ function EventHeaderContent({
 }) {
   const tx = useTxString()
   const getUrl = useResourceUrl(targetDomain)
-  console.log('event', event)
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (

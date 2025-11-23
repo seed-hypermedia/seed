@@ -28,7 +28,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
   AccessoryOptions,
-  BlockRange,
   calculateBlockCitations,
   DocumentRoute,
   getCommentTargetId,
@@ -81,6 +80,7 @@ export default function DocumentPage() {
   const docId = route.key == 'document' && route.id
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
+
   const accessoryKey: AccessoryOptions | undefined = route.accessory?.key as
     | AccessoryOptions
     | undefined
@@ -291,6 +291,8 @@ function _MainDocumentPage({
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
+  const docRoute = route.key === 'document' ? route : null
+  if (!docRoute) throw new Error('MainDocumentPage must have document route')
   const account = useAccount(id.uid, {enabled: !id.path?.length})
 
   useEffect(() => {
@@ -339,6 +341,8 @@ function _MainDocumentPage({
   const document =
     // @ts-ignore
     resource.data?.type === 'document' ? resource.data.document : undefined
+  const docId =
+    resource.data?.type === 'document' ? resource.data.id : undefined
   const metadata = document?.metadata
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
@@ -360,7 +364,7 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
-  const interactionSummary = useInteractionSummary(id)
+  const interactionSummary = useInteractionSummary(docId)
 
   const onCommentsClick = useCallback(() => {
     replace({...route, accessory: {key: 'discussions'}} as DocumentRoute)
@@ -463,12 +467,13 @@ function _MainDocumentPage({
                 />
               )}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
-                <DocPageContent
-                  blockRef={id.blockRef}
-                  blockRange={id.blockRange}
-                  resource={resource.data}
-                  isBlockFocused={isBlockFocused}
-                />
+                {resource.data?.type === 'document' ? (
+                  <DocPageContent
+                    docRoute={docRoute}
+                    resource={resource.data}
+                    isBlockFocused={isBlockFocused}
+                  />
+                ) : null}
               </div>
             </Container>
             {showSidebars ? (
@@ -720,22 +725,20 @@ function SiteURLButton({siteUrl}: {siteUrl?: string}) {
 function DocPageContent({
   resource,
   isBlockFocused,
-  blockRef,
-  blockRange,
+  docRoute,
 }: {
   resource: HMResource | null | undefined
   blockId?: string
   isBlockFocused: boolean
-  blockRef?: string | null
-  blockRange?: BlockRange | null
+  docRoute: DocumentRoute
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
 
-  const docRoute = route.key === 'document' ? route : null
-  if (!docRoute) return null
-  if (resource?.type !== 'document') return null
+  if (resource?.type !== 'document') {
+    throw new Error('Invalid resource type')
+  }
   const document = resource.document
 
   const reference = useDocumentUrl({docId: resource.id, isBlockFocused})
@@ -743,13 +746,7 @@ function DocPageContent({
   return (
     <>
       <BlocksContentProvider
-        resourceId={resource.id}
-        selection={{
-          uid: docRoute.id?.uid || undefined,
-          version: docRoute.id?.version || undefined,
-          blockRef: blockRef || undefined,
-          blockRange: blockRange || undefined,
-        }}
+        resourceId={docRoute.id}
         blockCitations={useMemo(() => {
           if (!citations.data) return {}
           return calculateBlockCitations(citations.data)
@@ -765,7 +762,7 @@ function DocPageContent({
             },
             accessory: {
               key: 'discussions',
-              openBlockId: blockId || undefined,
+              blockId: blockId || undefined,
             },
           })
         }}
@@ -787,7 +784,7 @@ function DocPageContent({
             },
             accessory: {
               key: 'discussions',
-              openBlockId: blockId,
+              targetBlockId: blockId,
               blockRange,
               autoFocus: true,
             },
@@ -844,7 +841,7 @@ function DocPageContent({
       >
         <BlocksContent
           blocks={document.content}
-          focusBlockId={isBlockFocused ? blockRef || undefined : undefined}
+          // focusBlockId={isBlockFocused ? docRoute.id.blockRef || undefined : undefined}
         />
       </BlocksContentProvider>
       {reference?.content}

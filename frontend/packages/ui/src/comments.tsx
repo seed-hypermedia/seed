@@ -17,6 +17,7 @@ import {
   UnpackedHypermediaId,
   useCommentGroups,
   useCommentParents,
+  useOpenRoute,
   useRouteLink,
 } from '@shm/shared'
 
@@ -44,12 +45,16 @@ import {
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {
+  BlockRangeSelectOptions,
   BlocksContent,
   BlocksContentProvider,
   getBlockNodeById,
 } from './blocks-content'
 import {Button} from './button'
-import {copyTextToClipboard} from './copy-to-clipboard'
+import {
+  copyTextToClipboard,
+  copyUrlToClipboardWithFeedback,
+} from './copy-to-clipboard'
 import {HMIcon} from './hm-icon'
 import {BlockQuote, ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
@@ -216,7 +221,7 @@ export function CommentDiscussions({
   if (commentsService.error) {
     return (
       <AccessoryContent>
-        <div className="flex flex-col items-center gap-2 p-4">
+        <div className="flex flex-col gap-2 items-center p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
           </SizableText>
@@ -228,7 +233,7 @@ export function CommentDiscussions({
   if (commentsService.isLoading && !commentsService.data) {
     return (
       <AccessoryContent>
-        <div className="flex items-center justify-center p-4">
+        <div className="flex justify-center items-center p-4">
           <Spinner />
         </div>
       </AccessoryContent>
@@ -239,7 +244,7 @@ export function CommentDiscussions({
   if (!commentFound && commentsService.data) {
     return (
       <AccessoryContent>
-        <div className="flex flex-col items-center gap-2 p-4">
+        <div className="flex flex-col gap-2 items-center p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
           </SizableText>
@@ -285,7 +290,7 @@ export function CommentDiscussions({
       {focusedComment && (
         <div
           ref={focusedCommentRef}
-          className={cn('border-border border-b p-2')}
+          className={cn('p-2 border-b border-border')}
         >
           <Comment
             comment={focusedComment}
@@ -298,15 +303,14 @@ export function CommentDiscussions({
             onCommentDelete={onCommentDelete}
             isFirst={!(hasParents && showParents)}
             isLast={true}
-            highlight
             selection={selection}
           />
         </div>
       )}
 
-      <div className="border-border relative max-h-1/2 border-b py-4">
+      <div className="relative py-4 border-b border-border max-h-1/2">
         <div
-          className="bg-border absolute w-px"
+          className="absolute w-px bg-border"
           style={{
             height: 40,
             top: -16,
@@ -319,7 +323,7 @@ export function CommentDiscussions({
       {commentGroupReplies.data?.length > 0 ? (
         commentGroupReplies.data.map((cg) => {
           return (
-            <div key={cg.id} className={cn('border-border border-b p-2')}>
+            <div key={cg.id} className={cn('p-2 border-b border-border')}>
               <CommentGroup
                 key={cg.id}
                 commentGroup={cg}
@@ -383,13 +387,13 @@ export function Discussions({
   let panelContent = null
   if (discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
   } else if (discussionsService.error) {
     panelContent = (
-      <div className="flex flex-col items-center gap-2 p-4">
+      <div className="flex flex-col gap-2 items-center p-4">
         <SizableText color="muted" size="sm">
           Failed to load discussions
         </SizableText>
@@ -404,7 +408,7 @@ export function Discussions({
         <>
           {discussionsService.data.discussions?.map((cg) => {
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
+              <div key={cg.id} className={cn('border-b border-border')}>
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
@@ -418,7 +422,7 @@ export function Discussions({
           })}
           {discussionsService.data.citingDiscussions?.map((cg) => {
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
+              <div key={cg.id} className={cn('border-b border-border')}>
                 <CommentGroup
                   commentGroup={cg}
                   authors={discussionsService.data.authors}
@@ -485,7 +489,7 @@ export function BlockDiscussions({
     )
   } else if (doc.isInitialLoading) {
     quotedContent = (
-      <div className="flex items-center justify-center">
+      <div className="flex justify-center items-center">
         <Spinner />
       </div>
     )
@@ -493,13 +497,13 @@ export function BlockDiscussions({
 
   if (commentsService.isLoading && !commentsService.data) {
     panelContent = (
-      <div className="flex items-center justify-center py-4">
+      <div className="flex justify-center items-center py-4">
         <Spinner />
       </div>
     )
   } else if (commentsService.error) {
     panelContent = (
-      <div className="flex flex-col items-center gap-2 p-4">
+      <div className="flex flex-col gap-2 items-center p-4">
         <SizableText color="muted" size="sm">
           Failed to load block discussions
         </SizableText>
@@ -514,7 +518,7 @@ export function BlockDiscussions({
       <>
         {commentsService.data.comments.map((comment) => {
           return (
-            <div key={comment.id} className={cn('border-border border-b p-2')}>
+            <div key={comment.id} className={cn('p-2 border-b border-border')}>
               <Comment
                 isFirst
                 isLast
@@ -539,7 +543,7 @@ export function BlockDiscussions({
     <AccessoryContent>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
-      <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
+      <div className="pt-2 mt-2 border-t border-border">{panelContent}</div>
     </AccessoryContent>
   )
 }
@@ -566,7 +570,7 @@ export function CommentGroup({
   const firstComment = commentGroup.comments[0]
 
   return (
-    <div className="relative flex flex-col gap-2 p-2">
+    <div className="flex relative flex-col gap-2 p-2">
       {/* {commentGroup.comments.length > 1 && (
         <div
           className="absolute w-px bg-border"
@@ -643,7 +647,6 @@ export function Comment({
     blockRange?: BlockRange
   }
 }) {
-  selection // avoid lint error for now. // todo: actually use the selection to highlight
   const tx = useTxString()
   const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const commentsContext = useCommentsServiceContext()
@@ -677,11 +680,12 @@ export function Comment({
       key: 'delete',
     })
   }
+  const isEntirelyHighlighted = highlight && !selection
   return (
     <div
       className={cn(
         'group relative flex gap-1 rounded-lg p-2',
-        highlight && 'bg-accent', // TODO: review color for dark theme
+        isEntirelyHighlighted && 'bg-accent', // TODO: review color for dark theme
       )}
     >
       {heading ? null : (
@@ -691,10 +695,10 @@ export function Comment({
           )}
           <div
             className={cn(
-              'absolute top-0 left-0 z-2 size-5 rounded-full bg-transparent transition-all duration-200 ease-in-out',
-              highlight
+              'absolute top-0 left-0 bg-transparent rounded-full transition-all duration-200 ease-in-out z-2 size-5',
+              isEntirelyHighlighted
                 ? 'outline-secondary hover:outline-secondary'
-                : 'dark:outline-background dark:hover:outline-background outline-white hover:outline-white',
+                : 'outline-white dark:outline-background dark:hover:outline-background hover:outline-white',
             )}
             {...authorLink}
           />
@@ -708,12 +712,12 @@ export function Comment({
               />
             </div>
           )}
-          {!isLast ? <div className="bg-border h-full w-px" /> : null}
+          {!isLast ? <div className="w-px h-full bg-border" /> : null}
         </div>
       )}
 
-      <div className="flex w-full flex-1 flex-col gap-1">
-        <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+      <div className="flex flex-col flex-1 gap-1 w-full">
+        <div className="flex overflow-hidden gap-2 justify-between items-center pr-2 group">
           {heading ? (
             <div className="inline">{heading}</div>
           ) : (
@@ -733,7 +737,7 @@ export function Comment({
                   <span>on</span>{' '}
                   <button
                     {...externalTargetLink}
-                    className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
+                    className="px-1 h-5 text-sm font-bold truncate rounded transition-colors hover:bg-accent text-foreground"
                   >
                     {externalTarget.metadata?.name}
                   </button>
@@ -742,12 +746,12 @@ export function Comment({
               <CommentDate comment={comment} />
             </InlineDescriptor>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2 items-center">
             <Tooltip content={tx('Copy Comment Link')}>
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                className="transition-opacity duration-200 ease-in-out text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                 onClick={() => {
                   const url = getUrl(hmId(comment.id))
                   copyTextToClipboard(url)
@@ -761,14 +765,15 @@ export function Comment({
               <OptionsDropdown
                 side="bottom"
                 align="end"
-                className="hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                className="transition-opacity duration-200 ease-in-out hover-hover:opacity-0 hover-hover:group-hover:opacity-100"
                 menuItems={options}
               />
             ) : null}
           </div>
         </div>
 
-        <CommentContent comment={comment} />
+        <CommentContent comment={comment} selection={selection} />
+
         {!highlight && (
           <div
             className={cn(
@@ -804,28 +809,67 @@ export function Comment({
 export function CommentContent({
   comment,
   size,
+  selection,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
+  selection?: {
+    blockId?: string
+    blockRange?: BlockRange
+  }
 }) {
-  // const commentIdParts = comment.id.split('/')
-  // const _commentId = hmId(commentIdParts[0]!, {
-  //   path: [commentIdParts[1]!],
-  // })
+  const openRoute = useOpenRoute()
+  const targetHomeEntity = useResource(hmId(comment.targetAccount))
+  const targetHomeDoc =
+    targetHomeEntity.data?.type === 'document'
+      ? targetHomeEntity.data.document
+      : undefined
+  const getUrl = useResourceUrl(targetHomeDoc?.metadata?.siteUrl)
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
+  const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions) => {
+    let blockRange: BlockRange | null = null
+    if (opts) {
+      const {copyToClipboard, ...br} = opts
+      blockRange = br
+    }
+    if (opts?.copyToClipboard) {
+      const fullUrl = getUrl({
+        ...commentIdToHmId(comment.id),
+        blockRef: blockId,
+        blockRange,
+      })
+      copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
+    } else {
+      const targetId = getCommentTargetId(comment)
+      if (!targetId) {
+        toast.error('Failed to get target comment target ID')
+        return
+      }
+      openRoute({
+        key: 'document',
+        id: targetId,
+        accessory: {
+          key: 'discussions',
+          openComment: comment.id,
+          blockId,
+          blockRange,
+        },
+      })
+    }
+  }
+  const focusedId = {
+    ...commentIdToHmId(comment.id),
+    blockRef: selection?.blockId || null,
+    blockRange: selection?.blockRange || null,
+  }
   return (
     <BlocksContentProvider
-      resourceId={commentIdToHmId(comment.id)}
-      key={comment.id}
-      // onBlockSelect={(blockId, blockRange) => {
-      //   // todo
-      //   toast.error('Not implemented discussions-panel onBlockSelect')
-      //   console.log('blockId', blockId, blockRange)
-      // }}
+      resourceId={focusedId}
       commentStyle
       textUnit={textUnit}
       layoutUnit={layoutUnit}
+      onBlockSelect={onBlockSelect}
     >
       <BlocksContent hideCollapseButtons blocks={comment.content} />
     </BlocksContentProvider>
@@ -860,8 +904,8 @@ export function QuotedDocBlock({
   }, [doc.content, blockId])
 
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
+    <div className="rounded-lg bg-brand-50 dark:bg-brand-950">
+      <div className="flex relative gap-1 p-2 rounded-lg transition-all duration-200 ease-in-out">
         <div className="flex-shrink-0 py-1.5">
           <BlockQuote size={23} />
         </div>
@@ -921,8 +965,8 @@ export function EmptyDiscussions({
 }) {
   const tx = useTxString()
   return (
-    <div className="flex flex-col items-center gap-4 py-4">
-      <MessageSquare className="size-25 text-gray-200" size={48} />
+    <div className="flex flex-col gap-4 items-center py-4">
+      <MessageSquare className="text-gray-200 size-25" size={48} />
       <SizableText size="md">
         {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
       </SizableText>

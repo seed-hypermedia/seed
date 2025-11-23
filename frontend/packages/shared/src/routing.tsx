@@ -205,7 +205,7 @@ export function routeToHref(
     if (!accountUid || !commentTsid) return undefined
     const commentId = hmId(accountUid, {
       path: [commentTsid],
-      blockRef: activeCommentAccessory.openBlockId,
+      blockRef: activeCommentAccessory.targetBlockId,
       blockRange: activeCommentAccessory.blockRange,
       hostname: options?.origin,
     })

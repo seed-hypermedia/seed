@@ -194,7 +194,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         isLoading: false,
                         hmId: unpackHmId(normalizedHmUrl),
                         sourceUrl: normalizedHmUrl,
-                        docTitle: title,
+                        title,
                         gwUrl: options.gwUrl,
                       }),
                     }),
@@ -282,7 +282,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           )
 
           resolveHypermediaUrl(link.href)
-            .then((linkMetaResult) => {
+            .then(async (linkMetaResult) => {
               if (linkMetaResult) {
                 // hm link
                 const currentPos =
@@ -295,7 +295,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 )
 
                 if (fullHmUrl) {
-                  const title = linkMetaResult.title
+                  let title = linkMetaResult.title
 
                   // Update the link with hm url and title
                   if (title) {
@@ -334,7 +334,11 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                         isLoading: false,
                         hmId: unpackHmId(fullHmUrl),
                         sourceUrl: fullHmUrl,
-                        docTitle: title || undefined,
+                        title,
+                        type:
+                          linkMetaResult.type === 'Comment'
+                            ? 'Comment'
+                            : 'Document',
                         gwUrl: options.gwUrl,
                       }),
                     }),
@@ -450,29 +454,28 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }),
               )
               break
-            // @ts-ignore
+            // @ts-expect-error
             case 'web': {
               const metaPromise = resolveHypermediaUrl(link.href)
-                // @ts-ignore
                 .then((linkMetaResult) => {
-                  if (!linkMetaResult) return
+                  if (!linkMetaResult) return false
                   const fullHmUrl = hmIdWithVersion(
                     linkMetaResult.id,
                     linkMetaResult.version,
                     extractBlockRefOfUrl(link.href),
                     extractBlockRangeOfUrl(link.href),
                   )
-                  const title = linkMetaResult.title
+
                   const currentPos =
                     view.state.selection.$from.pos - link.href.length
-                  if (title && fullHmUrl) {
+                  if (linkMetaResult.title && fullHmUrl) {
                     view.dispatch(
                       view.state.tr
                         .deleteRange(currentPos, currentPos + link.href.length)
-                        .insertText(title, currentPos)
+                        .insertText(linkMetaResult.title, currentPos)
                         .addMark(
                           currentPos,
-                          currentPos + title.length,
+                          currentPos + linkMetaResult.title.length,
                           options.editor.schema.mark('link', {
                             href: fullHmUrl,
                           }),
@@ -487,13 +490,14 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                           hmId: unpackHmId(fullHmUrl),
                           isLoading: false,
                           sourceUrl: fullHmUrl,
-                          docTitle: title,
+                          title: linkMetaResult.title,
                           gwUrl: options.gwUrl,
                         }),
                       }),
                     )
                     return true
                   }
+                  return false
                 })
                 .catch((err) => {
                   console.log('ERROR FETCHING web link')
@@ -797,28 +801,27 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }),
         )
         break
-      // @ts-ignore
+      // @ts-expect-error
       case 'web': {
         const metaPromise = resolveHypermediaUrl(link.href)
-          // @ts-ignore
           .then((linkMetaResult) => {
-            if (!linkMetaResult) return
+            if (!linkMetaResult) return false
             const fullHmUrl = hmIdWithVersion(
               linkMetaResult.id,
               linkMetaResult.version,
               extractBlockRefOfUrl(link.href),
               extractBlockRangeOfUrl(link.href),
             )
-            const title = linkMetaResult.title
+
             const currentPos = view.state.selection.$from.pos - link.href.length
-            if (title && fullHmUrl) {
+            if (linkMetaResult.title && fullHmUrl) {
               view.dispatch(
                 view.state.tr
                   .deleteRange(currentPos, currentPos + link.href.length)
-                  .insertText(title, currentPos)
+                  .insertText(linkMetaResult.title, currentPos)
                   .addMark(
                     currentPos,
-                    currentPos + title.length,
+                    currentPos + linkMetaResult.title.length,
                     options.editor.schema.mark('link', {
                       href: fullHmUrl,
                     }),
@@ -833,13 +836,14 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                     hmId: unpackHmId(fullHmUrl),
                     isLoading: false,
                     sourceUrl: fullHmUrl,
-                    docTitle: title,
+                    title: linkMetaResult.title,
                     gwUrl: options.gwUrl,
                   }),
                 }),
               )
               return true
             }
+            return false
           })
           .catch((err) => {
             console.log('ERROR FETCHING web link')

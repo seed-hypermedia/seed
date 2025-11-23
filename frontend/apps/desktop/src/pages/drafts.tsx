@@ -286,7 +286,7 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
                 accessory: {
                   key: 'activity' as const,
                   openComment: item.replyCommentId,
-                  openBlockId: item.quotingBlockId,
+                  targetBlockId: item.quotingBlockId,
                   autoFocus: true,
                 },
               }

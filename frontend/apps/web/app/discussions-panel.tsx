@@ -1,4 +1,9 @@
-import {HMComment, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  BlockRange,
+  HMComment,
+  HMDocument,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   BlockDiscussions,
@@ -16,6 +21,8 @@ type DiscussionsPanelProps = {
   setBlockId: (blockId: string | null) => void
   comment?: HMComment
   blockId?: string
+  blockRange?: BlockRange | null
+  blockRef?: string | null
   commentEditor?: React.ReactNode
   targetDomain?: string
 }
@@ -23,7 +30,34 @@ type DiscussionsPanelProps = {
 export const WebDiscussionsPanel = React.memo(_WebDiscussionsPanel)
 
 function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
-  const {comment, blockId, commentEditor, targetDomain, docId} = props
+  const {
+    comment,
+    blockId,
+    blockRef,
+    blockRange,
+    commentEditor,
+    targetDomain,
+    docId,
+  } = props
+
+  if (comment) {
+    return (
+      <CommentDiscussions
+        commentId={comment.id}
+        commentEditor={commentEditor}
+        targetId={props.docId}
+        targetDomain={targetDomain}
+        selection={
+          blockRef
+            ? {
+                blockId: blockRef,
+                blockRange: blockRange || undefined,
+              }
+            : undefined
+        }
+      />
+    )
+  }
 
   if (blockId) {
     const targetId = hmId(docId.uid, {
@@ -38,18 +72,6 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       />
     )
   }
-
-  if (comment) {
-    return (
-      <CommentDiscussions
-        commentId={comment.id}
-        commentEditor={commentEditor}
-        targetId={props.docId}
-        targetDomain={targetDomain}
-      />
-    )
-  }
-
   return (
     <Discussions
       commentEditor={commentEditor}

@@ -13,6 +13,7 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {
   BlockEmbedCard,
+  BlockEmbedComments,
   BlockEmbedContent,
   ErrorBlock,
 } from '@shm/ui/blocks-content'
@@ -25,11 +26,8 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
-// @ts-expect-error
-import {SwitcherItem} from './launcher-item'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
@@ -230,8 +228,8 @@ function EmbedContent({
 }) {
   if (block.attributes.view === 'Card')
     return <BlockEmbedCard block={block} parentBlockId={parentBlockId} />
-  if (block.attributes.view === 'Comments') return <div>Discussions View</div>
-  // return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
+  if (block.attributes.view === 'Comments')
+    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
   // if (block.attributes.view === 'Content') // content is the default
   return <BlockEmbedContent block={block} parentBlockId={parentBlockId} />
 }
@@ -257,7 +255,7 @@ const EmbedLauncherInput = ({
     contextSize: 20 - search.length,
   })
 
-  const searchItems: SwitcherItem[] =
+  const searchItems: SearchResultItem[] =
     searchResults.data?.entities
       ?.map((item) => {
         const title = item.title || item.id.uid
@@ -280,7 +278,7 @@ const EmbedLauncherInput = ({
       })
       .filter(Boolean) || []
 
-  const recentItems =
+  const recentItems: SearchResultItem[] =
     recents.data?.map(({id, name}, index) => {
       return {
         key: id.id,
@@ -305,7 +303,9 @@ const EmbedLauncherInput = ({
       }
     }) || []
   const isDisplayingRecents = !search.length
-  const activeItems = isDisplayingRecents ? recentItems : searchItems
+  const activeItems: SearchResultItem[] = isDisplayingRecents
+    ? recentItems
+    : searchItems
 
   const [focusedIndex, setFocusedIndex] = useState(0)
 
@@ -317,11 +317,11 @@ const EmbedLauncherInput = ({
     <div
       className={cn(
         focused ? 'flex' : 'hidden',
-        'absolute top-full left-0 z-40 max-h-[400px] w-full overflow-auto overflow-x-hidden',
+        'overflow-auto overflow-x-hidden absolute left-0 top-full z-40 w-full max-h-[400px]',
         'flex-col px-3 py-3 opacity-100',
         'bg-muted',
         'rounded-br-md rounded-bl-md',
-        'scrollbar-none shadow-sm',
+        'shadow-sm scrollbar-none',
       )}
       style={{
         scrollbarWidth: 'none',
@@ -365,7 +365,7 @@ const EmbedLauncherInput = ({
   )
 
   return (
-    <div className="relative flex flex-1 flex-col">
+    <div className="flex relative flex-col flex-1">
       <Input
         value={search}
         onChange={(e) => {
@@ -396,7 +396,7 @@ const EmbedLauncherInput = ({
             )
           }
         }}
-        className="border-muted-foreground/30 focus-visible:border-ring text-foreground w-full"
+        className="w-full border-muted-foreground/30 focus-visible:border-ring text-foreground"
       />
 
       {content}

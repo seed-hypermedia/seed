@@ -35,7 +35,7 @@ function _DiscussionsPanel(props: {
     <CommentBox
       docId={docId}
       commentId={accessory.openComment}
-      quotingBlockId={accessory.openBlockId}
+      quotingBlockId={accessory.targetBlockId}
       context="accessory"
       autoFocus={accessory.autoFocus}
     />
@@ -63,10 +63,10 @@ function _DiscussionsPanel(props: {
 
   const currentAccountId = selectedAccount?.id.uid
 
-  if (accessory.openBlockId) {
+  if (accessory.targetBlockId) {
     const targetId = hmId(docId.uid, {
       ...docId,
-      blockRef: accessory.openBlockId,
+      blockRef: accessory.targetBlockId,
     })
     return (
       <>
@@ -93,10 +93,14 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
-          selection={{
-            blockId: accessory.openBlockId,
-            blockRange: accessory.blockRange || undefined,
-          }}
+          selection={
+            accessory.blockId
+              ? {
+                  blockId: accessory.blockId,
+                  blockRange: accessory.blockRange || undefined,
+                }
+              : undefined
+          }
         />
       </>
     )

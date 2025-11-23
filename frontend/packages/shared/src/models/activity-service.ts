@@ -571,7 +571,7 @@ export async function loadCitationEvent(
       version: event.newMention.targetVersion || null,
       blockRef: targetFragment?.blockId || null,
       blockRange:
-        targetFragment?.type == 'block-range'
+        targetFragment?.start != null && targetFragment?.end != null
           ? {
               start: targetFragment.start,
               end: targetFragment.end,

@@ -268,15 +268,15 @@ async function handleOptionsRequest(request: Request) {
     'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Expose-Headers':
-      'X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title',
+      'X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title, X-Hypermedia-Target, X-Hypermedia-Authors, X-Hypermedia-Type',
   }
 
   try {
-    const hmId = getHmIdOfRequest(parsedRequest, originAccountId)
-    if (hmId) {
-      const resource = await loadResolvedResource(hmId)
+    const resourceId = getHmIdOfRequest(parsedRequest, originAccountId)
+    if (resourceId) {
+      const resource = await loadResolvedResource(resourceId)
       if (resource.type === 'document') {
-        headers['X-Hypermedia-Id'] = hmId.id
+        headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
         headers['X-Hypermedia-Version'] = resource.document.version
         headers['X-Hypermedia-Authors'] = uriEncodedAuthors(
           resource.document.authors,
@@ -286,7 +286,7 @@ async function handleOptionsRequest(request: Request) {
           resource.document.metadata.name || '',
         )
       } else if (resource.type === 'comment') {
-        headers['X-Hypermedia-Id'] = hmId.id
+        headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
         headers['X-Hypermedia-Authors'] = uriEncodedAuthors([
           resource.comment.author,
         ])
@@ -298,7 +298,24 @@ async function handleOptionsRequest(request: Request) {
             packHmId(targetId),
           )
         }
-        headers['X-Hypermedia-Title'] = ''
+        let targetTitle: string = 'a Document'
+        if (targetId) {
+          const document = await loadResolvedResource(targetId)
+          if (document.type === 'document' && document.document.metadata.name) {
+            targetTitle = document.document.metadata.name
+          }
+        }
+        let authorTitle: string = 'Somebody'
+        if (resource.comment.author) {
+          const document = await loadResolvedResource(
+            hmId(resource.comment.author),
+          )
+          if (document.type === 'document' && document.document.metadata.name) {
+            authorTitle = document.document.metadata.name
+          }
+        }
+        const title = `${authorTitle} on ${targetTitle}`
+        headers['X-Hypermedia-Title'] = encodeURIComponent(title)
       }
       return new Response(null, {
         status: 200,

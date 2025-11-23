@@ -1,10 +1,6 @@
-import {
-  ExactBlockRange,
-  ExpandedBlockRange,
-  ParsedFragment,
-  UnpackedHypermediaId,
-} from '..'
+import {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '..'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
+import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
 
 export function createSiteUrl({
@@ -20,7 +16,7 @@ export function createSiteUrl({
   version?: string | null | undefined
   latest?: boolean
   blockRef?: string | null | undefined
-  blockRange?: ExactBlockRange | ExpandedBlockRange | null
+  blockRange?: BlockRange | null
 }) {
   let res = `${hostname}/`
   if (path && path.length) {
@@ -31,6 +27,16 @@ export function createSiteUrl({
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
   return res
+}
+
+export function getCommentTargetId(
+  comment: HMComment | undefined,
+): UnpackedHypermediaId | undefined {
+  if (!comment) return undefined
+  return hmId(comment.targetAccount, {
+    path: entityQueryPathToHmIdPath(comment.targetPath || ''),
+    version: comment.targetVersion,
+  })
 }
 
 export function commentIdToHmId(commentId: string): UnpackedHypermediaId {
@@ -77,7 +83,7 @@ export function createWebHMUrl(
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
-    blockRange?: ExactBlockRange | ExpandedBlockRange | null
+    blockRange?: BlockRange | null
     hostname?: string | null | undefined
     latest?: boolean | null
     path?: string[] | null
@@ -196,7 +202,7 @@ export function hmId(
   opts: {
     version?: string | null
     blockRef?: string | null
-    blockRange?: ExactBlockRange | ExpandedBlockRange | null
+    blockRange?: BlockRange | null
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
@@ -326,7 +332,7 @@ export function hmIdWithVersion(
   id: string | null | undefined,
   version: string | null | undefined,
   blockRef?: string | null | undefined,
-  blockRange?: ExactBlockRange | ExpandedBlockRange | null,
+  blockRange?: BlockRange | null,
 ) {
   if (!id) return null
   const unpacked = unpackHmId(id)
@@ -355,7 +361,7 @@ export function extractBlockRefOfUrl(
 
 export function extractBlockRangeOfUrl(
   url: string | null | undefined,
-): ExactBlockRange | ExpandedBlockRange | null {
+): BlockRange | null {
   const fragment = url?.match(/#(.*)$/)?.[1] || null
 
   if (fragment) {
@@ -383,7 +389,6 @@ export function parseFragment(input: string | null): ParsedFragment | null {
 
     if (expanded === '+') {
       return {
-        type: 'block',
         blockId,
         expanded: true,
       }
@@ -392,21 +397,18 @@ export function parseFragment(input: string | null): ParsedFragment | null {
       typeof rangeEnd !== 'undefined'
     ) {
       return {
-        type: 'block-range',
         blockId,
         start: parseInt(rangeStart),
         end: parseInt(rangeEnd),
       }
     } else {
       return {
-        type: 'block',
         blockId,
         expanded: false,
       }
     }
   } else {
     return {
-      type: 'block',
       blockId: input,
       expanded: false,
     }
@@ -414,7 +416,7 @@ export function parseFragment(input: string | null): ParsedFragment | null {
 }
 
 export function serializeBlockRange(
-  range: ExactBlockRange | ExpandedBlockRange | null | undefined,
+  range: BlockRange | null | undefined,
 ): string {
   let res = ''
   if (range) {

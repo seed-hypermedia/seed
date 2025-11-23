@@ -82,7 +82,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     const accessory = route.accessory
     // Type guard to check if we're in discussions accessory
     if (accessory?.key === 'discussions') {
-      return !!(accessory.openBlockId || accessory.openComment)
+      return !!(accessory.targetBlockId || accessory.openComment)
     }
     return false
   }, [route])
@@ -93,13 +93,13 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     const accessory = route.accessory
     if (
       accessory?.key === 'discussions' &&
-      (accessory.openBlockId || accessory.openComment)
+      (accessory.targetBlockId || accessory.openComment)
     ) {
       replace({
         ...route,
         accessory: {
           ...accessory,
-          openBlockId: undefined,
+          targetBlockId: undefined,
           openComment: undefined,
         },
       })

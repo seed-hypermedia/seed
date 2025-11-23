@@ -1,7 +1,6 @@
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
-import {loadWebLinkMeta} from '@/models/web-links'
 import {useSelectedAccountId} from '@/selected-account'
 import {trpc} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
@@ -14,7 +13,6 @@ import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {NavRoute} from '@shm/shared/routes'
 import {
-  hmId,
   isHypermediaScheme,
   packHmId,
   parseCustomURL,
@@ -358,21 +356,46 @@ function useURLHandler() {
       //     documentId,
       //   }
     } else {
-      const result = await loadWebLinkMeta(httpSearch)
+      const result = await resolveHypermediaUrl(httpSearch)
       const parsedUrl = parseCustomURL(httpSearch)
       const fragment = parseFragment(parsedUrl?.fragment || '')
-      const baseId = unpackHmId(result?.hypermedia_id)
-      const fullHmId =
-        baseId &&
-        hmId(baseId.uid, {
-          path: baseId.path,
-          version: result.hypermedia_version,
-          blockRef: fragment?.blockId,
+      const idFragment = {
+        blockRef: fragment?.blockId || null,
+        blockRange:
+          fragment?.start !== undefined && fragment?.end !== undefined
+            ? {
+                start: fragment.start,
+                end: fragment.end,
+              }
+            : null,
+      }
+      if (!result) {
+        toast.error('Failed to fetch web link')
+        return null
+      }
+      let route: NavRoute | null | undefined = null
+      if (
+        result.type === 'Comment' &&
+        result.target &&
+        result.hmId &&
+        result.hmId.path
+      ) {
+        route = {
+          key: 'document',
+          id: result.target,
+          accessory: {
+            key: 'discussions',
+            openComment: `${result.hmId.uid}/${result.hmId.path.join('/')}`,
+            ...idFragment,
+          },
+        }
+      } else if (result.hmId) {
+        route = appRouteOfId({
+          ...result.hmId,
+          ...idFragment,
         })
-      if (!fullHmId) throw new Error('Failed to fetch web link')
-      const navRoute = appRouteOfId(fullHmId)
-      if (navRoute) return navRoute
-      console.log('Failed to open this hypermedia content', fullHmId)
+      }
+      if (route) return route
       toast.error('Failed to open this hypermedia content')
       return null
     }

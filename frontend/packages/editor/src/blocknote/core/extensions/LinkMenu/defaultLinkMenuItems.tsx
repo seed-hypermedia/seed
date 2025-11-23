@@ -31,7 +31,8 @@ export function getLinkMenuItems({
   media,
   sourceUrl,
   fileName,
-  docTitle,
+  title,
+  type,
   gwUrl,
 }: {
   isLoading: boolean // true is spinner needs to be shown
@@ -39,7 +40,8 @@ export function getLinkMenuItems({
   media?: string // type of media block if link points to a media file
   sourceUrl?: string // the inserted link into the editor. needed to correctly replace the link with block
   fileName?: string // file name if any
-  docTitle?: string | null // document title if any
+  title?: string | null // resource title if any
+  type?: 'Document' | 'Comment' | null // resource type if any
   gwUrl: StateStream<string>
 }) {
   let linkMenuItems: LinkMenuItem[] = []
@@ -52,11 +54,10 @@ export function getLinkMenuItems({
         disabled: false,
         icon: <Link size={18} />,
         execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-          let insertedText = docTitle ? docTitle : sourceUrl
+          let insertedText = title ? title : sourceUrl
           const {state, schema, view} = editor._tiptapEditor
           const {selection} = state
-          const pos =
-            selection.from - (docTitle ? docTitle.length : sourceUrl.length)
+          const pos = selection.from - (title ? title.length : sourceUrl.length)
           view.dispatch(
             view.state.tr
               .deleteRange(pos, pos + insertedText.length)
@@ -108,6 +109,16 @@ export function getLinkMenuItems({
     if (hmId) {
       linkMenuItems = [
         {
+          // name: `Link as "${docTitle}"`,
+          key: 'link',
+          name: 'Link',
+          disabled: false,
+          icon: <Link size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+            // this is the default behavior of HM links and is already applied by this time
+          },
+        },
+        {
           key: 'embed',
           name: 'Embed',
           disabled: false,
@@ -128,7 +139,10 @@ export function getLinkMenuItems({
             insertNode(editor, sourceUrl || hmRef, node)
           },
         },
-        {
+      ]
+
+      if (type === 'Document') {
+        linkMenuItems.push({
           key: 'card',
           name: 'Card',
           disabled: false,
@@ -148,70 +162,48 @@ export function getLinkMenuItems({
 
             insertNode(editor, sourceUrl || hmRef, node)
           },
-        },
-        ...linkMenuItems,
-      ]
-
-      if (docTitle && docTitle !== sourceUrl) {
-        linkMenuItems = [
-          {
-            // name: `Link as "${docTitle}"`,
-            key: 'link',
-            name: 'Link',
-            disabled: false,
-            icon: <Link size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-              // this is the default behavior of HM links and is already applied by this time
-            },
+        })
+        linkMenuItems.push({
+          // name: `Mention "${docTitle}"`,
+          key: 'mention',
+          name: 'Mention',
+          disabled: false,
+          icon: <Quote size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+            let link = sourceUrl || ref
+            if (isPublicGatewayLink(link, gwUrl) || isHypermediaScheme(link)) {
+              const hmId = normalizeHmId(link, gwUrl)
+              if (!hmId) return
+              link = hmId
+            }
+            const {state, schema} = editor._tiptapEditor
+            const {selection} = state
+            if (!selection.empty) return
+            const node = schema.nodes['inline-embed'].create(
+              {
+                link,
+              },
+              schema.text(' '),
+            )
+            insertMentionNode(editor, link, title || '?', node)
           },
-          {
-            // name: `Mention "${docTitle}"`,
-            key: 'mention',
-            name: 'Mention',
-            disabled: false,
-            icon: <Quote size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-              let link = sourceUrl || ref
-              if (
-                isPublicGatewayLink(link, gwUrl) ||
-                isHypermediaScheme(link)
-              ) {
-                const hmId = normalizeHmId(link, gwUrl)
-                if (!hmId) return
-                link = hmId
-              }
-              const {state, schema} = editor._tiptapEditor
-              const {selection} = state
-              if (!selection.empty) return
-              const node = schema.nodes['inline-embed'].create(
-                {
-                  link,
-                },
-                schema.text(' '),
-              )
-
-              insertMentionNode(editor, link, docTitle, node)
-            },
+        })
+        linkMenuItems.push({
+          key: 'button',
+          name: 'Button',
+          disabled: false,
+          icon: <CircleDot size={18} />,
+          execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
+            const {state, schema} = editor._tiptapEditor
+            const {selection} = state
+            if (!selection.empty) return
+            const node = schema.nodes.button.create({
+              url: sourceUrl,
+              name: title,
+            })
+            insertNode(editor, sourceUrl || ref, node)
           },
-          {
-            key: 'button',
-            name: 'Button',
-            disabled: false,
-            icon: <CircleDot size={18} />,
-            execute: (editor: BlockNoteEditor<HMBlockSchema>, ref: string) => {
-              const {state, schema} = editor._tiptapEditor
-              const {selection} = state
-              if (!selection.empty) return
-              const node = schema.nodes.button.create({
-                url: sourceUrl,
-                name: docTitle,
-              })
-
-              insertNode(editor, sourceUrl || ref, node)
-            },
-          },
-          ...linkMenuItems,
-        ]
+        })
       }
     } else if (media) {
       let mediaIcon

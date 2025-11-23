@@ -2,11 +2,7 @@ import {useAppContext} from '@/app-context'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {
-  BlockRange,
-  ExpandedBlockRange,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {BlockRange, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {
   createSiteUrl,
@@ -29,10 +25,7 @@ export function useDocumentUrl({
 }): {
   label: string
   url: string
-  onCopy: (
-    blockId?: string | undefined,
-    blockRange?: BlockRange | ExpandedBlockRange,
-  ) => void
+  onCopy: (blockId?: string | undefined, blockRange?: BlockRange) => void
   content: ReactNode
 } | null {
   const docEntity = useResource(docId)
@@ -68,10 +61,7 @@ export function useDocumentUrl({
       ? 'Site' + (latest ? ' Latest' : ' Exact Version')
       : 'Public' + (latest ? ' Latest' : ' Exact Version'),
     content: copyDialogContent,
-    onCopy: (
-      blockId: string | undefined,
-      blockRange?: BlockRange | ExpandedBlockRange | null,
-    ) => {
+    onCopy: (blockId: string | undefined, blockRange?: BlockRange | null) => {
       const focusBlockId = isBlockFocused ? docId.blockRef : null
       onCopyReference({
         ...docId,
