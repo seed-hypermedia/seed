@@ -40,75 +40,11 @@ type DiscoveryProgress struct {
 	BlobsDiscovered atomic.Int32
 	BlobsDownloaded atomic.Int32
 	BlobsFailed     atomic.Int32
-
-	// updates is a coalescing notification channel. A non-blocking send happens
-	// when any counter changes. Consumers can select on Updates().
-	updates chan struct{}
 }
 
 // NewDiscoveryProgress creates a progress tracker with an initialized notification channel.
 func NewDiscoveryProgress() *DiscoveryProgress {
-	return &DiscoveryProgress{
-		updates: make(chan struct{}, 1),
-	}
-}
-
-// Updates exposes a read-only channel that ticks whenever progress changes.
-func (p *DiscoveryProgress) Updates() <-chan struct{} {
-	return p.updates
-}
-
-// Notify triggers a non-blocking tick on the updates channel.
-func (p *DiscoveryProgress) Notify() {
-	if p.updates == nil {
-		// allow use with zero-value DiscoveryProgress
-		p.updates = make(chan struct{}, 1)
-	}
-	select {
-	case p.updates <- struct{}{}:
-	default:
-		// coalesce if a tick is already pending
-	}
-}
-
-// StartNotifier periodically checks counters and emits Notify() on change.
-// It stops when ctx is done.
-func (p *DiscoveryProgress) StartNotifier(ctx context.Context, interval time.Duration) {
-	// initialize channel if needed
-	if p.updates == nil {
-		p.updates = make(chan struct{}, 1)
-	}
-	prev := [6]int32{
-		p.PeersFound.Load(),
-		p.PeersSyncedOK.Load(),
-		p.PeersFailed.Load(),
-		p.BlobsDiscovered.Load(),
-		p.BlobsDownloaded.Load(),
-		p.BlobsFailed.Load(),
-	}
-	ticker := time.NewTicker(interval)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				cur := [6]int32{
-					p.PeersFound.Load(),
-					p.PeersSyncedOK.Load(),
-					p.PeersFailed.Load(),
-					p.BlobsDiscovered.Load(),
-					p.BlobsDownloaded.Load(),
-					p.BlobsFailed.Load(),
-				}
-				if cur != prev {
-					prev = cur
-					p.Notify()
-				}
-			}
-		}
-	}()
+	return &DiscoveryProgress{}
 }
 
 // DiscoverObject discovers an object in the network. If not found, then it returns an error
@@ -116,7 +52,6 @@ func (p *DiscoveryProgress) StartNotifier(ctx context.Context, interval time.Dur
 // other local object. This function blocks until either success or fails to find providers.
 func (s *Service) DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error) {
 	prog := NewDiscoveryProgress()
-	prog.StartNotifier(ctx, 200*time.Millisecond)
 	return s.DiscoverObjectWithProgress(ctx, entityID, version, recursive, prog)
 }
 
@@ -126,12 +61,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", fmt.Errorf("remote content discovery is disabled")
 	}
 
-	// Ensure notifier is running even if prog was a zero-value passed by caller
-	// (e.g. from backend/api/entities/v1alpha/entities.go)
-	if prog != nil && prog.updates == nil {
-		prog.StartNotifier(ctx, 200*time.Millisecond)
-		prog.Notify() // initial tick
-	}
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
