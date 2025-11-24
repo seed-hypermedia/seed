@@ -315,6 +315,19 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				return
 			}
 		}
+		// Fill Comment Links.
+		{
+			const q = `
+				INSERT OR IGNORE INTO rbsr_iris
+				SELECT target
+				FROM resource_links
+				WHERE source IN rbsr_blobs
+				AND type GLOB 'comment*';`
+
+			if err = sqlitex.Exec(conn, q, nil); err != nil {
+				return
+			}
+		}
 		if err = fillTables(conn, linkIRIs, true); err != nil {
 			return
 		}

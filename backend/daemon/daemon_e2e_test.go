@@ -997,6 +997,36 @@ func TestPushing(t *testing.T) {
 			}},
 		},
 	})
+	bobSubaru, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Path:           "/cars/subaru",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Subaru rallies"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Best car in the world",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways 3",
+				},
+			}},
+		},
+	})
 	require.NoError(t, err)
 
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
@@ -1133,6 +1163,66 @@ func TestPushing(t *testing.T) {
 		fileCID = f.Cid()
 	}
 
+	bobCommentWithlinks, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: bobGotAliceToyotaUpdated.Account,
+		TargetPath:    bobGotAliceToyotaUpdated.Path,
+		TargetVersion: bobGotAliceToyotaUpdated.Version,
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Link to subaru",
+					Link: "hm://" + bobSubaru.Account + bobSubaru.Path,
+				},
+				Children: []*documents.BlockNode{
+					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Child of link to subaru"}},
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: bobCommentWithlinks.Id,
+	})
+	require.Error(t, err, "Alice must not have Bob's comment with links")
+
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobHome.Account,
+		Path:    bobHome.Path,
+	})
+	require.Error(t, err, "Alice must not have Bob's home document")
+
+	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobSubaru.Account,
+		Path:    bobSubaru.Path,
+	})
+	require.Error(t, err, "Alice must not have Bob's Subaru document")
+
+	push(t, bob, alice, "hm://"+aliceToyotaUpdated.Account+aliceToyotaUpdated.Path)
+
+	aliceGotBobsCommentWithLinks, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: bobCommentWithlinks.Id,
+	})
+	require.NoError(t, err, "Alice should have gotten Bob's comment with links after the push")
+	require.Equal(t, bobCommentWithlinks.Content, aliceGotBobsCommentWithLinks.Content)
+
+	aliceGotBobsHome, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobHome.Account,
+		Path:    bobHome.Path,
+	})
+	require.NoError(t, err, "Bob's Home should be there as well now")
+	require.Equal(t, bobHome.Content, aliceGotBobsHome.Content)
+
+	aliceGotSubaru, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: bobSubaru.Account,
+		Path:    bobSubaru.Path,
+	})
+	require.NoError(t, err, "Alice should have gotten Subaru document after the push")
+	require.Equal(t, bobSubaru.Content, aliceGotSubaru.Content)
+
 	bobComment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
@@ -1146,7 +1236,7 @@ func TestPushing(t *testing.T) {
 					Link: "ipfs://" + fileCID.String(),
 				},
 				Children: []*documents.BlockNode{
-					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Hope you're well"}},
+					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Child of media file"}},
 				},
 			},
 		},
@@ -1159,12 +1249,6 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err, "Alice must not have Bob's comment on honda")
 
-	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: bobHome.Account,
-		Path:    bobHome.Path,
-	})
-	require.Error(t, err, "Alice must not have Bob's home document")
-
 	push(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
 
 	aliceGotBobsComment, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
@@ -1172,13 +1256,6 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err, "Alice should have gotten Bob's comment after the push")
 	require.Equal(t, bobComment.Content, aliceGotBobsComment.Content)
-
-	aliceGotBobsHome, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: bobHome.Account,
-		Path:    bobHome.Path,
-	})
-	require.NoError(t, err, "Bob's Home should be there as well now")
-	require.Equal(t, bobHome.Content, aliceGotBobsHome.Content)
 
 	// Check that Alice got file linked in Bob's comment.
 	{
