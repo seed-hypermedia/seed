@@ -1,4 +1,4 @@
-import {useMyAccounts} from '@/models/daemon'
+import {useMyAccountIds, useMyAccounts} from '@/models/daemon'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId, useUniversalAppContext} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
@@ -10,6 +10,7 @@ import {
 } from '@shm/ui/components/popover'
 
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
+import {useResources} from '@shm/shared/models/entity'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
@@ -27,44 +28,43 @@ export function SidebarFooter({
 }) {
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
   const selectedIdentityValue = useStream(selectedIdentity)
-  const myAccounts = useMyAccounts()
-  const accountOptions = myAccounts
+  const myAccounts = useMyAccountIds()
+  const myAccountResources = useResources(
+    myAccounts.data?.map((a) => hmId(a)) || [],
+  )
+
+  const accountOptions = myAccounts.data
     ?.map((a) => {
-      const id = a.data?.id
-      const doc = a.data?.type === 'document' ? a.data.document : undefined
-      if (id) {
-        return {
-          id,
-          metadata: doc?.metadata,
-        }
-      }
-      return null
+      const resourceData = myAccountResources.find((r) => r.data?.id?.uid === a)
+        ?.data
+      if (!resourceData) return null
+      if (resourceData.type !== 'document') return null
+      if (typeof resourceData.document?.metadata === 'undefined') return null
+      return resourceData
     })
-    .filter((d) => {
-      if (!d) return false
-      if (typeof d.metadata === 'undefined') return false
-      return true
-    })
+    .filter((d) => !!d)
 
   useEffect(() => {
     // Check if current selected account is valid (exists in accountOptions)
-    const isSelectedAccountValid = accountOptions?.some(
-      (option) => option?.id.uid === selectedIdentityValue,
-    )
+    const isSelectedAccountInvalid =
+      !!myAccounts.data &&
+      !myAccounts.data.some((option) => option === selectedIdentityValue)
 
     // Get the first valid account from the filtered options
-    const firstValidAccount = accountOptions?.[0]?.id.uid
+    const firstValidAccount = myAccounts.data?.[0]
 
     // Set selected identity if:
     // 1. No account is selected, OR
     // 2. The selected account is not in the valid options list
-    if (setSelectedIdentity && firstValidAccount) {
-      if (!selectedIdentityValue || !isSelectedAccountValid) {
-        setSelectedIdentity(firstValidAccount)
-      }
+    if (
+      setSelectedIdentity &&
+      firstValidAccount &&
+      (!selectedIdentityValue || isSelectedAccountInvalid)
+    ) {
+      setSelectedIdentity(firstValidAccount)
     }
-  }, [setSelectedIdentity, selectedIdentityValue, accountOptions])
-  const selectedAccount = myAccounts?.find(
+  }, [setSelectedIdentity, myAccounts.data])
+  const selectedAccount = myAccountResources.find(
     (a) => a.data?.id?.uid === selectedIdentityValue,
   )
   const selectedAccountDoc =
@@ -121,7 +121,7 @@ export function SidebarFooter({
           align="end"
         >
           <ScrollArea className="h-full flex-1 overflow-y-auto">
-            {accountOptions.map((option) =>
+            {accountOptions?.map((option) =>
               option ? (
                 <div
                   key={option.id.uid}
@@ -140,11 +140,11 @@ export function SidebarFooter({
                   {option.id ? (
                     <HMIcon
                       id={option?.id}
-                      name={option?.metadata?.name}
-                      icon={option?.metadata?.icon}
+                      name={option?.document?.metadata?.name}
+                      icon={option?.document?.metadata?.icon}
                     />
                   ) : null}
-                  {option.metadata?.name}
+                  {option?.document?.metadata?.name}
                 </div>
               ) : null,
             )}

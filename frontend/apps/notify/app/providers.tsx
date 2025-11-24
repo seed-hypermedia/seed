@@ -19,7 +19,6 @@ import {
   NavContextProvider,
   NavState,
   navStateReducer,
-  setAppNavDispatch,
 } from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -153,13 +152,6 @@ export function WebSiteProvider(props: {
       state: navState,
     }
   }, [])
-
-  useEffect(() => {
-    setAppNavDispatch(navigation.dispatch)
-    return () => {
-      setAppNavDispatch(null)
-    }
-  }, [navigation.dispatch])
 
   return (
     <UniversalAppProvider

@@ -145,19 +145,6 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
   }
 }
 
-let appNavDispatch: null | React.Dispatch<NavAction> = null
-
-export function setAppNavDispatch(v: null | React.Dispatch<NavAction>) {
-  appNavDispatch = v
-}
-
-export function dispatchAppNavigation(action: NavAction) {
-  if (!appNavDispatch) {
-    throw new Error('App Navigation not ready or available')
-  }
-  return appNavDispatch(action)
-}
-
 export function useNavigation(overrideNav: NavigationContext | undefined) {
   const nav = useContext(NavContext)
   if (overrideNav) {

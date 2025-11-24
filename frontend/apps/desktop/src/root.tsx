@@ -480,7 +480,7 @@ function MainApp({}: {}) {
                 window.location.reload()
               }}
             >
-              <NavigationContainer initialNav={window.initNavState}>
+              <NavigationContainer>
                 {mainContent}
                 {__SHOW_OB_RESET_BTN__ && <ResetOnboardingButton />}
               </NavigationContainer>
