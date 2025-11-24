@@ -810,6 +810,7 @@ export function CommentContent({
   comment,
   size,
   selection,
+  allowHighlight = true,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
@@ -817,6 +818,7 @@ export function CommentContent({
     blockId?: string
     blockRange?: BlockRange
   }
+  allowHighlight?: boolean
 }) {
   const openRoute = useOpenRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
@@ -871,7 +873,11 @@ export function CommentContent({
       layoutUnit={layoutUnit}
       onBlockSelect={onBlockSelect}
     >
-      <BlocksContent hideCollapseButtons blocks={comment.content} />
+      <BlocksContent
+        hideCollapseButtons
+        allowHighlight={allowHighlight}
+        blocks={comment.content}
+      />
     </BlocksContentProvider>
   )
 }

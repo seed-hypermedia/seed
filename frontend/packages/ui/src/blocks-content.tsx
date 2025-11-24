@@ -311,6 +311,7 @@ export function BlocksContent({
   focusBlockId,
   maxBlockCount,
   hideCollapseButtons = false,
+  allowHighlight = true,
   ...props
 }: {
   blocks: HMBlockNode[]
@@ -318,6 +319,7 @@ export function BlocksContent({
   maxBlockCount?: number
   marginVertical?: any
   hideCollapseButtons?: boolean
+  allowHighlight?: boolean
 }) {
   const media = useMedia()
   const {wrapper, bubble, coords, state, actor} = useRangeSelection(blocks)
@@ -545,6 +547,7 @@ export function BlockNodeContent({
   parentBlockId,
   hideCollapseButtons = false,
   handleBlockClick,
+  allowHighlight = true,
 }: {
   isFirstChild: boolean
   blockNode: HMBlockNode
@@ -558,6 +561,7 @@ export function BlockNodeContent({
   parentBlockId: string | null
   hideCollapseButtons?: boolean
   handleBlockClick?: () => void
+  allowHighlight?: boolean
 }) {
   const {
     layoutUnit,
@@ -570,7 +574,10 @@ export function BlockNodeContent({
     resourceId,
   } = useBlocksContentContext()
   const [hover, setHover] = useState(false)
-  const [isHighlight, setHighlight] = useState(false)
+  const isHighlight =
+    allowHighlight &&
+    resourceId.blockRef == blockNode.block?.id &&
+    resourceId.blockRange?.start == undefined
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,
@@ -672,47 +679,6 @@ export function BlockNodeContent({
 
     return clonedBlock
   }, [blockNode.block, resourceId])
-
-  useEffect(() => {
-    let val =
-      resourceId.blockRef == blockNode.block?.id &&
-      resourceId.blockRange?.start == undefined
-
-    setHighlight(val)
-
-    if (!val || !elm.current) return
-    const container = document.querySelector('.base-doc-container')
-    if (!container) return
-
-    // Uncomment to enable unhighlighting when scrolling outside of the block view.
-    // // Add intersection observer to check if the user scrolled out of block view.
-    // const observer = new IntersectionObserver(
-    //   ([entry]) => {
-    //     console.log(entry.isIntersecting);
-    //     // && !selection.blockRange
-    //     if (!entry.isIntersecting) {
-    //       onBlockSelect?.('');
-    //     }
-    //   },
-    //   {threshold: 0.1} // Trigger when 10% of the block is still visible.
-    // );
-
-    // Function to check if the user clicked outside the block bounds.
-    const handleClickOutside = (event: Event) => {
-      if (elm.current && !elm.current.contains(event.target as Node)) {
-        onBlockSelect?.('')
-      }
-    }
-
-    // observer.observe(elm.current);
-    container.addEventListener('click', handleClickOutside)
-
-    // Remove listeners when unmounting
-    return () => {
-      // observer.disconnect();
-      container.removeEventListener('click', handleClickOutside)
-    }
-  }, [resourceId, blockNode.block])
 
   function handleBlockNodeToggle() {
     setExpanded(!_expanded)
@@ -1810,7 +1776,7 @@ export function BlockEmbedContentComment({
       }}
     >
       {author && <CommentEmbedHeader comment={comment} author={author} />}
-      <CommentContent comment={comment} />
+      <CommentContent comment={comment} allowHighlight={false} />
     </EmbedWrapper>
   )
 }
@@ -1958,6 +1924,7 @@ function BlockEmbedContentDocument(props: {
               isFirstChild
               depth={props.depth}
               embedId={blockId}
+              allowHighlight={false}
               blockNode={{
                 block: {
                   type: 'Heading',
@@ -1984,6 +1951,7 @@ function BlockEmbedContentDocument(props: {
                 }
                 depth={1}
                 embedId={blockId}
+                allowHighlight={false}
                 blockNode={bn}
                 childrenType="Group"
                 index={idx}

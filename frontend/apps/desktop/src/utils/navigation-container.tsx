@@ -26,8 +26,6 @@ import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
 
-console.log('== init nav state', window.initNavState.selectedIdentity)
-
 const navigation = {
   dispatch(action: NavAction) {
     const prevState = navState.get()
