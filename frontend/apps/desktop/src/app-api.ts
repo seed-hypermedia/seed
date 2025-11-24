@@ -218,6 +218,11 @@ export const router = t.router({
       const meta = extractMetaTags(html)
       return {meta}
     }),
+    peerOfHost: t.procedure.input(z.string()).query(async ({input}) => {
+      const res = await fetch(`${input}/hm/api/config`)
+      const config = await res.json()
+      return config.peerId
+    }),
     requestDiscover: t.procedure
       .input(
         z.object({

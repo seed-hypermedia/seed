@@ -136,7 +136,7 @@ export function createWebUniversalClient(
 
     loadRecents: deps.loadRecents || (async () => []),
 
-    loadQuery: async (query: HMQuery): Promise<HMQueryResult | null> => {
+    loadQuery: async (_query: HMQuery): Promise<HMQueryResult | null> => {
       console.error('loadQuery not yet implemented for web')
       return null
     },

@@ -81,7 +81,8 @@ export default function PublishDraftButton() {
               path: resultPath,
               version: resultDoc.version,
             }),
-            (status) => {
+            undefined,
+            (status: PushResourceStatus) => {
               setPushStatus(status)
             },
           )

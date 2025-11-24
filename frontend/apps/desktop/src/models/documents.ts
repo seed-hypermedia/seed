@@ -4,13 +4,13 @@ import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
-import {trpc} from '@/trpc'
+import {trpc, client as trpcClient} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {HMAnnotation, useUniversalClient} from '@shm/shared'
+import {getCommentTargetId, HMAnnotation, useUniversalClient} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
@@ -77,6 +77,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
+import {loadQuery} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 
@@ -820,7 +821,7 @@ export function usePushResource() {
   ): Promise<boolean> => {
     const resource = await client.loadResource(id)
     // step 1. find all the site IDs that will be affected by this resource.
-    console.log('== publish 1', id, resource, gwUrl)
+    // console.log('== publish 1', id, resource, gwUrl)
     let destinationSiteUids = new Set<string>()
 
     function extractBNReferences(blockNodes: HMBlockNode[]) {
@@ -877,7 +878,7 @@ export function usePushResource() {
     }
 
     // step 2. find all the hosts for these destination sites
-    console.log('== publish 2', destinationSiteUids)
+    // console.log('== publish 2', destinationSiteUids)
 
     let destinationHosts = new Set<string>([
       // always push to the gateway url
@@ -908,7 +909,7 @@ export function usePushResource() {
       }),
     )
 
-    console.log('== publish 3 == destinationHosts', destinationHosts)
+    // console.log('== publish 3 == destinationHosts', destinationHosts)
 
     const outputStatus: PushResourceStatus = {
       hosts: Array.from(destinationHosts).map((host) => ({
@@ -951,7 +952,7 @@ export function usePushResource() {
       Array.from(destinationHosts).map(async (host) => {
         try {
           updateHostStatus(host, 'pending', 'Connecting...')
-          const peerId = await getHostPeerId(host)
+          const peerId = await trpcClient.web.peerOfHost.query(host)
           if (peerId) {
             // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
             updateHostStatus(host, 'pending', 'Pushing...', peerId)
@@ -969,10 +970,27 @@ export function usePushResource() {
 
     // step 4. push this resource to all the sites.
     // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
+    // console.log('== publish 4 == pushing to peers', peerIds)
+    const resourceIdToPush =
+      resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+    if (!resourceIdToPush) {
+      console.error('Could not determine resource ID to push', resource)
+      throw new Error('Could not determine resource ID to push')
+    }
+    if (!peerIds.size) {
+      console.error('No peers found to push to', {
+        resource,
+        destinationHosts,
+        peerIds,
+      })
+      throw new Error('No peers found to push to')
+    }
 
+    const pushResourceUrl = createHMUrl(resourceIdToPush)
+    // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
     await grpcClient.resources.pushResourcesToPeer({
       addrs: Array.from(peerIds),
-      resources: [createHMUrl(id)],
+      resources: [pushResourceUrl],
     })
     // todo: show progress updates, ideally broken down by peer. if one peer fails, we should show the others that succeed.
     outputStatus.hosts.forEach(({peerId}) => {
@@ -983,26 +1001,15 @@ export function usePushResource() {
   }
 }
 
-async function getHostPeerId(host: string) {
-  const identityOriginInfoReq = await fetch(`${host}/hm/api/config`)
-  if (identityOriginInfoReq.status !== 200) {
-    throw new Error('Connection failed to the host server at ' + host)
-  }
-  const identityOriginInfo = await identityOriginInfoReq.json()
-  const peerId = identityOriginInfo.peerId
-  return peerId
-}
-
 export function queryListDirectory(
   id?: UnpackedHypermediaId | null,
   options?: {mode?: 'Children' | 'AllDescendants'},
 ): UseQueryOptions<unknown, unknown, Array<HMDocumentInfo>> {
-  const client = useUniversalClient()
   return {
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, options?.mode],
     queryFn: async () => {
       if (!id) return []
-      const results = await client.loadQuery({
+      const results = await loadQuery({
         includes: [
           {
             space: id.uid,
