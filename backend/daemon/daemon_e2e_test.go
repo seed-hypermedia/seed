@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"seed/backend/api/apitest"
 	documentsimpl "seed/backend/api/documents/v3alpha"
+	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -18,9 +19,12 @@ import (
 	networking "seed/backend/genproto/networking/v1alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/ipfs"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/sqlitedbg"
 	"slices"
 	"strings"
 	"testing"
@@ -860,6 +864,254 @@ func TestSubscriptions(t *testing.T) {
 		Path:    davidInAliceHome.Path,
 	})
 	require.Error(t, err)
+}
+
+func TestRelatedMaterials(t *testing.T) {
+	t.Parallel()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	bobIdentity := coretest.NewTester("bob")
+	carolIdentity := coretest.NewTester("carol")
+
+	// Register bob and carol keys in alice's daemon
+	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "bob", bobIdentity.Account))
+	require.NoError(t, alice.Storage.KeyStore().StoreKey(ctx, "carol", carolIdentity.Account))
+
+	// Create home documents for all 3 keys
+	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	bobHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "bob",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	carolHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        carolIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "carol",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Carol Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Update Alice's profile
+	_, err = alice.RPC.DocumentsV3.UpdateProfile(ctx, &documents.UpdateProfileRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Profile:        &documents.Profile{Name: "Alice"},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	// Create /cars/jp document
+	carsJp, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/jp",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Japanese Cars"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Japanese cars overview",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create /cars/jp/honda document
+	carsJpHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/jp/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Honda"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Honda is great",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create /cars/jp/toyota document
+	carsJpToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/jp/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Toyota"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Toyota is reliable",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Update /cars/jp to have links to honda and toyota
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "/cars/jp",
+		BaseVersion:    carsJp.Version,
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Link to Honda",
+					Link: "hm://" + carsJpHonda.Account + carsJpHonda.Path,
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b3", Parent: "", LeftSibling: "b2"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b3",
+					Type: "paragraph",
+					Text: "Link to Toyota",
+					Link: "hm://" + carsJpToyota.Account + carsJpToyota.Path,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bob creates /alices-cars document in his account with link to alice's /cars/jp
+	bobAlicesCars, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Path:           "/alices-cars",
+		SigningKeyName: "bob",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice's Cars"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Referencing Alice's Japanese cars collection",
+					Link: "hm://" + carsJp.Account + carsJp.Path,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a file for Carol's comment
+	const fileSize = 4 * 1024 * 1024
+	var fileCID cid.Cid
+	{
+		r := io.LimitReader(rand.New(rand.NewSource(1)), fileSize)
+		dag := alice.Index.DAGService()
+		f, err := ipfs.WriteUnixFSFile(dag, r)
+		require.NoError(t, err)
+		fileCID = f.Cid()
+	}
+
+	// Carol creates a comment on Bob's /alices-cars document with a file
+	_, err = alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: bobAlicesCars.Account,
+		TargetPath:    bobAlicesCars.Path,
+		TargetVersion: bobAlicesCars.Version,
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Nice collection!",
+					Link: "ipfs://" + fileCID.String(),
+				},
+				Children: []*documents.BlockNode{
+					{Block: &documents.Block{Id: "b2", Type: "paragraph", Text: "Attached a file"}},
+				},
+			},
+		},
+		SigningKeyName: "carol",
+	})
+	require.NoError(t, err)
+
+	_ = bobHome
+	_ = aliceHome
+	_ = carolHome
+
+	conn, release, err := alice.Storage.DB().Conn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	blobCount, err := sqlitex.QueryOne[int64](conn, "SELECT count() FROM blobs")
+	require.NoError(t, err)
+
+	allBlobs, err := syncing.GetRelatedMaterial(conn, map[syncing.DiscoveryKey]struct{}{
+		syncing.DiscoveryKey{
+			IRI:       blob.IRI("hm://" + aliceHome.Account + aliceHome.Path),
+			Recursive: true,
+		}: {},
+	}, true)
+	require.NoError(t, err)
+
+	if blobCount != int64(len(allBlobs)) {
+		sqlitedbg.Exec(conn, nil, `
+			SELECT b.id, b.codec, b.multihash, sb.type, sb.ts, sb.resource
+			FROM blobs b
+			LEFT JOIN structural_blobs sb ON sb.id = b.id
+			ORDER BY b.id
+		`)
+		t.Fatal("Recursive traversal didn't find all the blobs. See DB dump above.")
+	}
+
+	require.Equal(t, blobCount, len(allBlobs))
 }
 
 func TestPushing(t *testing.T) {
