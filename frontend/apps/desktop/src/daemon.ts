@@ -149,7 +149,7 @@ export async function startMainDaemon(): Promise<{
     },
     'waiting for daemon gRPC to be ready',
     200, // try every 200ms
-    30_000, // timeout after 10s
+    10 * 60 * 1_000, // timeout after 10 minutes
   )
 
   // Also check HTTP endpoint is responding
