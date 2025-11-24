@@ -390,8 +390,10 @@ var qGetParentsMetadata = dqb.Str(`
 	select dg.metadata, r.iri from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
+
 var qGetAccountID = dqb.Str(`
-SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)
+	SELECT id FROM public_keys WHERE principal = unhex(:principal) LIMIT 1;
+`)
 
 type commentIdentifier struct {
 	authorID int64

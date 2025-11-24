@@ -1122,9 +1122,11 @@ func TestPushing(t *testing.T) {
 
 	// Add a random UnixFS file on Bob.
 	// Make sure the file is bigger than min chunk size to make sure it's split into multiple blocks.
+	const randomFileSize = 4 * 1024 * 1024
+
 	var fileCID cid.Cid
 	{
-		r := io.LimitReader(rand.New(rand.NewSource(1)), 4*1024*1024)
+		r := io.LimitReader(rand.New(rand.NewSource(1)), randomFileSize)
 		dag := bob.Index.DAGService()
 		f, err := ipfs.WriteUnixFSFile(dag, r)
 		require.NoError(t, err)
@@ -1190,7 +1192,7 @@ func TestPushing(t *testing.T) {
 		n, err := io.Copy(io.Discard, file)
 		require.NoError(t, err)
 
-		require.Equal(t, 4*1024*1024, n, "file received by alice must be 4 MB in size just like Bob created it")
+		require.Equal(t, randomFileSize, n, "file received by Alice must be the same size as Bob created it")
 	}
 }
 

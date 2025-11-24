@@ -43,12 +43,12 @@ func (s *Server) RegisterServer(srv grpc.ServiceRegistrar) {
 }
 
 var qGetBlobs = dqb.Str(`
-SELECT distinct
-multihash,
-codec
-FROM blobs
-WHERE hex(multihash) IN (SELECT value from json_each(:mhash_json))
-AND size > 0
+	SELECT distinct
+		multihash,
+		codec
+	FROM blobs
+	WHERE multihash IN (SELECT unhex(value) from json_each(:mhash_json))
+	AND size > 0
 `)
 
 // FetchBlobs fetches blobs from the peer that are not present locally.
