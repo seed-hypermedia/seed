@@ -51,6 +51,7 @@ import {
   deleteWindowsState,
   getAllWindows,
   getFocusedWindow,
+  getLastFocusedWindow,
   getWindowNavState,
 } from './app-windows'
 import autoUpdate from './auto-update'
@@ -311,7 +312,7 @@ function initializeIpcHandlers() {
 
   ipcMain.on('new_window', () => {
     // Get the focused window's selected identity and accessoryWidth to copy them to the new window
-    const focusedWindow = getFocusedWindow()
+    const focusedWindow = getLastFocusedWindow()
     let selectedIdentity: string | null = null
     let accessoryWidth: number | undefined = undefined
 
