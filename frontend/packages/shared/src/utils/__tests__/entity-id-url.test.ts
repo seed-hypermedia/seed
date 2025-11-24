@@ -142,7 +142,6 @@ describe('hmId', () => {
 describe('parseFragment', () => {
   test('parses simple block reference', () => {
     expect(parseFragment('XK6l8B4d')).toEqual({
-      type: 'block',
       blockId: 'XK6l8B4d',
       expanded: false,
     })
@@ -150,7 +149,6 @@ describe('parseFragment', () => {
 
   test('parses expanded block reference', () => {
     expect(parseFragment('XK6l8B4d+')).toEqual({
-      type: 'block',
       blockId: 'XK6l8B4d',
       expanded: true,
     })
@@ -158,7 +156,6 @@ describe('parseFragment', () => {
 
   test('parses block range reference', () => {
     expect(parseFragment('XK6l8B4d[21:41]')).toEqual({
-      type: 'block-range',
       blockId: 'XK6l8B4d',
       start: 21,
       end: 41,
@@ -171,7 +168,6 @@ describe('parseFragment', () => {
 
   test('handles invalid input', () => {
     expect(parseFragment('invalid')).toEqual({
-      type: 'block',
       blockId: 'invalid',
       expanded: false,
     })
