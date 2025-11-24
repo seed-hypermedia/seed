@@ -333,6 +333,8 @@ export function getChildrenType(
 }
 
 export function getAnnotations(block: HMBlock): HMAnnotation[] | undefined {
+  if (block.type === 'Paragraph') return block.annotations || []
+  if (block.type === 'Heading') return block.annotations || []
   if (block.type === 'Embed') return block.annotations || []
   if (block.type === 'Video') return block.annotations || []
   if (block.type === 'File') return block.annotations || []

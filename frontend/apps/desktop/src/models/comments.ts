@@ -24,7 +24,6 @@ import {
   HMComment,
   HMCommentDraft,
   HMCommentDraftSchema,
-  HMDocumentMetadataSchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -41,7 +40,6 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
-import {siteDiscover} from './web-links'
 
 // TODO: REMOVE THIS
 export function useCommentReplies(
@@ -210,7 +208,6 @@ export function useCommentEditor(
   const targetEntity = useResource(targetDocId)
   const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
   const showNostr = trpc.experiments.get.useQuery().data?.nostr
-  const pushComments = usePushComments()
   const openUrl = useOpenUrl()
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
@@ -498,10 +495,6 @@ export function useCommentEditor(
         context: context,
       })
 
-      pushComments.mutate({
-        targetDocId,
-      })
-
       // Invalidate all relevant queries
       invalidateQueries([
         queryKeys.DOCUMENT_DISCUSSION,
@@ -589,36 +582,6 @@ export function useCommentEditor(
     selectedAccount,
     isSubmitting,
   ])
-}
-
-function usePushComments() {
-  const gatewayUrl = useGatewayUrlStream()
-  return useMutation({
-    mutationFn: async ({targetDocId}: {targetDocId: UnpackedHypermediaId}) => {
-      const doc = await grpcClient.documents.getDocument({
-        account: targetDocId.uid,
-        path: hmIdPathToEntityQueryPath(targetDocId.path),
-      })
-      const rawMeta = doc.metadata?.toJson()
-      const siteUrl = rawMeta
-        ? HMDocumentMetadataSchema.parse(rawMeta).siteUrl
-        : null
-      const gwUrl = gatewayUrl.get()
-      const primaryHost = siteUrl || gwUrl
-      await siteDiscover({
-        host: primaryHost,
-        path: targetDocId.path,
-        uid: targetDocId.uid,
-      })
-      if (gwUrl && gwUrl !== primaryHost) {
-        await siteDiscover({
-          host: gwUrl,
-          path: targetDocId.path,
-          uid: targetDocId.uid,
-        })
-      }
-    },
-  })
 }
 
 export function useDeleteComment() {

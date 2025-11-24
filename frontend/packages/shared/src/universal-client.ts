@@ -4,6 +4,8 @@ import type {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMMetadataPayload,
+  HMQuery,
+  HMQueryResult,
   HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
@@ -59,6 +61,8 @@ export type UniversalClient = {
   ): Promise<Record<string, HMMetadataPayload>>
 
   loadRecents(): Promise<RecentsResult[]>
+
+  loadQuery(query: HMQuery): Promise<HMQueryResult | null>
 
   deleteRecent(id: string): Promise<void>
 }

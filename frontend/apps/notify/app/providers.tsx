@@ -1,17 +1,12 @@
 import {useNavigate} from '@remix-run/react'
 import {
-  createWebHMUrl,
   NavRoute,
   OptimizedImageSize,
   routeToHref,
   UniversalAppProvider,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {
-  DAEMON_FILE_URL,
-  SEED_ASSET_HOST,
-  SITE_BASE_URL,
-} from '@shm/shared/constants'
+import {DAEMON_FILE_URL, SEED_ASSET_HOST} from '@shm/shared/constants'
 import {languagePacks} from '@shm/shared/language-packs'
 import {defaultRoute} from '@shm/shared/routes'
 import {
@@ -21,7 +16,6 @@ import {
   navStateReducer,
 } from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -194,14 +188,6 @@ export function WebSiteProvider(props: {
         } else {
           toast.error('Failed to open route')
         }
-      }}
-      onCopyReference={async (hmId: UnpackedHypermediaId) => {
-        const url = createWebHMUrl(hmId.uid, {
-          ...hmId,
-          hostname: SITE_BASE_URL,
-        })
-        copyTextToClipboard(url)
-        toast.success('Comment link copied to clipboard')
       }}
     >
       <NavContextProvider value={navigation}>

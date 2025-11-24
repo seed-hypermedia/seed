@@ -9,10 +9,11 @@ import {
   handleDragMedia,
 } from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
-import {queryClient, queryKeys} from '@shm/shared'
+import {commentIdToHmId, queryClient, queryKeys} from '@shm/shared'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useCallback} from 'react'
 
+import {usePushResource} from '@/models/documents'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {
   HMCommentDraft,
@@ -198,13 +199,16 @@ function _CommentDraftEditor({
   const sizeObserverdRef = useSizeObserver((rect) => {
     setIsHorizontal(rect.width > 322)
   })
-
+  const pushResource = usePushResource()
   const {editor, onSubmit, onDiscard, isSaved, account, isSubmitting} =
     useCommentEditor(docId, {
       onDiscardDraft,
       commentId,
       initCommentDraft,
-      onSuccess,
+      onSuccess: (successData: {id: string}) => {
+        pushResource(commentIdToHmId(successData.id))
+        onSuccess?.(successData)
+      },
       quotingBlockId,
       context,
       autoFocus,

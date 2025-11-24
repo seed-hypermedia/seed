@@ -5,7 +5,7 @@ import {GRPCClient} from '../grpc-client'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {prepareHMDocumentInfo} from './entity'
 
-export function getDiretoryWithClient(client: GRPCClient) {
+export function createDirectoryResolver(client: GRPCClient) {
   async function getDirectory(
     id: UnpackedHypermediaId,
     mode: 'Children' | 'AllDescendants' = 'AllDescendants',
@@ -41,8 +41,8 @@ export function getDiretoryWithClient(client: GRPCClient) {
   return getDirectory
 }
 
-export function getQueryResultsWithClient(client: GRPCClient) {
-  const getDirectory = getDiretoryWithClient(client)
+export function createQueryResolver(client: GRPCClient) {
+  const getDirectory = createDirectoryResolver(client)
   async function getQueryResults(
     query: HMQuery,
   ): Promise<HMQueryResult | null> {

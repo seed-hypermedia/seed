@@ -1,13 +1,11 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
+import {usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client, trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -30,14 +28,17 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   HTMLAttributes,
   PropsWithChildren,
-  ReactNode,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import {useDraft} from '../models/accounts'
-import {usePublishDraft, usePublishToSite} from '../models/documents'
+import {
+  PushResourceStatus,
+  usePublishResource,
+  usePushResource,
+} from '../models/documents'
 import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
@@ -58,16 +59,8 @@ export default function PublishDraftButton() {
       invalidateQueries(['trpc.drafts.get'])
     },
   })
-  const editingResource = useResource(editId)
-  const editDocument =
-    editingResource.data?.type === 'document'
-      ? editingResource.data.document
-      : undefined
-  const siteUrl = editDocument?.metadata.siteUrl
-  const gatewayUrl = useGatewayUrl()
-  const publishToSite = usePublishToSite()
-  const publishSiteUrl = siteUrl || gatewayUrl.data || DEFAULT_GATEWAY_URL
-  const publish = usePublishDraft(
+  const pushResource = usePushResource()
+  const publish = usePublishResource(
     editId
       ? {
           ...editId,
@@ -78,39 +71,27 @@ export default function PublishDraftButton() {
       onSuccess: (resultDoc, input) => {
         if (pushOnPublish.data === 'never') return
         const {draft} = input
-        const [setIsPushed, isPushed] = writeableStateStream<boolean | null>(
-          null,
-        )
-
+        const [setPushStatus, pushStatus] =
+          writeableStateStream<PushResourceStatus | null>(null)
+        console.log('== will publish.', draft.id, resultDoc.version)
         if (draft.id && resultDoc.version) {
           const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
-          let publishPromise = publishToSite(
+          let publishPromise = pushResource(
             hmId(resultDoc.account, {
               path: resultPath,
               version: resultDoc.version,
             }),
-            publishSiteUrl,
+            (status) => {
+              setPushStatus(status)
+            },
           )
-            .then(() => {
-              setIsPushed(true)
-            })
-            .catch((e) => {
-              setIsPushed(false)
-            })
-            .finally(() => {
-              // toast.dismiss(toastId)
-            })
-
           toast.promise(publishPromise, {
-            loading: `Pushing to ${publishSiteUrl}`,
-            success: (
-              <PublishedToast host={publishSiteUrl} isPushed={isPushed} />
-            ),
-            error: <PublishedToast host={publishSiteUrl} isPushed={isPushed} />,
+            loading: <PublishedToast pushStatus={pushStatus} />,
+            success: <PublishedToast pushStatus={pushStatus} />,
+            error: <PublishedToast pushStatus={pushStatus} />,
           })
         } else {
-          setIsPushed(false)
-          close()
+          toast.error('Failed to publish')
         }
       },
     },
@@ -313,34 +294,13 @@ function StatusWrapper({
 }
 
 function PublishedToast({
-  isPushed,
-  host,
+  pushStatus,
 }: {
-  isPushed: StateStream<boolean | null>
-  host: string
+  pushStatus: StateStream<PushResourceStatus | null>
 }) {
-  const pushed = useStream(isPushed)
-  let message: ReactNode = ''
-  if (pushed === null) {
-    message = (
-      <>
-        Published. Pushing to <b>{host}</b>
-      </>
-    )
-  } else if (pushed === true) {
-    message = (
-      <>
-        Published to <b>{host}</b>
-      </>
-    )
-  } else if (pushed === false) {
-    message = (
-      <>
-        Published locally. Could not push to <b>{host}</b>
-      </>
-    )
-  }
-  return message
+  const status = useStream(pushStatus)
+  console.log(status)
+  return JSON.stringify(status)
 }
 
 function SaveIndicatorStatus() {

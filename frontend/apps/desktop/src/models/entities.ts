@@ -16,6 +16,7 @@ import {
   HMResourceRedirect,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {createQueryResolver} from '@shm/shared/models/directory'
 import {
   createBatchAccountsResolver,
   getErrorMessage,
@@ -219,6 +220,8 @@ export async function loadAccount(
 }
 
 export const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
+
+export const loadQuery = createQueryResolver(grpcClient)
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null
