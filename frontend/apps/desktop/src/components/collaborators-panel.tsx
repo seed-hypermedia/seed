@@ -135,7 +135,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
 
   if (!myCapability) return null
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 px-4 pt-4">
       <div className="border-border flex overflow-hidden rounded-md border-1">
         <div className="flex flex-1">
           <TagInput
