@@ -88,10 +88,11 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const internalScrollRef = useRef<HTMLDivElement>(null)
-  const scrollRef = externalScrollRef || internalScrollRef
+  const scrollRef = (externalScrollRef ||
+    internalScrollRef) as React.RefObject<HTMLDivElement>
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
   const [bottomPadding, setBottomPadding] = useState<number>(400)
@@ -360,7 +361,7 @@ export function Discussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -465,7 +466,7 @@ export function BlockDiscussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)

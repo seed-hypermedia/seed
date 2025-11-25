@@ -66,7 +66,7 @@ export function Feed({
   currentAccount?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)

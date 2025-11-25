@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 export type ScrollRestorationOptions = {
   /** Unique identifier for this scroll area */
@@ -11,6 +11,11 @@ export type ScrollRestorationOptions = {
   debug?: boolean
   /** Optional function to detect if navigation should skip scroll restoration (e.g., hash-only changes) */
   shouldSkipRestoration?: () => boolean
+}
+
+export type ScrollRestorationRef = {
+  (node: HTMLDivElement | null): void
+  current: HTMLDivElement | null
 }
 
 /**
@@ -47,9 +52,16 @@ export function useScrollRestoration(options: ScrollRestorationOptions) {
   const [viewport, setViewport] = useState<HTMLElement | null>(null)
   const storageKey = getStorageKey()
 
-  // Callback ref to capture the container when it mounts
-  const setContainerRef = useCallback(
-    (node: HTMLDivElement | null) => {
+  // Create a ref object that can be used both as a callback ref AND has .current property
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // Create a stable callback ref with .current property
+  const callbackRef = useRef<ScrollRestorationRef>()
+
+  if (!callbackRef.current) {
+    // Create callback function with .current property
+    const callback = ((node: HTMLDivElement | null) => {
+      containerRef.current = node
       if (node) {
         const vp = useNativeScroll
           ? node
@@ -66,9 +78,19 @@ export function useScrollRestoration(options: ScrollRestorationOptions) {
       } else {
         setViewport(null)
       }
-    },
-    [scrollId, useNativeScroll, debug],
-  )
+    }) as ScrollRestorationRef
+
+    // Use Object.defineProperty to make .current dynamically point to containerRef.current
+    Object.defineProperty(callback, 'current', {
+      get: () => containerRef.current,
+      enumerable: true,
+      configurable: true,
+    })
+
+    callbackRef.current = callback
+  }
+
+  const setContainerRef = callbackRef.current
 
   useEffect(() => {
     if (!viewport) {

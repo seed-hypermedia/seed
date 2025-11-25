@@ -41,7 +41,7 @@ export function AccessoryContent({
   children?: React.ReactNode
   footer?: React.ReactNode
   header?: React.ReactNode
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.Ref<HTMLDivElement>
   bottomPadding?: number | string
 }) {
   return (

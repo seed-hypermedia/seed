@@ -54,7 +54,13 @@ export function useDocumentAccessory({
 
   // Reset scroll when filter changes for activity panel (design decision 2B)
   useEffect(() => {
-    if (route.accessory?.key === 'activity' && activityScrollRef.current) {
+    if (
+      (route.key === 'document' ||
+        route.key === 'draft' ||
+        route.key === 'feed') &&
+      route.accessory?.key === 'activity' &&
+      activityScrollRef.current
+    ) {
       const viewport = activityScrollRef.current.querySelector(
         '[data-slot="scroll-area-viewport"]',
       ) as HTMLElement
@@ -62,7 +68,13 @@ export function useDocumentAccessory({
         viewport.scrollTo({top: 0, behavior: 'instant'})
       }
     }
-  }, [route.accessory?.key === 'activity' ? route.accessory?.filterEventType : null])
+  }, [
+    route.key === 'document' || route.key === 'draft' || route.key === 'feed'
+      ? route.accessory?.key === 'activity'
+        ? route.accessory?.filterEventType
+        : null
+      : null,
+  ])
 
   if (route.key != 'document' && route.key != 'draft' && route.key != 'feed')
     return {accessory: null, accessoryOptions: []}

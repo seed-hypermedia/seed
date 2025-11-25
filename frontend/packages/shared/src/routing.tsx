@@ -261,7 +261,7 @@ export function useRouteLink(
           return // default behavior will not be stopped on web
         }
         e.preventDefault()
-        opts?.onPress?.(e)
+        opts?.onClick?.(e)
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {

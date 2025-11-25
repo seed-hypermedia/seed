@@ -49,7 +49,7 @@ export function DocumentSmallListItem({
       'No route for DocumentSmallListItem. Must provide either id or draftId',
     )
   }
-  const linkProps = useRouteLink(route, {onPress: onClick})
+  const linkProps = useRouteLink(route, {onClick: onClick})
   const color = isPublished === false ? '$color11' : undefined
   const highlight = useHighlighter()
   if (items)

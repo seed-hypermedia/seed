@@ -80,7 +80,12 @@ export async function loader({request}: LoaderFunctionArgs) {
 
 export function Layout({children}: {children: React.ReactNode}) {
   const data = useRouteLoaderData<typeof loader>('root')
-  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
+  const {
+    isProd = false,
+    enableStats = false,
+    domain = '',
+    siteHost = '',
+  } = data || {}
   return (
     <html lang="en">
       <head>
