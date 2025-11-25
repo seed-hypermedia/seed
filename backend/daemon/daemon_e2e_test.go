@@ -1123,7 +1123,7 @@ func TestPushing_Deletes(t *testing.T) {
 	aliceIdentity := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 
-	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.PublicKey.String(),
 		Path:           "",
 		SigningKeyName: "main",
@@ -1208,11 +1208,10 @@ func TestPushing_Deletes(t *testing.T) {
 	}
 
 	pushDocuments(t, alice, bob, "hm://"+aliceHonda.Account+aliceHonda.Path)
-
 	{
 		_, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: aliceHonda.Account,
-			Path:    aliceHome.Path,
+			Path:    aliceHonda.Path,
 		})
 		require.Error(t, err, "alice's delete must propagate over to bob")
 	}

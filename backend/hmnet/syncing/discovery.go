@@ -247,7 +247,6 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 					SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
 				), linked_changes (id) AS (
 					SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
-					AND structural_blobs.extra_attrs->>'deleted' is not true
 					UNION ALL
 					SELECT id from genesis
 				)
@@ -280,7 +279,6 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				SELECT distinct
 					public_keys.principal AS main_author,
 					structural_blobs.extra_attrs->>'tsid' AS tsid,
-					structural_blobs.extra_attrs->>'deleted' as is_deleted,
 					r.iri AS source_iri,
 					structural_blobs.type AS blob_type
 				FROM resource_links
@@ -295,18 +293,14 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				WHERE resource_links.target IN rbsr_iris;`
 			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 				var (
-					author    = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
-					tsid      = blob.TSID(stmt.ColumnText(1))
-					isDeleted = stmt.ColumnText(2) == "1"
-					source    = stmt.ColumnText(3)
-					blobType  = stmt.ColumnText(4)
+					author   = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
+					tsid     = blob.TSID(stmt.ColumnText(1))
+					source   = stmt.ColumnText(2)
+					blobType = stmt.ColumnText(3)
 				)
 
 				if blobType == "Comment" {
 					source = "hm://" + author + "/" + tsid.String()
-				}
-				if isDeleted {
-					return nil
 				}
 				dKey := DiscoveryKey{IRI: blob.IRI(source)}
 				linkIRIs[dKey] = struct{}{}
