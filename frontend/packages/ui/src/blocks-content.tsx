@@ -1776,7 +1776,11 @@ export function BlockEmbedContentComment({
       }}
     >
       {author && <CommentEmbedHeader comment={comment} author={author} />}
-      <CommentContent comment={comment} allowHighlight={false} />
+      <CommentContent
+        comment={comment}
+        zoomBlockRef={id.blockRef}
+        allowHighlight={false}
+      />
     </EmbedWrapper>
   )
 }

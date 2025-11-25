@@ -809,11 +809,15 @@ export function Comment({
 export function CommentContent({
   comment,
   size,
+  zoomBlockRef,
+  zoomBlockRange,
   selection,
   allowHighlight = true,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
+  zoomBlockRef?: string | null
+  zoomBlockRange?: BlockRange | null
   selection?: {
     blockId?: string
     blockRange?: BlockRange
@@ -865,6 +869,10 @@ export function CommentContent({
     blockRef: selection?.blockId || null,
     blockRange: selection?.blockRange || null,
   }
+  const zoomedBlock = zoomBlockRef
+    ? getBlockNodeById(comment.content, zoomBlockRef)
+    : null
+  const zoomedContent = zoomedBlock ? [zoomedBlock] : comment.content
   return (
     <BlocksContentProvider
       resourceId={focusedId}
@@ -876,7 +884,7 @@ export function CommentContent({
       <BlocksContent
         hideCollapseButtons
         allowHighlight={allowHighlight}
-        blocks={comment.content}
+        blocks={zoomedContent}
       />
     </BlocksContentProvider>
   )
