@@ -19,7 +19,30 @@ func TestSQLite(t *testing.T) {
 
 	sqlitedbg.ExecPool(pool, os.Stdout, "select sha1('hello')")
 	sqlitedbg.ExecPool(pool, os.Stdout, "select mycount() from (values (1), (2));")
-	sqlitedbg.ExecPool(pool, os.Stdout, "select * FROM carray(rb_array(rb_create(1,2,3,4,5,6,1000,130,145,5000)), 10)")
+}
+
+func TestRoaring(t *testing.T) {
+	pool, err := OpenSQLite("file::memory:?mode=memory&cache=shared", 0, 1)
+	require.NoError(t, err)
+
+	defer pool.Close()
+
+	conn, release, err := pool.Conn(t.Context())
+	require.NoError(t, err)
+	defer release()
+
+	err = sqlitex.ExecScript(conn, `
+CREATE TABLE data (bitmap BLOB PRIMARY KEY) WITHOUT ROWID;
+INSERT INTO data VALUES (rb64_create(1,2,3,4,5,6,200,100,300,400));
+`)
+
+	all, err := sqlitex.QueryOne[string](conn, "SELECT json_group_array(rb.value) FROM data, rb64_each(data.bitmap) rb")
+	require.NoError(t, err)
+
+	require.Equal(t, "[1,2,3,4,5,6,100,200,300,400]", all)
+
+	require.NoError(t, err)
+
 }
 
 func TestBase58BTC(t *testing.T) {

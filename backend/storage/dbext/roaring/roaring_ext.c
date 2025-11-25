@@ -15,13 +15,6 @@ static void roaring64FreeFunc(roaring64_bitmap_t *p){
   roaring64_bitmap_free(p);
 }
 
-static void roaringArrayFreeFunc(int *p){
-  sqlite3_free(p);
-}
-
-static void roaring64ArrayFreeFunc(int64_t *p){
-  sqlite3_free(p);
-}
 
 /*********************************************
   rb_create(e1, e2, e3, .. , en)
@@ -1131,66 +1124,367 @@ static void roaring64OrAllFinal(sqlite3_context *context){
 
 
 
-typedef struct ArrayContext ArrayContext;
-struct ArrayContext {
-  unsigned init;
-  unsigned count;
-  int64_t *array;
+
+#ifndef SQLITE_OMIT_VIRTUALTABLE
+/*
+** rb_each virtual table implementation
+*/
+
+typedef struct rb_vtab rb_vtab;
+struct rb_vtab {
+  sqlite3_vtab base;
 };
 
+typedef struct rb_cursor rb_cursor;
+struct rb_cursor {
+  sqlite3_vtab_cursor base;
+  roaring_bitmap_t *pBitmap;
+  roaring_uint32_iterator_t *pIter;
+  sqlite3_int64 iRowid;
+  int bEof;
+  uint32_t currentValue;
+};
 
-
-/*********************************************
-  rb_array(bitmap, limit=null, offset=0)
-  --------------------------------------------
-  returns the first limit elements starting from offset
-  if the limit is not provided or equal to -1 then all the entries are returned
-  if the offset is not set then elements will be returned starting from offset 0
-*********************************************/
-static void roaringArrayFunc(
-  sqlite3_context *context,
-  int argc,
-  sqlite3_value **argv
+static int rbConnect(
+  sqlite3 *db,
+  void *pAux,
+  int argc, const char *const*argv,
+  sqlite3_vtab **ppVtab,
+  char **pzErr
 ){
-  const char *pIn;
-  unsigned int nIn;
-  pIn = sqlite3_value_blob(argv[0]);
-  nIn = sqlite3_value_bytes(argv[0]);
-  roaring_bitmap_t *r = roaring_bitmap_deserialize_safe(pIn, nIn);
-  if( r == NULL ){
-    sqlite3_result_error(context, "invalid bitmap", -1);
-    return;
+  rb_vtab *pNew;
+  int rc;
+  rc = sqlite3_declare_vtab(db, "CREATE TABLE x(value, data hidden)");
+  if( rc==SQLITE_OK ){
+    pNew = sqlite3_malloc( sizeof(*pNew) );
+    *ppVtab = (sqlite3_vtab*)pNew;
+    if( pNew==0 ) return SQLITE_NOMEM;
+    memset(pNew, 0, sizeof(*pNew));
+  } else {
+    if( pzErr ) *pzErr = sqlite3_mprintf("rbConnect failed: %d", rc);
   }
-  int nSize = roaring_bitmap_get_cardinality(r);
-  uint32_t *ids;
-  ids = sqlite3_malloc(nSize * sizeof(uint32_t));
-  roaring_bitmap_to_uint32_array(r, ids);
-  roaring_bitmap_free(r);
-  sqlite3_result_pointer(context, ids, "carray", (void*)roaringArrayFreeFunc);
+  return rc;
 }
 
-
-static void roaring64ArrayFunc(
-  sqlite3_context *context,
-  int argc,
-  sqlite3_value **argv
-){
-  const char *pIn;
-  unsigned int nIn;
-  pIn = sqlite3_value_blob(argv[0]);
-  nIn = sqlite3_value_bytes(argv[0]);
-  roaring64_bitmap_t *r = roaring64_bitmap_portable_deserialize_safe(pIn, nIn);
-  if( r == NULL ){
-    sqlite3_result_error(context, "invalid bitmap", -1);
-    return;
-  }
-  int nSize = roaring64_bitmap_get_cardinality(r);
-  uint64_t *ids;
-  ids = sqlite3_malloc(nSize * sizeof(uint64_t));
-  roaring64_bitmap_to_uint64_array(r, ids);
-  roaring64_bitmap_free(r);
-  sqlite3_result_pointer(context, ids, "carray", (void*)roaring64ArrayFreeFunc);
+static int rbDisconnect(sqlite3_vtab *pVtab){
+  sqlite3_free(pVtab);
+  return SQLITE_OK;
 }
+
+static int rbOpen(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor){
+  rb_cursor *pCur;
+  pCur = sqlite3_malloc( sizeof(*pCur) );
+  if( pCur==0 ) return SQLITE_NOMEM;
+  memset(pCur, 0, sizeof(*pCur));
+  *ppCursor = &pCur->base;
+  return SQLITE_OK;
+}
+
+static int rbClose(sqlite3_vtab_cursor *cur){
+  rb_cursor *pCur = (rb_cursor*)cur;
+  if( pCur->pIter ) roaring_uint32_iterator_free(pCur->pIter);
+  if( pCur->pBitmap ) roaring_bitmap_free(pCur->pBitmap);
+  sqlite3_free(pCur);
+  return SQLITE_OK;
+}
+
+static int rbNext(sqlite3_vtab_cursor *cur){
+  rb_cursor *pCur = (rb_cursor*)cur;
+  if( !pCur->pIter ) return SQLITE_OK;
+
+  roaring_uint32_iterator_advance(pCur->pIter);
+  if( pCur->pIter->has_value ){
+    pCur->currentValue = pCur->pIter->current_value;
+    pCur->bEof = 0;
+    pCur->iRowid++;
+  } else {
+    pCur->bEof = 1;
+  }
+  return SQLITE_OK;
+}
+
+static int rbColumn(
+  sqlite3_vtab_cursor *cur,
+  sqlite3_context *ctx,
+  int i
+){
+  rb_cursor *pCur = (rb_cursor*)cur;
+  if( i==0 && !pCur->bEof ){
+    sqlite3_result_int64(ctx, pCur->currentValue);
+  }
+  return SQLITE_OK;
+}
+
+static int rbRowid(sqlite3_vtab_cursor *cur, sqlite_int64 *pRowid){
+  rb_cursor *pCur = (rb_cursor*)cur;
+  *pRowid = pCur->iRowid;
+  return SQLITE_OK;
+}
+
+static int rbEof(sqlite3_vtab_cursor *cur){
+  rb_cursor *pCur = (rb_cursor*)cur;
+  return pCur->bEof;
+}
+
+static int rbFilter(
+  sqlite3_vtab_cursor *pVtabCursor,
+  int idxNum, const char *idxStr,
+  int argc, sqlite3_value **argv
+){
+  rb_cursor *pCur = (rb_cursor *)pVtabCursor;
+
+  // Cleanup previous run
+  if( pCur->pIter ){
+    roaring_uint32_iterator_free(pCur->pIter);
+    pCur->pIter = NULL;
+  }
+  if( pCur->pBitmap ){
+    roaring_bitmap_free(pCur->pBitmap);
+    pCur->pBitmap = NULL;
+  }
+
+  pCur->iRowid = 0;
+  pCur->bEof = 1; // Default to empty
+
+  if( argc > 0 ){
+    const char *pIn = sqlite3_value_blob(argv[0]);
+    unsigned int nIn = sqlite3_value_bytes(argv[0]);
+    if( pIn && nIn > 0 ){
+        pCur->pBitmap = roaring_bitmap_deserialize_safe(pIn, nIn);
+        if( pCur->pBitmap ){
+            pCur->pIter = roaring_iterator_create(pCur->pBitmap);
+            if( pCur->pIter && pCur->pIter->has_value ){
+                pCur->currentValue = pCur->pIter->current_value;
+                pCur->bEof = 0;
+            }
+        }
+    }
+  }
+  return SQLITE_OK;
+}
+
+static int rbBestIndex(
+  sqlite3_vtab *tab,
+  sqlite3_index_info *pIdxInfo
+){
+  int i;
+  int idxArg = -1;
+
+  for(i=0; i<pIdxInfo->nConstraint; i++){
+    if( pIdxInfo->aConstraint[i].iColumn == 1 && pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ ){
+       if( pIdxInfo->aConstraint[i].usable ){
+           idxArg = i;
+           break;
+       }
+    }
+  }
+
+  if( idxArg >= 0 ){
+    pIdxInfo->aConstraintUsage[idxArg].argvIndex = 1;
+    pIdxInfo->aConstraintUsage[idxArg].omit = 1;
+    pIdxInfo->estimatedCost = 1.0;
+    pIdxInfo->estimatedRows = 100;
+  } else {
+    pIdxInfo->estimatedCost = 1000000.0;
+    pIdxInfo->estimatedRows = 1000000;
+  }
+
+  return SQLITE_OK;
+}
+
+static sqlite3_module rbModule = {
+  0,                         /* iVersion */
+  0,                         /* xCreate */
+  rbConnect,                 /* xConnect */
+  rbBestIndex,               /* xBestIndex */
+  rbDisconnect,              /* xDisconnect */
+  0,                         /* xDestroy */
+  rbOpen,                    /* xOpen - open a cursor */
+  rbClose,                   /* xClose - close a cursor */
+  rbFilter,                  /* xFilter - configure scan constraints */
+  rbNext,                    /* xNext - advance a cursor */
+  rbEof,                     /* xEof - check for end of scan */
+  rbColumn,                  /* xColumn - read data */
+  rbRowid,                   /* xRowid - read data */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/*
+** rb64_each virtual table implementation
+*/
+
+typedef struct rb64_cursor rb64_cursor;
+struct rb64_cursor {
+  sqlite3_vtab_cursor base;
+  roaring64_bitmap_t *pBitmap;
+  roaring64_iterator_t *pIter;
+  sqlite3_int64 iRowid;
+  int bEof;
+  uint64_t currentValue;
+};
+
+static int rb64Connect(
+  sqlite3 *db,
+  void *pAux,
+  int argc, const char *const*argv,
+  sqlite3_vtab **ppVtab,
+  char **pzErr
+){
+  rb_vtab *pNew;
+  int rc;
+  rc = sqlite3_declare_vtab(db, "CREATE TABLE x(value, data hidden)");
+  if( rc==SQLITE_OK ){
+    pNew = sqlite3_malloc( sizeof(*pNew) );
+    *ppVtab = (sqlite3_vtab*)pNew;
+    if( pNew==0 ) return SQLITE_NOMEM;
+    memset(pNew, 0, sizeof(*pNew));
+  }
+  return rc;
+}
+
+static int rb64Disconnect(sqlite3_vtab *pVtab){
+  sqlite3_free(pVtab);
+  return SQLITE_OK;
+}
+
+static int rb64Open(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor){
+  rb64_cursor *pCur;
+  pCur = sqlite3_malloc( sizeof(*pCur) );
+  if( pCur==0 ) return SQLITE_NOMEM;
+  memset(pCur, 0, sizeof(*pCur));
+  *ppCursor = &pCur->base;
+  return SQLITE_OK;
+}
+
+static int rb64Close(sqlite3_vtab_cursor *cur){
+  rb64_cursor *pCur = (rb64_cursor*)cur;
+  if( pCur->pIter ) roaring64_iterator_free(pCur->pIter);
+  if( pCur->pBitmap ) roaring64_bitmap_free(pCur->pBitmap);
+  sqlite3_free(pCur);
+  return SQLITE_OK;
+}
+
+static int rb64Next(sqlite3_vtab_cursor *cur){
+  rb64_cursor *pCur = (rb64_cursor*)cur;
+  if( !pCur->pIter ) return SQLITE_OK;
+
+  roaring64_iterator_advance(pCur->pIter);
+  if( roaring64_iterator_has_value(pCur->pIter) ){
+    pCur->currentValue = roaring64_iterator_value(pCur->pIter);
+    pCur->bEof = 0;
+    pCur->iRowid++;
+  } else {
+    pCur->bEof = 1;
+  }
+  return SQLITE_OK;
+}
+
+static int rb64Column(
+  sqlite3_vtab_cursor *cur,
+  sqlite3_context *ctx,
+  int i
+){
+  rb64_cursor *pCur = (rb64_cursor*)cur;
+  if( i==0 && !pCur->bEof ){
+    sqlite3_result_int64(ctx, (sqlite3_int64)pCur->currentValue);
+  }
+  return SQLITE_OK;
+}
+
+static int rb64Rowid(sqlite3_vtab_cursor *cur, sqlite_int64 *pRowid){
+  rb64_cursor *pCur = (rb64_cursor*)cur;
+  *pRowid = pCur->iRowid;
+  return SQLITE_OK;
+}
+
+static int rb64Eof(sqlite3_vtab_cursor *cur){
+  rb64_cursor *pCur = (rb64_cursor*)cur;
+  return pCur->bEof;
+}
+
+static int rb64Filter(
+  sqlite3_vtab_cursor *pVtabCursor,
+  int idxNum, const char *idxStr,
+  int argc, sqlite3_value **argv
+){
+  rb64_cursor *pCur = (rb64_cursor *)pVtabCursor;
+
+  // Cleanup previous run
+  if( pCur->pIter ){
+    roaring64_iterator_free(pCur->pIter);
+    pCur->pIter = NULL;
+  }
+  if( pCur->pBitmap ){
+    roaring64_bitmap_free(pCur->pBitmap);
+    pCur->pBitmap = NULL;
+  }
+
+  pCur->iRowid = 0;
+  pCur->bEof = 1;
+
+  if( argc > 0 ){
+    const char *pIn = sqlite3_value_blob(argv[0]);
+    unsigned int nIn = sqlite3_value_bytes(argv[0]);
+    if( pIn && nIn > 0 ){
+        pCur->pBitmap = roaring64_bitmap_portable_deserialize_safe(pIn, nIn);
+        if( pCur->pBitmap ){
+            pCur->pIter = roaring64_iterator_create(pCur->pBitmap);
+            if( pCur->pIter && roaring64_iterator_has_value(pCur->pIter) ){
+                pCur->currentValue = roaring64_iterator_value(pCur->pIter);
+                pCur->bEof = 0;
+            }
+        }
+    }
+  }
+  return SQLITE_OK;
+}
+
+static int rb64BestIndex(
+  sqlite3_vtab *tab,
+  sqlite3_index_info *pIdxInfo
+){
+  int i;
+  int idxArg = -1;
+
+  for(i=0; i<pIdxInfo->nConstraint; i++){
+    if( pIdxInfo->aConstraint[i].iColumn == 1 && pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ ){
+       if( pIdxInfo->aConstraint[i].usable ){
+           idxArg = i;
+           break;
+       }
+    }
+  }
+
+  if( idxArg >= 0 ){
+    pIdxInfo->aConstraintUsage[idxArg].argvIndex = 1;
+    pIdxInfo->aConstraintUsage[idxArg].omit = 1;
+    pIdxInfo->estimatedCost = 1.0;
+    pIdxInfo->estimatedRows = 100;
+  } else {
+    pIdxInfo->estimatedCost = 1000000.0;
+    pIdxInfo->estimatedRows = 1000000;
+  }
+
+  return SQLITE_OK;
+}
+
+static sqlite3_module rb64Module = {
+  0,                         /* iVersion */
+  0,                         /* xCreate */
+  rb64Connect,               /* xConnect */
+  rb64BestIndex,             /* xBestIndex */
+  rb64Disconnect,            /* xDisconnect */
+  0,                         /* xDestroy */
+  rb64Open,                  /* xOpen - open a cursor */
+  rb64Close,                 /* xClose - close a cursor */
+  rb64Filter,                /* xFilter - configure scan constraints */
+  rb64Next,                  /* xNext - advance a cursor */
+  rb64Eof,                   /* xEof - check for end of scan */
+  rb64Column,                /* xColumn - read data */
+  rb64Rowid,                 /* xRowid - read data */
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+#endif /* SQLITE_OMIT_VIRTUALTABLE */
 
 
 /*********************************************
@@ -1248,6 +1542,7 @@ int sqlite3_roaring_init(
   int rc = SQLITE_OK;
   SQLITE_EXTENSION_INIT2(pApi);
   int flags = SQLITE_UTF8 | SQLITE_INNOCUOUS | SQLITE_DETERMINISTIC;
+  if( pzErrMsg ) *pzErrMsg = 0;
   // Scalar SQL functions
   rc = sqlite3_create_function(db, "rb_create", -1, flags, 0, roaringCreateFunc, 0, 0);
   rc = sqlite3_create_function(db, "rb_count", 1, flags, 0, roaringLengthFunc, 0, 0);
@@ -1286,9 +1581,15 @@ int sqlite3_roaring_init(
   rc = sqlite3_create_function(db, "rb64_group_and", 1, flags, 0, 0, roaring64AndAllStep, roaring64AndAllFinal);
   rc = sqlite3_create_function(db, "rb64_group_or", 1, flags, 0, 0, roaring64OrAllStep, roaring64OrAllFinal);
 
-  // carray based SQL functions (for conversion to a virtual table)
-  rc = sqlite3_create_function(db, "rb_array", 1, flags, 0, roaringArrayFunc, 0, 0);
-  // 64 bit version
-  rc = sqlite3_create_function(db, "rb64_array", 1, flags, 0, roaring64ArrayFunc, 0, 0);
-  return rc;
+#ifndef SQLITE_OMIT_VIRTUALTABLE
+  // custom virtual tables
+  if( (rc = sqlite3_create_module(db, "rb_each", &rbModule, 0)) != SQLITE_OK ){
+    return rc;
+  }
+  if( (rc = sqlite3_create_module(db, "rb64_each", &rb64Module, 0)) != SQLITE_OK ){
+    return rc;
+  }
+#endif
+
+  return SQLITE_OK;
 }
