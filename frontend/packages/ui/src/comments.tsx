@@ -307,6 +307,7 @@ export function CommentDiscussions({
             onCommentDelete={onCommentDelete}
             isFirst={!(hasParents && showParents)}
             isLast={true}
+            highlight
             selection={selection}
           />
         </div>
