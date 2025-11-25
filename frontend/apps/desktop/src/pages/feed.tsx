@@ -17,7 +17,6 @@ import {useSubscribedResource} from '@/models/entities'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
-import {useScrollRestoration} from '@/utils/use-scroll-restoration'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -36,7 +35,8 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
@@ -258,7 +258,12 @@ function _FeedContent({
     showSidebars: false,
   })
 
-  const scrollRef = useScrollRestoration('feed-scroll')
+  const feedRoute = useNavRoute()
+  const scrollRef = useScrollRestoration({
+    scrollId: `feed-scroll:${id.id}`,
+    getStorageKey: () => getRouteKey(feedRoute),
+    debug: true,
+  })
 
   if (resource.isInitialLoading) return null
 

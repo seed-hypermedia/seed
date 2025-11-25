@@ -75,6 +75,7 @@ export function CommentDiscussions({
   currentAccountId,
   onCommentDelete,
   selection,
+  scrollRef: externalScrollRef,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -87,8 +88,10 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
+  scrollRef?: React.RefObject<HTMLDivElement>
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const internalScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = externalScrollRef || internalScrollRef
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
   const [bottomPadding, setBottomPadding] = useState<number>(400)
@@ -349,6 +352,7 @@ export function Discussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
+  scrollRef,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -356,6 +360,7 @@ export function Discussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  scrollRef?: React.RefObject<HTMLDivElement>
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -441,7 +446,9 @@ export function Discussions({
   }
 
   return (
-    <AccessoryContent header={commentEditor}>{panelContent}</AccessoryContent>
+    <AccessoryContent header={commentEditor} scrollRef={scrollRef}>
+      {panelContent}
+    </AccessoryContent>
   )
 }
 
@@ -451,12 +458,14 @@ export function BlockDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
+  scrollRef,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
+  scrollRef?: React.RefObject<HTMLDivElement>
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -540,7 +549,7 @@ export function BlockDiscussions({
   }
 
   return (
-    <AccessoryContent>
+    <AccessoryContent scrollRef={scrollRef}>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>

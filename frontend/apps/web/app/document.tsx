@@ -186,6 +186,7 @@ function InnerDocumentPage(
   )
 
   const mainScrollRef = useScrollRestoration('main-document-scroll', true)
+  // const activityScrollRef = useScrollRestoration(`activity-${id.id}`)
   const activityService = useMemo(() => new WebActivityService(), [])
 
   const keyPair = useLocalKeyPair()
@@ -255,6 +256,33 @@ function InnerDocumentPage(
     return {blockRef, blockRange}
   }, [location.hash])
 
+  // if the server is providing a comment, use it as default, but allow local state to override
+  // On mobile, activePanel can be set independently
+  // _activePanel can override the default comment panel
+  const activePanel: WebAccessory | null =
+    _activePanel ||
+    (comment
+      ? {
+          type: 'discussions',
+          comment,
+          blockRef,
+          blockRange,
+        }
+      : null)
+
+  // TODO: Re-enable scroll restoration for activity panel
+  // Reset scroll when filter changes for activity panel (design decision 2B)
+  // useEffect(() => {
+  //   if (activePanel?.type === 'activity' && activityScrollRef.current) {
+  //     const viewport = activityScrollRef.current.querySelector(
+  //       '[data-slot="scroll-area-viewport"]',
+  //     ) as HTMLElement
+  //     if (viewport) {
+  //       viewport.scrollTo({top: 0, behavior: 'instant'})
+  //     }
+  //   }
+  // }, [activePanel?.type === 'activity' ? activePanel.filterEventType : null])
+
   function setDocumentPanel(panel: WebAccessory | null) {
     // If switching to activity, include saved filters
     if (panel?.type == 'activity') {
@@ -303,20 +331,6 @@ function InnerDocumentPage(
     })
     setMobilePanelOpen(true)
   }
-
-  // if the server is providing a comment, use it as default, but allow local state to override
-  // On mobile, activePanel can be set independently
-  // _activePanel can override the default comment panel
-  const activePanel: WebAccessory | null =
-    _activePanel ||
-    (comment
-      ? {
-          type: 'discussions',
-          comment,
-          blockRef,
-          blockRange,
-        }
-      : null)
 
   // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
   const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)

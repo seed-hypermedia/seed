@@ -11,6 +11,7 @@ import {
   Discussions,
 } from '@shm/ui/comments'
 import React from 'react'
+// import {useScrollRestoration} from './use-scroll-restoration'
 
 type DiscussionsPanelProps = {
   docId: UnpackedHypermediaId
@@ -39,6 +40,9 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
     targetDomain,
     docId,
   } = props
+
+  // TODO: Re-enable scroll restoration for web
+  // const scrollRef = useScrollRestoration(`discussions-${docId.id}`)
 
   if (comment) {
     return (

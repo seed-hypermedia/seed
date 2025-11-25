@@ -2,13 +2,21 @@ import {useAccountList} from '@/models/accounts'
 import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton} from '@/pages/document'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {AccessoryContent} from '@shm/ui/accessories'
 import {SubDocumentItem} from '@shm/ui/activity'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {Folder} from 'lucide-react'
 
 export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
+  const route = useNavRoute()
+  const scrollRef = useScrollRestoration({
+    scrollId: `directory-${docId.id}`,
+    getStorageKey: () => getRouteKey(route),
+    debug: true,
+  })
   const childrenActivity = useChildrenActivity(docId)
   const directory = childrenActivity.data
   const accounts = useAccountList()
@@ -37,6 +45,7 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
 
   return (
     <AccessoryContent
+      scrollRef={scrollRef}
       header={
         <NewSubDocumentButton locationId={docId} importDropdown={false} />
       }

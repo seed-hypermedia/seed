@@ -3,9 +3,10 @@ import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocAccessoryOption} from '@shm/shared/routes'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Feed} from '@shm/ui/feed'
-import {ReactNode, useState} from 'react'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
+import {ReactNode, useEffect, useState} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {CommentBox} from './commenting'
@@ -37,6 +38,32 @@ export function useDocumentAccessory({
 } {
   const route = useNavRoute()
   const replace = useNavigate('replace')
+
+  // Create scroll restoration refs for activity and contacts panels
+  // These need to be called unconditionally
+  const activityScrollRef = useScrollRestoration({
+    scrollId: docId ? `activity-${docId.id}` : 'activity-no-doc',
+    getStorageKey: () => getRouteKey(route),
+    debug: true,
+  })
+  const contactsScrollRef = useScrollRestoration({
+    scrollId: docId ? `contacts-${docId.id}` : 'contacts-no-doc',
+    getStorageKey: () => getRouteKey(route),
+    debug: true,
+  })
+
+  // Reset scroll when filter changes for activity panel (design decision 2B)
+  useEffect(() => {
+    if (route.accessory?.key === 'activity' && activityScrollRef.current) {
+      const viewport = activityScrollRef.current.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLElement
+      if (viewport) {
+        viewport.scrollTo({top: 0, behavior: 'instant'})
+      }
+    }
+  }, [route.accessory?.key === 'activity' ? route.accessory?.filterEventType : null])
+
   if (route.key != 'document' && route.key != 'draft' && route.key != 'feed')
     return {accessory: null, accessoryOptions: []}
 
@@ -105,6 +132,7 @@ export function useDocumentAccessory({
           filterEventType={route.accessory?.filterEventType || []}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
+          scrollRef={activityScrollRef}
         />
       </>
     )
@@ -122,6 +150,7 @@ export function useDocumentAccessory({
           filterEventType={['Contact', 'Profile']}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
+          scrollRef={contactsScrollRef}
         />
       </>
     )

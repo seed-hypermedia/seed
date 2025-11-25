@@ -7,12 +7,14 @@ import {
   DocumentDiscussionsAccessory,
 } from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
   useDeleteCommentDialog,
 } from '@shm/ui/comments'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {memo, useCallback} from 'react'
 import {CommentBox} from './commenting'
 
@@ -24,6 +26,12 @@ function _DiscussionsPanel(props: {
   onAccessory: (acc: DocumentAccessory) => void
 }) {
   const {docId, accessory} = props
+  const route = useNavRoute()
+  const scrollRef = useScrollRestoration({
+    scrollId: `discussions-${docId.id}`,
+    getStorageKey: () => getRouteKey(route),
+    debug: true,
+  })
   const selectedAccount = useSelectedAccount()
   const homeDoc = useResource(hmId(docId.uid))
   const targetDomain =
@@ -77,6 +85,7 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
+          scrollRef={scrollRef}
         />
       </>
     )
@@ -93,6 +102,7 @@ function _DiscussionsPanel(props: {
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
+          scrollRef={scrollRef}
           selection={
             accessory.blockId
               ? {
@@ -115,6 +125,7 @@ function _DiscussionsPanel(props: {
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
+        scrollRef={scrollRef}
       />
     </>
   )

@@ -169,7 +169,7 @@ export function useRouteLinkHref(href: string, opts?: UseRouteLinkOpts) {
 
 type UseRouteLinkOpts = {
   replace?: boolean
-  onPress?: React.MouseEventHandler<HTMLElement>
+  onClick?: React.MouseEventHandler<HTMLElement>
 }
 
 export function routeToHref(

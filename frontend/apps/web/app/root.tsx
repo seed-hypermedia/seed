@@ -6,7 +6,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLoaderData,
+  useRouteLoaderData,
   useRouteError,
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
@@ -79,7 +79,8 @@ export async function loader({request}: LoaderFunctionArgs) {
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
-  const {isProd, enableStats, domain, siteHost} = useLoaderData<typeof loader>()
+  const data = useRouteLoaderData<typeof loader>('root')
+  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
   return (
     <html lang="en">
       <head>

@@ -56,6 +56,7 @@ export function Feed({
   onCommentDelete,
   targetDomain,
   size = 'md',
+  scrollRef,
 }: {
   size?: 'sm' | 'md'
   commentEditor: any
@@ -65,6 +66,7 @@ export function Feed({
   currentAccount?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
+  scrollRef?: React.RefObject<HTMLDivElement>
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -123,6 +125,7 @@ export function Feed({
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
+  console.log('=== FEED DATA EVENTS', allEvents.length)
   const totalFailed =
     data?.pages.reduce((sum, page) => sum + (page.failedCount || 0), 0) || 0
 
@@ -191,7 +194,7 @@ export function Feed({
   }
 
   return (
-    <AccessoryContent header={commentEditor}>
+    <AccessoryContent header={commentEditor} scrollRef={scrollRef}>
       <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e)
@@ -921,6 +924,11 @@ function EventItem({
   const currentRoute = useNavRoute()
   const linkProps = useRouteLink(
     route ? _.merge({}, currentRoute, route) : currentRoute,
+    {
+      onClick: () => {
+        console.log('== link props clicked!!')
+      },
+    },
   )
 
   const tx = useTx()

@@ -8,6 +8,8 @@ import {useSelectedAccountContacts} from '@/models/contacts'
 import {useSubscribedResource} from '@/models/entities'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {Role} from '@shm/shared/client/grpc-types'
@@ -32,8 +34,14 @@ import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import './combobox.css'
 
 export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
+  const route = useNavRoute()
+  const scrollRef = useScrollRestoration({
+    scrollId: `collaborators-${docId.id}`,
+    getStorageKey: () => getRouteKey(route),
+    debug: true,
+  })
   return (
-    <AccessoryContent>
+    <AccessoryContent scrollRef={scrollRef}>
       <AddCollaboratorForm id={docId} />
       <PublisherCollaborator id={docId} />
       <CollaboratorsList id={docId} />
