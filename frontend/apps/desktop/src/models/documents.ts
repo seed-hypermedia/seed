@@ -310,7 +310,10 @@ export function usePublishDraft(
         invalidateQueries([queryKeys.ENTITY, resultDocId.id])
         invalidateQueries([queryKeys.ACCOUNT, resultDocId.uid])
         invalidateQueries([queryKeys.RESOLVED_ENTITY, resultDocId.id])
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, resultDocId.uid])
+        getParentPaths(resultDocId.path).forEach((path) => {
+          const parentId = hmId(resultDocId.uid, {path})
+          invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+        })
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
