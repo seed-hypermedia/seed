@@ -6,9 +6,9 @@ import {useNavigate} from '@/utils/useNavigate'
 import {DocAccessoryOption} from '@shm/shared'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {
+  useNavRoute,
   useNavigationDispatch,
   useNavigationState,
-  useNavRoute,
   useRouteDocId,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -400,8 +400,7 @@ function AccessoryTabs({
                   size="sm"
                   variant={isActive ? 'brand-12' : 'ghost'}
                   onClick={() => {
-                    if (isActive) return
-                    onAccessorySelect(option.key)
+                    onAccessorySelect(!isActive ? option.key : undefined)
                   }}
                 >
                   {Icon ? <Icon className="size-4" /> : null}
@@ -424,12 +423,13 @@ function AccessoryTabs({
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end" className="w-50">
               {overflowItems.map((option) => {
+                const isActive = accessoryKey === option.key
                 const Icon = iconNames[option.key]
                 return (
                   <DropdownMenuItem
                     key={option.key}
                     onClick={() => {
-                      onAccessorySelect(option.key)
+                      onAccessorySelect(!isActive ? option.key : undefined)
                     }}
                   >
                     {Icon ? <Icon className="size-4" /> : null}
