@@ -19,7 +19,7 @@ import {
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream} from '@shm/shared/utils/stream'
 import {Editor} from '@tiptap/core'
-import {Fragment, Mark, MarkType} from '@tiptap/pm/model'
+import {Fragment, Mark, MarkType, Slice} from '@tiptap/pm/model'
 import {Plugin, PluginKey} from '@tiptap/pm/state'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {find} from 'linkifyjs'
@@ -72,6 +72,71 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
     props: {
       decorations(state) {
         return this.getState(state)
+      },
+      transformPasted: (slice, view) => {
+        // Add link marks to the pasted slice and return it to paste handlers
+        const schema = view.state.schema
+        const linkMarkType = options.type
+
+        function addLinkMarksToFragment(fragment: Fragment): Fragment {
+          const nodes: any[] = []
+
+          fragment.forEach((node: any) => {
+            if (node.type.name === 'text') {
+              const text = node.text || ''
+              const links = find(text) || []
+
+              if (links.length === 0) {
+                nodes.push(node)
+                return
+              }
+
+              // Build the content array with link marks
+              let lastIndex = 0
+
+              links.forEach((link: any) => {
+                // Add text before the link to the content array
+                if (link.start > lastIndex) {
+                  const beforeText = text.slice(lastIndex, link.start)
+                  if (beforeText) {
+                    nodes.push(schema.text(beforeText, node.marks))
+                  }
+                }
+
+                // Add the link to the content array
+                const linkText = text.slice(link.start, link.end)
+                if (linkText) {
+                  const linkMark = linkMarkType.create({
+                    href: link.href,
+                  })
+                  nodes.push(schema.text(linkText, [...node.marks, linkMark]))
+                }
+
+                lastIndex = link.end
+              })
+
+              // Add text after the link to the content array
+              if (lastIndex < text.length) {
+                const afterText = text.slice(lastIndex)
+                if (afterText) {
+                  nodes.push(schema.text(afterText, node.marks))
+                }
+              }
+            } else if (node.content && node.content.size > 0) {
+              // Process child content
+              const transformedContent = addLinkMarksToFragment(node.content)
+              nodes.push(node.copy(transformedContent))
+            } else {
+              nodes.push(node)
+            }
+          })
+
+          return Fragment.from(nodes)
+        }
+
+        // Return the transformed slice
+        const transformedSlice = addLinkMarksToFragment(slice.content)
+        return new Slice(transformedSlice, slice.openStart, slice.openEnd)
       },
       handlePaste: (view, _event, slice) => {
         const {state} = view
@@ -558,139 +623,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return true
         }
 
-        let hasBlockLevelNodes = false
-        slice.content.forEach((node: any) => {
-          if (
-            node.type.name === 'blockGroup' ||
-            node.type.name === 'blockContainer'
-          ) {
-            hasBlockLevelNodes = true
-          }
-        })
-
-        // Check if there are any links in the pasted content
-        let hasLinksInContent = false
-
-        slice.content.forEach((node: any) => {
-          const nodeText = node.textContent || ''
-          const fragmentLinks = find(nodeText) || []
-          if (fragmentLinks.length > 0) {
-            hasLinksInContent = true
-          }
-        })
-
-        if (!hasBlockLevelNodes && !hasLinksInContent) {
-          return false
-        }
-
-        // Extract inline content from slice
-        // If slice contains block-level nodes, we need to extract the inline content
-        // from within the blockContent nodes, not insert the block-level nodes themselves
-        const inlineContentNodes: any[] = []
-        let hasBlockGroup = false
-
-        slice.content.forEach((node: any) => {
-          if (node.type.name === 'blockGroup') {
-            hasBlockGroup = true
-            // Extract content from all blockContainers within the blockGroup
-            let hasBlockContainers = false
-            node.forEach((child: any) => {
-              if (child.type.name === 'blockContainer') {
-                hasBlockContainers = true
-                // Find blockContent node within blockContainer
-                child.forEach((innerChild: any) => {
-                  if (innerChild.type.spec.group === 'blockContent') {
-                    // Extract all inline nodes from blockContent
-                    innerChild.forEach((inlineNode: any) => {
-                      inlineContentNodes.push(inlineNode)
-                    })
-                  }
-                })
-              }
-            })
-            // Check if blockGroup has inline content as a child
-            if (!hasBlockContainers && node.childCount > 0) {
-              node.forEach((child: any) => {
-                if (child.isInline || child.type.name === 'text') {
-                  inlineContentNodes.push(child)
-                }
-              })
-            }
-          } else if (node.type.name === 'blockContainer') {
-            hasBlockGroup = true
-            // Extract content from blockContent within blockContainer
-            node.forEach((child: any) => {
-              if (child.type.spec.group === 'blockContent') {
-                child.forEach((inlineNode: any) => {
-                  inlineContentNodes.push(inlineNode)
-                })
-              }
-            })
-          } else {
-            // Regular inline node, add it directly
-            inlineContentNodes.push(node)
-          }
-        })
-
-        if (inlineContentNodes.length === 0) {
-          return false
-        }
-
-        let tr = state.tr
-
-        if (!selection.empty) {
-          tr.delete(selection.from, selection.to)
-        }
-
-        // Insert the inline content at the cursor position, not replacing the entire block
-        const insertPos = selection.from
-        const inlineFragment = Fragment.from(inlineContentNodes)
-        tr.replaceWith(insertPos, insertPos, inlineFragment)
-
-        // Apply link marks to the inserted content
-        if (hasLinksInContent) {
-          // Search for links in all inserted text nodes using the inline content we extracted
-          let textOffset = 0
-          inlineContentNodes.forEach((node: any, index: number) => {
-            if (node.type.name !== 'text') {
-              const nodeSize = node.nodeSize || node.text?.length || 0
-              textOffset += nodeSize
-              return
-            }
-
-            const nodeText = node.textContent || ''
-            const fragmentLinks = find(nodeText) || []
-
-            if (fragmentLinks.length > 0) {
-              // Calculate positions in the document after insertion
-              const nodeStartInDoc = insertPos + textOffset
-              fragmentLinks.forEach((link: any) => {
-                const from = nodeStartInDoc + link.start
-                const to = nodeStartInDoc + link.end
-
-                const markType = options.type
-                // Check if mark already exists in the updated document
-                const updatedDoc = tr.doc
-                const hasMark = updatedDoc.rangeHasMark(from, to, markType)
-
-                if (!hasMark) {
-                  const id = nanoid(8)
-                  tr.addMark(
-                    from,
-                    to,
-                    markType.create({href: link.href, id}),
-                  ).setMeta('hmPlugin:uncheckedLink', id)
-                }
-              })
-            }
-
-            // Update offset for next iteration
-            textOffset += nodeText.length
-          })
-        }
-
-        view.dispatch(tr)
-        return true
+        return false
       },
     },
   })

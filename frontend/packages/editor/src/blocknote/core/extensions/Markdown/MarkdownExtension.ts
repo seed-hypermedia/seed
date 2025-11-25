@@ -169,13 +169,16 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               const {state} = view
               const {selection} = state
 
+              // If pasted HTML has list, pass to other paste handlers.
+              if (hasList) {
+                return false
+              }
+
               const isMarkdown = pastedHtml
                 ? containsMarkdownSymbols(pastedText)
                 : pastedText
                 ? true
                 : false
-
-              // console.log('pasted text and html', pastedText, pastedHtml)
 
               if (!isMarkdown) {
                 return false
@@ -183,7 +186,6 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
 
               MarkdownToBlocks(pastedText, bnEditor).then((organizedBlocks) => {
                 const blockInfo = getBlockInfoFromSelection(state)
-
                 bnEditor.replaceBlocks(
                   [blockInfo.block.node.attrs.id],
                   // @ts-ignore
