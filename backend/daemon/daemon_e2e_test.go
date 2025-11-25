@@ -1114,6 +1114,110 @@ func TestRelatedMaterials(t *testing.T) {
 	require.Equal(t, blobCount, len(allBlobs))
 }
 
+func TestPushing_Deletes(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Create two peers.
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceIdentity := coretest.NewTester("alice").Account
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+
+	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice from the Wonderland"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Hello",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "World!",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	aliceHonda, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.PublicKey.String(),
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Honda rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Because it sounds great",
+				},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "b1", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b2",
+					Type: "paragraph",
+					Text: "Quote anyways 2",
+				},
+			}},
+		},
+	})
+
+	ref, err := alice.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
+		Account:        aliceHonda.Account,
+		Path:           aliceHonda.Path,
+		SigningKeyName: "main",
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Tombstone_{
+				Tombstone: &documents.RefTarget_Tombstone{},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = ref
+
+	{
+		_, err := alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceHonda.Account,
+			Path:    aliceHonda.Path,
+		})
+		require.Error(t, err, "alice's honda document must be deleted on alice's node")
+	}
+
+	pushDocuments(t, alice, bob, "hm://"+aliceHonda.Account+aliceHonda.Path)
+
+	{
+		_, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceHonda.Account,
+			Path:    aliceHome.Path,
+		})
+		require.Error(t, err, "alice's delete must propagate over to bob")
+	}
+}
+
 func TestPushing(t *testing.T) {
 	t.Parallel()
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
@@ -1249,6 +1353,7 @@ func TestPushing(t *testing.T) {
 			}},
 		},
 	})
+
 	bobSubaru, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),
 		Path:           "/cars/subaru",
@@ -1287,38 +1392,9 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	push := func(t *testing.T, src, dst *App, resources ...string) {
-		t.Helper()
-		if len(resources) == 0 {
-			t.Fatal("no resources to push")
-		}
-		stream := testutil.NewMockedGRPCServerStream[*documents.SyncingProgress](t.Context())
-		errc := make(chan error, 1)
-		go func() {
-			errc <- src.RPC.DocumentsV3.PushResourcesToPeer(&documents.PushResourcesToPeerRequest{
-				Addrs:     hmnet.AddrInfoToStrings(dst.Net.AddrInfo()),
-				Resources: resources,
-			}, stream)
-		}()
-		for {
-			select {
-			case <-t.Context().Done():
-				return
-			case err := <-errc:
-				if errors.Is(err, io.EOF) {
-					err = nil
-				}
-				require.NoError(t, err)
-				return
-			case prog := <-stream.C:
-				t.Log(prog)
-			}
-		}
-	}
-
 	var toyotaIRI = "hm://" + aliceToyota.Account + aliceToyota.Path
 
-	push(t, alice, bob, toyotaIRI)
+	pushDocuments(t, alice, bob, toyotaIRI)
 
 	bobGotAliceToyota, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
@@ -1358,7 +1434,7 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
 
-	push(t, alice, bob, toyotaIRI)
+	pushDocuments(t, alice, bob, toyotaIRI)
 
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
@@ -1386,7 +1462,7 @@ func TestPushing(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
 
-	push(t, alice, bob, toyotaIRI)
+	pushDocuments(t, alice, bob, toyotaIRI)
 
 	bobGotAliceHonda, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
@@ -1453,7 +1529,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err, "Alice must not have Bob's Subaru document")
 
-	push(t, bob, alice, "hm://"+aliceToyotaUpdated.Account+aliceToyotaUpdated.Path)
+	pushDocuments(t, bob, alice, "hm://"+aliceToyotaUpdated.Account+aliceToyotaUpdated.Path)
 
 	aliceGotBobsCommentWithLinks, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 		Id: bobCommentWithlinks.Id,
@@ -1501,7 +1577,7 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err, "Alice must not have Bob's comment on honda")
 
-	push(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
+	pushDocuments(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
 
 	aliceGotBobsComment, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 		Id: bobComment.Id,
@@ -2462,4 +2538,33 @@ func getLocalIP(t *testing.T) string {
 	}
 	t.Fatal("no local IP found")
 	return ""
+}
+
+func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
+	t.Helper()
+	if len(resources) == 0 {
+		t.Fatal("no resources to push")
+	}
+	stream := testutil.NewMockedGRPCServerStream[*documents.SyncingProgress](t.Context())
+	errc := make(chan error, 1)
+	go func() {
+		errc <- src.RPC.DocumentsV3.PushResourcesToPeer(&documents.PushResourcesToPeerRequest{
+			Addrs:     hmnet.AddrInfoToStrings(dst.Net.AddrInfo()),
+			Resources: resources,
+		}, stream)
+	}()
+	for {
+		select {
+		case <-t.Context().Done():
+			return
+		case err := <-errc:
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+			require.NoError(t, err)
+			return
+		case prog := <-stream.C:
+			t.Log(prog)
+		}
+	}
 }
