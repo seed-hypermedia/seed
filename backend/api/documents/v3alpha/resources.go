@@ -53,7 +53,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource)}] = struct{}{}
 	}
 
-	var cids map[cid.Cid]int64
+	var cids []syncing.CIDWithTS
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
 		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true)
 		return err
@@ -62,10 +62,10 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	}
 
 	request := &p2p.FetchBlobsRequest{
-		Cids: make([]string, 0, len(cids)),
+		Cids: make([]string, len(cids)),
 	}
-	for cid := range cids {
-		request.Cids = append(request.Cids, cid.String())
+	for i, c := range cids {
+		request.Cids[i] = c.CID.String()
 	}
 
 	// We want to support connecting to plain peer IDs, so we need to convert it into multiaddr.

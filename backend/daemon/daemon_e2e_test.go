@@ -993,7 +993,7 @@ func TestRelatedMaterials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update /cars/jp to have links to honda and toyota
-	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+	updatedCarsJP, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/jp",
 		BaseVersion:    carsJp.Version,
@@ -1048,6 +1048,7 @@ func TestRelatedMaterials(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	_ = bobAlicesCars
 
 	// Create a file for Carol's comment
 	const fileSize = 4 * 1024 * 1024
@@ -1060,11 +1061,11 @@ func TestRelatedMaterials(t *testing.T) {
 		fileCID = f.Cid()
 	}
 
-	// Carol creates a comment on Bob's /alices-cars document with a file
+	// Carol creates a comment on Alice's home.
 	_, err = alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
-		TargetAccount: bobAlicesCars.Account,
-		TargetPath:    bobAlicesCars.Path,
-		TargetVersion: bobAlicesCars.Version,
+		TargetAccount: aliceHome.Account,
+		TargetPath:    aliceHome.Path,
+		TargetVersion: aliceHome.Version,
 		Content: []*documents.BlockNode{
 			{
 				Block: &documents.Block{
@@ -1085,6 +1086,7 @@ func TestRelatedMaterials(t *testing.T) {
 	_ = bobHome
 	_ = aliceHome
 	_ = carolHome
+	_ = updatedCarsJP
 
 	conn, release, err := alice.Storage.DB().Conn(t.Context())
 	require.NoError(t, err)
@@ -1108,10 +1110,9 @@ func TestRelatedMaterials(t *testing.T) {
 			LEFT JOIN structural_blobs sb ON sb.id = b.id
 			ORDER BY b.id
 		`)
-		t.Fatal("Recursive traversal didn't find all the blobs. See DB dump above.")
-	}
 
-	require.Equal(t, blobCount, len(allBlobs))
+		t.Fatalf("Recursive traversal didn't find all the blobs. Want = %d, got = %d. See DB dump above.", blobCount, len(allBlobs))
+	}
 }
 
 func TestPushing_Deletes(t *testing.T) {
@@ -1596,7 +1597,7 @@ func TestPushing(t *testing.T) {
 		n, err := io.Copy(io.Discard, file)
 		require.NoError(t, err)
 
-		require.Equal(t, randomFileSize, n, "file received by Alice must be the same size as Bob created it")
+		require.Equal(t, int64(randomFileSize), n, "file received by Alice must be the same size as Bob created it")
 	}
 }
 

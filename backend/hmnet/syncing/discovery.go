@@ -215,18 +215,23 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbs
 	if err != nil {
 		return err
 	}
-	for c, ts := range cids {
-		if err := store.Insert(ts, strbytes.Bytes(c.KeyString())); err != nil {
+	for _, c := range cids {
+		if err := store.Insert(c.Ts, strbytes.Bytes(c.CID.KeyString())); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// CIDWithTS is a CID with its timestamp.
+type CIDWithTS struct {
+	Ts  int64
+	CID cid.Cid
+}
+
 // GetRelatedMaterial gets all the related material CIDs for the given discovery keys.
-func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids map[cid.Cid]int64, err error) {
+func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids []CIDWithTS, err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
-	cids = make(map[cid.Cid]int64)
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
 		return nil, err
 	}
@@ -243,19 +248,13 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 		// Fill Links.
 		{
 			const q = `
-				WITH genesis (id) AS (
-					SELECT distinct genesis_blob FROM resources WHERE id IN rbsr_iris
-				), linked_changes (id) AS (
-					SELECT id FROM structural_blobs WHERE genesis_blob IN (SELECT id FROM genesis)
-					UNION ALL
-					SELECT id from genesis
-				)
-				SELECT r.iri,
-				rl.is_pinned,
-				rl.extra_attrs->>'v' AS version
+				SELECT
+					r.iri,
+					rl.is_pinned,
+					rl.extra_attrs->>'v' AS version
 				FROM resources r
 				JOIN resource_links rl ON r.id = rl.target
-				WHERE rl.source IN linked_changes
+				WHERE rl.source IN rbsr_blobs
 				GROUP BY r.iri, version, rl.is_pinned;`
 
 			if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
@@ -273,6 +272,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				return nil, err
 			}
 		}
+
 		// Fill Citations.
 		{
 			const q = `
@@ -326,6 +326,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			return nil, err
 		}
 	}
+
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
 	for {
@@ -372,19 +373,19 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				b.multihash
 			FROM rbsr_blobs rb
 			CROSS JOIN public_blobs pb ON pb.id = rb.id
-			CROSS JOIN structural_blobs sb ON sb.id = rb.id
-			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
-			ORDER BY sb.ts;`
+			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
+			LEFT JOIN structural_blobs sb ON sb.id = rb.id
+			ORDER BY sb.ts, b.multihash;`
 
 		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
 			var (
 				ts    = row.ColumnInt64(inc())
 				codec = row.ColumnInt64(inc())
-				hash  = row.ColumnBytes(inc())
+				hash  = row.ColumnBytesUnsafe(inc())
 			)
 			c := cid.NewCidV1(uint64(codec), hash)
-			cids[c] = ts
+			cids = append(cids, CIDWithTS{CID: c, Ts: ts})
 			return nil
 		}); err != nil {
 			return nil, err
