@@ -810,7 +810,6 @@ export function CommentContent({
   comment,
   size,
   zoomBlockRef,
-  zoomBlockRange,
   selection,
   allowHighlight = true,
 }: {
