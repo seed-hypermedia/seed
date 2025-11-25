@@ -31,7 +31,7 @@ import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
-import {queryListDirectory} from './documents'
+import {queryListDirectory, usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -42,6 +42,7 @@ type DeleteEntitiesInput = {
 export function useDeleteEntities(
   opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
 ) {
+  const push = usePushResource()
   const deleteRecent = useDeleteRecent()
   return useMutation({
     ...opts,
@@ -62,6 +63,7 @@ export function useDeleteEntities(
           })
         }),
       )
+      await Promise.all(ids.map((id) => push(id)))
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
       invalidateQueries([])

@@ -1169,6 +1169,7 @@ export function useCreateDraft(
 }
 
 export function useForkDocument() {
+  const push = usePushResource()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1200,11 +1201,14 @@ export function useForkDocument() {
           },
         },
       })
+      push(from)
+      push(to)
     },
   })
 }
 
 export function useMoveDocument() {
+  const push = usePushResource()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1250,6 +1254,8 @@ export function useMoveDocument() {
           },
         },
       })
+      push(from)
+      push(to)
     },
   })
 }

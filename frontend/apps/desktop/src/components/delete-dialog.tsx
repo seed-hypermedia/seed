@@ -27,10 +27,10 @@ export type DeleteDialogProps = {
 }
 
 export function useDeleteDialog() {
-  return useAppDialog(DeleteEntityDialog, {isAlert: true})
+  return useAppDialog(DeleteDocumentDialog, {isAlert: true})
 }
 
-export function DeleteEntityDialog({
+export function DeleteDocumentDialog({
   input: {id, onSuccess},
   onClose,
 }: {
