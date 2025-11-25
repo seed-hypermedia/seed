@@ -1186,6 +1186,7 @@ func TestPushing_Deletes(t *testing.T) {
 			}},
 		},
 	})
+	require.NoError(t, err)
 
 	ref, err := alice.RPC.DocumentsV3.CreateRef(ctx, &documents.CreateRefRequest{
 		Account:        aliceHonda.Account,
@@ -1353,6 +1354,7 @@ func TestPushing(t *testing.T) {
 			}},
 		},
 	})
+	require.NoError(t, err)
 
 	bobSubaru, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        bobIdentity.Account.PublicKey.String(),

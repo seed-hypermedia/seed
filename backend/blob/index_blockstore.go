@@ -107,7 +107,6 @@ func (idx *Index) Decompress(in, out []byte) ([]byte, error) {
 }
 
 // DAGService creates a DAGService instance from the underlying blockstore.
-// There's no need to
 func (idx *Index) DAGService() format.DAGService {
 	bsvc := blockservice.New(idx, offline.Exchange(idx))
 	return merkledag.NewDAGService(bsvc)
