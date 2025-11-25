@@ -131,9 +131,9 @@ func (n *Session) Reconcile(query []*Range) ([]*Range, error) {
 	if n.isInitiator {
 		return nil, errors.New("initiator not asking for have/need IDs")
 	}
-	var haveIds, needIds [][]byte
+	var haveIDs, needIDs [][]byte
 
-	output, err := n.reconcile(query, &haveIds, &needIds)
+	output, err := n.reconcile(query, &haveIDs, &needIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -146,12 +146,12 @@ func (n *Session) Reconcile(query []*Range) ([]*Range, error) {
 }
 
 // ReconcileWithIDs reconciles the given ranges with the other peer, and returns the IDs that are needed or have.
-func (n *Session) ReconcileWithIDs(query []*Range, haveIds, needIds *[][]byte) ([]*Range, error) {
+func (n *Session) ReconcileWithIDs(query []*Range, haveIDs, needIDs *[][]byte) ([]*Range, error) {
 	if !n.isInitiator {
 		return nil, errors.New("non-initiator asking for have/need IDs")
 	}
 
-	output, err := n.reconcile(query, haveIds, needIds)
+	output, err := n.reconcile(query, haveIDs, needIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (n *Session) ReconcileWithIDs(query []*Range, haveIds, needIds *[][]byte) (
 	return output, nil
 }
 
-func (n *Session) reconcile(query []*Range, haveIds, needIds *[][]byte) ([]*Range, error) {
+func (n *Session) reconcile(query []*Range, haveIDs, needIDs *[][]byte) ([]*Range, error) {
 	var fullOutput response
 
 	var prevBound Item
@@ -224,7 +224,7 @@ func (n *Session) reconcile(query []*Range, haveIds, needIds *[][]byte) ([]*Rang
 				have := item.Value
 				if _, exists := theirElems[string(have)]; !exists {
 					if n.isInitiator {
-						*haveIds = append(*haveIds, have)
+						*haveIDs = append(*haveIDs, have)
 					}
 				} else {
 					delete(theirElems, string(have))
@@ -238,7 +238,7 @@ func (n *Session) reconcile(query []*Range, haveIds, needIds *[][]byte) ([]*Rang
 				skip = true
 
 				for _, v := range theirElems {
-					*needIds = append(*needIds, v)
+					*needIDs = append(*needIDs, v)
 				}
 			} else {
 				doSkip()
@@ -322,7 +322,7 @@ func (n *Session) SplitRange(lower, upper int, upperBound Item, output *response
 			Values:         make([][]byte, 0, numElems),
 		}
 
-		if err := n.store.ForEach(lower, upper, func(i int, item Item) bool {
+		if err := n.store.ForEach(lower, upper, func(_ int, item Item) bool {
 			rng.Values = append(rng.Values, item.Value)
 			return true
 		}); err != nil {
@@ -377,7 +377,7 @@ func (n *Session) SplitRange(lower, upper int, upperBound Item, output *response
 }
 
 func (n *Session) checkMessageSize(size int) (ok bool) {
-	return n.msgSizeLimit != 0 && size > int(n.msgSizeLimit)-200
+	return n.msgSizeLimit != 0 && size > int(n.msgSizeLimit)-200 //nolint:gosec
 }
 
 // Fingerprint computes the fingerprint of the given range.

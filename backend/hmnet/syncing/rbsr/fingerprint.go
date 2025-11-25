@@ -6,6 +6,7 @@ import (
 	"unsafe"
 )
 
+// Fingerprint is the RBSR fingerprint.
 type Fingerprint [fingerprintSize]byte
 
 type accumulator struct {
@@ -46,7 +47,7 @@ func (acc *accumulator) Add(other [32]byte) {
 func (acc *accumulator) Fingerprint() Fingerprint {
 	buf := make([]byte, 0, len(acc.sum)+8) // sum + len will be hashed.
 	buf = append(buf, acc.sum[:]...)
-	buf = binary.LittleEndian.AppendUint64(buf, uint64(acc.len))
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(acc.len)) //nolint:gosec
 
 	hash := sha256.Sum256(buf)
 

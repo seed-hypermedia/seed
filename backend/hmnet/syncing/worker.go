@@ -313,14 +313,17 @@ func offsetInterval(pid peer.ID, interval time.Duration) time.Duration {
 	var hash uint64
 	{
 		h := fnv.New64a()
-		h.Write([]byte(pid))
+		_, err := h.Write([]byte(pid))
+		if err != nil {
+			panic(err)
+		}
 		hash = h.Sum64()
 	}
 
 	var (
 		base   = int64(interval) - now%int64(interval)
 		offset = hash % uint64(interval)
-		next   = base + int64(offset)
+		next   = base + int64(offset) //nolint:gosec
 	)
 
 	if next > int64(interval) {
@@ -328,11 +331,4 @@ func offsetInterval(pid peer.ID, interval time.Duration) time.Duration {
 	}
 
 	return time.Duration(next)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

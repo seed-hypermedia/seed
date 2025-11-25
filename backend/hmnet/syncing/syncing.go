@@ -48,11 +48,6 @@ var (
 		Help: "Number of blobs we want to sync at this time. Same blob may be counted multiple times if it's wanted from multiple peers.",
 	}, []string{"package"})
 
-	mWantedBlobsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "seed_syncing_wanted_blobs_total",
-		Help: "The total number of blobs we wanted to sync from a single peer sync. Same blob may be counted multiple times if it's wanted from multiple peers.",
-	})
-
 	mSyncsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "seed_syncing_periodic_operations_total",
 		Help: "The total number of periodic sync operations performed with peers (groups don't count).",
@@ -118,6 +113,7 @@ type bitswap interface {
 	FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo
 }
 
+// Storage is a subset of the larger storage interface required by the syncing service.
 type Storage interface {
 	DB() *sqlitex.Pool
 	// Service manages syncing of Seed objects among peers.
@@ -199,7 +195,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer B
 	return svc
 }
 
-// SetDocGetter sets the local Doc getter when its ready
+// SetDocGetter sets the local Doc getter when its ready.
 func (s *Service) SetDocGetter(docGetter ResourceAPI) {
 	s.resources = docGetter
 }
@@ -373,7 +369,6 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 			return nil
 		})
 	}); err != nil {
-
 		return res, err
 	}
 
@@ -400,7 +395,7 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	}
 
 	if len(allPeers) == 0 {
-		return res, fmt.Errorf("Could not find any provider for any of the subscribed content")
+		return res, fmt.Errorf("could not find any provider for any of the subscribed content")
 	}
 	s.log.Debug("Syncing Subscribed content", zap.Int("Number of documents", len(eidsMap)), zap.Int("Number of peers", len(allPeers)))
 	for _, pid := range allPeers {
@@ -426,7 +421,7 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	return s.syncWithManyPeers(ctx, subsMap, store, &DiscoveryProgress{}), nil
 }
 
-// syncWithManyPeers syncs with many peers in parallel
+// syncWithManyPeers syncs with many peers in parallel.
 func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store rbsr.Store, prog *DiscoveryProgress) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
@@ -513,7 +508,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
-		return fmt.Errorf("Can't sync with self")
+		return fmt.Errorf("can't sync with self")
 	}
 	prog.PeersFound.Add(1)
 	{
@@ -566,7 +561,7 @@ func syncEntities(
 
 	localHaves := make(colx.HashSet[cid.Cid], store.Size())
 
-	if err := store.ForEach(0, store.Size(), func(i int, it rbsr.Item) bool {
+	if err := store.ForEach(0, store.Size(), func(_ int, it rbsr.Item) bool {
 		localCid, err := cid.Cast(it.Value)
 		if err != nil {
 			panic(err)
@@ -604,7 +599,7 @@ func syncEntities(
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
-			return fmt.Errorf("Too many rounds of interactive syncing")
+			return fmt.Errorf("too many rounds of interactive syncing")
 		}
 
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{

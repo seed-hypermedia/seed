@@ -1,3 +1,4 @@
+// Package syncing provides functionality for P2P syncing and discovery of data.
 package syncing
 
 import (
@@ -10,7 +11,6 @@ import (
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
 	"seed/backend/util/colx"
-	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/strbytes"
@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it
+// DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it.
 const (
 	DefaultDiscoveryTimeout = time.Second * 30
 	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 3
@@ -65,7 +65,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	defer cancel()
 	c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte(entityID))
 	if err != nil {
-		return "", fmt.Errorf("Couldn't encode eid into CID: %w", err)
+		return "", fmt.Errorf("couldn't encode eid into CID: %w", err)
 	}
 
 	vstr := version.String()
@@ -178,7 +178,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			return blob.Version(doc.Version), nil
 		}
 	}
-	return "", fmt.Errorf("Found some DHT providers but could not get document from them %s", c.String())
+	return "", fmt.Errorf("found some DHT providers but could not get document from them %s", c.String())
 }
 
 // loadStore creates and populates an RBSR store for the given discovery keys.
@@ -227,16 +227,16 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbs
 func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids map[cid.Cid]int64, err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
 	cids = make(map[cid.Cid]int64)
-	if err = ensureTempTable(conn, "rbsr_iris"); err != nil {
-		return
+	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
+		return nil, err
 	}
 
-	if err = ensureTempTable(conn, "rbsr_blobs"); err != nil {
-		return
+	if err := ensureTempTable(conn, "rbsr_blobs"); err != nil {
+		return nil, err
 	}
 
-	if err = fillTables(conn, dkeys, includeLinksCitationsAccounts); err != nil {
-		return
+	if err := fillTables(conn, dkeys, includeLinksCitationsAccounts); err != nil {
+		return nil, err
 	}
 	if includeLinksCitationsAccounts {
 		var linkIRIs = make(map[DiscoveryKey]struct{})
@@ -258,7 +258,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				WHERE rl.source IN linked_changes
 				GROUP BY r.iri, version, rl.is_pinned;`
 
-			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+			if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 				var iri = blob.IRI(stmt.ColumnText(0))
 				var version = blob.Version(stmt.ColumnText(2))
 				var isPinned = stmt.ColumnInt(1) != 0
@@ -270,7 +270,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				linkIRIs[dKey] = struct{}{}
 				return nil
 			}); err != nil {
-				return
+				return nil, err
 			}
 		}
 		// Fill Citations.
@@ -291,7 +291,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 						ELSE coalesce(structural_blobs.genesis_blob, structural_blobs.id)
 					END
 				WHERE resource_links.target IN rbsr_iris;`
-			if err = sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+			if err := sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
 				var (
 					author   = core.Principal(stmt.ColumnBytesUnsafe(0)).String()
 					tsid     = blob.TSID(stmt.ColumnText(1))
@@ -306,7 +306,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				linkIRIs[dKey] = struct{}{}
 				return nil
 			}); err != nil {
-				return
+				return nil, err
 			}
 		}
 		// Fill Comment Links.
@@ -318,21 +318,20 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				WHERE source IN rbsr_blobs
 				AND type GLOB 'comment*';`
 
-			if err = sqlitex.Exec(conn, q, nil); err != nil {
-				return
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return nil, err
 			}
 		}
-		if err = fillTables(conn, linkIRIs, true); err != nil {
-			return
+		if err := fillTables(conn, linkIRIs, true); err != nil {
+			return nil, err
 		}
 	}
 	// Find recursively all the agent capabilities for authors of the blobs we've currently selected,
 	// until we can't find any more.
-	blobCountBefore := 0
 	for {
-		blobCountBefore, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		if blobCountBefore == 0 {
@@ -351,13 +350,13 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			)
 			AND sb.extra_attrs->>'role' = 'AGENT';`
 
-		if err = sqlitex.Exec(conn, q, nil); err != nil {
-			return
+		if err := sqlitex.Exec(conn, q, nil); err != nil {
+			return nil, err
 		}
-		blobCountAfter := 0
-		blobCountAfter, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
+
+		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		if blobCountAfter == blobCountBefore {
@@ -377,7 +376,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
 			ORDER BY sb.ts;`
 
-		if err = sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
+		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
 			var (
 				ts    = row.ColumnInt64(inc())
@@ -388,11 +387,11 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			cids[c] = ts
 			return nil
 		}); err != nil {
-			return
+			return nil, err
 		}
 	}
 
-	return
+	return cids, nil
 }
 
 func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {
@@ -573,11 +572,3 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
 }
-
-var qGetEntity = dqb.Str(`
-	SELECT
-		iri
-	FROM resources
-	WHERE iri = :iri
-	LIMIT 1;
-`)
