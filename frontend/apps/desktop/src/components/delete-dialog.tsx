@@ -69,6 +69,7 @@ export function DeleteDocumentDialog({
         {doc.error || 'Could not load document'}
       </Text>
     )
+  const childDocIds = childDocs.map((item) => hmId(id.uid, {path: item.path}))
   return (
     <div className="flex max-w-[440px] flex-col gap-4 rounded-lg p-4">
       <Text className="text-lg font-semibold">
@@ -116,10 +117,7 @@ export function DeleteDocumentDialog({
             if (!cap || !roleCanWrite(cap?.role))
               throw new Error('Not allowed to delete')
             deleteEntity.mutate({
-              ids: [
-                id,
-                ...childDocs.map((item) => hmId(id.uid, {path: item.path})),
-              ],
+              ids: [id, ...childDocIds],
               signingAccountUid: cap.accountUid,
               capabilityId: cap.capabilityId,
             })

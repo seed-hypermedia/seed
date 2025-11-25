@@ -988,14 +988,34 @@ export function usePushResource() {
 
     const pushResourceUrl = createHMUrl(resourceIdToPush)
     // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
-    await grpcClient.resources.pushResourcesToPeer({
+    const pushProgress = await grpcClient.resources.pushResourcesToPeer({
       addrs: Array.from(peerIds),
       resources: [pushResourceUrl],
     })
-    // todo: show progress updates, ideally broken down by peer. if one peer fails, we should show the others that succeed.
-    outputStatus.hosts.forEach(({peerId}) => {
-      if (peerId) updatePeerStatus(peerId, 'success', 'Done')
-    })
+
+    // Iterate over the stream to receive progress updates
+    for await (const progress of pushProgress) {
+      console.log('== Push progress:', progress)
+      // Update all peers with the latest progress
+      outputStatus.hosts.forEach(({peerId}) => {
+        if (peerId) {
+          const status =
+            progress.peersFailed > 0
+              ? 'error'
+              : progress.peersSyncedOk > 0
+              ? 'success'
+              : 'pending'
+          const message =
+            progress.blobsDownloaded > 0
+              ? `Synced ${progress.blobsDownloaded}/${progress.blobsDiscovered} blobs`
+              : progress.peersSyncedOk > 0
+              ? 'Done'
+              : 'Syncing...'
+          updatePeerStatus(peerId, status, message)
+        }
+      })
+      onStatusChange?.(outputStatus)
+    }
 
     return true
   }
