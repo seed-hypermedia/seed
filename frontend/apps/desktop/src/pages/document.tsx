@@ -17,6 +17,7 @@ import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
   useDocumentRead,
+  usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
@@ -29,6 +30,7 @@ import '@shm/editor/editor.css'
 import {
   AccessoryOptions,
   calculateBlockCitations,
+  commentIdToHmId,
   DocumentRoute,
   getCommentTargetId,
   HMDocument,
@@ -217,7 +219,7 @@ function DocumentPageContent({
     homeDoc.data?.type === 'document'
       ? homeDoc.data.document.metadata.siteUrl
       : undefined
-
+  const pushResource = usePushResource()
   const onCommentDelete = useCallback(
     (commentId: string, signingAccountId?: string) => {
       if (!signingAccountId || !docId) return
@@ -228,6 +230,7 @@ function DocumentPageContent({
             targetDocId: docId,
             signingAccountId,
           })
+          pushResource(commentIdToHmId(commentId))
         },
       })
     },

@@ -6,8 +6,12 @@ import (
 
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/boxo/blockservice"
+	"github.com/ipfs/boxo/exchange/offline"
+	"github.com/ipfs/boxo/ipld/merkledag"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"github.com/multiformats/go-multicodec"
 )
 
@@ -100,4 +104,10 @@ func (idx *Index) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 // TODO(burdiyan): this should probably not be exposed, but it is right now for convenience.
 func (idx *Index) Decompress(in, out []byte) ([]byte, error) {
 	return idx.bs.decoder.DecodeAll(in, out)
+}
+
+// DAGService creates a DAGService instance from the underlying blockstore.
+func (idx *Index) DAGService() format.DAGService {
+	bsvc := blockservice.New(idx, offline.Exchange(idx))
+	return merkledag.NewDAGService(bsvc)
 }

@@ -1,4 +1,4 @@
-import {usePublishToSite} from '@/models/documents'
+import {PushResourceStatus, usePushResource} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, packHmId} from '@shm/shared/utils/entity-id-url'
@@ -28,7 +28,7 @@ export function useCopyReferenceUrl(
     overrideNavigation: overrideNav,
   })
   const pushOnCopy = usePushOnCopy()
-  const publishToSite = usePublishToSite()
+  const pushResource = usePushResource()
   function onCopy(input: UnpackedHypermediaId) {
     const url = createWebHMUrl(input.uid, {
       version: input.version,
@@ -43,33 +43,24 @@ export function useCopyReferenceUrl(
     if (pushOnCopy.data === 'never') {
       return
     }
-    const [setIsPublished, isPublished] =
-      writeableStateStream<IsPublishedState>(null)
+    const [setPushStatus, pushStatus] =
+      writeableStateStream<PushResourceStatus | null>(null)
 
-    const publishPromise = publishToSite(input, hostname)
-      .then((didPublish) => {
-        if (didPublish) {
-          setIsPublished(true)
-        } else {
-          setIsPublished(false)
-        }
-      })
-      .catch((e) => {
-        toast.error('Failed to Publish: ' + e.message)
-        setIsPublished(false)
-      })
+    const publishPromise = pushResource(input, hostname, (status) => {
+      setPushStatus(status)
+    })
     toast.promise(publishPromise, {
       loading: `Pushing to ${hostname}`,
       success: (
         <CopiedToast
-          isPublished={isPublished}
+          pushStatus={pushStatus}
           host={hostname}
           hmId={packHmId(input)}
         />
       ),
       error: (
         <CopiedToast
-          isPublished={isPublished}
+          pushStatus={pushStatus}
           host={hostname}
           hmId={packHmId(input)}
         />
@@ -80,41 +71,38 @@ export function useCopyReferenceUrl(
 }
 
 function CopiedToast({
-  isPublished,
+  pushStatus,
   host,
   hmId,
 }: {
-  isPublished: StateStream<IsPublishedState>
+  pushStatus: StateStream<PushResourceStatus | null>
   host: string
   hmId: string
 }) {
-  const published = useStream(isPublished)
+  const status = useStream(pushStatus)
   let indicator: ReactNode = null
   let message: ReactNode = ''
-  if (published === null) {
+  if (status === null) {
     indicator = (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
-    message = (
-      <>
-        Copied URL, pushing to <b>{host}</b>
-      </>
-    )
-  } else if (published === true) {
-    message = (
-      <>
-        Copied URL, available on <b>{host}</b>
-      </>
-    )
-  } else if (published === false) {
-    message = (
-      <>
-        Copied URL, failed to push to <b>{host}</b>
-      </>
-    )
+    message = <>{JSON.stringify(status)}</>
   }
+  // else if (published === true) {
+  //   message = (
+  //     <>
+  //       Copied URL, available on <b>{host}</b>
+  //     </>
+  //   )
+  // } else if (published === false) {
+  //   message = (
+  //     <>
+  //       Copied URL, failed to push to <b>{host}</b>
+  //     </>
+  //   )
+  // }
   return message
 }
 

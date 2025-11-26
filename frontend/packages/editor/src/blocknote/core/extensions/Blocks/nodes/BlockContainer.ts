@@ -140,12 +140,7 @@ class HeadingBoxPlugin {
 
     if (res && res.heading?.type.name == 'heading') {
       let {node} = view.domAtPos(res.groupStartPos)
-
-      console.log(`== ~ update ~ node:`, node)
       let rect = (node as HTMLElement).getBoundingClientRect()
-
-      console.log(`== ~ update ~ rect:`, rect)
-
       let editorRect = view.dom.getBoundingClientRect()
       let groupPadding = 10
       let editorPaddingTop = 32

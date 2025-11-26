@@ -1,15 +1,17 @@
+import {UseQueryResult} from '@tanstack/react-query'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMMetadataPayload,
+  HMQuery,
+  HMQueryResult,
   HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
 import {HMMetadataPayloadSchema} from './hm-types'
-import {hmId, packHmId} from './utils/entity-id-url'
 import {useResource, useResources} from './models/entity'
 import type {Contact, SearchPayload, UniversalClient} from './universal-client'
-import {UseQueryResult} from '@tanstack/react-query'
+import {hmId, packHmId} from './utils/entity-id-url'
 
 export type WebClientDependencies = {
   // API utilities
@@ -133,6 +135,11 @@ export function createWebUniversalClient(
     },
 
     loadRecents: deps.loadRecents || (async () => []),
+
+    loadQuery: async (_query: HMQuery): Promise<HMQueryResult | null> => {
+      console.error('loadQuery not yet implemented for web')
+      return null
+    },
 
     deleteRecent: deps.deleteRecent || (async () => {}),
   }

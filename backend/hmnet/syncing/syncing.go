@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"seed/backend/blob"
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
@@ -30,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -45,11 +47,6 @@ var (
 		Name: "seed_syncing_wanted_blobs",
 		Help: "Number of blobs we want to sync at this time. Same blob may be counted multiple times if it's wanted from multiple peers.",
 	}, []string{"package"})
-
-	mWantedBlobsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "seed_syncing_wanted_blobs_total",
-		Help: "The total number of blobs we wanted to sync from a single peer sync. Same blob may be counted multiple times if it's wanted from multiple peers.",
-	})
 
 	mSyncsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "seed_syncing_periodic_operations_total",
@@ -88,6 +85,15 @@ var (
 	})
 )
 
+// HmRe is the regular expression to parse IRIS with versions and latest flag.
+var HmRe = regexp.MustCompile(
+	`^hm://` +
+		`(?P<account>[A-Za-z0-9]+)` + // account (required)
+		`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
+		`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
+		`(?P<latest>&l)?$`, // latest flag (optional)
+)
+
 // Force metric to appear even if there's no blobs to sync.
 func init() {
 	MSyncingWantedBlobs.WithLabelValues("syncing").Set(0)
@@ -96,7 +102,7 @@ func init() {
 
 // netDialFunc is a function of the Seed P2P node that creates an instance
 // of a Syncing RPC client for a given remote Device ID.
-type netDialFunc func(context.Context, peer.ID) (p2p.SyncingClient, error)
+type netDialFunc func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 
 // subscriptionMap is a map of peer IDs to an IRI and a boolean indicating whether it's a recursive subscription.
 type subscriptionMap map[peer.ID]map[string]bool
@@ -107,6 +113,7 @@ type bitswap interface {
 	FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo
 }
 
+// Storage is a subset of the larger storage interface required by the syncing service.
 type Storage interface {
 	DB() *sqlitex.Pool
 	// Service manages syncing of Seed objects among peers.
@@ -158,7 +165,7 @@ const peerRoutingConcurrency = 3 // how many concurrent requests for peer routin
 // P2PNode is a subset of the hmnet Node that is used by syncing service.
 type P2PNode interface {
 	Bitswap() *ipfs.Bitswap
-	SyncingClient(context.Context, peer.ID) (p2p.SyncingClient, error)
+	SyncingClient(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 	Client(context.Context, peer.ID) (p2p.P2PClient, error)
 	Libp2p() *ipfs.Libp2p
 	CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error)
@@ -188,7 +195,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer B
 	return svc
 }
 
-// SetDocGetter sets the local Doc getter when its ready
+// SetDocGetter sets the local Doc getter when its ready.
 func (s *Service) SetDocGetter(docGetter ResourceAPI) {
 	s.resources = docGetter
 }
@@ -362,7 +369,6 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 			return nil
 		})
 	}); err != nil {
-
 		return res, err
 	}
 
@@ -389,7 +395,7 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	}
 
 	if len(allPeers) == 0 {
-		return res, fmt.Errorf("Could not find any provider for any of the subscribed content")
+		return res, fmt.Errorf("could not find any provider for any of the subscribed content")
 	}
 	s.log.Debug("Syncing Subscribed content", zap.Int("Number of documents", len(eidsMap)), zap.Int("Number of peers", len(allPeers)))
 	for _, pid := range allPeers {
@@ -399,9 +405,9 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	}
 
 	// Create RBSR store for all subscriptions
-	dkeys := make(colx.HashSet[discoveryKey], len(subs))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(subs))
 	for _, subs := range subs {
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI("hm://" + subs.Account + subs.Path),
 			Recursive: subs.Recursive,
 		})
@@ -415,7 +421,7 @@ func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, e
 	return s.syncWithManyPeers(ctx, subsMap, store, &DiscoveryProgress{}), nil
 }
 
-// syncWithManyPeers syncs with many peers in parallel
+// syncWithManyPeers syncs with many peers in parallel.
 func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store rbsr.Store, prog *DiscoveryProgress) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
@@ -423,7 +429,6 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	res.Peers = make([]peer.ID, len(subsMap))
 	res.Errs = make([]error, len(subsMap))
 
-	prog.PeersFound.Add(int32(len(subsMap)))
 	for pid, eids := range subsMap {
 		go func(i int, pid peer.ID, eids map[string]bool) {
 			var err error
@@ -455,19 +460,62 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
+// SyncResourcesWithPeer syncs the given resources with a specific peer.
+// method is exposed for use externally, (pushing content to a peer).
+func (s *Service) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *DiscoveryProgress) error {
+	dkeys := make(colx.HashSet[DiscoveryKey], len(resources))
+	rkeys := map[string]bool{}
+	for _, r := range resources {
+		m := HmRe.FindStringSubmatch(r)
+		if m == nil {
+			return fmt.Errorf("invalid resource format: %s", r)
+		}
+
+		result := map[string]string{}
+		for i, name := range HmRe.SubexpNames() {
+			if i == 0 || name == "" {
+				continue
+			}
+			result[name] = m[i]
+		}
+		if _, ok := result["account"]; !ok || result["account"] == "" {
+			return fmt.Errorf("resource missing account: %s", r)
+		}
+		if _, ok := result["path"]; !ok {
+			result["path"] = ""
+		}
+		resource := "hm://" + result["account"] + result["path"]
+		dkeys.Put(DiscoveryKey{
+			IRI:       blob.IRI(resource),
+			Recursive: false,
+		})
+		rkeys[resource] = false
+	}
+
+	store, err := s.loadStore(ctx, dkeys)
+	if err != nil {
+		return fmt.Errorf("failed to create RBSR store: %w", err)
+	}
+	if err = s.syncWithPeer(ctx, pid, rkeys, store, prog); err != nil {
+		prog.PeersFailed.Add(1)
+		return err
+	}
+	prog.PeersSyncedOK.Add(1)
+	return nil
+}
+
 func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store rbsr.Store, prog *DiscoveryProgress) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
-		return fmt.Errorf("Can't sync with self")
+		return fmt.Errorf("can't sync with self")
 	}
-
+	prog.PeersFound.Add(1)
 	{
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
-	s.log.Debug("SyncWithPeer called")
 	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
 		s.log.Debug("Could not get syncing client", zap.Error(err))
@@ -513,7 +561,7 @@ func syncEntities(
 
 	localHaves := make(colx.HashSet[cid.Cid], store.Size())
 
-	if err := store.ForEach(0, store.Size(), func(i int, it rbsr.Item) bool {
+	if err := store.ForEach(0, store.Size(), func(_ int, it rbsr.Item) bool {
 		localCid, err := cid.Cast(it.Value)
 		if err != nil {
 			panic(err)
@@ -551,7 +599,7 @@ func syncEntities(
 	for msg != nil {
 		rounds++
 		if rounds > 1000 {
-			return fmt.Errorf("Too many rounds of interactive syncing")
+			return fmt.Errorf("too many rounds of interactive syncing")
 		}
 
 		res, err := c.ReconcileBlobs(ctx, &p2p.ReconcileBlobsRequest{

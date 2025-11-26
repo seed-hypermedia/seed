@@ -17,17 +17,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/ipfs/boxo/blockservice"
 	blockstore "github.com/ipfs/boxo/blockstore"
-	chunker "github.com/ipfs/boxo/chunker"
 	"github.com/ipfs/boxo/exchange"
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
-	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
-	"github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	"github.com/multiformats/go-multicodec"
-	multihash "github.com/multiformats/go-multihash"
 	"go.uber.org/zap"
 )
 
@@ -37,18 +33,6 @@ const (
 	// SearchTimeout is the maximum time we are searching for a file.
 	SearchTimeout = 30 * time.Second
 )
-
-// AddParams contains all of the configurable parameters needed to specify the
-// importing process of a file.
-type AddParams struct {
-	Layout    string
-	Chunker   string
-	RawLeaves bool
-	Hidden    bool
-	Shard     bool
-	NoCopy    bool
-	HashFun   string
-}
 
 // FileManager is the main object to handle ipfs files.
 type FileManager struct {
@@ -278,40 +262,7 @@ func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 // addFile chunks and adds content to the DAGService from a reader. The content
 // is stored as a UnixFS DAG (default for IPFS). It returns the root ipld.Node.
 func (fm *FileManager) addFile(r io.Reader) (ipld.Node, error) {
-	params := &AddParams{}
-
-	prefix, err := merkledag.PrefixForCidVersion(1)
-	if err != nil {
-		return nil, fmt.Errorf("bad CID Version: %w", err)
-	}
-
-	hashFunCode, ok := multihash.Names[strings.ToLower("sha2-256")]
-	if !ok {
-		return nil, fmt.Errorf("unrecognized hash function: %s", "sha2-256")
-	}
-	prefix.MhType = hashFunCode
-	prefix.MhLength = -1
-
-	dbp := helpers.DagBuilderParams{
-		Dagserv:    fm.DAGService,
-		RawLeaves:  true, // Leave the actual file bytes untouched instead of wrapping them in a dag-pb protobuf wrapper
-		Maxlinks:   helpers.DefaultLinksPerBlock,
-		NoCopy:     false,
-		CidBuilder: &prefix,
-	}
-
-	chnk, err := chunker.FromString(r, params.Chunker)
-	if err != nil {
-		return nil, err
-	}
-	dbh, err := dbp.New(chnk)
-	if err != nil {
-		return nil, err
-	}
-
-	var n ipld.Node
-	n, err = balanced.Layout(dbh)
-	return n, err
+	return ipfs.WriteUnixFSFile(fm.DAGService, r)
 }
 
 func isLocalhost(r *http.Request) bool {

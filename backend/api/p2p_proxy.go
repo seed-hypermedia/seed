@@ -29,6 +29,39 @@ func (p *p2pProxy) RegisterServer(srv grpc.ServiceRegistrar) {
 	p2p.RegisterSyncingServer(srv, p)
 }
 
+func (p *p2pProxy) FetchBlobs(in *p2p.FetchBlobsRequest, stream p2p.Syncing_FetchBlobsServer) error {
+	ctx := stream.Context()
+	pid, err := p.targetPeer(ctx)
+	if err != nil {
+		return err
+	}
+
+	client, err := p.node.SyncingClient(ctx, pid)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.FetchBlobs(ctx, in)
+	if err != nil {
+		return err
+	}
+
+	for {
+		msg, err := resp.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Send(msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 func (p *p2pProxy) ListBlobs(in *p2p.ListBlobsRequest, stream p2p.P2P_ListBlobsServer) error {
 	ctx := stream.Context()
 

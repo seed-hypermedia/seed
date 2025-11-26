@@ -8,7 +8,7 @@ import {
   hmId,
   unpackHmId,
 } from '@shm/shared'
-import {getQueryResultsWithClient} from '@shm/shared/models/directory'
+import {createQueryResolver} from '@shm/shared/models/directory'
 
 export type DirectoryPayload = {
   directory?: HMDocumentInfo[]
@@ -16,7 +16,7 @@ export type DirectoryPayload = {
   error?: string
 }
 
-const loadQueryResults = getQueryResultsWithClient(grpcClient)
+const loadQueryResults = createQueryResolver(grpcClient)
 
 export const loader = async ({
   request,

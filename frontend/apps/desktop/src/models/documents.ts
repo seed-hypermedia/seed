@@ -4,15 +4,16 @@ import {useDraft} from '@/models/accounts'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
-import {trpc} from '@/trpc'
+import {trpc, client as trpcClient} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
+import {getCommentTargetId, HMAnnotation, useUniversalClient} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {extractRefs} from '@shm/shared/content'
+import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@shm/shared/editor-types'
 import {
@@ -28,7 +29,6 @@ import {
   HMNavigationItem,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {getQueryResultsWithClient} from '@shm/shared/models/directory'
 import {
   prepareHMDocumentInfo,
   useResource,
@@ -74,14 +74,12 @@ import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
 import {useNavigate} from '../utils/useNavigate'
-import {useConnectPeer} from './contacts'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {getParentPaths} from './entities'
-import {useGatewayUrlStream} from './gateway-settings'
+import {loadQuery} from './entities'
+import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
-import {siteDiscover} from './web-links'
 
 export const [draftDispatch, draftEvents] = eventStream<{
   type: 'change'
@@ -182,7 +180,7 @@ type PublishDraftInput = {
   destinationId: UnpackedHypermediaId
   accountId: string
 }
-export function usePublishDraft(
+export function usePublishResource(
   editId: UnpackedHypermediaId | undefined | null,
   opts?: UseMutationOptions<HMDocument, unknown, PublishDraftInput>,
 ) {
@@ -803,171 +801,225 @@ export type BlocksMapItem = {
   block: HMBlock
 }
 
-function useGetDoc() {
-  async function getDoc(id: UnpackedHypermediaId) {
-    const path = hmIdPathToEntityQueryPath(id.path)
-    const apiDoc = await grpcClient.documents.getDocument({
-      account: id.uid,
-      path,
-      version: id.version || undefined,
-    })
-
-    return prepareHMDocument(apiDoc)
-  }
-  return getDoc
+export type PushResourceStatus = {
+  hosts: {
+    host: string
+    status: 'success' | 'error' | 'pending'
+    peerId?: string
+    message?: string
+  }[]
 }
 
-export function usePublishToSite() {
-  const connectPeer = useConnectPeer()
+export function usePushResource() {
+  const client = useUniversalClient()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
 
-  const getDoc = useGetDoc()
   return async (
     id: UnpackedHypermediaId,
-    siteHost?: string,
+    onlyPushToHost?: string,
+    onStatusChange?: (status: PushResourceStatus) => void,
   ): Promise<boolean> => {
-    const getQueryResults = getQueryResultsWithClient(grpcClient)
+    const resource = await client.loadResource(id)
+    // step 1. find all the site IDs that will be affected by this resource.
+    // console.log('== publish 1', id, resource, gwUrl)
+    let destinationSiteUids = new Set<string>()
 
-    // list of all references. this should be populated with an ID before extractReferenceMaterials is called for it
-    const allReferenceIds: UnpackedHypermediaId[] = [] // do not include id, because it is the root document that does the referencing
-    // list of all hmUrls that have already been referenced. this is used to avoid infinite loops
-    const alreadyReferencedHmUrls = new Set<string>([])
-
-    async function extractReferenceMaterials(
-      id: UnpackedHypermediaId,
-      document: HMDocument,
-    ) {
-      const hmUrl = createHMUrl(id)
-      if (alreadyReferencedHmUrls.has(hmUrl)) {
-        return
-      }
-
-      async function extractQueryDependencies(blockNodes: HMBlockNode[]) {
-        await Promise.all(
-          blockNodes.map(async (node: HMBlockNode) => {
-            node.children &&
-              (await extractQueryDependencies(node.children || []))
-            if (node.block.type === 'Query') {
-              const query = node.block.attributes.query
-              const results = await getQueryResults(query)
-              if (results) {
-                await Promise.all(
-                  results.results.map(async (result) => {
-                    const {id} = result
-                    allReferenceIds.push(id)
-                    await extractReferenceMaterials(id, document)
-                  }),
-                )
-              }
-            }
-          }),
-        )
-      }
-
-      async function extractEmbedDependencies(blockNodes: HMBlockNode[]) {
-        await Promise.all(
-          blockNodes.map(async (node) => {
-            node.children &&
-              (await extractEmbedDependencies(node.children || []))
-            if (node.block.type === 'Embed' && node.block.link) {
-              const id = unpackHmId(node.block.link)
-              if (id) {
-                allReferenceIds.push(id)
-                await extractReferenceMaterials(id, document)
-              }
-            }
-            // @ts-expect-error
-            if (node.block.annotations) {
-              await Promise.all(
-                // @ts-expect-error
-                node.block.annotations.map(async (annotation) => {
-                  if (annotation.type === 'Embed' && annotation.link) {
-                    const id = unpackHmId(annotation.link)
-                    if (id) {
-                      allReferenceIds.push(id)
-                      await extractReferenceMaterials(id, document)
-                    }
-                  }
-                }),
-              )
-            }
-          }),
-        )
-      }
-      alreadyReferencedHmUrls.add(hmUrl) // do this before running the queries and embeds, so that we don't recursively hit the same url
-      await extractQueryDependencies(document.content)
-      await extractEmbedDependencies(document.content)
-    }
-
-    const doc = await getDoc(id)
-
-    const authors = new Set(doc.authors)
-    await connectPeer.mutateAsync(siteHost)
-    const parentPaths = getParentPaths(id.path)
-    const syncParentIds: UnpackedHypermediaId[] = []
-    parentPaths.forEach((path) => {
-      if (!!id.path && path.length === id.path.length) {
-        return
-      }
-      if (authors.has(id.uid) && path.length === 0) {
-        return
-      }
-      syncParentIds.push(hmId(id.uid, {path}))
-    })
-    const authorIds = (
-      await Promise.all(
-        doc.authors.map(async (authorUid) => {
-          try {
-            // we want to make sure the site has our version of each author (or later). so we need to provide the version into the id for discovery
-            const authorDoc = await grpcClient.documents.getDocument({
-              account: authorUid,
-            })
-            const authorId = hmId(authorUid, {version: authorDoc.version})
-            if (authorId.uid === id.uid && authorId.version === doc.version) {
-              // we are already discovering this doc, so it does not need to be included in the list of authorIds
-              return null
-            }
-            return authorId
-          } catch (e) {
-            // probably failed to find the author. this should not be fatal for the site publish workflow
-            return null
+    function extractBNReferences(blockNodes: HMBlockNode[]) {
+      blockNodes.forEach(async (node) => {
+        node.children && extractBNReferences(node.children || [])
+        if (node.block.type === 'Query') {
+          const query = node.block.attributes.query
+          query.includes.forEach((include) => {
+            destinationSiteUids.add(include.space)
+          })
+        }
+        if (node.block.type === 'Embed') {
+          const id = unpackHmId(node.block.link)
+          if (id) {
+            destinationSiteUids.add(id.uid)
           }
-        }),
-      )
-    ).filter((a) => !!a)
-    await extractReferenceMaterials(id, doc)
-    const referenceMaterialIds = new Set<string>()
-    allReferenceIds.forEach((id) => {
-      referenceMaterialIds.add(createHMUrl(id))
-    })
-    authorIds.forEach((id) => {
-      referenceMaterialIds.add(createHMUrl(id))
-    })
-    syncParentIds.forEach((id) => {
-      referenceMaterialIds.add(createHMUrl(id))
-    })
-    await siteDiscover({
-      uid: id.uid,
-      version: id.version,
-      path: id.path,
-      host: siteHost || DEFAULT_GATEWAY_URL,
-      media: true,
-    })
-    for (const url of Array.from(referenceMaterialIds)) {
-      const id = unpackHmId(url)
-      if (!id) continue
-      await siteDiscover({
-        uid: id.uid,
-        version: id.version,
-        path: id.path,
-        host: siteHost || DEFAULT_GATEWAY_URL,
-        media: true,
+        }
+        const annotations = getAnnotations(node.block)
+        annotations?.forEach((annotation: HMAnnotation) => {
+          const id = unpackHmId(annotation.link)
+          if (id) {
+            destinationSiteUids.add(id.uid)
+          }
+        })
       })
     }
+
+    // for documents:
+    // - the site that the document is in
+    // - each author of the document
+    // - all the sites that the document directly references through embeds,links,mentions, and queries
+
+    if (resource.type === 'document') {
+      destinationSiteUids.add(resource.id.uid)
+      resource.document.authors.forEach((authorUid) => {
+        destinationSiteUids.add(authorUid)
+      })
+      extractBNReferences(resource.document.content)
+    }
+
+    // for comments:
+    // - the site that the comment's target document is in
+    // - the author of the comment
+    // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
+
+    if (resource.type === 'comment') {
+      destinationSiteUids.add(resource.comment.targetAccount)
+
+      // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
+      destinationSiteUids.add(resource.comment.author)
+      destinationSiteUids.add(resource.id.uid)
+
+      extractBNReferences(resource.comment.content)
+    }
+
+    // step 2. find all the hosts for these destination sites
+    // console.log('== publish 2', destinationSiteUids)
+
+    let destinationHosts = new Set<string>([
+      // always push to the gateway url
+      gwUrl,
+    ])
+
+    // when copying the URL, we don't need to push to every host. just the one whose URL we're copying.
+    // TODO: skip the previous steps if onlyPushToHost is provided
+    if (onlyPushToHost) {
+      destinationHosts = new Set([onlyPushToHost])
+    }
+
+    await Promise.all(
+      Array.from(destinationSiteUids).map(async (uid) => {
+        try {
+          const resource = await client.loadResource(hmId(uid))
+          if (resource.type === 'document') {
+            const siteUrl = resource.document.metadata?.siteUrl
+            if (siteUrl) destinationHosts.add(siteUrl)
+          }
+        } catch (error) {
+          console.error(
+            'Error loading site resource for pushing to the siteUrl',
+            uid,
+            error,
+          )
+        }
+      }),
+    )
+
+    // console.log('== publish 3 == destinationHosts', destinationHosts)
+
+    const outputStatus: PushResourceStatus = {
+      hosts: Array.from(destinationHosts).map((host) => ({
+        host,
+        status: 'pending',
+        message: undefined,
+      })),
+    }
+
+    onStatusChange?.(outputStatus)
+
+    function updateHostStatus(
+      host: string,
+      status: 'success' | 'error' | 'pending',
+      message: string,
+      peerId?: string,
+    ) {
+      const hostStatus = outputStatus.hosts.find((h) => h.host === host)
+      if (hostStatus) {
+        hostStatus.status = status
+        hostStatus.message = message
+        hostStatus.peerId = peerId
+      }
+    }
+    function updatePeerStatus(
+      peerId: string,
+      status: 'success' | 'error' | 'pending',
+      message: string,
+    ) {
+      outputStatus.hosts.forEach((h) => {
+        if (h.peerId === peerId) {
+          h.status = status
+          h.message = message
+        }
+      })
+    }
+
+    // step 3. gather all the peerIds for these sites.
+    await Promise.all(
+      Array.from(destinationHosts).map(async (host) => {
+        try {
+          updateHostStatus(host, 'pending', 'Connecting...')
+          const peerId = await trpcClient.web.peerOfHost.query(host)
+          if (peerId) {
+            // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
+            updateHostStatus(host, 'pending', 'Pushing...', peerId)
+          }
+        } catch (error) {
+          console.error('Error getting peerId for host', host, error)
+          updateHostStatus(host, 'error', (error as Error).message)
+        }
+      }),
+    )
+    const peerIds = new Set<string>()
+    outputStatus.hosts.forEach(({peerId}) => {
+      if (peerId) peerIds.add(peerId)
+    })
+
+    // step 4. push this resource to all the sites.
+    // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
+    // console.log('== publish 4 == pushing to peers', peerIds)
+    const resourceIdToPush =
+      resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+    if (!resourceIdToPush) {
+      console.error('Could not determine resource ID to push', resource)
+      throw new Error('Could not determine resource ID to push')
+    }
+    if (!peerIds.size) {
+      console.error('No peers found to push to', {
+        resource,
+        destinationHosts,
+        peerIds,
+      })
+      throw new Error('No peers found to push to')
+    }
+
+    const pushResourceUrl = createHMUrl(resourceIdToPush)
+    // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
+    const pushProgress = await grpcClient.resources.pushResourcesToPeer({
+      addrs: Array.from(peerIds),
+      resources: [pushResourceUrl],
+    })
+
+    // Iterate over the stream to receive progress updates
+    for await (const progress of pushProgress) {
+      console.log('== Push progress:', progress)
+      // Update all peers with the latest progress
+      outputStatus.hosts.forEach(({peerId}) => {
+        if (peerId) {
+          const status =
+            progress.peersFailed > 0
+              ? 'error'
+              : progress.peersSyncedOk > 0
+              ? 'success'
+              : 'pending'
+          const message =
+            progress.blobsDownloaded > 0
+              ? `Synced ${progress.blobsDownloaded}/${progress.blobsDiscovered} blobs`
+              : progress.peersSyncedOk > 0
+              ? 'Done'
+              : 'Syncing...'
+          updatePeerStatus(peerId, status, message)
+        }
+      })
+      onStatusChange?.(outputStatus)
+    }
+
     return true
   }
 }
-
-const loadQueryResults = getQueryResultsWithClient(grpcClient)
 
 export function queryListDirectory(
   id?: UnpackedHypermediaId | null,
@@ -977,7 +1029,7 @@ export function queryListDirectory(
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, options?.mode],
     queryFn: async () => {
       if (!id) return []
-      const results = await loadQueryResults({
+      const results = await loadQuery({
         includes: [
           {
             space: id.uid,
@@ -1137,6 +1189,7 @@ export function useCreateDraft(
 }
 
 export function useForkDocument() {
+  const push = usePushResource()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1168,11 +1221,14 @@ export function useForkDocument() {
           },
         },
       })
+      push(from)
+      push(to)
     },
   })
 }
 
 export function useMoveDocument() {
+  const push = usePushResource()
   return useMutation({
     mutationFn: async ({
       from,
@@ -1218,6 +1274,8 @@ export function useMoveDocument() {
           },
         },
       })
+      push(from)
+      push(to)
     },
   })
 }

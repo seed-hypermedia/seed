@@ -3,6 +3,7 @@ import {useListDirectory} from '@/models/documents'
 import {
   loadAccount,
   loadBatchAccounts,
+  loadQuery,
   loadResource,
   useAccountsMetadata,
 } from '@/models/entities'
@@ -36,6 +37,7 @@ export const desktopUniversalClient: UniversalClient = {
   ),
 
   loadSearch: loadSearchQuery,
+  loadQuery: loadQuery,
   loadResource: loadResource,
   loadAccount: loadAccount,
   loadBatchAccounts: loadBatchAccounts,

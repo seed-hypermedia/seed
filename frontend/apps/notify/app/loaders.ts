@@ -40,8 +40,8 @@ import {
   HMResourceRedirect,
 } from '@shm/shared/hm-types'
 import {
-  getDiretoryWithClient,
-  getQueryResultsWithClient,
+  createDirectoryResolver,
+  createQueryResolver,
 } from '@shm/shared/models/directory'
 import {
   documentMetadataParseAdjustments,
@@ -187,8 +187,8 @@ export async function resolveHMDocument(
   }
 }
 
-const getDirectory = getDiretoryWithClient(grpcClient)
-const getQueryResults = getQueryResultsWithClient(grpcClient)
+const getDirectory = createDirectoryResolver(grpcClient)
+const getQueryResults = createQueryResolver(grpcClient)
 
 export function getOriginRequestData(parsedRequest: ParsedRequest) {
   const enableWebSigning =

@@ -2,22 +2,108 @@ package documents
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	p2p "seed/backend/genproto/p2p/v1alpha"
+	"seed/backend/hmnet/netutil"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"slices"
+	"strings"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// PushResourcesToPeer implements the corresponding gRPC method.
+func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, stream grpc.ServerStreamingServer[documents.SyncingProgress]) error {
+	ctx := stream.Context()
+
+	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
+	for _, res := range req.Resources {
+		m := syncing.HmRe.FindStringSubmatch(res)
+		if m == nil {
+			return fmt.Errorf("invalid resource format: %s", res)
+		}
+		result := map[string]string{}
+		for i, name := range syncing.HmRe.SubexpNames() {
+			if i == 0 || name == "" {
+				continue
+			}
+			result[name] = m[i]
+		}
+		if _, ok := result["account"]; !ok || result["account"] == "" {
+			return fmt.Errorf("resource missing account: %s", res)
+		}
+		if _, ok := result["path"]; !ok {
+			result["path"] = ""
+		}
+		resource := "hm://" + result["account"] + result["path"]
+		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource)}] = struct{}{}
+	}
+
+	var cids []syncing.CIDWithTS
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true)
+		return err
+	}); err != nil {
+		return err
+	}
+
+	request := &p2p.FetchBlobsRequest{
+		Cids: make([]string, len(cids)),
+	}
+	for i, c := range cids {
+		request.Cids[i] = c.CID.String()
+	}
+
+	// We want to support connecting to plain peer IDs, so we need to convert it into multiaddr.
+	if len(req.Addrs) == 1 {
+		addr := req.Addrs[0]
+		if !strings.Contains(addr, "/") {
+			req.Addrs[0] = "/p2p/" + addr
+		}
+	}
+
+	info, err := netutil.AddrInfoFromStrings(req.Addrs...)
+	if err != nil {
+		return fmt.Errorf("failed to parse multiaddr: %w", err)
+	}
+
+	syncClient, err := srv.sync.SyncingClient(ctx, info.ID, info.Addrs...)
+	if err != nil {
+		return fmt.Errorf("could not get p2p client: %w", err)
+	}
+	streamRx, err := syncClient.FetchBlobs(ctx, request)
+	if err != nil {
+		return fmt.Errorf("failed to start FetchBlobs RPC: %w", err)
+	}
+
+	for {
+		progIn, err := streamRx.Recv()
+		if errors.Is(err, io.EOF) {
+			_ = stream.Send(progIn) // ignore send error on termination
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := stream.Send(progIn); err != nil {
+			return err
+		}
+	}
+}
 
 // GetResource implements the corresponding gRPC method.
 func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceRequest) (*documents.Resource, error) {

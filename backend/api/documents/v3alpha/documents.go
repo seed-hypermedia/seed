@@ -11,6 +11,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
+	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/util/apiutil"
 	"seed/backend/util/cclock"
 	"seed/backend/util/colx"
@@ -28,6 +29,8 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -49,15 +52,21 @@ type Server struct {
 	idx  *blob.Index
 	db   *sqlitex.Pool
 	log  *zap.Logger
+	sync syncingClient
+}
+
+type syncingClient interface {
+	SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
 }
 
 // NewServer creates a new Documents API v3 server.
-func NewServer(keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger) *Server {
+func NewServer(keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, sync syncingClient) *Server {
 	return &Server{
 		keys: keys,
 		idx:  idx,
 		db:   db,
 		log:  log,
+		sync: sync,
 	}
 }
 

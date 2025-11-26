@@ -390,8 +390,10 @@ var qGetParentsMetadata = dqb.Str(`
 	select dg.metadata, r.iri from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
+
 var qGetAccountID = dqb.Str(`
-SELECT id FROM public_keys WHERE hex(principal) = :principal LIMIT 1;`)
+	SELECT id FROM public_keys WHERE principal = unhex(:principal) LIMIT 1;
+`)
 
 type commentIdentifier struct {
 	authorID int64
@@ -460,12 +462,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	cleanQuery := re.ReplaceAllString(in.Query, "")
 	// collapse multiple spaces to a single space
 	cleanQuery = strings.Join(strings.Fields(cleanQuery), " ")
-	fmt.Println(cleanQuery)
 	if strings.ReplaceAll(cleanQuery, " ", "") == "" {
 		return nil, nil
 	}
-
-	fmt.Println(cleanQuery)
 	var bodyMatches []fuzzy.Match
 	const entityTypeTitle = "title"
 	var entityTypeContact, entityTypeDoc, entityTypeComment interface{}

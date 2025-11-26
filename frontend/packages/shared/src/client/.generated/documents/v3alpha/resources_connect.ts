@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, Resource } from "./resources_pb";
+import { GetResourceRequest, PushResourcesToPeerRequest, Resource, SyncingProgress } from "./resources_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -26,6 +26,17 @@ export const Resources = {
       I: GetResourceRequest,
       O: Resource,
       kind: MethodKind.Unary,
+    },
+    /**
+     * Makes sure a resource (and their related blobs) are pushed to a given peer.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Resources.PushResourcesToPeer
+     */
+    pushResourcesToPeer: {
+      name: "PushResourcesToPeer",
+      I: PushResourcesToPeerRequest,
+      O: SyncingProgress,
+      kind: MethodKind.ServerStreaming,
     },
   }
 } as const;

@@ -1,10 +1,8 @@
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client, trpc} from '@/trpc'
-import {UnpackedHypermediaId} from '@shm/shared'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
@@ -72,11 +70,6 @@ export function NavigationContainer({children}: {children: ReactNode}) {
   const {externalOpen} = useAppContext()
 
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const [copyRefContent, onCopyReference] = useCopyReferenceUrl(
-    gwUrl,
-    undefined,
-    navigation,
-  )
 
   const experiments = trpc.experiments.get.useQuery().data
 
@@ -108,9 +101,6 @@ export function NavigationContainer({children}: {children: ReactNode}) {
         externalOpen(url)
       }}
       origin={gwUrl}
-      onCopyReference={async (hmId: UnpackedHypermediaId) => {
-        onCopyReference(hmId)
-      }}
       hmUrlHref={true}
       selectedIdentity={navigation.selectedIdentity}
       setSelectedIdentity={(keyId: string | null) => {
@@ -125,7 +115,6 @@ export function NavigationContainer({children}: {children: ReactNode}) {
     >
       <NavContextProvider value={navigation}>
         {children}
-        {copyRefContent}
         <DevTools />
       </NavContextProvider>
     </UniversalAppProvider>

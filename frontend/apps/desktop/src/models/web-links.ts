@@ -67,12 +67,6 @@ export function useWaitForPublication(url: string, secondsUntilTimeout = 120) {
 //   }
 // }
 
-export async function siteDiscover(
-  input: Parameters<typeof client.web.requestDiscover.mutate>[0],
-) {
-  return await client.web.requestDiscover.mutate(input)
-}
-
 export async function fetchWebLinkMeta(
   url: string,
 ): Promise<Record<string, string>> {

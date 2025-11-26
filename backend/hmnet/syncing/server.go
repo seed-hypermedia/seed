@@ -2,34 +2,156 @@ package syncing
 
 import (
 	"context"
+	"fmt"
 	"seed/backend/blob"
+	resources "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 
+	"github.com/ipfs/boxo/blockstore"
+	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-cid"
 	"google.golang.org/grpc"
 
 	"seed/backend/util/colx"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 )
 
 // Server is the RPC handler for the syncing service.
 type Server struct {
-	db *sqlitex.Pool
+	db      *sqlitex.Pool
+	blobs   blockstore.Blockstore
+	bitswap bitswap
 }
 
 // NewServer creates a new RPC handler instance.
 // It has to be further registered with the actual [grpc.Server].
-func NewServer(db *sqlitex.Pool) *Server {
+func NewServer(db *sqlitex.Pool, bs blockstore.Blockstore, bswap bitswap) *Server {
 	return &Server{
-		db: db,
+		db:      db,
+		blobs:   bs,
+		bitswap: bswap,
 	}
 }
 
 // RegisterServer registers the instance with the gRPC server.
 func (s *Server) RegisterServer(srv grpc.ServiceRegistrar) {
 	p2p.RegisterSyncingServer(srv, s)
+}
+
+var qGetBlobs = dqb.Str(`
+	SELECT distinct
+		multihash,
+		codec
+	FROM blobs
+	WHERE multihash IN (SELECT unhex(value) from json_each(:mhash_json))
+	AND size > 0
+`)
+
+// FetchBlobs fetches blobs from the peer that are not present locally.
+func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreamingServer[resources.SyncingProgress]) error {
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	prog := NewDiscoveryProgress()
+	localHaves := make(colx.HashSet[cid.Cid], len(in.Cids))
+	mhashes := []string{}
+	allWants := make([]cid.Cid, 0, len(in.Cids))
+	wants := make([]cid.Cid, 0, len(in.Cids))
+	for _, cstr := range in.Cids {
+		cID, err := cid.Parse(cstr)
+		if err != nil {
+			prog.PeersFailed.Add(1)
+			return fmt.Errorf("failed to parse cid '%s': %w", cstr, err)
+		}
+		mhashes = append(mhashes, cID.Hash().String())
+		allWants = append(allWants, cID)
+	}
+	prog.PeersFound.Add(1)
+	progIn := &resources.SyncingProgress{
+		BlobsDiscovered: prog.BlobsDiscovered.Load(),
+		BlobsDownloaded: prog.BlobsDownloaded.Load(),
+		BlobsFailed:     prog.BlobsFailed.Load(),
+		PeersFailed:     prog.PeersFailed.Load(),
+		PeersFound:      prog.PeersFound.Load(),
+		PeersSyncedOk:   prog.PeersSyncedOK.Load()}
+	if err := stream.Send(progIn); err != nil {
+		return err
+	}
+
+	mhashJSON := "[\"" + strings.ToUpper(strings.Join(mhashes, "\",\"")) + "\"]"
+	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetBlobs(), func(stmt *sqlite.Stmt) error {
+			mhash := stmt.ColumnBytesUnsafe(0)
+			codec := stmt.ColumnInt64(1)
+			cID := cid.NewCidV1(uint64(codec), mhash)
+			localHaves.Put(cID)
+			return nil
+		}, mhashJSON)
+	}); err != nil {
+		prog.PeersFailed.Add(1)
+		return err
+	}
+
+	for _, want := range allWants {
+		if !localHaves.Has(want) {
+			prog.BlobsDiscovered.Add(1)
+			progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+			progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+			progIn.BlobsFailed = prog.BlobsFailed.Load()
+			progIn.PeersFailed = prog.PeersFailed.Load()
+			progIn.PeersFound = prog.PeersFound.Load()
+			progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
+			if err := stream.Send(progIn); err != nil {
+				prog.PeersFailed.Add(1)
+				return err
+			}
+			wants = append(wants, want)
+		}
+	}
+
+	if len(wants) == 0 {
+		return nil
+	}
+
+	MSyncingWantedBlobs.WithLabelValues("syncing").Add(float64(len(wants)))
+	defer MSyncingWantedBlobs.WithLabelValues("syncing").Sub(float64(len(wants)))
+
+	downloaded := make([]blocks.Block, len(wants))
+	bswap := s.bitswap.NewSession(ctx)
+	for i, blkID := range wants {
+		blk, err := bswap.GetBlock(ctx, blkID)
+		if err != nil {
+			prog.BlobsFailed.Add(1)
+		} else {
+			prog.BlobsDownloaded.Add(1)
+			downloaded[i] = blk
+		}
+		progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+		progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+		progIn.BlobsFailed = prog.BlobsFailed.Load()
+		progIn.PeersFailed = prog.PeersFailed.Load()
+		progIn.PeersFound = prog.PeersFound.Load()
+		progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
+		if err := stream.Send(progIn); err != nil {
+			return err
+		}
+	}
+
+	if err := s.blobs.PutMany(ctx, downloaded); err != nil {
+		return fmt.Errorf("failed to put blobs: %w", err)
+	}
+	prog.PeersSyncedOK.Add(1)
+	progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
+	progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()
+	progIn.BlobsFailed = prog.BlobsFailed.Load()
+	progIn.PeersFailed = prog.PeersFailed.Load()
+	progIn.PeersFound = prog.PeersFound.Load()
+	progIn.PeersSyncedOk = prog.PeersSyncedOK.Load()
+
+	return stream.Send(progIn)
 }
 
 // ReconcileBlobs reconciles a set of blobs from the initiator. Finds the difference from what we have.
@@ -56,10 +178,10 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
 	store := rbsr.NewSliceStore()
 
-	dkeys := make(colx.HashSet[discoveryKey], len(filters))
+	dkeys := make(colx.HashSet[DiscoveryKey], len(filters))
 	for _, f := range filters {
 		f.Resource = strings.TrimSuffix(f.Resource, "/")
-		dkeys.Put(discoveryKey{
+		dkeys.Put(DiscoveryKey{
 			IRI:       blob.IRI(f.Resource),
 			Recursive: f.Recursive,
 		})
@@ -73,114 +195,3 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 
 	return store, store.Seal()
 }
-
-const qListAllBlobsStr = (`
-SELECT
-	blobs.codec,
-	blobs.multihash,
-	blobs.insert_time,
-	?
-FROM blobs INDEXED BY blobs_metadata LEFT JOIN structural_blobs sb ON sb.id = blobs.id
-WHERE blobs.size >= 0
-ORDER BY sb.ts, blobs.multihash;
-`)
-
-// QListrelatedBlobsString gets blobs related to multiple eids
-const qListRelatedBlobsStr = `
-WITH RECURSIVE
-refs (id) AS (
-	SELECT id
-	FROM structural_blobs
-	WHERE type = 'Ref'
-	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
-
-// qListRelatedCapabilitiesStr gets blobs related to multiple eids
-const qListRelatedCapabilitiesStr = `)
-),
-capabilities (id) AS (
-	SELECT id
-	FROM structural_blobs
-	WHERE type = 'Capability'
-	AND resource IN (SELECT id FROM resources WHERE iri GLOB `
-
-// qListRelatedCommentsStr gets blobs related to multiple eids
-const qListRelatedCommentsStr = `)
-),
-comments (id) AS (
-	SELECT rl.source
-	FROM resource_links rl
-	WHERE rl.type GLOB 'comment/*'
-	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
-
-// qListRelatedEmbedsStr gets blobs related to multiple eids
-const qListRelatedEmbedsStr = `)
-),
-embeds (id) AS (
-	SELECT rl.source
-	FROM resource_links rl
-	WHERE rl.type GLOB 'doc/*'
-	AND rl.target IN (SELECT id FROM resources WHERE iri GLOB  `
-
-// qListRelatedBlobsContStr gets blobs related to multiple eids
-const qListRelatedBlobsContStr = `)
-),
-changes (id) AS (
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN refs r ON r.id = bl.source AND (bl.type = 'ref/head' OR bl.type GLOB 'metadata/*')
-	UNION
-	SELECT bl.target
-	FROM blob_links bl
-	JOIN changes c ON c.id = bl.source
-	WHERE bl.type = 'change/dep'
-)
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN refs r ON r.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN changes ch ON ch.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN capabilities cap ON cap.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN comments co ON co.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-UNION ALL
-SELECT
-	codec,
-	b.multihash,
-	insert_time,
-	b.id,
-	sb.ts
-FROM blobs b
-JOIN embeds eli ON eli.id = b.id
-JOIN structural_blobs sb ON sb.id = b.id
-ORDER BY sb.ts, b.multihash;`

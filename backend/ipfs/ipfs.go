@@ -5,14 +5,20 @@ package ipfs
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/ipfs/boxo/bitswap"
 	"github.com/ipfs/boxo/bitswap/network"
 	"github.com/ipfs/boxo/bitswap/network/bsnet"
+	chunk "github.com/ipfs/boxo/chunker"
+	"github.com/ipfs/boxo/ipld/merkledag"
+	"github.com/ipfs/boxo/ipld/unixfs/importer/balanced"
+	"github.com/ipfs/boxo/ipld/unixfs/importer/helpers"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
@@ -106,4 +112,29 @@ func (b *Bitswap) Close() error {
 // NewProviderSystem creates a new provider.System. Users must call Run() to start and Close() to shutdown.
 func NewProviderSystem(ds datastore.Batching, rt routing.ContentRouting, strategy provider.KeyChanFunc) (provider.System, error) {
 	return provider.New(ds, provider.Online(rt), provider.KeyProvider(strategy), provider.ReproviderInterval(defaultReprovideInterval))
+}
+
+// WriteUnixFSFile writes data from the given
+// reader as a UnixFS file into the provided DAG service
+// using default parameters.
+func WriteUnixFSFile(svc format.DAGService, r io.Reader) (format.Node, error) {
+	chnk, err := chunk.FromString(r, "")
+	if err != nil {
+		return nil, err
+	}
+
+	dbp := helpers.DagBuilderParams{
+		Dagserv:    svc,
+		RawLeaves:  true, // Leave the actual file bytes untouched instead of wrapping them in a dag-pb protobuf wrapper
+		Maxlinks:   helpers.DefaultLinksPerBlock,
+		NoCopy:     false,
+		CidBuilder: merkledag.V1CidPrefix(),
+	}
+
+	dbh, err := dbp.New(chnk)
+	if err != nil {
+		return nil, err
+	}
+
+	return balanced.Layout(dbh)
 }
