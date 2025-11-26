@@ -218,11 +218,25 @@ export const router = t.router({
       const meta = extractMetaTags(html)
       return {meta}
     }),
-    configOfHost: t.procedure.input(z.string()).query(async ({input}) => {
-      const res = await fetch(`${input}/hm/api/config`)
-      const config = await res.json()
-      return HMHostConfigSchema.parse(config)
-    }),
+    configOfHost: t.procedure
+      .input(
+        z.object({
+          host: z.string(),
+          timeout: z.number().optional().default(10_000),
+        }),
+      )
+      .query(async ({input}) => {
+        const timeout = input.timeout
+        const res = await fetch(`${input.host}/hm/api/config`, {
+          signal: AbortSignal.timeout(timeout),
+        })
+        if (res.status !== 200) {
+          const error = await res.json()
+          throw new Error(error.message)
+        }
+        const config = await res.json()
+        return HMHostConfigSchema.parse(config)
+      }),
     requestDiscover: t.procedure
       .input(
         z.object({

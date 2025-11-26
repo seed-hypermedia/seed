@@ -8,7 +8,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DraftRoute} from '@shm/shared/routes'
-import {useStream} from '@shm/shared/use-stream'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -16,11 +15,12 @@ import {
   entityQueryPathToHmIdPath,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
-import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AlertCircle, Check} from '@shm/ui/icons'
+import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -34,11 +34,7 @@ import {
   useState,
 } from 'react'
 import {useDraft} from '../models/accounts'
-import {
-  PushResourceStatus,
-  usePublishResource,
-  usePushResource,
-} from '../models/documents'
+import {usePublishResource, usePushResource} from '../models/documents'
 import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
@@ -73,23 +69,30 @@ export default function PublishDraftButton() {
         const {draft} = input
         const [setPushStatus, pushStatus] =
           writeableStateStream<PushResourceStatus | null>(null)
-        console.log('== will publish.', draft.id, resultDoc.version)
         if (draft.id && resultDoc.version) {
           const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
-          let publishPromise = pushResource(
+          const publishPromise = pushResource(
             hmId(resultDoc.account, {
               path: resultPath,
               version: resultDoc.version,
             }),
             undefined,
-            (status: PushResourceStatus) => {
-              setPushStatus(status)
-            },
+            setPushStatus,
           )
           toast.promise(publishPromise, {
-            loading: <PublishedToast pushStatus={pushStatus} />,
-            success: <PublishedToast pushStatus={pushStatus} />,
-            error: <PublishedToast pushStatus={pushStatus} />,
+            loading: (
+              <PublishedToast pushStatus={pushStatus} status="loading" />
+            ),
+            success: (
+              <PublishedToast pushStatus={pushStatus} status="success" />
+            ),
+            error: (err) => (
+              <PublishedToast
+                pushStatus={pushStatus}
+                status="error"
+                errorMessage={err.message}
+              />
+            ),
           })
         } else {
           toast.error('Failed to publish')
@@ -292,16 +295,6 @@ function StatusWrapper({
       {children}
     </div>
   )
-}
-
-function PublishedToast({
-  pushStatus,
-}: {
-  pushStatus: StateStream<PushResourceStatus | null>
-}) {
-  const status = useStream(pushStatus)
-  console.log(status)
-  return JSON.stringify(status)
 }
 
 function SaveIndicatorStatus() {

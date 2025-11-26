@@ -14,6 +14,7 @@ import {
   getCommentTargetId,
   getParentPaths,
   HMAnnotation,
+  SyncingProgress,
   useUniversalClient,
 } from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
@@ -61,6 +62,7 @@ import {
 } from '@shm/shared/utils/path-api'
 import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {PushResourceStatus} from '@shm/ui/push-toast'
 import {toast} from '@shm/ui/toast'
 import type {UseQueryResult} from '@tanstack/react-query'
 import {
@@ -806,15 +808,6 @@ export type BlocksMapItem = {
   block: HMBlock
 }
 
-export type PushResourceStatus = {
-  hosts: {
-    host: string
-    status: 'success' | 'error' | 'pending'
-    peerId?: string
-    message?: string
-  }[]
-}
-
 export function usePushResource() {
   const client = useUniversalClient()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
@@ -916,7 +909,7 @@ export function usePushResource() {
 
     // console.log('== publish 3 == destinationHosts', destinationHosts)
 
-    const outputStatus: PushResourceStatus = {
+    let status: PushResourceStatus = {
       hosts: Array.from(destinationHosts).map((host) => ({
         host,
         status: 'pending',
@@ -924,32 +917,52 @@ export function usePushResource() {
       })),
     }
 
-    onStatusChange?.(outputStatus)
+    onStatusChange?.(status)
 
     function updateHostStatus(
       host: string,
-      status: 'success' | 'error' | 'pending',
+      newStatus: 'success' | 'error' | 'pending',
       message: string,
       peerId?: string,
     ) {
-      const hostStatus = outputStatus.hosts.find((h) => h.host === host)
+      const hostStatus = status.hosts.find((h) => h.host === host)
       if (hostStatus) {
-        hostStatus.status = status
-        hostStatus.message = message
-        hostStatus.peerId = peerId
+        status = {
+          ...status,
+          hosts: status.hosts.map((h) => {
+            if (h.host === host) {
+              return {
+                ...h,
+                status: newStatus,
+                message: message,
+                peerId: peerId,
+              }
+            }
+            return h
+          }),
+        }
       }
+      onStatusChange?.(status)
     }
     function updatePeerStatus(
       peerId: string,
-      status: 'success' | 'error' | 'pending',
+      newStatus: 'success' | 'error' | 'pending',
       message: string,
     ) {
-      outputStatus.hosts.forEach((h) => {
-        if (h.peerId === peerId) {
-          h.status = status
-          h.message = message
-        }
-      })
+      status = {
+        ...status,
+        hosts: status.hosts.map((h) => {
+          if (h.peerId === peerId) {
+            return {
+              ...h,
+              status: newStatus,
+              message: message,
+            }
+          }
+          return h
+        }),
+      }
+      onStatusChange?.(status)
     }
 
     const addrsForPeer = new Map<string, string[]>()
@@ -958,7 +971,10 @@ export function usePushResource() {
       Array.from(destinationHosts).map(async (host) => {
         try {
           updateHostStatus(host, 'pending', 'Connecting...')
-          const config = await trpcClient.web.configOfHost.query(host)
+          const config = await trpcClient.web.configOfHost.query({
+            host,
+            timeout: 10_000,
+          })
           if (config.peerId) {
             addrsForPeer.set(config.peerId, config.addrs)
             // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
@@ -970,10 +986,6 @@ export function usePushResource() {
         }
       }),
     )
-    const peerIds = new Set<string>()
-    outputStatus.hosts.forEach(({peerId}) => {
-      if (peerId) peerIds.add(peerId)
-    })
 
     // step 4. push this resource to all the sites.
     // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
@@ -984,52 +996,63 @@ export function usePushResource() {
       console.error('Could not determine resource ID to push', resource)
       throw new Error('Could not determine resource ID to push')
     }
-    if (!peerIds.size) {
+
+    const peerIdsToPush = new Set<string>()
+    status.hosts.forEach(({peerId}) => {
+      if (peerId) peerIdsToPush.add(peerId)
+    })
+
+    if (!peerIdsToPush.size) {
       console.error('No peers found to push to', {
         resource,
         destinationHosts,
-        peerIds,
       })
-      throw new Error('No peers found to push to')
+      throw new Error('Failed to connect to any sites.')
     }
 
     const pushResourceUrl = createHMUrl(resourceIdToPush)
     // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
-    const fullAddrs = Array.from(peerIds)
-      .map((peerId) => {
-        const addrs = addrsForPeer.get(peerId)
-        if (!addrs) return [peerId]
-        return addrs
-      })
-      .flat()
-    const pushProgress = await grpcClient.resources.pushResourcesToPeer({
-      addrs: fullAddrs,
-      resources: [pushResourceUrl],
-    })
 
-    // Iterate over the stream to receive progress updates
-    for await (const progress of pushProgress) {
-      console.log('== Push progress:', progress)
-      // Update all peers with the latest progress
-      outputStatus.hosts.forEach(({peerId}) => {
-        if (peerId) {
-          const status =
-            progress.peersFailed > 0
-              ? 'error'
-              : progress.peersSyncedOk > 0
-              ? 'success'
-              : 'pending'
-          const message =
-            progress.blobsDownloaded > 0
-              ? `Synced ${progress.blobsDownloaded}/${progress.blobsDiscovered} blobs`
-              : progress.peersSyncedOk > 0
-              ? 'Done'
-              : 'Syncing...'
-          updatePeerStatus(peerId, status, message)
+    await Promise.all(
+      Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
+        let lastProgress: SyncingProgress | undefined = undefined
+        const addrs = addrsForPeer.get(peerId)
+        if (!addrs) {
+          updatePeerStatus(peerId, 'error', 'No addresses found for peer')
         }
-      })
-      onStatusChange?.(outputStatus)
-    }
+        try {
+          const pushProgress = grpcClient.resources.pushResourcesToPeer({
+            addrs,
+            resources: [pushResourceUrl],
+          })
+          for await (const progress of pushProgress) {
+            console.log(
+              `== publish ${syncDebugId} == progress`,
+              JSON.stringify(toPlainMessage(progress)),
+            )
+            updatePeerStatus(
+              peerId,
+              'pending',
+              `Pushing ${progress.blobsDownloaded}/${progress.blobsDiscovered}`,
+            )
+            lastProgress = progress
+          }
+          console.log(`== publish ${syncDebugId} == DONE =====`)
+          updatePeerStatus(peerId, 'success', 'Done')
+        } catch (error) {
+          console.error(
+            `== publish ${syncDebugId} == Error pushing to peer`,
+            peerId,
+            error,
+          )
+          updatePeerStatus(peerId, 'error', (error as Error).message)
+        }
+        console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
+        // if (lastProgress?.peersFailed ?? 0 > 0) {
+        //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
+        // }
+      }),
+    )
 
     return true
   }

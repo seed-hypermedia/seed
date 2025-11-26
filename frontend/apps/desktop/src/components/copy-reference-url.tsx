@@ -1,23 +1,21 @@
-import {PushResourceStatus, usePushResource} from '@/models/documents'
+import {usePushResource} from '@/models/documents'
 import {UnpackedHypermediaId} from '@shm/shared'
-import {useStream} from '@shm/shared/use-stream'
-import {createWebHMUrl, packHmId} from '@shm/shared/utils/entity-id-url'
+import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
 import {NavigationContext} from '@shm/shared/utils/navigation'
-import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
+import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {CheckboxField} from '@shm/ui/components/checkbox'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {Spinner} from '@shm/ui/spinner'
+import {CopiedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ReactNode, useState} from 'react'
+import {useState} from 'react'
 import {
   usePushOnCopy,
   useSetPushOnCopy,
   useSetPushOnPublish,
 } from '../models/gateway-settings'
-type IsPublishedState = null | boolean // null: determined checked yet
 
 export function useCopyReferenceUrl(
   hostname: string,
@@ -46,64 +44,20 @@ export function useCopyReferenceUrl(
     const [setPushStatus, pushStatus] =
       writeableStateStream<PushResourceStatus | null>(null)
 
-    const publishPromise = pushResource(input, hostname, (status) => {
-      setPushStatus(status)
-    })
-    toast.promise(publishPromise, {
-      loading: `Pushing to ${hostname}`,
-      success: (
+    const pushPromise = pushResource(input, hostname, setPushStatus)
+    toast.promise(pushPromise, {
+      loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
+      success: <CopiedToast pushStatus={pushStatus} status="success" />,
+      error: (err) => (
         <CopiedToast
           pushStatus={pushStatus}
-          host={hostname}
-          hmId={packHmId(input)}
-        />
-      ),
-      error: (
-        <CopiedToast
-          pushStatus={pushStatus}
-          host={hostname}
-          hmId={packHmId(input)}
+          status="error"
+          errorMessage={err.message}
         />
       ),
     })
   }
   return [dialog.content, onCopy] as const
-}
-
-function CopiedToast({
-  pushStatus,
-  host,
-  hmId,
-}: {
-  pushStatus: StateStream<PushResourceStatus | null>
-  host: string
-  hmId: string
-}) {
-  const status = useStream(pushStatus)
-  let indicator: ReactNode = null
-  let message: ReactNode = ''
-  if (status === null) {
-    indicator = (
-      <div className="flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-    message = <>{JSON.stringify(status)}</>
-  }
-  // else if (published === true) {
-  //   message = (
-  //     <>
-  //       Copied URL, available on <b>{host}</b>
-  //     </>
-  //   )
-  // } else if (published === false) {
-  //   message = (
-  //     <>
-  //       Copied URL, failed to push to <b>{host}</b>
-  //     </>
-  //   )
-  // }
-  return message
 }
 
 export function PushToGatewayDialog({
