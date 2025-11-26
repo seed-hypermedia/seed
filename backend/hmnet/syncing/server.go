@@ -8,6 +8,7 @@ import (
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
+	"time"
 
 	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
@@ -122,12 +123,19 @@ func (s *Server) FetchBlobs(in *p2p.FetchBlobsRequest, stream grpc.ServerStreami
 	downloaded := make([]blocks.Block, len(wants))
 	bswap := s.bitswap.NewSession(ctx)
 	for i, blkID := range wants {
-		blk, err := bswap.GetBlock(ctx, blkID)
-		if err != nil {
-			prog.BlobsFailed.Add(1)
-		} else {
-			prog.BlobsDownloaded.Add(1)
-			downloaded[i] = blk
+		{
+			// Per-block timeout to prevent infinite hanging.
+			// TODO(burdiyan): use GetBlocks() instead to fetch multiple blocks in parallel.
+			// It's a bit trickier because we need to collate the results properly to preserve the order.
+			ctx, cancel := context.WithTimeout(ctx, time.Second*20)
+			blk, err := bswap.GetBlock(ctx, blkID)
+			if err != nil {
+				prog.BlobsFailed.Add(1)
+			} else {
+				prog.BlobsDownloaded.Add(1)
+				downloaded[i] = blk
+			}
+			cancel()
 		}
 		progIn.BlobsDiscovered = prog.BlobsDiscovered.Load()
 		progIn.BlobsDownloaded = prog.BlobsDownloaded.Load()

@@ -375,7 +375,8 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			CROSS JOIN public_blobs pb ON pb.id = rb.id
 			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
 			LEFT JOIN structural_blobs sb ON sb.id = rb.id
-			WHERE b.size >= 0 ORDER BY sb.ts, b.multihash;`
+			WHERE b.size >= 0
+			ORDER BY sb.ts, b.multihash;`
 
 		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
 			inc := sqlite.NewIncrementor(0)
