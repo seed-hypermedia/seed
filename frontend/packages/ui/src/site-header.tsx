@@ -168,12 +168,12 @@ export function SiteHeader({
         )}
       >
         <div
-          className={cn('flex shrink-0 items-center self-stretch', {
+          className={cn('flex min-w-0 items-center self-stretch sm:shrink-0', {
             'justify-center md:relative': isCenterLayout,
             'flex-start': !isCenterLayout,
           })}
         >
-          <div className="flex flex-1 justify-center">
+          <div className="flex flex-1 justify-center overflow-hidden">
             <SiteLogo
               id={headerHomeId}
               metadata={draftMetadata || homeDoc.document?.metadata}

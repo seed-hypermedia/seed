@@ -45,13 +45,13 @@ export function SiteLogo({
     <a
       {...homeLinkProps}
       data-resourceid={id.id}
-      className={cn('flex items-center justify-center gap-2')}
+      className={cn('flex min-w-0 items-center justify-center gap-2')}
       {...highlighter(id)}
     >
       <HMIcon size={24} id={id} name={metadata?.name} icon={metadata?.icon} />
       <p
         className={cn(
-          'text-foreground text-center font-bold select-none sm:text-left',
+          'text-foreground min-w-0 truncate overflow-hidden text-center font-bold select-none md:text-left',
         )}
       >
         {metadata?.name}
