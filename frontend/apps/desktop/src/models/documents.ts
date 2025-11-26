@@ -952,15 +952,17 @@ export function usePushResource() {
       })
     }
 
+    const addrsForPeer = new Map<string, string[]>()
     // step 3. gather all the peerIds for these sites.
     await Promise.all(
       Array.from(destinationHosts).map(async (host) => {
         try {
           updateHostStatus(host, 'pending', 'Connecting...')
-          const peerId = await trpcClient.web.peerOfHost.query(host)
-          if (peerId) {
+          const config = await trpcClient.web.configOfHost.query(host)
+          if (config.peerId) {
+            addrsForPeer.set(config.peerId, config.addrs)
             // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
-            updateHostStatus(host, 'pending', 'Pushing...', peerId)
+            updateHostStatus(host, 'pending', 'Pushing...', config.peerId)
           }
         } catch (error) {
           console.error('Error getting peerId for host', host, error)
@@ -993,8 +995,15 @@ export function usePushResource() {
 
     const pushResourceUrl = createHMUrl(resourceIdToPush)
     // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
+    const fullAddrs = Array.from(peerIds)
+      .map((peerId) => {
+        const addrs = addrsForPeer.get(peerId)
+        if (!addrs) return [peerId]
+        return addrs
+      })
+      .flat()
     const pushProgress = await grpcClient.resources.pushResourcesToPeer({
-      addrs: Array.from(peerIds),
+      addrs: fullAddrs,
       resources: [pushResourceUrl],
     })
 

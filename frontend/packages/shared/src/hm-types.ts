@@ -1222,3 +1222,13 @@ export type SiteDiscoverRequest = z.infer<typeof siteDiscoverRequestSchema>
 //   nextPageToken: z.string(),
 // })
 // export type HMFeedPayload = z.infer<typeof HMFeedPayloadSchema>
+
+export const HMHostConfigSchema = z.object({
+  peerId: z.string(),
+  registeredAccountUid: z.string(),
+  protocolId: z.string(),
+  addrs: z.array(z.string()),
+  hostname: z.string(),
+  isGateway: z.boolean(),
+})
+export type HMHostConfig = z.infer<typeof HMHostConfigSchema>

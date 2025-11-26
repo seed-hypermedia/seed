@@ -5,7 +5,7 @@ import {appRouteOfId} from '@shm/shared/utils/navigation'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
-import {SiteDiscoverRequest} from '@shm/shared'
+import {HMHostConfigSchema, SiteDiscoverRequest} from '@shm/shared'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
@@ -218,10 +218,10 @@ export const router = t.router({
       const meta = extractMetaTags(html)
       return {meta}
     }),
-    peerOfHost: t.procedure.input(z.string()).query(async ({input}) => {
+    configOfHost: t.procedure.input(z.string()).query(async ({input}) => {
       const res = await fetch(`${input}/hm/api/config`)
       const config = await res.json()
-      return config.peerId
+      return HMHostConfigSchema.parse(config)
     }),
     requestDiscover: t.procedure
       .input(
