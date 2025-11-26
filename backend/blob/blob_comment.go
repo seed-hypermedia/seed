@@ -411,7 +411,7 @@ type spaceCommentStats struct {
 func (sm *spaceCommentStats) load(conn *sqlite.Conn, spaceID string) (err error) {
 	sm.ID = spaceID
 
-	rows, discard, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID)
+	rows, discard, check := sqlitex.Query(conn, qLoadSpaceCommentStats(), spaceID).All()
 	defer discard(&err)
 	for row := range rows {
 		sm.shouldUpdate = true

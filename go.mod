@@ -8,6 +8,7 @@ require (
 	github.com/abiosoft/ishell/v2 v2.0.2
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/btcutil v1.1.2
+	github.com/burdiyan/go-erriter v0.0.0-20251126131818-84c9a62b84d2
 	github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/getsentry/sentry-go v0.16.0

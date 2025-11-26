@@ -152,17 +152,11 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 
 	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (resp *documents.ListCommentsResponse, err error) {
 		resp = &documents.ListCommentsResponse{}
-		mapper := srv.commentDBMapper()
 		lookup := blob.NewLookupCache(conn)
 
-		comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, qIterComments(), iri)
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qIterComments(), iri).All()
 		defer discard(&err)
 		for comment := range comments {
-			// Checking error from the mapper in case there's something wrong in the decoding from the database.
-			if err := mapper.Err(); err != nil {
-				return nil, err
-			}
-
 			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
 			if err != nil {
 				return nil, err
@@ -202,10 +196,9 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 			Comments: make([]*documents.Comment, 0, min(in.PageSize, maxPageAllocBuffer)),
 		}
 
-		mapper := srv.commentDBMapper()
 		lookup := blob.NewLookupCache(conn)
 
-		comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, qIterCommentsByAuthor(), author, cursor.CommentID, in.PageSize+1)
+		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qIterCommentsByAuthor(), author, cursor.CommentID, in.PageSize+1).All()
 		defer discard(&err)
 
 		for result := range comments {
@@ -234,53 +227,38 @@ type indexedComment struct {
 	Comment *blob.Comment
 }
 
-type commentDBMapper struct {
-	srv *Server
-	err error
-	buf []byte
-}
+func (srv *Server) commentDBMapper() sqlitex.MapperFunc[indexedComment] {
+	buf := make([]byte, 0, 1024*1024) // Preallocate 1 MiB scratch buffer for decoding.
+	return func(stmt *sqlite.Stmt) (ic indexedComment, err error) {
+		seq := sqlite.NewIncrementor(0)
+		var (
+			id    = stmt.ColumnInt64(seq())
+			codec = stmt.ColumnInt64(seq())
+			hash  = stmt.ColumnBytesUnsafe(seq())
+			data  = stmt.ColumnBytesUnsafe(seq())
+			tsid  = stmt.ColumnText(seq())
+		)
 
-func (m *commentDBMapper) HandleRow(stmt *sqlite.Stmt) indexedComment {
-	seq := sqlite.NewIncrementor(0)
-	var (
-		id    = stmt.ColumnInt64(seq())
-		codec = stmt.ColumnInt64(seq())
-		hash  = stmt.ColumnBytesUnsafe(seq())
-		data  = stmt.ColumnBytesUnsafe(seq())
-		tsid  = stmt.ColumnText(seq())
-	)
+		// Reset the buffer before decoding.
+		buf = buf[:0]
 
-	// Reset the buffer before decoding.
-	m.buf = m.buf[:0]
+		buf, err = srv.idx.Decompress(data, buf)
+		if err != nil {
+			return ic, err
+		}
 
-	m.buf, m.err = m.srv.idx.Decompress(data, m.buf)
-	if m.err != nil {
-		return indexedComment{}
-	}
+		c := cid.NewCidV1(uint64(codec), hash)
+		cmt := &blob.Comment{}
+		if err := cbornode.DecodeInto(buf, cmt); err != nil {
+			return ic, err
+		}
 
-	c := cid.NewCidV1(uint64(codec), hash)
-	cmt := &blob.Comment{}
-	m.err = cbornode.DecodeInto(m.buf, cmt)
-	if m.err != nil {
-		return indexedComment{}
-	}
-
-	return indexedComment{
-		DBID:    id,
-		CID:     c,
-		TSID:    blob.TSID(tsid),
-		Comment: cmt,
-	}
-}
-
-func (m *commentDBMapper) Err() error {
-	return m.err
-}
-
-func (srv *Server) commentDBMapper() *commentDBMapper {
-	return &commentDBMapper{
-		srv: srv,
-		buf: make([]byte, 0, 1024*1024),
+		return indexedComment{
+			DBID:    id,
+			CID:     c,
+			TSID:    blob.TSID(tsid),
+			Comment: cmt,
+		}, nil
 	}
 }
 
@@ -350,8 +328,7 @@ func (srv *Server) getComment(conn *sqlite.Conn, idRaw string) (out indexedComme
 		}
 	}
 
-	mapper := srv.commentDBMapper()
-	comments, discard, check := sqlitex.QueryType(conn, mapper.HandleRow, query, args...)
+	comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), query, args...).All()
 	defer discard(&err)
 
 	var icmt indexedComment

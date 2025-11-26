@@ -156,7 +156,7 @@ func (srv *Server) ListContacts(ctx context.Context, in *documents.ListContactsR
 	}
 
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
-		rows, discard, check := sqlitex.Query(conn, query, args...)
+		rows, discard, check := sqlitex.Query(conn, query, args...).All()
 		defer discard(&err)
 
 		for row := range rows {
@@ -245,7 +245,7 @@ func (srv *Server) GetContact(ctx context.Context, in *documents.GetContactReque
 	`
 
 	var contact *documents.Contact
-	rows, discard, check := sqlitex.Query(conn, query, recordID.Authority.String(), recordID.TSID.String())
+	rows, discard, check := sqlitex.Query(conn, query, recordID.Authority.String(), recordID.TSID.String()).All()
 	defer discard(&err)
 	for row := range rows {
 		seq := sqlite.NewIncrementor(0)

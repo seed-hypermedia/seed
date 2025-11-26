@@ -249,7 +249,7 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 	)
 
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
-		rows, discard, check := sqlitex.Query(conn, qGetResource(), authority, tsid)
+		rows, discard, check := sqlitex.Query(conn, qGetResource(), authority, tsid).All()
 		defer discard(&err)
 		for row := range rows {
 			seq := sqlite.NewIncrementor(0)

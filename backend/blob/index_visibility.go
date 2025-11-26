@@ -67,7 +67,7 @@ var qForwardPropagation = dqb.Str(`
 `)
 
 func markBlobPublic(conn *sqlite.Conn, blobID int64) (inserted bool, err error) {
-	rows, discard, check := sqlitex.Query(conn, qMarkBlobPublic(), blobID)
+	rows, discard, check := sqlitex.Query(conn, qMarkBlobPublic(), blobID).All()
 	defer discard(&err)
 	// The INSERT OR IGNORE with RETURNING clause only returns when the row was actually inserted.
 	// If the value was already there, nothing gets returned.

@@ -406,7 +406,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, discard, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
 
 	for row := range rows {
@@ -517,7 +517,7 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, discard, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
 	for row := range rows {
 		if count == in.PageSize {
@@ -671,7 +671,7 @@ func (srv *Server) getAccountByID(conn *sqlite.Conn, lookup *blob.LookupCache, i
 	qb := srv.baseAccountQuery()
 	qb = qb.Where("spaces.id = ?")
 
-	rows, discard, check := sqlitex.Query(conn, qb.String(), id)
+	rows, discard, check := sqlitex.Query(conn, qb.String(), id).All()
 	defer discard(&err)
 	for row := range rows {
 		item, err := srv.accountFromRow(row, lookup)
@@ -939,7 +939,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, discard, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
 
 	for row := range rows {
@@ -1032,7 +1032,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	lookup := blob.NewLookupCache(conn)
 
 	var count int32
-	rows, discard, check := sqlitex.Query(conn, query, args...)
+	rows, discard, check := sqlitex.Query(conn, query, args...).All()
 	defer discard(&err)
 	for row := range rows {
 		if count == in.PageSize {
@@ -1062,7 +1062,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
 	q := baseListDocumentsQuery().Where("r.iri = ?").String()
-	rows, discard, check := sqlitex.Query(conn, q, iri, 0) // 0 is the page size parameter.
+	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All() // 0 is the page size parameter.
 	defer discard(&err)
 
 	for row := range rows {

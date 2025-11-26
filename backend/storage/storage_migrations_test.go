@@ -121,7 +121,7 @@ func getRawSQLSchema(t *testing.T, db *sqlitex.Pool) map[string]string {
 	require.NoError(t, err)
 	defer release()
 
-	rows, discard, check := sqlitex.Query(conn, "select name, sql from sqlite_schema order by name")
+	rows, discard, check := sqlitex.Query(conn, "select name, sql from sqlite_schema order by name").All()
 	defer func() {
 		var err error
 		discard(&err)

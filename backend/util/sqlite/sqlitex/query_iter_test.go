@@ -19,7 +19,7 @@ func TestQuery(t *testing.T) {
 	want := []string{"my_table", "sqlite_autoindex_my_table_1"}
 	var got []string
 
-	rows, discard, check := Query(conn, "SELECT name FROM sqlite_master")
+	rows, discard, check := Query(conn, "SELECT name FROM sqlite_master").All()
 	defer func() {
 		var err error
 		discard(&err)

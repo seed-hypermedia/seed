@@ -238,7 +238,7 @@ var qBlobsGetSize = dqb.Str(`
 `)
 
 func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {
-	rows, discard, check := sqlitex.Query(conn, qBlobsGetGenesis(), id)
+	rows, discard, check := sqlitex.Query(conn, qBlobsGetGenesis(), id).All()
 	defer discard(&err)
 	for row := range rows {
 		genesis = row.ColumnInt64(0)

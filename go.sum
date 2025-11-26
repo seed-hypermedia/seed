@@ -138,6 +138,8 @@ github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792/go.mod h1:ghJtE
 github.com/btcsuite/winsvc v1.0.0 h1:J9B4L7e3oqhXOcm+2IuNApwzQec85lE+QaikUcCs+dk=
 github.com/btcsuite/winsvc v1.0.0/go.mod h1:jsenWakMcC0zFBFurPLEAyrnc/teJEM1O46fmI40EZs=
 github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23/go.mod h1:bbYlZJ7hK1yFx9hf58LP0zeX7UjIGs20ufpu3evjr+s=
+github.com/burdiyan/go-erriter v0.0.0-20251126131818-84c9a62b84d2 h1:IiIGGudmB/7G21DRscg3gHNDVvh3FeqNYTNl6seMc3w=
+github.com/burdiyan/go-erriter v0.0.0-20251126131818-84c9a62b84d2/go.mod h1:+6ibPBKYd5uvc3fSOlPj2Uug6sTob0Z+4e6UqSuBtsU=
 github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6 h1:6H15Dgf4zZ8KlEXg3gHXVeSaJ7lmxmPwTGuhtuZuL2w=
 github.com/burdiyan/go/mainutil v0.0.0-20200124222818-6f87e0e684b6/go.mod h1:rw0aHTLAgD7uczBMUzhtLU8+OH5NZbJOg56QnIC6YF0=
 github.com/bwmarrin/discordgo v0.28.1 h1:gXsuo2GBO7NbR6uqmrrBDplPUx2T3nzu775q/Rd1aG4=
