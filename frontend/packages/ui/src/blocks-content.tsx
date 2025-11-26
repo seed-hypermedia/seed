@@ -1651,7 +1651,7 @@ export function BlockEmbedContent({
         id={id}
         comment={comment}
         isLoading={resource.isLoading}
-        targetResource={commentTargetResource.data}
+        targetResource={commentTargetResource.data ?? undefined}
         author={
           author.data?.type === 'document' || author.data?.type === 'comment'
             ? author.data
