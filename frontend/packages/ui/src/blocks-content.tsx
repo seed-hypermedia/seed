@@ -110,9 +110,10 @@ import useMedia from './use-media'
 import {cn} from './utils'
 
 import {getCommentTargetId} from '@shm/shared'
-import {HMCitation} from '@shm/shared/hm-types'
+import {HMCitation, HMResource} from '@shm/shared/hm-types'
 import {toast} from 'sonner'
 import {useHighlighter} from './highlight-context'
+import {DocumentNameLink} from './inline-descriptor'
 
 export type BlockRangeSelectOptions = BlockRange & {
   copyToClipboard?: boolean
@@ -1634,6 +1635,7 @@ export function BlockEmbedContent({
     resource.data?.type === 'document' ? resource.data.document : undefined
   const comment =
     resource.data?.type === 'comment' ? resource.data.comment : undefined
+  const commentTargetResource = client.useResource(getCommentTargetId(comment))
 
   const author = client.useResource(
     comment?.author ? hmId(comment?.author) : null,
@@ -1649,6 +1651,7 @@ export function BlockEmbedContent({
         id={id}
         comment={comment}
         isLoading={resource.isLoading}
+        targetResource={commentTargetResource.data}
         author={
           author.data?.type === 'document' || author.data?.type === 'comment'
             ? author.data
@@ -1751,6 +1754,7 @@ export function BlockEmbedContentComment({
   comment,
   author,
   block,
+  targetResource,
 }: {
   id: UnpackedHypermediaId
   parentBlockId: string | null
@@ -1759,6 +1763,7 @@ export function BlockEmbedContentComment({
   isLoading?: boolean
   comment: HMComment
   author: HMResolvedResource | null | undefined
+  targetResource: HMResource | undefined
 }) {
   return (
     <EmbedWrapper
@@ -1775,7 +1780,13 @@ export function BlockEmbedContentComment({
         },
       }}
     >
-      {author && <CommentEmbedHeader comment={comment} author={author} />}
+      {author && (
+        <CommentEmbedHeader
+          comment={comment}
+          author={author}
+          targetResource={targetResource}
+        />
+      )}
       <CommentContent
         comment={comment}
         zoomBlockRef={id.blockRef}
@@ -1788,9 +1799,11 @@ export function BlockEmbedContentComment({
 function CommentEmbedHeader({
   comment,
   author,
+  targetResource,
 }: {
   comment: HMComment
   author: HMResolvedResource
+  targetResource: HMResource | undefined
 }) {
   const authorMetadata =
     author.type === 'document' ? author.document?.metadata : undefined
@@ -1806,6 +1819,15 @@ function CommentEmbedHeader({
           />
         )}
         <SizableText weight="bold">{authorMetadata?.name || '?'}</SizableText>
+        {targetResource && targetResource.type === 'document' ? (
+          <>
+            {' on '}
+            <DocumentNameLink
+              metadata={targetResource.document?.metadata}
+              id={targetResource.id}
+            />
+          </>
+        ) : null}
       </div>
       {comment.createTime ? (
         <SizableText size="sm" color="muted">
