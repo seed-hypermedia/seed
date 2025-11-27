@@ -2,6 +2,7 @@ package hmnet
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
@@ -64,10 +65,11 @@ func TestPostGet(t *testing.T) {
 	lis, err := net.Listen("tcp", srv.Addr)
 	require.NoError(t, err)
 
-	go func() {
-		err := srv.Serve(lis)
-		require.ErrorAs(t, err, http.ErrServerClosed)
-	}()
+	go srv.Serve(lis)
+
+	t.Cleanup(func() {
+		require.NoError(t, srv.Shutdown(context.Background()))
+	})
 
 	res := makeRequest(t, "POST", "/ipfs/file-upload", fileBytes, router)
 	require.Equal(t, http.StatusCreated, res.Code)
@@ -97,10 +99,11 @@ func TestRangeRequests(t *testing.T) {
 	lis, err := net.Listen("tcp", srv.Addr)
 	require.NoError(t, err)
 
-	go func() {
-		err := srv.Serve(lis)
-		require.ErrorAs(t, err, http.ErrServerClosed)
-	}()
+	go srv.Serve(lis)
+
+	t.Cleanup(func() {
+		require.NoError(t, srv.Shutdown(context.Background()))
+	})
 
 	// First upload the file
 	res := makeRequest(t, "POST", "/ipfs/file-upload", fileBytes, router)

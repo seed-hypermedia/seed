@@ -756,7 +756,9 @@ func TestSubscriptions(t *testing.T) {
 			TargetAccount: aliceHondaUpdated.Account,
 			TargetPath:    aliceHondaUpdated.Path,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			return false
+		}
 		return len(comments.Comments) == 2
 	}, time.Second*5, time.Millisecond*200, "We should have two comments, the initial comment and the reply")
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
@@ -827,7 +829,9 @@ func TestSubscriptions(t *testing.T) {
 			TargetAccount: aliceHondaUpdated.Account,
 			TargetPath:    aliceHondaUpdated.Path,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			return false
+		}
 		return len(comments.Comments) == 3
 	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
 
@@ -855,7 +859,9 @@ func TestSubscriptions(t *testing.T) {
 			Account: aliceHome.Account,
 			Path:    aliceHome.Path,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			return false
+		}
 		return len(aliceHome.Content) == len(docGotten.Content)
 	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
 
