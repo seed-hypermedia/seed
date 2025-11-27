@@ -48,6 +48,7 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
     const summary = computeSummary(rows);
     const totalSubscribers = summary.totalSubscribers ?? 0;
     const totalDisplay = numberFormatter.format(totalSubscribers);
+    const totalSitesDisplay = numberFormatter.format(rows.length);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -57,21 +58,21 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #f1f5f9; min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #f1f5f9; height: 100vh; display: flex; flex-direction: column; gap: 24px; overflow: hidden; }
     header h1 { margin: 0 0 8px; font-size: 32px; }
     header p { margin: 0; color: #94a3b8; }
-    main { flex: 1; display: flex; flex-direction: column; gap: 24px; }
-    #treemap-container { flex: 1; position: relative; min-height: 360px; }
+    main { flex: 1; display: flex; flex-direction: column; gap: 24px; min-height: 0; }
+    #treemap-container { flex: 1; position: relative; min-height: 0; }
     #treemap { width: 100%; height: 100%; border-radius: 16px; overflow: hidden; background: rgba(15, 23, 42, 0.4); }
     .tooltip { position: absolute; pointer-events: none; background: rgba(15, 23, 42, 0.92); color: #f8fafc; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.4; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.35); opacity: 0; transition: opacity 120ms ease; border: 1px solid rgba(148, 163, 184, 0.35); }
     .legend { display: flex; gap: 16px; flex-wrap: wrap; color: #cbd5f5; font-size: 14px; }
     .legend > div { display: flex; gap: 6px; align-items: center; }
     .legend span { display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
-    footer { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    footer .card { background: rgba(15, 23, 42, 0.55); padding: 18px; border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.35); }
-    footer .card-title { text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
-    footer .card-value { font-size: 26px; font-weight: 600; margin: 0; color: #f8fafc; }
-    footer .card-subtitle { font-size: 13px; color: #cbd5f5; margin-top: 4px; }
+    footer { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); flex-shrink: 0; }
+    .card { background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 6px; }
+    .card-title { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; }
+    .card-value { margin: 0; font-size: 32px; font-weight: 600; color: #f8fafc; }
+    .card-subtitle { margin: 0; font-size: 14px; color: rgba(148, 163, 184, 0.9); }
   </style>
 </head>
 <body>
@@ -87,16 +88,21 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
     </section>
 
     <div class="legend">
-      <div><span style="background: #1d4ed8;"></span> Highest share of subscribers</div>
-      <div><span style="background: #38bdf8;"></span> Moderate share</div>
-      <div><span style="background: #22d3ee;"></span> Lower share</div>
+      <div><span style="background: #facc15;"></span> Lower share</div>
+      <div><span style="background: #f97316;"></span> Mid share</div>
+      <div><span style="background: #22c55e;"></span> Higher share</div>
     </div>
 
     <footer>
       <div class="card">
-        <p class="card-title">Total Subscribers (Top 10)</p>
+        <p class="card-title">Total Subscribers</p>
         <p class="card-value">${escapeHtml(totalDisplay)}</p>
-        <p class="card-subtitle">Combined across displayed resources</p>
+        <p class="card-subtitle">Combined across displayed sites</p>
+      </div>
+      <div class="card">
+        <p class="card-title">Total Sites</p>
+        <p class="card-value">${escapeHtml(totalSitesDisplay)}</p>
+        <p class="card-subtitle">Displayed sites</p>
       </div>
       <div class="card">
         <p class="card-title">Top Resource</p>
@@ -112,11 +118,17 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
 
     const container = document.getElementById("treemap");
     const tooltip = document.getElementById("tooltip");
+    const PCT_LABEL_THRESHOLD = 0.5;
+    const LABEL_MIN_WIDTH = 170;
+    const LABEL_MIN_HEIGHT = 96;
+    const NAME_ALWAYS_THRESHOLD = 1;
+    const COMPACT_LABEL_MIN_WIDTH = 120;
+    const COMPACT_LABEL_MIN_HEIGHT = 60;
 
     function renderTreemap() {
       const width = container.clientWidth;
       const height = container.clientHeight;
-      container.setAttribute("viewBox", \`0 0 \${width} \${height}\`);
+      container.setAttribute("viewBox", "0 0 " + width + " " + height);
       container.innerHTML = "";
 
       const data = {
@@ -134,14 +146,25 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
       d3.treemap().paddingInner(3).size([width, height])(root);
 
       const extent = d3.extent(root.leaves(), (d) => d.data.pctValue);
-      const color = d3.scaleSequential().domain(extent).interpolator(d3.interpolateTurbo);
+      const minPct = extent[0] ?? 0;
+      const maxPct = extent[1] ?? minPct;
+
+      let color;
+      if (minPct === maxPct) {
+        color = () => "#22c55e";
+      } else {
+        color = d3
+          .scaleLinear()
+          .domain([minPct, (minPct + maxPct) / 2, maxPct])
+          .range(["#facc15", "#f97316", "#22c55e"]);
+      }
 
       const nodes = d3.select(container)
         .selectAll("g")
         .data(root.leaves())
         .enter()
         .append("g")
-        .attr("transform", (d) => \`translate(\${d.x0},\${d.y0})\`);
+        .attr("transform", (d) => "translate(" + d.x0 + "," + d.y0 + ")");
 
       nodes.append("rect")
         .attr("width", (d) => d.x1 - d.x0)
@@ -154,33 +177,53 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
         .attr("stroke-width", 1.2)
         .on("mousemove", (event, d) => {
           tooltip.style.opacity = "1";
-          tooltip.style.left = \`\${event.offsetX + 16}px\`;
-          tooltip.style.top = \`\${event.offsetY + 16}px\`;
-          tooltip.innerHTML = \`
-            <strong>\${d.data.label}</strong><br/>
-            Subscribers: \${numberFormatter.format(d.data.value)}<br/>
-            Share: \${d.data.pctLabel}
-          \`;
+          tooltip.style.left = event.offsetX + 16 + "px";
+          tooltip.style.top = event.offsetY + 16 + "px";
+          tooltip.innerHTML =
+            "<strong>" +
+            d.data.label +
+            "</strong><br/>Subscribers: " +
+            numberFormatter.format(d.data.value) +
+            "<br/>Share: " +
+            d.data.pctLabel;
         })
         .on("mouseleave", () => {
           tooltip.style.opacity = "0";
         });
 
-      nodes.append("text")
+      const labelText = nodes.append("text")
         .attr("x", 12)
         .attr("y", 24)
         .attr("fill", "#0f172a")
         .attr("font-size", "14")
         .attr("font-weight", "600")
-        .text((d) => d.data.label)
+        .text((d) => {
+          const mode = labelMode(d);
+          if (mode === "none") {
+            return "";
+          }
+          const available = d.x1 - d.x0 - 24;
+          if (mode === "compact") {
+            return truncateLabel(d.data.label, available);
+          }
+          return d.data.label;
+        })
+        .style("display", (d) => (labelMode(d) === "none" ? "none" : null));
+
+      labelText
+        .filter((d) => labelMode(d) === "full")
         .call(wrapText, (d) => d.x1 - d.x0 - 24);
 
       nodes.append("text")
         .attr("x", 12)
-        .attr("y", 44)
+        .attr("y", (d) => (labelMode(d) === "none" ? 24 : 44))
         .attr("fill", "rgba(15, 23, 42, 0.75)")
         .attr("font-size", "13")
-        .text((d) => \`\${numberFormatter.format(d.data.value)} · \${d.data.pctLabel}\`);
+        .text((d) =>
+          labelMode(d) === "none"
+            ? d.data.pctLabel
+            : numberFormatter.format(d.data.value) + " · " + d.data.pctLabel
+        );
     }
 
     function wrapText(text, widthAccessor) {
@@ -207,6 +250,40 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
           }
         }
       });
+    }
+
+    function labelMode(node) {
+      const pct = node.data.pctValue || 0;
+      const width = node.x1 - node.x0;
+      const height = node.y1 - node.y0;
+
+      if (pct >= PCT_LABEL_THRESHOLD && width >= LABEL_MIN_WIDTH && height >= LABEL_MIN_HEIGHT) {
+        return "full";
+      }
+
+      if (pct >= NAME_ALWAYS_THRESHOLD && width >= COMPACT_LABEL_MIN_WIDTH && height >= COMPACT_LABEL_MIN_HEIGHT) {
+        return "compact";
+      }
+
+      return "none";
+    }
+
+    function truncateLabel(label, availableWidth) {
+      const roughCharWidth = 7;
+      const maxChars = Math.max(4, Math.floor(availableWidth / roughCharWidth));
+      if (label.length <= maxChars) {
+        return label;
+      }
+      return label.slice(0, maxChars - 1) + "…";
+    }
+
+    function shouldRenderLabel(node) {
+      if (node.data.pctValue < PCT_LABEL_THRESHOLD) {
+        return false;
+      }
+      const width = node.x1 - node.x0;
+      const height = node.y1 - node.y0;
+      return width >= LABEL_MIN_WIDTH && height >= LABEL_MIN_HEIGHT;
     }
 
     renderTreemap();
@@ -246,6 +323,7 @@ function computeSummary(rows: LeaderboardRow[]) {
   const top = rows[0];
   return {
     totalSubscribers,
+    totalSites: rows.length,
     topId: top?.id ?? null,
     topTitle: top?.title ?? null,
     topCount: top?.subscriber_count ?? null,

@@ -94,7 +94,11 @@ try {
   console.log(`Chart written to ${outputHtml}`);
   console.log(`Data written to ${outputJson}`);
 } catch (err) {
-  console.error("Query execution failed:", err);
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`Query execution failed: ${message}`);
+  if (message.toLowerCase().includes("permission denied")) {
+    console.error(`Hint: ensure your SSH key can access ${sshTarget}.`);
+  }
   process.exit(1);
 }
 
@@ -120,10 +124,11 @@ function runRemoteQuery(sql: string) {
   });
 
   if (result.error) {
-    throw result.error;
+    throw new Error(`Failed to execute ssh: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    throw new Error(result.stderr || `ssh exited with ${result.status}`);
+    const stderr = (result.stderr ?? "").trim();
+    throw new Error(stderr || `ssh exited with ${result.status}`);
   }
   const trimmed = result.stdout.trim();
   if (!trimmed) {
