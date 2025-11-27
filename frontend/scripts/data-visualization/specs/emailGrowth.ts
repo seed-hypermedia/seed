@@ -68,12 +68,12 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(ctx.title)}</title>
-  <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <style>
     body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
     h1 { margin-bottom: 8px; }
     p { margin-top: 0; color: #475569; }
-    #chart { width: 100%; height: 70vh; }
+    #chart-wrapper { position: relative; height: 70vh; }
     .card-grid { display: grid; gap: 16px; margin-top: 32px; }
     @media (min-width: 768px) { .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     .card { border-radius: 12px; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.3); background: #fff; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
@@ -88,7 +88,9 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
 <body>
   <h1>${escapeHtml(ctx.title)}</h1>
   <p>Query: ${escapeHtml(ctx.queryLabel)} · Source: ssh://${escapeHtml(ctx.sshTarget)}${escapeHtml(ctx.dbPath)}</p>
-  <div id="chart"></div>
+  <div id="chart-wrapper">
+    <canvas id="growthChart"></canvas>
+  </div>
   <div class="card-grid">
     <div class="card card--blue">
       <p class="card-title">Peak Growth Rate</p>
@@ -108,55 +110,105 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
   </div>
   <script>
     const rows = ${serializeForScript(rows)};
-    const growthTrace = {
-      x: rows.map((row) => row.date),
-      y: rows.map((row) => row.growth_percent),
-      name: "Growth Rate (%)",
-      type: "scatter",
-      mode: "lines+markers",
-      line: { color: "#3b82f6", width: 3 },
-      marker: { color: "#3b82f6", size: 6 },
-      hovertemplate: "%{x}<br>Growth: %{y:.2f}%<extra></extra>"
-    };
-    const totalUsersTrace = {
-      x: rows.map((row) => row.date),
-      y: rows.map((row) => row.total_users),
-      name: "Total Users",
-      type: "scatter",
-      mode: "lines+markers",
-      line: { color: "#10b981", width: 3 },
-      marker: { color: "#10b981", size: 5 },
-      yaxis: "y2",
-      hovertemplate: "%{x}<br>Total: %{y:,}<extra></extra>"
-    };
-    const newUsersTrace = {
-      x: rows.map((row) => row.date),
-      y: rows.map((row) => row.new_users),
-      name: "New Users (weekly)",
-      type: "bar",
-      marker: { color: "#8b5cf6" },
-      yaxis: "y2",
-      opacity: 0.45,
-      hovertemplate: "%{x}<br>New: %{y:,}<extra></extra>"
-    };
+    const ctxEl = document.getElementById("growthChart");
+    const growthData = rows.map((row) => row.growth_percent);
+    const totalData = rows.map((row) => row.total_users);
+    const newUsersData = rows.map((row) => row.new_users);
+    const labels = rows.map((row) => row.date);
+    const numberFormatter = new Intl.NumberFormat("en-US");
 
-    const layout = {
-      title: ${serializeForScript(ctx.title)},
-      xaxis: { title: "Week", tickangle: -45, automargin: true },
-      yaxis: { title: "Growth Rate (%)", zeroline: true, tickformat: ".2f" },
-      yaxis2: {
-        title: "Users",
-        overlaying: "y",
-        side: "right",
-        tickformat: ","
+    new Chart(ctxEl, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          {
+            type: "line",
+            label: "Growth Rate (%)",
+            data: growthData,
+            yAxisID: "growthAxis",
+            borderColor: "#3b82f6",
+            backgroundColor: "rgba(59, 130, 246, 0.18)",
+            borderWidth: 3,
+            pointRadius: 4,
+            pointBackgroundColor: "#3b82f6",
+            tension: 0.3
+          },
+          {
+            type: "line",
+            label: "Total Users",
+            data: totalData,
+            yAxisID: "userAxis",
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16, 185, 129, 0.18)",
+            borderWidth: 3,
+            pointRadius: 3,
+            pointBackgroundColor: "#10b981",
+            tension: 0.3
+          },
+          {
+            type: "bar",
+            label: "New Users (weekly)",
+            data: newUsersData,
+            yAxisID: "userAxis",
+            backgroundColor: "rgba(139, 92, 246, 0.45)",
+            borderRadius: 4,
+            maxBarThickness: 18
+          }
+        ]
       },
-      legend: { orientation: "h", y: -0.2 },
-      margin: { l: 64, r: 64, t: 64, b: 120 },
-      template: "plotly_white",
-      bargap: 0.2
-    };
-
-    Plotly.newPlot("chart", [growthTrace, totalUsersTrace, newUsersTrace], layout, { responsive: true });
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        scales: {
+          growthAxis: {
+            type: "linear",
+            position: "left",
+            title: { text: "Growth Rate (%)", display: true, color: "#3b82f6" },
+            ticks: {
+              color: "#3b82f6",
+              callback: (value) => \`\${Number(value).toFixed(0)}%\`
+            }
+          },
+          userAxis: {
+            type: "linear",
+            position: "right",
+            grid: { drawOnChartArea: false },
+            title: { text: "Users", display: true, color: "#10b981" },
+            ticks: {
+              color: "#10b981",
+              callback: (value) => numberFormatter.format(Number(value))
+            }
+          },
+          x: {
+            ticks: { maxRotation: 45, minRotation: 45 },
+            title: { text: "Week", display: true }
+          }
+        },
+        plugins: {
+          legend: { display: true, position: "top" },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                const { dataset, raw } = context;
+                if (raw === null || raw === undefined || Number.isNaN(raw)) {
+                  return \`\${dataset.label}: —\`;
+                }
+                if (dataset.yAxisID === "growthAxis") {
+                  return \`\${dataset.label}: \${Number(raw).toFixed(2)}%\`;
+                }
+                return \`\${dataset.label}: \${numberFormatter.format(Number(raw))}\`;
+              },
+              title(context) {
+                return context[0]?.label ?? "";
+              }
+            }
+          },
+          title: { display: false }
+        }
+      }
+    });
   </script>
 </body>
 </html>`;
