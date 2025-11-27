@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	v1alpha "seed/backend/genproto/p2p/v1alpha"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -34,7 +35,7 @@ type ResourcesClient interface {
 	// Gets a single resource with a URL (technically IRI).
 	GetResource(ctx context.Context, in *GetResourceRequest, opts ...grpc.CallOption) (*Resource, error)
 	// Makes sure a resource (and their related blobs) are pushed to a given peer.
-	PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error)
+	PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[v1alpha.AnnounceBlobsProgress], error)
 }
 
 type resourcesClient struct {
@@ -55,13 +56,13 @@ func (c *resourcesClient) GetResource(ctx context.Context, in *GetResourceReques
 	return out, nil
 }
 
-func (c *resourcesClient) PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SyncingProgress], error) {
+func (c *resourcesClient) PushResourcesToPeer(ctx context.Context, in *PushResourcesToPeerRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[v1alpha.AnnounceBlobsProgress], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Resources_ServiceDesc.Streams[0], Resources_PushResourcesToPeer_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[PushResourcesToPeerRequest, SyncingProgress]{ClientStream: stream}
+	x := &grpc.GenericClientStream[PushResourcesToPeerRequest, v1alpha.AnnounceBlobsProgress]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func (c *resourcesClient) PushResourcesToPeer(ctx context.Context, in *PushResou
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Resources_PushResourcesToPeerClient = grpc.ServerStreamingClient[SyncingProgress]
+type Resources_PushResourcesToPeerClient = grpc.ServerStreamingClient[v1alpha.AnnounceBlobsProgress]
 
 // ResourcesServer is the server API for Resources service.
 // All implementations should embed UnimplementedResourcesServer
@@ -85,7 +86,7 @@ type ResourcesServer interface {
 	// Gets a single resource with a URL (technically IRI).
 	GetResource(context.Context, *GetResourceRequest) (*Resource, error)
 	// Makes sure a resource (and their related blobs) are pushed to a given peer.
-	PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error
+	PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[v1alpha.AnnounceBlobsProgress]) error
 }
 
 // UnimplementedResourcesServer should be embedded to have
@@ -98,7 +99,7 @@ type UnimplementedResourcesServer struct{}
 func (UnimplementedResourcesServer) GetResource(context.Context, *GetResourceRequest) (*Resource, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResource not implemented")
 }
-func (UnimplementedResourcesServer) PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[SyncingProgress]) error {
+func (UnimplementedResourcesServer) PushResourcesToPeer(*PushResourcesToPeerRequest, grpc.ServerStreamingServer[v1alpha.AnnounceBlobsProgress]) error {
 	return status.Errorf(codes.Unimplemented, "method PushResourcesToPeer not implemented")
 }
 func (UnimplementedResourcesServer) testEmbeddedByValue() {}
@@ -144,11 +145,11 @@ func _Resources_PushResourcesToPeer_Handler(srv interface{}, stream grpc.ServerS
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(ResourcesServer).PushResourcesToPeer(m, &grpc.GenericServerStream[PushResourcesToPeerRequest, SyncingProgress]{ServerStream: stream})
+	return srv.(ResourcesServer).PushResourcesToPeer(m, &grpc.GenericServerStream[PushResourcesToPeerRequest, v1alpha.AnnounceBlobsProgress]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Resources_PushResourcesToPeerServer = grpc.ServerStreamingServer[SyncingProgress]
+type Resources_PushResourcesToPeerServer = grpc.ServerStreamingServer[v1alpha.AnnounceBlobsProgress]
 
 // Resources_ServiceDesc is the grpc.ServiceDesc for Resources service.
 // It's only intended for direct use with grpc.RegisterService,

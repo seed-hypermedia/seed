@@ -3,8 +3,9 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetResourceRequest, PushResourcesToPeerRequest, Resource, SyncingProgress } from "./resources_pb";
+import { GetResourceRequest, PushResourcesToPeerRequest, Resource } from "./resources_pb";
 import { MethodKind } from "@bufbuild/protobuf";
+import { AnnounceBlobsProgress } from "../../p2p/v1alpha/syncing_pb";
 
 /**
  * Service for querying Hypermedia resources.
@@ -35,7 +36,7 @@ export const Resources = {
     pushResourcesToPeer: {
       name: "PushResourcesToPeer",
       I: PushResourcesToPeerRequest,
-      O: SyncingProgress,
+      O: AnnounceBlobsProgress,
       kind: MethodKind.ServerStreaming,
     },
   }

@@ -2547,7 +2547,7 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 	if len(resources) == 0 {
 		t.Fatal("no resources to push")
 	}
-	stream := testutil.NewMockedGRPCServerStream[*documents.SyncingProgress](t.Context())
+	stream := testutil.NewMockedGRPCServerStream[*p2p.AnnounceBlobsProgress](t.Context())
 	errc := make(chan error, 1)
 	go func() {
 		errc <- src.RPC.DocumentsV3.PushResourcesToPeer(&documents.PushResourcesToPeerRequest{

@@ -4,5 +4,6 @@ mtt_proto_codegen(
     srcs = glob(["*.proto"]),
     languages = [
         "go",
+        "js",
     ],
 )

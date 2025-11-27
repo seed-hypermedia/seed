@@ -27,7 +27,7 @@ import (
 )
 
 // PushResourcesToPeer implements the corresponding gRPC method.
-func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, stream grpc.ServerStreamingServer[documents.SyncingProgress]) error {
+func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest, stream grpc.ServerStreamingServer[p2p.AnnounceBlobsProgress]) error {
 	ctx := stream.Context()
 
 	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
@@ -61,7 +61,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		return err
 	}
 
-	request := &p2p.FetchBlobsRequest{
+	request := &p2p.AnnounceBlobsRequest{
 		Cids: make([]string, len(cids)),
 	}
 	for i, c := range cids {
@@ -85,9 +85,9 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	if err != nil {
 		return fmt.Errorf("could not get p2p client: %w", err)
 	}
-	streamRx, err := syncClient.FetchBlobs(ctx, request)
+	streamRx, err := syncClient.AnnounceBlobs(ctx, request)
 	if err != nil {
-		return fmt.Errorf("failed to start FetchBlobs RPC: %w", err)
+		return fmt.Errorf("failed to start AnnounceBlobs RPC: %w", err)
 	}
 
 	for {

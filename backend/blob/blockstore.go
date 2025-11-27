@@ -273,6 +273,9 @@ func (b *blockStore) PutMany(ctx context.Context, blocks []blocks.Block) error {
 	return b.withConn(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.WithTx(conn, func() error {
 			for _, blk := range blocks {
+				if blk == nil {
+					continue
+				}
 				codec, hash := ipfs.DecodeCID(blk.Cid())
 				if _, _, err := b.putBlock(conn, 0, uint64(codec), hash, blk.RawData()); err != nil {
 					return err

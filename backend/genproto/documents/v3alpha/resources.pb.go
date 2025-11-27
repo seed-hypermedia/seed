@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
+	v1alpha "seed/backend/genproto/p2p/v1alpha"
 	sync "sync"
 	unsafe "unsafe"
 )
@@ -177,96 +178,6 @@ func (*Resource_Comment) isResource_Kind() {}
 
 func (*Resource_Contact) isResource_Kind() {}
 
-type SyncingProgress struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Number of peers found during discovery.
-	PeersFound int32 `protobuf:"varint,1,opt,name=peers_found,json=peersFound,proto3" json:"peers_found,omitempty"`
-	// Number of peers successfully synced.
-	PeersSyncedOk int32 `protobuf:"varint,2,opt,name=peers_synced_ok,json=peersSyncedOk,proto3" json:"peers_synced_ok,omitempty"`
-	// Number of peers that failed to sync.
-	PeersFailed int32 `protobuf:"varint,3,opt,name=peers_failed,json=peersFailed,proto3" json:"peers_failed,omitempty"`
-	// Number of blobs discovered for syncing.
-	BlobsDiscovered int32 `protobuf:"varint,4,opt,name=blobs_discovered,json=blobsDiscovered,proto3" json:"blobs_discovered,omitempty"`
-	// Number of blobs successfully downloaded.
-	BlobsDownloaded int32 `protobuf:"varint,5,opt,name=blobs_downloaded,json=blobsDownloaded,proto3" json:"blobs_downloaded,omitempty"`
-	// Number of blobs that failed to download.
-	BlobsFailed   int32 `protobuf:"varint,6,opt,name=blobs_failed,json=blobsFailed,proto3" json:"blobs_failed,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SyncingProgress) Reset() {
-	*x = SyncingProgress{}
-	mi := &file_documents_v3alpha_resources_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SyncingProgress) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SyncingProgress) ProtoMessage() {}
-
-func (x *SyncingProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_resources_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncingProgress.ProtoReflect.Descriptor instead.
-func (*SyncingProgress) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *SyncingProgress) GetPeersFound() int32 {
-	if x != nil {
-		return x.PeersFound
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetPeersSyncedOk() int32 {
-	if x != nil {
-		return x.PeersSyncedOk
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetPeersFailed() int32 {
-	if x != nil {
-		return x.PeersFailed
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsDiscovered() int32 {
-	if x != nil {
-		return x.BlobsDiscovered
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsDownloaded() int32 {
-	if x != nil {
-		return x.BlobsDownloaded
-	}
-	return 0
-}
-
-func (x *SyncingProgress) GetBlobsFailed() int32 {
-	if x != nil {
-		return x.BlobsFailed
-	}
-	return 0
-}
-
 type PushResourcesToPeerRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// A list of multiaddrs for the same peer ID to attempt p2p connection.
@@ -283,7 +194,7 @@ type PushResourcesToPeerRequest struct {
 
 func (x *PushResourcesToPeerRequest) Reset() {
 	*x = PushResourcesToPeerRequest{}
-	mi := &file_documents_v3alpha_resources_proto_msgTypes[3]
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -295,7 +206,7 @@ func (x *PushResourcesToPeerRequest) String() string {
 func (*PushResourcesToPeerRequest) ProtoMessage() {}
 
 func (x *PushResourcesToPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_documents_v3alpha_resources_proto_msgTypes[3]
+	mi := &file_documents_v3alpha_resources_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -308,7 +219,7 @@ func (x *PushResourcesToPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PushResourcesToPeerRequest.ProtoReflect.Descriptor instead.
 func (*PushResourcesToPeerRequest) Descriptor() ([]byte, []int) {
-	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{3}
+	return file_documents_v3alpha_resources_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *PushResourcesToPeerRequest) GetAddrs() []string {
@@ -329,7 +240,7 @@ var File_documents_v3alpha_resources_proto protoreflect.FileDescriptor
 
 const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\n" +
-	"!documents/v3alpha/resources.proto\x12\x1acom.seed.documents.v3alpha\x1a!documents/v3alpha/documents.proto\x1a documents/v3alpha/comments.proto\"&\n" +
+	"!documents/v3alpha/resources.proto\x12\x1acom.seed.documents.v3alpha\x1a!documents/v3alpha/documents.proto\x1a documents/v3alpha/comments.proto\x1a\x19p2p/v1alpha/syncing.proto\"&\n" +
 	"\x12GetResourceRequest\x12\x10\n" +
 	"\x03iri\x18\x01 \x01(\tR\x03iri\"\xf2\x01\n" +
 	"\bResource\x12B\n" +
@@ -337,21 +248,13 @@ const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\acomment\x18\x02 \x01(\v2#.com.seed.documents.v3alpha.CommentH\x00R\acomment\x12?\n" +
 	"\acontact\x18\x03 \x01(\v2#.com.seed.documents.v3alpha.ContactH\x00R\acontact\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversionB\x06\n" +
-	"\x04kind\"\xf6\x01\n" +
-	"\x0fSyncingProgress\x12\x1f\n" +
-	"\vpeers_found\x18\x01 \x01(\x05R\n" +
-	"peersFound\x12&\n" +
-	"\x0fpeers_synced_ok\x18\x02 \x01(\x05R\rpeersSyncedOk\x12!\n" +
-	"\fpeers_failed\x18\x03 \x01(\x05R\vpeersFailed\x12)\n" +
-	"\x10blobs_discovered\x18\x04 \x01(\x05R\x0fblobsDiscovered\x12)\n" +
-	"\x10blobs_downloaded\x18\x05 \x01(\x05R\x0fblobsDownloaded\x12!\n" +
-	"\fblobs_failed\x18\x06 \x01(\x05R\vblobsFailed\"P\n" +
+	"\x04kind\"P\n" +
 	"\x1aPushResourcesToPeerRequest\x12\x14\n" +
 	"\x05addrs\x18\x01 \x03(\tR\x05addrs\x12\x1c\n" +
 	"\tresources\x18\x02 \x03(\tR\tresources2\xee\x01\n" +
 	"\tResources\x12c\n" +
 	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.Resource\x12|\n" +
-	"\x13PushResourcesToPeer\x126.com.seed.documents.v3alpha.PushResourcesToPeerRequest\x1a+.com.seed.documents.v3alpha.SyncingProgress0\x01B3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
+	"\x13PushResourcesToPeer\x126.com.seed.documents.v3alpha.PushResourcesToPeerRequest\x1a+.com.seed.p2p.v1alpha.AnnounceBlobsProgress0\x01B3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"
 
 var (
 	file_documents_v3alpha_resources_proto_rawDescOnce sync.Once
@@ -365,24 +268,24 @@ func file_documents_v3alpha_resources_proto_rawDescGZIP() []byte {
 	return file_documents_v3alpha_resources_proto_rawDescData
 }
 
-var file_documents_v3alpha_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_documents_v3alpha_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_documents_v3alpha_resources_proto_goTypes = []any{
-	(*GetResourceRequest)(nil),         // 0: com.seed.documents.v3alpha.GetResourceRequest
-	(*Resource)(nil),                   // 1: com.seed.documents.v3alpha.Resource
-	(*SyncingProgress)(nil),            // 2: com.seed.documents.v3alpha.SyncingProgress
-	(*PushResourcesToPeerRequest)(nil), // 3: com.seed.documents.v3alpha.PushResourcesToPeerRequest
-	(*Document)(nil),                   // 4: com.seed.documents.v3alpha.Document
-	(*Comment)(nil),                    // 5: com.seed.documents.v3alpha.Comment
-	(*Contact)(nil),                    // 6: com.seed.documents.v3alpha.Contact
+	(*GetResourceRequest)(nil),            // 0: com.seed.documents.v3alpha.GetResourceRequest
+	(*Resource)(nil),                      // 1: com.seed.documents.v3alpha.Resource
+	(*PushResourcesToPeerRequest)(nil),    // 2: com.seed.documents.v3alpha.PushResourcesToPeerRequest
+	(*Document)(nil),                      // 3: com.seed.documents.v3alpha.Document
+	(*Comment)(nil),                       // 4: com.seed.documents.v3alpha.Comment
+	(*Contact)(nil),                       // 5: com.seed.documents.v3alpha.Contact
+	(*v1alpha.AnnounceBlobsProgress)(nil), // 6: com.seed.p2p.v1alpha.AnnounceBlobsProgress
 }
 var file_documents_v3alpha_resources_proto_depIdxs = []int32{
-	4, // 0: com.seed.documents.v3alpha.Resource.document:type_name -> com.seed.documents.v3alpha.Document
-	5, // 1: com.seed.documents.v3alpha.Resource.comment:type_name -> com.seed.documents.v3alpha.Comment
-	6, // 2: com.seed.documents.v3alpha.Resource.contact:type_name -> com.seed.documents.v3alpha.Contact
+	3, // 0: com.seed.documents.v3alpha.Resource.document:type_name -> com.seed.documents.v3alpha.Document
+	4, // 1: com.seed.documents.v3alpha.Resource.comment:type_name -> com.seed.documents.v3alpha.Comment
+	5, // 2: com.seed.documents.v3alpha.Resource.contact:type_name -> com.seed.documents.v3alpha.Contact
 	0, // 3: com.seed.documents.v3alpha.Resources.GetResource:input_type -> com.seed.documents.v3alpha.GetResourceRequest
-	3, // 4: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:input_type -> com.seed.documents.v3alpha.PushResourcesToPeerRequest
+	2, // 4: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:input_type -> com.seed.documents.v3alpha.PushResourcesToPeerRequest
 	1, // 5: com.seed.documents.v3alpha.Resources.GetResource:output_type -> com.seed.documents.v3alpha.Resource
-	2, // 6: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:output_type -> com.seed.documents.v3alpha.SyncingProgress
+	6, // 6: com.seed.documents.v3alpha.Resources.PushResourcesToPeer:output_type -> com.seed.p2p.v1alpha.AnnounceBlobsProgress
 	5, // [5:7] is the sub-list for method output_type
 	3, // [3:5] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
@@ -408,7 +311,7 @@ func file_documents_v3alpha_resources_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_documents_v3alpha_resources_proto_rawDesc), len(file_documents_v3alpha_resources_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

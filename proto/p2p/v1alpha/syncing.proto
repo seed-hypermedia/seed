@@ -2,18 +2,38 @@ syntax = "proto3";
 
 package com.seed.p2p.v1alpha;
 
-import "documents/v3alpha/resources.proto";
-
 option go_package = "seed/backend/genproto/p2p/v1alpha;p2p";
 
 service Syncing {
   rpc ReconcileBlobs(ReconcileBlobsRequest) returns (ReconcileBlobsResponse);
-  rpc FetchBlobs(FetchBlobsRequest) returns (stream documents.v3alpha.SyncingProgress);
+
+  rpc AnnounceBlobs(AnnounceBlobsRequest) returns (stream AnnounceBlobsProgress);
 }
 
-message FetchBlobsRequest {
-  // Required. Cids to fetch.
+message AnnounceBlobsRequest {
+  // Required. Cids to announce.
   repeated string cids = 1;
+}
+
+message AnnounceBlobsProgress {
+  // Total number of blobs announced by the requester.
+  int32 blobs_announced = 1;
+
+  // Total number of blobs already known by the server.
+  int32 blobs_known = 2;
+
+  // Total number of blobs wanted by the server.
+  // I.e. announced - known.
+  int32 blobs_wanted = 3;
+
+  // Total number of wanted blobs already processed.
+  // This number grows as progress advances,
+  // and when it becomes equal to blobs_wanted — we're done syncing.
+  int32 blobs_processed = 4;
+
+  // Total number of wanted blobs that we failed to process.
+  // They're also counted as blobs_processed.
+  int32 blobs_failed = 5;
 }
 
 message ReconcileBlobsRequest {
@@ -34,8 +54,8 @@ message Filter {
   // Selects only blobs related to the given resource.
   string resource = 1;
 
-  // If its recursive, then all the documents below the path are 
-  // will also pass the filter. 
+  // If its recursive, then all the documents below the path are
+  // will also pass the filter.
   bool recursive = 2;
 }
 

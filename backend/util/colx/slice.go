@@ -121,6 +121,29 @@ func SlicePermutations[T any](input []T) [][]T {
 	return result
 }
 
+// SliceDedupe removes any potential duplicates from the slice
+// preserving the original order and reusing the backing array.
+// I.e. it mutates the original slice.
+func SliceDedupe[T comparable](s []T) []T {
+	if len(s) < 2 {
+		return s
+	}
+
+	seen := make(map[T]struct{}, len(s))
+
+	var w int
+	for _, v := range s {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		s[w] = v
+		w++
+	}
+
+	return s[:w]
+}
+
 // CommonPrefix returns the number os elements that are equal in both slices.
 func CommonPrefix[E cmp.Ordered, S ~[]E](a, b S) int {
 	n := min(len(a), len(b))

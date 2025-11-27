@@ -14,9 +14,9 @@ import {
   getCommentTargetId,
   getParentPaths,
   HMAnnotation,
-  SyncingProgress,
   useUniversalClient,
 } from '@shm/shared'
+import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
@@ -1015,7 +1015,7 @@ export function usePushResource() {
 
     await Promise.all(
       Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
-        let lastProgress: SyncingProgress | undefined = undefined
+        let lastProgress: AnnounceBlobsProgress | undefined = undefined
         const addrs = addrsForPeer.get(peerId)
         if (!addrs) {
           updatePeerStatus(peerId, 'error', 'No addresses found for peer')
@@ -1033,7 +1033,7 @@ export function usePushResource() {
             updatePeerStatus(
               peerId,
               'pending',
-              `Pushing ${progress.blobsDownloaded}/${progress.blobsDiscovered}`,
+              `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`,
             )
             lastProgress = progress
           }
