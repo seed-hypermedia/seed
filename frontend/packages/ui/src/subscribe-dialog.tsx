@@ -182,7 +182,7 @@ export function SubscribeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'sm:max-w-md',
+          'w-full max-w-md max-sm:w-[min(92vw,24rem)]',
           isMobileKeyboardOpen
             ? 'max-sm:top-[2vh] max-sm:max-h-[60vh] max-sm:translate-y-0'
             : 'max-sm:top-[5vh] max-sm:max-h-[90vh] max-sm:translate-y-0',
