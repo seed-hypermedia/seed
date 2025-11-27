@@ -5,8 +5,8 @@ import { existsSync, unlinkSync } from "fs";
 import { join } from "path";
 
 const isProd = process.argv.includes("--prod");
-const REMOTE_HOST = isProd ? "hm" : "dev.hm";
-const REMOTE_PATH = "/shm/gateway/web/web-db.sqlite";
+const REMOTE_HOST = isProd ? "hyper.media" : "dev.hyper.media";
+const REMOTE_PATH = "/shm/gateway/notify/web-db.sqlite";
 const LOCAL_PATH = join(import.meta.dir, "web-db.sqlite");
 
 console.log(`Downloading database from ssh://${REMOTE_HOST}${REMOTE_PATH} ${isProd ? "(PROD)" : "(DEV)"}`);
@@ -18,7 +18,7 @@ if (existsSync(LOCAL_PATH)) {
 }
 
 // Download database via SCP
-const result = spawnSync("scp", [`${REMOTE_HOST}:${REMOTE_PATH}`, LOCAL_PATH], {
+const result = spawnSync("scp", [`ubuntu@${REMOTE_HOST}:${REMOTE_PATH}`, LOCAL_PATH], {
   stdio: "inherit",
 });
 

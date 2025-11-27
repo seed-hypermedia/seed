@@ -70,11 +70,13 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
   <title>${escapeHtml(ctx.title)}</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
-    h1 { margin-bottom: 8px; }
-    p { margin-top: 0; color: #475569; }
-    #chart-wrapper { position: relative; height: 70vh; }
-    .card-grid { display: grid; gap: 16px; margin-top: 32px; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }
+    main { flex: 1; display: flex; flex-direction: column; gap: 24px; }
+    header h1 { margin: 0 0 8px; }
+    header p { margin: 0; color: #475569; }
+    #chart-wrapper { position: relative; flex: 1; min-height: 320px; height: clamp(320px, 70vh, calc(100vh - 320px)); }
+    .card-grid { display: grid; gap: 16px; }
     @media (min-width: 768px) { .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     .card { border-radius: 12px; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.3); background: #fff; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
     .card--blue { background: #eff6ff; border-color: #bfdbfe; }
@@ -86,28 +88,32 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(ctx.title)}</h1>
-  <p>Query: ${escapeHtml(ctx.queryLabel)} · Source: ssh://${escapeHtml(ctx.sshTarget)}${escapeHtml(ctx.dbPath)}</p>
-  <div id="chart-wrapper">
-    <canvas id="growthChart"></canvas>
-  </div>
-  <div class="card-grid">
-    <div class="card card--blue">
-      <p class="card-title">Peak Growth Rate</p>
-      <p class="card-value">${escapeHtml(peakGrowthDisplay)}</p>
-      <p class="card-subtitle">${escapeHtml(peakGrowthDate)}</p>
+  <main>
+    <header>
+      <h1>${escapeHtml(ctx.title)}</h1>
+      <p>Query: ${escapeHtml(ctx.queryLabel)} · Source: ssh://${escapeHtml(ctx.sshTarget)}${escapeHtml(ctx.dbPath)}</p>
+    </header>
+    <div id="chart-wrapper">
+      <canvas id="growthChart"></canvas>
     </div>
-    <div class="card card--green">
-      <p class="card-title">Total Users</p>
-      <p class="card-value">${escapeHtml(totalUsersDisplay)}</p>
-      <p class="card-subtitle">As of ${escapeHtml(totalUsersDate)}</p>
+    <div class="card-grid">
+      <div class="card card--blue">
+        <p class="card-title">Peak Growth Rate</p>
+        <p class="card-value">${escapeHtml(peakGrowthDisplay)}</p>
+        <p class="card-subtitle">${escapeHtml(peakGrowthDate)}</p>
+      </div>
+      <div class="card card--green">
+        <p class="card-title">Total Users</p>
+        <p class="card-value">${escapeHtml(totalUsersDisplay)}</p>
+        <p class="card-subtitle">As of ${escapeHtml(totalUsersDate)}</p>
+      </div>
+      <div class="card card--purple">
+        <p class="card-title">Average Growth</p>
+        <p class="card-value">${escapeHtml(averageGrowthDisplay)}</p>
+        <p class="card-subtitle">Over ${escapeHtml(String(weeksCount))} ${escapeHtml(weeksLabel)}</p>
+      </div>
     </div>
-    <div class="card card--purple">
-      <p class="card-title">Average Growth</p>
-      <p class="card-value">${escapeHtml(averageGrowthDisplay)}</p>
-      <p class="card-subtitle">Over ${escapeHtml(String(weeksCount))} ${escapeHtml(weeksLabel)}</p>
-    </div>
-  </div>
+  </main>
   <script>
     const rows = ${serializeForScript(rows)};
     const ctxEl = document.getElementById("growthChart");
@@ -116,6 +122,32 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
     const newUsersData = rows.map((row) => row.new_users);
     const labels = rows.map((row) => row.date);
     const numberFormatter = new Intl.NumberFormat("en-US");
+
+    const crosshairPlugin = {
+      id: "verticalCrosshair",
+      afterDraw(chart) {
+        const active = chart.tooltip?.getActiveElements?.();
+        if (!active || active.length === 0) {
+          return;
+        }
+        const { ctx, scales } = chart;
+        const x = active[0].element.x;
+        const topY = Math.min(scales.growthAxis.top, scales.userAxis.top);
+        const bottomY = Math.max(scales.growthAxis.bottom, scales.userAxis.bottom);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, topY);
+        ctx.lineTo(x, bottomY);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.6)";
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+
+    Chart.register(crosshairPlugin);
 
     new Chart(ctxEl, {
       type: "line",
@@ -160,7 +192,7 @@ export const emailGrowthSpec: AnalyticsSpec<EmailGrowthRow> = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
+        interaction: { mode: "index", axis: "x", intersect: false },
         scales: {
           growthAxis: {
             type: "linear",

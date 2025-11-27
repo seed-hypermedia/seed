@@ -3,15 +3,21 @@ import { spawnSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { emailGrowthSpec } from "./specs/emailGrowth";
+import { leaderboardSpec } from "./specs/leaderboard";
 import type { AnalyticsContext, AnalyticsSpec } from "./specs/types";
 
-const analyticsSpecs: AnalyticsSpec[] = [emailGrowthSpec];
+const analyticsSpecs: AnalyticsSpec[] = [emailGrowthSpec, leaderboardSpec];
 
 const args = process.argv.slice(2);
+if (args.includes("--help") || args.includes("-h")) {
+  printUsage();
+  process.exit(0);
+}
 const isDev = args.includes("--dev");
 
 const selectedSpecs = analyticsSpecs.filter((spec) => args.includes(`--${spec.flag}`));
 if (selectedSpecs.length === 0) {
+  console.error("Please select one analytics flag, e.g. --growth or --leaderboard.");
   printUsage();
   process.exit(1);
 }
@@ -175,7 +181,7 @@ function escapeHtml(value: string) {
 
 function printUsage() {
   const analyticsLines = analyticsSpecs
-    .map((spec) => `  --${spec.flag.padEnd(10)}${spec.description}`)
+    .map((spec) => `  ${`--${spec.flag}`.padEnd(16)}${spec.description}`)
     .join("\n");
 
   console.log(`Usage: bun frontend/scripts/data-visualization/index.ts [analytics flag] [options]
