@@ -2,6 +2,7 @@
 import { spawnSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
+import { fileURLToPath } from "url";
 import { emailGrowthSpec } from "./specs/emailGrowth";
 import { leaderboardSpec } from "./specs/leaderboard";
 import type { AnalyticsContext, AnalyticsSpec } from "./specs/types";
@@ -35,9 +36,16 @@ if (fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
   process.exit(1);
 }
 
-const outputHtml = resolve(process.cwd(), getArgValue("--output") ?? "query-chart.html");
-const outputJson = resolve(process.cwd(), getArgValue("--json") ?? "query-data.json");
+const scriptDir = fileURLToPath(new URL(".", import.meta.url));
+const defaultOutputHtml = resolve(scriptDir, "query-chart.html");
+const defaultOutputJson = resolve(scriptDir, "query-data.json");
+
+const outputArg = getArgValue("--output");
+const jsonArg = getArgValue("--json");
 const title = getArgValue("--title") ?? selectedSpec.defaultTitle;
+
+const outputHtml = outputArg ? resolve(process.cwd(), outputArg) : defaultOutputHtml;
+const outputJson = jsonArg ? resolve(process.cwd(), jsonArg) : defaultOutputJson;
 
 const ctx: AnalyticsContext = {
   title,

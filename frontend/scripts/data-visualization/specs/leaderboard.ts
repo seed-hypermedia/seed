@@ -105,7 +105,7 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
         <p class="card-subtitle">Displayed sites</p>
       </div>
       <div class="card">
-        <p class="card-title">Top Resource</p>
+        <p class="card-title">Top Site</p>
         <p class="card-value">${escapeHtml(summary.topTitle ?? summary.topId ?? "—")}</p>
         <p class="card-subtitle">${escapeHtml(summary.topPctLabel ?? "—")} · ${escapeHtml(formatNumber(summary.topCount ?? 0))} subscribers</p>
       </div>
