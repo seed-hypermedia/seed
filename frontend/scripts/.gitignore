@@ -1,2 +1,4 @@
 db-download/web-db.sqlite
 node_modules
+*.json
+*.html
