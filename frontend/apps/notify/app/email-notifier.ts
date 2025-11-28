@@ -16,6 +16,7 @@ import {
   hmId,
   HMMetadata,
   HMMetadataPayload,
+  normalizeDate,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -52,6 +53,43 @@ const notifReasonsBatch = new Set<NotifReason>([
   'site-new-discussion',
 ])
 
+const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
+
+// Error batching for reportError
+const errorBatchDelayMs = 30_000 // 30 seconds
+let pendingErrors: string[] = []
+let errorBatchTimeout: ReturnType<typeof setTimeout> | null = null
+
+function reportError(message: string) {
+  const messageWithTime = `${new Date().toISOString()} ${message}`
+  console.error(messageWithTime)
+  pendingErrors.push(messageWithTime)
+
+  if (!errorBatchTimeout) {
+    errorBatchTimeout = setTimeout(flushErrorBatch, errorBatchDelayMs)
+  }
+}
+
+async function flushErrorBatch() {
+  errorBatchTimeout = null
+  if (pendingErrors.length === 0) return
+
+  const errors = pendingErrors
+  pendingErrors = []
+
+  const subject =
+    errors.length === 1
+      ? 'Email Notifier Error Report'
+      : `Email Notifier Error Report (${errors.length} errors)`
+  const text = errors.join('\n\n---\n\n')
+
+  try {
+    await sendEmail(adminEmail, subject, {text})
+  } catch (err) {
+    console.error('Failed to send error report email:', err)
+  }
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -74,7 +112,7 @@ export async function initEmailNotifier() {
 
   setInterval(() => {
     if (currentNotifProcessing) {
-      console.log('Email notifications already processing. Skipping round.')
+      reportError('Email notifications already processing. Skipping round.')
       return
     }
     const timeoutMs = 60_000 // 60 seconds max
@@ -88,8 +126,8 @@ export async function initEmailNotifier() {
       .then(() => {
         // console.log('Email notifications handled')
       })
-      .catch((err) => {
-        console.error('Error handling email notifications', err)
+      .catch((err: Error) => {
+        reportError('Error handling email notifications: ' + err.message)
       })
       .finally(() => {
         currentNotifProcessing = undefined
@@ -108,8 +146,8 @@ export async function initEmailNotifier() {
       .then(() => {
         // console.log('Batch email notifications handled')
       })
-      .catch((err) => {
-        console.error('Error handling batch email notifications', err)
+      .catch((err: Error) => {
+        reportError('Error handling batch email notifications: ' + err.message)
       })
       .finally(() => {
         currentBatchNotifProcessing = undefined
@@ -122,7 +160,7 @@ async function handleBatchNotifications() {
   const lastProcessedBlobCid = getBatchNotifierLastProcessedBlobCid()
   const lastBlobCid = await getLastEventBlobCid()
   if (!lastBlobCid) {
-    console.error(
+    reportError(
       'No last blob CID found. Verify connection to the daemon and make sure the activity api has events.',
     )
     return
@@ -130,10 +168,13 @@ async function handleBatchNotifications() {
   if (!lastSendTime || !lastProcessedBlobCid) {
     const resetTime = new Date()
     // we refuse to send all notifications for the whole historical feed. so if we haven't sent any notifications yet, we will do so after the first interval elapses
-    console.log('Batch notifier missing cursor values. Setting initial:', {
-      resetTime,
-      lastBlobCid,
-    })
+    reportError(
+      'Batch notifier missing cursor values. Setting initial: ' +
+        JSON.stringify({
+          resetTime: resetTime.toISOString(),
+          lastBlobCid,
+        }),
+    )
     setBatchNotifierLastSendTime(resetTime)
     setBatchNotifierLastProcessedBlobCid(lastBlobCid)
     return
@@ -144,8 +185,8 @@ async function handleBatchNotifications() {
   if (nextSendTime < nowTime) {
     try {
       await sendBatchNotifications(lastProcessedBlobCid)
-    } catch (error) {
-      console.error('Error sending batch notifications', error)
+    } catch (error: any) {
+      reportError('Error sending batch notifications: ' + error.message)
     } finally {
       // even if there is an error, we still want to mark the events as processed.
       // so that we don't attempt to process the same events again.
@@ -166,7 +207,7 @@ async function handleEmailNotifications() {
   if (lastProcessedBlobCid) {
     await handleImmediateNotificationsAfterBlobCid(lastProcessedBlobCid)
   } else {
-    console.log(
+    reportError(
       'No last processed blob CID found. Resetting last processed blob CID',
     )
     await resetNotifierLastProcessedBlobCid()
@@ -200,7 +241,7 @@ async function sendBatchNotifications(lastProcessedBlobCid: string) {
 
 async function resetNotifierLastProcessedBlobCid() {
   const lastBlobCid = await getLastEventBlobCid()
-  console.log('Resetting notifier last processed blob CID to', lastBlobCid)
+  reportError('Resetting notifier last processed blob CID to ' + lastBlobCid)
   if (!lastBlobCid) return
   setNotifierLastProcessedBlobCid(lastBlobCid)
 }
@@ -212,8 +253,8 @@ async function handleImmediateNotificationsAfterBlobCid(
   if (eventsToProcess.length === 0) return
   try {
     await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
-  } catch (error) {
-    console.error('Error handling immediate notifications', error)
+  } catch (error: any) {
+    reportError('Error handling immediate notifications: ' + error.message)
   } finally {
     // even if there is an error, we still want to mark the events as processed.
     // so that we don't attempt to process the same events again.
@@ -275,8 +316,8 @@ async function handleEmailNotifs(
         allSubscriptions,
         appendNotification,
       )
-    } catch (error) {
-      console.error('Error evaluating event for notifications', error)
+    } catch (error: any) {
+      reportError('Error evaluating event for notifications: ' + error.message)
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
@@ -296,6 +337,19 @@ async function handleEmailNotifs(
   }
 }
 
+function getEventId(event: PlainMessage<Event>) {
+  if (event.data.case === 'newBlob') {
+    if (!event.data.value) return undefined
+    return `blob-${event.data.value.cid}`
+  }
+  if (event.data.case === 'newMention') {
+    if (!event.data.value) return undefined
+    const {sourceBlob, mentionType, target} = event.data.value
+    return `mention-${sourceBlob?.cid}-${mentionType}-${target}`
+  }
+  return undefined
+}
+
 async function evaluateEventForNotifications(
   event: PlainMessage<Event>,
   allSubscriptions: BaseSubscription[],
@@ -304,6 +358,27 @@ async function evaluateEventForNotifications(
     notif: Notification,
   ) => Promise<void>,
 ) {
+  const eventTime = normalizeDate(event.eventTime)
+  const observeTime = normalizeDate(event.observeTime)
+  // the "consideration time" is the newest of the event time and the observe time
+  const considerationTime =
+    eventTime && observeTime
+      ? Math.max(eventTime.getTime(), observeTime.getTime())
+      : eventTime || observeTime
+  // if the consideration time is older than the emailBatchNotifIntervalHours, we ignore it and print an error
+  if (
+    considerationTime &&
+    considerationTime <
+      new Date(Date.now() - emailBatchNotifIntervalHours * 60 * 60 * 1000)
+  ) {
+    // const eventId = event.data.case === 'newBlob' ? event.data.value?.cid : event.data.case === 'newMention' ? event.data.value?.
+    reportError(
+      `Event ${getEventId(
+        event,
+      )} is older than ${emailBatchNotifIntervalHours} hours. Ignoring!`,
+    )
+    return
+  }
   if (event.data.case === 'newBlob') {
     const blob = event.data.value
     if (blob.blobType === 'Ref') {
@@ -343,7 +418,6 @@ async function evaluateDocUpdateForNotifications(
     notif: Notification,
   ) => Promise<void>,
 ) {
-  console.log('~~ evaluateDocUpdateForNotifications', refEvent)
   for (const sub of allSubscriptions) {
     if (sub.notifyAllMentions && refEvent.newMentions[sub.id]) {
       const subjectAccountMeta = (await getAccount(sub.id)).metadata
@@ -377,8 +451,10 @@ async function evaluateNewCommentForNotifications(
 
   try {
     commentAuthorMeta = (await getAccount(comment.author)).metadata
-  } catch (error) {
-    console.error(`Error getting comment author ${comment.author}:`, error)
+  } catch (error: any) {
+    reportError(
+      `Error getting comment author ${comment.author}: ${error.message}`,
+    )
   }
 
   try {
@@ -389,10 +465,9 @@ async function evaluateNewCommentForNotifications(
         }),
       )
     ).metadata
-  } catch (error) {
-    console.error(
-      `Error getting target metadata for ${comment.targetAccount}:`,
-      error,
+  } catch (error: any) {
+    reportError(
+      `Error getting target metadata for ${comment.targetAccount}: ${error.message}`,
     )
   }
 
@@ -434,10 +509,9 @@ async function evaluateNewCommentForNotifications(
       if (parentComment) {
         parentCommentAuthor = parentComment.author
       }
-    } catch (error) {
-      console.error(
-        `Error getting parent comment ${comment.replyParent}:`,
-        error,
+    } catch (error: any) {
+      reportError(
+        `Error getting parent comment ${comment.replyParent}: ${error.message}`,
       )
     }
   }
@@ -566,7 +640,9 @@ async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
       ? newestEvent.data.value?.sourceBlob?.cid
       : undefined
   if (!lastProcessedBlobCid) return
-  console.log('~~ markEventsAsProcessed setting CID to:', lastProcessedBlobCid)
+  reportError(
+    'Setting notifier last processed blob CID to ' + lastProcessedBlobCid,
+  )
   await setNotifierLastProcessedBlobCid(lastProcessedBlobCid)
 }
 
@@ -747,7 +823,6 @@ function extractMentionsFromBlockNode(
   const annotations = getAnnotations(block)
   if (annotations) {
     for (const annotation of annotations) {
-      console.log('~~ annotation', annotation)
       if (annotation.type === 'Embed' && annotation.link.startsWith('hm://')) {
         const hmUidAndPath = annotation.link.slice(5)
         if (
