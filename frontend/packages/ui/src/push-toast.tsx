@@ -88,10 +88,6 @@ export function PushToast({
           >
             <span>{hostnameStripProtocol(host)}</span>
             <span className="font-thin">{` - ${message || 'Syncing...'}`}</span>
-            <p>
-              DEBUG:
-              {peerId} - {status}
-            </p>
           </p>
         )
       })}
