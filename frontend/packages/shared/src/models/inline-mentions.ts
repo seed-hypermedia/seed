@@ -23,7 +23,7 @@ export function useInlineMentions(
   }, [recents])
 
   async function onMentionsQuery(query: string) {
-    const resp = await client.loadSearch(query, {
+    const resp = await client.fetchSearch(query, {
       perspectiveAccountUid: perspectiveAccountUid || undefined,
       includeBody: false,
     })

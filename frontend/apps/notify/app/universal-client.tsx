@@ -12,6 +12,6 @@ export const notifyUniversalClient = createWebUniversalClient({
   useAPI,
   CommentEditor: NotifyCommentEditor,
   // Notify app doesn't have recents
-  loadRecents: async () => [],
+  fetchRecents: async () => [],
   deleteRecent: async () => {},
 })

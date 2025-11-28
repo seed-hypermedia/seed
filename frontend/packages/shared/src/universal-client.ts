@@ -42,7 +42,7 @@ export type UniversalClient = {
   // Comment editor component (platform-specific)
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>
 
-  loadSearch(
+  fetchSearch(
     query: string,
     opts?: {
       accountUid?: string
@@ -52,17 +52,17 @@ export type UniversalClient = {
     },
   ): Promise<SearchPayload>
 
-  loadResource(id: UnpackedHypermediaId): Promise<HMResource>
+  fetchResource(id: UnpackedHypermediaId): Promise<HMResource>
 
-  loadAccount(accountUid: string): Promise<HMMetadataPayload>
+  fetchAccount(accountUid: string): Promise<HMMetadataPayload>
 
-  loadBatchAccounts(
+  fetchBatchAccounts(
     accountUids: string[],
   ): Promise<Record<string, HMMetadataPayload>>
 
-  loadRecents(): Promise<RecentsResult[]>
+  fetchRecents(): Promise<RecentsResult[]>
 
-  loadQuery(query: HMQuery): Promise<HMQueryResult | null>
+  fetchQuery(query: HMQuery): Promise<HMQueryResult | null>
 
   deleteRecent(id: string): Promise<void>
 }

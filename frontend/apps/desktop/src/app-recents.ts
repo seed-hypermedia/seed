@@ -1,16 +1,17 @@
 import {getDocumentTitle} from '@shm/shared/content'
-import {prepareHMDocument} from '@shm/shared/document-utils'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {RecentsResult} from '@shm/shared/models/recents'
+import {createResourceResolver} from '@shm/shared/resource-loader'
 import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
+
+const resolveResource = createResourceResolver(grpcClient)
 
 const RECENTS_STORAGE_KEY = 'Recents-v002'
 
@@ -44,13 +45,14 @@ export async function updateRecentRoute(route: NavRoute) {
   const time = Date.now()
   let name = '?'
   if (route.key === 'document') {
-    const rawDocument = await grpcClient.documents.getDocument({
-      account: route.id.uid,
-      path: hmIdPathToEntityQueryPath(route.id.path),
-      version: route.id.version || undefined,
-    })
-    const doc = prepareHMDocument(rawDocument)
-    name = getDocumentTitle(doc) ?? '?'
+    try {
+      const resource = await resolveResource(route.id)
+      if (resource.type === 'document') {
+        name = getDocumentTitle(resource.document) ?? '?'
+      }
+    } catch {
+      // Document not found or other error - use default name
+    }
   }
   if (!url) return
   updateRecents((state: RecentsState): RecentsState => {

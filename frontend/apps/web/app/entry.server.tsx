@@ -20,7 +20,7 @@ import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
-import {loadResolvedResource} from './loaders'
+import {resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
 import {
@@ -274,7 +274,7 @@ async function handleOptionsRequest(request: Request) {
   try {
     const resourceId = getHmIdOfRequest(parsedRequest, originAccountId)
     if (resourceId) {
-      const resource = await loadResolvedResource(resourceId)
+      const resource = await resolveResource(resourceId)
       if (resource.type === 'document') {
         headers['X-Hypermedia-Id'] = encodeURIComponent(resourceId.id)
         headers['X-Hypermedia-Version'] = resource.document.version
@@ -300,16 +300,14 @@ async function handleOptionsRequest(request: Request) {
         }
         let targetTitle: string = 'a Document'
         if (targetId) {
-          const document = await loadResolvedResource(targetId)
+          const document = await resolveResource(targetId)
           if (document.type === 'document' && document.document.metadata.name) {
             targetTitle = document.document.metadata.name
           }
         }
         let authorTitle: string = 'Somebody'
         if (resource.comment.author) {
-          const document = await loadResolvedResource(
-            hmId(resource.comment.author),
-          )
+          const document = await resolveResource(hmId(resource.comment.author))
           if (document.type === 'document' && document.document.metadata.name) {
             authorTitle = document.document.metadata.name
           }

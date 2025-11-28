@@ -10,6 +10,6 @@ export const webUniversalClient = createWebUniversalClient({
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <WebCommenting docId={docId} />
   ),
-  loadRecents: getRecents,
+  fetchRecents: getRecents,
   deleteRecent: deleteRecent,
 })

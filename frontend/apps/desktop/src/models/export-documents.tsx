@@ -3,12 +3,13 @@ import {grpcClient} from '@/grpc-client'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {getDocumentTitle} from '@shm/shared/content'
-import {prepareHMDocument} from '@shm/shared/document-utils'
 import {EditorBlock} from '@shm/shared/editor-types'
+import {createResourceResolver} from '@shm/shared/resource-loader'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+
+const resolveResource = createResourceResolver(grpcClient)
 
 export function useExportDocuments() {
   const {exportDocuments, openDirectory} = useAppContext()
@@ -22,19 +23,20 @@ export function useExportDocuments() {
       docIds.map(async (idStr) => {
         const id = unpackHmId(idStr)
         if (!id) return null
-        const doc = await grpcClient.documents.getDocument({
-          account: id.uid,
-          path: hmIdPathToEntityQueryPath(id.path),
-        })
-        const hmDoc = prepareHMDocument(doc)
-        if (!hmDoc) return null
-        const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(
-          hmDoc.content,
-        )
-        const markdown = await convertBlocksToMarkdown(editorBlocks, hmDoc)
-        return {
-          title: getDocumentTitle(hmDoc) || 'Untitled document',
-          markdown,
+        try {
+          const resource = await resolveResource(id)
+          if (resource.type !== 'document') return null
+          const hmDoc = resource.document
+          const editorBlocks: EditorBlock[] = hmBlocksToEditorContent(
+            hmDoc.content,
+          )
+          const markdown = await convertBlocksToMarkdown(editorBlocks, hmDoc)
+          return {
+            title: getDocumentTitle(hmDoc) || 'Untitled document',
+            markdown,
+          }
+        } catch {
+          return null
         }
       }),
     )

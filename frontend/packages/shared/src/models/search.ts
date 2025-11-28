@@ -48,7 +48,7 @@ export function useSearch(
       contextSize,
     ],
     queryFn: async () => {
-      const out = await client.loadSearch(query, {
+      const out = await client.fetchSearch(query, {
         perspectiveAccountUid: perspectiveAccountUid || undefined,
         accountUid: accountUid || undefined,
         includeBody: includeBody || false,

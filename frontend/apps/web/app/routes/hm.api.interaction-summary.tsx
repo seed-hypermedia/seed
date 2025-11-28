@@ -44,7 +44,7 @@ export const loader = async ({
 
   const changes = await grpcClient.documents.listDocumentChanges({
     account: id.uid,
-    path: id.path && id.path.length > 0 ? '/' + id.path.join('/') : '',
+    path: hmIdPathToEntityQueryPath(id.path),
     version: latestDoc.version,
   })
 

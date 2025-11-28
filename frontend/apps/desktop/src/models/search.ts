@@ -7,7 +7,7 @@ import {
 import {SearchPayload} from '@shm/shared/models/search'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 
-export async function loadSearchQuery(
+export async function fetchSearch(
   searchQuery: string,
   opts?: {
     accountUid?: string

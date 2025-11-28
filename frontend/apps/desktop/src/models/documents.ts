@@ -84,7 +84,7 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {loadQuery} from './entities'
+import {fetchQuery} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 
@@ -817,7 +817,7 @@ export function usePushResource() {
     onlyPushToHost?: string,
     onStatusChange?: (status: PushResourceStatus) => void,
   ): Promise<boolean> => {
-    const resource = await client.loadResource(id)
+    const resource = await client.fetchResource(id)
     // step 1. find all the site IDs that will be affected by this resource.
     // console.log('== publish 1', id, resource, gwUrl)
     let destinationSiteUids = new Set<string>()
@@ -892,7 +892,7 @@ export function usePushResource() {
     await Promise.all(
       Array.from(destinationSiteUids).map(async (uid) => {
         try {
-          const resource = await client.loadResource(hmId(uid))
+          const resource = await client.fetchResource(hmId(uid))
           if (resource.type === 'document') {
             const siteUrl = resource.document.metadata?.siteUrl
             if (siteUrl) destinationHosts.add(siteUrl)
@@ -1066,7 +1066,7 @@ export function queryListDirectory(
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, options?.mode],
     queryFn: async () => {
       if (!id) return []
-      const results = await loadQuery({
+      const results = await fetchQuery({
         includes: [
           {
             space: id.uid,

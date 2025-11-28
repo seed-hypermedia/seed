@@ -1,19 +1,11 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
-import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
-  HMDocument,
-  HMDocumentInfo,
   HMDocumentMetadataSchema,
   HMEntityContent,
   HMMetadataPayload,
-  HMResource,
-  HMResourceComment,
-  HMResourceDocument,
-  HMResourceNotFound,
-  HMResourceRedirect,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -23,14 +15,15 @@ import {
   HMRedirectError,
   useResources,
 } from '@shm/shared/models/entity'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
-import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {queryListDirectory, usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
@@ -151,44 +144,10 @@ function catchNotFound<Result>(
   })
 }
 
-export async function loadResource(
-  hmId: UnpackedHypermediaId,
-): Promise<HMResource> {
-  try {
-    const resource = await grpcClient.resources.getResource({
-      iri: packHmId(hmId),
-    })
-    if (resource.kind.case === 'document') {
-      return {
-        type: 'document',
-        id: hmId satisfies UnpackedHypermediaId,
-        document: prepareHMDocument(resource.kind.value) satisfies HMDocument,
-      } satisfies HMResourceDocument
-    }
-    if (resource.kind.case === 'comment') {
-      return {
-        type: 'comment',
-        id: hmId,
-        comment: prepareHMComment(resource.kind.value),
-      } satisfies HMResourceComment
-    }
-    throw new Error('Unsupported resource kind: ' + resource.kind.case)
-  } catch (e) {
-    if (e instanceof HMRedirectError) {
-      return {
-        type: 'redirect',
-        id: hmId,
-        redirectTarget: e.target,
-      } satisfies HMResourceRedirect
-    }
-    return {
-      type: 'not-found',
-      id: hmId,
-    } satisfies HMResourceNotFound
-  }
-}
+// Use shared resource fetcher
+export const fetchResource = createResourceFetcher(grpcClient)
 
-export async function loadAccount(
+export async function fetchAccount(
   accountUid: string,
 ): Promise<HMMetadataPayload> {
   try {
@@ -198,7 +157,7 @@ export async function loadAccount(
 
     const serverAccount = toPlainMessage(grpcAccount)
     if (serverAccount.aliasAccount) {
-      return await loadAccount(serverAccount.aliasAccount)
+      return await fetchAccount(serverAccount.aliasAccount)
     }
     const serverMetadata = grpcAccount.metadata?.toJson() || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
@@ -221,9 +180,9 @@ export async function loadAccount(
   }
 }
 
-export const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
+export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 
-export const loadQuery = createQueryResolver(grpcClient)
+export const fetchQuery = createQueryResolver(grpcClient)
 
 type EntitySubscription = {
   id?: UnpackedHypermediaId | null
@@ -398,18 +357,26 @@ export function useSubscribedResource(
   }) => void,
 ) {
   const result = useSubscribedResources([{id, recursive}])[0]
+  const redirectTarget =
+    result.data?.type === 'redirect' ? result.data.redirectTarget : null
+
+  // Use ref to avoid re-triggering effect when callback changes
+  const handleRedirectOrDeletedRef = useRef(handleRedirectOrDeleted)
+  handleRedirectOrDeletedRef.current = handleRedirectOrDeleted
+
+  // Track if we've already handled this redirect to prevent duplicate toasts
+  const handledRedirectRef = useRef<string | null>(null)
+
   useEffect(() => {
-    // @ts-expect-error
-    if (result.data?.redirectTarget) {
-      handleRedirectOrDeleted?.({
+    if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
+      handledRedirectRef.current = redirectTarget.id
+      handleRedirectOrDeletedRef.current?.({
         isDeleted: false,
-        // @ts-expect-error
-        redirectTarget: result.data?.redirectTarget,
+        redirectTarget,
       })
     }
     // todo: handle deleted
-    // @ts-expect-error
-  }, [result.data?.redirectTarget])
+  }, [redirectTarget])
   return result
 }
 

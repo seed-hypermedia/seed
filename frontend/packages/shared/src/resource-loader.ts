@@ -1,11 +1,26 @@
 import {prepareHMComment, prepareHMDocument} from './document-utils'
 import {GRPCClient} from './grpc-client'
-import {HMResource, HMResourceRedirect, UnpackedHypermediaId} from './hm-types'
-import {getErrorMessage, HMRedirectError} from './models/entity'
+import {
+  HMResolvedResource,
+  HMResource,
+  HMResourceNotFound,
+  HMResourceRedirect,
+  UnpackedHypermediaId,
+} from './hm-types'
+import {
+  getErrorMessage,
+  HMNotFoundError,
+  HMRedirectError,
+} from './models/entity'
 import {packHmId} from './utils'
 
-export function createResourceLoader(grpcClient: GRPCClient) {
-  async function loadResource(id: UnpackedHypermediaId): Promise<HMResource> {
+/**
+ * Creates a low-level resource fetcher.
+ * Returns all response types including redirect and not-found.
+ * Caller is responsible for handling redirects and not-found cases.
+ */
+export function createResourceFetcher(grpcClient: GRPCClient) {
+  async function fetchResource(id: UnpackedHypermediaId): Promise<HMResource> {
     try {
       const resource = await grpcClient.resources.getResource({
         iri: packHmId(id),
@@ -35,8 +50,40 @@ export function createResourceLoader(grpcClient: GRPCClient) {
           redirectTarget: err.target,
         } satisfies HMResourceRedirect
       }
+      if (err instanceof HMNotFoundError) {
+        return {
+          type: 'not-found',
+          id,
+        } satisfies HMResourceNotFound
+      }
       throw e
     }
   }
-  return loadResource
+  return fetchResource
 }
+
+/**
+ * Creates a resource resolver that follows redirects.
+ * Returns document or comment (never redirect).
+ * Throws HMNotFoundError if resource not found.
+ */
+export function createResourceResolver(grpcClient: GRPCClient) {
+  const fetchResource = createResourceFetcher(grpcClient)
+
+  async function resolveResource(
+    id: UnpackedHypermediaId,
+  ): Promise<HMResolvedResource> {
+    const resource = await fetchResource(id)
+    if (resource.type === 'redirect') {
+      return resolveResource(resource.redirectTarget)
+    }
+    if (resource.type === 'not-found') {
+      throw new HMNotFoundError()
+    }
+    return resource
+  }
+  return resolveResource
+}
+
+/** @deprecated Use createResourceFetcher instead */
+export const createResourceLoader = createResourceFetcher

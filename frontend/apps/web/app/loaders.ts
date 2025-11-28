@@ -26,20 +26,15 @@ import {
   HMMetadata,
   HMMetadataPayload,
   HMQueryResult,
-  packHmId,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
-import {prepareHMComment, prepareHMDocument} from '@shm/shared/document-utils'
+import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
   HMComment,
   HMCommentSchema,
-  HMResourceComment,
-  HMResourceDocument,
-  HMResourceNotFound,
-  HMResourceRedirect,
 } from '@shm/shared/hm-types'
 import {
   createDirectoryResolver,
@@ -48,9 +43,14 @@ import {
 import {
   documentMetadataParseAdjustments,
   getErrorMessage,
+  HMError,
+  HMNotFoundError,
   HMRedirectError,
 } from '@shm/shared/models/entity'
-import {createResourceLoader} from '@shm/shared/resource-loader'
+import {
+  createResourceFetcher,
+  createResourceResolver,
+} from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {grpcClient} from './client.server'
 import {ParsedRequest} from './request'
@@ -158,7 +158,7 @@ export async function getDocument(
     )
   }
   const path = hmIdPathToEntityQueryPath(resourceId.path)
-  const apiDoc = await grpcClient.documents
+  const apiResponse = await grpcClient.documents
     .getDocument({
       account: uid,
       path,
@@ -166,16 +166,16 @@ export async function getDocument(
     })
     .catch((e) => {
       const error = getErrorMessage(e)
-      if (error instanceof HMRedirectError) {
+      if (error instanceof HMError) {
         // console.error('~~ HMRedirectError to', error.target)
         return error
       }
       throw e
     })
-  if (apiDoc instanceof HMRedirectError) {
-    throw apiDoc
+  if (apiResponse instanceof HMError) {
+    throw apiResponse
   }
-  return prepareHMDocument(apiDoc)
+  return prepareHMDocument(apiResponse)
 }
 
 export async function resolveHMDocument(
@@ -365,86 +365,58 @@ async function loadResourcePayload(
   }
 }
 
-export async function getResource(id: UnpackedHypermediaId) {
-  try {
-    const resource = await grpcClient.resources.getResource({
-      iri: packHmId(id),
-    })
-    if (resource.kind.case === 'comment') {
-      return {
-        type: 'comment',
-        id,
-        comment: prepareHMComment(resource.kind.value),
-      } satisfies HMResourceComment
-    }
-    if (resource.kind.case === 'document') {
-      return {
-        type: 'document',
-        id,
-        document: prepareHMDocument(resource.kind.value),
-      } satisfies HMResourceDocument
-    }
-    throw new Error(`Unsupported resource kind: ${resource.kind.case}`)
-  } catch (e) {
-    const err = getErrorMessage(e)
-    if (err instanceof HMRedirectError) {
-      return {
-        type: 'redirect',
-        id,
-        redirectTarget: err.target,
-      } satisfies HMResourceRedirect
-    }
-    return {
-      type: 'not-found',
-      id,
-    } satisfies HMResourceNotFound
-  }
-}
+// Low-level fetcher - returns all types including redirect and not-found
+export const fetchResource = createResourceFetcher(grpcClient)
 
-// we should merge this with the createResourceLoader function, but it does a few extra things right now:
+// Mid-level resolver - follows redirects, throws on not-found
+export const resolveResource = createResourceResolver(grpcClient)
+
+// High-level loader - resolves, adds author metadata, breadcrumbs, support docs, etc.
 export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
 ): Promise<WebResourcePayload> {
-  try {
-    const resource = await grpcClient.resources.getResource({
-      iri: packHmId(id),
+  const resource = await resolveResource(id)
+  if (resource.type === 'comment') {
+    const comment = resource.comment
+    const targetDocId = getCommentTargetId(comment)
+    if (!targetDocId) throw new Error('targetDocId not found')
+    const document = await getDocument(targetDocId, {discover: true})
+    return await loadResourcePayload(targetDocId, parsedRequest, {
+      document,
+      comment,
     })
-    if (resource.kind.case === 'comment') {
-      const comment = prepareHMComment(resource.kind.value)
-      const targetDocId = getCommentTargetId(comment)
-      if (!targetDocId) throw new Error('targetDocId not found')
-      const document = await getDocument(targetDocId, {discover: true})
-      return await loadResourcePayload(targetDocId, parsedRequest, {
-        document,
-        comment,
-      })
-    } else if (resource.kind.case === 'document') {
-      const document = prepareHMDocument(resource.kind.value)
-      const latestDocument = await getLatestDocument(id)
-      return await loadResourcePayload(id, parsedRequest, {
-        document,
-        latestDocument,
-      })
-    }
-    throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
+  }
+  // resource.type === 'document'
+  const document = resource.document
+  const latestDocument = await getLatestDocument(id)
+  return await loadResourcePayload(id, parsedRequest, {
+    document,
+    latestDocument,
+  })
+}
+
+// High-level loader with discovery fallback - tries to discover if not found
+export async function loadResourceWithDiscovery(
+  id: UnpackedHypermediaId,
+  parsedRequest: ParsedRequest,
+): Promise<WebResourcePayload> {
+  try {
+    return await loadResource(id, parsedRequest)
   } catch (e) {
-    const err = getErrorMessage(e)
-    if (err instanceof HMRedirectError) {
-      throw err
+    if (e instanceof HMNotFoundError) {
+      const discovered = await discoverDocument(
+        id.uid,
+        id.path || [],
+        id.version || undefined,
+        id.latest,
+      )
+      if (discovered) {
+        return await loadResource(id, parsedRequest)
+      }
     }
     throw e
   }
-}
-
-const newLoadResource = createResourceLoader(grpcClient)
-
-export async function loadResolvedResource(id: UnpackedHypermediaId) {
-  const resource = await newLoadResource(id)
-  if (resource.type === 'redirect') {
-    return await loadResolvedResource(resource.redirectTarget)
-  }
-  return resource
 }
 
 function textNodeAttributes(
@@ -723,7 +695,7 @@ export async function loadSiteResource<T>(
     } catch (e) {}
   }
   try {
-    const resourceContent = await loadResource(id, parsedRequest)
+    const resourceContent = await loadResourceWithDiscovery(id, parsedRequest)
     let supportQueries = resourceContent.supportQueries
     const loadedSiteDocument = {
       ...(extraData || {}),

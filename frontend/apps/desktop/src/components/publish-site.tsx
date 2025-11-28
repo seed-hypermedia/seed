@@ -1,4 +1,4 @@
-import {loadResource} from '@/models/entities'
+import {fetchResource} from '@/models/entities'
 import {HostInfoResponse, useHostSession} from '@/models/host'
 import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
@@ -1115,8 +1115,8 @@ export function useSeedHostDialog() {
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
           return
         }
-        loadResource(hmId(watchingDomain.siteUid))
-          .then((entity) => {
+        fetchResource(hmId(watchingDomain.siteUid))
+          .then((entity: Awaited<ReturnType<typeof fetchResource>>) => {
             const siteDocument =
               entity?.type === 'document' ? entity.document : undefined
             const siteUrl = siteDocument?.metadata?.siteUrl

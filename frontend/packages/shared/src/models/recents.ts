@@ -14,7 +14,7 @@ export function useRecents() {
   return useQuery({
     queryKey: [queryKeys.RECENTS],
     queryFn: async () => {
-      const r = await client.loadRecents()
+      const r = await client.fetchRecents()
       if (Array.isArray(r)) {
         return r
       } else {

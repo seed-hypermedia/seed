@@ -1,4 +1,4 @@
-import {getResource} from '@/loaders'
+import {fetchResource} from '@/loaders'
 import {parseRequest} from '@/request'
 import {withCors} from '@/utils/cors'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
@@ -23,6 +23,6 @@ export const loader = async ({
     throw new Error('No uid provided')
   }
   const id = hmId(uid, {path: path || [], version, latest})
-  const resource = await getResource(id)
+  const resource = await fetchResource(id)
   return withCors(wrapJSON(resource))
 }

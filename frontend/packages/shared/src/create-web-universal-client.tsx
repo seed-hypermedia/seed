@@ -22,7 +22,7 @@ export type WebClientDependencies = {
   CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
 
   // Recents management (optional)
-  loadRecents?: () => Promise<any[]>
+  fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
 }
 
@@ -79,7 +79,7 @@ export function createWebUniversalClient(
 
     CommentEditor: deps.CommentEditor,
 
-    loadSearch: async (
+    fetchSearch: async (
       input: string,
       {
         accountUid,
@@ -99,7 +99,7 @@ export function createWebUniversalClient(
       return deps.queryAPI<SearchPayload>(url)
     },
 
-    loadResource: (id: UnpackedHypermediaId): Promise<HMResource> => {
+    fetchResource: (id: UnpackedHypermediaId): Promise<HMResource> => {
       const queryString = new URLSearchParams({
         v: id?.version || '',
         l: id?.latest ? 'true' : '',
@@ -110,14 +110,14 @@ export function createWebUniversalClient(
       return deps.queryAPI<HMResource>(url)
     },
 
-    loadAccount: async (accountUid: string) => {
+    fetchAccount: async (accountUid: string) => {
       const response = await deps.queryAPI<HMMetadataPayload>(
         `/hm/api/account/${accountUid}`,
       )
       return HMMetadataPayloadSchema.parse(response)
     },
 
-    loadBatchAccounts: async (accountUids: string[]) => {
+    fetchBatchAccounts: async (accountUids: string[]) => {
       const results: Record<string, HMMetadataPayload> = {}
       await Promise.all(
         accountUids.map(async (uid) => {
@@ -134,10 +134,10 @@ export function createWebUniversalClient(
       return results
     },
 
-    loadRecents: deps.loadRecents || (async () => []),
+    fetchRecents: deps.fetchRecents || (async () => []),
 
-    loadQuery: async (_query: HMQuery): Promise<HMQueryResult | null> => {
-      console.error('loadQuery not yet implemented for web')
+    fetchQuery: async (_query: HMQuery): Promise<HMQueryResult | null> => {
+      console.error('fetchQuery not yet implemented for web')
       return null
     },
 

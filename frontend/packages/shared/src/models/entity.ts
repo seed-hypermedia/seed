@@ -4,7 +4,7 @@ import {
   Timestamp,
   toPlainMessage,
 } from '@bufbuild/protobuf'
-import {ConnectError} from '@connectrpc/connect'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
@@ -171,7 +171,7 @@ export function useResource(
     queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      return await client.loadResource(id)
+      return await client.fetchResource(id)
     },
     ...options,
   })
@@ -187,7 +187,7 @@ export function useAccount(
     queryKey: [queryKeys.ACCOUNT, id],
     queryFn: async (): Promise<HMMetadataPayload | null> => {
       if (!id) return null
-      return await client.loadAccount(id)
+      return await client.fetchAccount(id)
     },
     ...options,
   })
@@ -208,7 +208,7 @@ export function useResolvedResource(
       async function loadResolvedResource(
         id: UnpackedHypermediaId,
       ): Promise<HMResolvedResource | null> {
-        let resource = await client.loadResource(id)
+        let resource = await client.fetchResource(id)
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
         }
@@ -235,7 +235,7 @@ export function useResources(
         queryKey: [queryKeys.ENTITY, id?.id, version],
         queryFn: async (): Promise<HMResource | null> => {
           if (!id) return null
-          return await client.loadResource(id)
+          return await client.fetchResource(id)
         },
       }
     }),
@@ -253,7 +253,7 @@ export function useAccounts(
       queryKey: [queryKeys.ACCOUNT, id],
       queryFn: async (): Promise<HMMetadataPayload | null> => {
         if (!id) return null
-        return await client.loadAccount(id)
+        return await client.fetchAccount(id)
       },
     })),
   })
@@ -276,7 +276,7 @@ export function useResolvedResources(
           async function loadResolvedResource(
             id: UnpackedHypermediaId,
           ): Promise<HMResolvedResource | null> {
-            let resource = await client.loadResource(id)
+            let resource = await client.fetchResource(id)
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
@@ -291,7 +291,9 @@ export function useResolvedResources(
   })
 }
 
-export class HMRedirectError extends Error {
+export class HMError extends Error {}
+
+export class HMRedirectError extends HMError {
   constructor(public redirect: RedirectErrorDetails) {
     super('Document Redirected')
   }
@@ -302,10 +304,19 @@ export class HMRedirectError extends Error {
   }
 }
 
+export class HMNotFoundError extends HMError {
+  constructor() {
+    super('Resource Not Found')
+  }
+}
+
 // @ts-ignore
 export function getErrorMessage(err: any) {
   try {
     const e = ConnectError.from(err)
+    if (e.code === Code.NotFound) {
+      return new HMNotFoundError()
+    }
     const firstDetail = e.details[0] // what if there are more than one detail?
     if (
       // @ts-expect-error
