@@ -265,7 +265,6 @@ export function useRouteLink(
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {
-          console.log('openRoute', route, opts?.replace)
           context.openRoute(route, opts?.replace)
         } else {
           console.error(

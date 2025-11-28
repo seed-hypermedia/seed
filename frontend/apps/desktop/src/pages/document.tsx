@@ -10,6 +10,7 @@ import {DesktopActivityService} from '@/desktop-activity-service'
 import {DesktopCommentsService} from '@/desktop-comments-service'
 import {
   roleCanWrite,
+  useAllDocumentCapabilities,
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDocumentCitations} from '@/models/citations'
@@ -23,21 +24,22 @@ import {
 import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
+import {useChildrenActivity} from '@/models/library'
 import {useOpenUrl} from '@/open-url'
 import {trpc} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
   AccessoryOptions,
-  calculateBlockCitations,
-  commentIdToHmId,
   DocumentRoute,
-  getCommentTargetId,
   HMDocument,
   HMEntityContent,
-  hmId,
   HMResource,
   UnpackedHypermediaId,
+  calculateBlockCitations,
+  commentIdToHmId,
+  getCommentTargetId,
+  hmId,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
@@ -59,8 +61,8 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
+import {DocumentTools} from '@shm/ui/document-tools'
 import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
-import {DocInteractionSummary} from '@shm/ui/interaction-summary'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
@@ -367,6 +369,10 @@ function _MainDocumentPage({
     showSidebars: showSidebarOutlineDirectory,
   })
 
+  const directory = useChildrenActivity(id)
+
+  const {data: collaborators} = useAllDocumentCapabilities(docId)
+
   const interactionSummary = useInteractionSummary(docId)
 
   const onCommentsClick = useCallback(() => {
@@ -408,20 +414,47 @@ function _MainDocumentPage({
         siteHomeEntity.data
       : null
 
+  console.log(
+    '=== interactionSummary.data?.comments',
+    interactionSummary.data?.comments,
+  )
+
+  const documentTools = (
+    <DocumentTools
+      activePanel={
+        route.accessory &&
+        route.accessory.key != 'options' &&
+        route.accessory.key != 'contacts'
+          ? route.accessory.key
+          : undefined
+      }
+      commentsCount={interactionSummary.data?.comments || 0}
+      onCommentsClick={onCommentsClick}
+      onFeedClick={onFeedClick}
+      collabsCount={collaborators?.length}
+      directoryCount={directory.data?.length}
+      onDirectoryClick={() => {
+        replace({...route, accessory: {key: 'directory'}} as DocumentRoute)
+      }}
+      onCollabsClick={() => {
+        replace({...route, accessory: {key: 'collaborators'}} as DocumentRoute)
+      }}
+    />
+  )
+
   return (
     <div className={cn(panelContainerStyles)}>
       <AppDocSiteHeader
         siteHomeEntity={siteHomeEntityData}
         docId={id}
         document={document}
-        supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
       <div
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+        {/* <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
           <DocInteractionSummary
             isHome={isHomeDoc}
             isAccessoryOpen={!!route.accessory}
@@ -429,10 +462,10 @@ function _MainDocumentPage({
             onCommentsClick={onCommentsClick}
             onFeedClick={onFeedClick}
           />
-        </div>
+        </div> */}
         <ScrollArea>
           <DocumentCover cover={document?.metadata.cover} />
-
+          {isHomeDoc ? documentTools : null}
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
               <div
@@ -464,9 +497,7 @@ function _MainDocumentPage({
                 <DocPageHeader
                   docId={id}
                   document={document}
-                  commentsCount={interactionSummary.data?.comments || 0}
-                  onCommentsClick={onCommentsClick}
-                  onFeedClick={onFeedClick}
+                  documentTools={documentTools}
                 />
               )}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
@@ -601,15 +632,12 @@ export function NewSubDocumentButton({
 function DocPageHeader({
   docId,
   document,
-  onCommentsClick,
-  onFeedClick,
-  commentsCount = 0,
+  documentTools,
 }: {
   docId: UnpackedHypermediaId
   document?: HMDocument
-  onCommentsClick: () => void
-  onFeedClick: () => void
-  commentsCount: number
+  // TODO: fix proper types
+  documentTools?: any
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
   useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
@@ -632,9 +660,7 @@ function DocPageHeader({
       authors={authorMetadata}
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
-      commentsCount={commentsCount}
-      onCommentsClick={onCommentsClick}
-      onFeedClick={onFeedClick}
+      documentTools={documentTools}
     />
   )
 }

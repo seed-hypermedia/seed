@@ -6,16 +6,12 @@ import {
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
-import {HistoryIcon, MessageSquare} from 'lucide-react'
 import {useMemo} from 'react'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
-import {DonateButton} from './donate-button'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
-import {InteractionSummaryItem} from './interaction-summary'
-import {Separator} from './separator'
 import {SizableText} from './text'
 
 export function DocumentHeader({
@@ -25,9 +21,7 @@ export function DocumentHeader({
   updateTime = null,
   breadcrumbs,
   siteUrl,
-  commentsCount = 0,
-  onCommentsClick,
-  onFeedClick,
+  documentTools,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -38,9 +32,8 @@ export function DocumentHeader({
     metadata: HMMetadata
   }>
   siteUrl?: string
-  commentsCount?: number
-  onCommentsClick?: () => void
-  onFeedClick?: () => void
+  // TODO: add proper types to this component
+  documentTools?: any
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -128,38 +121,9 @@ export function DocumentHeader({
                 />
               ) : null}
             </div>
-            {(onCommentsClick ||
-              onFeedClick ||
-              (docId && authors.length > 0)) && (
-              <div className="flex items-center">
-                {onFeedClick && (
-                  <InteractionSummaryItem
-                    label="Activity"
-                    icon={
-                      <HistoryIcon className="text-muted-foreground size-3" />
-                    }
-                    onClick={onFeedClick}
-                    count={0}
-                  />
-                )}
-                {onCommentsClick && (
-                  <InteractionSummaryItem
-                    label="Comments"
-                    icon={
-                      <MessageSquare className="text-muted-foreground size-3" />
-                    }
-                    onClick={onCommentsClick}
-                    count={commentsCount}
-                  />
-                )}
-                {docId && authors.length > 0 && (
-                  <DonateButton docId={docId} authors={authors} />
-                )}
-              </div>
-            )}
           </div>
         </div>
-        <Separator />
+        <div className="border-border border-t">{documentTools}</div>
       </div>
     </Container>
   )

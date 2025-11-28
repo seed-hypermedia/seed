@@ -29,6 +29,7 @@ import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
 import {Button, ButtonLink} from '@shm/ui/button'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
+import {DocumentTools} from '@shm/ui/document-tools'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Close} from '@shm/ui/icons'
 import {DocInteractionSummary} from '@shm/ui/interaction-summary'
@@ -529,6 +530,7 @@ function InnerDocumentPage(
       panelTitle = tx('Discussions')
       panel = (
         <PanelWrapper>
+          {activitySummary}
           <WebDiscussionsPanel
             commentEditor={commentEditor}
             blockId={activePanel.blockId || undefined}
@@ -573,6 +575,36 @@ function InnerDocumentPage(
 
   // Only initialize activity/comments services when needed (activity is enabled)
   const shouldInitializeActivity = activityEnabled
+
+  const documentTools = (
+    <DocumentTools
+      activePanel={activePanel?.type}
+      onFeedClick={
+        activityEnabled
+          ? () => {
+              setDocumentPanel({type: 'activity'})
+              if (!media.gtSm) {
+                setMobilePanelOpen(true)
+              }
+            }
+          : activityDisabledToast
+      }
+      onCommentsClick={
+        activityEnabled
+          ? () => {
+              setDocumentPanel({
+                type: 'discussions',
+                blockId: undefined,
+              })
+              if (!media.gtSm) {
+                setMobilePanelOpen(true)
+              }
+            }
+          : commentsDisabledToast
+      }
+      commentsCount={interactionSummary.data?.comments}
+    />
+  )
   return (
     <Suspense
       fallback={
@@ -630,9 +662,9 @@ function InnerDocumentPage(
                     className="flex flex-1 flex-col overflow-y-auto"
                     ref={mainScrollRef}
                   >
-                    <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] pr-3 sm:pt-0 sm:pr-0">
+                    <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
                       <DocumentCover cover={document.metadata.cover} />
-
+                      {isHomeDoc && !activePanel ? documentTools : null}
                       <div
                         {...wrapperProps}
                         className={cn('flex flex-1', wrapperProps.className)}
@@ -697,81 +729,86 @@ function InnerDocumentPage(
                                     }
                                   : activityDisabledToast
                               }
+                              documentTools={documentTools}
                             />
                           )}
-                          <BlocksContentProvider
-                            resourceId={{
-                              ...id,
-                              blockRef: blockRef || null,
-                              blockRange: blockRange || null,
-                            }}
-                            onBlockCitationClick={
-                              activityEnabled
-                                ? onBlockCitationClick
-                                : activityDisabledToast
-                            }
-                            onBlockCommentClick={
-                              activityEnabled
-                                ? onBlockCommentClick
-                                : commentsDisabledToast
-                            }
-                            onBlockSelect={(blockId, blockRange) => {
-                              const shouldCopy =
-                                blockRange?.copyToClipboard !== false
-                              const route = {
-                                key: 'document',
-                                id: {
-                                  uid: id.uid,
-                                  path: id.path,
-                                  version: id.version,
-                                  blockRef: blockId,
-                                  blockRange:
-                                    blockRange &&
-                                    'start' in blockRange &&
-                                    'end' in blockRange
-                                      ? {
-                                          start: blockRange.start,
-                                          end: blockRange.end,
-                                        }
-                                      : null,
-                                },
-                              } as NavRoute
-                              const href = routeToHref(route, {
-                                hmUrlHref: context.hmUrlHref,
-                                originHomeId: context.originHomeId,
-                              })
-                              if (!href) {
-                                toast.error('Failed to create block link')
-                                return
+                          <div className="pr-3">
+                            <BlocksContentProvider
+                              resourceId={{
+                                ...id,
+                                blockRef: blockRef || null,
+                                blockRange: blockRange || null,
+                              }}
+                              onBlockCitationClick={
+                                activityEnabled
+                                  ? onBlockCitationClick
+                                  : activityDisabledToast
                               }
-                              if (shouldCopy) {
-                                window.navigator.clipboard.writeText(
-                                  `${siteHost}${href}`,
-                                )
-                                toast.success('Block link copied to clipboard')
+                              onBlockCommentClick={
+                                activityEnabled
+                                  ? onBlockCommentClick
+                                  : commentsDisabledToast
                               }
-                              // Only navigate if we're not explicitly just copying
-                              if (blockRange?.copyToClipboard !== true) {
-                                // Scroll to block smoothly BEFORE updating URL
-                                const element =
-                                  window.document.getElementById(blockId)
-                                if (element) {
-                                  element.scrollIntoView({
-                                    behavior: 'smooth',
-                                    block: 'start',
+                              onBlockSelect={(blockId, blockRange) => {
+                                const shouldCopy =
+                                  blockRange?.copyToClipboard !== false
+                                const route = {
+                                  key: 'document',
+                                  id: {
+                                    uid: id.uid,
+                                    path: id.path,
+                                    version: id.version,
+                                    blockRef: blockId,
+                                    blockRange:
+                                      blockRange &&
+                                      'start' in blockRange &&
+                                      'end' in blockRange
+                                        ? {
+                                            start: blockRange.start,
+                                            end: blockRange.end,
+                                          }
+                                        : null,
+                                  },
+                                } as NavRoute
+                                const href = routeToHref(route, {
+                                  hmUrlHref: context.hmUrlHref,
+                                  originHomeId: context.originHomeId,
+                                })
+                                if (!href) {
+                                  toast.error('Failed to create block link')
+                                  return
+                                }
+                                if (shouldCopy) {
+                                  window.navigator.clipboard.writeText(
+                                    `${siteHost}${href}`,
+                                  )
+                                  toast.success(
+                                    'Block link copied to clipboard',
+                                  )
+                                }
+                                // Only navigate if we're not explicitly just copying
+                                if (blockRange?.copyToClipboard !== true) {
+                                  // Scroll to block smoothly BEFORE updating URL
+                                  const element =
+                                    window.document.getElementById(blockId)
+                                  if (element) {
+                                    element.scrollIntoView({
+                                      behavior: 'smooth',
+                                      block: 'start',
+                                    })
+                                  }
+
+                                  navigate(href, {
+                                    replace: true,
+                                    preventScrollReset: true,
                                   })
                                 }
-
-                                navigate(href, {
-                                  replace: true,
-                                  preventScrollReset: true,
-                                })
-                              }
-                            }}
-                            blockCitations={interactionSummary.data?.blocks}
-                          >
-                            <BlocksContent blocks={document.content} />
-                          </BlocksContentProvider>
+                              }}
+                              blockCitations={interactionSummary.data?.blocks}
+                            >
+                              <BlocksContent blocks={document.content} />
+                            </BlocksContentProvider>
+                          </div>
                         </div>
                         {showSidebars ? (
                           <div
@@ -799,6 +836,7 @@ function InnerDocumentPage(
                     minSize={media.gtSm ? 20 : 100}
                     className="border-sidebar-border flex h-full flex-1 flex-col border-l"
                   >
+                    {documentTools}
                     <div className="dark:bg-background border-border border-b bg-white p-3">
                       <div className="flex items-center">
                         {activePanel?.type === 'discussions' &&
