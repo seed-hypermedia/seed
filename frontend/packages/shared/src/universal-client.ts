@@ -53,8 +53,6 @@ export type UniversalClient = {
     },
   ): Promise<SearchPayload>
 
-  fetchAccount(accountUid: string): Promise<HMMetadataPayload>
-
   fetchBatchAccounts(
     accountUids: string[],
   ): Promise<Record<string, HMMetadataPayload>>

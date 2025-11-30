@@ -3,9 +3,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
 import {
   HMAccountsMetadata,
-  HMDocumentMetadataSchema,
   HMEntityContent,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -15,10 +13,10 @@ import {
   HMRedirectError,
   useResources,
 } from '@shm/shared/models/entity'
-import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
@@ -146,39 +144,6 @@ function catchNotFound<Result>(
 
 // Use shared resource fetcher
 export const fetchResource = createResourceFetcher(grpcClient)
-
-export async function fetchAccount(
-  accountUid: string,
-): Promise<HMMetadataPayload> {
-  try {
-    const grpcAccount = await grpcClient.documents.getAccount({
-      id: accountUid,
-    })
-
-    const serverAccount = toPlainMessage(grpcAccount)
-    if (serverAccount.aliasAccount) {
-      return await fetchAccount(serverAccount.aliasAccount)
-    }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
-    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
-    return {
-      id: hmId(accountUid, {
-        // this is mega confusing, sorry. We need to include this version of the home document so we know when to invalidate the account after discovery completes.
-        // it is technically incorrect, because the version should be the version of the profile, not the fallback home document where we currently load account metadata from.
-        // one day we can have improved data normalization in the client, and the backend should give details if the metadata is coming from the profile or the home doc.
-        // this is used by discoveryResultWithLatestVersion to invalidate the account after discovery completes
-        version: serverAccount.homeDocumentInfo?.version,
-        // If this confuses you, ask Eric and hopefully he still remembers this.
-      }),
-      metadata,
-    } as HMMetadataPayload
-  } catch (error) {
-    return {
-      id: hmId(accountUid),
-      metadata: {},
-    } as HMMetadataPayload
-  }
-}
 
 export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 

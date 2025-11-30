@@ -10,6 +10,7 @@ import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
 import {GRPCClient} from '../grpc-client'
 import {
+  HMAccountRequest,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
@@ -188,7 +189,7 @@ export function useAccount(
     queryKey: [queryKeys.ACCOUNT, id],
     queryFn: async (): Promise<HMMetadataPayload | null> => {
       if (!id) return null
-      return await client.fetchAccount(id)
+      return await client.request<HMAccountRequest>('Account', id)
     },
     ...options,
   })
@@ -254,7 +255,7 @@ export function useAccounts(
       queryKey: [queryKeys.ACCOUNT, id],
       queryFn: async (): Promise<HMMetadataPayload | null> => {
         if (!id) return null
-        return await client.fetchAccount(id)
+        return await client.request<HMAccountRequest>('Account', id)
       },
     })),
   })
