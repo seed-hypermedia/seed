@@ -53,8 +53,6 @@ export type UniversalClient = {
     },
   ): Promise<SearchPayload>
 
-  fetchResource(id: UnpackedHypermediaId): Promise<HMResource>
-
   fetchAccount(accountUid: string): Promise<HMMetadataPayload>
 
   fetchBatchAccounts(

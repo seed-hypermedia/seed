@@ -4,7 +4,6 @@ import {
   fetchAccount,
   fetchBatchAccounts,
   fetchQuery,
-  fetchResource,
   useAccountsMetadata,
 } from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
@@ -39,7 +38,6 @@ export const desktopUniversalClient: UniversalClient = {
 
   fetchSearch: fetchSearch,
   fetchQuery: fetchQuery,
-  fetchResource: fetchResource,
   fetchAccount: fetchAccount,
   fetchBatchAccounts: fetchBatchAccounts,
   fetchRecents: fetchRecents,

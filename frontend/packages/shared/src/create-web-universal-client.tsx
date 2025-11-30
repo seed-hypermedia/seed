@@ -6,10 +6,10 @@ import type {
   HMQuery,
   HMQueryResult,
   HMRequest,
-  HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
-import {HMMetadataPayloadSchema} from './hm-types'
+import {HMMetadataPayloadSchema, HMRequestSchema} from './hm-types'
+import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
 import type {Contact, SearchPayload, UniversalClient} from './universal-client'
 import {hmId, packHmId} from './utils/entity-id-url'
@@ -98,17 +98,6 @@ export function createWebUniversalClient(
         accountUid || ''
       }&b=${includeBody}&c=${contextSize}&d=${perspectiveAccountUid || ''}`
       return deps.queryAPI<SearchPayload>(url)
-    },
-
-    fetchResource: (id: UnpackedHypermediaId): Promise<HMResource> => {
-      const queryString = new URLSearchParams({
-        v: id?.version || '',
-        l: id?.latest ? 'true' : '',
-      }).toString()
-      const url = `/hm/api/resource/${id?.uid}${
-        id?.path ? `/${id.path.join('/')}` : ''
-      }?${queryString}`
-      return deps.queryAPI<HMResource>(url)
     },
 
     fetchAccount: async (accountUid: string) => {

@@ -17,6 +17,7 @@ import {
   HMMetadataPayload,
   HMResolvedResource,
   HMResource,
+  HMResourceRequest,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
@@ -171,7 +172,7 @@ export function useResource(
     queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      return await client.fetchResource(id)
+      return await client.request<HMResourceRequest>('Resource', id)
     },
     ...options,
   })
@@ -208,7 +209,7 @@ export function useResolvedResource(
       async function loadResolvedResource(
         id: UnpackedHypermediaId,
       ): Promise<HMResolvedResource | null> {
-        let resource = await client.fetchResource(id)
+        let resource = await client.request<HMResourceRequest>('Resource', id)
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
         }
@@ -235,7 +236,7 @@ export function useResources(
         queryKey: [queryKeys.ENTITY, id?.id, version],
         queryFn: async (): Promise<HMResource | null> => {
           if (!id) return null
-          return await client.fetchResource(id)
+          return await client.request<HMResourceRequest>('Resource', id)
         },
       }
     }),
@@ -276,7 +277,7 @@ export function useResolvedResources(
           async function loadResolvedResource(
             id: UnpackedHypermediaId,
           ): Promise<HMResolvedResource | null> {
-            let resource = await client.fetchResource(id)
+            let resource = await client.request<HMResourceRequest>('Resource', id)
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
