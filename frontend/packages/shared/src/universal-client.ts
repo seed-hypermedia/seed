@@ -6,6 +6,7 @@ import type {
   HMMetadataPayload,
   HMQuery,
   HMQueryResult,
+  HMRequest,
   HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
@@ -65,4 +66,9 @@ export type UniversalClient = {
   fetchQuery(query: HMQuery): Promise<HMQueryResult | null>
 
   deleteRecent(id: string): Promise<void>
+
+  request<Request extends HMRequest>(
+    key: Request['key'],
+    input: Request['input'],
+  ): Promise<Request['output']>
 }

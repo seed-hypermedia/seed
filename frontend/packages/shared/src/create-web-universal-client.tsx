@@ -5,6 +5,7 @@ import type {
   HMMetadataPayload,
   HMQuery,
   HMQueryResult,
+  HMRequest,
   HMResource,
   UnpackedHypermediaId,
 } from './hm-types'
@@ -142,5 +143,12 @@ export function createWebUniversalClient(
     },
 
     deleteRecent: deps.deleteRecent || (async () => {}),
+
+    request: <Req extends HMRequest>(
+      key: Req['key'],
+      input: Req['input'],
+    ): Promise<Req['output']> => {
+      return Promise.resolve('todo')
+    },
   }
 }

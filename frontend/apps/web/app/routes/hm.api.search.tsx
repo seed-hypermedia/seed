@@ -2,6 +2,8 @@ import {grpcClient} from '@/client.server'
 import {wrapJSON} from '@/wrapping.server'
 import {SearchPayload, unpackHmId} from '@shm/shared'
 
+// todo, unify using new API router
+
 export const loader = async ({request}: {request: Request}) => {
   const url = new URL(request.url)
 
