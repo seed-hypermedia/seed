@@ -1,9 +1,14 @@
 import {HMRequestImplementation} from './api-types'
-import {HMResourceRequest} from './hm-types'
+import {GRPCClient} from './grpc-client'
+import {HMResource, HMResourceRequest, UnpackedHypermediaId} from './hm-types'
+import {createResourceFetcher} from './resource-loader'
 
 export const Resource: HMRequestImplementation<HMResourceRequest> = {
-  // @ts-expect-error
-  async getData(grpcClient: GRPCClient, input: UnpackedHypermediaId) {
-    return
+  async getData(
+    grpcClient: GRPCClient,
+    input: UnpackedHypermediaId,
+  ): Promise<HMResource> {
+    const fetchResource = createResourceFetcher(grpcClient)
+    return await fetchResource(input)
   },
 }
