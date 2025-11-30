@@ -1256,10 +1256,18 @@ export const HMAccountRequestSchema = z.object({
 })
 export type HMAccountRequest = z.infer<typeof HMAccountRequestSchema>
 
+export const HMBatchAccountsRequestSchema = z.object({
+  key: z.literal('BatchAccounts'),
+  input: z.array(z.string()),
+  output: z.record(z.string(), HMMetadataPayloadSchema),
+})
+export type HMBatchAccountsRequest = z.infer<typeof HMBatchAccountsRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
+  HMBatchAccountsRequestSchema,
 ])
 
 const testKey = HMResourceRequestSchema.pick({key: true})

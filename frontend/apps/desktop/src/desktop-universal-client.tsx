@@ -1,10 +1,6 @@
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
-import {
-  fetchBatchAccounts,
-  fetchQuery,
-  useAccountsMetadata,
-} from '@/models/entities'
+import {fetchQuery, useAccountsMetadata} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import {fetchSearch} from '@/models/search'
 import type {UnpackedHypermediaId} from '@shm/shared'
@@ -37,7 +33,6 @@ export const desktopUniversalClient: UniversalClient = {
 
   fetchSearch: fetchSearch,
   fetchQuery: fetchQuery,
-  fetchBatchAccounts: fetchBatchAccounts,
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
 

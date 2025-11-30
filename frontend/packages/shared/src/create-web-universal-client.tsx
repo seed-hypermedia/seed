@@ -2,13 +2,12 @@ import {UseQueryResult} from '@tanstack/react-query'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
-  HMMetadataPayload,
   HMQuery,
   HMQueryResult,
   HMRequest,
   UnpackedHypermediaId,
 } from './hm-types'
-import {HMMetadataPayloadSchema, HMRequestSchema} from './hm-types'
+import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
 import type {Contact, SearchPayload, UniversalClient} from './universal-client'
@@ -98,23 +97,6 @@ export function createWebUniversalClient(
         accountUid || ''
       }&b=${includeBody}&c=${contextSize}&d=${perspectiveAccountUid || ''}`
       return deps.queryAPI<SearchPayload>(url)
-    },
-
-    fetchBatchAccounts: async (accountUids: string[]) => {
-      const results: Record<string, HMMetadataPayload> = {}
-      await Promise.all(
-        accountUids.map(async (uid) => {
-          try {
-            const response = await deps.queryAPI<HMMetadataPayload>(
-              `/hm/api/account/${uid}`,
-            )
-            results[uid] = HMMetadataPayloadSchema.parse(response)
-          } catch (e) {
-            console.error(`Failed to load account ${uid}`, e)
-          }
-        }),
-      )
-      return results
     },
 
     fetchRecents: deps.fetchRecents || (async () => []),
