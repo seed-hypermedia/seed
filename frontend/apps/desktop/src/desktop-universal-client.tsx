@@ -1,7 +1,6 @@
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {
-  fetchAccount,
   fetchBatchAccounts,
   fetchQuery,
   useAccountsMetadata,
@@ -38,7 +37,6 @@ export const desktopUniversalClient: UniversalClient = {
 
   fetchSearch: fetchSearch,
   fetchQuery: fetchQuery,
-  fetchAccount: fetchAccount,
   fetchBatchAccounts: fetchBatchAccounts,
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,

@@ -100,13 +100,6 @@ export function createWebUniversalClient(
       return deps.queryAPI<SearchPayload>(url)
     },
 
-    fetchAccount: async (accountUid: string) => {
-      const response = await deps.queryAPI<HMMetadataPayload>(
-        `/hm/api/account/${accountUid}`,
-      )
-      return HMMetadataPayloadSchema.parse(response)
-    },
-
     fetchBatchAccounts: async (accountUids: string[]) => {
       const results: Record<string, HMMetadataPayload> = {}
       await Promise.all(

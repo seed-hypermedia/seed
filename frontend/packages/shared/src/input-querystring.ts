@@ -50,7 +50,7 @@ export function deserializeQueryString<T extends Record<string, unknown>>(
   const params = new URLSearchParams(cleanQuery)
   const result: Record<string, unknown> = {}
 
-  for (const [key, value] of params.entries()) {
+  for (const [key, value] of Array.from(params.entries())) {
     // Try to parse as JSON first (for complex objects/arrays)
     try {
       result[key] = JSON.parse(value)

@@ -1249,9 +1249,17 @@ export type HMResourceMetadataRequest = z.infer<
   typeof HMResourceMetadataRequestSchema
 >
 
+export const HMAccountRequestSchema = z.object({
+  key: z.literal('Account'),
+  input: z.string(),
+  output: HMMetadataPayloadSchema,
+})
+export type HMAccountRequest = z.infer<typeof HMAccountRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
+  HMAccountRequestSchema,
 ])
 
 const testKey = HMResourceRequestSchema.pick({key: true})
