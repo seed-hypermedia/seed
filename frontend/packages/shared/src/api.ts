@@ -3,6 +3,7 @@ import {Account} from './api-account'
 import {BatchAccounts} from './api-batch-accounts'
 import {Resource} from './api-resource'
 import {ResourceMetadata} from './api-resource-metadata'
+import {Search} from './api-search'
 import {HMRequestImplementation} from './api-types'
 
 export const APIRouter = {
@@ -10,6 +11,7 @@ export const APIRouter = {
   ResourceMetadata,
   Account,
   BatchAccounts,
+  Search,
 } as const satisfies {
   [K in HMRequest as K['key']]: HMRequestImplementation<K>
 }

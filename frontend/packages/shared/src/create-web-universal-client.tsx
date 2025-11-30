@@ -10,7 +10,7 @@ import type {
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
-import type {Contact, SearchPayload, UniversalClient} from './universal-client'
+import type {Contact, UniversalClient} from './universal-client'
 import {hmId, packHmId} from './utils/entity-id-url'
 
 export type WebClientDependencies = {
@@ -78,26 +78,6 @@ export function createWebUniversalClient(
     },
 
     CommentEditor: deps.CommentEditor,
-
-    fetchSearch: async (
-      input: string,
-      {
-        accountUid,
-        includeBody,
-        contextSize,
-        perspectiveAccountUid,
-      }: {
-        accountUid?: string
-        includeBody?: boolean
-        contextSize?: number
-        perspectiveAccountUid?: string
-      } = {},
-    ) => {
-      const url = `/hm/api/search?q=${input}&a=${
-        accountUid || ''
-      }&b=${includeBody}&c=${contextSize}&d=${perspectiveAccountUid || ''}`
-      return deps.queryAPI<SearchPayload>(url)
-    },
 
     fetchRecents: deps.fetchRecents || (async () => []),
 

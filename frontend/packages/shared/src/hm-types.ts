@@ -1263,11 +1263,45 @@ export const HMBatchAccountsRequestSchema = z.object({
 })
 export type HMBatchAccountsRequest = z.infer<typeof HMBatchAccountsRequestSchema>
 
+export const HMSearchInputSchema = z.object({
+  query: z.string(),
+  accountUid: z.string().optional(),
+  includeBody: z.boolean().optional(),
+  contextSize: z.number().optional(),
+  perspectiveAccountUid: z.string().optional(),
+})
+export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
+
+export const HMSearchResultItemSchema = z.object({
+  id: unpackedHmIdSchema,
+  metadata: HMDocumentMetadataSchema.optional(),
+  title: z.string(),
+  icon: z.string(),
+  parentNames: z.array(z.string()),
+  versionTime: z.any().optional(),
+  searchQuery: z.string(),
+  type: z.enum(['document', 'contact']),
+})
+
+export const HMSearchPayloadSchema = z.object({
+  entities: z.array(HMSearchResultItemSchema),
+  searchQuery: z.string(),
+})
+export type HMSearchPayload = z.infer<typeof HMSearchPayloadSchema>
+
+export const HMSearchRequestSchema = z.object({
+  key: z.literal('Search'),
+  input: HMSearchInputSchema,
+  output: HMSearchPayloadSchema,
+})
+export type HMSearchRequest = z.infer<typeof HMSearchRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
   HMBatchAccountsRequestSchema,
+  HMSearchRequestSchema,
 ])
 
 const testKey = HMResourceRequestSchema.pick({key: true})

@@ -2,7 +2,6 @@ import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {fetchQuery, useAccountsMetadata} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
-import {fetchSearch} from '@/models/search'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import type {UniversalClient} from '@shm/shared/universal-client'
@@ -31,7 +30,6 @@ export const desktopUniversalClient: UniversalClient = {
     <CommentBox docId={docId} context="document-content" />
   ),
 
-  fetchSearch: fetchSearch,
   fetchQuery: fetchQuery,
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
