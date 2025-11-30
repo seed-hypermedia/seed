@@ -52,12 +52,14 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		blobsIndexed int
 	)
 	idx.log.Info("ReindexingStarted")
+
 	defer func() {
 		idx.log.Info("ReindexingFinished",
 			zap.Error(err),
-			zap.Duration("duration", time.Since(start)),
+			zap.String("duration", time.Since(start).String()),
 			zap.Int("blobsTotal", blobsTotal),
 			zap.Int("blobsIndexed", blobsIndexed),
+			zap.Int("blobsSkipped", blobsTotal-blobsIndexed),
 		)
 	}()
 
@@ -68,25 +70,25 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			}
 		}
 
-		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
-		if err := sqlitex.ExecTransient(conn, "SELECT * FROM blobs ORDER BY id", func(stmt *sqlite.Stmt) error {
-			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
-			blobsTotal++
+		blobsTotal, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM blobs")
+		if err != nil {
+			return err
+		}
 
-			if !isIndexable(multicodec.Code(codec)) {
-				return nil
-			}
+		const q = "SELECT * FROM blobs WHERE codec IN (?, ?) AND size > 0 ORDER BY id"
+		args := []any{
+			uint64(multicodec.DagCbor),
+			uint64(multicodec.DagPb),
+		}
+
+		scratch := make([]byte, 0, 1024*1024) // 1MB preallocated slice to reuse for decompressing.
+		if err := sqlitex.ExecTransient(conn, q, func(stmt *sqlite.Stmt) error {
+			codec := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsCodec.ShortName()))
 
 			id := stmt.ColumnInt64(stmt.ColumnIndex(storage.BlobsID.ShortName()))
 			hash := stmt.ColumnBytes(stmt.ColumnIndex(storage.BlobsMultihash.ShortName()))
 			size := stmt.ColumnInt(stmt.ColumnIndex(storage.BlobsSize.ShortName()))
 			compressed := stmt.ColumnBytesUnsafe(stmt.ColumnIndex(storage.BlobsData.ShortName()))
-			// We have to skip blobs we know the hashes of but we don't have the data.
-			// Also the blobs that are inline (data stored in the hash itself) because we don't index them ever.
-			// TODO(burdiyan): filter the select query to avoid fetching these blobs in the first place.
-			if size <= 0 {
-				return nil
-			}
 
 			scratch = scratch[:0]
 			scratch = slices.Grow(scratch, size)
@@ -101,9 +103,11 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 				return fmt.Errorf("BUG: failed to clone decompressed data: %s", c)
 			}
 
+			err = indexBlob(false, conn, id, c, data, idx.bs, idx.log)
 			blobsIndexed++
-			return indexBlob(false, conn, id, c, data, idx.bs, idx.log)
-		}); err != nil {
+
+			return err
+		}, args...); err != nil {
 			return err
 		}
 
