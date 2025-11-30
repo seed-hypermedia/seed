@@ -1,6 +1,6 @@
 import {Timestamp} from '@bufbuild/protobuf'
 import {useQuery} from '@tanstack/react-query'
-import {HMDocument, UnpackedHypermediaId} from '../hm-types'
+import {HMDocument, HMSearchRequest, UnpackedHypermediaId} from '../hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
 import {useUniversalClient} from '../routing'
@@ -48,7 +48,8 @@ export function useSearch(
       contextSize,
     ],
     queryFn: async () => {
-      const out = await client.fetchSearch(query, {
+      const out = await client.request<HMSearchRequest>('Search', {
+        query,
         perspectiveAccountUid: perspectiveAccountUid || undefined,
         accountUid: accountUid || undefined,
         includeBody: includeBody || false,

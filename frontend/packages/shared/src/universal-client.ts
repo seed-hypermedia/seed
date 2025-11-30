@@ -10,9 +10,8 @@ import type {
   UnpackedHypermediaId,
 } from './hm-types'
 import type {RecentsResult} from './models/recents'
-import type {SearchPayload} from './models/search'
 
-export type {Contact, RecentsResult, SearchPayload}
+export type {Contact, RecentsResult}
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
@@ -41,16 +40,6 @@ export type UniversalClient = {
 
   // Comment editor component (platform-specific)
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>
-
-  fetchSearch(
-    query: string,
-    opts?: {
-      accountUid?: string
-      perspectiveAccountUid?: string
-      includeBody?: boolean
-      contextSize?: number
-    },
-  ): Promise<SearchPayload>
 
   fetchRecents(): Promise<RecentsResult[]>
 
