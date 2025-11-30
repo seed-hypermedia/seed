@@ -1,4 +1,5 @@
-import {HMMetadataPayload, UnpackedHypermediaId} from './hm-types'
+import {GRPCClient} from '.'
+import {HMMetadataPayload, HMRequest, UnpackedHypermediaId} from './hm-types'
 
 export type ListAPIResponse = {
   documents: HMMetadataPayload[]
@@ -7,4 +8,11 @@ export type ListAPIResponse = {
     error: any
     metadata: any
   }[]
+}
+
+export type HMRequestImplementation<Request extends HMRequest> = {
+  getData: (
+    grpcClient: GRPCClient,
+    input: Request['input'],
+  ) => Promise<Request['output']>
 }

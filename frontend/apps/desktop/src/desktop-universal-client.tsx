@@ -13,6 +13,7 @@ import type {UnpackedHypermediaId} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
+import {desktopRequest} from './desktop-api'
 
 export const desktopUniversalClient: UniversalClient = {
   useResource: ((
@@ -43,4 +44,6 @@ export const desktopUniversalClient: UniversalClient = {
   fetchBatchAccounts: fetchBatchAccounts,
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
+
+  request: desktopRequest,
 }

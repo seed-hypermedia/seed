@@ -1232,3 +1232,29 @@ export const HMHostConfigSchema = z.object({
   isGateway: z.boolean(),
 })
 export type HMHostConfig = z.infer<typeof HMHostConfigSchema>
+
+export const HMResourceRequestSchema = z.object({
+  key: z.literal('Resource'),
+  input: unpackedHmIdSchema,
+  output: HMResourceSchema,
+})
+export type HMResourceRequest = z.infer<typeof HMResourceRequestSchema>
+
+export const HMResourceMetadataRequestSchema = z.object({
+  key: z.literal('ResourceMetadata'),
+  input: unpackedHmIdSchema,
+  output: HMMetadataPayloadSchema,
+})
+export type HMResourceMetadataRequest = z.infer<
+  typeof HMResourceMetadataRequestSchema
+>
+
+export const HMRequestSchema = z.discriminatedUnion('key', [
+  HMResourceRequestSchema,
+  HMResourceMetadataRequestSchema,
+])
+
+const testKey = HMResourceRequestSchema.pick({key: true})
+console.log('=== testKey should be "Resource"', testKey)
+
+export type HMRequest = z.infer<typeof HMRequestSchema>
