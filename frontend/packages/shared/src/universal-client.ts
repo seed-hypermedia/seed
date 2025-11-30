@@ -3,7 +3,6 @@ import type {Contact} from './client/grpc-types'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
-  HMMetadataPayload,
   HMQuery,
   HMQueryResult,
   HMRequest,
@@ -52,10 +51,6 @@ export type UniversalClient = {
       contextSize?: number
     },
   ): Promise<SearchPayload>
-
-  fetchBatchAccounts(
-    accountUids: string[],
-  ): Promise<Record<string, HMMetadataPayload>>
 
   fetchRecents(): Promise<RecentsResult[]>
 
