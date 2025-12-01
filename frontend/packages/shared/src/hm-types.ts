@@ -736,11 +736,12 @@ export type HMChangeGroup = {
   changes: HMChangeSummary[]
 }
 
-export type HMQueryResult = {
-  in: UnpackedHypermediaId
-  results: HMDocumentInfo[]
-  mode?: 'Children' | 'AllDescendants'
-}
+export const HMQueryResultSchema = z.object({
+  in: unpackedHmIdSchema,
+  results: z.array(HMDocumentInfoSchema),
+  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
+})
+export type HMQueryResult = z.infer<typeof HMQueryResultSchema>
 
 export const HMRoleSchema = z.enum(['writer', 'agent', 'none', 'owner'])
 export type HMRole = z.infer<typeof HMRoleSchema>
@@ -1296,12 +1297,20 @@ export const HMSearchRequestSchema = z.object({
 })
 export type HMSearchRequest = z.infer<typeof HMSearchRequestSchema>
 
+export const HMQueryRequestSchema = z.object({
+  key: z.literal('Query'),
+  input: HMQuerySchema,
+  output: HMQueryResultSchema.nullable(),
+})
+export type HMQueryRequest = z.infer<typeof HMQueryRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
   HMBatchAccountsRequestSchema,
   HMSearchRequestSchema,
+  HMQueryRequestSchema,
 ])
 
 const testKey = HMResourceRequestSchema.pick({key: true})

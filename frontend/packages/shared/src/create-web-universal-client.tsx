@@ -2,8 +2,6 @@ import {UseQueryResult} from '@tanstack/react-query'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
-  HMQuery,
-  HMQueryResult,
   HMRequest,
   UnpackedHypermediaId,
 } from './hm-types'
@@ -80,11 +78,6 @@ export function createWebUniversalClient(
     CommentEditor: deps.CommentEditor,
 
     fetchRecents: deps.fetchRecents || (async () => []),
-
-    fetchQuery: async (_query: HMQuery): Promise<HMQueryResult | null> => {
-      console.error('fetchQuery not yet implemented for web')
-      return null
-    },
 
     deleteRecent: deps.deleteRecent || (async () => {}),
 
