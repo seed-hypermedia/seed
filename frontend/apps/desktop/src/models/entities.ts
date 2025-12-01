@@ -21,7 +21,7 @@ import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useRef} from 'react'
 import {queryListDirectory, usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
@@ -106,31 +106,6 @@ export function useUndeleteEntity(
       opts?.onSuccess?.(result, variables, context)
     },
   })
-}
-
-export function getParentPaths(path?: string[] | null): string[][] {
-  if (!path) return [[]]
-  let walkParentPaths: string[] = []
-  return [
-    [],
-    ...path.map((term) => {
-      walkParentPaths = [...walkParentPaths, term]
-      return walkParentPaths
-    }),
-  ]
-}
-
-function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
-  return getParentPaths(id.path).map((path) => hmId(id.uid, {path}))
-}
-
-export function useItemsFromId(
-  id: UnpackedHypermediaId,
-): Array<UnpackedHypermediaId> {
-  return useMemo(() => {
-    const ids = getIdsFromIds(id)
-    return ids
-  }, [id])
 }
 
 function catchNotFound<Result>(
