@@ -3,8 +3,6 @@ import type {Contact} from './client/grpc-types'
 import type {
   HMAccountsMetadata,
   HMDocumentInfo,
-  HMQuery,
-  HMQueryResult,
   HMRequest,
   HMResource,
   UnpackedHypermediaId,
@@ -42,8 +40,6 @@ export type UniversalClient = {
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>
 
   fetchRecents(): Promise<RecentsResult[]>
-
-  fetchQuery(query: HMQuery): Promise<HMQueryResult | null>
 
   deleteRecent(id: string): Promise<void>
 
