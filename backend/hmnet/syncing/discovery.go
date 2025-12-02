@@ -27,7 +27,7 @@ import (
 
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it.
 const (
-	DefaultDiscoveryTimeout = time.Second * 120
+	DefaultDiscoveryTimeout = time.Second * 60 * 10 // 10 minutes
 	DefaultSyncingTimeout   = 2 * DefaultDiscoveryTimeout / 3
 	DefaultDHTTimeout       = 1 * DefaultDiscoveryTimeout / 3
 )
