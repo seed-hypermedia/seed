@@ -279,16 +279,14 @@ See commit history for the complete `fetchResource` → `Resource` API migration
 - `frontend/packages/shared/src/create-web-universal-client.tsx` - Removed implementation
 - `frontend/apps/desktop/src/desktop-universal-client.tsx` - Removed implementation
 
-## Remaining APIs to Migrate
+## Remaining UniversalClient Methods
 
 These methods are still on `UniversalClient` and need migration:
 
-- [ ] `fetchAccount(accountUid: string)`
-- [ ] `fetchBatchAccounts(accountUids: string[])`
-- [ ] `fetchQuery(query: HMQuery)`
-- [ ] `fetchSearch(query: string, opts?: {...})`
-- [ ] `fetchRecents()`
-- [ ] `deleteRecent(id: string)`
+- [ ] `fetchRecents()` → `Recents` API
+- [ ] `deleteRecent(id: string)` → `DeleteRecent` API
+
+Also remaining: `CommentEditor` component (platform-specific, may stay on UniversalClient)
 
 ## Benefits of This Pattern
 
@@ -499,16 +497,6 @@ const accountsMetadata = useMemo(() => {
 <QueryBlockContent accountsMetadata={accountsMetadata} />
 ```
 
-## Hooks Remaining to Migrate
-
-These hooks are still on `UniversalClient`:
-
-- [ ] `useResource` - Already has shared implementation, remove from UniversalClient
-- [ ] `useResources` - Already has shared implementation, remove from UniversalClient
-- [x] `useDirectory` - Migrated to shared `useDirectory` in `models/entity.ts`, uses `HMQueryRequest`
-- [ ] `useContacts` - Desktop-only, may stay platform-specific
-- [ ] `useAccountsMetadata` - Migrate to use `useAccounts` from shared
-
 ## Benefits
 
 1. **Unified Caching**: All platforms use same React Query cache keys
@@ -516,3 +504,298 @@ These hooks are still on `UniversalClient`:
 3. **Suspense Support**: Can use with React Suspense if needed
 4. **Optimistic Updates**: Easier cache manipulation
 5. **DevTools**: React Query DevTools work consistently
+
+---
+
+# Service Provider Migration (ActivityService, CommentsService)
+
+Service providers like `ActivityService` and `CommentsService` use a different pattern than `UniversalClient` methods. They're class-based services passed via React Context that need migration to the unified API router pattern.
+
+## Current Architecture
+
+### Service Pattern Flow
+1. **Interface**: `ActivityService`/`CommentsService` interfaces in `shared/src/models/`
+2. **Implementations**: Platform-specific classes (`DesktopActivityService`, `WebActivityService`, etc.)
+3. **Context**: Service providers (`ActivityProvider`, `CommentsProvider`) wrap app with service instance
+4. **Hooks**: Shared hooks (`useActivityFeed`, `useDiscussionsService`) consume service from context
+
+### Key Files
+
+**Activity Service:**
+- `frontend/packages/shared/src/models/activity-service.ts` - Interface & shared impl functions
+- `frontend/packages/shared/src/activity-service-provider.tsx` - Context & hooks
+- `frontend/apps/desktop/src/desktop-activity-service.ts` - Desktop implementation
+- `frontend/apps/web/app/web-activity-service.ts` - Web implementation
+
+**Comments Service:**
+- `frontend/packages/shared/src/models/comments-service.ts` - Interface & shared impl functions
+- `frontend/packages/shared/src/comments-service-provider.tsx` - Context & hooks
+- `frontend/apps/desktop/src/desktop-comments-service.ts` - Desktop implementation
+- `frontend/apps/web/app/web-comments-service.ts` - Web implementation
+
+## Migration Goal
+
+Migrate from:
+```typescript
+// Service class + Context pattern
+const context = useActivityServiceContext()
+const response = await context.service.listEvents(params)
+```
+
+To:
+```typescript
+// Unified request pattern
+const client = useUniversalClient()
+const response = await client.request<HMListEventsRequest>('ListEvents', params)
+```
+
+## Step-by-Step Service Migration
+
+### Step 1: Define Request/Response Types in hm-types.ts
+
+For each service method, create a request schema:
+
+```typescript
+// Activity Service methods
+export const HMListEventsRequestSchema = z.object({
+  key: z.literal('ListEvents'),
+  input: z.object({
+    pageSize: z.number().optional(),
+    pageToken: z.string().optional(),
+    trustedOnly: z.boolean().optional(),
+    filterAuthors: z.array(z.string()).optional(),
+    filterEventType: z.array(z.string()).optional(),
+    filterResource: z.string().optional(),
+  }),
+  output: z.object({
+    events: z.array(HMEventSchema),
+    nextPageToken: z.string(),
+  }),
+})
+export type HMListEventsRequest = z.infer<typeof HMListEventsRequestSchema>
+
+export const HMResolveEventRequestSchema = z.object({
+  key: z.literal('ResolveEvent'),
+  input: z.object({
+    event: HMEventSchema,
+    currentAccount: z.string().optional(),
+  }),
+  output: LoadedEventSchema.nullable(),
+})
+export type HMResolveEventRequest = z.infer<typeof HMResolveEventRequestSchema>
+```
+
+Add to discriminated union:
+```typescript
+export const HMRequestSchema = z.discriminatedUnion('key', [
+  // ... existing
+  HMListEventsRequestSchema,
+  HMResolveEventRequestSchema,
+])
+```
+
+### Step 2: Create API Handler
+
+Create `frontend/packages/shared/src/api-activity.ts`:
+
+```typescript
+import {HMRequestImplementation} from './api-types'
+import {GRPCClient} from './grpc-client'
+import {
+  HMListEventsRequest,
+  HMResolveEventRequest,
+} from './hm-types'
+import {
+  listEventsImpl,
+  loadCommentEvent,
+  loadRefEvent,
+  // ... other loaders
+  getEventType,
+} from './models/activity-service'
+
+export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
+  async getData(grpcClient: GRPCClient, input) {
+    return listEventsImpl(grpcClient, input)
+  },
+}
+
+export const ResolveEvent: HMRequestImplementation<HMResolveEventRequest> = {
+  async getData(grpcClient: GRPCClient, input) {
+    const {event, currentAccount} = input
+    const eventType = getEventType(event)
+
+    switch (eventType) {
+      case 'comment':
+        return loadCommentEvent(grpcClient, event, currentAccount)
+      case 'ref':
+        return loadRefEvent(grpcClient, event, currentAccount)
+      // ... etc
+      default:
+        return null
+    }
+  },
+}
+```
+
+### Step 3: Register in API Router
+
+In `frontend/packages/shared/src/api.ts`:
+
+```typescript
+import {ListEvents, ResolveEvent} from './api-activity'
+
+export const APIRouter: APIRouterType = {
+  // ... existing
+  ListEvents,
+  ResolveEvent,
+}
+```
+
+### Step 4: Migrate Hooks to Use client.request()
+
+Update `activity-service-provider.tsx`:
+
+**Before:**
+```typescript
+export function useActivityFeed({...}) {
+  const context = useActivityServiceContext()
+
+  return useInfiniteQuery({
+    queryFn: async ({pageParam}) => {
+      const response = await context.service.listEvents({...})
+      const resolvedEvents = await Promise.allSettled(
+        response.events.map((event) =>
+          context.service!.resolveEvent(event, currentAccount)
+        )
+      )
+      // ...
+    },
+    enabled: !!context.service,
+  })
+}
+```
+
+**After:**
+```typescript
+import {useUniversalClient} from './routing'
+
+export function useActivityFeed({...}) {
+  const client = useUniversalClient()
+
+  return useInfiniteQuery({
+    queryFn: async ({pageParam}) => {
+      const response = await client.request<HMListEventsRequest>('ListEvents', {...})
+      const resolvedEvents = await Promise.allSettled(
+        response.events.map((event) =>
+          client.request<HMResolveEventRequest>('ResolveEvent', {event, currentAccount})
+        )
+      )
+      // ...
+    },
+    // No longer needs enabled check - client.request always available
+  })
+}
+```
+
+### Step 5: Remove Service Interface & Implementations
+
+After all methods are migrated:
+
+1. **Remove service interface** from `models/activity-service.ts`
+2. **Remove platform implementations**:
+   - `desktop-activity-service.ts`
+   - `web-activity-service.ts`
+3. **Remove context provider** (`ActivityProvider`) or simplify to only hold non-API state (like `onReplyClick` callbacks)
+4. **Keep shared implementation functions** (`listEventsImpl`, `loadCommentEvent`, etc.) - these are reused by API handlers
+
+### Step 6: Simplify Context (if needed)
+
+If the context only held the service, remove it entirely. If it has other state (like callbacks), simplify:
+
+**Before:**
+```typescript
+type CommentsProviderValue = {
+  onReplyClick: (comment: HMComment) => void
+  onReplyCountClick: (comment: HMComment) => void
+  service: CommentsService | null
+}
+```
+
+**After:**
+```typescript
+type CommentsProviderValue = {
+  onReplyClick: (comment: HMComment) => void
+  onReplyCountClick: (comment: HMComment) => void
+  // service removed - now using client.request()
+}
+```
+
+## Service Migration Checklist
+
+### ActivityService
+
+Methods to migrate:
+- [ ] `listEvents` → `ListEvents` API
+- [ ] `resolveEvent` → `ResolveEvent` API
+
+### CommentsService ✅ COMPLETED
+
+Methods migrated:
+- [x] `listComments` → `ListComments` API
+- [x] `listDiscussions` → `ListDiscussions` API
+- [x] `listCommentsByReference` → `ListCommentsByReference` API
+- [x] `deleteComment` → `DeleteComment` API
+- [x] `getReplyCount` → `GetCommentReplyCount` API
+
+Special cases:
+- [x] `useHackyAuthorsSubscriptions` - Passed via context as callback, desktop provides implementation
+
+Note: `listCommentsById` was not migrated as it's not currently used
+
+## Handling Special Cases
+
+### Platform-Specific Methods
+
+Some methods like `useHackyAuthorsSubscriptions` are desktop-only and may not fit the API pattern:
+
+```typescript
+// Option 1: Keep as platform-specific hook in desktop only
+// frontend/apps/desktop/src/hooks/use-authors-subscriptions.ts
+export function useHackyAuthorsSubscriptions(authorIds: string[]) {
+  useSubscribedResources(...)
+}
+
+// Option 2: Make it a no-op in shared and override on desktop
+export function useHackyAuthorsSubscriptions(authorIds: string[]) {
+  // Default no-op, desktop provides real implementation via context
+}
+```
+
+### Mutations (deleteComment, etc.)
+
+For mutations, continue using React Query's `useMutation`:
+
+```typescript
+export function useDeleteComment() {
+  const client = useUniversalClient()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (params: DeleteCommentRequest) => {
+      await client.request<HMDeleteCommentRequest>('DeleteComment', params)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
+    },
+  })
+}
+```
+
+## Benefits of Service Migration
+
+1. **No more service context boilerplate**: Remove provider wrappers and context consumers
+2. **Unified data layer**: All data fetching through single `client.request()` pattern
+3. **Simpler initialization**: No need to create/pass service instances
+4. **Better tree-shaking**: Only import what you use
+5. **Consistent error handling**: API router handles errors uniformly
+6. **Type safety**: Full TypeScript inference from request schemas

@@ -3,7 +3,7 @@ import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {DesktopActivityService} from '@/desktop-activity-service'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
@@ -54,7 +54,6 @@ import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
 
 export default function FeedPage() {
-  const commentsService = new DesktopCommentsService()
   const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
@@ -79,7 +78,7 @@ export default function FeedPage() {
     <>
       <ActivityProvider service={activityService}>
         <CommentsProvider
-          service={commentsService}
+          useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
           onReplyClick={(replyComment) => {
             const targetRoute = isRouteEqualToCommentTarget({
               id: route.id,

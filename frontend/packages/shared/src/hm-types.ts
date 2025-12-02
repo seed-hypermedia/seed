@@ -661,20 +661,24 @@ export type HMAccount = Omit<PlainMessage<Account>, 'metadata'> & {
   metadata?: HMMetadata
 }
 
-export type HMCommentGroup = {
-  comments: HMComment[]
-  moreCommentsCount: number
-  id: string
-  type: 'commentGroup'
-}
+export const HMCommentGroupSchema = z.object({
+  comments: z.array(HMCommentSchema),
+  moreCommentsCount: z.number(),
+  id: z.string(),
+  type: z.literal('commentGroup'),
+})
+export type HMCommentGroup = z.infer<typeof HMCommentGroupSchema>
 
-export type HMExternalCommentGroup = {
-  comments: HMComment[]
-  moreCommentsCount: number
-  id: string
-  target: HMMetadataPayload
-  type: 'externalCommentGroup'
-}
+export const HMExternalCommentGroupSchema = z.object({
+  comments: z.array(HMCommentSchema),
+  moreCommentsCount: z.number(),
+  id: z.string(),
+  target: z.lazy(() => HMMetadataPayloadSchema),
+  type: z.literal('externalCommentGroup'),
+})
+export type HMExternalCommentGroup = z.infer<
+  typeof HMExternalCommentGroupSchema
+>
 
 export type HMDraftChange = {
   id: string
@@ -1339,6 +1343,83 @@ export const HMQueryRequestSchema = z.object({
 })
 export type HMQueryRequest = z.infer<typeof HMQueryRequestSchema>
 
+// Comments API request schemas
+export const HMListCommentsInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListCommentsInput = z.infer<typeof HMListCommentsInputSchema>
+
+export const HMListCommentsOutputSchema = z.object({
+  comments: z.array(HMCommentSchema),
+  authors: z.record(z.string(), HMMetadataPayloadSchema),
+})
+export type HMListCommentsOutput = z.infer<typeof HMListCommentsOutputSchema>
+
+export const HMListCommentsRequestSchema = z.object({
+  key: z.literal('ListComments'),
+  input: HMListCommentsInputSchema,
+  output: HMListCommentsOutputSchema,
+})
+export type HMListCommentsRequest = z.infer<typeof HMListCommentsRequestSchema>
+
+export const HMListDiscussionsInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+  commentId: z.string().optional(),
+})
+export type HMListDiscussionsInput = z.infer<
+  typeof HMListDiscussionsInputSchema
+>
+
+export const HMListDiscussionsOutputSchema = z.object({
+  discussions: z.array(HMCommentGroupSchema),
+  authors: z.record(z.string(), HMMetadataPayloadSchema),
+  citingDiscussions: z.array(HMExternalCommentGroupSchema),
+})
+export type HMListDiscussionsOutput = z.infer<
+  typeof HMListDiscussionsOutputSchema
+>
+
+export const HMListDiscussionsRequestSchema = z.object({
+  key: z.literal('ListDiscussions'),
+  input: HMListDiscussionsInputSchema,
+  output: HMListDiscussionsOutputSchema,
+})
+export type HMListDiscussionsRequest = z.infer<
+  typeof HMListDiscussionsRequestSchema
+>
+
+export const HMListCommentsByReferenceInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListCommentsByReferenceInput = z.infer<
+  typeof HMListCommentsByReferenceInputSchema
+>
+
+export const HMListCommentsByReferenceRequestSchema = z.object({
+  key: z.literal('ListCommentsByReference'),
+  input: HMListCommentsByReferenceInputSchema,
+  output: HMListCommentsOutputSchema,
+})
+export type HMListCommentsByReferenceRequest = z.infer<
+  typeof HMListCommentsByReferenceRequestSchema
+>
+
+export const HMGetCommentReplyCountInputSchema = z.object({
+  id: z.string(),
+})
+export type HMGetCommentReplyCountInput = z.infer<
+  typeof HMGetCommentReplyCountInputSchema
+>
+
+export const HMGetCommentReplyCountRequestSchema = z.object({
+  key: z.literal('GetCommentReplyCount'),
+  input: HMGetCommentReplyCountInputSchema,
+  output: z.number(),
+})
+export type HMGetCommentReplyCountRequest = z.infer<
+  typeof HMGetCommentReplyCountRequestSchema
+>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
@@ -1347,6 +1428,10 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMSearchRequestSchema,
   HMQueryRequestSchema,
   HMAccountContactsRequestSchema,
+  HMListCommentsRequestSchema,
+  HMListDiscussionsRequestSchema,
+  HMListCommentsByReferenceRequestSchema,
+  HMGetCommentReplyCountRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>
