@@ -1,7 +1,7 @@
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
-  HMEntityContent,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {DocumentCardGrid} from './blocks-content'
@@ -13,7 +13,7 @@ export interface QueryBlockContentProps {
   columnCount?: string | number
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
-  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
+  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
 }
 
 export function QueryBlockContent({
@@ -52,7 +52,7 @@ function QueryBlockCardView({
   banner: boolean
   columnCount: string | number
   accountsMetadata: HMAccountsMetadata
-  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
+  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
 }) {
   const firstItem = banner ? items[0] : undefined
   const restItems = banner ? items.slice(1) : items

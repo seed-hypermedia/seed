@@ -6,8 +6,8 @@ import {
   BlockRange,
   HMComment,
   HMDocument,
-  HMEntityContent,
   HMMetadata,
+  HMResourceFetchResult,
   NavRoute,
   UnpackedHypermediaId,
   hmId,
@@ -1144,7 +1144,7 @@ function WebDocumentOutline({
   document: HMDocument | null | undefined
   id: UnpackedHypermediaId
   onActivateBlock: (blockId: string) => void
-  supportDocuments: HMEntityContent[] | undefined
+  supportDocuments: HMResourceFetchResult[] | undefined
 }) {
   const outline = useNodesOutline(document, id, supportDocuments)
   if (!outline.length) return null

@@ -89,10 +89,11 @@ export type ServerDocument = PlainMessage<Document>
 
 export type HMDeletedEntity = PlainMessage<DeletedEntity>
 
-export type HMEntityContent = {
+export type HMResourceFetchResult = {
   id: UnpackedHypermediaId
   document?: HMDocument | null
   redirectTarget?: UnpackedHypermediaId | null
+  isTombstone?: boolean
 }
 
 const baseAnnotationProperties = {
@@ -739,7 +740,9 @@ export type HMChangeGroup = {
 export const HMQueryResultSchema = z.object({
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
-  mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
+  mode: z
+    .union([z.literal('Children'), z.literal('AllDescendants')])
+    .optional(),
 })
 export type HMQueryResult = z.infer<typeof HMQueryResultSchema>
 
@@ -1107,17 +1110,25 @@ export const HMResourceNotFoundSchema = z.object({
 })
 export type HMResourceNotFound = z.infer<typeof HMResourceNotFoundSchema>
 
+export const HMResourceTombstoneSchema = z.object({
+  type: z.literal('tombstone'),
+  id: unpackedHmIdSchema,
+})
+export type HMResourceTombstone = z.infer<typeof HMResourceTombstoneSchema>
+
 export const HMResourceSchema = z.discriminatedUnion('type', [
   HMResourceDocumentSchema,
   HMResourceCommentSchema,
   HMResourceRedirectSchema,
   HMResourceNotFoundSchema,
+  HMResourceTombstoneSchema,
 ])
 export type HMResource = z.infer<typeof HMResourceSchema>
 
 export const HMResolvedResourceSchema = z.discriminatedUnion('type', [
   HMResourceDocumentSchema,
   HMResourceCommentSchema,
+  HMResourceTombstoneSchema,
 ])
 export type HMResolvedResource = z.infer<typeof HMResolvedResourceSchema>
 
@@ -1262,7 +1273,9 @@ export const HMBatchAccountsRequestSchema = z.object({
   input: z.array(z.string()),
   output: z.record(z.string(), HMMetadataPayloadSchema),
 })
-export type HMBatchAccountsRequest = z.infer<typeof HMBatchAccountsRequestSchema>
+export type HMBatchAccountsRequest = z.infer<
+  typeof HMBatchAccountsRequestSchema
+>
 
 export const HMSearchInputSchema = z.object({
   query: z.string(),
@@ -1312,8 +1325,5 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMSearchRequestSchema,
   HMQueryRequestSchema,
 ])
-
-const testKey = HMResourceRequestSchema.pick({key: true})
-console.log('=== testKey should be "Resource"', testKey)
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

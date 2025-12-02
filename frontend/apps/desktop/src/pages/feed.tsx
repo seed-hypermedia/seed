@@ -24,8 +24,8 @@ import {
   FeedRoute,
   getCommentTargetId,
   HMDocument,
-  HMEntityContent,
   hmId,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
@@ -36,7 +36,6 @@ import {
 import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
@@ -49,6 +48,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
@@ -347,11 +347,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')

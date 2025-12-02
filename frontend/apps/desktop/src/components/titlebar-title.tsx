@@ -144,6 +144,7 @@ type CrumbDetails = {
   id: UnpackedHypermediaId | null
   isError?: boolean
   isLoading?: boolean
+  isTombstone?: boolean
   crumbKey: string
 }
 
@@ -168,7 +169,8 @@ function BreadcrumbTitle({
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
   const entityIds = useMemo(
-    () => getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
+    () =>
+      getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
     [entityId],
   )
   const entityContents = useSubscribedResourceIds(entityIds)
@@ -195,6 +197,7 @@ function BreadcrumbTitle({
           name,
           fallbackName: id.path?.at(-1),
           isError: contents.entity && !contents.entity.document,
+          isTombstone: contents.entity?.isTombstone || false,
           isLoading: !contents.entity,
           id,
           crumbKey: `id-${idIndex}`,
@@ -571,6 +574,15 @@ function BreadcrumbItem({
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
+    )
+  }
+  if (details.isTombstone) {
+    return (
+      <Tooltip content="This Document has been deleted">
+        <TitleTextButton className="no-window-drag text-destructive">
+          {details.fallbackName}
+        </TitleTextButton>
+      </Tooltip>
     )
   }
   if (details.isError) {

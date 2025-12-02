@@ -33,8 +33,8 @@ import {
   AccessoryOptions,
   DocumentRoute,
   HMDocument,
-  HMEntityContent,
   HMResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
@@ -414,11 +414,6 @@ function _MainDocumentPage({
         siteHomeEntity.data
       : null
 
-  console.log(
-    '=== interactionSummary.data?.comments',
-    interactionSummary.data?.comments,
-  )
-
   const documentTools = (
     <DocumentTools
       activePanel={
@@ -454,7 +449,7 @@ function _MainDocumentPage({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        {/* <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+        {/* <div className="flex absolute top-2 right-2 z-40 items-center bg-white rounded-md shadow-md dark:bg-background">
           <DocInteractionSummary
             isHome={isHomeDoc}
             isAccessoryOpen={!!route.accessory}
@@ -533,11 +528,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')
