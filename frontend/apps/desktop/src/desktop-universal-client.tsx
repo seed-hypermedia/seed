@@ -1,6 +1,5 @@
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
-import {useAccountsMetadata} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -25,7 +24,6 @@ export const desktopUniversalClient: UniversalClient = {
     // Cast the entire result to satisfy the UniversalClient interface
     return contacts as any
   },
-  useAccountsMetadata: useAccountsMetadata,
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <CommentBox docId={docId} context="document-content" />
   ),

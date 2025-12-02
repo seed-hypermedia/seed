@@ -1,11 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {
   createBatchAccountsResolver,
@@ -338,20 +334,4 @@ export function useSubscribedResourceIds(
     }
     return {id: ids[i], entity: undefined}
   })
-}
-
-export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useSubscribedResources(ids.map((id) => ({id: hmId(id)})))
-  return Object.fromEntries(
-    accounts
-      .map((account) => {
-        if (!account.data) return null
-        return [
-          account.data.id.uid,
-          // @ts-expect-error
-          {id: account.data.id, metadata: account.data.document?.metadata},
-        ]
-      })
-      .filter((entry) => !!entry),
-  )
 }
