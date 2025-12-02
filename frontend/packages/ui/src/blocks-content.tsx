@@ -1628,8 +1628,22 @@ export function BlockEmbedContent({
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
   const client = useUniversalClient()
+  const {resourceId} = useBlocksContentContext()
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
+
+  const isSelfEmbed =
+    id &&
+    resourceId.uid === id.uid &&
+    resourceId.path?.join('/') === id.path?.join('/') &&
+    id.latest
+  if (isSelfEmbed) {
+    // this avoids a dangerous recursive embedding of the same document
+    return (
+      <ErrorBlock message="Cannot embed the latest version of a document within itself" />
+    )
+  }
+
   const resource = client.useResource(id)
   const document =
     resource.data?.type === 'document' ? resource.data.document : undefined
