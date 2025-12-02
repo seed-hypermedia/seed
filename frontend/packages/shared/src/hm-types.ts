@@ -1,7 +1,6 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import * as z from 'zod'
 import {
-  Contact,
   type Account,
   type Block,
   type BlockNode,
@@ -1198,16 +1197,39 @@ export type HMPeerConnectionRequest = z.infer<
   typeof HMPeerConnectionRequestSchema
 >
 
-export type HMContact = {
-  metadata: HMMetadata
-  contacts: PlainMessage<Contact>[] | undefined
-  subjectContacts: PlainMessage<Contact>[] | undefined
-}
+// Contact record schema (matches gRPC Contact type)
+export const HMContactRecordSchema = z.object({
+  id: z.string(),
+  subject: z.string(),
+  name: z.string(),
+  account: z.string(),
+  createTime: HMTimestampSchema.optional(),
+  updateTime: HMTimestampSchema.optional(),
+})
+export type HMContactRecord = z.infer<typeof HMContactRecordSchema>
 
-export type HMContactItem = {
-  id: UnpackedHypermediaId
-  metadata?: HMMetadata
-}
+export const HMContactSchema = z.object({
+  metadata: HMDocumentMetadataSchema,
+  contacts: z.array(HMContactRecordSchema).optional(),
+  subjectContacts: z.array(HMContactRecordSchema).optional(),
+})
+export type HMContact = z.infer<typeof HMContactSchema>
+
+export const HMContactItemSchema = z.object({
+  id: unpackedHmIdSchema,
+  metadata: HMDocumentMetadataSchema.optional(),
+})
+export type HMContactItem = z.infer<typeof HMContactItemSchema>
+
+// AccountContacts request: get contacts for a specific account
+export const HMAccountContactsRequestSchema = z.object({
+  key: z.literal('AccountContacts'),
+  input: z.string(), // account UID
+  output: z.array(HMContactRecordSchema),
+})
+export type HMAccountContactsRequest = z.infer<
+  typeof HMAccountContactsRequestSchema
+>
 
 export const HMCapabilitySchema = z.object({
   id: z.string(),
@@ -1324,6 +1346,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMBatchAccountsRequestSchema,
   HMSearchRequestSchema,
   HMQueryRequestSchema,
+  HMAccountContactsRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

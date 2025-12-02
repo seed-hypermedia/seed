@@ -1,4 +1,3 @@
-import {useSelectedAccountContacts} from '@/models/contacts'
 import {useListDirectory} from '@/models/documents'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
@@ -18,12 +17,6 @@ export const desktopUniversalClient: UniversalClient = {
     return useResources(ids)
   },
   useDirectory: useListDirectory,
-  useContacts: () => {
-    const contacts = useSelectedAccountContacts()
-    // PlainMessage<Contact> is compatible with Contact for our purposes
-    // Cast the entire result to satisfy the UniversalClient interface
-    return contacts as any
-  },
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <CommentBox docId={docId} context="document-content" />
   ),
