@@ -78,7 +78,7 @@ export function PushToast({
       ) : (
         <p>{statusMessage}</p>
       )}
-      {hosts.map(({host, peerId, message, status}) => {
+      {hosts.map(({host, message, status}) => {
         return (
           <p
             key={host}
