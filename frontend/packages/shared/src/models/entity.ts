@@ -32,7 +32,11 @@ import {
 } from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {entityQueryPathToHmIdPath, hmId, hmIdPathToEntityQueryPath} from '../utils'
+import {
+  entityQueryPathToHmIdPath,
+  hmId,
+  hmIdPathToEntityQueryPath,
+} from '../utils'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {

@@ -46,7 +46,12 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {useAccountsMetadata, useDirectory} from '@shm/shared/models/entity'
+import {
+  useAccountsMetadata,
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -1569,11 +1574,10 @@ export function BlockEmbedCard({
   block,
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
-  const client = useUniversalClient()
   const id = unpackHmId(block.link) ?? undefined
-  const doc = client.useResource(id)
+  const doc = useResource(id)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
-  const authors = client.useResources(
+  const authors = useResources(
     document?.authors.map((uid: string) => hmId(uid)) || [],
   )
 
@@ -1628,7 +1632,6 @@ export function BlockEmbedContent({
   depth,
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
-  const client = useUniversalClient()
   const {resourceId} = useBlocksContentContext()
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
@@ -1645,16 +1648,14 @@ export function BlockEmbedContent({
     )
   }
 
-  const resource = client.useResource(id)
+  const resource = useResource(id)
   const document =
     resource.data?.type === 'document' ? resource.data.document : undefined
   const comment =
     resource.data?.type === 'comment' ? resource.data.comment : undefined
-  const commentTargetResource = client.useResource(getCommentTargetId(comment))
+  const commentTargetResource = useResource(getCommentTargetId(comment))
 
-  const author = client.useResource(
-    comment?.author ? hmId(comment?.author) : null,
-  )
+  const author = useResource(comment?.author ? hmId(comment?.author) : null)
   if (!id) return <ErrorBlock message="Invalid embed link" />
   if (resource.data?.type === 'not-found') {
     return (
@@ -2080,7 +2081,6 @@ function BlockEmbedContentDocument(props: {
 }
 
 function BlockContentQuery({block}: {block: HMBlockQuery}) {
-  const client = useUniversalClient()
   const queryInclude = block.attributes.query.includes[0]
   const queryIncludeId = queryInclude
     ? hmId(queryInclude.space, {
@@ -2094,7 +2094,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   })
 
   // Subscribe to query target
-  client.useResource(queryIncludeId, {recursive: true})
+  useResource(queryIncludeId)
 
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
@@ -2111,7 +2111,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
     [directoryItems.data],
   )
 
-  const documents = client.useResources([
+  const documents = useResources([
     ...(docIds || []),
     ...authorIds.map((uid: string) => hmId(uid)),
   ])
@@ -2754,8 +2754,7 @@ function InlineEmbed({
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
 }) {
-  const client = useUniversalClient()
-  const doc = client.useResource(entityId)
+  const doc = useResource(entityId)
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 
