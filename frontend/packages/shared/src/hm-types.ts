@@ -1420,6 +1420,34 @@ export type HMGetCommentReplyCountRequest = z.infer<
   typeof HMGetCommentReplyCountRequestSchema
 >
 
+// Activity API request schemas
+export const HMListEventsInputSchema = z.object({
+  pageSize: z.number().optional(),
+  pageToken: z.string().optional(),
+  trustedOnly: z.boolean().optional(),
+  filterAuthors: z.array(z.string()).optional(),
+  filterEventType: z.array(z.string()).optional(),
+  filterResource: z.string().optional(),
+  currentAccount: z.string().optional(),
+})
+export type HMListEventsInput = z.infer<typeof HMListEventsInputSchema>
+
+// LoadedEvent schema - passthrough since it's a complex union type
+export const HMLoadedEventSchema = z.object({}).passthrough()
+
+export const HMListEventsOutputSchema = z.object({
+  events: z.array(HMLoadedEventSchema),
+  nextPageToken: z.string(),
+})
+export type HMListEventsOutput = z.infer<typeof HMListEventsOutputSchema>
+
+export const HMListEventsRequestSchema = z.object({
+  key: z.literal('ListEvents'),
+  input: HMListEventsInputSchema,
+  output: HMListEventsOutputSchema,
+})
+export type HMListEventsRequest = z.infer<typeof HMListEventsRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
@@ -1432,6 +1460,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListDiscussionsRequestSchema,
   HMListCommentsByReferenceRequestSchema,
   HMGetCommentReplyCountRequestSchema,
+  HMListEventsRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

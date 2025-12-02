@@ -11,13 +11,11 @@ import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
-import {WebActivityService} from '@/web-activity-service'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
-import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   HMMetadata,
   HMMetadataPayload,
@@ -31,7 +29,6 @@ import {SmallSiteHeader} from '@shm/ui/site-header'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare} from 'lucide-react'
-import {useMemo} from 'react'
 
 type ProfilePagePayload = {
   originHomeId: UnpackedHypermediaId | undefined
@@ -90,7 +87,6 @@ function ProfilePageContent({
   profile: HMMetadataPayload
   currentAccount?: string
 }) {
-  const activityService = useMemo(() => new WebActivityService(), [])
   const editProfileDialog = useAppDialog(EditProfileDialog)
   const account = useAccount(profile.id.uid)
   const displayMetadata = account.data?.metadata ?? profile.metadata
@@ -107,33 +103,31 @@ function ProfilePageContent({
           />
         )}
         <PageContainer>
-          <ActivityProvider service={activityService}>
-            <HMProfilePage
-              profile={{
-                id: profile.id,
-                metadata: displayMetadata,
-                hasSite: profile.hasSite,
-              }}
-              onEditProfile={() =>
-                editProfileDialog.open({accountUid: profile.id.uid})
-              }
-              currentAccount={currentAccount}
-              headerButtons={
-                isCurrentAccount ? (
-                  <>
-                    <LogoutButton />
-                    <Button
-                      variant="outline"
-                      onClick={() => linkKeysDialog.open({})}
-                    >
-                      <KeySquare className="size-4" />
-                      Link Keys
-                    </Button>
-                  </>
-                ) : null
-              }
-            />
-          </ActivityProvider>
+          <HMProfilePage
+            profile={{
+              id: profile.id,
+              metadata: displayMetadata,
+              hasSite: profile.hasSite,
+            }}
+            onEditProfile={() =>
+              editProfileDialog.open({accountUid: profile.id.uid})
+            }
+            currentAccount={currentAccount}
+            headerButtons={
+              isCurrentAccount ? (
+                <>
+                  <LogoutButton />
+                  <Button
+                    variant="outline"
+                    onClick={() => linkKeysDialog.open({})}
+                  >
+                    <KeySquare className="size-4" />
+                    Link Keys
+                  </Button>
+                </>
+              ) : null
+            }
+          />
         </PageContainer>
         <MyAccountBubble />
         <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />

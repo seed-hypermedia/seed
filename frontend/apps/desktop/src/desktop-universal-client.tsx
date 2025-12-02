@@ -1,6 +1,9 @@
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
-import type {DeleteCommentInput, UniversalClient} from '@shm/shared/universal-client'
+import type {
+  DeleteCommentInput,
+  UniversalClient,
+} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
 import {desktopRequest} from './desktop-api'
 import {grpcClient} from './grpc-client'

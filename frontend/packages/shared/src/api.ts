@@ -1,6 +1,7 @@
 import {HMRequest} from '.'
 import {Account} from './api-account'
 import {AccountContacts} from './api-account-contacts'
+import {ListEvents} from './api-activity'
 import {BatchAccounts} from './api-batch-accounts'
 import {
   GetCommentReplyCount,
@@ -26,6 +27,7 @@ export const APIRouter = {
   ListDiscussions,
   ListCommentsByReference,
   GetCommentReplyCount,
+  ListEvents,
 } as const satisfies {
   [K in HMRequest as K['key']]: HMRequestImplementation<K>
 }
