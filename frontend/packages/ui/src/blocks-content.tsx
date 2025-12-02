@@ -21,9 +21,9 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMEmbedView,
-  HMEntityContent,
   HMInlineContent,
   HMResolvedResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
@@ -112,6 +112,7 @@ import {cn} from './utils'
 import {getCommentTargetId} from '@shm/shared'
 import {HMCitation, HMResource} from '@shm/shared/hm-types'
 import {toast} from 'sonner'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {useHighlighter} from './highlight-context'
 import {DocumentNameLink} from './inline-descriptor'
 
@@ -1692,10 +1693,27 @@ export function BlockEmbedContent({
   const author = client.useResource(
     comment?.author ? hmId(comment?.author) : null,
   )
-
   if (!id) return <ErrorBlock message="Invalid embed link" />
-  if (resource.isError || (!resource.isLoading && !resource.data))
+  if (resource.data?.type === 'not-found') {
+    return (
+      <ErrorBlock message="Resource not found">
+        <Button
+          variant="destructive"
+          onClick={() => {
+            copyUrlToClipboardWithFeedback(block.link, 'Missing Resource')
+          }}
+        >
+          Copy Link
+        </Button>
+      </ErrorBlock>
+    )
+  }
+  if (resource.data?.type === 'tombstone') {
+    return <ErrorBlock message="Resource has been deleted" />
+  }
+  if (resource.isError || (!resource.isLoading && !resource.data)) {
     return <ErrorBlock message="Could not load embed" />
+  }
   if (comment) {
     return (
       <BlockEmbedContentComment
@@ -1775,9 +1793,11 @@ export function BlockEmbedComments({
 export function ErrorBlock({
   message,
   debugData,
+  children,
 }: {
   message: string
   debugData?: any
+  children?: React.ReactNode
 }) {
   let [open, toggleOpen] = useState(false)
   return (
@@ -1786,7 +1806,7 @@ export function ErrorBlock({
     >
       <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex-start flex items-center gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1796,6 +1816,7 @@ export function ErrorBlock({
             {message ? message : 'Error'}
           </SizableText>
           <AlertCircle color="danger" className="size-3" />
+          {children}
         </div>
         {open ? (
           <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
@@ -2009,7 +2030,7 @@ function BlockEmbedContentDocument(props: {
 
   let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
   if (isLoading) {
-    content = null
+    content = <Spinner />
   } else if (embedData.data.embedBlocks) {
     content = (
       <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
@@ -2079,7 +2100,7 @@ function BlockEmbedContentDocument(props: {
     )
   } else if (props.blockRef) {
     return (
-      <BlockNotFoundError
+      <ErrorBlock
         message={`Block #${props.blockRef} was not found in this version`}
       >
         <div className="flex gap-2 p-4">
@@ -2096,7 +2117,7 @@ function BlockEmbedContentDocument(props: {
           ) : null}
           {renderOpenButton()}
         </div>
-      </BlockNotFoundError>
+      </ErrorBlock>
     )
   }
   return (
@@ -2176,25 +2197,6 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       accountsMetadata={accountsMetadata}
       getEntity={getEntity}
     />
-  )
-}
-
-export function BlockNotFoundError({
-  message,
-  children,
-}: PropsWithChildren<{
-  message: string
-}>) {
-  return (
-    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
-      <div className="flex items-center gap-2 p-4">
-        <AlertCircle className="flex-0 text-red-500" size={12} />
-        <SizableText className="flex-1" color="destructive">
-          {message ? message : 'Error'}
-        </SizableText>
-      </div>
-      {children}
-    </div>
   )
 }
 
@@ -2720,7 +2722,7 @@ export function DocumentCardGrid({
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
-  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
+  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   accountsMetadata: HMAccountsMetadata
   columnCount?: number
 }) {

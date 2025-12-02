@@ -33,8 +33,8 @@ import {
   AccessoryOptions,
   DocumentRoute,
   HMDocument,
-  HMEntityContent,
   HMResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
@@ -414,11 +414,6 @@ function _MainDocumentPage({
         siteHomeEntity.data
       : null
 
-  console.log(
-    '=== interactionSummary.data?.comments',
-    interactionSummary.data?.comments,
-  )
-
   const documentTools = (
     <DocumentTools
       activePanel={
@@ -533,11 +528,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')

@@ -31,8 +31,8 @@ import {
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
-  HMEntityContent,
   HMNavigationItem,
+  HMResourceFetchResult,
   HMResourceRequest,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -128,7 +128,7 @@ export function useDeleteDraft(
   return deleteDraft
 }
 
-export type EmbedsContent = HMEntityContent[]
+export type EmbedsContent = HMResourceFetchResult[]
 
 export function useDocumentEmbeds(
   doc: HMDocument | undefined | null,
@@ -893,7 +893,10 @@ export function usePushResource() {
     await Promise.all(
       Array.from(destinationSiteUids).map(async (uid) => {
         try {
-          const resource = await client.request<HMResourceRequest>('Resource', hmId(uid))
+          const resource = await client.request<HMResourceRequest>(
+            'Resource',
+            hmId(uid),
+          )
           if (resource.type === 'document') {
             const siteUrl = resource.document.metadata?.siteUrl
             if (siteUrl) destinationHosts.add(siteUrl)
@@ -1342,7 +1345,7 @@ export function getDraftEditId(
 }
 
 export function useSiteNavigationItems(
-  siteHomeEntity: HMEntityContent | undefined | null,
+  siteHomeEntity: HMResourceFetchResult | undefined | null,
 ): DocNavigationItem[] | null {
   const homeDir = useListDirectory(siteHomeEntity?.id, {
     mode: 'Children',

@@ -387,6 +387,9 @@ export async function loadResource(
       comment,
     })
   }
+  if (resource.type === 'tombstone') {
+    throw new Error('Resource has been deleted')
+  }
   // resource.type === 'document'
   const document = resource.document
   const latestDocument = await getLatestDocument(id)

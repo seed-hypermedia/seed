@@ -2,7 +2,7 @@ import {
   formattedDateDayOnly,
   getDocumentImage,
   HMAccountsMetadata,
-  HMEntityContent,
+  HMResourceFetchResult,
   plainTextOfContent,
   UnpackedHypermediaId,
   useRouteLink,
@@ -25,7 +25,7 @@ export function DocumentCard({
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   docId: UnpackedHypermediaId
-  entity: HMEntityContent | null | undefined
+  entity: HMResourceFetchResult | null | undefined
   accountsMetadata: HMAccountsMetadata
   navigate?: boolean
   onMouseEnter?: (id: UnpackedHypermediaId) => void

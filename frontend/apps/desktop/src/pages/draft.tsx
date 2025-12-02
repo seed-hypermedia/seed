@@ -34,9 +34,9 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
-  HMEntityContent,
   HMMetadata,
   HMNavigationItem,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -710,7 +710,7 @@ function DraftAppHeader({
   onDocNav,
   actor,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   document?: HMDocument
   draftMetadata?: HMMetadata

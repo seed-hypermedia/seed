@@ -2,8 +2,8 @@ import {
   getMetadataName,
   HMBlockNode,
   HMDraft,
-  HMEntityContent,
   HMInlineContent,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '.'
 import {unpackHmId} from './utils'
@@ -23,7 +23,7 @@ export type NodesOutline = NodeOutline[]
 export function getNodesOutline(
   children: HMBlockNode[],
   entityId?: UnpackedHypermediaId,
-  embeds?: HMEntityContent[],
+  embeds?: HMResourceFetchResult[],
   visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []
@@ -61,7 +61,7 @@ export function getNodesOutline(
 function getEmbedOutline(
   blockId: string,
   link: string,
-  embedEntities?: HMEntityContent[],
+  embedEntities?: HMResourceFetchResult[],
   visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []
@@ -138,7 +138,7 @@ function findContentBlock(
 export function getDraftNodesOutline(
   children: HMDraft['content'],
   parentEntityId?: UnpackedHypermediaId,
-  embeds?: HMEntityContent[],
+  embeds?: HMResourceFetchResult[],
   visitedEmbedIds: Set<string> = new Set(),
 ): NodesOutline {
   const outline: NodesOutline = []

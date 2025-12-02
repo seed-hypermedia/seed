@@ -237,7 +237,8 @@ export function useResources(
         queryKey: [queryKeys.ENTITY, id?.id, version],
         queryFn: async (): Promise<HMResource | null> => {
           if (!id) return null
-          return await client.request<HMResourceRequest>('Resource', id)
+          const r = await client.request<HMResourceRequest>('Resource', id)
+          return r
         },
       }
     }),
@@ -278,7 +279,10 @@ export function useResolvedResources(
           async function loadResolvedResource(
             id: UnpackedHypermediaId,
           ): Promise<HMResolvedResource | null> {
-            let resource = await client.request<HMResourceRequest>('Resource', id)
+            let resource = await client.request<HMResourceRequest>(
+              'Resource',
+              id,
+            )
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
@@ -312,6 +316,12 @@ export class HMNotFoundError extends HMError {
   }
 }
 
+export class HMResourceTombstoneError extends HMError {
+  constructor() {
+    super('Resource has been Deleted')
+  }
+}
+
 // @ts-ignore
 export function getErrorMessage(err: any) {
   try {
@@ -320,6 +330,15 @@ export function getErrorMessage(err: any) {
       return new HMNotFoundError()
     }
     const firstDetail = e.details[0] // what if there are more than one detail?
+    if (
+      e.code === Code.FailedPrecondition &&
+      e.message.match('marked as deleted')
+    ) {
+      return new HMResourceTombstoneError()
+    }
+    if (e.code === Code.Unknown && e.message.match('ipld: could not find')) {
+      return new HMNotFoundError()
+    }
     if (
       // @ts-expect-error
       firstDetail.type === 'com.seed.documents.v3alpha.RedirectErrorDetails'

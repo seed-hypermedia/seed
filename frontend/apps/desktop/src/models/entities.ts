@@ -3,7 +3,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
 import {
   HMAccountsMetadata,
-  HMEntityContent,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -133,7 +133,7 @@ function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
-  const lastEntity = queryClient.getQueryData<HMEntityContent>([
+  const lastEntity = queryClient.getQueryData<HMResourceFetchResult>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
@@ -322,14 +322,21 @@ export function useSubscribedResource(
 
 export function useSubscribedResourceIds(
   ids: Array<UnpackedHypermediaId>,
-): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
-  // @ts-ignore
+): {id: UnpackedHypermediaId; entity?: HMResourceFetchResult}[] {
   return useSubscribedResources(
     ids.map((id) => {
       return {id}
     }),
   ).map((result, i) => {
-    return {id: ids[i], entity: result.data || undefined}
+    const data = result.data
+    if (!data) return {id: ids[i], entity: undefined}
+    if (data.type === 'tombstone') {
+      return {id: ids[i], entity: {id: data.id, isTombstone: true}}
+    }
+    if (data.type === 'document') {
+      return {id: ids[i], entity: {id: data.id, document: data.document}}
+    }
+    return {id: ids[i], entity: undefined}
   })
 }
 
