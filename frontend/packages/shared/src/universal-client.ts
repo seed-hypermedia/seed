@@ -1,7 +1,6 @@
 import {UseQueryResult} from '@tanstack/react-query'
 import type {Contact} from './client/grpc-types'
 import type {
-  HMAccountsMetadata,
   HMDocumentInfo,
   HMRequest,
   HMResource,
@@ -32,9 +31,6 @@ export type UniversalClient = {
 
   // Contacts (desktop: useSelectedAccountContacts, web: null)
   useContacts(): UseQueryResult<Contact[] | null>
-
-  // Accounts metadata batch loader
-  useAccountsMetadata(uids: string[]): HMAccountsMetadata
 
   // Comment editor component (platform-specific)
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>

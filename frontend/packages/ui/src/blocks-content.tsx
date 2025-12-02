@@ -47,6 +47,7 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
+import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -2176,7 +2177,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   ])
 
   // Get accounts metadata
-  const accountsMetadata = client.useAccountsMetadata(authorIds)
+  const accountsMetadata = useAccountsMetadata(authorIds)
 
   // Get entity helper function
   function getEntity(id: UnpackedHypermediaId) {
@@ -2194,7 +2195,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
       banner={block.attributes.banner || false}
-      accountsMetadata={accountsMetadata}
+      accountsMetadata={accountsMetadata.data}
       getEntity={getEntity}
     />
   )

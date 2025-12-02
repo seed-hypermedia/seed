@@ -1,15 +1,10 @@
 import {UseQueryResult} from '@tanstack/react-query'
-import type {
-  HMAccountsMetadata,
-  HMDocumentInfo,
-  HMRequest,
-  UnpackedHypermediaId,
-} from './hm-types'
+import type {HMDocumentInfo, HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
 import type {Contact, UniversalClient} from './universal-client'
-import {hmId, packHmId} from './utils/entity-id-url'
+import {packHmId} from './utils/entity-id-url'
 
 export type WebClientDependencies = {
   // API utilities
@@ -58,22 +53,6 @@ export function createWebUniversalClient(
     // Web doesn't have contacts
     useContacts: () =>
       ({data: null, isLoading: false}) as UseQueryResult<Contact[] | null>,
-
-    // Web accounts metadata - batch load via useResources
-    useAccountsMetadata: (uids: string[]): HMAccountsMetadata => {
-      const accounts = useResources(uids.map((uid) => hmId(uid)))
-      return Object.fromEntries(
-        accounts
-          .map((account) => {
-            if (!account.data || account.data.type !== 'document') return null
-            return [
-              account.data.id.uid,
-              {id: account.data.id, metadata: account.data.document?.metadata},
-            ]
-          })
-          .filter((entry) => !!entry),
-      )
-    },
 
     CommentEditor: deps.CommentEditor,
 

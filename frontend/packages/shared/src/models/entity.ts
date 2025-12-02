@@ -11,6 +11,8 @@ import {Status} from '../client/.generated/google/rpc/status_pb'
 import {GRPCClient} from '../grpc-client'
 import {
   HMAccountRequest,
+  HMAccountsMetadata,
+  HMBatchAccountsRequest,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
@@ -260,6 +262,24 @@ export function useAccounts(
       },
     })),
   })
+}
+
+export type HMAccountsMetadataResult = {
+  data: HMAccountsMetadata
+  isLoading: boolean
+}
+
+export function useAccountsMetadata(uids: string[]): HMAccountsMetadataResult {
+  const client = useUniversalClient()
+  const result = useQuery({
+    enabled: uids.length > 0,
+    queryKey: [queryKeys.BATCH_ACCOUNTS, ...uids.slice().sort()],
+    queryFn: async (): Promise<HMAccountsMetadata> => {
+      if (uids.length === 0) return {}
+      return await client.request<HMBatchAccountsRequest>('BatchAccounts', uids)
+    },
+  })
+  return {data: result.data || {}, isLoading: result.isLoading}
 }
 
 export function useResolvedResources(

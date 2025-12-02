@@ -305,3 +305,214 @@ These methods are still on `UniversalClient` and need migration:
 - Web uses HTTP endpoint `/api/{key}` which also calls `APIRouter[key].getData()` on the server
 - Both platforms validate responses using the same Zod schemas
 - Keep existing helper functions (like `createResourceFetcher`) and reuse them in new handlers
+
+---
+
+# React Hooks Migration (use* methods)
+
+For React hooks on `UniversalClient` (like `useResource`, `useAccountsMetadata`), the migration pattern differs from `fetch*` methods. Hooks should be moved to the shared models layer and return `UseQueryResult` for proper React Query integration.
+
+## Overview
+
+**Goal**: Migrate platform-specific hook implementations from `UniversalClient` to shared hooks in `frontend/packages/shared/src/models/` that use `client.request()` internally.
+
+**Pattern**:
+- **Before**: `client.useAccountsMetadata(uids)` returns `HMAccountsMetadata` (raw data)
+- **After**: `useAccountsMetadata(uids)` from `@shm/shared/models/entity` returns `UseQueryResult<HMAccountsMetadata>`
+
+## Key Differences from fetch* Migration
+
+| Aspect | fetch* Migration | use* Hook Migration |
+|--------|------------------|---------------------|
+| Return type | `Promise<T>` | `UseQueryResult<T>` |
+| Implementation location | `api-{name}.ts` + `APIRouter` | `models/{name}.ts` |
+| Caller updates | Change method name | Handle `UseQueryResult` (`.data`, `.isLoading`, etc.) |
+| UniversalClient | Remove entirely | Remove entirely |
+
+## Step-by-Step Hook Migration
+
+### Step 1: Identify or Create Shared Hook
+
+Check if the hook already exists in `frontend/packages/shared/src/models/`:
+
+```bash
+grep -r "export function useYourHook" frontend/packages/shared/src/models/
+```
+
+If it exists, you may only need to update callers. If not, create it.
+
+### Step 2: Implement Shared Hook
+
+In `frontend/packages/shared/src/models/entity.ts` (or appropriate model file):
+
+```typescript
+import {useQueries, UseQueryResult} from '@tanstack/react-query'
+import {useUniversalClient} from '../routing'
+import {queryKeys} from './query-keys'
+
+export function useAccountsMetadata(
+  uids: string[],
+): UseQueryResult<HMMetadataPayload | null>[] {
+  const client = useUniversalClient()
+  return useQueries({
+    queries: uids.map((uid) => ({
+      enabled: !!uid,
+      queryKey: [queryKeys.ACCOUNT, uid],
+      queryFn: async (): Promise<HMMetadataPayload | null> => {
+        if (!uid) return null
+        return await client.request<HMAccountRequest>('Account', uid)
+      },
+    })),
+  })
+}
+```
+
+**Key points:**
+- Use `useUniversalClient()` to get the client with `request()` method
+- Return `UseQueryResult` or `UseQueryResult[]` for proper React Query integration
+- Use existing query keys from `queryKeys` for cache consistency
+
+### Step 3: Update Callers to Handle UseQueryResult
+
+Find all usages:
+
+```bash
+grep -r "client\.useAccountsMetadata" frontend/
+```
+
+Update each caller to handle `UseQueryResult`:
+
+**Before:**
+```typescript
+const accountsMetadata = client.useAccountsMetadata(authorIds)
+// Direct usage: accountsMetadata[uid].metadata
+```
+
+**After:**
+```typescript
+import {useAccountsMetadata} from '@shm/shared/models/entity'
+
+const accountsResults = useAccountsMetadata(authorIds)
+
+// Derive data from results
+const accountsMetadata = useMemo(() => {
+  return Object.fromEntries(
+    accountsResults
+      .map((result, i) => {
+        if (!result.data) return null
+        return [authorIds[i], result.data]
+      })
+      .filter((entry): entry is [string, HMMetadataPayload] => !!entry),
+  )
+}, [accountsResults, authorIds])
+
+// Can also check loading/error states
+const isLoading = accountsResults.some((r) => r.isLoading)
+```
+
+### Step 4: Remove from UniversalClient Interface
+
+In `frontend/packages/shared/src/universal-client.ts`:
+
+```typescript
+export type UniversalClient = {
+  // Remove this:
+  // useAccountsMetadata(uids: string[]): HMAccountsMetadata
+
+  // Keep request method
+  request<Request extends HMRequest>(
+    key: Request['key'],
+    input: Request['input'],
+  ): Promise<Request['output']>
+}
+```
+
+### Step 5: Remove Platform Implementations
+
+**Desktop** - `frontend/apps/desktop/src/desktop-universal-client.tsx`:
+```typescript
+// Remove import and usage
+// import {useAccountsMetadata} from '@/models/entities'
+
+export const desktopUniversalClient: UniversalClient = {
+  // Remove:
+  // useAccountsMetadata: useAccountsMetadata,
+}
+```
+
+**Web** - `frontend/packages/shared/src/create-web-universal-client.tsx`:
+```typescript
+// Remove implementation
+export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
+  return {
+    // Remove entire useAccountsMetadata block
+  }
+}
+```
+
+## Hook Migration Checklist
+
+For each hook you migrate:
+
+- [ ] Step 1: Check if shared hook exists in `models/`
+- [ ] Step 2: Create/update shared hook using `client.request()`
+- [ ] Step 3: Find and update all callers
+  - [ ] Import hook from `@shm/shared/models/entity`
+  - [ ] Handle `UseQueryResult` instead of raw data
+  - [ ] Derive data using `useMemo` if needed
+  - [ ] Consider loading/error states if applicable
+- [ ] Step 4: Remove from `UniversalClient` interface
+- [ ] Step 5: Remove from desktop universal client
+- [ ] Step 6: Remove from web universal client
+- [ ] Step 7: Build types successfully
+- [ ] Step 8: Run tests successfully
+
+## Example: useAccountsMetadata Migration
+
+### Before (in blocks-content.tsx)
+```typescript
+const client = useUniversalClient()
+const accountsMetadata = client.useAccountsMetadata(authorIds)
+
+// Pass directly to component
+<QueryBlockContent accountsMetadata={accountsMetadata} />
+```
+
+### After (in blocks-content.tsx)
+```typescript
+import {useAccounts} from '@shm/shared/models/entity'
+
+const accountsResults = useAccounts(authorIds)
+
+// Derive HMAccountsMetadata from UseQueryResult[]
+const accountsMetadata = useMemo(() => {
+  return Object.fromEntries(
+    accountsResults
+      .map((result, i) => {
+        if (!result.data) return null
+        return [authorIds[i], result.data]
+      })
+      .filter((entry): entry is [string, HMMetadataPayload] => !!entry),
+  )
+}, [accountsResults, authorIds])
+
+<QueryBlockContent accountsMetadata={accountsMetadata} />
+```
+
+## Hooks Remaining to Migrate
+
+These hooks are still on `UniversalClient`:
+
+- [ ] `useResource` - Already has shared implementation, remove from UniversalClient
+- [ ] `useResources` - Already has shared implementation, remove from UniversalClient
+- [ ] `useDirectory` - Needs shared implementation
+- [ ] `useContacts` - Desktop-only, may stay platform-specific
+- [ ] `useAccountsMetadata` - Migrate to use `useAccounts` from shared
+
+## Benefits
+
+1. **Unified Caching**: All platforms use same React Query cache keys
+2. **Loading States**: Callers get `isLoading`, `isError`, `refetch` etc.
+3. **Suspense Support**: Can use with React Suspense if needed
+4. **Optimistic Updates**: Easier cache manipulation
+5. **DevTools**: React Query DevTools work consistently
