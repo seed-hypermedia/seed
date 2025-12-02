@@ -7,7 +7,7 @@ import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useSubscribedResourceIds} from '@/models/entities'
+import {useResources} from '@shm/shared/models/entity'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
@@ -173,7 +173,14 @@ function BreadcrumbTitle({
       getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
     [entityId],
   )
-  const entityContents = useSubscribedResourceIds(entityIds)
+  const entityResults = useResources(entityIds, {subscribed: true})
+  const entityContents = entityIds.map((id, i) => {
+    const data = entityResults[i]?.data
+    if (!data) return {id, entity: undefined}
+    if (data.type === 'tombstone') return {id, entity: {id: data.id, isTombstone: true}}
+    if (data.type === 'document') return {id, entity: {id: data.id, document: data.document}}
+    return {id, entity: undefined}
+  })
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [itemMaxWidths, setItemMaxWidths] = useState<Record<string, number>>({})

@@ -5,7 +5,6 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {useSubscribedResource} from '@/models/entities'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
@@ -316,7 +315,7 @@ function CollaboratorItem({
   const navigate = useNavigate('push')
   const myContacts = useSelectedAccountContacts()
   const collaboratorId = hmId(capability.accountUid)
-  const collaborator = useSubscribedResource(collaboratorId)
+  const collaborator = useResource(collaboratorId, {subscribed: true})
   const collaboratorMetadata =
     // @ts-ignore
     collaborator.data?.type === 'document'

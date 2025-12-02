@@ -7,7 +7,6 @@ import {
   createBatchAccountsResolver,
   getErrorMessage,
   HMRedirectError,
-  useResources,
 } from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -17,7 +16,6 @@ import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useRef} from 'react'
 import {queryListDirectory, usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
@@ -120,7 +118,7 @@ export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export const fetchQuery = createQueryResolver(grpcClient)
 
-type EntitySubscription = {
+export type EntitySubscription = {
   id?: UnpackedHypermediaId | null
   recursive?: boolean
 }
@@ -232,7 +230,7 @@ function getEntitySubscriptionKey(sub: EntitySubscription) {
   return id.id + (recursive ? '/*' : '')
 }
 
-function addSubscribedEntity(sub: EntitySubscription) {
+export function addSubscribedEntity(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   // console.log('[sync] addSubscribedEntity', sub, key)
   if (!key) return
@@ -246,7 +244,7 @@ function addSubscribedEntity(sub: EntitySubscription) {
   }
 }
 
-function removeSubscribedEntity(sub: EntitySubscription) {
+export function removeSubscribedEntity(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   if (!key) return
   // console.log('[sync] removeSubscribedEntity', key)
@@ -263,75 +261,3 @@ function removeSubscribedEntity(sub: EntitySubscription) {
   }
 }
 
-export function useSubscribedResources(
-  subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
-) {
-  const entities = useResources(subs.map((sub) => sub.id))
-  const isAllEntitiesInitialLoaded = entities.every(
-    (entity) => entity.isInitialLoading === false,
-  )
-  useEffect(() => {
-    if (!isAllEntitiesInitialLoaded) return
-    subs.forEach(addSubscribedEntity)
-    return () => {
-      // console.log('[sync] unsubscribing', subs)
-      subs.forEach(removeSubscribedEntity)
-    }
-  }, [
-    subs, // because subs/ids are expected to be volatile, this effect will probably run every time
-    isAllEntitiesInitialLoaded,
-  ])
-  return entities
-}
-
-export function useSubscribedResource(
-  id: UnpackedHypermediaId | null | undefined,
-  recursive?: boolean,
-  handleRedirectOrDeleted?: (opts: {
-    isDeleted: boolean
-    redirectTarget: UnpackedHypermediaId | null
-  }) => void,
-) {
-  const result = useSubscribedResources([{id, recursive}])[0]
-  const redirectTarget =
-    result.data?.type === 'redirect' ? result.data.redirectTarget : null
-
-  // Use ref to avoid re-triggering effect when callback changes
-  const handleRedirectOrDeletedRef = useRef(handleRedirectOrDeleted)
-  handleRedirectOrDeletedRef.current = handleRedirectOrDeleted
-
-  // Track if we've already handled this redirect to prevent duplicate toasts
-  const handledRedirectRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
-      handledRedirectRef.current = redirectTarget.id
-      handleRedirectOrDeletedRef.current?.({
-        isDeleted: false,
-        redirectTarget,
-      })
-    }
-    // todo: handle deleted
-  }, [redirectTarget])
-  return result
-}
-
-export function useSubscribedResourceIds(
-  ids: Array<UnpackedHypermediaId>,
-): {id: UnpackedHypermediaId; entity?: HMResourceFetchResult}[] {
-  return useSubscribedResources(
-    ids.map((id) => {
-      return {id}
-    }),
-  ).map((result, i) => {
-    const data = result.data
-    if (!data) return {id: ids[i], entity: undefined}
-    if (data.type === 'tombstone') {
-      return {id: ids[i], entity: {id: data.id, isTombstone: true}}
-    }
-    if (data.type === 'document') {
-      return {id: ids[i], entity: {id: data.id, document: data.document}}
-    }
-    return {id: ids[i], entity: undefined}
-  })
-}

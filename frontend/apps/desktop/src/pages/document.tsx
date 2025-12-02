@@ -21,7 +21,7 @@ import {
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
+import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
@@ -47,7 +47,6 @@ import {
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
-import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -307,17 +306,17 @@ function _MainDocumentPage({
     }
   }, [account.data])
 
-  const resource = useSubscribedResource(
-    id,
+  const resource = useResource(id, {
+    subscribed: true,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
-    true,
-    ({redirectTarget}) => {
+    recursive: true,
+    onRedirectOrDeleted: ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
         replace({key: 'document', id: redirectTarget})
       }
     },
-  )
+  })
   const loadedCommentResource =
     // @ts-ignore
     resource.data?.type === 'comment' ? resource.data : undefined
@@ -335,12 +334,14 @@ function _MainDocumentPage({
     }
   }, [loadedCommentResource])
 
-  const siteHomeEntity = useSubscribedResource(
+  const siteHomeEntity = useResource(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
-
-    id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    {
+      subscribed: true,
+      recursive: id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    },
   )
 
   const document =
@@ -635,7 +636,10 @@ function DocPageHeader({
   documentTools?: any
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
-  useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
+  useResources(
+    authors?.map((a) => hmId(a)) || [],
+    {subscribed: true},
+  )
   const authorContacts = useContactsMetadata(authors || [])
 
   if (!document) return null

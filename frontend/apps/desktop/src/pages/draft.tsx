@@ -1009,7 +1009,7 @@ function DraftCover({
 function DraftRebaseBanner() {
   const [isRebasing, setIsRebasing] = useState(false)
   // const willEditDocId = getDraftEditId(draftData)
-  // const latestDoc = useSubscribedResource(willEditDocId)
+  // const latestDoc = useResource(willEditDocId, {subscribed: true})
 
   async function performRebase() {
     //   setIsRebasing(true)

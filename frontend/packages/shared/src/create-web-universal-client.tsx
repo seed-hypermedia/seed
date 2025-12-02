@@ -1,7 +1,6 @@
 import type {HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
-import {useResource, useResources} from './models/entity'
 import type {UniversalClient} from './universal-client'
 
 export type WebClientDependencies = {
@@ -20,15 +19,6 @@ export function createWebUniversalClient(
   deps: WebClientDependencies,
 ): UniversalClient {
   return {
-    useResource: ((
-      id: UnpackedHypermediaId | null | undefined,
-      _options?: {recursive?: boolean},
-    ) => {
-      return useResource(id)
-    }) as UniversalClient['useResource'],
-
-    useResources: useResources,
-
     CommentEditor: deps.CommentEditor,
 
     fetchRecents: deps.fetchRecents || (async () => []),

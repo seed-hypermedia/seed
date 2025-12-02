@@ -9,7 +9,6 @@ import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useAccountDraftList, useCreateDraft} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useSubscribedResource} from '@/models/entities'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useSelectedAccount} from '@/selected-account'
@@ -479,7 +478,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
-  const latestDoc = useSubscribedResource(latestId(id))
+  const latestDoc = useResource(latestId(id), {subscribed: true})
 
   // Determine if we're viewing the latest version
   // Only consider it "latest" if we can confirm it (to avoid button flashing during load)

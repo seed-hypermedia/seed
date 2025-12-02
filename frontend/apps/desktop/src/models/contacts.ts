@@ -27,8 +27,8 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
+import {useResources} from '@shm/shared/models/entity'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
-import {useSubscribedResources} from './entities'
 import {useConnectedPeers} from './networking'
 
 function queryContactListOfSubject(accountUid: string | undefined) {
@@ -310,7 +310,10 @@ export function useSelectedAccountContacts() {
 export function useContacts(accountUids: string[]) {
   const accounts = useAccounts(accountUids)
   // we're currently relying on the account discovery here. we would ideally build it into useAccounts
-  useSubscribedResources(accountUids.map((uid) => ({id: hmId(uid)})))
+  useResources(
+    accountUids.map((uid) => hmId(uid)),
+    {subscribed: true},
+  )
   const contacts = useSelectedAccountContacts()
 
   return accounts.map((account) => {

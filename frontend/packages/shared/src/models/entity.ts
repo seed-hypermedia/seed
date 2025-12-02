@@ -6,7 +6,7 @@ import {
 } from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {useMemo} from 'react'
+import {useEffect, useMemo, useRef} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
 import {getContactMetadata} from '../content'
@@ -32,7 +32,11 @@ import {
 } from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {entityQueryPathToHmIdPath, hmId, hmIdPathToEntityQueryPath} from '../utils'
+import {
+  entityQueryPathToHmIdPath,
+  hmId,
+  hmIdPathToEntityQueryPath,
+} from '../utils'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -172,19 +176,50 @@ export function createBatchAccountsResolver(client: GRPCClient) {
 
 export function useResource(
   id: UnpackedHypermediaId | null | undefined,
-  options?: UseQueryOptions<HMResource | null>,
+  options?: UseQueryOptions<HMResource | null> & {
+    subscribed?: boolean
+    recursive?: boolean
+    onRedirectOrDeleted?: (opts: {
+      isDeleted: boolean
+      redirectTarget: UnpackedHypermediaId | null
+    }) => void
+  },
 ) {
   const client = useUniversalClient()
   const version = id?.version || undefined
-  return useQuery({
-    enabled: options?.enabled ?? !!id,
+  const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} =
+    options ?? {}
+
+  // Discovery subscription (desktop only)
+  useEffect(() => {
+    if (!subscribed || !id || !client.subscribeEntity) return
+    return client.subscribeEntity({id, recursive})
+  }, [subscribed, recursive, id?.id, client.subscribeEntity])
+
+  const result = useQuery({
+    enabled: queryOptions?.enabled ?? !!id,
     queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
       return await client.request<HMResourceRequest>('Resource', id)
     },
-    ...options,
+    ...queryOptions,
   })
+
+  // Redirect handling
+  const redirectTarget =
+    result.data?.type === 'redirect' ? result.data.redirectTarget : null
+  const onRedirectOrDeletedRef = useRef(onRedirectOrDeleted)
+  onRedirectOrDeletedRef.current = onRedirectOrDeleted
+  const handledRedirectRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
+      handledRedirectRef.current = redirectTarget.id
+      onRedirectOrDeletedRef.current?.({isDeleted: false, redirectTarget})
+    }
+  }, [redirectTarget])
+
+  return result
 }
 
 export function useAccount(
@@ -234,14 +269,33 @@ export function useResolvedResource(
 
 export function useResources(
   ids: (UnpackedHypermediaId | null | undefined)[],
-  options?: UseQueryOptions<HMResource | null>,
+  options?: UseQueryOptions<HMResource | null> & {
+    subscribed?: boolean
+    recursive?: boolean
+  },
 ) {
   const client = useUniversalClient()
+  const {subscribed, recursive, ...queryOptions} = options ?? {}
+
+  // Discovery subscription (desktop only)
+  useEffect(() => {
+    if (!subscribed || !client.subscribeEntity) return
+    const cleanups = ids
+      .filter((id): id is UnpackedHypermediaId => !!id)
+      .map((id) => client.subscribeEntity!({id, recursive}))
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }, [
+    subscribed,
+    recursive,
+    ids.map((id) => id?.id).join(','),
+    client.subscribeEntity,
+  ])
+
   return useQueries({
     queries: ids.map((id) => {
       const version = id?.version || undefined
       return {
-        enabled: options?.enabled ?? !!id,
+        enabled: queryOptions?.enabled ?? !!id,
         queryKey: [queryKeys.ENTITY, id?.id, version],
         queryFn: async (): Promise<HMResource | null> => {
           if (!id) return null

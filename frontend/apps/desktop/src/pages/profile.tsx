@@ -1,9 +1,8 @@
 import {MainWrapper} from '@/components/main-wrapper'
-import {useSubscribedResource} from '@/models/entities'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {ActivityProvider} from '@shm/shared/activity-service-provider'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContainer} from '@shm/ui/container'
 import {HMProfilePage} from '@shm/ui/profile-page'
@@ -30,7 +29,7 @@ export default function ProfilePage() {
       navigate({key: 'profile', id: redirectDestination})
     }
   }, [redirectDestination])
-  useSubscribedResource(profileId, true)
+  useResource(profileId, {subscribed: true, recursive: true})
 
   return (
     <PanelContainer>

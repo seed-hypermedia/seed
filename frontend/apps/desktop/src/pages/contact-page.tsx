@@ -7,7 +7,7 @@ import {
   useSaveContact,
   useSelectedAccountContacts,
 } from '@/models/contacts'
-import {useSubscribedResources} from '@/models/entities'
+import {useResources} from '@shm/shared/models/entity'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
@@ -427,8 +427,9 @@ function AccountContacts({
   contact: HMContact
   ownerLabel: string
 }) {
-  const subjectAccounts = useSubscribedResources(
-    contact.contacts?.map((c) => ({id: hmId(c.subject)})) || [],
+  const subjectAccounts = useResources(
+    contact.contacts?.map((c) => hmId(c.subject)) || [],
+    {subscribed: true},
   )
   const navigate = useNavigate()
   return (

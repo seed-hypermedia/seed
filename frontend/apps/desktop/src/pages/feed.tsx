@@ -13,7 +13,7 @@ import {
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useSubscribedResource} from '@/models/entities'
+import {useResource} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
@@ -204,17 +204,17 @@ function _FeedContent({
     }
   }, [account.data])
 
-  const resource = useSubscribedResource(
-    id,
+  const resource = useResource(id, {
+    subscribed: true,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
-    true,
-    ({redirectTarget}) => {
+    recursive: true,
+    onRedirectOrDeleted: ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
         replace({key: route.key, id: redirectTarget})
       }
     },
-  )
+  })
   const loadedCommentResource =
     // @ts-ignore
     resource.data?.type == 'comment' ? resource.data : undefined
@@ -232,12 +232,14 @@ function _FeedContent({
     }
   }, [loadedCommentResource])
 
-  const siteHomeEntity = useSubscribedResource(
+  const siteHomeEntity = useResource(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
-
-    id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    {
+      subscribed: true,
+      recursive: id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    },
   )
 
   const document =
