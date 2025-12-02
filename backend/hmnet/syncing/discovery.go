@@ -27,9 +27,9 @@ import (
 
 // DefaultDiscoveryTimeout is how long do we wait to discover a peer and sync with it.
 const (
-	DefaultDiscoveryTimeout = time.Second * 30
-	DefaultSyncingTimeout   = 1 * DefaultDiscoveryTimeout / 3
-	DefaultDHTTimeout       = 2 * DefaultDiscoveryTimeout / 3
+	DefaultDiscoveryTimeout = time.Second * 120
+	DefaultSyncingTimeout   = 2 * DefaultDiscoveryTimeout / 3
+	DefaultDHTTimeout       = 1 * DefaultDiscoveryTimeout / 3
 )
 
 // DiscoveryProgress is used to track the progress of the discovery process.
