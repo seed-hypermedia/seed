@@ -22,6 +22,7 @@ import {
   HMDocumentMetadataSchema,
   HMMetadata,
   HMMetadataPayload,
+  HMQueryRequest,
   HMResolvedResource,
   HMResource,
   HMResourceRequest,
@@ -31,7 +32,7 @@ import {
 } from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {entityQueryPathToHmIdPath, hmId} from '../utils'
+import {entityQueryPathToHmIdPath, hmId, hmIdPathToEntityQueryPath} from '../utils'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -421,4 +422,29 @@ export function useContacts(accountUids: string[]) {
       }
     })
   }, [accounts, contacts.data])
+}
+
+export function useDirectory(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: {mode?: 'Children' | 'AllDescendants'},
+) {
+  const client = useUniversalClient()
+  const mode = options?.mode || 'Children'
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode],
+    queryFn: async (): Promise<HMDocumentInfo[]> => {
+      if (!id) return []
+      const results = await client.request<HMQueryRequest>('Query', {
+        includes: [
+          {
+            space: id.uid,
+            mode,
+            path: hmIdPathToEntityQueryPath(id.path),
+          },
+        ],
+      })
+      return results?.results || []
+    },
+    enabled: !!id,
+  })
 }

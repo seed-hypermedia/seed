@@ -505,7 +505,7 @@ These hooks are still on `UniversalClient`:
 
 - [ ] `useResource` - Already has shared implementation, remove from UniversalClient
 - [ ] `useResources` - Already has shared implementation, remove from UniversalClient
-- [ ] `useDirectory` - Needs shared implementation
+- [x] `useDirectory` - Migrated to shared `useDirectory` in `models/entity.ts`, uses `HMQueryRequest`
 - [ ] `useContacts` - Desktop-only, may stay platform-specific
 - [ ] `useAccountsMetadata` - Migrate to use `useAccounts` from shared
 

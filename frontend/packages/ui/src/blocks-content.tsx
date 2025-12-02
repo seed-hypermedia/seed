@@ -46,7 +46,7 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {useAccountsMetadata} from '@shm/shared/models/entity'
+import {useAccountsMetadata, useDirectory} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -2147,8 +2147,8 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       })
     : null
 
-  // Use universal client for directory listing
-  const directoryItems = client.useDirectory(queryIncludeId, {
+  // Use shared hook for directory listing
+  const directoryItems = useDirectory(queryIncludeId, {
     mode: queryInclude?.mode,
   })
 

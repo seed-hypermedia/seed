@@ -1,15 +1,12 @@
-import {UseQueryResult} from '@tanstack/react-query'
-import type {HMDocumentInfo, HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
 import type {UniversalClient} from './universal-client'
-import {packHmId} from './utils/entity-id-url'
 
 export type WebClientDependencies = {
   // API utilities
   queryAPI: <T>(url: string) => Promise<T>
-  useAPI: <T>(url?: string, options?: any) => UseQueryResult<T>
 
   // Comment editor component
   CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
@@ -17,10 +14,6 @@ export type WebClientDependencies = {
   // Recents management (optional)
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
-}
-
-export type DirectoryPayload = {
-  directory: HMDocumentInfo[]
 }
 
 export function createWebUniversalClient(
@@ -35,20 +28,6 @@ export function createWebUniversalClient(
     }) as UniversalClient['useResource'],
 
     useResources: useResources,
-
-    useDirectory: (
-      id: UnpackedHypermediaId,
-      options?: {mode?: string},
-    ): UseQueryResult<HMDocumentInfo[]> => {
-      const mode = options?.mode || 'Children'
-      const url = `/hm/api/directory?id=${packHmId(id)}&mode=${mode}`
-      const result = deps.useAPI<DirectoryPayload>(url)
-
-      return {
-        ...result,
-        data: result.data?.directory || [],
-      } as UseQueryResult<HMDocumentInfo[]>
-    },
 
     CommentEditor: deps.CommentEditor,
 
