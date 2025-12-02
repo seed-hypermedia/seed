@@ -15,7 +15,6 @@ import {
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
-import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -72,7 +71,6 @@ import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
 import {WebSiteProvider} from './providers'
 import {useScrollRestoration} from './use-scroll-restoration'
-import {WebActivityService} from './web-activity-service'
 import {WebSiteHeader} from './web-site-header'
 
 // Lazy load components for better initial page load performance
@@ -186,7 +184,6 @@ function InnerDocumentPage(
 
   const mainScrollRef = useScrollRestoration('main-document-scroll', true)
   // const activityScrollRef = useScrollRestoration(`activity-${id.id}`)
-  const activityService = useMemo(() => new WebActivityService(), [])
 
   const keyPair = useLocalKeyPair()
   const currentAccount = useAccount(keyPair?.id || undefined)
@@ -571,9 +568,6 @@ function InnerDocumentPage(
       />
     )
 
-  // Only initialize activity/comments services when needed (activity is enabled)
-  const shouldInitializeActivity = activityEnabled
-
   const documentTools = (
     <DocumentTools
       activePanel={activePanel?.type}
@@ -611,12 +605,9 @@ function InnerDocumentPage(
         </div>
       }
     >
-      <ActivityProvider
-        service={shouldInitializeActivity ? activityService : null}
-      >
-        <CommentsProvider
-          onReplyClick={onReplyClick}
-          onReplyCountClick={onReplyCountClick}
+      <CommentsProvider
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
         >
           <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
             <WebSiteHeader
@@ -946,8 +937,7 @@ function InnerDocumentPage(
               </>
             )}
           </div>
-        </CommentsProvider>
-      </ActivityProvider>
+      </CommentsProvider>
     </Suspense>
   )
 }

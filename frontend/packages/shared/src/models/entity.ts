@@ -421,6 +421,7 @@ export function getErrorMessage(err: any) {
       return new HMNotFoundError()
     }
     if (e.code === Code.Unknown && e.message.match('not found')) {
+      // the message is like: "cid 1234 not found", I think we hit this for specific versions.
       // the API has a lot of different types for "not found"!
       return new HMNotFoundError()
     }

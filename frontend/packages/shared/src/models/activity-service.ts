@@ -19,7 +19,7 @@ import {
   unpackHmId,
 } from '../utils'
 
-export type HMListEventsRequest = {
+export type HMListEventsParams = {
   pageSize?: number
   pageToken?: string
   trustedOnly?: boolean
@@ -29,11 +29,11 @@ export type HMListEventsRequest = {
 }
 
 export type HMListEventsResponse = {
-  events: HMEvent[]
+  events: HMActivityEvent[]
   nextPageToken: string
 }
 
-export type HMEvent =
+export type HMActivityEvent =
   | {
       newBlob: HMNewBlobEvent
       account: string
@@ -145,7 +145,7 @@ export type LoadedEvent =
 /**
  * Helper to get event type from either newBlob or newMention
  */
-export function getEventType(event: HMEvent): string | null {
+export function getEventType(event: HMActivityEvent): string | null {
   // Check for newMention using 'in' operator for proper type narrowing
   if ('newMention' in event) {
     // For newMention events, sourceType contains the full type like "doc/Embed" or "comment/Link"
@@ -166,23 +166,6 @@ export function getEventType(event: HMEvent): string | null {
   return null
 }
 
-export interface ActivityService {
-  /**
-   * Lists recent activity events, sorted by locally observed time (newest first)
-   * Used to get activity feed with optional filters for authors, event types, and resources
-   */
-  listEvents(params: HMListEventsRequest): Promise<HMListEventsResponse>
-
-  /**
-   * Resolves an event into its loaded form with additional data
-   * Handles all event types internally based on event.data.case
-   */
-  resolveEvent(
-    event: HMEvent,
-    currentAccount?: string,
-  ): Promise<LoadedEvent | null>
-}
-
 /**
  * Shared gRPC implementation for listEvents
  * This function is called by both web (via API route) and desktop (directly)
@@ -190,7 +173,7 @@ export interface ActivityService {
  */
 export async function listEventsImpl(
   grpcClient: GRPCClient,
-  params: HMListEventsRequest,
+  params: HMListEventsParams,
 ): Promise<HMListEventsResponse> {
   const response = await grpcClient.activityFeed.listEvents({
     pageSize: params.pageSize || 5,
@@ -222,7 +205,7 @@ export async function listEventsImpl(
 
 export async function loadCommentEvent(
   grpcClient: GRPCClient,
-  event: HMEvent,
+  event: HMActivityEvent,
   currentAccount?: string,
 ): Promise<LoadedCommentEvent | null> {
   if ('newMention' in event) {
@@ -302,7 +285,7 @@ export async function loadCommentEvent(
 
 export async function loadCapabilityEvent(
   grpcClient: GRPCClient,
-  event: HMEvent,
+  event: HMActivityEvent,
   currentAccount?: string,
 ): Promise<LoadedCapabilityEvent | null> {
   if ('newMention' in event) {
@@ -398,7 +381,7 @@ export async function loadCapabilityEvent(
 
 export async function loadContactEvent(
   grpcClient: GRPCClient,
-  event: HMEvent,
+  event: HMActivityEvent,
   currentAccount?: string,
 ): Promise<LoadedContactEvent | null> {
   if ('newMention' in event) {
@@ -467,7 +450,7 @@ export async function loadContactEvent(
 
 export async function loadRefEvent(
   grpcClient: GRPCClient,
-  event: HMEvent,
+  event: HMActivityEvent,
   currentAccount?: string,
 ): Promise<LoadedRefEvent | null> {
   if ('newMention' in event) {
@@ -517,7 +500,7 @@ export async function loadRefEvent(
 
 export async function loadCitationEvent(
   grpcClient: GRPCClient,
-  event: HMEvent,
+  event: HMActivityEvent,
   currentAccount?: string,
 ): Promise<LoadedCitationEvent | null> {
   if ('newBlob' in event) {

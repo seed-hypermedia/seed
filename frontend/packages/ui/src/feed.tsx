@@ -1,11 +1,11 @@
-import {useActivityFeed} from '@shm/shared/activity-service-provider'
+import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {
   HMBlockNode,
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
-  HMListEventsRequest,
+  HMListEventsParams,
   LoadedCommentEvent,
   LoadedEvent,
 } from '@shm/shared/models/activity-service'
@@ -60,9 +60,9 @@ export function Feed({
 }: {
   size?: 'sm' | 'md'
   commentEditor: any
-  filterResource: HMListEventsRequest['filterResource']
-  filterAuthors?: HMListEventsRequest['filterAuthors']
-  filterEventType?: HMListEventsRequest['filterEventType']
+  filterResource: HMListEventsParams['filterResource']
+  filterAuthors?: HMListEventsParams['filterAuthors']
+  filterEventType?: HMListEventsParams['filterEventType']
   currentAccount?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
@@ -125,41 +125,9 @@ export function Feed({
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
-  console.log('=== FEED DATA EVENTS', allEvents.length)
-  const totalFailed =
-    data?.pages.reduce((sum, page) => sum + (page.failedCount || 0), 0) || 0
 
   const isSingleResource =
     filterResource && !filterResource.endsWith('*') ? true : false
-
-  // Show toast notification when events fail to load
-  useEffect(() => {
-    const toastId = 'feed-failed-events'
-
-    if (totalFailed > 0) {
-      toast.error(
-        `${totalFailed} ${
-          totalFailed === 1 ? 'event' : 'events'
-        } failed to load`,
-        {
-          id: toastId,
-          duration: Infinity,
-          action: {
-            label: 'Retry',
-            onClick: () => refetch(),
-          },
-        },
-      )
-    } else {
-      // Dismiss the toast when there are no failures
-      toast.dismiss(toastId)
-    }
-
-    return () => {
-      // Clean up toast on unmount
-      toast.dismiss(toastId)
-    }
-  }, [totalFailed, refetch])
 
   if (error) {
     return (
