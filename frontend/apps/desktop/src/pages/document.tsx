@@ -7,7 +7,7 @@ import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useTemplateDialog} from '@/components/site-template'
 import {DesktopActivityService} from '@/desktop-activity-service'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
@@ -75,8 +75,6 @@ import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 
 export default function DocumentPage() {
-  const commentsService = new DesktopCommentsService()
-
   const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
@@ -119,7 +117,7 @@ export default function DocumentPage() {
     <>
       <ActivityProvider service={activityService}>
         <CommentsProvider
-          service={commentsService}
+          useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
           onReplyClick={(replyComment) => {
             const targetRoute = isRouteEqualToCommentTarget({
               id: route.id,

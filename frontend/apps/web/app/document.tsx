@@ -73,7 +73,6 @@ import {PageFooter} from './page-footer'
 import {WebSiteProvider} from './providers'
 import {useScrollRestoration} from './use-scroll-restoration'
 import {WebActivityService} from './web-activity-service'
-import {WebCommentsService} from './web-comments-service'
 import {WebSiteHeader} from './web-site-header'
 
 // Lazy load components for better initial page load performance
@@ -127,7 +126,6 @@ function InnerDocumentPage(
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
-  const commentsService = useMemo(() => new WebCommentsService(), [])
   let panel: any = null
   let panelTitle: string = ''
 
@@ -617,7 +615,6 @@ function InnerDocumentPage(
         service={shouldInitializeActivity ? activityService : null}
       >
         <CommentsProvider
-          service={shouldInitializeActivity ? commentsService : null}
           onReplyClick={onReplyClick}
           onReplyCountClick={onReplyCountClick}
         >

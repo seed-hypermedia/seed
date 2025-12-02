@@ -5,7 +5,7 @@ import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useSelectedAccountContacts} from '@/models/contacts'
@@ -62,7 +62,6 @@ import {ActorRefFrom} from 'xstate'
 import './draft-page.css'
 
 export default function DraftPage() {
-  const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
   const replace = useNavigate('replace')
   const push = useNavigate('push')
@@ -181,7 +180,7 @@ export default function DraftPage() {
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <CommentsProvider
-        service={commentsService}
+        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={(replyComment) => {
           const targetRoute = isRouteEqualToCommentTarget({
             id: editId || locationId,

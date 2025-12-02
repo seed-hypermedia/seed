@@ -1,9 +1,17 @@
 import {addSubscribedEntity, removeSubscribedEntity} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
-import type {UniversalClient} from '@shm/shared/universal-client'
+import type {DeleteCommentInput, UniversalClient} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
 import {desktopRequest} from './desktop-api'
+import {grpcClient} from './grpc-client'
+
+async function deleteComment(input: DeleteCommentInput): Promise<void> {
+  await grpcClient.comments.deleteComment({
+    id: input.commentId,
+    signingKeyName: input.signingAccountId,
+  })
+}
 
 export const desktopUniversalClient: UniversalClient = {
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
@@ -12,6 +20,7 @@ export const desktopUniversalClient: UniversalClient = {
 
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
+  deleteComment: deleteComment,
 
   request: desktopRequest,
 

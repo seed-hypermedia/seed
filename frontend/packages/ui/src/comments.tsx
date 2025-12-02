@@ -29,7 +29,7 @@ import {
   useDiscussionsService,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
-import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
+import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
@@ -570,7 +570,7 @@ export function CommentGroup({
   onCommentDelete,
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
-  authors?: ListDiscussionsResponse['authors']
+  authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
   currentAccountId?: string

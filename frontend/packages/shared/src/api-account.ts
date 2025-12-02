@@ -1,11 +1,8 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
 import {GRPCClient} from './grpc-client'
-import {
-  HMAccountRequest,
-  HMDocumentMetadataSchema,
-  HMMetadataPayload,
-} from './hm-types'
+import {HMAccountRequest, HMMetadataPayload} from './hm-types'
+import {prepareHMDocumentMetadata} from './models/entity'
 import {hmId} from './utils'
 
 export const Account: HMRequestImplementation<HMAccountRequest> = {
@@ -21,8 +18,7 @@ export const Account: HMRequestImplementation<HMAccountRequest> = {
     if (serverAccount.aliasAccount) {
       return await Account.getData(grpcClient, serverAccount.aliasAccount)
     }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
-    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
+    const metadata = prepareHMDocumentMetadata(grpcAccount.metadata)
     return {
       id: hmId(input, {
         version: serverAccount.homeDocumentInfo?.version,

@@ -417,8 +417,14 @@ export function getErrorMessage(err: any) {
       return new HMResourceTombstoneError()
     }
     if (e.code === Code.Unknown && e.message.match('ipld: could not find')) {
+      // the API has a lot of different types for "not found"!
       return new HMNotFoundError()
     }
+    if (e.code === Code.Unknown && e.message.match('not found')) {
+      // the API has a lot of different types for "not found"!
+      return new HMNotFoundError()
+    }
+
     if (
       // @ts-expect-error
       firstDetail.type === 'com.seed.documents.v3alpha.RedirectErrorDetails'

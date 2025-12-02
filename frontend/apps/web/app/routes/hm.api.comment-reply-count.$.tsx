@@ -1,15 +1,12 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
-import {
-  getCommentReplyCountImpl,
-  GetReplyCountResponse,
-} from '@shm/shared/models/comments-service'
+import {getCommentReplyCountImpl} from '@shm/shared/models/comments-service'
 
 export const loader = async ({
   request,
 }: {
   request: Request
-}): Promise<WrappedResponse<GetReplyCountResponse>> => {
+}): Promise<WrappedResponse<number>> => {
   const url = new URL(request.url)
   const commentId = url.searchParams.get('targetId') || ''
 
