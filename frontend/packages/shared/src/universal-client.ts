@@ -1,10 +1,5 @@
 import {UseQueryResult} from '@tanstack/react-query'
-import type {
-  HMDocumentInfo,
-  HMRequest,
-  HMResource,
-  UnpackedHypermediaId,
-} from './hm-types'
+import type {HMRequest, HMResource, UnpackedHypermediaId} from './hm-types'
 import type {RecentsResult} from './models/recents'
 
 export type {RecentsResult}
@@ -21,12 +16,6 @@ export type UniversalClient = {
   useResources(
     ids: (UnpackedHypermediaId | null | undefined)[],
   ): UseQueryResult<HMResource | null>[]
-
-  // Directory listing (desktop: useListDirectory, web: context-based)
-  useDirectory(
-    id: UnpackedHypermediaId | null | undefined,
-    options?: {mode?: string},
-  ): UseQueryResult<HMDocumentInfo[]>
 
   // Comment editor component (platform-specific)
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>

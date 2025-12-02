@@ -1,4 +1,3 @@
-import {useListDirectory} from '@/models/documents'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -16,7 +15,6 @@ export const desktopUniversalClient: UniversalClient = {
   useResources: (ids: (UnpackedHypermediaId | null | undefined)[]) => {
     return useResources(ids)
   },
-  useDirectory: useListDirectory,
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <CommentBox docId={docId} context="document-content" />
   ),
