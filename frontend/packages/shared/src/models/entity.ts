@@ -6,13 +6,17 @@ import {
 } from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {useMemo} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
+import {getContactMetadata} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {
+  HMAccountContactsRequest,
   HMAccountRequest,
   HMAccountsMetadata,
   HMBatchAccountsRequest,
+  HMContactRecord,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
@@ -25,7 +29,8 @@ import {
   HMTimestampSchema,
   UnpackedHypermediaId,
 } from '../hm-types'
-import {useUniversalClient} from '../routing'
+import {useUniversalAppContext, useUniversalClient} from '../routing'
+import {useStream} from '../use-stream'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
 import {queryKeys} from './query-keys'
 
@@ -372,4 +377,48 @@ export function getErrorMessage(err: any) {
   } catch (e) {
     return e
   }
+}
+
+export function useSelectedAccountId() {
+  const {selectedIdentity} = useUniversalAppContext()
+  return useStream(selectedIdentity) ?? null
+}
+
+export function useAccountContacts(accountUid: string | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    enabled: !!accountUid,
+    queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
+    queryFn: async (): Promise<HMContactRecord[]> => {
+      if (!accountUid) return []
+      return await client.request<HMAccountContactsRequest>(
+        'AccountContacts',
+        accountUid,
+      )
+    },
+  })
+}
+
+export function useContacts(accountUids: string[]) {
+  const accounts = useAccounts(accountUids)
+  const selectedAccountId = useSelectedAccountId()
+  const contacts = useAccountContacts(selectedAccountId)
+
+  return useMemo(() => {
+    return accounts.map((account) => {
+      return {
+        ...account,
+        data: account.data
+          ? {
+              id: account.data.id,
+              metadata: getContactMetadata(
+                account.data.id.uid,
+                account.data.metadata,
+                contacts.data,
+              ),
+            }
+          : undefined,
+      }
+    })
+  }, [accounts, contacts.data])
 }

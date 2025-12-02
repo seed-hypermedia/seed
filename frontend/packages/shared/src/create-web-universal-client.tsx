@@ -3,7 +3,7 @@ import type {HMDocumentInfo, HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import {useResource, useResources} from './models/entity'
-import type {Contact, UniversalClient} from './universal-client'
+import type {UniversalClient} from './universal-client'
 import {packHmId} from './utils/entity-id-url'
 
 export type WebClientDependencies = {
@@ -49,10 +49,6 @@ export function createWebUniversalClient(
         data: result.data?.directory || [],
       } as UseQueryResult<HMDocumentInfo[]>
     },
-
-    // Web doesn't have contacts
-    useContacts: () =>
-      ({data: null, isLoading: false}) as UseQueryResult<Contact[] | null>,
 
     CommentEditor: deps.CommentEditor,
 

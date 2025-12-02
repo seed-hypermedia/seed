@@ -1,8 +1,7 @@
-import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockRange,
-  Contact,
   HMAccountsMetadata,
+  HMContactRecord,
   HMBlock,
   HMBlockButton,
   HMBlockChildrenType,
@@ -125,7 +124,7 @@ export type BlocksContentContextProps = {
   resourceId: UnpackedHypermediaId
   debugTop?: number
   ffSerif?: boolean
-  contacts?: PlainMessage<Contact>[] | null
+  contacts?: HMContactRecord[] | null
   commentStyle?: boolean
   onBlockSelect?:
     | ((blockId: string, opts?: BlockRangeSelectOptions) => boolean)

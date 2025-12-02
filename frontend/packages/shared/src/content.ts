@@ -1,5 +1,3 @@
-import {PlainMessage} from '@bufbuild/protobuf'
-import {Contact} from './client'
 import {
   HMAnnotation,
   HMBlock,
@@ -7,6 +5,7 @@ import {
   HMBlockImage,
   HMBlockNode,
   HMBlockQuery,
+  HMContactRecord,
   HMDocument,
   HMDocumentInfo,
   HMMetadata,
@@ -105,7 +104,7 @@ export function getDocumentTitle(document?: HMDocument | null) {
 export function getContactMetadata(
   accountUid: string,
   metadata: HMDocument['metadata'] | null | undefined,
-  contacts?: PlainMessage<Contact>[] | null,
+  contacts?: HMContactRecord[] | null,
 ) {
   const contact = contacts?.find((c) => c.subject === accountUid)
   if (contact) {

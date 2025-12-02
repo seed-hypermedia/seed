@@ -1,5 +1,4 @@
 import {UseQueryResult} from '@tanstack/react-query'
-import type {Contact} from './client/grpc-types'
 import type {
   HMDocumentInfo,
   HMRequest,
@@ -8,7 +7,7 @@ import type {
 } from './hm-types'
 import type {RecentsResult} from './models/recents'
 
-export type {Contact, RecentsResult}
+export type {RecentsResult}
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
@@ -28,9 +27,6 @@ export type UniversalClient = {
     id: UnpackedHypermediaId | null | undefined,
     options?: {mode?: string},
   ): UseQueryResult<HMDocumentInfo[]>
-
-  // Contacts (desktop: useSelectedAccountContacts, web: null)
-  useContacts(): UseQueryResult<Contact[] | null>
 
   // Comment editor component (platform-specific)
   CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>
