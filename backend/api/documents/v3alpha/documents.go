@@ -1182,7 +1182,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	if len(crumbIRIs) > 0 {
 		crumbs = make([]*documents.Breadcrumb, len(crumbIRIs))
 
-		for i, iri := range crumbIRIs[:len(crumbIRIs)-1] { // Minus one to skip the current document
+		for i, iri := range crumbIRIs { // Minus one to skip the current document
 			title, found, err := lookup.DocumentTitle(iri)
 			if err != nil {
 				return nil, err
