@@ -2,7 +2,7 @@ import {grpcClient} from '@/client.server'
 import {wrapJSON} from '@/wrapping.server'
 import {LoaderFunctionArgs} from '@remix-run/node'
 import {HMRequest, HMRequestSchema} from '@shm/shared'
-import {APIRouter} from '@shm/shared/api'
+import {APIParams, APIRouter} from '@shm/shared/api'
 import {deserializeQueryString} from '@shm/shared/input-querystring'
 
 export async function loader({request, params}: LoaderFunctionArgs) {
@@ -31,10 +31,21 @@ export async function loader({request, params}: LoaderFunctionArgs) {
 
   try {
     // Deserialize input from query string
-    const input = deserializeQueryString(
-      url.search,
-      requestSchema.shape.input as any,
-    )
+    const apiParams = APIParams[key as HMRequest['key']]
+    let input: any
+    if (apiParams?.paramsToInput) {
+      // Use custom param deserializer if available
+      const params: Record<string, string> = {}
+      url.searchParams.forEach((value, key) => {
+        params[key] = value
+      })
+      input = apiParams.paramsToInput(params)
+    } else {
+      input = deserializeQueryString(
+        url.search,
+        requestSchema.shape.input as any,
+      )
+    }
 
     // Execute the API handler (type assertion needed due to discriminated union)
     const output = await apiDefinition.getData(grpcClient, input as any)

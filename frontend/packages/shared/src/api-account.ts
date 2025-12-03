@@ -1,9 +1,14 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {HMRequestImplementation} from './api-types'
+import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {GRPCClient} from './grpc-client'
 import {HMAccountRequest, HMMetadataPayload} from './hm-types'
 import {prepareHMDocumentMetadata} from './models/entity'
 import {hmId} from './utils'
+
+export const AccountParams: HMRequestParams<HMAccountRequest> = {
+  inputToParams: (input: string) => ({id: input}),
+  paramsToInput: (params: Record<string, string>) => params.id!,
+}
 
 export const Account: HMRequestImplementation<HMAccountRequest> = {
   async getData(

@@ -1122,7 +1122,8 @@ export type HMResourceTombstone = z.infer<typeof HMResourceTombstoneSchema>
 export const HMResourceSchema = z.discriminatedUnion('type', [
   HMResourceDocumentSchema,
   HMResourceCommentSchema,
-  HMResourceRedirectSchema,
+  // todo: Contact, Capability
+  HMResourceRedirectSchema, // what if there is a profile ALIAS? how is that different from a home doc redirect?
   HMResourceNotFoundSchema,
   HMResourceTombstoneSchema,
 ])

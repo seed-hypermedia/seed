@@ -1,5 +1,4 @@
 import {ActionFunction, json, LoaderFunction} from '@remix-run/node'
-import {Params} from '@remix-run/react'
 import {WEB_API_DISABLED, WEB_IS_GATEWAY} from '@shm/shared/constants'
 import {cborDecode} from './api'
 import {ParsedRequest, parseRequest} from './request'
@@ -39,29 +38,6 @@ export function apiGetter<ResultType>(
         throw new APIError('API only enabled when SEED_IS_GATEWAY=true', 500)
       }
       const result = await handler(parsedRequest)
-      return withCors(json(result))
-    } catch (e: unknown) {
-      if (e instanceof APIError) {
-        return withCors(Response.json({error: e.message}, {status: e.status}))
-      }
-      return withCors(
-        json(
-          {error: e instanceof Error ? e.message : 'Unknown error'},
-          {status: 500},
-        ),
-      )
-    }
-  }
-  return apiGet
-}
-
-export function apiGetterWithParams<ResultType>(
-  handler: (req: ParsedRequest, params: Params) => ResultType,
-) {
-  const apiGet: LoaderFunction = async ({request, params}) => {
-    const parsedRequest = parseRequest(request)
-    try {
-      const result = await handler(parsedRequest, params)
       return withCors(json(result))
     } catch (e: unknown) {
       if (e instanceof APIError) {

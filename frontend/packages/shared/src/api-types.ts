@@ -10,6 +10,11 @@ export type ListAPIResponse = {
   }[]
 }
 
+export type HMRequestParams<Request extends HMRequest> = {
+  inputToParams: (input: Request['input']) => Record<string, string>
+  paramsToInput: (params: Record<string, string>) => Request['input']
+}
+
 export type HMRequestImplementation<Request extends HMRequest> = {
   getData: (
     grpcClient: GRPCClient,
