@@ -1,3 +1,4 @@
+import {APIParams} from './api'
 import type {HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
@@ -42,12 +43,23 @@ export function createWebUniversalClient(
       if (!requestSchema) {
         throw new Error(`No schema found for key: ${key}`)
       }
+      // Get custom params serializer if available
+      const apiParams = APIParams[key as HMRequest['key']]
 
       // Serialize input to query string
-      const queryString = serializeQueryString(
-        input as Record<string, unknown>,
-        requestSchema.shape.input as any,
-      )
+      let queryString: string
+      if (apiParams?.inputToParams) {
+        const params = apiParams.inputToParams(input as any)
+        const searchParams = new URLSearchParams(params)
+        queryString = searchParams.toString()
+          ? `?${searchParams.toString()}`
+          : ''
+      } else {
+        queryString = serializeQueryString(
+          input as Record<string, unknown>,
+          requestSchema.shape.input as any,
+        )
+      }
 
       // Make the request to the API endpoint
       const url = `/api/${key}${queryString}`
