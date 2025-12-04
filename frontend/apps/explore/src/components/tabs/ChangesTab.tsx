@@ -5,7 +5,7 @@ import {useNavigate} from "react-router-dom";
 import DataViewer from "../DataViewer";
 import EmptyState from "../EmptyState";
 
-const ChangesTab: React.FC<{changes: any[]; docId: UnpackedHypermediaId}> = ({
+const ChangesTab: React.FC<{changes: any[] | undefined; docId: UnpackedHypermediaId}> = ({
   changes,
   docId,
 }) => {

@@ -1,7 +1,11 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {createCommentsResolver, HMListCommentsOutput, unpackHmId} from '@shm/shared'
+import {
+  createCommentsResolver,
+  HMListCommentsOutput,
+  unpackHmId,
+} from '@shm/shared'
 
 const loadComments = createCommentsResolver(grpcClient)
 

@@ -1,6 +1,6 @@
-import {useApiHost} from "../apiHostStore";
-import {useRootDocuments} from "../models";
-import {DocumentListItem} from "./tabs/DocumentListItem";
+import {useRootDocuments} from '@shm/shared'
+import {useApiHost} from '../apiHostStore'
+import {DocumentListItem} from './tabs/DocumentListItem'
 
 export default function List() {
   const {data, isLoading} = useRootDocuments();
@@ -13,7 +13,7 @@ export default function List() {
       {isLoading && <p>Loading...</p>}
       {data && (
         <div className="space-y-2">
-          {data.documents.map((doc) => {
+          {data.accounts.map((doc) => {
             return (
               <DocumentListItem key={doc.id.id} doc={doc} apiHost={apiHost} />
             );

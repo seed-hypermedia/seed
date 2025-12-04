@@ -72,80 +72,76 @@ function InnerFeedPage(
       }
     >
       <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
-          <WebSiteHeader
-            noScroll={false}
-            homeMetadata={homeMetadata}
-            originHomeId={originHomeId}
-            siteHomeId={hmId(id.uid)}
-            docId={id}
-            document={document}
-            supportDocuments={supportDocuments}
-            supportQueries={supportQueries}
-            origin={origin}
-            isLatest={isLatest}
-          />
-          <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
-            <div
-              className="relative flex h-full w-full flex-col"
-              ref={elementRef}
-            >
-              <div className="flex flex-1 flex-col overflow-y-auto">
-                <div
-                  {...wrapperProps}
+        <WebSiteHeader
+          noScroll={false}
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          siteHomeId={hmId(id.uid)}
+          docId={id}
+          document={document}
+          supportDocuments={supportDocuments}
+          supportQueries={supportQueries}
+          origin={origin}
+          isLatest={isLatest}
+        />
+        <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
+          <div
+            className="relative flex h-full w-full flex-col"
+            ref={elementRef}
+          >
+            <div className="flex flex-1 flex-col overflow-y-auto">
+              <div
+                {...wrapperProps}
+                className={cn(
+                  wrapperProps.className,
+                  'flex pt-[var(--site-header-h)]',
+                )}
+              >
+                {showSidebars ? (
+                  <div
+                    {...sidebarProps}
+                    className={`${sidebarProps.className || ''} flex flex-col`}
+                  />
+                ) : null}
+                <Container
+                  clearVerticalSpace
+                  {...mainContentProps}
                   className={cn(
-                    wrapperProps.className,
-                    'flex pt-[var(--site-header-h)]',
+                    mainContentProps.className,
+                    'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
                   )}
                 >
-                  {showSidebars ? (
-                    <div
-                      {...sidebarProps}
-                      className={`${
-                        sidebarProps.className || ''
-                      } flex flex-col`}
-                    />
-                  ) : null}
-                  <Container
-                    clearVerticalSpace
-                    {...mainContentProps}
-                    className={cn(
-                      mainContentProps.className,
-                      'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
-                    )}
-                  >
-                    <Text weight="bold" size="3xl">
-                      What's New
-                    </Text>
-                    <Separator />
+                  <Text weight="bold" size="3xl">
+                    What's New
+                  </Text>
+                  <Separator />
 
-                    <Suspense
-                      fallback={
-                        <div className="flex items-center justify-center p-3">
-                          <Spinner />
-                        </div>
-                      }
-                    >
-                      <Feed
-                        commentEditor={<WebCommenting docId={id} />}
-                        filterResource={`${id.id}*`}
-                        currentAccount={currentAccount.data?.id.uid}
-                        size="md"
-                      />
-                    </Suspense>
-                  </Container>
-                  {showSidebars ? (
-                    <div
-                      {...sidebarProps}
-                      className={`${
-                        sidebarProps.className || ''
-                      } flex flex-col`}
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center justify-center p-3">
+                        <Spinner />
+                      </div>
+                    }
+                  >
+                    <Feed
+                      commentEditor={<WebCommenting docId={id} />}
+                      filterResource={`${id.id}*`}
+                      currentAccount={currentAccount.data?.id.uid}
+                      size="md"
                     />
-                  ) : null}
-                </div>
-                <MyAccountBubble />
+                  </Suspense>
+                </Container>
+                {showSidebars ? (
+                  <div
+                    {...sidebarProps}
+                    className={`${sidebarProps.className || ''} flex flex-col`}
+                  />
+                ) : null}
               </div>
+              <MyAccountBubble />
             </div>
           </div>
+        </div>
       </div>
     </Suspense>
   )

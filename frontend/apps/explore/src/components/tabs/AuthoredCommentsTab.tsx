@@ -5,7 +5,7 @@ import {useNavigate} from "react-router-dom";
 import DataViewer from "../DataViewer";
 import EmptyState from "../EmptyState";
 
-const AuthoredCommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
+const AuthoredCommentsTab: React.FC<{comments: any[] | undefined}> = ({comments}) => {
   const navigate = useNavigate();
   const preparedComments = useMemo(() => {
     if (!Array.isArray(comments)) {
@@ -15,7 +15,7 @@ const AuthoredCommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
     return comments.map((comment) => {
       const {id, author, targetPath, targetAccount, targetVersion, ...rest} =
         comment;
-      const out = {...rest};
+      const out: Record<string, any> = {...rest};
       if (id) {
         out.id = `hm://c/${id}`;
       }
@@ -24,7 +24,7 @@ const AuthoredCommentsTab: React.FC<{comments: any[]}> = ({comments}) => {
       }
       if (targetAccount) {
         out.target = packHmId(
-          hmId("d", targetAccount, {
+          hmId(targetAccount, {
             path: entityQueryPathToHmIdPath(targetPath || ""),
             version: targetVersion,
           })

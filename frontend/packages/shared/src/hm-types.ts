@@ -1449,6 +1449,156 @@ export const HMListEventsRequestSchema = z.object({
 })
 export type HMListEventsRequest = z.infer<typeof HMListEventsRequestSchema>
 
+// ListAccounts - lists all known accounts/root documents
+export const HMListAccountsOutputSchema = z.object({
+  accounts: z.array(HMMetadataPayloadSchema),
+})
+export type HMListAccountsOutput = z.infer<typeof HMListAccountsOutputSchema>
+
+export const HMListAccountsInputSchema = z.object({}).optional()
+export type HMListAccountsInput = z.infer<typeof HMListAccountsInputSchema>
+
+export const HMListAccountsRequestSchema = z.object({
+  key: z.literal('ListAccounts'),
+  input: HMListAccountsInputSchema,
+  output: HMListAccountsOutputSchema,
+})
+export type HMListAccountsRequest = z.infer<typeof HMListAccountsRequestSchema>
+
+// GetCID - fetch raw IPFS block data by CID
+export const HMGetCIDOutputSchema = z.object({
+  value: z.any(),
+})
+export type HMGetCIDOutput = z.infer<typeof HMGetCIDOutputSchema>
+
+export const HMGetCIDInputSchema = z.object({
+  cid: z.string(),
+})
+export type HMGetCIDInput = z.infer<typeof HMGetCIDInputSchema>
+
+export const HMGetCIDRequestSchema = z.object({
+  key: z.literal('GetCID'),
+  input: HMGetCIDInputSchema,
+  output: HMGetCIDOutputSchema,
+})
+export type HMGetCIDRequest = z.infer<typeof HMGetCIDRequestSchema>
+
+// ListCommentsByAuthor - lists comments authored by a specific account
+export const HMListCommentsByAuthorOutputSchema = z.object({
+  comments: z.array(HMCommentSchema),
+  authors: z.record(z.string(), HMMetadataPayloadSchema),
+})
+export type HMListCommentsByAuthorOutput = z.infer<
+  typeof HMListCommentsByAuthorOutputSchema
+>
+
+export const HMListCommentsByAuthorInputSchema = z.object({
+  authorId: unpackedHmIdSchema,
+})
+export type HMListCommentsByAuthorInput = z.infer<
+  typeof HMListCommentsByAuthorInputSchema
+>
+
+export const HMListCommentsByAuthorRequestSchema = z.object({
+  key: z.literal('ListCommentsByAuthor'),
+  input: HMListCommentsByAuthorInputSchema,
+  output: HMListCommentsByAuthorOutputSchema,
+})
+export type HMListCommentsByAuthorRequest = z.infer<
+  typeof HMListCommentsByAuthorRequestSchema
+>
+
+// ListCitations - lists mentions/citations of an entity (raw API response)
+export const HMRawMentionSchema = z.object({
+  source: z.string(),
+  sourceType: z.string().optional(),
+  sourceDocument: z.string().optional(),
+  targetFragment: z.string().optional(),
+  isExact: z.boolean().optional(),
+})
+export type HMRawMention = z.infer<typeof HMRawMentionSchema>
+
+export const HMListCitationsOutputSchema = z.object({
+  citations: z.array(HMRawMentionSchema),
+})
+export type HMListCitationsOutput = z.infer<typeof HMListCitationsOutputSchema>
+
+export const HMListCitationsInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListCitationsInput = z.infer<typeof HMListCitationsInputSchema>
+
+export const HMListCitationsRequestSchema = z.object({
+  key: z.literal('ListCitations'),
+  input: HMListCitationsInputSchema,
+  output: HMListCitationsOutputSchema,
+})
+export type HMListCitationsRequest = z.infer<
+  typeof HMListCitationsRequestSchema
+>
+
+// ListChanges - lists document changes/history
+export const HMRawDocumentChangeSchema = z.object({
+  id: z.string().optional(),
+  author: z.string().optional(),
+  deps: z.array(z.string()).optional(),
+  createTime: z.string().optional(),
+})
+export type HMRawDocumentChange = z.infer<typeof HMRawDocumentChangeSchema>
+
+export const HMListChangesOutputSchema = z.object({
+  changes: z.array(HMRawDocumentChangeSchema),
+  latestVersion: z.string().optional(),
+})
+export type HMListChangesOutput = z.infer<typeof HMListChangesOutputSchema>
+
+export const HMListChangesInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListChangesInput = z.infer<typeof HMListChangesInputSchema>
+
+export const HMListChangesRequestSchema = z.object({
+  key: z.literal('ListChanges'),
+  input: HMListChangesInputSchema,
+  output: HMListChangesOutputSchema,
+})
+export type HMListChangesRequest = z.infer<typeof HMListChangesRequestSchema>
+
+// ListCapabilities - lists access control capabilities (raw API response)
+export const HMRawCapabilitySchema = z.object({
+  id: z.string().optional(),
+  issuer: z.string().optional(),
+  delegate: z.string().optional(),
+  account: z.string().optional(),
+  path: z.string().optional(),
+  role: z.string().optional(),
+  noRecursive: z.boolean().optional(),
+})
+export type HMRawCapability = z.infer<typeof HMRawCapabilitySchema>
+
+export const HMListCapabilitiesOutputSchema = z.object({
+  capabilities: z.array(HMRawCapabilitySchema),
+})
+export type HMListCapabilitiesOutput = z.infer<
+  typeof HMListCapabilitiesOutputSchema
+>
+
+export const HMListCapabilitiesInputSchema = z.object({
+  targetId: unpackedHmIdSchema,
+})
+export type HMListCapabilitiesInput = z.infer<
+  typeof HMListCapabilitiesInputSchema
+>
+
+export const HMListCapabilitiesRequestSchema = z.object({
+  key: z.literal('ListCapabilities'),
+  input: HMListCapabilitiesInputSchema,
+  output: HMListCapabilitiesOutputSchema,
+})
+export type HMListCapabilitiesRequest = z.infer<
+  typeof HMListCapabilitiesRequestSchema
+>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
@@ -1462,6 +1612,12 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCommentsByReferenceRequestSchema,
   HMGetCommentReplyCountRequestSchema,
   HMListEventsRequestSchema,
+  HMListAccountsRequestSchema,
+  HMGetCIDRequestSchema,
+  HMListCommentsByAuthorRequestSchema,
+  HMListCitationsRequestSchema,
+  HMListChangesRequestSchema,
+  HMListCapabilitiesRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

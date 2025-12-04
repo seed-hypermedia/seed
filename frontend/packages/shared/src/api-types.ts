@@ -15,9 +15,12 @@ export type HMRequestParams<Request extends HMRequest> = {
   paramsToInput: (params: Record<string, string>) => Request['input']
 }
 
+export type QueryDaemonFn = <T>(pathAndQuery: string) => Promise<T>
+
 export type HMRequestImplementation<Request extends HMRequest> = {
   getData: (
     grpcClient: GRPCClient,
     input: Request['input'],
+    queryDaemon: QueryDaemonFn,
   ) => Promise<Request['output']>
 }
