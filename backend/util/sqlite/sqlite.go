@@ -66,12 +66,23 @@ import "C"
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unsafe"
 )
+
+var log = slog.Default()
+
+// SetLogger sets the logger for this package.
+// It must be called before calling any other function in this package.
+func SetLogger(logger *slog.Logger) {
+	log = logger
+}
 
 var prepareCount uint64
 
@@ -98,6 +109,8 @@ type Conn struct {
 	unlockNote  *C.unlock_note
 	file        string
 	busyTimeout time.Duration
+
+	txStart time.Time
 }
 
 // sqlitex_pool is used by sqlitex.Open to tell OpenConn that there is
@@ -394,6 +407,7 @@ func (conn *Conn) Prep(query string) *Stmt {
 // https://www.sqlite.org/c3ref/prepare.html
 func (conn *Conn) Prepare(query string) (*Stmt, error) {
 	atomic.AddUint64(&prepareCount, 1)
+	defer conn.trackTransaction(query)
 
 	if stmt := conn.stmts[query]; stmt != nil {
 		if err := stmt.Reset(); err != nil {
@@ -436,6 +450,7 @@ func (conn *Conn) Prepare(query string) (*Stmt, error) {
 // https://www.sqlite.org/c3ref/prepare.html
 func (conn *Conn) PrepareTransient(query string) (stmt *Stmt, trailingBytes int, err error) {
 	atomic.AddUint64(&prepareCount, 1)
+	defer conn.trackTransaction(query)
 
 	stmt, trailingBytes, err = conn.prepare(query, 0)
 	if stmt != nil {
@@ -484,6 +499,121 @@ func (conn *Conn) prepare(query string, flags C.uint) (*Stmt, int, error) {
 	}
 
 	return stmt, trailingBytes, nil
+}
+
+type txEvent byte
+
+const (
+	noTxEvent txEvent = 0
+	txStart   txEvent = 1
+	txEnd     txEvent = 2
+)
+
+func (conn *Conn) trackTransaction(query string) {
+	evt := parseTransactionEvent(query)
+
+	switch {
+	case evt == txStart && conn.txStart.IsZero():
+		conn.txStart = time.Now()
+	case evt == txEnd:
+		if !conn.txStart.IsZero() {
+			d := time.Since(conn.txStart)
+			if d >= conn.busyTimeout {
+				log.Warn("SlowQuery",
+					"duration", d.String(),
+					"stacktrace", debug.Stack(),
+				)
+			}
+		}
+
+		conn.txStart = time.Time{}
+	}
+}
+
+// parseTransactionEvent detects starts and ends of immediate write transaction.
+func parseTransactionEvent(sql string) txEvent {
+	// We only ever need at most three tokens:
+	//   token0, token1, token2.
+	var tokens [3]string
+	tokIdx := 0
+
+	var buf [32]rune // tokens we need are small; 32 is safe.
+	n := 0           // chars in current token.
+
+	flush := func() {
+		if n == 0 || tokIdx >= 3 {
+			n = 0
+			return
+		}
+		tokens[tokIdx] = string(buf[:n])
+		tokIdx++
+		n = 0
+	}
+
+	for _, r := range sql {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			if n < len(buf) {
+				// Normalize to upper so we can compare cheaply.
+				if r >= 'a' && r <= 'z' {
+					r -= 32
+				}
+				buf[n] = r
+				n++
+			}
+		} else {
+			flush()
+			if tokIdx >= 3 {
+				break
+			}
+		}
+	}
+	flush()
+
+	// Nothing parsed.
+	if tokIdx == 0 {
+		return noTxEvent
+	}
+
+	t0 := tokens[0]
+	t1 := ""
+	t2 := ""
+	if tokIdx > 1 {
+		t1 = tokens[1]
+	}
+	if tokIdx > 2 {
+		t2 = tokens[2]
+	}
+
+	// BEGIN IMMEDIATE / BEGIN EXCLUSIVE → TxStart.
+	if t0 == "BEGIN" {
+		if t1 == "IMMEDIATE" || t1 == "EXCLUSIVE" {
+			return txStart
+		}
+		return noTxEvent
+	}
+
+	// COMMIT / END → TxEnd.
+	if t0 == "COMMIT" || t0 == "END" {
+		return txEnd
+	}
+
+	// ROLLBACK → TxEnd unless it's a savepoint rollback.
+	if t0 == "ROLLBACK" {
+		// Case 1: ROLLBACK TO SAVEPOINT.
+		if t1 == "TO" && t2 == "SAVEPOINT" {
+			return noTxEvent
+		}
+
+		// Case 2: ROLLBACK TRANSACTION TO SAVEPOINT.
+		// We only have three tokens → "ROLLBACK", "TRANSACTION", "TO".
+		if t1 == "TRANSACTION" && t2 == "TO" {
+			return noTxEvent
+		}
+
+		return txEnd
+	}
+
+	return noTxEvent
 }
 
 // Changes reports the number of rows affected by the most recent statement.

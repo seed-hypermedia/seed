@@ -11,6 +11,7 @@ import (
 	"seed/backend/core"
 	"seed/backend/logging"
 
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -18,7 +19,7 @@ import (
 )
 
 func init() {
-	sqlitex.SetLogger(logging.NewSlog("seed/sqlite", "warn"))
+	sqlite.SetLogger(logging.NewSlog("seed/sqlite", "warn"))
 }
 
 // Store is a storage directory on a filesystem.
