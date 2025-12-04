@@ -3,11 +3,6 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   packHmId,
-} from '@shm/shared'
-import {useMemo} from 'react'
-import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
-import {useApiHost} from '../apiHostStore'
-import {
   useAuthoredComments,
   useCapabilities,
   useChanges,
@@ -15,7 +10,10 @@ import {
   useCitations,
   useComments,
   useResource,
-} from '../models'
+} from '@shm/shared'
+import {useMemo} from 'react'
+import {useNavigate, useParams, useSearchParams} from 'react-router-dom'
+import {useApiHost} from '../apiHostStore'
 import {CopyTextButton} from './CopyTextButton'
 import {ExternalOpenButton, OpenInAppButton} from './ExternalOpenButton'
 import Tabs, {TabType} from './Tabs'
@@ -49,13 +47,7 @@ export default function HM() {
   const {data: changes, isLoading: changesLoading} = useChanges(id)
   const {data: capabilities, isLoading: capabilitiesLoading} =
     useCapabilities(id)
-  const {data: childrenDocsUnfiltered, isLoading: childrenLoading} =
-    useChildrenList(id)
-  const childrenDocs = useMemo(() => {
-    return childrenDocsUnfiltered?.documents?.filter(
-      (doc) => doc.id.id.startsWith(id.id) && doc.id.id !== id.id,
-    )
-  }, [childrenDocsUnfiltered, id])
+  const {data: childrenDocs, isLoading: childrenLoading} = useChildrenList(id)
 
   const url = packHmId(id)
 
@@ -69,63 +61,62 @@ export default function HM() {
 
   const preparedData = useMemo(() => {
     if (!data) return null
-    const {
-      metadata,
-      account,
-      authors,
-      genesis,
-      generationInfo,
-      version,
-      content,
-      ...rest
-    } = data
-    const cleaned = {...metadata, ...rest}
-    if (account) {
-      cleaned.account = `hm://${account}`
-    }
-    if (authors) {
-      cleaned.authors = authors.map((author: string) => `hm://${author}`)
-    }
-    if (version) {
-      cleaned.version = version
-        .split('.')
-        .map((changeCid: string) => `ipfs://${changeCid}`)
-      cleaned.exactDocumentVersion = packHmId({
-        ...id,
-        version: version,
-      })
-    }
-    if (genesis) {
-      cleaned.genesis = `ipfs://${genesis}`
-    }
-    if (content) {
-      cleaned.content = content.map(flattenBlockNode)
-    }
-    return flattenSingleItemArrays(cleaned)
 
-    // old comment type
-    // if (type === 'c') {
-    //   const {id, author, targetPath, targetAccount, targetVersion, ...rest} =
-    //     data
-    //   const cleaned = {...rest}
-    //   if (id) {
-    //     cleaned.id = `ipfs://${id}`
-    //   }
-    //   if (author) {
-    //     cleaned.author = `hm://${author}`
-    //   }
-    //   if (targetAccount) {
-    //     cleaned.target = packHmId(
-    //       hmId(targetAccount, {
-    //         path: entityQueryPathToHmIdPath(targetPath || ''),
-    //         version: targetVersion,
-    //       }),
-    //     )
-    //   }
-    //   return flattenSingleItemArrays(cleaned)
-    // }
+    // Handle different resource types
+    if (data.type === 'document') {
+      const doc = data.document
+      const {
+        metadata,
+        account,
+        authors,
+        genesis,
+        version,
+        content,
+        ...rest
+      } = doc
+      const cleaned: Record<string, any> = {...metadata, ...rest}
+      if (account) {
+        cleaned.account = `hm://${account}`
+      }
+      if (authors) {
+        cleaned.authors = authors.map((author: string) => `hm://${author}`)
+      }
+      if (version) {
+        cleaned.version = version
+          .split('.')
+          .map((changeCid: string) => `ipfs://${changeCid}`)
+        cleaned.exactDocumentVersion = packHmId({
+          ...id,
+          version: version,
+        })
+      }
+      if (genesis) {
+        cleaned.genesis = `ipfs://${genesis}`
+      }
+      if (content) {
+        cleaned.content = content.map(flattenBlockNode)
+      }
+      return flattenSingleItemArrays(cleaned)
+    }
+
+    if (data.type === 'comment') {
+      return {type: 'comment', comment: data.comment}
+    }
+
+    if (data.type === 'redirect') {
+      return {type: 'redirect', redirectTarget: data.redirectTarget}
+    }
+
+    if (data.type === 'not-found') {
+      return {type: 'not-found'}
+    }
+
+    if (data.type === 'tombstone') {
+      return {type: 'tombstone'}
+    }
+
     return null
-  }, [data])
+  }, [data, id])
 
   // Render tab content based on current tab
   const renderTabContent = () => {

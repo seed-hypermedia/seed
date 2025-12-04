@@ -627,10 +627,7 @@ function DocPageHeader({
   documentTools?: any
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
-  useResources(
-    authors?.map((a) => hmId(a)) || [],
-    {subscribed: true},
-  )
+  useResources(authors?.map((a) => hmId(a)) || [], {subscribed: true})
   const authorContacts = useContactsMetadata(authors || [])
 
   if (!document) return null

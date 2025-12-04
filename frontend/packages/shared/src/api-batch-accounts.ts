@@ -1,5 +1,5 @@
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {HMRequestImplementation} from './api-types'
+import {HMRequestImplementation, QueryDaemonFn} from './api-types'
 import {Status} from './client/.generated/google/rpc/status_pb'
 import {GRPCClient} from './grpc-client'
 import {
@@ -14,6 +14,7 @@ export const BatchAccounts: HMRequestImplementation<HMBatchAccountsRequest> = {
   async getData(
     grpcClient: GRPCClient,
     accountUids: string[],
+    queryDaemon: QueryDaemonFn,
   ): Promise<Record<string, HMMetadataPayload>> {
     if (accountUids.length === 0) return {}
 
@@ -76,6 +77,7 @@ export const BatchAccounts: HMRequestImplementation<HMBatchAccountsRequest> = {
       const resolvedAliases = await BatchAccounts.getData(
         grpcClient,
         aliasesToResolve,
+        queryDaemon,
       )
 
       Object.entries(resolvedAliases).forEach(

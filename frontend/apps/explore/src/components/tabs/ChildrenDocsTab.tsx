@@ -8,7 +8,7 @@ export function ChildrenDocsTab({
   list,
   id,
 }: {
-  list: any[];
+  list: any[] | undefined;
   id: UnpackedHypermediaId;
 }) {
   const apiHost = useApiHost();

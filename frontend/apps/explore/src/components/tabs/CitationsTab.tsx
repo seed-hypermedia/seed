@@ -4,7 +4,7 @@ import {useNavigate} from "react-router-dom";
 import DataViewer from "../DataViewer";
 import EmptyState from "../EmptyState";
 
-const CitationsTab: React.FC<{citations: any[]}> = ({citations}) => {
+const CitationsTab: React.FC<{citations: any[] | undefined}> = ({citations}) => {
   const navigate = useNavigate();
   const preparedCitations = useMemo(() => {
     if (!Array.isArray(citations)) {

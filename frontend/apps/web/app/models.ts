@@ -1,23 +1,23 @@
 import {
   HMCitationsPayload,
+  HMListChangesOutput,
   packHmId,
   queryKeys,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
-import {HMDocumentChangesPayload} from './routes/api.changes.$'
 import {ActivityPayload} from './routes/hm.api.activity'
 import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
+// queryAPI for universal client and useAPI hook - unwraps superjson
 export async function queryAPI<ResponsePayloadType>(url: string) {
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.statusText}`)
   }
   const fullData = await response.json()
-  const data = unwrap<ResponsePayloadType>(fullData)
-  return data
+  return unwrap<ResponsePayloadType>(fullData)
 }
 
 export function useAPI<ResponsePayloadType>(
@@ -36,7 +36,7 @@ export function useAPI<ResponsePayloadType>(
 }
 
 export function useDocumentChanges(id: UnpackedHypermediaId | undefined) {
-  return useAPI<HMDocumentChangesPayload>(
+  return useAPI<HMListChangesOutput>(
     id ? `/hm/api/changes?id=${packHmId(id)}` : undefined,
     {enabled: !!id},
   )

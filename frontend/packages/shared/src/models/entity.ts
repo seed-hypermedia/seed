@@ -5,7 +5,12 @@ import {
   toPlainMessage,
 } from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQueries,
+  useQuery,
+  UseQueryOptions,
+} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
@@ -20,6 +25,22 @@ import {
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
+  HMGetCIDOutput,
+  HMGetCIDRequest,
+  HMListAccountsOutput,
+  HMListAccountsRequest,
+  HMListCapabilitiesOutput,
+  HMListCapabilitiesRequest,
+  HMListChangesOutput,
+  HMListChangesRequest,
+  HMListCitationsOutput,
+  HMListCitationsRequest,
+  HMListCommentsByAuthorOutput,
+  HMListCommentsByAuthorRequest,
+  HMListCommentsOutput,
+  HMListCommentsRequest,
+  HMListEventsOutput,
+  HMListEventsRequest,
   HMMetadata,
   HMMetadataPayload,
   HMQueryRequest,
@@ -36,6 +57,7 @@ import {
   entityQueryPathToHmIdPath,
   hmId,
   hmIdPathToEntityQueryPath,
+  unpackHmId,
 } from '../utils'
 import {queryKeys} from './query-keys'
 
@@ -508,4 +530,202 @@ export function useDirectory(
     },
     enabled: !!id,
   })
+}
+
+export function useRootDocuments() {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.ROOT_DOCUMENTS],
+    queryFn: async (): Promise<HMListAccountsOutput> => {
+      return await client.request<HMListAccountsRequest>(
+        'ListAccounts',
+        undefined,
+      )
+    },
+  })
+}
+
+export function useCID(cid: string | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CID, cid],
+    queryFn: async (): Promise<HMGetCIDOutput> => {
+      return await client.request<HMGetCIDRequest>('GetCID', {cid: cid!})
+    },
+    enabled: !!cid,
+  })
+}
+
+export function useComments(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.COMMENTS, id?.id],
+    queryFn: async (): Promise<HMListCommentsOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCommentsRequest>('ListComments', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useAuthoredComments(
+  id: UnpackedHypermediaId | null | undefined,
+) {
+  const client = useUniversalClient()
+  const isRootAccount = !id?.path?.filter((p) => !!p).length
+  return useQuery({
+    queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
+    queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCommentsByAuthorRequest>(
+        'ListCommentsByAuthor',
+        {authorId: id},
+      )
+    },
+    enabled: !!id && isRootAccount,
+  })
+}
+
+export function useCitations(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CITATIONS, id?.id],
+    queryFn: async (): Promise<HMListCitationsOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCitationsRequest>('ListCitations', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useChanges(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CHANGES, id?.id],
+    queryFn: async (): Promise<HMListChangesOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListChangesRequest>('ListChanges', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CAPABILITIES, id?.id],
+    queryFn: async (): Promise<HMListCapabilitiesOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCapabilitiesRequest>(
+        'ListCapabilities',
+        {targetId: id},
+      )
+    },
+    enabled: !!id,
+  })
+}
+
+export function useInfiniteFeed(pageSize: number = 10) {
+  const client = useUniversalClient()
+  return useInfiniteQuery({
+    queryKey: [queryKeys.FEED, 'infinite', pageSize],
+    queryFn: async ({pageParam}): Promise<HMListEventsOutput> => {
+      return await client.request<HMListEventsRequest>('ListEvents', {
+        pageSize,
+        pageToken: pageParam as string | undefined,
+      })
+    },
+    getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
+    refetchInterval: 30000,
+  })
+}
+
+export function useLatestEvent() {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.FEED, 'latest'],
+    queryFn: async () => {
+      const result = await client.request<HMListEventsRequest>('ListEvents', {
+        pageSize: 1,
+      })
+      return result.events[0] || null
+    },
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+  })
+}
+
+export function useChildrenList(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, 'Children'],
+    queryFn: async (): Promise<HMDocumentInfo[]> => {
+      if (!id) return []
+      const result = await client.request<HMQueryRequest>('Query', {
+        includes: [
+          {
+            space: id.uid,
+            path: hmIdPathToEntityQueryPath(id.path),
+            mode: 'Children',
+          },
+        ],
+      })
+      return result?.results || []
+    },
+    enabled: !!id,
+  })
+}
+
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string | null {
+  const regex = /^ipfs:\/\/(.+)$/
+  const match = cidOrIPFSUrl.match(regex)
+  return match?.[1] ?? null
+}
+
+export type HypermediaSearchResult = {
+  destination?: string
+  errorMessage?: string
+}
+
+export async function search(input: string): Promise<HypermediaSearchResult> {
+  const cid = extractIpfsUrlCid(input)
+  if (cid) {
+    return {destination: `/ipfs/${cid}`}
+  }
+  if (input.startsWith('hm://')) {
+    const unpackedId = unpackHmId(input)
+    if (unpackedId) {
+      return {
+        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join('/')}`,
+      }
+    }
+  }
+  if (input.match(/\./)) {
+    // it might be a url
+    const hasProtocol = input.match(/^https?:\/\//)
+    const searchUrl = hasProtocol ? input : `https://${input}`
+    const result = await fetch(searchUrl, {
+      method: 'OPTIONS',
+    })
+    const id = result.headers.get('x-hypermedia-id')
+    const unpackedId = id && unpackHmId(id)
+    const version = result.headers.get('x-hypermedia-version')
+    if (unpackedId) {
+      return {
+        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join(
+          '/',
+        )}?v=${version}`,
+      }
+    }
+  }
+  return {
+    errorMessage:
+      'Invalid input. Please enter a valid hypermedia URL or IPFS url.',
+  }
 }

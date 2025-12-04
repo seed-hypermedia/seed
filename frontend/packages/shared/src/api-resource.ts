@@ -16,5 +16,11 @@ export const Resource: HMRequestImplementation<HMResourceRequest> = {
 
 export const ResourceParams: HMRequestParams<HMResourceRequest> = {
   inputToParams: (input: UnpackedHypermediaId) => ({id: packHmId(input)}),
-  paramsToInput: (params: Record<string, string>) => unpackHmId(params.id!)!,
+  paramsToInput: (params: Record<string, string>) => {
+    const id = unpackHmId(params.id)
+    if (!id) {
+      throw new Error(`Invalid id query param: ${params.id}`)
+    }
+    return id
+  },
 }

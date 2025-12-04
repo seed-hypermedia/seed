@@ -177,8 +177,10 @@ function BreadcrumbTitle({
   const entityContents = entityIds.map((id, i) => {
     const data = entityResults[i]?.data
     if (!data) return {id, entity: undefined}
-    if (data.type === 'tombstone') return {id, entity: {id: data.id, isTombstone: true}}
-    if (data.type === 'document') return {id, entity: {id: data.id, document: data.document}}
+    if (data.type === 'tombstone')
+      return {id, entity: {id: data.id, isTombstone: true}}
+    if (data.type === 'document')
+      return {id, entity: {id: data.id, document: data.document}}
     return {id, entity: undefined}
   })
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata

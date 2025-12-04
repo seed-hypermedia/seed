@@ -260,4 +260,3 @@ export function removeSubscribedEntity(sub: EntitySubscription) {
     }, 300) // no rush
   }
 }
-
