@@ -6,8 +6,7 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useTemplateDialog} from '@/components/site-template'
-import {DesktopActivityService} from '@/desktop-activity-service'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
@@ -33,15 +32,14 @@ import {
   AccessoryOptions,
   DocumentRoute,
   HMDocument,
-  HMEntityContent,
   HMResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
   getCommentTargetId,
   hmId,
 } from '@shm/shared'
-import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -76,9 +74,6 @@ import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 
 export default function DocumentPage() {
-  const commentsService = new DesktopCommentsService()
-
-  const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
   const docId = route.key == 'document' && route.id
@@ -117,81 +112,77 @@ export default function DocumentPage() {
   const templateDialogContent = useTemplateDialog(route)
 
   return (
-    <>
-      <ActivityProvider service={activityService}>
-        <CommentsProvider
-          service={commentsService}
-          onReplyClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
+    <CommentsProvider
+      useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
+      onReplyClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
 
-            if (targetRoute) {
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              console.log('targetRoute is the same. replacing...')
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-            triggerCommentDraftFocus(docId.id, replyComment.id)
-          }}
-          onReplyCountClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
-            if (targetRoute) {
-              // comment target is not the same as the route, so we need to change the whole route
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              // comment target is the same as the route, so we can replace safely
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-          }}
-        >
-          <DocumentPageContent
-            docId={docId}
-            route={route}
-            replace={replace}
-            push={push}
-            mainPanelRef={mainPanelRef}
-            accessoryKey={accessoryKey}
-            templateDialogContent={templateDialogContent}
-            notifSettingsDialogContent={notifSettingsDialog.content}
-          />
-        </CommentsProvider>
-      </ActivityProvider>
-    </>
+        if (targetRoute) {
+          push({
+            key: 'document',
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          console.log('targetRoute is the same. replacing...')
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+        triggerCommentDraftFocus(docId.id, replyComment.id)
+      }}
+      onReplyCountClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
+        if (targetRoute) {
+          // comment target is not the same as the route, so we need to change the whole route
+          push({
+            key: 'document',
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          // comment target is the same as the route, so we can replace safely
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+      }}
+    >
+      <DocumentPageContent
+        docId={docId}
+        route={route}
+        replace={replace}
+        push={push}
+        mainPanelRef={mainPanelRef}
+        accessoryKey={accessoryKey}
+        templateDialogContent={templateDialogContent}
+        notifSettingsDialogContent={notifSettingsDialog.content}
+      />
+    </CommentsProvider>
   )
 }
 
@@ -414,11 +405,6 @@ function _MainDocumentPage({
         siteHomeEntity.data
       : null
 
-  console.log(
-    '=== interactionSummary.data?.comments',
-    interactionSummary.data?.comments,
-  )
-
   const documentTools = (
     <DocumentTools
       activePanel={
@@ -454,7 +440,7 @@ function _MainDocumentPage({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        {/* <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+        {/* <div className="flex absolute top-2 right-2 z-40 items-center bg-white rounded-md shadow-md dark:bg-background">
           <DocInteractionSummary
             isHome={isHomeDoc}
             isAccessoryOpen={!!route.accessory}
@@ -533,11 +519,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')

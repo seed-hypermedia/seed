@@ -1,9 +1,9 @@
 import {useSearchParams} from '@remix-run/react'
 import {
   HMDocument,
-  HMEntityContent,
   HMMetadata,
   HMQueryResult,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -19,7 +19,7 @@ export type WebSiteHeaderProps = {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   supportQueries?: HMQueryResult[]
   origin?: string
   isLatest?: boolean

@@ -1,11 +1,10 @@
-import {PlainMessage} from '@bufbuild/protobuf'
 import {createContext, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
-import {UnpackedHypermediaId} from './hm-types'
+import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
-import type {Contact, UniversalClient} from './universal-client'
+import type {UniversalClient} from './universal-client'
 import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
@@ -51,7 +50,7 @@ type UniversalAppContextValue = {
   universalClient?: UniversalClient
 
   experiments?: AppExperiments
-  contacts?: PlainMessage<Contact>[]
+  contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }
@@ -89,7 +88,7 @@ export function UniversalAppProvider(props: {
   setSelectedIdentity?: (keyId: string | null) => void
   universalClient?: UniversalClient
   experiments?: AppExperiments
-  contacts?: PlainMessage<Contact>[]
+  contacts?: HMContactRecord[]
   broadcastEvent?: (event: AppEvent) => void
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
 }) {

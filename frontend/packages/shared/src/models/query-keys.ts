@@ -28,6 +28,7 @@ export const queryKeys = {
   // accounts
   LIST_ACCOUNTS: 'LIST_ACCOUNTS', //
   ACCOUNT: 'ACCOUNT', // , accountId: string
+  BATCH_ACCOUNTS: 'BATCH_ACCOUNTS', // , ...accountUids: string[]
 
   // entities
   ENTITY_TIMELINE: 'ENTITY_TIMELINE', //, entityId: string, includeDrafts: boolean
@@ -104,6 +105,13 @@ export const queryKeys = {
 
   // activity
   ACTIVITY_FEED: 'ACTIVITY_FEED', // pageSize, pageToken, trustedOnly, filterAuthors, filterEventType, filterResource, addLinkedResource
+
+  ROOT_DOCUMENTS: 'ROOT_DOCUMENTS',
+  CID: 'CID', // cid: string
+  COMMENTS: 'COMMENTS', // id.id: string
+  AUTHORED_COMMENTS: 'AUTHORED_COMMENTS', // id.id: string
+  CITATIONS: 'CITATIONS', // id.id: string
+  CHANGES: 'CHANGES', // id.id: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {

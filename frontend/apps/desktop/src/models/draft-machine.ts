@@ -1,8 +1,8 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
 import {
   HMDraft,
-  HMEntityContent,
   HMNavigationItem,
+  HMResourceFetchResult,
   invalidateQueries,
 } from '@shm/shared'
 import {assign, setup, StateFrom} from 'xstate'
@@ -39,8 +39,8 @@ export const draftMachine = setup({
           payload:
             | {type: 'load.new.draft'}
             | {type: 'draft'; data: HMDraft}
-            | {type: 'location'; data: HMEntityContent}
-            | {type: 'edit'; data: HMEntityContent}
+            | {type: 'location'; data: HMResourceFetchResult}
+            | {type: 'edit'; data: HMResourceFetchResult}
         }
       | {
           type: 'fetch.error'

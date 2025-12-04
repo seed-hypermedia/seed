@@ -1,13 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
-import {
-  HMAccountsMetadata,
-  HMDocumentMetadataSchema,
-  HMEntityContent,
-  HMMetadataPayload,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {
   createBatchAccountsResolver,
@@ -15,15 +9,15 @@ import {
   HMRedirectError,
   useResources,
 } from '@shm/shared/models/entity'
-import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useRef} from 'react'
 import {queryListDirectory, usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
@@ -110,31 +104,6 @@ export function useUndeleteEntity(
   })
 }
 
-export function getParentPaths(path?: string[] | null): string[][] {
-  if (!path) return [[]]
-  let walkParentPaths: string[] = []
-  return [
-    [],
-    ...path.map((term) => {
-      walkParentPaths = [...walkParentPaths, term]
-      return walkParentPaths
-    }),
-  ]
-}
-
-function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
-  return getParentPaths(id.path).map((path) => hmId(id.uid, {path}))
-}
-
-export function useItemsFromId(
-  id: UnpackedHypermediaId,
-): Array<UnpackedHypermediaId> {
-  return useMemo(() => {
-    const ids = getIdsFromIds(id)
-    return ids
-  }, [id])
-}
-
 function catchNotFound<Result>(
   promise: Promise<Result>,
 ): Promise<Result | null> {
@@ -146,39 +115,6 @@ function catchNotFound<Result>(
 
 // Use shared resource fetcher
 export const fetchResource = createResourceFetcher(grpcClient)
-
-export async function fetchAccount(
-  accountUid: string,
-): Promise<HMMetadataPayload> {
-  try {
-    const grpcAccount = await grpcClient.documents.getAccount({
-      id: accountUid,
-    })
-
-    const serverAccount = toPlainMessage(grpcAccount)
-    if (serverAccount.aliasAccount) {
-      return await fetchAccount(serverAccount.aliasAccount)
-    }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
-    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
-    return {
-      id: hmId(accountUid, {
-        // this is mega confusing, sorry. We need to include this version of the home document so we know when to invalidate the account after discovery completes.
-        // it is technically incorrect, because the version should be the version of the profile, not the fallback home document where we currently load account metadata from.
-        // one day we can have improved data normalization in the client, and the backend should give details if the metadata is coming from the profile or the home doc.
-        // this is used by discoveryResultWithLatestVersion to invalidate the account after discovery completes
-        version: serverAccount.homeDocumentInfo?.version,
-        // If this confuses you, ask Eric and hopefully he still remembers this.
-      }),
-      metadata,
-    } as HMMetadataPayload
-  } catch (error) {
-    return {
-      id: hmId(accountUid),
-      metadata: {},
-    } as HMMetadataPayload
-  }
-}
 
 export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 
@@ -193,7 +129,7 @@ function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
-  const lastEntity = queryClient.getQueryData<HMEntityContent>([
+  const lastEntity = queryClient.getQueryData<HMResourceFetchResult>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
@@ -382,29 +318,20 @@ export function useSubscribedResource(
 
 export function useSubscribedResourceIds(
   ids: Array<UnpackedHypermediaId>,
-): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
-  // @ts-ignore
+): {id: UnpackedHypermediaId; entity?: HMResourceFetchResult}[] {
   return useSubscribedResources(
     ids.map((id) => {
       return {id}
     }),
   ).map((result, i) => {
-    return {id: ids[i], entity: result.data || undefined}
+    const data = result.data
+    if (!data) return {id: ids[i], entity: undefined}
+    if (data.type === 'tombstone') {
+      return {id: ids[i], entity: {id: data.id, isTombstone: true}}
+    }
+    if (data.type === 'document') {
+      return {id: ids[i], entity: {id: data.id, document: data.document}}
+    }
+    return {id: ids[i], entity: undefined}
   })
-}
-
-export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useSubscribedResources(ids.map((id) => ({id: hmId(id)})))
-  return Object.fromEntries(
-    accounts
-      .map((account) => {
-        if (!account.data) return null
-        return [
-          account.data.id.uid,
-          // @ts-expect-error
-          {id: account.data.id, metadata: account.data.document?.metadata},
-        ]
-      })
-      .filter((entry) => !!entry),
-  )
 }

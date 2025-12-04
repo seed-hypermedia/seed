@@ -31,8 +31,9 @@ import {
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
-  HMEntityContent,
   HMNavigationItem,
+  HMResourceFetchResult,
+  HMResourceRequest,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
@@ -127,7 +128,7 @@ export function useDeleteDraft(
   return deleteDraft
 }
 
-export type EmbedsContent = HMEntityContent[]
+export type EmbedsContent = HMResourceFetchResult[]
 
 export function useDocumentEmbeds(
   doc: HMDocument | undefined | null,
@@ -817,7 +818,7 @@ export function usePushResource() {
     onlyPushToHost?: string,
     onStatusChange?: (status: PushResourceStatus) => void,
   ): Promise<boolean> => {
-    const resource = await client.fetchResource(id)
+    const resource = await client.request<HMResourceRequest>('Resource', id)
     // step 1. find all the site IDs that will be affected by this resource.
     // console.log('== publish 1', id, resource, gwUrl)
     let destinationSiteUids = new Set<string>()
@@ -854,7 +855,7 @@ export function usePushResource() {
 
     if (resource.type === 'document') {
       destinationSiteUids.add(resource.id.uid)
-      resource.document.authors.forEach((authorUid) => {
+      resource.document.authors.forEach((authorUid: string) => {
         destinationSiteUids.add(authorUid)
       })
       extractBNReferences(resource.document.content)
@@ -892,7 +893,10 @@ export function usePushResource() {
     await Promise.all(
       Array.from(destinationSiteUids).map(async (uid) => {
         try {
-          const resource = await client.fetchResource(hmId(uid))
+          const resource = await client.request<HMResourceRequest>(
+            'Resource',
+            hmId(uid),
+          )
           if (resource.type === 'document') {
             const siteUrl = resource.document.metadata?.siteUrl
             if (siteUrl) destinationHosts.add(siteUrl)
@@ -1337,7 +1341,7 @@ export function getDraftEditId(
 }
 
 export function useSiteNavigationItems(
-  siteHomeEntity: HMEntityContent | undefined | null,
+  siteHomeEntity: HMResourceFetchResult | undefined | null,
 ): DocNavigationItem[] | null {
   const homeDir = useListDirectory(siteHomeEntity?.id, {
     mode: 'Children',

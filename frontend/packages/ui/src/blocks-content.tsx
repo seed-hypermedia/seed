@@ -1,8 +1,7 @@
-import {PlainMessage} from '@bufbuild/protobuf'
 import {
   BlockRange,
-  Contact,
   HMAccountsMetadata,
+  HMContactRecord,
   HMBlock,
   HMBlockButton,
   HMBlockChildrenType,
@@ -21,9 +20,9 @@ import {
   HMDocument,
   HMDocumentInfo,
   HMEmbedView,
-  HMEntityContent,
   HMInlineContent,
   HMResolvedResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   clipContentBlocks,
   entityQueryPathToHmIdPath,
@@ -47,6 +46,12 @@ import {
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
+import {
+  useAccountsMetadata,
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
@@ -112,6 +117,7 @@ import {cn} from './utils'
 import {getCommentTargetId} from '@shm/shared'
 import {HMCitation, HMResource} from '@shm/shared/hm-types'
 import {toast} from 'sonner'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {useHighlighter} from './highlight-context'
 import {DocumentNameLink} from './inline-descriptor'
 
@@ -123,7 +129,7 @@ export type BlocksContentContextProps = {
   resourceId: UnpackedHypermediaId
   debugTop?: number
   ffSerif?: boolean
-  contacts?: PlainMessage<Contact>[] | null
+  contacts?: HMContactRecord[] | null
   commentStyle?: boolean
   onBlockSelect?:
     | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
@@ -1568,11 +1574,10 @@ export function BlockEmbedCard({
   block,
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
-  const client = useUniversalClient()
   const id = unpackHmId(block.link) ?? undefined
-  const doc = client.useResource(id)
+  const doc = useResource(id)
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
-  const authors = client.useResources(
+  const authors = useResources(
     document?.authors.map((uid: string) => hmId(uid)) || [],
   )
 
@@ -1627,7 +1632,6 @@ export function BlockEmbedContent({
   depth,
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
-  const client = useUniversalClient()
   const {resourceId} = useBlocksContentContext()
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
@@ -1644,18 +1648,32 @@ export function BlockEmbedContent({
     )
   }
 
-  const resource = client.useResource(id)
+  const resource = useResource(id)
   const document =
     resource.data?.type === 'document' ? resource.data.document : undefined
   const comment =
     resource.data?.type === 'comment' ? resource.data.comment : undefined
-  const commentTargetResource = client.useResource(getCommentTargetId(comment))
+  const commentTargetResource = useResource(getCommentTargetId(comment))
 
-  const author = client.useResource(
-    comment?.author ? hmId(comment?.author) : null,
-  )
-
+  const author = useResource(comment?.author ? hmId(comment?.author) : null)
   if (!id) return <ErrorBlock message="Invalid embed link" />
+  if (resource.data?.type === 'not-found') {
+    return (
+      <ErrorBlock message="Resource not found">
+        <Button
+          variant="destructive"
+          onClick={() => {
+            copyUrlToClipboardWithFeedback(block.link, 'Missing Resource')
+          }}
+        >
+          Copy Link
+        </Button>
+      </ErrorBlock>
+    )
+  }
+  if (resource.data?.type === 'tombstone') {
+    return <ErrorBlock message="Resource has been deleted" />
+  }
   if (comment) {
     return (
       <BlockEmbedContentComment
@@ -1727,9 +1745,11 @@ export function BlockEmbedComments({
 export function ErrorBlock({
   message,
   debugData,
+  children,
 }: {
   message: string
   debugData?: any
+  children?: React.ReactNode
 }) {
   let [open, toggleOpen] = useState(false)
   return (
@@ -1738,7 +1758,7 @@ export function ErrorBlock({
     >
       <div className="block-content block-unknown flex flex-1 flex-col">
         <div
-          className="flex-start flex gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
+          className="flex-start flex items-center gap-2 overflow-hidden rounded-md border border-red-300 bg-red-100 p-2"
           onClick={(e) => {
             e.stopPropagation()
             toggleOpen((v) => !v)
@@ -1748,6 +1768,7 @@ export function ErrorBlock({
             {message ? message : 'Error'}
           </SizableText>
           <AlertCircle color="danger" className="size-3" />
+          {children}
         </div>
         {open ? (
           <pre className="border-border rounded-md border bg-gray-100 p-2 dark:bg-gray-800">
@@ -1953,7 +1974,7 @@ function BlockEmbedContentDocument(props: {
 
   let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
   if (isLoading) {
-    content = null
+    content = <Spinner />
   } else if (embedData.data.embedBlocks) {
     content = (
       <BlocksContentProvider onBlockSelect={embedOnBlockSelect} resourceId={id}>
@@ -2023,7 +2044,7 @@ function BlockEmbedContentDocument(props: {
     )
   } else if (props.blockRef) {
     return (
-      <BlockNotFoundError
+      <ErrorBlock
         message={`Block #${props.blockRef} was not found in this version`}
       >
         <div className="flex gap-2 p-4">
@@ -2040,7 +2061,7 @@ function BlockEmbedContentDocument(props: {
           ) : null}
           {renderOpenButton()}
         </div>
-      </BlockNotFoundError>
+      </ErrorBlock>
     )
   }
   return (
@@ -2060,7 +2081,6 @@ function BlockEmbedContentDocument(props: {
 }
 
 function BlockContentQuery({block}: {block: HMBlockQuery}) {
-  const client = useUniversalClient()
   const queryInclude = block.attributes.query.includes[0]
   const queryIncludeId = queryInclude
     ? hmId(queryInclude.space, {
@@ -2068,13 +2088,13 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       })
     : null
 
-  // Use universal client for directory listing
-  const directoryItems = client.useDirectory(queryIncludeId, {
+  // Use shared hook for directory listing
+  const directoryItems = useDirectory(queryIncludeId, {
     mode: queryInclude?.mode,
   })
 
   // Subscribe to query target
-  client.useResource(queryIncludeId, {recursive: true})
+  useResource(queryIncludeId)
 
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
@@ -2091,13 +2111,13 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
     [directoryItems.data],
   )
 
-  const documents = client.useResources([
+  const documents = useResources([
     ...(docIds || []),
     ...authorIds.map((uid: string) => hmId(uid)),
   ])
 
   // Get accounts metadata
-  const accountsMetadata = client.useAccountsMetadata(authorIds)
+  const accountsMetadata = useAccountsMetadata(authorIds)
 
   // Get entity helper function
   function getEntity(id: UnpackedHypermediaId) {
@@ -2115,28 +2135,9 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
       banner={block.attributes.banner || false}
-      accountsMetadata={accountsMetadata}
+      accountsMetadata={accountsMetadata.data}
       getEntity={getEntity}
     />
-  )
-}
-
-export function BlockNotFoundError({
-  message,
-  children,
-}: PropsWithChildren<{
-  message: string
-}>) {
-  return (
-    <div className="flex flex-1 flex-col bg-red-100/50 p-2 dark:bg-red-900/50">
-      <div className="flex items-center gap-2 p-4">
-        <AlertCircle className="flex-0 text-red-500" size={12} />
-        <SizableText className="flex-1" color="destructive">
-          {message ? message : 'Error'}
-        </SizableText>
-      </div>
-      {children}
-    </div>
   )
 }
 
@@ -2662,7 +2663,7 @@ export function DocumentCardGrid({
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
-  getEntity: (id: UnpackedHypermediaId) => HMEntityContent | null
+  getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   accountsMetadata: HMAccountsMetadata
   columnCount?: number
 }) {
@@ -2753,8 +2754,7 @@ function InlineEmbed({
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
 }) {
-  const client = useUniversalClient()
-  const doc = client.useResource(entityId)
+  const doc = useResource(entityId)
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 

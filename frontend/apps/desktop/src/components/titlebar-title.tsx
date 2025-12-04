@@ -7,13 +7,14 @@ import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {useAccountDraftList, useListDirectory} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useItemsFromId, useSubscribedResourceIds} from '@/models/entities'
+import {useSubscribedResourceIds} from '@/models/entities'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  getParentPaths,
   hmId,
   HMMetadata,
   HMQueryResult,
@@ -143,6 +144,7 @@ type CrumbDetails = {
   id: UnpackedHypermediaId | null
   isError?: boolean
   isLoading?: boolean
+  isTombstone?: boolean
   crumbKey: string
 }
 
@@ -166,7 +168,11 @@ function BreadcrumbTitle({
   const isLatest =
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
-  const entityIds = useItemsFromId(entityId)
+  const entityIds = useMemo(
+    () =>
+      getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
+    [entityId],
+  )
   const entityContents = useSubscribedResourceIds(entityIds)
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
@@ -191,6 +197,7 @@ function BreadcrumbTitle({
           name,
           fallbackName: id.path?.at(-1),
           isError: contents.entity && !contents.entity.document,
+          isTombstone: contents.entity?.isTombstone || false,
           isLoading: !contents.entity,
           id,
           crumbKey: `id-${idIndex}`,
@@ -567,6 +574,15 @@ function BreadcrumbItem({
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
+    )
+  }
+  if (details.isTombstone) {
+    return (
+      <Tooltip content="This Document has been deleted">
+        <TitleTextButton className="no-window-drag text-destructive">
+          {details.fallbackName}
+        </TitleTextButton>
+      </Tooltip>
     )
   }
   if (details.isError) {

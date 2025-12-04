@@ -5,24 +5,60 @@ import {
   toPlainMessage,
 } from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {useQueries, useQuery, UseQueryOptions} from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useQueries,
+  useQuery,
+  UseQueryOptions,
+} from '@tanstack/react-query'
+import {useMemo} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
+import {getContactMetadata} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {
+  HMAccountContactsRequest,
+  HMAccountRequest,
+  HMAccountsMetadata,
+  HMBatchAccountsRequest,
+  HMContactRecord,
   HMDocumentInfo,
   HMDocumentInfoSchema,
   HMDocumentMetadataSchema,
+  HMGetCIDOutput,
+  HMGetCIDRequest,
+  HMListAccountsOutput,
+  HMListAccountsRequest,
+  HMListCapabilitiesOutput,
+  HMListCapabilitiesRequest,
+  HMListChangesOutput,
+  HMListChangesRequest,
+  HMListCitationsOutput,
+  HMListCitationsRequest,
+  HMListCommentsByAuthorOutput,
+  HMListCommentsByAuthorRequest,
+  HMListCommentsOutput,
+  HMListCommentsRequest,
+  HMListEventsOutput,
+  HMListEventsRequest,
   HMMetadata,
   HMMetadataPayload,
+  HMQueryRequest,
   HMResolvedResource,
   HMResource,
+  HMResourceRequest,
   HMTimestamp,
   HMTimestampSchema,
   UnpackedHypermediaId,
 } from '../hm-types'
-import {useUniversalClient} from '../routing'
-import {entityQueryPathToHmIdPath, hmId} from '../utils'
+import {useUniversalAppContext, useUniversalClient} from '../routing'
+import {useStream} from '../use-stream'
+import {
+  entityQueryPathToHmIdPath,
+  hmId,
+  hmIdPathToEntityQueryPath,
+  unpackHmId,
+} from '../utils'
 import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
@@ -171,7 +207,7 @@ export function useResource(
     queryKey: [queryKeys.ENTITY, id?.id, version],
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      return await client.fetchResource(id)
+      return await client.request<HMResourceRequest>('Resource', id)
     },
     ...options,
   })
@@ -187,7 +223,7 @@ export function useAccount(
     queryKey: [queryKeys.ACCOUNT, id],
     queryFn: async (): Promise<HMMetadataPayload | null> => {
       if (!id) return null
-      return await client.fetchAccount(id)
+      return await client.request<HMAccountRequest>('Account', id)
     },
     ...options,
   })
@@ -208,7 +244,7 @@ export function useResolvedResource(
       async function loadResolvedResource(
         id: UnpackedHypermediaId,
       ): Promise<HMResolvedResource | null> {
-        let resource = await client.fetchResource(id)
+        let resource = await client.request<HMResourceRequest>('Resource', id)
         if (resource?.type === 'redirect') {
           return await loadResolvedResource(resource.redirectTarget)
         }
@@ -235,7 +271,8 @@ export function useResources(
         queryKey: [queryKeys.ENTITY, id?.id, version],
         queryFn: async (): Promise<HMResource | null> => {
           if (!id) return null
-          return await client.fetchResource(id)
+          const r = await client.request<HMResourceRequest>('Resource', id)
+          return r
         },
       }
     }),
@@ -253,10 +290,28 @@ export function useAccounts(
       queryKey: [queryKeys.ACCOUNT, id],
       queryFn: async (): Promise<HMMetadataPayload | null> => {
         if (!id) return null
-        return await client.fetchAccount(id)
+        return await client.request<HMAccountRequest>('Account', id)
       },
     })),
   })
+}
+
+export type HMAccountsMetadataResult = {
+  data: HMAccountsMetadata
+  isLoading: boolean
+}
+
+export function useAccountsMetadata(uids: string[]): HMAccountsMetadataResult {
+  const client = useUniversalClient()
+  const result = useQuery({
+    enabled: uids.length > 0,
+    queryKey: [queryKeys.BATCH_ACCOUNTS, ...uids.slice().sort()],
+    queryFn: async (): Promise<HMAccountsMetadata> => {
+      if (uids.length === 0) return {}
+      return await client.request<HMBatchAccountsRequest>('BatchAccounts', uids)
+    },
+  })
+  return {data: result.data || {}, isLoading: result.isLoading}
 }
 
 export function useResolvedResources(
@@ -276,7 +331,10 @@ export function useResolvedResources(
           async function loadResolvedResource(
             id: UnpackedHypermediaId,
           ): Promise<HMResolvedResource | null> {
-            let resource = await client.fetchResource(id)
+            let resource = await client.request<HMResourceRequest>(
+              'Resource',
+              id,
+            )
             if (resource?.type === 'redirect') {
               return await loadResolvedResource(resource.redirectTarget)
             }
@@ -310,6 +368,12 @@ export class HMNotFoundError extends HMError {
   }
 }
 
+export class HMResourceTombstoneError extends HMError {
+  constructor() {
+    super('Resource has been Deleted')
+  }
+}
+
 // @ts-ignore
 export function getErrorMessage(err: any) {
   try {
@@ -318,6 +382,22 @@ export function getErrorMessage(err: any) {
       return new HMNotFoundError()
     }
     const firstDetail = e.details[0] // what if there are more than one detail?
+    if (
+      e.code === Code.FailedPrecondition &&
+      e.message.match('marked as deleted')
+    ) {
+      return new HMResourceTombstoneError()
+    }
+    if (e.code === Code.Unknown && e.message.match('ipld: could not find')) {
+      // the API has a lot of different types for "not found"!
+      return new HMNotFoundError()
+    }
+    if (e.code === Code.Unknown && e.message.match('not found')) {
+      // the message is like: "cid 1234 not found", I think we hit this for specific versions.
+      // the API has a lot of different types for "not found"!
+      return new HMNotFoundError()
+    }
+
     if (
       // @ts-expect-error
       firstDetail.type === 'com.seed.documents.v3alpha.RedirectErrorDetails'
@@ -330,5 +410,272 @@ export function getErrorMessage(err: any) {
     }
   } catch (e) {
     return e
+  }
+}
+
+export function useSelectedAccountId() {
+  const {selectedIdentity} = useUniversalAppContext()
+  return useStream(selectedIdentity) ?? null
+}
+
+export function useAccountContacts(accountUid: string | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    enabled: !!accountUid,
+    queryKey: [queryKeys.CONTACTS_ACCOUNT, accountUid],
+    queryFn: async (): Promise<HMContactRecord[]> => {
+      if (!accountUid) return []
+      return await client.request<HMAccountContactsRequest>(
+        'AccountContacts',
+        accountUid,
+      )
+    },
+  })
+}
+
+export function useContacts(accountUids: string[]) {
+  const accounts = useAccounts(accountUids)
+  const selectedAccountId = useSelectedAccountId()
+  const contacts = useAccountContacts(selectedAccountId)
+
+  return useMemo(() => {
+    return accounts.map((account) => {
+      return {
+        ...account,
+        data: account.data
+          ? {
+              id: account.data.id,
+              metadata: getContactMetadata(
+                account.data.id.uid,
+                account.data.metadata,
+                contacts.data,
+              ),
+            }
+          : undefined,
+      }
+    })
+  }, [accounts, contacts.data])
+}
+
+export function useDirectory(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: {mode?: 'Children' | 'AllDescendants'},
+) {
+  const client = useUniversalClient()
+  const mode = options?.mode || 'Children'
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode],
+    queryFn: async (): Promise<HMDocumentInfo[]> => {
+      if (!id) return []
+      const results = await client.request<HMQueryRequest>('Query', {
+        includes: [
+          {
+            space: id.uid,
+            mode,
+            path: hmIdPathToEntityQueryPath(id.path),
+          },
+        ],
+      })
+      return results?.results || []
+    },
+    enabled: !!id,
+  })
+}
+
+export function useRootDocuments() {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.ROOT_DOCUMENTS],
+    queryFn: async (): Promise<HMListAccountsOutput> => {
+      return await client.request<HMListAccountsRequest>(
+        'ListAccounts',
+        undefined,
+      )
+    },
+  })
+}
+
+export function useCID(cid: string | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CID, cid],
+    queryFn: async (): Promise<HMGetCIDOutput> => {
+      return await client.request<HMGetCIDRequest>('GetCID', {cid: cid!})
+    },
+    enabled: !!cid,
+  })
+}
+
+export function useComments(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.COMMENTS, id?.id],
+    queryFn: async (): Promise<HMListCommentsOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCommentsRequest>('ListComments', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useAuthoredComments(
+  id: UnpackedHypermediaId | null | undefined,
+) {
+  const client = useUniversalClient()
+  const isRootAccount = !id?.path?.filter((p) => !!p).length
+  return useQuery({
+    queryKey: [queryKeys.AUTHORED_COMMENTS, id?.id],
+    queryFn: async (): Promise<HMListCommentsByAuthorOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCommentsByAuthorRequest>(
+        'ListCommentsByAuthor',
+        {authorId: id},
+      )
+    },
+    enabled: !!id && isRootAccount,
+  })
+}
+
+export function useCitations(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CITATIONS, id?.id],
+    queryFn: async (): Promise<HMListCitationsOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCitationsRequest>('ListCitations', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useChanges(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CHANGES, id?.id],
+    queryFn: async (): Promise<HMListChangesOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListChangesRequest>('ListChanges', {
+        targetId: id,
+      })
+    },
+    enabled: !!id,
+  })
+}
+
+export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.CAPABILITIES, id?.id],
+    queryFn: async (): Promise<HMListCapabilitiesOutput> => {
+      if (!id) throw new Error('ID required')
+      return await client.request<HMListCapabilitiesRequest>(
+        'ListCapabilities',
+        {targetId: id},
+      )
+    },
+    enabled: !!id,
+  })
+}
+
+export function useInfiniteFeed(pageSize: number = 10) {
+  const client = useUniversalClient()
+  return useInfiniteQuery({
+    queryKey: [queryKeys.FEED, 'infinite', pageSize],
+    queryFn: async ({pageParam}): Promise<HMListEventsOutput> => {
+      return await client.request<HMListEventsRequest>('ListEvents', {
+        pageSize,
+        pageToken: pageParam as string | undefined,
+      })
+    },
+    getNextPageParam: (lastPage) => lastPage.nextPageToken || undefined,
+    refetchInterval: 30000,
+  })
+}
+
+export function useLatestEvent() {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.FEED, 'latest'],
+    queryFn: async () => {
+      const result = await client.request<HMListEventsRequest>('ListEvents', {
+        pageSize: 1,
+      })
+      return result.events[0] || null
+    },
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+  })
+}
+
+export function useChildrenList(id: UnpackedHypermediaId | null | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, 'Children'],
+    queryFn: async (): Promise<HMDocumentInfo[]> => {
+      if (!id) return []
+      const result = await client.request<HMQueryRequest>('Query', {
+        includes: [
+          {
+            space: id.uid,
+            path: hmIdPathToEntityQueryPath(id.path),
+            mode: 'Children',
+          },
+        ],
+      })
+      return result?.results || []
+    },
+    enabled: !!id,
+  })
+}
+
+export function extractIpfsUrlCid(cidOrIPFSUrl: string): string | null {
+  const regex = /^ipfs:\/\/(.+)$/
+  const match = cidOrIPFSUrl.match(regex)
+  return match?.[1] ?? null
+}
+
+export type HypermediaSearchResult = {
+  destination?: string
+  errorMessage?: string
+}
+
+export async function search(input: string): Promise<HypermediaSearchResult> {
+  const cid = extractIpfsUrlCid(input)
+  if (cid) {
+    return {destination: `/ipfs/${cid}`}
+  }
+  if (input.startsWith('hm://')) {
+    const unpackedId = unpackHmId(input)
+    if (unpackedId) {
+      return {
+        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join('/')}`,
+      }
+    }
+  }
+  if (input.match(/\./)) {
+    // it might be a url
+    const hasProtocol = input.match(/^https?:\/\//)
+    const searchUrl = hasProtocol ? input : `https://${input}`
+    const result = await fetch(searchUrl, {
+      method: 'OPTIONS',
+    })
+    const id = result.headers.get('x-hypermedia-id')
+    const unpackedId = id && unpackHmId(id)
+    const version = result.headers.get('x-hypermedia-version')
+    if (unpackedId) {
+      return {
+        destination: `/hm/${unpackedId.uid}/${unpackedId.path?.join(
+          '/',
+        )}?v=${version}`,
+      }
+    }
+  }
+  return {
+    errorMessage:
+      'Invalid input. Please enter a valid hypermedia URL or IPFS url.',
   }
 }

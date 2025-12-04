@@ -1,5 +1,4 @@
 import {useCommentDraft, useCommentEditor} from '@/models/comments'
-import {useContacts} from '@/models/contacts'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {
@@ -18,9 +17,10 @@ import {useSizeObserver} from '@/utils/use-size-observer'
 import {
   HMCommentDraft,
   HMCommentGroup,
+  HMListDiscussionsOutput,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
+import {useContacts} from '@shm/shared/models/entity'
 import {useStream} from '@shm/shared/use-stream'
 import {StateStream} from '@shm/shared/utils/stream'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -33,7 +33,7 @@ import {HyperMediaEditorView} from './editor'
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
-): ListDiscussionsResponse['authors'] {
+): HMListDiscussionsOutput['authors'] {
   const commentGroupAuthors = new Set<string>()
   commentGroups.forEach((commentGroup) => {
     commentGroup.comments.forEach((comment) => {

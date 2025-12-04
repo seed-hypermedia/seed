@@ -14,7 +14,7 @@ import {
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
-import {HMEntityContent, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {Button} from '@shm/ui/button'
 import {
@@ -477,7 +477,7 @@ function ImportURLForm({
 const ImportDocumentsWithFeedback = (
   id: UnpackedHypermediaId,
   createDraft: any,
-  signingAccount: HMEntityContent | null | undefined,
+  signingAccount: HMResourceFetchResult | null | undefined,
   documents: ImportedDocument[],
   docMap: Map<string, {name: string; path: string}>,
   editor: BlockNoteEditor,

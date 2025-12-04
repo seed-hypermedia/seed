@@ -1,8 +1,8 @@
 import {
   getMetadataName,
   HMDocument,
-  HMEntityContent,
   HMMetadata,
+  HMResourceFetchResult,
   SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
@@ -68,7 +68,7 @@ export function SiteHeader({
   isCenterLayout?: boolean
   document?: HMDocument | undefined
   draftMetadata?: HMMetadata
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
@@ -335,7 +335,7 @@ function MobileMenuOutline({
   onActivateBlock: (blockId: string) => void
   document: HMDocument
   docId: UnpackedHypermediaId
-  supportDocuments: HMEntityContent[] | undefined
+  supportDocuments: HMResourceFetchResult[] | undefined
 }) {
   const outline = useNodesOutline(document, docId, supportDocuments)
 

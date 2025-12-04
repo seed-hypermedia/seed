@@ -13,7 +13,11 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {useAccount, useAccounts} from '@shm/shared/models/entity'
+import {
+  useAccount,
+  useAccounts,
+  useAccountsMetadata,
+} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {
@@ -24,7 +28,7 @@ import {
 } from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
-import {useAccountsMetadata, useSubscribedResources} from './entities'
+import {useSubscribedResources} from './entities'
 import {useConnectedPeers} from './networking'
 
 function queryContactListOfSubject(accountUid: string | undefined) {
@@ -330,7 +334,7 @@ export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
   const accountsMetadata = useAccountsMetadata(ids)
   const contacts = useSelectedAccountContacts()
   return Object.fromEntries(
-    Object.entries(accountsMetadata).map(([uid, account]) => {
+    Object.entries(accountsMetadata.data).map(([uid, account]) => {
       return [
         uid,
         {

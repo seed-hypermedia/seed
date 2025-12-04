@@ -1,7 +1,7 @@
+import {search} from '@shm/shared'
 import {Loader} from 'lucide-react'
 import {FormEvent, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {search} from '../models'
 
 export default function Home() {
   const [url, setUrl] = useState('')
