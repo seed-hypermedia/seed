@@ -553,3 +553,33 @@ ul[data-list-type='Unordered']
 .bn-focused-heading-block {
   background-color: red !important;
 }
+
+.selection-in-section {
+  position: relative;
+}
+
+.selection-in-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% + 16px);
+  height: calc(100% + 8px);
+  background-color: var(--color-background);
+  border-radius: 6px;
+  margin: 0 0 0 -8px;
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.dark .selection-in-section::before {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

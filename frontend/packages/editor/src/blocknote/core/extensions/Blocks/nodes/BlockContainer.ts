@@ -3,7 +3,6 @@ import {Fragment, Slice} from 'prosemirror-model'
 import {EditorState, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {Decoration, DecorationSet} from 'prosemirror-view'
 
-import {EditorView} from '@tiptap/pm/view'
 import {splitBlockCommand} from '../../../api/blockManipulation/commands/splitBlock'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
@@ -108,93 +107,66 @@ const PastePlugin = new Plugin({
 
 const headingBoxPlugin = new Plugin({
   key: headingBoxPluginKey,
-  view(editorView) {
-    return new HeadingBoxPlugin(editorView)
+  state: {
+    init(_, state) {
+      return getHeadingDecorations(state)
+    },
+    apply(tr, decorations, oldState, newState) {
+      // Only recalculate if selection or document changed
+      if (
+        !oldState.selection.eq(newState.selection) ||
+        !oldState.doc.eq(newState.doc)
+      ) {
+        return getHeadingDecorations(newState)
+      }
+      return decorations
+    },
+  },
+  props: {
+    decorations(state) {
+      return this.getState(state)
+    },
   },
 })
 
-class HeadingBoxPlugin {
-  private box: HTMLElement
-  constructor(view: EditorView) {
-    this.box = document.createElement('div')
-    this.box.style.transition = 'all 0.15s ease-in-out'
-    this.box.style.pointerEvents = 'none'
-    this.box.style.display = ''
-    this.box.style.opacity = '0'
-    // view.dom.parentNode?.appendChild(this.box)
+function getHeadingDecorations(state: EditorState): DecorationSet {
+  const decorations: Decoration[] = []
+  const res = getNearestHeadingFromPos(state, state.selection.from)
 
-    this.update(view, null)
-  }
+  if (res && res.heading?.type.name === 'heading') {
+    const from = res.groupStartPos
+    const to = from + res.group.nodeSize
 
-  update(view: EditorView, lastState: EditorState | null) {
-    let state = view.state
-    // Don't do anything if the document/selection didn't change
-    if (
-      lastState &&
-      lastState.doc.eq(state.doc) &&
-      lastState.selection.eq(state.selection)
+    decorations.push(
+      Decoration.node(from - 1, to - 1, {
+        class: 'selection-in-section',
+      }),
     )
-      return
-
-    let res = getNearestHeadingFromPos(state, state.selection.from)
-
-    if (res && res.heading?.type.name == 'heading') {
-      let {node} = view.domAtPos(res.groupStartPos)
-      let rect = (node as HTMLElement).getBoundingClientRect()
-      let editorRect = view.dom.getBoundingClientRect()
-      let groupPadding = 10
-      let editorPaddingTop = 32
-      this.box.style.position = 'absolute'
-      this.box.classList.add('rounded-md')
-      // this.box.style.padding = '16px'
-      this.box.style.top = `${rect.top + editorPaddingTop - editorRect.top}px`
-      console.log('rect.left', rect, node)
-      this.box.style.left = `${rect.left - groupPadding}px`
-      this.box.style.width = `${rect.width}px`
-      this.box.style.height = `${rect.height}px`
-      this.box.style.backgroundColor = 'var(--color-primary)'
-      this.box.style.opacity = '0.05'
-    } else {
-      this.box.style.opacity = '0'
-      return
-    }
   }
 
-  destroy() {
-    this.box.remove()
-  }
+  return DecorationSet.create(state.doc, decorations)
 }
 
 function getNearestHeadingFromPos(state: EditorState, pos: number) {
   const $pos = state.doc.resolve(pos)
   const maxDepth = $pos.depth
-  let group = $pos.node(maxDepth)
-  let heading = group.firstChild
-  let depth = maxDepth
 
-  if (maxDepth > 3) {
-    while (true) {
-      if (depth < 0) {
-        break
+  // Walk up the tree from current position
+  for (let depth = maxDepth; depth >= 0; depth--) {
+    const node = $pos.node(depth)
+
+    // Check if current node is a blockContainer with heading as first child
+    if (
+      node.type.name === 'blockContainer' &&
+      node.firstChild?.type.name === 'heading'
+    ) {
+      return {
+        depth,
+        groupStartPos: $pos.start(depth),
+        heading: node.firstChild,
+        group: node,
+        $pos,
       }
-
-      if (
-        group.type.name == 'blockContainer' &&
-        heading?.type.name == 'heading'
-      ) {
-        break
-      }
-
-      depth -= 1
-      group = $pos.node(depth)
-      heading = group.firstChild
-    }
-    return {
-      depth,
-      groupStartPos: $pos.start(depth),
-      heading,
-      group,
-      $pos,
     }
   }
 

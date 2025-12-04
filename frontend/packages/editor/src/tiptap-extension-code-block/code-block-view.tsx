@@ -1,9 +1,9 @@
-import { Button } from '@shm/ui/button'
-import { NodeViewProps } from '@tiptap/core'
-import { NodeViewContent } from '@tiptap/react'
-import { Check, ChevronDown } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import {Button} from '@shm/ui/button'
+import {NodeViewProps} from '@tiptap/core'
+import {NodeViewContent} from '@tiptap/react'
+import {Check, ChevronDown} from 'lucide-react'
+import {useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 
 export const CodeBlockView = ({
   props,
@@ -78,7 +78,7 @@ export const CodeBlockView = ({
     setOpen(isOpening)
   }
 
-  // Update position when button moves on horizontal scroll 
+  // Update position when button moves on horizontal scroll
   useEffect(() => {
     if (!open || !buttonRef.current) return
 
