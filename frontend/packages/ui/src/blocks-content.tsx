@@ -279,6 +279,11 @@ export function useLayoutUnit() {
   return contentLayoutUnit
 }
 
+export function useContentResourceId(): UnpackedHypermediaId | null {
+  const ctx = useContext(blocksContentContext)
+  return ctx?.resourceId || null
+}
+
 function debugStyles(debug: boolean = false, color = 'red') {
   return debug
     ? {
@@ -1628,12 +1633,13 @@ export function BlockEmbedContent({
   parentBlockId,
 }: BlockContentProps<HMBlockEmbed>) {
   const client = useUniversalClient()
-  const {resourceId} = useBlocksContentContext()
+  const resourceId = useContentResourceId()
   const [showReferenced, setShowReferenced] = useState(false)
   const id = unpackHmId(block.link)
 
   const isSelfEmbed =
     id &&
+    resourceId &&
     resourceId.uid === id.uid &&
     resourceId.path?.join('/') === id.path?.join('/') &&
     id.latest
