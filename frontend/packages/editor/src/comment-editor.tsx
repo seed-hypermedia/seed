@@ -12,7 +12,6 @@ import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/blocks-content'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -662,10 +661,10 @@ export function CommentEditor({
             />
           )}
         </div>
-        <div className="bg-muted ring-px ring-border w-full flex-1 rounded-md ring">
+        <div className="bg-muted ring-px ring-border w-full min-w-0 flex-1 rounded-md ring">
           <div
             className={cn(
-              'comment-editor max-h-[160px] min-h-8 flex-1 overflow-y-auto md:max-h-full',
+              'comment-editor max-h-[160px] min-h-8 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
               isEditorFocused
                 ? 'justify-start px-3 pt-1 pb-2'
                 : 'justify-center',

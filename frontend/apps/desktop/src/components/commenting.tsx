@@ -159,7 +159,7 @@ function _CommentBox(props: {
         )}
       </div>
 
-      <div className="bg-muted w-full flex-1 rounded-md">{content}</div>
+      <div className="bg-muted w-full min-w-0 flex-1 rounded-md">{content}</div>
     </div>
   )
 }
@@ -302,7 +302,7 @@ function _CommentDraftEditor({
   return (
     <div
       ref={sizeObserverdRef}
-      className="comment-editor ring-px ring-border mt-1 flex flex-1 flex-col gap-2 px-4 ring"
+      className="comment-editor ring-px ring-border mt-1 flex min-w-0 flex-1 flex-col gap-2 overflow-x-hidden px-4 ring"
       onDragStart={() => {
         setIsDragging(true)
       }}
@@ -325,7 +325,7 @@ function _CommentDraftEditor({
         editor._tiptapEditor.commands.focus()
       }}
     >
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
       </div>
       <div

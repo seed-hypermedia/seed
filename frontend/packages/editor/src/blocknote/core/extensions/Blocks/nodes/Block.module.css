@@ -19,6 +19,9 @@ BASIC STYLES
 .reactNodeViewRenderer {
   display: flex;
   flex-grow: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .blockContent {
@@ -309,23 +312,34 @@ NESTED BLOCKS
   margin-top: 4px;
 } */
 
-/* CODE BLOCK */
+/* CODE BLOCK ROOT */
 .blockContent[data-content-type='code-block'] {
   background-color: var(--muted);
   border-radius: 6px;
   padding: 10px 16px;
-  overflow: auto;
-  /* margin-left: -16px;
-  margin-right: -16px; */
-  position: 'relative';
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
 }
 
+/* PRE */
+.blockContent[data-content-type='code-block'] pre {
+  margin: 0;
+  display: block;
+}
+
+/* CODE */
 .blockContent[data-content-type='code-block'] code {
   font-family: 'ui-monospace', 'SFMono-Regular', 'SF Mono', Menlo, Consolas,
     'Liberation Mono', monospace;
   font-size: 0.85em;
   white-space: pre;
-  padding: 0;
+  padding: 0 12px 0 0;
+  display: block;
+  box-sizing: border-box;
 }
 
 /* LISTS */
