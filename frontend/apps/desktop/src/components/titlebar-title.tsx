@@ -791,9 +791,9 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
   }, [draft.data, route.locationUid, route.locationPath])
 
   useWindowTitleSetter(async () => {
-    if (draft.data?.metadata.name) return `Draft: ${draft.data.metadata.name}`
+    if (draft.data?.metadata?.name) return `Draft: ${draft.data.metadata.name}`
     return 'Draft'
-  }, [draft.data?.metadata.name])
+  }, [draft.data?.metadata?.name])
 
   const editId = useMemo(() => {
     const eid = draftEditId(draft.data)
@@ -811,7 +811,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
       <BreadcrumbTitle
         entityId={locationId}
         hideControls
-        draftName={draft.data?.metadata.name || 'New Draft'}
+        draftName={draft.data?.metadata?.name || 'New Draft'}
         draft
       />
     )
@@ -821,8 +821,8 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
       <BreadcrumbTitle
         entityId={editId}
         hideControls
-        draftName={draft.data?.metadata.name}
-        replaceLastItem={!!draft.data?.metadata.name}
+        draftName={draft.data?.metadata?.name}
+        replaceLastItem={!!draft.data?.metadata?.name}
         draft
       />
     )
@@ -841,7 +841,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
       <BreadcrumbSeparator key={`draft-seperator`} />
 
       <TitleText className="self-center font-bold hover:underline">
-        {draft.data?.metadata.name || 'New Draft'}
+        {draft.data?.metadata?.name || 'New Draft'}
       </TitleText>
       <DraftBadge />
     </div>
