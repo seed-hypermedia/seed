@@ -1,7 +1,22 @@
 # Frontend Developers
 
-## When Editing Typescript code:
+## Build, Test, and Development Commands
 
-Always run the type check with `yarn typecheck`
+- `./dev run-desktop` boots the desktop client against the default local stack; add `SEED_P2P_TESTNET_NAME=""` to point at mainnet peers.
+- `./dev run-site` serves the read-only web portal; `./dev build-desktop` and `./dev build-site` produce distributable bundles.
+- `yarn test` runs Vitest suites across workspaces; use `yarn desktop:test` or `yarn web:test` to focus on desktop or web packages.
 
-Before you are done, make sure formatting is correct with `yarn format:write`
+## Coding Style & Naming Conventions
+
+- TypeScript uses 2-space indentation, ESNext modules, and strict imports.
+- React components and hooks use `PascalCase` and `camelCase`; files that export a component prefer `PascalCase.tsx` to align with existing apps.
+
+## When Editing TypeScript code
+
+- Always run the type check with `yarn typecheck`.
+- Before you are done, make sure formatting is correct with `yarn format:write`.
+
+## Testing Guidelines
+
+- Unit and integration coverage is expected for new behavior; augment Vitest specs or add Playwright flows via `yarn desktop:test`.
+- Snapshot or fixture updates should include a short note in the PR describing the scenario they capture.
