@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"seed/backend/util/cleanup"
@@ -203,7 +204,17 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	// scales the limits proportional to your system memory.
 	limits := rcmgr.InfiniteLimits
 	unlimitedLimiter := rate.Limiter{GlobalLimit: rate.Limit{RPS: float64(math.MaxInt64), Burst: math.MaxInt64}}
-	opts := rcmgr.WithConnRateLimiters(&unlimitedLimiter)
+	opts := []rcmgr.Option{
+		rcmgr.WithConnRateLimiters(&unlimitedLimiter),
+		rcmgr.WithLimitPerSubnet(
+			[]rcmgr.ConnLimitPerSubnet{{PrefixLength: 32, ConnCount: 64}}, // IPv4 /32
+			[]rcmgr.ConnLimitPerSubnet{{PrefixLength: 56, ConnCount: 64}},
+		),
+		rcmgr.WithNetworkPrefixLimit(
+			nil,
+			[]rcmgr.NetworkPrefixLimit{{Network: netip.MustParsePrefix("::1/128"), ConnCount: math.MaxInt}},
+		),
+	}
 	if !unlimited {
 		scaledDefaultLimits := scalingLimits.AutoScale()
 		const (
@@ -287,11 +298,9 @@ func buildResourceManager(ourProtocolLimits map[protocol.ID]rcmgr.LimitVal, thei
 	var err error
 
 	if unlimited {
-		rm, err = rcmgr.NewResourceManager(limiter, opts)
-
+		rm, err = rcmgr.NewResourceManager(limiter, opts...)
 	} else {
 		rm, err = rcmgr.NewResourceManager(limiter)
-
 	}
 	if err != nil {
 		return nil, err
