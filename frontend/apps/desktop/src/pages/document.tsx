@@ -454,7 +454,7 @@ function _MainDocumentPage({
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        {/* <div className="dark:bg-background absolute top-2 right-2 z-40 flex items-center rounded-md bg-white shadow-md">
+        {/* <div className="flex absolute top-2 right-2 z-40 items-center bg-white rounded-md shadow-md dark:bg-background">
           <DocInteractionSummary
             isHome={isHomeDoc}
             isAccessoryOpen={!!route.accessory}
@@ -825,13 +825,14 @@ function DocPageContent({
                 (
                   blockId: string,
                   blockRangeInput?: BlockRangeSelectOptions,
-                ) => {
+                ): boolean => {
                   const shouldCopy = blockRangeInput?.copyToClipboard !== false
                   if (blockId && reference && shouldCopy) {
                     reference.onCopy(
                       blockId,
                       blockRangeInput || {expanded: true},
                     )
+                    return true
                   }
                   if (
                     route.key === 'document' &&
@@ -861,7 +862,9 @@ function DocPageContent({
                             : null,
                       },
                     })
+                    return true
                   }
+                  return false
                 },
                 [route, replace, reference],
               )

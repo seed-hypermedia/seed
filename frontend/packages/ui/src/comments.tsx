@@ -823,6 +823,7 @@ export function CommentContent({
   zoomBlockRef,
   selection,
   allowHighlight = true,
+  openOnClick = true,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
@@ -833,6 +834,7 @@ export function CommentContent({
     blockRange?: BlockRange
   }
   allowHighlight?: boolean
+  openOnClick?: boolean
 }) {
   const openRoute = useOpenRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
@@ -843,7 +845,10 @@ export function CommentContent({
   const getUrl = useResourceUrl(targetHomeDoc?.metadata?.siteUrl)
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
-  const onBlockSelect = (blockId: string, opts?: BlockRangeSelectOptions) => {
+  const onBlockSelect = (
+    blockId: string,
+    opts?: BlockRangeSelectOptions,
+  ): boolean => {
     let blockRange: BlockRange | null = null
     if (opts) {
       const {copyToClipboard, ...br} = opts
@@ -856,11 +861,13 @@ export function CommentContent({
         blockRange,
       })
       copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
+      return true
     } else {
+      if (!openOnClick) return false
       const targetId = getCommentTargetId(comment)
       if (!targetId) {
         toast.error('Failed to get target comment target ID')
-        return
+        return false
       }
       openRoute({
         key: 'document',
@@ -872,6 +879,7 @@ export function CommentContent({
           blockRange,
         },
       })
+      return true
     }
   }
   const focusedId = {
@@ -890,6 +898,7 @@ export function CommentContent({
       textUnit={textUnit}
       layoutUnit={layoutUnit}
       onBlockSelect={onBlockSelect}
+      openOnClick={openOnClick}
     >
       <BlocksContent
         hideCollapseButtons

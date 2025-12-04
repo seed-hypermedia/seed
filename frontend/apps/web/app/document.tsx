@@ -749,7 +749,7 @@ function InnerDocumentPage(
                                   ? onBlockCommentClick
                                   : commentsDisabledToast
                               }
-                              onBlockSelect={(blockId, blockRange) => {
+                              onBlockSelect={(blockId, blockRange): boolean => {
                                 const shouldCopy =
                                   blockRange?.copyToClipboard !== false
                                 const route = {
@@ -776,7 +776,7 @@ function InnerDocumentPage(
                                 })
                                 if (!href) {
                                   toast.error('Failed to create block link')
-                                  return
+                                  return false
                                 }
                                 if (shouldCopy) {
                                   window.navigator.clipboard.writeText(
@@ -802,7 +802,9 @@ function InnerDocumentPage(
                                     replace: true,
                                     preventScrollReset: true,
                                   })
+                                  return true
                                 }
+                                return false
                               }}
                               blockCitations={interactionSummary.data?.blocks}
                             >

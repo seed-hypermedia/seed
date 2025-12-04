@@ -200,7 +200,7 @@ const display = ({
     >
       {block.props.url && (
         <ErrorBoundary FallbackComponent={EmbedError}>
-          <EmbedContent
+          <EditorEmbedContent
             parentBlockId={block.props.parentBlockId || null}
             block={{
               id: block.id,
@@ -220,7 +220,7 @@ const display = ({
   )
 }
 
-function EmbedContent({
+function EditorEmbedContent({
   block,
   parentBlockId,
 }: {
@@ -228,11 +228,29 @@ function EmbedContent({
   parentBlockId: string | null
 }) {
   if (block.attributes.view === 'Card')
-    return <BlockEmbedCard block={block} parentBlockId={parentBlockId} />
+    return (
+      <BlockEmbedCard
+        block={block}
+        parentBlockId={parentBlockId}
+        openOnClick={false}
+      />
+    )
   if (block.attributes.view === 'Comments')
-    return <BlockEmbedComments block={block} parentBlockId={parentBlockId} />
+    return (
+      <BlockEmbedComments
+        block={block}
+        parentBlockId={parentBlockId}
+        openOnClick={false}
+      />
+    )
   // if (block.attributes.view === 'Content') // content is the default
-  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} />
+  return (
+    <BlockEmbedContent
+      block={block}
+      parentBlockId={parentBlockId}
+      openOnClick={false}
+    />
+  )
 }
 
 const EmbedLauncherInput = ({

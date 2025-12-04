@@ -14,6 +14,7 @@ export function EmbedWrapper({
   hideBorder = false,
   isRange = false,
   route,
+  openOnClick = true,
   ...props
 }: PropsWithChildren<
   {
@@ -24,12 +25,13 @@ export function EmbedWrapper({
     hideBorder?: boolean
     isRange?: boolean
     route?: NavRoute
+    openOnClick?: boolean
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
   const openRoute = useOpenRoute()
   const highlight = useHighlighter()
   if (!id) return null
-
+  console.log('== embedWrapper', route)
   return (
     <div
       contentEditable={false}
@@ -53,7 +55,7 @@ export function EmbedWrapper({
       }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={
-        route
+        openOnClick && route
           ? (e) => {
               e.stopPropagation()
               const selection = window.getSelection()

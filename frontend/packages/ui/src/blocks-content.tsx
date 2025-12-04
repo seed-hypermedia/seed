@@ -126,7 +126,7 @@ export type BlocksContentContextProps = {
   contacts?: PlainMessage<Contact>[] | null
   commentStyle?: boolean
   onBlockSelect?:
-    | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
+    | ((blockId: string, opts?: BlockRangeSelectOptions) => boolean)
     | null
     | undefined
   onBlockCitationClick?: ((blockId?: string | null) => void) | undefined
@@ -139,6 +139,7 @@ export type BlocksContentContextProps = {
       ) => void)
     | undefined
   blockCitations?: Record<string, {citations: number; comments: number}> | null
+  openOnClick?: boolean
 }
 
 export type BlocksContentContextValue = BlocksContentContextProps & {
@@ -997,6 +998,8 @@ function BlockContent(props: BlockContentProps) {
     depth: props.depth || 1,
     'data-blockid': props.block.id,
   }
+  const {openOnClick} = useBlocksContentContext()
+
   if (props.block.type == 'Paragraph') {
     return (
       <BlockContentParagraph {...props} {...dataProps} block={props.block} />
@@ -1036,12 +1039,33 @@ function BlockContent(props: BlockContentProps) {
   if (props.block.type == 'Embed') {
     const embedBlock = props.block
     if (props.block.attributes.view === 'Card')
-      return <BlockEmbedCard {...props} {...dataProps} block={embedBlock} />
+      return (
+        <BlockEmbedCard
+          {...props}
+          {...dataProps}
+          block={embedBlock}
+          openOnClick={openOnClick}
+        />
+      )
     if (props.block.attributes.view === 'Comments') {
-      return <BlockEmbedComments {...props} {...dataProps} block={embedBlock} />
+      return (
+        <BlockEmbedComments
+          {...props}
+          {...dataProps}
+          block={embedBlock}
+          openOnClick={openOnClick}
+        />
+      )
     }
     // if (props.block.attributes.view === 'Content') // content is the default
-    return <BlockEmbedContent {...props} {...dataProps} block={embedBlock} />
+    return (
+      <BlockEmbedContent
+        {...props}
+        {...dataProps}
+        block={embedBlock}
+        openOnClick={openOnClick}
+      />
+    )
   }
 
   if (props.block.type == 'Code') {
@@ -1572,7 +1596,8 @@ function InlineContentView({
 export function BlockEmbedCard({
   block,
   parentBlockId,
-}: BlockContentProps<HMBlockEmbed>) {
+  openOnClick = true,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const client = useUniversalClient()
   const id = unpackHmId(block.link) ?? undefined
   const doc = client.useResource(id)
@@ -1580,7 +1605,6 @@ export function BlockEmbedCard({
   const authors = client.useResources(
     document?.authors.map((uid: string) => hmId(uid)) || [],
   )
-
   if (doc.isInitialLoading)
     return (
       <div className="flex items-center justify-center">
@@ -1614,6 +1638,7 @@ export function BlockEmbedCard({
       parentBlockId={parentBlockId}
       hideBorder
       route={{key: 'document', id}}
+      openOnClick={openOnClick}
     >
       <DocumentCard
         entity={{
@@ -1631,7 +1656,8 @@ export function BlockEmbedContent({
   block,
   depth,
   parentBlockId,
-}: BlockContentProps<HMBlockEmbed>) {
+  openOnClick = true,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const client = useUniversalClient()
   const resourceId = useContentResourceId()
   const [showReferenced, setShowReferenced] = useState(false)
@@ -1677,6 +1703,7 @@ export function BlockEmbedContent({
             ? author.data
             : undefined
         }
+        openOnClick={openOnClick}
       />
     )
   }
@@ -1695,6 +1722,7 @@ export function BlockEmbedContent({
       document={document}
       parentBlockId={parentBlockId}
       renderOpenButton={() => null}
+      openOnClick={openOnClick}
     />
   )
 }
@@ -1702,7 +1730,8 @@ export function BlockEmbedContent({
 export function BlockEmbedComments({
   parentBlockId,
   block,
-}: BlockContentProps<HMBlockEmbed>) {
+  openOnClick = true,
+}: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const client = useUniversalClient()
   const id = unpackHmId(block.link)
 
@@ -1713,7 +1742,12 @@ export function BlockEmbedComments({
   const CommentEditor = client.CommentEditor
 
   return (
-    <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder>
+    <EmbedWrapper
+      id={id}
+      parentBlockId={parentBlockId}
+      hideBorder
+      openOnClick={openOnClick}
+    >
       <Discussions
         commentEditor={
           <div
@@ -1775,6 +1809,7 @@ export function BlockEmbedContentComment({
   author,
   block,
   targetResource,
+  openOnClick = true,
 }: {
   id: UnpackedHypermediaId
   parentBlockId: string | null
@@ -1784,6 +1819,7 @@ export function BlockEmbedContentComment({
   comment: HMComment
   author: HMResolvedResource | null | undefined
   targetResource: HMResource | undefined
+  openOnClick?: boolean
 }) {
   return (
     <EmbedWrapper
@@ -1791,6 +1827,7 @@ export function BlockEmbedContentComment({
       depth={depth || 0}
       id={id}
       parentBlockId={parentBlockId || ''}
+      openOnClick={openOnClick}
       route={{
         key: 'document',
         id: getCommentTargetId(comment)!,
@@ -1811,6 +1848,7 @@ export function BlockEmbedContentComment({
         comment={comment}
         zoomBlockRef={id.blockRef}
         allowHighlight={false}
+        openOnClick={openOnClick}
       />
     </EmbedWrapper>
   )
@@ -1871,6 +1909,7 @@ function BlockEmbedContentDocument(props: {
   renderOpenButton: () => React.ReactNode
   parentBlockId: string | null
   viewType?: HMEmbedView
+  openOnClick?: boolean
 }) {
   const {
     id,
@@ -1882,6 +1921,7 @@ function BlockEmbedContentDocument(props: {
     renderOpenButton,
     parentBlockId,
     viewType,
+    openOnClick,
   } = props
   const openRoute = useOpenRoute()
 
@@ -1941,10 +1981,11 @@ function BlockEmbedContentDocument(props: {
   }, [props.blockRef, props.blockRange, document])
 
   const embedOnBlockSelect = useCallback(
-    (blockId: string, opts?: BlockRangeSelectOptions) => {
+    (blockId: string, opts?: BlockRangeSelectOptions): boolean => {
+      if (!openOnClick) return false
       if (opts?.copyToClipboard) {
         toast.error('Error: not implemented')
-        return
+        return false
       }
       openRoute({
         key: 'document',
@@ -1953,6 +1994,7 @@ function BlockEmbedContentDocument(props: {
           blockRef: blockId || null,
         },
       })
+      return true
     },
     [openRoute, id],
   )
@@ -2051,6 +2093,7 @@ function BlockEmbedContentDocument(props: {
   }
   return (
     <EmbedWrapper
+      route={{key: 'document', id}}
       viewType={viewType}
       depth={props.depth || 1}
       id={id}
@@ -2059,6 +2102,7 @@ function BlockEmbedContentDocument(props: {
         !!props.blockRange &&
         ('start' in props.blockRange || 'end' in props.blockRange)
       }
+      openOnClick={openOnClick}
     >
       {content}
     </EmbedWrapper>
