@@ -359,7 +359,7 @@ export function BlocksContent({
 
   return (
     <div
-      className="relative my-6"
+      className="relative my-2"
       ref={wrapper}
       style={{
         paddingLeft: layoutUnit / 3,
