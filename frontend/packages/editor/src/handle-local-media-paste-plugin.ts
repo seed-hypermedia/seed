@@ -1,6 +1,6 @@
-import { DAEMON_FILE_UPLOAD_URL } from '@shm/shared/constants'
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from 'prosemirror-state'
+import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {Extension} from '@tiptap/core'
+import {Plugin, PluginKey} from 'prosemirror-state'
 
 export const LocalMediaPastePlugin = Extension.create({
   name: 'local-media-paste',
