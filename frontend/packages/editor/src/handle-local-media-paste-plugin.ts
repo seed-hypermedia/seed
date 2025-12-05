@@ -1,6 +1,6 @@
-import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
-import {Extension} from '@tiptap/core'
-import {Plugin, PluginKey} from 'prosemirror-state'
+import { DAEMON_FILE_UPLOAD_URL } from '@shm/shared/constants'
+import { Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from 'prosemirror-state'
 
 export const LocalMediaPastePlugin = Extension.create({
   name: 'local-media-paste',
@@ -54,6 +54,11 @@ const handleLocalMediaPastePlugin = new Plugin({
 
               if (images.length > 0) {
                 for (const imgEl of Array.from(images)) {
+                  // Skip images that are inside an image block container
+                  // They are handled by parseHTML rule
+                  if (imgEl.closest('[data-content-type="image"]')) {
+                    continue
+                  }
                   const src = imgEl.getAttribute('src')
                   if (src) {
                     // Fetch the image from the URL
