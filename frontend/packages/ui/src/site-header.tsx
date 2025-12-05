@@ -383,7 +383,7 @@ function OverflowMenuItem({
     item.draftId
       ? {key: 'draft', id: item.draftId}
       : item.id
-      ? {key: 'document', id: item.id}
+      ? {key: 'document', id: {...item.id, latest: true, version: null}}
       : item.webUrl || '',
   )
   return (
@@ -415,7 +415,7 @@ function HeaderLinkItem({
       : id
       ? {
           key: 'document',
-          id,
+          id: {...id, latest: true, version: null},
         }
       : webUrl || null,
   )
@@ -489,7 +489,7 @@ export function SiteHeaderMenu({
 
   const feedLinkProps = useRouteLink({
     key: 'feed',
-    id: siteHomeId,
+    id: {...siteHomeId, latest: true, version: null},
   })
 
   // Track container width for responsive Feed button

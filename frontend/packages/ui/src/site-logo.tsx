@@ -18,6 +18,7 @@ export function SiteLogo({
     id: {
       ...id,
       latest: true,
+      version: null,
     },
   })
   if (metadata?.seedExperimentalLogo) {
