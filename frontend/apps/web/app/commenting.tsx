@@ -37,6 +37,7 @@ import type {
   CommentPayload,
   CommentResponsePayload,
 } from './routes/hm.api.comment'
+import {ClientOnly} from 'remix-utils/client-only'
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
@@ -254,42 +255,46 @@ export default function WebCommenting({
 
   return (
     <div className="w-full">
-      <CommentEditor
-        autoFocus={autoFocus}
-        handleSubmit={handleSubmit}
-        initialBlocks={draft || undefined}
-        onContentChange={saveDraft}
-        onAvatarPress={onAvatarPress}
-        onDiscardDraft={handleDiscardDraft}
-        importWebFile={importWebFile}
-        handleFileAttachment={handleFileAttachment}
-        submitButton={({getContent, reset}) => {
-          return (
-            <Tooltip
-              content={tx(
-                'publish_comment_as',
-                ({name}: {name: string | undefined}) =>
-                  name ? `Publish Comment as ${name}` : 'Publish Comment',
-                {name: myAccount.data?.metadata?.name},
-              )}
-            >
-              <button
-                disabled={isSubmitting}
-                className={cn(
-                  buttonVariants({size: 'icon', variant: 'ghost'}),
-                  'plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
-                  isSubmitting && 'cursor-not-allowed opacity-50',
-                )}
-                onClick={() => handleSubmit(getContent, reset)}
-              >
-                <SendHorizontal className="size-4" />
-              </button>
-            </Tooltip>
-          )
-        }}
-        account={myAccount.data}
-        perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
-      />
+      <ClientOnly fallback={<div className="w-full">Loading editor...</div>}>
+        {() => (
+          <CommentEditor
+            autoFocus={autoFocus}
+            handleSubmit={handleSubmit}
+            initialBlocks={draft || undefined}
+            onContentChange={saveDraft}
+            onAvatarPress={onAvatarPress}
+            onDiscardDraft={handleDiscardDraft}
+            importWebFile={importWebFile}
+            handleFileAttachment={handleFileAttachment}
+            submitButton={({getContent, reset}) => {
+              return (
+                <Tooltip
+                  content={tx(
+                    'publish_comment_as',
+                    ({name}: {name: string | undefined}) =>
+                      name ? `Publish Comment as ${name}` : 'Publish Comment',
+                    {name: myAccount.data?.metadata?.name},
+                  )}
+                >
+                  <button
+                    disabled={isSubmitting}
+                    className={cn(
+                      buttonVariants({size: 'icon', variant: 'ghost'}),
+                      'plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
+                      isSubmitting && 'cursor-not-allowed opacity-50',
+                    )}
+                    onClick={() => handleSubmit(getContent, reset)}
+                  >
+                    <SendHorizontal className="size-4" />
+                  </button>
+                </Tooltip>
+              )
+            }}
+            account={myAccount.data}
+            perspectiveAccountUid={myAccount.data?.id.uid} // TODO: figure out if this is the correct value
+          />
+        )}
+      </ClientOnly>
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>
