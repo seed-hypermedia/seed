@@ -12551,8 +12551,8 @@ __metadata:
     mjml: ^4.15.3
     multiformats: ^13.3.2
     nodemailer: ^6.10.0
-    react: 18.2.0 || 19.0.0
-    react-dom: 18.2.0 || 19.0.0
+    react: 18.2.0 || 19.0.1
+    react-dom: 18.2.0 || 19.0.1
     sharp: ^0.33.5
     superjson: 2.2.1
     tailwindcss: ^4.1.8
@@ -12777,8 +12777,8 @@ __metadata:
     multiformats: ^13.3.2
     nodemailer: ^6.10.0
     prosemirror-state: 1.4.4
-    react: 18.2.0 || 19.0.0
-    react-dom: 18.2.0 || 19.0.0
+    react: 18.2.0 || 19.0.1
+    react-dom: 18.2.0 || 19.0.1
     react-error-boundary: ^6.0.0
     react-icons: 4.9.0
     react-native-svg: ">=12"
