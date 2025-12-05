@@ -646,6 +646,17 @@ export function CommentEditor({
     return false
   }
 
+  if (!editor) {
+    console.error('CommentEditor: editor is null/undefined')
+    return (
+      <div className="border-destructive bg-destructive/10 rounded border p-4">
+        <p className="text-destructive text-sm">
+          Error: Editor failed to initialize. Check console for details.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="flex w-full items-start gap-2">

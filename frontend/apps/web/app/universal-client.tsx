@@ -7,9 +7,9 @@ import {queryAPI, useAPI} from './models'
 export const webUniversalClient = createWebUniversalClient({
   queryAPI,
   useAPI,
-  CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
-    <WebCommenting docId={docId} />
-  ),
+  CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
+    return <WebCommenting docId={docId} />
+  },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,
 })

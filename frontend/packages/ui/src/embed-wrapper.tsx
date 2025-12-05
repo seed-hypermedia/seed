@@ -31,7 +31,6 @@ export function EmbedWrapper({
   const openRoute = useOpenRoute()
   const highlight = useHighlighter()
   if (!id) return null
-  console.log('== embedWrapper', route)
   return (
     <div
       contentEditable={false}

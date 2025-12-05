@@ -121,7 +121,9 @@ export default function WebCommenting({
 
   const docVersion = docId.version
 
-  if (!docVersion) return null
+  if (!docVersion) {
+    return null
+  }
 
   const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -244,8 +246,6 @@ export default function WebCommenting({
     removeDraft()
     onDiscardDraft?.()
   }, [removeDraft, onDiscardDraft])
-
-  const universalContext = useUniversalAppContext()
 
   // Don't render until draft is loaded
   if (isDraftLoading) {
