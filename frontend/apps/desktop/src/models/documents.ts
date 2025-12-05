@@ -1010,7 +1010,11 @@ export function usePushResource() {
       throw new Error('Failed to connect to any sites.')
     }
 
-    const pushResourceUrl = createHMUrl(resourceIdToPush)
+    const pushResourceUrl = createHMUrl({
+      ...resourceIdToPush,
+      blockRef: null,
+      blockRange: null,
+    })
     // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
 
     await Promise.all(
