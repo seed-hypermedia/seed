@@ -99,7 +99,6 @@ export const documentRouteSchema = z.object({
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptNotifs: z.boolean().optional(),
-  immediatelyPromptTemplate: z.boolean().optional(),
   accessory: documentAccessorySchema.nullable().optional(),
 })
 
@@ -121,6 +120,7 @@ export const draftRouteSchema = z.object({
   editPath: z.array(z.string()).optional(),
   deps: z.array(z.string()).optional(),
   accessory: documentAccessorySchema.nullable().optional(),
+  isWelcomeDraft: z.boolean().optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 

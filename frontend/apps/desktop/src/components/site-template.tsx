@@ -7,7 +7,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {ExternalLink} from 'lucide-react'
-import {MouseEvent, useEffect, useState} from 'react'
+import {MouseEvent, useState} from 'react'
 
 import {templates} from '../app-templates'
 import {dispatchEditPopover} from './onboarding'
@@ -198,16 +198,6 @@ export function useTemplateDialog(route: DocumentRoute) {
   const dialog = useAppDialog(SiteTemplate, {
     className: 'max-w-3xl',
   })
-  const navigate = useNavigate('replace')
-  useEffect(() => {
-    if (route.immediatelyPromptTemplate) {
-      dialog.open(route)
-      navigate({
-        ...route,
-        immediatelyPromptTemplate: false,
-      })
-    }
-  }, [route.immediatelyPromptTemplate])
   return dialog.content
 }
 

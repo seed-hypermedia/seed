@@ -33,6 +33,7 @@ import {Prev as ArrowLeft, Copy, Reload} from '@shm/ui/icons'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
+import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   cleanupOnboardingFormData,
@@ -121,7 +122,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
   )
   const {selectedIdentity, setSelectedIdentity} = useUniversalAppContext()
 
-  const [wentThroughRecovery, setWentThroughRecovery] = useState(false)
+  // Track if user is using existing account path
+  const [isExistingAccountPath, setIsExistingAccountPath] = useState(false)
 
   // Initialize local state based on whether we're in modal mode
   const [localState, setLocalState] = useState(() => {
@@ -153,7 +155,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         'Onboarding already completed or skipped, skipping to main app',
       )
       if (account) {
-        console.log('Dispatching site template event')
         // Ensure the account is selected when onboarding was previously completed
         setSelectedIdentity?.(account.uid)
         navigate({
@@ -221,7 +222,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setOnboardingStep('recovery')
       }
       setCurrentStep('recovery')
-      setWentThroughRecovery(true)
     } else if (currentStep === 'recovery') {
       console.log('Moving from recovery to ready')
       if (modal) {
@@ -238,7 +238,6 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
         setOnboardingStep('ready')
       }
       setCurrentStep('ready')
-      setWentThroughRecovery(false)
     } else if (currentStep === 'ready') {
       console.log('Completing onboarding')
       if (modal) {
@@ -253,11 +252,24 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       if (account) {
         // Ensure the account is selected when completing onboarding
         setSelectedIdentity?.(account.uid)
-        navigate({
-          key: 'document',
-          id: account,
-          immediatelyPromptTemplate: wentThroughRecovery,
-        })
+
+        // Navigate based on account type
+        if (isExistingAccountPath) {
+          // For existing accounts, go to document route
+          navigate({
+            key: 'document',
+            id: account,
+          })
+        } else {
+          // For new accounts, go to draft with welcome content
+          navigate({
+            key: 'draft',
+            id: nanoid(10),
+            editUid: account.uid,
+            editPath: [],
+            isWelcomeDraft: true,
+          })
+        }
       }
       onComplete()
     }
@@ -273,7 +285,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
     navigate,
     onComplete,
     globalState.initialAccountIdCount,
-    wentThroughRecovery,
+    setSelectedIdentity,
   ])
 
   const handleExistingSite = useCallback(() => {
@@ -306,6 +318,8 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       }
       setCurrentStep('welcome')
     } else if (currentStep === 'existing') {
+      // Reset the existing account flag when going back
+      setIsExistingAccountPath(false)
       if (modal) {
         setLocalState((prev) => ({...prev, currentStep: 'profile'}))
       } else {
@@ -381,6 +395,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
             setSelectedIdentity?.(id.uid)
             handleSubscription(id)
             setInitialAccountIdCount(globalState.initialAccountIdCount + 1)
+            setIsExistingAccountPath(true)
           }}
         />
       )}
@@ -1267,9 +1282,6 @@ export function ResetOnboardingButton() {
     toast.success('Onboarding state reset! Refresh to see changes.')
   }
 
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-
   if (IS_PROD_DESKTOP) return null
 
   return (
@@ -1277,14 +1289,6 @@ export function ResetOnboardingButton() {
       <Button size="sm" onClick={() => dispatchEditPopover(true)}>
         show Edit Dialog
       </Button>
-      {route.key === 'document' ? (
-        <Button
-          size="sm"
-          onClick={() => replace({...route, immediatelyPromptTemplate: true})}
-        >
-          show template dialog
-        </Button>
-      ) : null}
       <Button variant="destructive" size="sm" onClick={handleReset}>
         Reset Onboarding
       </Button>

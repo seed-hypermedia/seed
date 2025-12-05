@@ -307,6 +307,33 @@ export default function DraftPage() {
   )
 }
 
+// function WelcomePopover({onClose}: {onClose: () => void}) {
+//   return (
+//     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+//       <div className="bg-background mx-4 max-w-md rounded-lg border p-6 shadow-lg">
+//         <h2 className="mb-4 text-2xl font-bold">
+//           Congratulations on creating your account! 🎉
+//         </h2>
+//         <div className="text-muted-foreground mb-6 space-y-3">
+//           <p className="font-semibold">Quick tips to get started:</p>
+//           <ul className="list-inside list-disc space-y-2">
+//             <li>[Tip 1: How to edit and format your content]</li>
+//             <li>[Tip 2: How to publish your document]</li>
+//             <li>[Tip 3: How to share your profile]</li>
+//             <li>[Tip 4: How to create your first site]</li>
+//           </ul>
+//         </div>
+//         <button
+//           onClick={onClose}
+//           className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2 font-semibold transition-colors"
+//         >
+//           Got it, let's start!
+//         </button>
+//       </div>
+//     </div>
+//   )
+// }
+
 function DocumentEditor({
   editor,
   state,
@@ -326,6 +353,7 @@ function DocumentEditor({
 }) {
   const route = useNavRoute()
   const openUrl = useOpenUrl()
+  const replace = useNavigate('replace')
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = trpc.webImporting.importWebFile.useMutation()
   const [isDragging, setIsDragging] = useState(false)
@@ -386,89 +414,155 @@ function DocumentEditor({
 
   const contacts = useSelectedAccountContacts()
 
+  // // Prepopulate welcome blocks for first draft after onboarding
+  // useEffect(() => {
+  //   if (!route.isWelcomeDraft || !editor) return
+
+  //   const topLevelBlocks = editor.topLevelBlocks
+
+  //   // Check if draft is truly empty (all blocks have no content)
+  //   const isEmpty = topLevelBlocks.every(
+  //     (block) =>
+  //       !block.content ||
+  //       block.content.length === 0 ||
+  //       (block.content.length === 1 &&
+  //         block.content[0].type === 'text' &&
+  //         (!block.content[0].text || block.content[0].text.trim() === '')),
+  //   )
+
+  //   if (!isEmpty) return
+
+  //   const welcomeBlocks = [
+  //     {
+  //       id: generateBlockId(),
+  //       type: 'heading',
+  //       props: {level: 1},
+  //       content: [{type: 'text', text: 'Welcome to Seed! 👋', styles: {}}],
+  //       children: [],
+  //     },
+  //     {
+  //       id: generateBlockId(),
+  //       type: 'paragraph',
+  //       props: {},
+  //       content: [
+  //         {
+  //           type: 'text',
+  //           text: '[Placeholder: Tutorial content will go here - getting started tips, key features, etc.]',
+  //           styles: {},
+  //         },
+  //       ],
+  //       children: [],
+  //     },
+  //   ]
+
+  //   // Replace all top-level blocks with welcome blocks
+  //   // @ts-ignore - replaceBlocks may have type issues
+  //   editor.replaceBlocks(topLevelBlocks, welcomeBlocks)
+  // }, [route.isWelcomeDraft, editor])
+
+  // function handleWelcomePopoverClose() {
+  //   // Remove isWelcomeDraft flag from route
+  //   if (route.key !== 'draft') return
+  //   const {isWelcomeDraft, ...routeWithoutFlag} = route
+  //   replace(routeWithoutFlag as DraftRoute)
+
+  //   // Focus the editor after closing the popover
+  //   if (editor) {
+  //     // Use setTimeout to ensure the popover is removed before focusing
+  //     setTimeout(() => {
+  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
+  //     }, 100)
+  //   }
+  // }
+
   // @ts-expect-error
   if (state.matches('editing'))
     return (
-      <div
-        onDragStart={() => {
-          setIsDragging(true)
-        }}
-        onDragEnd={() => {
-          setIsDragging(false)
-        }}
-        onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
-          event.preventDefault()
-          setIsDragging(true)
-        }}
-        // @ts-expect-error
-        onDrop={onDrop}
-        onClick={handleFocusAtMousePos}
-        className="flex flex-1 flex-col overflow-hidden"
-      >
-        <ScrollArea onScroll={() => dispatchScroll(true)}>
-          <DraftCover
-            draftActor={actor}
-            // @ts-expect-error
-            disabled={!state.matches('editing')}
-            show={showCover}
-            // @ts-expect-error
-            setShow={setShowCover}
-            showOutline={showOutline}
-          />
-          <div ref={elementRef} className="draft-editor w-full flex-1">
-            <div {...wrapperProps}>
-              {showSidebars ? (
-                <div
-                  {...sidebarProps}
-                  className={`${sidebarProps.className || ''} flex flex-col`}
-                  style={{
-                    ...sidebarProps.style,
-                    marginTop: showCover ? 150 : 210,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
-                    <DocNavigationDraftLoader
-                      showCollapsed={showCollapsed}
-                      id={id}
-                      editor={editor}
-                    />
-                  </div>
-                </div>
-              ) : null}
-              <div {...mainContentProps}>
-                {!isHomeDoc ? (
-                  <DraftMetadataEditor
-                    draftActor={actor}
-                    onEnter={() => {
-                      editor._tiptapEditor.commands.focus()
-                      editor._tiptapEditor.commands.setTextSelection(0)
+      <>
+        {/* {route.isWelcomeDraft && (
+          <WelcomePopover onClose={handleWelcomePopoverClose} />
+        )} */}
+        <div
+          onDragStart={() => {
+            setIsDragging(true)
+          }}
+          onDragEnd={() => {
+            setIsDragging(false)
+          }}
+          onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
+            event.preventDefault()
+            setIsDragging(true)
+          }}
+          // @ts-expect-error
+          onDrop={onDrop}
+          onClick={handleFocusAtMousePos}
+          className="flex flex-1 flex-col overflow-hidden"
+        >
+          <ScrollArea onScroll={() => dispatchScroll(true)}>
+            <DraftCover
+              draftActor={actor}
+              // @ts-expect-error
+              disabled={!state.matches('editing')}
+              show={showCover}
+              // @ts-expect-error
+              setShow={setShowCover}
+              showOutline={showOutline}
+            />
+            <div ref={elementRef} className="draft-editor w-full flex-1">
+              <div {...wrapperProps}>
+                {showSidebars ? (
+                  <div
+                    {...sidebarProps}
+                    className={`${sidebarProps.className || ''} flex flex-col`}
+                    style={{
+                      ...sidebarProps.style,
+                      marginTop: showCover ? 150 : 210,
                     }}
-                    // disabled={!state.matches('ready')}
-                    showCover={showCover}
-                    setShowCover={setShowCover}
-                  />
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
+                      <DocNavigationDraftLoader
+                        showCollapsed={showCollapsed}
+                        id={id}
+                        editor={editor}
+                      />
+                    </div>
+                  </div>
                 ) : null}
-                <Container
-                  // @ts-expect-error
-                  paddingLeft="$4"
-                  marginBottom={300}
-                  onClick={(e: MouseEvent<HTMLDivElement>) => {
-                    // this prevents to fire handleFocusAtMousePos on click
-                    e.stopPropagation()
-                    // editor?._tiptapEditor.commands.focus()
-                  }}
-                >
-                  {editor ? (
-                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                <div {...mainContentProps}>
+                  {!isHomeDoc ? (
+                    <DraftMetadataEditor
+                      draftActor={actor}
+                      onEnter={() => {
+                        editor._tiptapEditor.commands.focus()
+                        editor._tiptapEditor.commands.setTextSelection(0)
+                      }}
+                      // disabled={!state.matches('ready')}
+                      showCover={showCover}
+                      setShowCover={setShowCover}
+                    />
                   ) : null}
-                </Container>
+                  <Container
+                    // @ts-expect-error
+                    paddingLeft="$4"
+                    marginBottom={300}
+                    onClick={(e: MouseEvent<HTMLDivElement>) => {
+                      // this prevents to fire handleFocusAtMousePos on click
+                      e.stopPropagation()
+                      // editor?._tiptapEditor.commands.focus()
+                    }}
+                  >
+                    {editor ? (
+                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                    ) : null}
+                  </Container>
+                </div>
+                {showSidebars ? <div {...sidebarProps} /> : null}
               </div>
-              {showSidebars ? <div {...sidebarProps} /> : null}
             </div>
-          </div>
-        </ScrollArea>
-      </div>
+          </ScrollArea>
+        </div>
+      </>
     )
 
   return null
