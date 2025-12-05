@@ -79,8 +79,8 @@ export function GenericSidebarContainer({
             ctx.onSidebarResize(newPercent)
           }
           // Otherwise don't resize - let it use the stored value naturally
+          panel.expand()
         })
-        panel.expand()
       } else if (isLocked && !isOpening && !isInitialMount) {
         // Just sync the size without enforcing minimum
         panel.resize(sidebarWidth || 15)
@@ -141,14 +141,8 @@ export function GenericSidebarContainer({
         id="sidebar"
         order={1}
         className="h-full"
-        onCollapse={() => {
-          ctx.onCloseSidebar()
-        }}
         onResize={(size) => {
           ctx.onSidebarResize(size)
-        }}
-        onExpand={() => {
-          ctx.onLockSidebarOpen()
         }}
       >
         <div

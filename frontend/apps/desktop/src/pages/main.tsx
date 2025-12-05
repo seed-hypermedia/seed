@@ -213,7 +213,7 @@ function PanelContent({children}: {children: ReactNode}) {
         }
       }
     }
-  }, [sidebarWidth])
+  }, [sidebarWidth, isLocked])
 
   return (
     <PanelGroup
