@@ -12784,6 +12784,7 @@ __metadata:
     react-native-svg: ">=12"
     react-qr-code: 2.0.15
     react-resizable-panels: ^2.1.9
+    remix-utils: ^9.0.0
     sharp: ^0.33.5
     superjson: 2.2.1
     tailwind-merge: ^3.3.0
@@ -33908,6 +33909,47 @@ __metadata:
     mdast-util-to-markdown: ^1.0.0
     unified: ^10.0.0
   checksum: 25424201e698353f6c0afc9ec29a8cac1dac8c06750d92214e3216bd76ac37902a0ba3702ac2a11c1040938a667b3bc22d6949af1d35e8fc81a3572643cdc263
+  languageName: node
+  linkType: hard
+
+"remix-utils@npm:^9.0.0":
+  version: 9.0.0
+  resolution: "remix-utils@npm:9.0.0"
+  dependencies:
+    type-fest: ^4.41.0
+  peerDependencies:
+    "@edgefirst-dev/batcher": ^1.0.0
+    "@edgefirst-dev/jwt": ^1.2.0
+    "@edgefirst-dev/server-timing": ^0.0.1
+    "@oslojs/crypto": ^1.0.1
+    "@oslojs/encoding": ^1.1.0
+    "@standard-schema/spec": ^1.0.0
+    intl-parse-accept-language: ^1.0.0
+    is-ip: ^5.0.1
+    react: ^18.0.0 || ^19.0.0
+    react-router: ^7.0.0
+  peerDependenciesMeta:
+    "@edgefirst-dev/batcher":
+      optional: true
+    "@edgefirst-dev/jwt":
+      optional: true
+    "@edgefirst-dev/server-timing":
+      optional: true
+    "@oslojs/crypto":
+      optional: true
+    "@oslojs/encoding":
+      optional: true
+    "@standard-schema/spec":
+      optional: true
+    intl-parse-accept-language:
+      optional: true
+    is-ip:
+      optional: true
+    react:
+      optional: true
+    react-router:
+      optional: true
+  checksum: d3e71ad0f66382eb213242a4eb56b5e7ce647ab7a028629ad05f477d5ee7e0c66fda19ff3bf208351880f53942c57621ca94e9d83516d6f93374eeffc8149c53
   languageName: node
   linkType: hard
 
