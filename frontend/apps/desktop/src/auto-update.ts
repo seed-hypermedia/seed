@@ -235,14 +235,25 @@ export class AutoUpdater {
     this.currentUpdateInfo = null
     this.status = {type: 'idle'}
 
+    // Remove any existing handlers to prevent duplicates
+    ipcMain.removeAllListeners('auto-update:download-and-install')
+    ipcMain.removeAllListeners('auto-update:set-status')
+    ipcMain.removeAllListeners('auto-update:release-notes')
+    ipcMain.removeAllListeners('auto-update:check-for-updates')
+
     // Listen for download and install request from renderer
     ipcMain.on('auto-update:download-and-install', () => {
-      log.info('[AUTO-UPDATE] Received download and install request')
+      log.info(
+        `[AUTO-UPDATE] Received download and install request (platform: ${process.platform})`,
+      )
       if (this.currentUpdateInfo) {
         // For Linux, open GitHub release page instead of downloading
         if (process.platform === 'linux') {
           log.info(`[AUTO-UPDATE] Opening Seed Hypermedia Download page`)
           shell.openExternal('https://seed.hyper.media/hm/download')
+          log.info(
+            '[AUTO-UPDATE] Linux download request completed - browser opened',
+          )
           return
         }
 
