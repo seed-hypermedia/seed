@@ -112,13 +112,17 @@ export function calculateInteractionSummary(
 
   const {blocks, citationCount} = calculateBlocksFromCitations(dedupedCitations)
 
-  const externalCommentCitations = dedupedCitations.filter(
-    (citation) => citation.source.type === 'c',
+  // Count distinct comment sources, not all comment citations
+  // A single comment can cite multiple blocks, but should only count as one comment
+  const uniqueCommentSources = new Set(
+    dedupedCitations
+      .filter((citation) => citation.source.type === 'c')
+      .map((citation) => citation.source.id.id),
   )
 
   return {
     citations: citationCount, // Document citations/references to this document
-    comments: externalCommentCitations.length, // comment citations include both internal and external comments
+    comments: uniqueCommentSources.size, // Count distinct comment sources
     changes: changes.length,
     blocks,
   }
