@@ -647,17 +647,6 @@ function InnerDocumentPage(
                 className="h-full"
               >
                 <div className="relative flex h-full flex-col" ref={elementRef}>
-                  {media.gtSm ? (
-                    <div className="dark:bg-background absolute top-2 right-2 z-40 rounded-md bg-white shadow-md">
-                      {!activePanel &&
-                      activityEnabled &&
-                      interactionSummary.data ? (
-                        <div className="flex items-center">
-                          {activitySummary}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
                   <div
                     className="flex flex-1 flex-col overflow-y-auto"
                     ref={mainScrollRef}
