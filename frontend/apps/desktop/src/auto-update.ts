@@ -241,11 +241,8 @@ export class AutoUpdater {
       if (this.currentUpdateInfo) {
         // For Linux, open GitHub release page instead of downloading
         if (process.platform === 'linux') {
-          const githubReleaseUrl = `https://github.com/seed-hypermedia/seed/releases/tag/${this.currentUpdateInfo.tag_name}`
-          log.info(
-            `[AUTO-UPDATE] Opening GitHub release page: ${githubReleaseUrl}`,
-          )
-          shell.openExternal(githubReleaseUrl)
+          log.info(`[AUTO-UPDATE] Opening Seed Hypermedia Download page`)
+          shell.openExternal('https://seed.hyper.media/hm/download')
           return
         }
 
