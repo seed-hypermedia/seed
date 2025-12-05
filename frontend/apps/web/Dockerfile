@@ -29,6 +29,8 @@ COPY --from=builder /app/frontend/apps/web /app/frontend/apps/web
 # COPY --from=builder /app/frontend/apps/web/node_modules /app/frontend/apps/web/node_modules
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/package.json /app/package.json
+# Copy workspace packages that are symlinked in node_modules
+COPY --from=builder /app/frontend/packages /app/frontend/packages
 
 RUN echo "$COMMIT_HASH" > /app/frontend/apps/web/COMMIT_HASH
 RUN echo "$BRANCH" > /app/frontend/apps/web/BRANCH
