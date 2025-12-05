@@ -2,7 +2,7 @@ package dqb
 
 import (
 	"bytes"
-	"seed/backend/util/strbytes"
+	"seed/backend/util/unsafeutil"
 	"sync"
 )
 
@@ -132,7 +132,7 @@ func (qb *SelectQuery) String() string {
 
 	// Using unsafe string as a cache key for lookup,
 	// to avoid allocating a new string if it's already cached.
-	if v, ok := queryCache.Load(strbytes.String(buf.Bytes())); ok {
+	if v, ok := queryCache.Load(unsafeutil.StringFromBytes(buf.Bytes())); ok {
 		return v.(string)
 	}
 

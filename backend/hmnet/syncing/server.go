@@ -22,7 +22,7 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
-	"seed/backend/util/strbytes"
+	"seed/backend/util/unsafeutil"
 )
 
 // Server is the RPC handler for the syncing service.
@@ -107,7 +107,7 @@ func (s *Server) AnnounceBlobs(in *p2p.AnnounceBlobsRequest, stream grpc.ServerS
 				wantsIdx[allAnnounced[idx]] = len(wants)
 				wants = append(wants, allAnnounced[idx])
 				return nil
-			}, strbytes.String(mhashJSON.Bytes()))
+			}, unsafeutil.StringFromBytes(mhashJSON.Bytes()))
 		}); err != nil {
 			return err
 		}

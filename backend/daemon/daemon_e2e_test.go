@@ -763,11 +763,19 @@ func TestSubscriptions(t *testing.T) {
 	}, time.Second*5, time.Millisecond*200, "We should have two comments, the initial comment and the reply")
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
 
-	bobsCap, err := bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
-		Account: aliceIdentity.Account.PublicKey.String(),
-		Path:    aliceHonda.Path,
-	})
-	require.NoError(t, err)
+	var bobsCap *documents.ListCapabilitiesResponse
+	require.Eventually(t, func() bool {
+		var err error
+		bobsCap, err = bob.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
+			Account: aliceIdentity.Account.PublicKey.String(),
+			Path:    aliceHonda.Path,
+		})
+		if err != nil {
+			return false
+		}
+		return len(bobsCap.Capabilities) == 1
+	}, time.Second*5, time.Millisecond*200, "must return the capability")
+
 	require.Len(t, bobsCap.Capabilities, 1, "must return the capability")
 
 	_, err = carol.RPC.Networking.Connect(ctx, &networking.ConnectRequest{

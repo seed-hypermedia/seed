@@ -112,7 +112,9 @@ func TestTrackTransactionLogsOnlyWhenExceedingTimeout(t *testing.T) {
 
 	// Test scenario 1: Quick transaction that doesn't exceed timeout.
 	t.Run("quick transaction", func(t *testing.T) {
+		testHandler.mu.Lock()
 		testHandler.logs = nil
+		testHandler.mu.Unlock()
 
 		// Prepare a quick statement and transaction.
 		stmt, err := conn1.Prepare("BEGIN IMMEDIATE")
@@ -142,7 +144,9 @@ func TestTrackTransactionLogsOnlyWhenExceedingTimeout(t *testing.T) {
 
 	// Test scenario 2: Long-running transaction that exceeds timeout.
 	t.Run("slow transaction due to lock", func(t *testing.T) {
+		testHandler.mu.Lock()
 		testHandler.logs = nil
+		testHandler.mu.Unlock()
 
 		// conn2 starts a transaction and holds a lock.
 		stmt2, err := conn2.Prepare("BEGIN IMMEDIATE")
@@ -172,6 +176,10 @@ func TestTrackTransactionLogsOnlyWhenExceedingTimeout(t *testing.T) {
 		if elapsed < busyTimeout {
 			t.Logf("expected wait time >= %v, got %v", busyTimeout, elapsed)
 		}
+
+		// Keep the transaction open for longer than busyTimeout to ensure it's logged as slow.
+		// This simulates a long-running transaction.
+		time.Sleep(busyTimeout)
 
 		// conn2 commits to release the lock.
 		commitStmt2, err := conn2.Prepare("COMMIT")
@@ -211,9 +219,13 @@ func TestTrackTransactionIntegration(t *testing.T) {
 	busyTimeout := 10 * time.Millisecond
 	conn.SetBusyTimeout(busyTimeout)
 
-	// Capture logs.
+	// Capture logs and restore the original logger after the test.
 	handler := &captureHandler{}
+	originalLogger := log
 	SetLogger(slog.New(handler))
+	t.Cleanup(func() {
+		log = originalLogger
+	})
 
 	// Create a simple table.
 	stmt, err := conn.Prepare("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)")

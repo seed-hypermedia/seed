@@ -1,4 +1,4 @@
-package strbytes
+package unsafeutil
 
 import (
 	"bytes"
@@ -14,16 +14,16 @@ func TestAll(t *testing.T) {
 }
 
 func roundTripString(t *testing.T, s string) {
-	b := Bytes(s)
-	s2 := String(b)
+	b := BytesFromString(s)
+	s2 := StringFromBytes(b)
 	if s != s2 {
 		t.Fatalf("expected %q, got %q", s, s2)
 	}
 }
 
 func roundTripBytes(t *testing.T, b []byte) {
-	s := String(b)
-	b2 := Bytes(s)
+	s := StringFromBytes(b)
+	b2 := BytesFromString(s)
 	if string(b) != string(b2) {
 		t.Fatalf("expected %q, got %q", b, b2)
 	}

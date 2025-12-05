@@ -14,7 +14,7 @@ import (
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
-	"seed/backend/util/strbytes"
+	"seed/backend/util/unsafeutil"
 	"slices"
 	"strings"
 	"time"
@@ -622,8 +622,8 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 		q = qInsertDocumentGeneration()
 	}
 
-	authorsJSON := strbytes.String(must.Do2(json.Marshal(dg.Authors)))
-	metadataJSON := strbytes.String(must.Do2(json.Marshal(dg.Metadata)))
+	authorsJSON := unsafeutil.StringFromBytes(must.Do2(json.Marshal(dg.Authors)))
+	metadataJSON := unsafeutil.StringFromBytes(must.Do2(json.Marshal(dg.Metadata)))
 	changesBitmap, err := dg.Changes.ToBytes()
 	if err != nil {
 		return fmt.Errorf("failed to serialize bitmap: %w", err)
@@ -639,7 +639,7 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 		heads := slices.Collect(maps.Keys(dg.Heads))
 		slices.Sort(heads)
 
-		headsJSON = strbytes.String(must.Do2(json.Marshal(heads)))
+		headsJSON = unsafeutil.StringFromBytes(must.Do2(json.Marshal(heads)))
 	}
 
 	if err := sqlitex.Exec(conn, q, nil,

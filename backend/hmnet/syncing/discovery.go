@@ -13,7 +13,7 @@ import (
 	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
-	"seed/backend/util/strbytes"
+	"seed/backend/util/unsafeutil"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -216,7 +216,7 @@ func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbs
 		return err
 	}
 	for _, c := range cids {
-		if err := store.Insert(c.Ts, strbytes.Bytes(c.CID.KeyString())); err != nil {
+		if err := store.Insert(c.Ts, unsafeutil.BytesFromString(c.CID.KeyString())); err != nil {
 			return err
 		}
 	}

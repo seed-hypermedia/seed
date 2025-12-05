@@ -13,7 +13,7 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
-	"seed/backend/util/strbytes"
+	"seed/backend/util/unsafeutil"
 	"strings"
 	"sync"
 	"time"
@@ -148,7 +148,7 @@ func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data [
 			if err != nil {
 				return
 			}
-			extraJSON := strbytes.String(data)
+			extraJSON := unsafeutil.StringFromBytes(data)
 
 			err = sqlitex.Exec(conn, qStashBlob(), nil, id, serr.Reason, extraJSON)
 			return
@@ -349,7 +349,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, discard, check = sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(changesJSON)).All()
+		rows, discard, check = sqlitex.Query(conn, qIterChangesFromHeads(), unsafeutil.StringFromBytes(changesJSON)).All()
 		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -548,7 +548,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), strbytes.String(headsJSON)).All()
+		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), unsafeutil.StringFromBytes(headsJSON)).All()
 		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -668,7 +668,7 @@ func (idx *Index) resolveHeads(conn *sqlite.Conn, heads []int64) (out []int64, e
 		return nil, err
 	}
 
-	rows, discard, check := sqlitex.Query(conn, qResolveHeads(), strbytes.String(idsJSON)).All()
+	rows, discard, check := sqlitex.Query(conn, qResolveHeads(), unsafeutil.StringFromBytes(idsJSON)).All()
 	defer discard(&err)
 	for row := range rows {
 		out = append(out, row.ColumnInt64(0))
@@ -716,7 +716,7 @@ func cidsToDBIDs(conn *sqlite.Conn, cids []cid.Cid) ([]int64, error) {
 }
 
 func isValidWriter(conn *sqlite.Conn, writerID int64, resource IRI) (valid bool, err error) {
-	parentsJSON := strbytes.String(
+	parentsJSON := unsafeutil.StringFromBytes(
 		must.Do2(
 			json.Marshal(resource.Breadcrumbs()),
 		),
