@@ -153,6 +153,20 @@ func (p *p2pProxy) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReq
 	return client.ReconcileBlobs(ctx, in)
 }
 
+func (p *p2pProxy) Authenticate(ctx context.Context, in *p2p.AuthenticateRequest) (*p2p.AuthenticateResponse, error) {
+	pid, err := p.targetPeer(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := p.node.Client(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Authenticate(ctx, in)
+}
+
 func (p *p2pProxy) targetPeer(ctx context.Context) (peer.ID, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {

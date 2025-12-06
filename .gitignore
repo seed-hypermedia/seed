@@ -23,7 +23,7 @@ bazel-*
 frontend-old
 
 # Backend code
-backend/ui/rice-box.go-e 
+backend/ui/rice-box.go-e
 
 # Cargo
 target
@@ -106,3 +106,6 @@ scratch.*.*
 .dev-data
 
 data
+
+# Scratchpad files and other stuff you wouldn't want to commit.
+.local

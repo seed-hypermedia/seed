@@ -91,24 +91,24 @@ type rpcMux struct {
 
 // Node is a Seed P2P node.
 type Node struct {
-	log                    *zap.Logger
-	index                  *blob.Index
-	db                     *sqlitex.Pool
-	device                 *core.KeyPair
-	keys                   core.KeyStore
-	cfg                    config.P2P
-	invoicer               Invoicer
-	client                 *Client
-	connectionCallback     func(context.Context, event.EvtPeerConnectednessChanged)
-	identificationCallback func(context.Context, event.EvtPeerIdentificationCompleted)
-	protocol               ProtocolInfo
-	p2p                    *ipfs.Libp2p
-	bitswap                *ipfs.Bitswap
-	grpc                   *grpc.Server
-	clean                  cleanup.Stack
-	ready                  chan struct{}
-	currentReachability    atomic.Value    // type of network.Reachability
-	ctx                    context.Context // will be set after calling Start()
+	log                 *zap.Logger
+	index               *blob.Index
+	db                  *sqlitex.Pool
+	device              *core.KeyPair
+	keys                core.KeyStore
+	cfg                 config.P2P
+	invoicer            Invoicer
+	client              *Client
+	protocol            ProtocolInfo
+	p2p                 *ipfs.Libp2p
+	bitswap             *ipfs.Bitswap
+	grpc                *grpc.Server
+	clean               cleanup.Stack
+	ready               chan struct{}
+	libp2pEvents        event.Subscription
+	currentReachability atomic.Value    // type of network.Reachability
+	ctx                 context.Context // will be set after calling Start()
+	authManager         *authManager
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -166,13 +166,12 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 				rpcServerMetrics.StreamServerInterceptor(),
 			),
 		),
-		clean: clean,
-		ready: make(chan struct{}),
+		clean:       clean,
+		ready:       make(chan struct{}),
+		authManager: newAuthManager(),
 	}
-	n.connectionCallback = n.defaultConnectionCallback
-	n.identificationCallback = n.defaultIdentificationCallback
 	n.currentReachability.Store(network.ReachabilityUnknown)
-	sub, err := host.EventBus().Subscribe([]interface{}{
+	n.libp2pEvents, err = host.EventBus().Subscribe([]interface{}{
 		new(event.EvtPeerIdentificationCompleted),
 		new(event.EvtPeerConnectednessChanged),
 		new(event.EvtLocalReachabilityChanged),
@@ -180,24 +179,7 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	if err != nil {
 		return nil, err
 	}
-	clean.Add(sub)
-
-	go func() {
-		for e := range sub.Out() {
-			switch event := e.(type) {
-			case event.EvtPeerConnectednessChanged:
-				if n.connectionCallback != nil {
-					n.connectionCallback(n.ctx, event)
-				}
-			case event.EvtPeerIdentificationCompleted:
-				if n.identificationCallback != nil {
-					n.identificationCallback(n.ctx, event)
-				}
-			case event.EvtLocalReachabilityChanged:
-				n.currentReachability.Store(event.Reachability)
-			}
-		}
-	}()
+	clean.Add(n.libp2pEvents)
 
 	rpc := &rpcMux{Node: n}
 	syn := syncing.NewServer(n.db, n.index, n.Bitswap())
@@ -225,12 +207,6 @@ func (n *Node) ProtocolVersion() string {
 // This function must be called before calling Start().
 func (n *Node) RegisterRPCService(fn func(grpc.ServiceRegistrar)) {
 	fn(n.grpc)
-}
-
-// SetConnectionCallback allows registering a callback to be called any peer of ours changes its
-// connectivity status. This is called when a known peer goes offline of when we get a new peer.
-func (n *Node) SetConnectionCallback(fn func(context.Context, event.EvtPeerConnectednessChanged)) {
-	n.connectionCallback = fn
 }
 
 // Bitswap returns the underlying Bitswap service.
@@ -433,11 +409,26 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 		close(doneOnce)
 	}
 
+	go n.handleLibp2pEvents()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-doneOnce:
 		return nil
+	}
+}
+
+func (n *Node) handleLibp2pEvents() {
+	for e := range n.libp2pEvents.Out() {
+		switch event := e.(type) {
+		case event.EvtPeerConnectednessChanged:
+			n.onLibp2pConnection(n.ctx, event)
+		case event.EvtPeerIdentificationCompleted:
+			n.onLibp2pIdentification(n.ctx, event)
+		case event.EvtLocalReachabilityChanged:
+			n.currentReachability.Store(event.Reachability)
+		}
 	}
 }
 

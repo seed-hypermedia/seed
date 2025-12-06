@@ -64,7 +64,7 @@ func NewChange(kp *core.KeyPair, genesis cid.Cid, deps []cid.Cid, depth int, bod
 		Body:    body,
 	}
 
-	if err := signBlob(kp, cc, &cc.BaseBlob.Sig); err != nil {
+	if err := Sign(kp, cc, &cc.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -338,7 +338,7 @@ func init() {
 				return eb, err
 			}
 
-			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
+			if err := Verify(v.Signer, v, v.Sig); err != nil {
 				return eb, err
 			}
 

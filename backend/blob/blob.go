@@ -12,6 +12,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
 	"github.com/polydawn/refmt/obj/atlas"
 )
@@ -33,7 +34,12 @@ func init() {
 			return t.UnixMilli(), nil
 		})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in int64) (time.Time, error) {
-			return time.UnixMilli(in), nil
+			t := time.UnixMilli(in)
+			if !t.Equal(t.Round(ClockPrecision)) {
+				return time.Time{}, fmt.Errorf("decoded time is not rounded to the correct precision")
+			}
+
+			return t, nil
 		})).
 		Complete(),
 	)
@@ -45,6 +51,18 @@ func init() {
 		})).
 		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in []byte) (core.PublicKey, error) {
 			return core.DecodePublicKey(in)
+		})).
+		Complete(),
+	)
+
+	cbornode.RegisterCborType(atlas.BuildEntry(peer.ID("")).
+		Transform().
+		TransformMarshal(atlas.MakeMarshalTransformFunc(func(v peer.ID) ([]byte, error) {
+			return v.MarshalBinary()
+		})).
+		TransformUnmarshal(atlas.MakeUnmarshalTransformFunc(func(in []byte) (peer.ID, error) {
+			var pid peer.ID
+			return pid, pid.UnmarshalBinary(in)
 		})).
 		Complete(),
 	)
@@ -123,8 +141,9 @@ func (b BaseBlob) BlobType() Type {
 	return b.Type
 }
 
-// signBlob and fill in the signature.
-func signBlob(kp *core.KeyPair, v any, sig *core.Signature) error {
+// Sign the blob and fill in the signature.
+// The pointer sig is supposed to be a field of v.
+func Sign(kp *core.KeyPair, v any, sig *core.Signature) error {
 	// Unlike some other projects that use a nil signature or omit the field entirely for signing,
 	// we fill the space for the signature with zeros.
 	// This leaves us room for optimizations to avoid double-serialization:
@@ -141,8 +160,8 @@ func signBlob(kp *core.KeyPair, v any, sig *core.Signature) error {
 	return err
 }
 
-// verifyBlob checks the signature of a blob.
-func verifyBlob(pubkey core.Principal, v any, sig core.Signature) error {
+// Verify checks the signature of a blob.
+func Verify(pubkey core.Principal, v any, sig core.Signature) error {
 	signer, err := pubkey.Parse()
 	if err != nil {
 		return err

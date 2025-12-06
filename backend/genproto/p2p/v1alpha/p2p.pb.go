@@ -512,6 +512,110 @@ func (x *ListPeersResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request to authenticate.
+// It contains enough information to prove that the calling peer has access to the given account key.
+type AuthenticateRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Bytes of the account key that's being proven.
+	Account []byte `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	// Timestamp of the request. The server will check that it's not too old.
+	Timestamp int64 `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Signature by the specified account key over the authentication payload.
+	// It signs over the account ID being proven, the peer ID of the request,
+	// the peer ID of the server, and the timestamp.
+	Signature     []byte `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateRequest) Reset() {
+	*x = AuthenticateRequest{}
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateRequest) ProtoMessage() {}
+
+func (x *AuthenticateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateRequest.ProtoReflect.Descriptor instead.
+func (*AuthenticateRequest) Descriptor() ([]byte, []int) {
+	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *AuthenticateRequest) GetAccount() []byte {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+func (x *AuthenticateRequest) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *AuthenticateRequest) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
+}
+
+// Response to authenticate.
+type AuthenticateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuthenticateResponse) Reset() {
+	*x = AuthenticateResponse{}
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuthenticateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuthenticateResponse) ProtoMessage() {}
+
+func (x *AuthenticateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateResponse.ProtoReflect.Descriptor instead.
+func (*AuthenticateResponse) Descriptor() ([]byte, []int) {
+	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{8}
+}
+
 type Blob struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// CID of the blob.
@@ -526,7 +630,7 @@ type Blob struct {
 
 func (x *Blob) Reset() {
 	*x = Blob{}
-	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[7]
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +642,7 @@ func (x *Blob) String() string {
 func (*Blob) ProtoMessage() {}
 
 func (x *Blob) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[7]
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -551,7 +655,7 @@ func (x *Blob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Blob.ProtoReflect.Descriptor instead.
 func (*Blob) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{7}
+	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Blob) GetCid() []byte {
@@ -585,7 +689,7 @@ type PeerInfo struct {
 
 func (x *PeerInfo) Reset() {
 	*x = PeerInfo{}
-	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[8]
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +701,7 @@ func (x *PeerInfo) String() string {
 func (*PeerInfo) ProtoMessage() {}
 
 func (x *PeerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[8]
+	mi := &file_p2p_v1alpha_p2p_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +714,7 @@ func (x *PeerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerInfo.ProtoReflect.Descriptor instead.
 func (*PeerInfo) Descriptor() ([]byte, []int) {
-	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{8}
+	return file_p2p_v1alpha_p2p_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PeerInfo) GetId() string {
@@ -672,7 +776,12 @@ const file_p2p_v1alpha_p2p_proto_rawDesc = "" +
 	"\apay_req\x18\x01 \x01(\tR\x06payReq\"q\n" +
 	"\x11ListPeersResponse\x124\n" +
 	"\x05peers\x18\x01 \x03(\v2\x1e.com.seed.p2p.v1alpha.PeerInfoR\x05peers\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"0\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"k\n" +
+	"\x13AuthenticateRequest\x12\x18\n" +
+	"\aaccount\x18\x01 \x01(\fR\aaccount\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\x12\x1c\n" +
+	"\tsignature\x18\x03 \x01(\fR\tsignature\"\x16\n" +
+	"\x14AuthenticateResponse\"0\n" +
 	"\x04Blob\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\fR\x03cid\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\xc0\x01\n" +
@@ -687,13 +796,14 @@ const file_p2p_v1alpha_p2p_proto_rawDesc = "" +
 	"\tCONNECTED\x10\x01\x12\x0f\n" +
 	"\vCAN_CONNECT\x10\x02\x12\x12\n" +
 	"\x0eCANNOT_CONNECT\x10\x03\x12\v\n" +
-	"\aLIMITED\x10\x042\x84\x03\n" +
+	"\aLIMITED\x10\x042\xeb\x03\n" +
 	"\x03P2P\x12Q\n" +
 	"\tListBlobs\x12&.com.seed.p2p.v1alpha.ListBlobsRequest\x1a\x1a.com.seed.p2p.v1alpha.Blob0\x01\x12\\\n" +
 	"\tListPeers\x12&.com.seed.p2p.v1alpha.ListPeersRequest\x1a'.com.seed.p2p.v1alpha.ListPeersResponse\x12_\n" +
 	"\n" +
 	"ListSpaces\x12'.com.seed.p2p.v1alpha.ListSpacesRequest\x1a(.com.seed.p2p.v1alpha.ListSpacesResponse\x12k\n" +
-	"\x0eRequestInvoice\x12+.com.seed.p2p.v1alpha.RequestInvoiceRequest\x1a,.com.seed.p2p.v1alpha.RequestInvoiceResponseB'Z%seed/backend/genproto/p2p/v1alpha;p2pb\x06proto3"
+	"\x0eRequestInvoice\x12+.com.seed.p2p.v1alpha.RequestInvoiceRequest\x1a,.com.seed.p2p.v1alpha.RequestInvoiceResponse\x12e\n" +
+	"\fAuthenticate\x12).com.seed.p2p.v1alpha.AuthenticateRequest\x1a*.com.seed.p2p.v1alpha.AuthenticateResponseB'Z%seed/backend/genproto/p2p/v1alpha;p2pb\x06proto3"
 
 var (
 	file_p2p_v1alpha_p2p_proto_rawDescOnce sync.Once
@@ -708,7 +818,7 @@ func file_p2p_v1alpha_p2p_proto_rawDescGZIP() []byte {
 }
 
 var file_p2p_v1alpha_p2p_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_p2p_v1alpha_p2p_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_p2p_v1alpha_p2p_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_p2p_v1alpha_p2p_proto_goTypes = []any{
 	(ConnectionStatus)(0),          // 0: com.seed.p2p.v1alpha.ConnectionStatus
 	(*ListBlobsRequest)(nil),       // 1: com.seed.p2p.v1alpha.ListBlobsRequest
@@ -718,24 +828,28 @@ var file_p2p_v1alpha_p2p_proto_goTypes = []any{
 	(*RequestInvoiceRequest)(nil),  // 5: com.seed.p2p.v1alpha.RequestInvoiceRequest
 	(*RequestInvoiceResponse)(nil), // 6: com.seed.p2p.v1alpha.RequestInvoiceResponse
 	(*ListPeersResponse)(nil),      // 7: com.seed.p2p.v1alpha.ListPeersResponse
-	(*Blob)(nil),                   // 8: com.seed.p2p.v1alpha.Blob
-	(*PeerInfo)(nil),               // 9: com.seed.p2p.v1alpha.PeerInfo
-	(*timestamppb.Timestamp)(nil),  // 10: google.protobuf.Timestamp
+	(*AuthenticateRequest)(nil),    // 8: com.seed.p2p.v1alpha.AuthenticateRequest
+	(*AuthenticateResponse)(nil),   // 9: com.seed.p2p.v1alpha.AuthenticateResponse
+	(*Blob)(nil),                   // 10: com.seed.p2p.v1alpha.Blob
+	(*PeerInfo)(nil),               // 11: com.seed.p2p.v1alpha.PeerInfo
+	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
 }
 var file_p2p_v1alpha_p2p_proto_depIdxs = []int32{
-	9,  // 0: com.seed.p2p.v1alpha.ListPeersResponse.peers:type_name -> com.seed.p2p.v1alpha.PeerInfo
+	11, // 0: com.seed.p2p.v1alpha.ListPeersResponse.peers:type_name -> com.seed.p2p.v1alpha.PeerInfo
 	0,  // 1: com.seed.p2p.v1alpha.PeerInfo.connection_status:type_name -> com.seed.p2p.v1alpha.ConnectionStatus
-	10, // 2: com.seed.p2p.v1alpha.PeerInfo.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 2: com.seed.p2p.v1alpha.PeerInfo.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 3: com.seed.p2p.v1alpha.P2P.ListBlobs:input_type -> com.seed.p2p.v1alpha.ListBlobsRequest
 	2,  // 4: com.seed.p2p.v1alpha.P2P.ListPeers:input_type -> com.seed.p2p.v1alpha.ListPeersRequest
 	3,  // 5: com.seed.p2p.v1alpha.P2P.ListSpaces:input_type -> com.seed.p2p.v1alpha.ListSpacesRequest
 	5,  // 6: com.seed.p2p.v1alpha.P2P.RequestInvoice:input_type -> com.seed.p2p.v1alpha.RequestInvoiceRequest
-	8,  // 7: com.seed.p2p.v1alpha.P2P.ListBlobs:output_type -> com.seed.p2p.v1alpha.Blob
-	7,  // 8: com.seed.p2p.v1alpha.P2P.ListPeers:output_type -> com.seed.p2p.v1alpha.ListPeersResponse
-	4,  // 9: com.seed.p2p.v1alpha.P2P.ListSpaces:output_type -> com.seed.p2p.v1alpha.ListSpacesResponse
-	6,  // 10: com.seed.p2p.v1alpha.P2P.RequestInvoice:output_type -> com.seed.p2p.v1alpha.RequestInvoiceResponse
-	7,  // [7:11] is the sub-list for method output_type
-	3,  // [3:7] is the sub-list for method input_type
+	8,  // 7: com.seed.p2p.v1alpha.P2P.Authenticate:input_type -> com.seed.p2p.v1alpha.AuthenticateRequest
+	10, // 8: com.seed.p2p.v1alpha.P2P.ListBlobs:output_type -> com.seed.p2p.v1alpha.Blob
+	7,  // 9: com.seed.p2p.v1alpha.P2P.ListPeers:output_type -> com.seed.p2p.v1alpha.ListPeersResponse
+	4,  // 10: com.seed.p2p.v1alpha.P2P.ListSpaces:output_type -> com.seed.p2p.v1alpha.ListSpacesResponse
+	6,  // 11: com.seed.p2p.v1alpha.P2P.RequestInvoice:output_type -> com.seed.p2p.v1alpha.RequestInvoiceResponse
+	9,  // 12: com.seed.p2p.v1alpha.P2P.Authenticate:output_type -> com.seed.p2p.v1alpha.AuthenticateResponse
+	8,  // [8:13] is the sub-list for method output_type
+	3,  // [3:8] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -752,7 +866,7 @@ func file_p2p_v1alpha_p2p_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_p2p_v1alpha_p2p_proto_rawDesc), len(file_p2p_v1alpha_p2p_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

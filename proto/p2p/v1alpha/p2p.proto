@@ -24,6 +24,9 @@ service P2P {
 
   // Request a peer to issue a lightning BOLT-11 invoice
   rpc RequestInvoice(RequestInvoiceRequest) returns (RequestInvoiceResponse);
+
+  // Lets a peer to authenticate itself with an account key.
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
 }
 
 // Request to list blobs.
@@ -112,6 +115,24 @@ message ListPeersResponse {
   // Token to continue listing peers from.
   string next_page_token = 2;
 }
+
+// Request to authenticate.
+// It contains enough information to prove that the calling peer has access to the given account key.
+message AuthenticateRequest {
+  // Bytes of the account key that's being authenticated.
+  bytes account = 1;
+
+  // Timestamp of the request. The server will check that it's not too old.
+  int64 timestamp = 2;
+
+  // Signature by the specified account key over the authentication payload.
+  // It signs over the account ID being proven, the peer ID of the request,
+  // the peer ID of the server, and the timestamp.
+  bytes signature = 3;
+}
+
+// Response to authenticate.
+message AuthenticateResponse {}
 
 message Blob {
   // CID of the blob.

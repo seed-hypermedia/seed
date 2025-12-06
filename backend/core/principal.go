@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"seed/backend/util/unsafeutil"
 	"unsafe"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -15,12 +16,25 @@ import (
 // It's used when the full parsed public key structure is not needed.
 type Principal []byte
 
+// PrincipalUnsafeMapKey is a named type useful for storing principals as map keys.
+type PrincipalUnsafeMapKey string
+
+// Unwrap returns the underlying bytes of the principal.
+func (pp PrincipalUnsafeMapKey) Unwrap() Principal {
+	return unsafeutil.BytesFromString(pp)
+}
+
 // ActorID returns a derived ActorID from the principal.
 // It performs calculations, so it's better to cache the result if it's used multiple times.
 func (p Principal) ActorID() ActorID {
 	sum := sha256.Sum256(p)
 	sum[7] = 0 // clearing the last byte because we only want 56 bits.
 	return ActorID(binary.LittleEndian.Uint64(sum[:8]))
+}
+
+// MapKey returns a type for use as a map key.
+func (p Principal) MapKey() PrincipalUnsafeMapKey {
+	return PrincipalUnsafeMapKey(unsafeutil.StringFromBytes(p))
 }
 
 // PeerID returns the Libp2p PeerID representation of a key.
@@ -92,5 +106,14 @@ func DecodePrincipal[T string | []byte](raw T) (Principal, error) {
 		return nil, err
 	}
 
+	return pk.Principal(), nil
+}
+
+// PrincipalFromPeerID extracts the principal from a libp2p peer ID.
+func PrincipalFromPeerID(pid peer.ID) (Principal, error) {
+	pk, err := PublicKeyFromPeerID(pid)
+	if err != nil {
+		return nil, err
+	}
 	return pk.Principal(), nil
 }

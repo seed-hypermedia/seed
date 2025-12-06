@@ -7,6 +7,7 @@
 - `frontend/apps/` contains Remix- and Electron-based apps; shared React utilities live under `frontend/packages/`.
 - `docs/` stores developer playbooks and design notes.
 - `proto/` holds the canonical protocol buffers; scripts and automation live in `scripts/`.
+- `.local/` directory is a gitignored scratchpad directory for any files you might want to keep around. Use this for storing plans files, todos, memory, and anything useful. You can list and modify files in this directory as usual, despite it being gitignored.
 - Tests follow source: Go `_test.go` files sit beside implementations, while web specs live in `__tests__` or `*.test.ts[x]` folders within each workspace.
 
 ## Commit & Pull Request Guidelines

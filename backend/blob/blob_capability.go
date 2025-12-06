@@ -36,6 +36,7 @@ const (
 type Capability struct {
 	BaseBlob
 	Delegate core.Principal `refmt:"delegate"`
+	Audience core.Principal `refmt:"audience,omitempty"` // Useful for direct authentication against another principal with ephemeral capabilities.
 	Path     string         `refmt:"path,omitempty"`
 	Role     Role           `refmt:"role,omitempty"`
 	Label    string         `refmt:"label,omitempty"`
@@ -59,7 +60,7 @@ func NewCapability(issuer *core.KeyPair, delegate, space core.Principal, path st
 		return eb, fmt.Errorf("BUG: capabilities can only be signed by the space owner key")
 	}
 
-	if err := signBlob(issuer, cu, &cu.BaseBlob.Sig); err != nil {
+	if err := Sign(issuer, cu, &cu.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -105,7 +106,7 @@ func init() {
 				return eb, err
 			}
 
-			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
+			if err := Verify(v.Signer, v, v.Sig); err != nil {
 				return eb, err
 			}
 

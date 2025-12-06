@@ -47,7 +47,7 @@ func NewContact(kp *core.KeyPair, id TSID, subject core.Principal, name string, 
 		Name:    name,
 	}
 
-	if err = signBlob(kp, cu, &cu.BaseBlob.Sig); err != nil {
+	if err = Sign(kp, cu, &cu.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -75,7 +75,7 @@ func init() {
 				return eb, err
 			}
 
-			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
+			if err := Verify(v.Signer, v, v.Sig); err != nil {
 				return eb, err
 			}
 

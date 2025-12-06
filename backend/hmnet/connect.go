@@ -311,11 +311,14 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 
 	return nil
 }
-func (n *Node) defaultConnectionCallback(_ context.Context, event event.EvtPeerConnectednessChanged) {
-	return
+func (n *Node) onLibp2pConnection(_ context.Context, event event.EvtPeerConnectednessChanged) {
+	// Clear authentication for disconnected peers.
+	if event.Connectedness == network.NotConnected {
+		n.authManager.ClearPeer(event.Peer)
+	}
 }
 
-func (n *Node) defaultIdentificationCallback(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
+func (n *Node) onLibp2pIdentification(ctx context.Context, event event.EvtPeerIdentificationCompleted) {
 	if event.Peer.String() == n.client.me.String() {
 		return
 	}

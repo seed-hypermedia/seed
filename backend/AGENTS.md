@@ -16,7 +16,8 @@
 - When writing tests in Go, for asserts, use the `github.com/stretchr/testify/require` package, not the `assert` one.
 - When describing asserts and expectations use the word "must" instead of "should" when it actually means "must". Use "should" only when it is not a strict requirement, but rather a recommendation.
 - If you need to pass context around, use the new `Context()` method available on *testing.T and related testing functions. This has been added in the most recent versions of Go.
-- When you need to run tests to check your work, just run all the tests with `go test ./backend/...`. Don't bother running subsets of tests.
+- Run `go test ./backend/...` when you need to verify your work. Don't bother running subsets of tests.
+- Avoid using `go build` for main packages to verify your work. Use either `go test` or `go run` to execute your code.
 - Run `golangci-lint run --new-from-merge-base origin/main ./backend/...` at the end of your work session to catch any linter issues.
 
 ## SQL Query Patterns

@@ -441,6 +441,99 @@ export class ListPeersResponse extends Message<ListPeersResponse> {
 }
 
 /**
+ * Request to authenticate.
+ * It contains enough information to prove that the calling peer has access to the given account key.
+ *
+ * @generated from message com.seed.p2p.v1alpha.AuthenticateRequest
+ */
+export class AuthenticateRequest extends Message<AuthenticateRequest> {
+  /**
+   * Bytes of the account key that's being proven.
+   *
+   * @generated from field: bytes account = 1;
+   */
+  account = new Uint8Array(0);
+
+  /**
+   * Timestamp of the request. The server will check that it's not too old.
+   *
+   * @generated from field: int64 timestamp = 2;
+   */
+  timestamp = protoInt64.zero;
+
+  /**
+   * Signature by the specified account key over the authentication payload.
+   * It signs over the account ID being proven, the peer ID of the request,
+   * the peer ID of the server, and the timestamp.
+   *
+   * @generated from field: bytes signature = 3;
+   */
+  signature = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<AuthenticateRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.p2p.v1alpha.AuthenticateRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+    { no: 2, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "signature", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AuthenticateRequest {
+    return new AuthenticateRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AuthenticateRequest | PlainMessage<AuthenticateRequest> | undefined, b: AuthenticateRequest | PlainMessage<AuthenticateRequest> | undefined): boolean {
+    return proto3.util.equals(AuthenticateRequest, a, b);
+  }
+}
+
+/**
+ * Response to authenticate.
+ *
+ * @generated from message com.seed.p2p.v1alpha.AuthenticateResponse
+ */
+export class AuthenticateResponse extends Message<AuthenticateResponse> {
+  constructor(data?: PartialMessage<AuthenticateResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.p2p.v1alpha.AuthenticateResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AuthenticateResponse {
+    return new AuthenticateResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AuthenticateResponse | PlainMessage<AuthenticateResponse> | undefined, b: AuthenticateResponse | PlainMessage<AuthenticateResponse> | undefined): boolean {
+    return proto3.util.equals(AuthenticateResponse, a, b);
+  }
+}
+
+/**
  * @generated from message com.seed.p2p.v1alpha.Blob
  */
 export class Blob extends Message<Blob> {

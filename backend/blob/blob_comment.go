@@ -93,7 +93,7 @@ func NewComment(
 		cu.Space_ = space
 	}
 
-	if err := signBlob(kp, cu, &cu.BaseBlob.Sig); err != nil {
+	if err := Sign(kp, cu, &cu.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -160,7 +160,7 @@ func init() {
 					return eb, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
 				}
 
-				if err := verifyBlob(core.Principal(signerBytes), v, signatureBytes); err != nil {
+				if err := Verify(core.Principal(signerBytes), v, signatureBytes); err != nil {
 					return eb, err
 				}
 			}

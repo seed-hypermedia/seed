@@ -210,6 +210,15 @@ func PublicKeyFromLibp2p(pub crypto.PubKey) PublicKey {
 	}
 }
 
+// PublicKeyFromPeerID extracts the public key from a libp2p peer ID and converts it to our PublicKey type.
+func PublicKeyFromPeerID(pid peer.ID) (PublicKey, error) {
+	pub, err := pid.ExtractPublicKey()
+	if err != nil {
+		return PublicKey{}, err
+	}
+	return PublicKeyFromLibp2p(pub), nil
+}
+
 // GenerateKeyPair creates a new random key pair of the specified type.
 func GenerateKeyPair(kt KeyType, rng io.Reader) (*KeyPair, error) {
 	if rng == nil {

@@ -69,7 +69,7 @@ func NewProfileAlias(kp *core.KeyPair, alias core.Principal, ts time.Time) (eb E
 		Alias: alias,
 	}
 
-	if err := signBlob(kp, p, &p.Sig); err != nil {
+	if err := Sign(kp, p, &p.Sig); err != nil {
 		return eb, err
 	}
 
@@ -98,7 +98,7 @@ func NewProfile(kp *core.KeyPair, name string, icon URI, description string, acc
 		Account:     account,
 	}
 
-	if err := signBlob(kp, p, &p.Sig); err != nil {
+	if err := Sign(kp, p, &p.Sig); err != nil {
 		return eb, err
 	}
 
@@ -119,7 +119,7 @@ func init() {
 				return eb, err
 			}
 
-			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
+			if err := Verify(v.Signer, v, v.Sig); err != nil {
 				return eb, err
 			}
 

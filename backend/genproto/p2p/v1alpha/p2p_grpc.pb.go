@@ -23,6 +23,7 @@ const (
 	P2P_ListPeers_FullMethodName      = "/com.seed.p2p.v1alpha.P2P/ListPeers"
 	P2P_ListSpaces_FullMethodName     = "/com.seed.p2p.v1alpha.P2P/ListSpaces"
 	P2P_RequestInvoice_FullMethodName = "/com.seed.p2p.v1alpha.P2P/RequestInvoice"
+	P2P_Authenticate_FullMethodName   = "/com.seed.p2p.v1alpha.P2P/Authenticate"
 )
 
 // P2PClient is the client API for P2P service.
@@ -44,6 +45,8 @@ type P2PClient interface {
 	ListSpaces(ctx context.Context, in *ListSpacesRequest, opts ...grpc.CallOption) (*ListSpacesResponse, error)
 	// Request a peer to issue a lightning BOLT-11 invoice
 	RequestInvoice(ctx context.Context, in *RequestInvoiceRequest, opts ...grpc.CallOption) (*RequestInvoiceResponse, error)
+	// Lets a peer to authenticate itself with an account key.
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error)
 }
 
 type p2PClient struct {
@@ -103,6 +106,16 @@ func (c *p2PClient) RequestInvoice(ctx context.Context, in *RequestInvoiceReques
 	return out, nil
 }
 
+func (c *p2PClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*AuthenticateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthenticateResponse)
+	err := c.cc.Invoke(ctx, P2P_Authenticate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // P2PServer is the server API for P2P service.
 // All implementations should embed UnimplementedP2PServer
 // for forward compatibility.
@@ -122,6 +135,8 @@ type P2PServer interface {
 	ListSpaces(context.Context, *ListSpacesRequest) (*ListSpacesResponse, error)
 	// Request a peer to issue a lightning BOLT-11 invoice
 	RequestInvoice(context.Context, *RequestInvoiceRequest) (*RequestInvoiceResponse, error)
+	// Lets a peer to authenticate itself with an account key.
+	Authenticate(context.Context, *AuthenticateRequest) (*AuthenticateResponse, error)
 }
 
 // UnimplementedP2PServer should be embedded to have
@@ -142,6 +157,9 @@ func (UnimplementedP2PServer) ListSpaces(context.Context, *ListSpacesRequest) (*
 }
 func (UnimplementedP2PServer) RequestInvoice(context.Context, *RequestInvoiceRequest) (*RequestInvoiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestInvoice not implemented")
+}
+func (UnimplementedP2PServer) Authenticate(context.Context, *AuthenticateRequest) (*AuthenticateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
 }
 func (UnimplementedP2PServer) testEmbeddedByValue() {}
 
@@ -228,6 +246,24 @@ func _P2P_RequestInvoice_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _P2P_Authenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(P2PServer).Authenticate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: P2P_Authenticate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(P2PServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // P2P_ServiceDesc is the grpc.ServiceDesc for P2P service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -246,6 +282,10 @@ var P2P_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequestInvoice",
 			Handler:    _P2P_RequestInvoice_Handler,
+		},
+		{
+			MethodName: "Authenticate",
+			Handler:    _P2P_Authenticate_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

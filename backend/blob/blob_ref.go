@@ -68,7 +68,7 @@ func NewRef(kp *core.KeyPair, generation int64, genesis cid.Cid, space core.Prin
 		ru.Space_ = space
 	}
 
-	if err := signBlob(kp, ru, &ru.BaseBlob.Sig); err != nil {
+	if err := Sign(kp, ru, &ru.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -98,7 +98,7 @@ func NewRefRedirect(kp *core.KeyPair, generation int64, genesis cid.Cid, space c
 		ru.Space_ = space
 	}
 
-	if err := signBlob(kp, ru, &ru.BaseBlob.Sig); err != nil {
+	if err := Sign(kp, ru, &ru.BaseBlob.Sig); err != nil {
 		return eb, err
 	}
 
@@ -158,7 +158,7 @@ func init() {
 				return eb, err
 			}
 
-			if err := verifyBlob(v.Signer, v, v.Sig); err != nil {
+			if err := Verify(v.Signer, v, v.Sig); err != nil {
 				return eb, err
 			}
 

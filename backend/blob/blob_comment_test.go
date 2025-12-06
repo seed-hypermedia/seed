@@ -38,7 +38,7 @@ func TestCommentOldEncoding(t *testing.T) {
 	signer := core.Principal(comment["signer"].([]byte))
 	sig := core.Signature(comment["sig"].([]byte))
 
-	require.NoError(t, verifyBlob(signer, comment, sig))
+	require.NoError(t, Verify(signer, comment, sig))
 }
 
 func TestCommentCausality(t *testing.T) {

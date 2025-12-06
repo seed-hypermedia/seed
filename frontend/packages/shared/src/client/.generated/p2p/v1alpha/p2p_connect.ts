@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Blob, ListBlobsRequest, ListPeersRequest, ListPeersResponse, ListSpacesRequest, ListSpacesResponse, RequestInvoiceRequest, RequestInvoiceResponse } from "./p2p_pb";
+import { AuthenticateRequest, AuthenticateResponse, Blob, ListBlobsRequest, ListPeersRequest, ListPeersResponse, ListSpacesRequest, ListSpacesResponse, RequestInvoiceRequest, RequestInvoiceResponse } from "./p2p_pb";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -61,6 +61,17 @@ export const P2P = {
       name: "RequestInvoice",
       I: RequestInvoiceRequest,
       O: RequestInvoiceResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lets a peer to authenticate itself with an account key.
+     *
+     * @generated from rpc com.seed.p2p.v1alpha.P2P.Authenticate
+     */
+    authenticate: {
+      name: "Authenticate",
+      I: AuthenticateRequest,
+      O: AuthenticateResponse,
       kind: MethodKind.Unary,
     },
   }
