@@ -308,6 +308,7 @@ export function normalizeHmId(
     if (unpacked?.uid) {
       return packHmId(
         hmId(unpacked.uid, {
+          path: unpacked.path,
           blockRange: unpacked.blockRange,
           blockRef: unpacked.blockRef,
           version: unpacked.version,

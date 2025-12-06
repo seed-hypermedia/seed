@@ -15,7 +15,6 @@ import {
   BlockEmbedCard,
   BlockEmbedComments,
   BlockEmbedContent,
-  ErrorBlock,
 } from '@shm/ui/blocks-content'
 import {Input} from '@shm/ui/components/input'
 import {ExternalLink} from '@shm/ui/icons'
@@ -26,16 +25,11 @@ import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {useEffect, useState} from 'react'
-import {ErrorBoundary} from 'react-error-boundary'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
 import {HMBlockSchema} from './schema'
-
-function EmbedError() {
-  return <ErrorBlock message="Failed to load this Embedded document" />
-}
 
 export const EmbedBlock = createReactBlockSpec({
   type: 'embed',
@@ -199,22 +193,20 @@ const display = ({
       // }}
     >
       {block.props.url && (
-        <ErrorBoundary FallbackComponent={EmbedError}>
-          <EditorEmbedContent
-            parentBlockId={block.props.parentBlockId || null}
-            block={{
-              id: block.id,
-              type: 'Embed',
-              text: '',
-              attributes: {
-                childrenType: 'Group',
-                view: HMEmbedViewSchema.parse(block.props.view),
-              },
-              annotations: [],
-              link: block.props.url,
-            }}
-          />
-        </ErrorBoundary>
+        <EditorEmbedContent
+          parentBlockId={block.props.parentBlockId || null}
+          block={{
+            id: block.id,
+            type: 'Embed',
+            text: '',
+            attributes: {
+              childrenType: 'Group',
+              view: HMEmbedViewSchema.parse(block.props.view),
+            },
+            annotations: [],
+            link: block.props.url,
+          }}
+        />
       )}
     </MediaContainer>
   )
@@ -399,13 +391,36 @@ const EmbedLauncherInput = ({
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         onKeyDown={(e) => {
-          if (!activeItems.length) return
-
           if (e.key === 'Escape') {
             setFocused(false)
-          } else if (e.key === 'Enter') {
-            activeItems[focusedIndex]?.onSelect()
-          } else if (e.key === 'ArrowDown') {
+            return
+          }
+
+          // If Enter is pressed and the input looks like a URL or hypermedia link,
+          // blur the input to trigger form submission instead of selecting a search result
+          if (e.key === 'Enter') {
+            const isUrl =
+              search.startsWith('http://') ||
+              search.startsWith('https://') ||
+              search.startsWith('hm://')
+
+            if (isUrl) {
+              // Blur to trigger form submission with the typed URL
+              e.currentTarget.blur()
+              setFocused(false)
+              return
+            }
+
+            // Only select search result if input is NOT a URL
+            if (activeItems.length > 0) {
+              activeItems[focusedIndex]?.onSelect()
+            }
+            return
+          }
+
+          if (!activeItems.length) return
+
+          if (e.key === 'ArrowDown') {
             e.preventDefault()
             setFocusedIndex((prev) => (prev + 1) % activeItems.length)
           } else if (e.key === 'ArrowUp') {
