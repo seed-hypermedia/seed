@@ -128,7 +128,10 @@ export default function WebCommenting({
 
   const docVersion = docId.version
 
-  console.log('[WebCommenting] Version check', {docVersion, willRender: !!docVersion})
+  console.log('[WebCommenting] Version check', {
+    docVersion,
+    willRender: !!docVersion,
+  })
 
   if (!docVersion) {
     console.log('[WebCommenting] No version, returning null')
