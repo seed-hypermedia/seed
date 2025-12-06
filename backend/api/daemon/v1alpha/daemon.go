@@ -31,7 +31,6 @@ import (
 // Node is a subset of the p2p node.
 type Node interface {
 	AddrInfo() peer.AddrInfo
-	ForceSync() error
 	ProtocolID() protocol.ID
 	ProtocolVersion() string
 }
@@ -187,16 +186,9 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 }
 
 // ForceSync implements the corresponding gRPC method.
+// Deprecated: This method is no longer supported.
 func (srv *Server) ForceSync(context.Context, *daemon.ForceSyncRequest) (*emptypb.Empty, error) {
-	if srv.p2p == nil {
-		return nil, status.Error(codes.FailedPrecondition, "force sync function is not set")
-	}
-
-	if err := srv.p2p.ForceSync(); err != nil {
-		return nil, err
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, status.Error(codes.Unimplemented, "ForceSync is deprecated and no longer supported")
 }
 
 // ForceReindex implements the corresponding gRPC method.

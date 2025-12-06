@@ -572,11 +572,6 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	// Force sync will sync subscribed content. Since there is no subscriptions,
-	// no content is expected to be synced
-	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
-	require.NoError(t, err)
-
 	time.Sleep(time.Millisecond * 100)
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
@@ -2430,10 +2425,6 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 
 	// Connect the peers.
 	require.NoError(t, bob.Net.ForceConnect(ctx, alice.Net.AddrInfo()))
-
-	// Force sync to trigger RBSR protocol.
-	_, err = bob.RPC.Daemon.ForceSync(ctx, &daemon.ForceSyncRequest{})
-	require.NoError(t, err)
 
 	{
 		const retries = 100

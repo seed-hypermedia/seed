@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	activity "seed/backend/api/activity/v1alpha"
 	daemon "seed/backend/api/daemon/v1alpha"
 	documentsv3 "seed/backend/api/documents/v3alpha"
@@ -80,16 +79,6 @@ func (s Server) Register(srv *grpc.Server) {
 type p2pNodeSubset struct {
 	node *hmnet.Node
 	sync *syncing.Service
-}
-
-func (p *p2pNodeSubset) ForceSync() error {
-	go func() {
-		if err := p.sync.SyncAllAndLog(context.Background()); err != nil {
-			panic(fmt.Errorf("bug or fatal error during sync: %w", err))
-		}
-	}()
-
-	return nil
 }
 
 func (p *p2pNodeSubset) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error {

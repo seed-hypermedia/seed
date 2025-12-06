@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"regexp"
 	"seed/backend/blob"
 	"seed/backend/config"
@@ -32,7 +31,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
-	"github.com/multiformats/go-multicodec"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
@@ -287,40 +285,6 @@ func (s *Service) refreshWorkers(ctx context.Context) error {
 	return nil
 }
 
-// SyncAllAndLog is the same as Sync but will log the results instead of returning them.
-// Calls will be de-duplicated as only one sync loop may be in progress at any given moment.
-// Returned error indicates a fatal error. The behavior of calling Sync again after a fatal error is undefined.
-func (s *Service) SyncAllAndLog(ctx context.Context) error {
-	log := s.log.With(zap.Int64("traceID", time.Now().UnixMicro()))
-
-	log.Info("SyncLoopStarted")
-
-	res, err := s.forceSyncSubscriptions(ctx)
-	if err != nil {
-		if errors.Is(err, ErrSyncAlreadyRunning) {
-			log.Debug("SyncLoopIsAlreadyRunning")
-			return nil
-		}
-		return fmt.Errorf("fatal error in the sync background loop: %w", err)
-	}
-
-	for i, err := range res.Errs {
-		if err != nil {
-			log.Debug("SyncLoopError",
-				zap.String("peer", res.Peers[i].String()),
-				zap.Error(err),
-			)
-		}
-	}
-
-	log.Info("SyncLoopFinished",
-		zap.Int64("failures", res.NumSyncFailed),
-		zap.Int64("successes", res.NumSyncOK),
-	)
-
-	return nil
-}
-
 // ErrSyncAlreadyRunning is returned when calling Sync while one is already in progress.
 var ErrSyncAlreadyRunning = errors.New("sync is already running")
 
@@ -330,95 +294,6 @@ type SyncResult struct {
 	NumSyncFailed int64
 	Peers         []peer.ID
 	Errs          []error
-}
-
-// forceSyncSubscriptions attempts to sync all the content marked as subscribed.
-func (s *Service) forceSyncSubscriptions(ctx context.Context) (res SyncResult, err error) {
-	for !s.mu.TryLock() {
-		return res, nil
-	}
-	defer s.mu.Unlock()
-
-	ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
-		PageSize: math.MaxInt32,
-	})
-	s.log.Debug("List all subscriptions", zap.Error(err))
-	if err != nil {
-		return res, err
-	}
-	subs := ret.Subscriptions
-
-	s.log.Debug("SyncSubscribedContent called", zap.Int("Number of total subscriptions", len(subs)))
-	if len(subs) == 0 {
-		return res, nil
-	}
-	subsMap := make(subscriptionMap)
-	allPeers := []peer.ID{} // TODO:(juligasa): Remove this when we have providers store
-	if err = s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-			addresStr := stmt.ColumnText(0)
-			pid := stmt.ColumnText(1)
-			addrList := strings.Split(addresStr, ",")
-			info, err := netutil.AddrInfoFromStrings(addrList...)
-			if err != nil {
-				s.log.Warn("Can't sync subscribed content with peer with malformed addresses", zap.String("PID", pid), zap.Error(err))
-				return nil
-			}
-			s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-			allPeers = append(allPeers, info.ID)
-			return nil
-		})
-	}); err != nil {
-		return res, err
-	}
-
-	s.log.Debug("Got list of peers", zap.Int("Number of total peers", len(allPeers)))
-	eidsMap := make(map[string]bool)
-	for _, subs := range subs {
-		eid := "hm://" + subs.Account + subs.Path
-		eidsMap[eid] = subs.Recursive
-	}
-	if len(allPeers) == 0 {
-		s.log.Debug("Defaulting to DHT since we don't have providers")
-		for _, subs := range subs {
-			c, err := ipfs.NewCID(uint64(multicodec.Raw), uint64(multicodec.Identity), []byte("hm://"+subs.Account+subs.Path))
-			if err != nil {
-				continue
-			}
-			peers := s.bitswap.FindProvidersAsync(ctx, c, 3)
-			s.log.Debug("DHT returned", zap.Int("Number of providers found", len(peers)))
-			for p := range peers {
-				p := p
-				allPeers = append(allPeers, p.ID)
-			}
-		}
-	}
-
-	if len(allPeers) == 0 {
-		return res, fmt.Errorf("could not find any provider for any of the subscribed content")
-	}
-	s.log.Debug("Syncing Subscribed content", zap.Int("Number of documents", len(eidsMap)), zap.Int("Number of peers", len(allPeers)))
-	for _, pid := range allPeers {
-		// TODO(juligasa): look into the providers store who has each eid
-		// instead of pasting all peers in all documents.
-		subsMap[pid] = eidsMap
-	}
-
-	// Create RBSR store for all subscriptions
-	dkeys := make(colx.HashSet[DiscoveryKey], len(subs))
-	for _, subs := range subs {
-		dkeys.Put(DiscoveryKey{
-			IRI:       blob.IRI("hm://" + subs.Account + subs.Path),
-			Recursive: subs.Recursive,
-		})
-	}
-
-	store, err := s.loadStore(ctx, dkeys)
-	if err != nil {
-		return res, fmt.Errorf("failed to create RBSR store: %w", err)
-	}
-
-	return s.syncWithManyPeers(ctx, subsMap, store, &DiscoveryProgress{}), nil
 }
 
 // syncWithManyPeers syncs with many peers in parallel.
