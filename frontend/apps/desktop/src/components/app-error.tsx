@@ -1,37 +1,25 @@
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
-import {FallbackProps} from 'react-error-boundary'
+import {FallbackProps, useErrorBoundary} from 'react-error-boundary'
 import {ErrorBar} from './error-bar'
 
-export function AppErrorPage({error, resetErrorBoundary}: FallbackProps) {
+export function AppErrorPage({error}: FallbackProps) {
   return (
     <div className={windowContainerStyles}>
       <ErrorBar />
-      <AppErrorContent
-        message={error.message}
-        resetErrorBoundary={resetErrorBoundary}
-      />
+      <AppErrorContent message={error.message} />
     </div>
   )
 }
 
-export function RootAppError({error, resetErrorBoundary}: FallbackProps) {
-  return (
-    <AppErrorContent
-      message={error.message}
-      resetErrorBoundary={resetErrorBoundary}
-    />
-  )
+export function RootAppError({error}: FallbackProps) {
+  return <AppErrorContent message={error.message} />
 }
 
-export function AppErrorContent({
-  message,
-  resetErrorBoundary,
-}: {
-  message: string
-  resetErrorBoundary?: () => void
-}) {
+export function AppErrorContent({message}: {message: string}) {
+  const {resetBoundary} = useErrorBoundary()
+
   return (
     <div className={panelContainerStyles}>
       <div className="flex flex-1 items-start justify-center px-4 py-12">
@@ -50,11 +38,9 @@ export function AppErrorContent({
                 {message}
               </pre>
             </ScrollArea>
-            {resetErrorBoundary && (
-              <Button variant="destructive" onClick={resetErrorBoundary}>
-                Try again
-              </Button>
-            )}
+            <Button variant="destructive" onClick={resetBoundary}>
+              Try again
+            </Button>
           </div>
         </div>
       </div>
