@@ -81,15 +81,15 @@ func TestPublicBlockstorePrivateBlobs(t *testing.T) {
 	require.Nil(t, privateBlocks)
 
 	// Test IterMany: public succeeds, private fails.
-	it, check := publicBS.IterMany(ctx, []cid.Cid{publicComment.CID})
-	require.NoError(t, check())
-	count := 0
+	it, _, check := publicBS.IterMany(ctx, []cid.Cid{publicComment.CID}).All()
+	var count int
 	for range it {
 		count++
 	}
+	require.NoError(t, check())
 	require.Equal(t, 1, count)
 
-	it2, check2 := publicBS.IterMany(ctx, []cid.Cid{privateComment.CID})
+	it2, _, check2 := publicBS.IterMany(ctx, []cid.Cid{privateComment.CID}).All()
 	for range it2 {
 		// Consume to trigger error.
 		continue

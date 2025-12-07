@@ -2,8 +2,8 @@ package blob
 
 import (
 	"context"
-	"iter"
 
+	"github.com/burdiyan/go-erriter"
 	blockstore "github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -65,7 +65,7 @@ func (pb *publicBlockstore) GetSize(ctx context.Context, c cid.Cid) (int, error)
 	return pb.idx.bs.GetSize(ctx, c)
 }
 
-func (pb *publicBlockstore) IterMany(ctx context.Context, cc []cid.Cid) (iter.Seq[blocks.Block], func() error) {
+func (pb *publicBlockstore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blocks.Block] {
 	ctx = WithPublicOnly(ctx)
 	return pb.idx.bs.IterMany(ctx, cc)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlitegen"
@@ -12,6 +11,7 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/burdiyan/go-erriter"
 	blockstore "github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -168,33 +168,26 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 // IterMany is the same as GetMany, but returns an iterator over the blocks.
 // The database transaction may be open for the duration of the iteration,
 // so callers should be careful not to hold the connection for too long,
-func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) (it iter.Seq[blocks.Block], check func() error) {
+func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blocks.Block] {
 	mCallsTotal.WithLabelValues("IterMany").Inc()
 
-	var outErr error
-	check = func() error { return outErr }
-
 	publicOnly := IsPublicOnly(ctx)
-	return func(yield func(blocks.Block) bool) {
-		conn, release, err := b.db.Conn(ctx)
-		if err != nil {
-			outErr = err
-			return
-		}
-		defer release()
 
-		for _, c := range cc {
-			blk, err := b.get(conn, c, publicOnly)
-			if err != nil {
-				outErr = err
-				return
-			}
+	return erriter.Make(func(yield func(blocks.Block) bool) error {
+		return b.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			for _, c := range cc {
+				blk, err := b.get(conn, c, publicOnly)
+				if err != nil {
+					return err
+				}
 
-			if !yield(blk) {
-				return
+				if !yield(blk) {
+					break
+				}
 			}
-		}
-	}, check
+			return nil
+		})
+	})
 }
 
 func (b *blockStore) get(conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.Block, error) {
