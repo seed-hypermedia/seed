@@ -1,5 +1,4 @@
 import {SearchInput} from '@/components/search-input'
-import {useListDirectory} from '@/models/documents'
 import {Block, BlockNoteEditor} from '@shm/editor/blocknote'
 import {MultipleNodeSelection} from '@shm/editor/blocknote/core/extensions/SideMenu/MultipleNodeSelection'
 import {
@@ -15,7 +14,7 @@ import {
   HMBlockQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useResource, useResources} from '@shm/shared/models/entity'
+import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -116,7 +115,7 @@ function Render(
   const entity = useResource(queryId, {
     enabled: !!queryId,
   })
-  const directoryItems = useListDirectory(queryId, {
+  const directoryItems = useDirectory(queryId, {
     // @ts-ignore
     mode: queryIncludes[0]?.mode,
   })

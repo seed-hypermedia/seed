@@ -9,11 +9,7 @@ import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {
-  useDraftEditor,
-  useListDirectory,
-  useSiteNavigationItems,
-} from '@/models/documents'
+import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
@@ -39,7 +35,7 @@ import {
   HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -717,7 +713,7 @@ function DraftAppHeader({
   onDocNav: (navigation: HMNavigationItem[]) => void
   actor: any // TODO: proper type
 }) {
-  const dir = useListDirectory(docId, {mode: 'Children'})
+  const dir = useDirectory(docId, {mode: 'Children'})
   const notifyServiceHost = useNotifyServiceHost()
   const currentDocNav: HMNavigationItem[] | undefined = useSelector(
     actor,

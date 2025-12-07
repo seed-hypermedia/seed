@@ -16,7 +16,7 @@ import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {queryListDirectory, usePushResource} from './documents'
+import {usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
@@ -186,14 +186,19 @@ async function updateEntitySubscription(sub: EntitySubscription) {
       discoveryResultWithLatestVersion(id, result.version)
       if (recursive) {
         invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
-        queryClient
-          .fetchQuery(queryListDirectory(id))
-          // @ts-expect-error
-          .then((newDir: HMDocumentInfo[]) => {
-            newDir.forEach((doc) => {
-              discoveryResultWithLatestVersion(doc.id, doc.version)
-            })
+        fetchQuery({
+          includes: [
+            {
+              space: id.uid,
+              mode: 'Children',
+              path: hmIdPathToEntityQueryPath(id.path),
+            },
+          ],
+        }).then((result) => {
+          result?.results?.forEach((doc) => {
+            discoveryResultWithLatestVersion(doc.id, doc.version)
           })
+        })
       }
     })
     .finally(() => {})

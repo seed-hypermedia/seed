@@ -38,6 +38,7 @@ import {
 } from '@shm/shared/hm-types'
 import {
   prepareHMDocumentInfo,
+  useDirectory,
   useResource,
   useResources,
 } from '@shm/shared/models/entity'
@@ -1066,36 +1067,6 @@ export function usePushResource() {
   }
 }
 
-export function queryListDirectory(
-  id?: UnpackedHypermediaId | null,
-  options?: {mode?: 'Children' | 'AllDescendants'},
-): UseQueryOptions<unknown, unknown, Array<HMDocumentInfo>> {
-  return {
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, options?.mode],
-    queryFn: async () => {
-      if (!id) return []
-      const results = await fetchQuery({
-        includes: [
-          {
-            space: id.uid,
-            mode: options?.mode || 'Children',
-            path: hmIdPathToEntityQueryPath(id.path),
-          },
-        ],
-      })
-      return results?.results || []
-    },
-    enabled: !!id,
-  } as const
-}
-
-export function useListDirectory(
-  id?: UnpackedHypermediaId | null,
-  options?: {mode: 'Children' | 'AllDescendants'},
-): UseQueryResult<Array<HMDocumentInfo>> {
-  return useQuery(queryListDirectory(id, options))
-}
-
 export function useListSite(id?: UnpackedHypermediaId) {
   return useQuery({
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, 'ALL'],
@@ -1347,7 +1318,7 @@ export function getDraftEditId(
 export function useSiteNavigationItems(
   siteHomeEntity: HMResourceFetchResult | undefined | null,
 ): DocNavigationItem[] | null {
-  const homeDir = useListDirectory(siteHomeEntity?.id, {
+  const homeDir = useDirectory(siteHomeEntity?.id, {
     mode: 'Children',
   })
   const drafts = useAccountDraftList(siteHomeEntity?.id?.uid)

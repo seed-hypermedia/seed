@@ -5,9 +5,9 @@ import {
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
-import {useAccountDraftList, useListDirectory} from '@/models/documents'
+import {useAccountDraftList} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useResources} from '@shm/shared/models/entity'
+import {useDirectory, useResources} from '@shm/shared/models/entity'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
@@ -682,7 +682,7 @@ function PathItemCard({
   homeMetadata: HMMetadata | undefined
 }) {
   const docId = details.id ?? undefined
-  const dir = useListDirectory(docId, {mode: 'Children'})
+  const dir = useDirectory(docId, {mode: 'Children'})
   const capability = useSelectedAccountCapability(docId)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId?.uid)

@@ -5,7 +5,6 @@ import {
   useSelectedAccountWritableDocuments,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
-import {useListDirectory} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {trpc} from '@/trpc'
 import {pathNameify} from '@/utils/path'
@@ -20,7 +19,7 @@ import {
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
-import {useResource, useResources} from '@shm/shared/models/entity'
+import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -94,7 +93,7 @@ export function LocationPicker({
     }
   }, [!newDestinationAlreadyDocument])
   const parentId = useParentId(location)
-  const {data: directory} = useListDirectory(parentId, {mode: 'Children'})
+  const {data: directory} = useDirectory(parentId, {mode: 'Children'})
   return (
     <div className="my-4 flex flex-col gap-3">
       {location ? (
