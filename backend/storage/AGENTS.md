@@ -1,0 +1,5 @@
+- Database schema is in @schema.sql.
+- When changing the schema the migration need to be updated.
+  - Migrations are stored in @storage_migrations.go in a global `migrations` variable.
+  - Read the multiline comment about getting the migration variable for guidance.
+- After changing the schema file and adding migrations run `./dev generate //backend/...` from the repo root.

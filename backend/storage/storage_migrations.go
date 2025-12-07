@@ -55,6 +55,12 @@ type migration struct {
 // To add a new migration, follow the pattern of the existing ones, and choose the current date accordingly as a version.
 // If multiple migrations need to be made in the same day, the incrementing suffix can be used.
 //
+// The safest way to get the migration version is to run this command in the terminal (assuming your clock is accurate):
+//
+//	```
+//	date +%Y-%m-%d.%H%M%S
+//	```
+//
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
 	{Version: "2025-11-18.01", Run: func(_ *Store, conn *sqlite.Conn) error {
