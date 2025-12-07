@@ -186,12 +186,8 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e)
 	}
 
-	opts.extraHTTPHandlers = append(opts.extraHTTPHandlers, func(r *Router) {
-		r.Handle("/debug/p2p", a.Net.DebugHandler(), RouteNav)
-	})
-
 	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
-		fm, opts.extraHTTPHandlers...)
+		fm, a.Net, opts.extraHTTPHandlers...)
 	if err != nil {
 		return nil, err
 	}

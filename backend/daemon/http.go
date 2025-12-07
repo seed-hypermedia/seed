@@ -37,27 +37,6 @@ var (
 	date   string
 )
 
-// setupIPFSFileHandlers sets up the IPFS file endpoints for uploading and getting files.
-func setupIPFSFileHandlers(r *Router, h *hmnet.FileManager) {
-	r.Handle("/ipfs/file-upload", http.HandlerFunc(h.UploadFile), 0)
-	r.Handle("/ipfs/{cid}", http.HandlerFunc(h.GetFile), 0)
-}
-
-// setupDebugHandlers sets up the debug endpoints.
-func setupDebugHandlers(r *Router, blobs blockstore.Blockstore) {
-	r.Handle("/debug/metrics", promhttp.Handler(), RouteNav)
-	r.Handle("/debug/pprof", http.DefaultServeMux, RoutePrefix|RouteNav)
-	r.Handle("/debug/vars", http.DefaultServeMux, RoutePrefix|RouteNav)
-	r.Handle("/debug/grpc", grpcLogsHandler(), RouteNav)
-	r.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
-	r.Handle("/debug/version", gitVersionHandler(), RouteNav)
-	r.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
-	r.Handle("/debug/traces", eztrc.Handler(), RouteNav)
-	r.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
-	r.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
-	r.Handle("/debug/events", http.DefaultServeMux, RouteNav)
-}
-
 func makeBlobDebugHandler(bs blockstore.Blockstore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cs := mux.Vars(r)["cid"]
@@ -124,6 +103,7 @@ func initHTTP(
 	g *errgroup.Group,
 	blobs blockstore.Blockstore,
 	ipfsHandler *hmnet.FileManager,
+	p2pnet *hmnet.Node,
 	extraHandlers ...func(*Router),
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{r: mux.NewRouter()}
@@ -133,13 +113,33 @@ func initHTTP(
 		instrument,
 	)
 
-	setupDebugHandlers(router, blobs)
-	setupIPFSFileHandlers(router, ipfsHandler)
-	setupGRPCWebHandler(router, rpc)
-	for _, handle := range extraHandlers {
-		handle(router)
+	{
+		setupGRPCWebHandler(router, rpc)
+
+		router.Handle("/ipfs/file-upload", http.HandlerFunc(ipfsHandler.UploadFile), 0)
+		router.Handle("/ipfs/{cid}", http.HandlerFunc(ipfsHandler.GetFile), 0)
+
+		router.Handle("/debug/metrics", promhttp.Handler(), RouteNav)
+		router.Handle("/debug/pprof", http.DefaultServeMux, RoutePrefix|RouteNav)
+		router.Handle("/debug/vars", http.DefaultServeMux, RoutePrefix|RouteNav)
+		router.Handle("/debug/grpc", grpcLogsHandler(), RouteNav)
+		router.Handle("/debug/buildinfo", buildInfoHandler(), RouteNav)
+		router.Handle("/debug/version", gitVersionHandler(), RouteNav)
+		router.Handle("/debug/cid/{cid}", corsMiddleware(makeBlobDebugHandler(blobs)), 0)
+		router.Handle("/debug/traces", eztrc.Handler(), RouteNav)
+		router.Handle("/debug/logs", logging.DebugHandler(), RouteNav)
+		router.Handle("/debug/requests", http.DefaultServeMux, RouteNav)
+		router.Handle("/debug/events", http.DefaultServeMux, RouteNav)
+		router.Handle("/debug/p2p", p2pnet.DebugHandler(), RouteNav)
+
+		router.Handle("/hm/api/config", p2pnet.HMAPIConfigHandler(), RouteNav)
+
+		for _, handle := range extraHandlers {
+			handle(router)
+		}
+
+		router.Handle("/", http.HandlerFunc(router.Index), 0)
 	}
-	router.Handle("/", http.HandlerFunc(router.Index), 0)
 
 	srv = &http.Server{
 		Addr:              ":" + strconv.Itoa(port),
