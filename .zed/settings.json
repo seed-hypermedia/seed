@@ -8,5 +8,7 @@
     "Proto": {
       "tab_size": 2
     }
-  }
+  },
+  "file_scan_exclusions": [".yarn"],
+  "file_scan_inclusions": [".env*", "docker-compose.*.yml", ".local"]
 }
