@@ -1,8 +1,10 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {DiscoverEntityResponse} from '@shm/shared'
+import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {
+  AggregatedDiscoveryState,
+  DiscoveryProgress,
   DiscoveryState,
   HMResource,
   UnpackedHypermediaId,
@@ -29,6 +31,8 @@ type DeleteEntitiesInput = {
   capabilityId?: string
   signingAccountUid: string
 }
+
+const DISCOVERY_POLL_INTERVAL_MS = 3_000 // 3 seconds
 
 export function useDeleteEntities(
   opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
@@ -155,6 +159,45 @@ export function getDiscoveryStream(
   return getOrCreateDiscoveryStream(entityId).stream
 }
 
+// Aggregated discovery state across all entities
+const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
+  writeableStateStream<AggregatedDiscoveryState>({
+    activeCount: 0,
+    blobsDiscovered: 0,
+    blobsDownloaded: 0,
+    blobsFailed: 0,
+  })
+
+export function getAggregatedDiscoveryStream(): StateStream<AggregatedDiscoveryState> {
+  return aggregatedDiscoveryStream
+}
+
+function updateAggregatedDiscoveryState() {
+  let activeCount = 0
+  let blobsDiscovered = 0
+  let blobsDownloaded = 0
+  let blobsFailed = 0
+
+  discoveryStreams.forEach(({stream}) => {
+    const state = stream.get()
+    if (state?.isDiscovering) {
+      activeCount++
+      if (state.progress) {
+        blobsDiscovered += state.progress.blobsDiscovered
+        blobsDownloaded += state.progress.blobsDownloaded
+        blobsFailed += state.progress.blobsFailed
+      }
+    }
+  })
+
+  writeAggregatedDiscovery({
+    activeCount,
+    blobsDiscovered,
+    blobsDownloaded,
+    blobsFailed,
+  })
+}
+
 // Check if entity is covered by a parent's recursive subscription
 function isEntityCoveredByRecursive(id: UnpackedHypermediaId): boolean {
   if (!id.path?.length) return false
@@ -205,6 +248,7 @@ export async function discoverDocument(
   path: string[] | null,
   version?: string | null,
   recursive?: boolean,
+  onProgress?: (progress: DiscoveryProgress) => void,
 ) {
   const discoverRequest = {
     account: uid,
@@ -221,13 +265,20 @@ export async function discoverDocument(
     async () => {
       const discoverResp =
         await grpcClient.entities.discoverEntity(discoverRequest)
+      if (discoverResp.progress && onProgress) {
+        onProgress({
+          blobsDiscovered: discoverResp.progress.blobsDiscovered,
+          blobsDownloaded: discoverResp.progress.blobsDownloaded,
+          blobsFailed: discoverResp.progress.blobsFailed,
+        })
+      }
       if (checkDiscoverySuccess(discoverResp))
         return {version: discoverResp.version}
 
       return null
     },
     {
-      maxRetryMs: 10_000, // 10 seconds because subscriptions are scheduled to run discovery every 10 seconds
+      maxRetryMs: DISCOVERY_POLL_INTERVAL_MS,
       retryDelayMs: 2_000,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
@@ -255,10 +306,13 @@ function invalidateDirectoryQueries(id: UnpackedHypermediaId) {
   invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
 }
 
-async function updateEntitySubscription(sub: EntitySubscription) {
+async function updateEntitySubscription(
+  sub: EntitySubscription,
+  onProgress?: (progress: DiscoveryProgress) => void,
+) {
   const {id, recursive} = sub
   if (!id) return
-  await discoverDocument(id.uid, id.path, undefined, recursive)
+  await discoverDocument(id.uid, id.path, undefined, recursive, onProgress)
     .then((result) => {
       discoveryResultWithLatestVersion(id, result.version)
       if (recursive) {
@@ -315,20 +369,35 @@ function createEntitySubscription(sub: EntitySubscription) {
   function _updateSubscriptionLoop() {
     if (isCovered) {
       // If covered by parent, just schedule next check (parent handles discovery)
-      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+      loopTimer = setTimeout(
+        _updateSubscriptionLoop,
+        DISCOVERY_POLL_INTERVAL_MS,
+      )
       return
     }
 
-    updateEntitySubscription(sub)
+    updateEntitySubscription(sub, (progress) => {
+      discoveryStream.write({
+        isDiscovering: true,
+        startedAt: Date.now(),
+        entityId: id!.id,
+        progress,
+      })
+      updateAggregatedDiscoveryState()
+    })
       .then(() => {
         // Discovery completed successfully - clear discovering state
         discoveryStream.write(null)
+        updateAggregatedDiscoveryState()
       })
       .catch(() => {
         // Discovery failed but will retry - keep discovering state
       })
       .finally(() => {
-        loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+        loopTimer = setTimeout(
+          _updateSubscriptionLoop,
+          DISCOVERY_POLL_INTERVAL_MS,
+        )
       })
   }
 

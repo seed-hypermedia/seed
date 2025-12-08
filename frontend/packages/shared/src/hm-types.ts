@@ -1137,10 +1137,24 @@ export const HMResolvedResourceSchema = z.discriminatedUnion('type', [
 export type HMResolvedResource = z.infer<typeof HMResolvedResourceSchema>
 
 // Discovery state (client-side only, not part of API response)
+export type DiscoveryProgress = {
+  blobsDiscovered: number
+  blobsDownloaded: number
+  blobsFailed: number
+}
+
 export type DiscoveryState = {
   isDiscovering: boolean
   startedAt: number
   entityId: string
+  progress?: DiscoveryProgress
+}
+
+export type AggregatedDiscoveryState = {
+  activeCount: number
+  blobsDiscovered: number
+  blobsDownloaded: number
+  blobsFailed: number
 }
 
 export const DeviceLinkSessionSchema = z.object({
