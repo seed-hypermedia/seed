@@ -19,7 +19,11 @@ import {
   UnpackedHypermediaId,
   useSearch,
 } from '@shm/shared'
-import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'

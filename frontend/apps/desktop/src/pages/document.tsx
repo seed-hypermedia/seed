@@ -390,7 +390,15 @@ function _MainDocumentPage({
 
   // @ts-ignore
   if (resource.data?.type === 'not-found') {
-    return <DocDiscovery />
+    if (resource.isDiscovering) {
+      return <DocDiscovery />
+    }
+    return (
+      <DocMessageBox
+        title="Document Not Found"
+        message="This document could not be found on the network."
+      />
+    )
   }
 
   if (loadedCommentResource) {

@@ -441,9 +441,11 @@ function AccountContacts({
       </h3>
       <div className="flex flex-col">
         {contact.contacts?.map((contact) => {
-          const subjectAccount = subjectAccounts.find(
+          const subjectAccountResult = subjectAccounts.find(
             (a) => a.data?.id?.uid === contact.subject,
-          )?.data
+          )
+          const subjectAccount = subjectAccountResult?.data
+          const isDiscovering = subjectAccountResult?.isDiscovering
           const contactName = contact.name
           const subjectName =
             subjectAccount?.type === 'document'
@@ -475,8 +477,12 @@ function AccountContacts({
                   }
                   size={32}
                 />
-              ) : null}
-              <span className="font-bold">{subjectName}</span>
+              ) : (
+                <HMIcon id={hmId(contact.subject)} size={32} />
+              )}
+              <span className="font-bold">
+                {isDiscovering ? 'Loading...' : subjectName}
+              </span>
               {subjectName !== contactName ? (
                 <span className="text-gray-500 dark:text-gray-300">
                   | {contactName}

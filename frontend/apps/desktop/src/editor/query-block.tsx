@@ -14,7 +14,11 @@ import {
   HMBlockQuery,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useDirectory, useResource, useResources} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'

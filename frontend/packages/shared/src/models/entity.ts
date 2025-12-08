@@ -11,9 +11,10 @@ import {
   useQuery,
   UseQueryOptions,
 } from '@tanstack/react-query'
-import {useEffect, useMemo, useRef} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {Status} from '../client/.generated/google/rpc/status_pb'
+import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {getContactMetadata} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {
@@ -196,6 +197,24 @@ export function createBatchAccountsResolver(client: GRPCClient) {
   return getBatchAccountsResolved
 }
 
+export function useDiscoveryState(entityId: string | undefined) {
+  const client = useUniversalClient()
+  const stream = entityId
+    ? client.discovery?.getDiscoveryStream(entityId)
+    : undefined
+  const discoveryState = useStream(stream)
+
+  // Check if discovery has timed out
+  const isTimedOut = discoveryState
+    ? Date.now() - discoveryState.startedAt > DISCOVERY_TIMEOUT_MS
+    : false
+
+  return {
+    isDiscovering: discoveryState?.isDiscovering && !isTimedOut,
+    isTimedOut,
+  }
+}
+
 export function useResource(
   id: UnpackedHypermediaId | null | undefined,
   options?: UseQueryOptions<HMResource | null> & {
@@ -228,6 +247,13 @@ export function useResource(
     ...queryOptions,
   })
 
+  // Get discovery state
+  const {isDiscovering: discoveryInProgress} = useDiscoveryState(id?.id)
+
+  // Determine if we should show discovering UI
+  const isDiscovering =
+    !!subscribed && result.data?.type === 'not-found' && !!discoveryInProgress
+
   // Redirect handling
   const redirectTarget =
     result.data?.type === 'redirect' ? result.data.redirectTarget : null
@@ -241,7 +267,10 @@ export function useResource(
     }
   }, [redirectTarget])
 
-  return result
+  return {
+    ...result,
+    isDiscovering,
+  }
 }
 
 export function useAccount(
@@ -289,6 +318,49 @@ export function useResolvedResource(
   })
 }
 
+// Hook to get discovery states for multiple entity IDs
+function useDiscoveryStates(entityIds: (string | undefined)[]) {
+  const client = useUniversalClient()
+
+  // Create a stable key for the ids array
+  const idsKey = entityIds.join(',')
+
+  // Subscribe to all discovery streams
+  const streams = useMemo(() => {
+    if (!client.discovery) return []
+    return entityIds.map((id) =>
+      id ? client.discovery!.getDiscoveryStream(id) : undefined,
+    )
+  }, [client.discovery, idsKey])
+
+  // Get current values from all streams
+  const [states, setStates] = useState<(boolean | undefined)[]>(() =>
+    streams.map((stream) => stream?.get()?.isDiscovering),
+  )
+
+  useEffect(() => {
+    if (!client.discovery) return
+
+    const cleanups = streams.map((stream, index) => {
+      if (!stream) return undefined
+      return stream.subscribe((state) => {
+        setStates((prev) => {
+          const next = [...prev]
+          const isTimedOut = state
+            ? Date.now() - state.startedAt > DISCOVERY_TIMEOUT_MS
+            : false
+          next[index] = state?.isDiscovering && !isTimedOut
+          return next
+        })
+      })
+    })
+
+    return () => cleanups.forEach((cleanup) => cleanup?.())
+  }, [streams, client.discovery])
+
+  return states
+}
+
 export function useResources(
   ids: (UnpackedHypermediaId | null | undefined)[],
   options?: UseQueryOptions<HMResource | null> & {
@@ -313,7 +385,11 @@ export function useResources(
     client.subscribeEntity,
   ])
 
-  return useQueries({
+  // Get discovery states for all entities
+  const entityIdStrings = ids.map((id) => id?.id)
+  const discoveryStates = useDiscoveryStates(entityIdStrings)
+
+  const queryResults = useQueries({
     queries: ids.map((id) => {
       const version = id?.version || undefined
       return {
@@ -326,6 +402,17 @@ export function useResources(
         },
       }
     }),
+  })
+
+  // Combine query results with discovery state
+  return queryResults.map((result, index) => {
+    const discoveryInProgress = discoveryStates[index]
+    const isDiscovering =
+      !!subscribed && result.data?.type === 'not-found' && !!discoveryInProgress
+    return {
+      ...result,
+      isDiscovering,
+    }
   })
 }
 

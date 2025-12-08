@@ -1,4 +1,8 @@
-import {addSubscribedEntity, removeSubscribedEntity} from '@/models/entities'
+import {
+  addSubscribedEntity,
+  getDiscoveryStream,
+  removeSubscribedEntity,
+} from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import type {
@@ -31,5 +35,9 @@ export const desktopUniversalClient: UniversalClient = {
     const sub = {id, recursive}
     addSubscribedEntity(sub)
     return () => removeSubscribedEntity(sub)
+  },
+
+  discovery: {
+    getDiscoveryStream,
   },
 }

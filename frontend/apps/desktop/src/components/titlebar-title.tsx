@@ -175,13 +175,15 @@ function BreadcrumbTitle({
   )
   const entityResults = useResources(entityIds, {subscribed: true})
   const entityContents = entityIds.map((id, i) => {
-    const data = entityResults[i]?.data
-    if (!data) return {id, entity: undefined}
+    const result = entityResults[i]
+    const data = result?.data
+    const isDiscovering = result?.isDiscovering
+    if (!data) return {id, entity: undefined, isDiscovering}
     if (data.type === 'tombstone')
-      return {id, entity: {id: data.id, isTombstone: true}}
+      return {id, entity: {id: data.id, isTombstone: true}, isDiscovering}
     if (data.type === 'document')
-      return {id, entity: {id: data.id, document: data.document}}
-    return {id, entity: undefined}
+      return {id, entity: {id: data.id, document: data.document}, isDiscovering}
+    return {id, entity: undefined, isDiscovering}
   })
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
@@ -207,7 +209,8 @@ function BreadcrumbTitle({
           fallbackName: id.path?.at(-1),
           isError: contents.entity && !contents.entity.document,
           isTombstone: contents.entity?.isTombstone || false,
-          isLoading: !contents.entity,
+          // Show loading if no entity loaded OR if we're still discovering
+          isLoading: !contents.entity || contents.isDiscovering,
           id,
           crumbKey: `id-${idIndex}`,
         },

@@ -1,7 +1,12 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
+import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {DiscoverEntityResponse} from '@shm/shared'
-import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  DiscoveryState,
+  HMResource,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {
   createBatchAccountsResolver,
@@ -15,6 +20,7 @@ import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
 import {usePushResource} from './documents'
 
@@ -123,22 +129,75 @@ export type EntitySubscription = {
   recursive?: boolean
 }
 
+// Discovery state tracking with StateStream
+const discoveryStreams = new Map<
+  string,
+  {
+    write: (state: DiscoveryState | null) => void
+    stream: StateStream<DiscoveryState | null>
+  }
+>()
+
+// Track which entities have active recursive subscriptions
+const recursiveSubscriptions = new Set<string>()
+
+function getOrCreateDiscoveryStream(entityId: string) {
+  if (!discoveryStreams.has(entityId)) {
+    const [write, stream] = writeableStateStream<DiscoveryState | null>(null)
+    discoveryStreams.set(entityId, {write, stream})
+  }
+  return discoveryStreams.get(entityId)!
+}
+
+export function getDiscoveryStream(
+  entityId: string,
+): StateStream<DiscoveryState | null> {
+  return getOrCreateDiscoveryStream(entityId).stream
+}
+
+// Check if entity is covered by a parent's recursive subscription
+function isEntityCoveredByRecursive(id: UnpackedHypermediaId): boolean {
+  if (!id.path?.length) return false
+
+  // Build all parent paths and check if any have recursive subscription
+  // e.g., for uid/foo/bar/baz, check hm://uid/*, hm://uid/foo/*, hm://uid/foo/bar/*
+  const basePath = `hm://${id.uid}`
+  for (let i = 0; i <= id.path.length; i++) {
+    const parentPath =
+      i === 0
+        ? `${basePath}/*`
+        : `${basePath}/${id.path.slice(0, i).join('/')}/*`
+    if (recursiveSubscriptions.has(parentPath)) {
+      return true
+    }
+  }
+  return false
+}
+
 function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
-  const lastEntity = queryClient.getQueryData<HMResourceFetchResult>([
+  const lastEntity = queryClient.getQueryData<HMResource | null>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
   ])
-  if (lastEntity && lastEntity?.document?.version !== version) {
-    // console.log('[sync] new version discovered for entity', id, version)
+
+  // Invalidate if:
+  // 1. No cached entity yet
+  // 2. Cached entity is not-found (discovery succeeded, so refetch)
+  // 3. Cached entity has a different version
+  const cachedVersion =
+    lastEntity?.type === 'document' ? lastEntity.document?.version : undefined
+  const shouldInvalidate =
+    !lastEntity || lastEntity?.type === 'not-found' || cachedVersion !== version
+
+  if (shouldInvalidate) {
     invalidateQueries([queryKeys.ENTITY, id.id])
     invalidateQueries([queryKeys.ACCOUNT, id.uid])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   }
-  // we should also invalidate the queryKeys.ACCOUNT entry in the cache
 }
 
 export async function discoverDocument(
@@ -178,6 +237,24 @@ export async function discoverDocument(
   )
 }
 
+// Invalidate directory queries for an entity and all its parents
+// This ensures recursive queries at parent levels are also refreshed
+function invalidateDirectoryQueries(id: UnpackedHypermediaId) {
+  // Invalidate the entity's own directory query
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
+
+  // Invalidate all parent directory queries (they may have recursive queries)
+  const path = id.path || []
+  for (let i = 0; i < path.length; i++) {
+    const parentId = hmId(id.uid, {path: path.slice(0, i)})
+    invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+  }
+
+  // Also invalidate the root (account home)
+  const rootId = hmId(id.uid)
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
+}
+
 async function updateEntitySubscription(sub: EntitySubscription) {
   const {id, recursive} = sub
   if (!id) return
@@ -185,7 +262,8 @@ async function updateEntitySubscription(sub: EntitySubscription) {
     .then((result) => {
       discoveryResultWithLatestVersion(id, result.version)
       if (recursive) {
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
+        // Invalidate directory queries for this entity and all parents
+        invalidateDirectoryQueries(id)
         fetchQuery({
           includes: [
             {
@@ -210,22 +288,61 @@ const entitySubscriptionCounts: Record<string, number> = {}
 function createEntitySubscription(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   if (!key) return () => {}
-  // console.log('[sync] createEntitySubscription', key)
 
-  let loopTimer: NodeJS.Timeout | null = null
-  function _updateSubscriptionLoop() {
-    updateEntitySubscription(sub).finally(() => {
-      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+  const {id, recursive} = sub
+  if (!id) return () => {}
+
+  // Track recursive subscriptions for deduplication
+  if (recursive) {
+    recursiveSubscriptions.add(key)
+  }
+
+  // Skip discovery if covered by a parent's recursive subscription
+  const isCovered = !recursive && isEntityCoveredByRecursive(id)
+
+  // Set discovering state (even if covered, to handle race conditions)
+  const discoveryStream = getOrCreateDiscoveryStream(id.id)
+  if (!isCovered) {
+    discoveryStream.write({
+      isDiscovering: true,
+      startedAt: Date.now(),
+      entityId: id.id,
     })
   }
+
+  let loopTimer: NodeJS.Timeout | null = null
+
+  function _updateSubscriptionLoop() {
+    if (isCovered) {
+      // If covered by parent, just schedule next check (parent handles discovery)
+      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+      return
+    }
+
+    updateEntitySubscription(sub)
+      .then(() => {
+        // Discovery completed successfully - clear discovering state
+        discoveryStream.write(null)
+      })
+      .catch(() => {
+        // Discovery failed but will retry - keep discovering state
+      })
+      .finally(() => {
+        loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+      })
+  }
+
+  // Debounce initial discovery
   loopTimer = setTimeout(
     _updateSubscriptionLoop,
-    100 + Math.random() * 300, // delay the first discovery to avoid too many simultaneous updates
+    DISCOVERY_DEBOUNCE_MS + Math.random() * 100,
   )
 
   return () => {
-    // console.log('[sync] releaseEntitySubscription', key)
     loopTimer && clearTimeout(loopTimer)
+    if (recursive) {
+      recursiveSubscriptions.delete(key)
+    }
   }
 }
 

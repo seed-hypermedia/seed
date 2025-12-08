@@ -323,26 +323,27 @@ function CollaboratorItem({
         collaborator.data.document?.metadata
       : undefined
   if (capability.role === 'owner') return null
+  const isLoading = collaborator.isLoading || collaborator.isDiscovering
   return (
     <Button
       onClick={() => navigate({key: 'contact', id: collaboratorId})}
       className="w-full"
     >
       <HMIcon
-        name={collaboratorMetadata?.name}
-        icon={collaboratorMetadata?.icon}
+        name={isLoading ? undefined : collaboratorMetadata?.name}
+        icon={isLoading ? undefined : collaboratorMetadata?.icon}
         id={collaboratorId}
         size={24}
       />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className="flex-1 truncate text-left">
-          {
-            getContactMetadata(
-              capability.accountUid,
-              collaboratorMetadata,
-              myContacts.data,
-            )?.name
-          }
+          {isLoading
+            ? 'Loading...'
+            : getContactMetadata(
+                capability.accountUid,
+                collaboratorMetadata,
+                myContacts.data,
+              )?.name}
         </SizableText>
         <SizableText size="xs" color="muted">
           {getRoleName(capability.role)}{' '}

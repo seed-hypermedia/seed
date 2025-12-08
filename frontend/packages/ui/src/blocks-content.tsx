@@ -1616,12 +1616,20 @@ export function BlockEmbedCard({
         <Spinner />
       </div>
     )
-  if (
-    doc.isError ||
-    !doc.data ||
-    doc.data.type == 'not-found' ||
-    doc.data.type == 'redirect'
-  )
+  if (doc.data?.type === 'not-found') {
+    if (doc.isDiscovering) {
+      return (
+        <div className="flex items-center justify-center gap-2 p-4">
+          <Spinner className="size-4" />
+          <SizableText className="text-muted-foreground">
+            Looking for this content...
+          </SizableText>
+        </div>
+      )
+    }
+    return <ErrorBlock message="Could not load embed" />
+  }
+  if (doc.isError || !doc.data || doc.data.type == 'redirect')
     return <ErrorBlock message="Could not load embed" />
 
   const accountsMetadata = Object.fromEntries(
@@ -1697,6 +1705,16 @@ export function BlockEmbedContent({
   }
   if (!id) return <ErrorBlock message="Invalid embed link" />
   if (resource.data?.type === 'not-found') {
+    if (resource.isDiscovering) {
+      return (
+        <div className="block-content border-border bg-muted/30 flex items-center gap-2 rounded-md border p-4">
+          <Spinner className="size-4" />
+          <SizableText className="text-muted-foreground">
+            Looking for this content...
+          </SizableText>
+        </div>
+      )
+    }
     return (
       <ErrorBlock message="Resource not found">
         <Button
@@ -2159,7 +2177,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
   })
 
   // Subscribe to query target
-  useResource(queryIncludeId, {
+  const queryTarget = useResource(queryIncludeId, {
     recursive: true,
     subscribed: true,
   })
@@ -2186,6 +2204,18 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
 
   // Get accounts metadata
   const accountsMetadata = useAccountsMetadata(authorIds)
+
+  // Show discovering state (after all hooks)
+  if (queryTarget.data?.type === 'not-found' && queryTarget.isDiscovering) {
+    return (
+      <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border p-4">
+        <Spinner className="size-4" />
+        <SizableText className="text-muted-foreground">
+          Looking for content...
+        </SizableText>
+      </div>
+    )
+  }
 
   // Get entity helper function
   function getEntity(id: UnpackedHypermediaId) {
@@ -2822,18 +2852,25 @@ function InlineEmbed({
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
 }) {
-  const doc = useResource(entityId)
+  const doc = useResource(entityId, {subscribed: true})
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 
-  let name = getMetadataName(document?.metadata) || '...'
-  if (!entityId.path?.length) {
-    const contactName = getContactMetadata(
-      entityId.uid,
-      document?.metadata,
-      ctx?.contacts,
-    ).name
-    name = contactName
+  let name: string
+  if (doc.isDiscovering) {
+    name = 'Loading...'
+  } else if (doc.data?.type === 'not-found') {
+    name = '[not found]'
+  } else {
+    name = getMetadataName(document?.metadata) || '...'
+    if (!entityId.path?.length) {
+      const contactName = getContactMetadata(
+        entityId.uid,
+        document?.metadata,
+        ctx?.contacts,
+      ).name
+      name = contactName
+    }
   }
 
   return (

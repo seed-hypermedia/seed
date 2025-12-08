@@ -1136,6 +1136,13 @@ export const HMResolvedResourceSchema = z.discriminatedUnion('type', [
 ])
 export type HMResolvedResource = z.infer<typeof HMResolvedResourceSchema>
 
+// Discovery state (client-side only, not part of API response)
+export type DiscoveryState = {
+  isDiscovering: boolean
+  startedAt: number
+  entityId: string
+}
+
 export const DeviceLinkSessionSchema = z.object({
   accountId: z.string(),
   secretToken: z.string(),

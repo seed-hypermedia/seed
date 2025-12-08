@@ -1,5 +1,6 @@
-import type {HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {DiscoveryState, HMRequest, UnpackedHypermediaId} from './hm-types'
 import type {RecentsResult} from './models/recents'
+import type {StateStream} from './utils/stream'
 
 export type {RecentsResult}
 
@@ -7,6 +8,11 @@ export type DeleteCommentInput = {
   commentId: string
   targetDocId: UnpackedHypermediaId
   signingAccountId: string
+}
+
+// Discovery service for tracking entity discovery state
+export type DiscoveryService = {
+  getDiscoveryStream: (entityId: string) => StateStream<DiscoveryState | null>
 }
 
 // Platform-agnostic client interface for universal data operations
@@ -31,4 +37,7 @@ export type UniversalClient = {
     id: UnpackedHypermediaId
     recursive?: boolean
   }) => () => void
+
+  // Discovery state tracking (desktop only - undefined on web)
+  discovery?: DiscoveryService
 }
