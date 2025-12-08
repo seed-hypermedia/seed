@@ -1,7 +1,7 @@
+import {useInfiniteFeed, useLatestEvent} from '@shm/shared'
 import {useQueryClient} from '@tanstack/react-query'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {useInfiniteFeed, useLatestEvent} from '../models'
 import DataViewer from './DataViewer'
 
 export default function Feed() {
@@ -20,14 +20,14 @@ export default function Feed() {
   const observerRef = useRef<IntersectionObserver>()
   const [showNewContentPill, setShowNewContentPill] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
-  const [latestKnownCid, setLatestKnownCid] = useState<string | null>(null)
+  const [latestKnownId, setLatestKnownId] = useState<string | null>(null)
 
   const lastElementRef = useCallback(
     (node: HTMLDivElement) => {
       if (isLoading) return
       if (observerRef.current) observerRef.current.disconnect()
       observerRef.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
           fetchNextPage()
         }
       })
@@ -42,14 +42,14 @@ export default function Feed() {
   // Check for new content
   useEffect(() => {
     if (latestEvent && allEvents.length > 0) {
-      const currentLatestCid = allEvents[0].newBlob.cid
+      const currentLatestId = (allEvents[0] as {id?: string})?.id
 
-      // Update the latest known CID when we have new data
-      if (latestKnownCid !== currentLatestCid) {
-        setLatestKnownCid(currentLatestCid)
+      // Update the latest known ID when we have new data
+      if (latestKnownId !== currentLatestId) {
+        setLatestKnownId(currentLatestId || null)
       }
 
-      if (latestEvent.newBlob.cid !== currentLatestCid) {
+      if ((latestEvent as {id?: string}).id !== currentLatestId) {
         if (isAtTop) {
           // If at top, automatically refresh by invalidating the entire query
           queryClient.invalidateQueries({queryKey: ['infinite-feed']})
@@ -58,11 +58,11 @@ export default function Feed() {
           setShowNewContentPill(true)
         }
       } else {
-        // If CIDs match, hide the pill
+        // If IDs match, hide the pill
         setShowNewContentPill(false)
       }
     }
-  }, [latestEvent, allEvents, isAtTop, queryClient, latestKnownCid])
+  }, [latestEvent, allEvents, isAtTop, queryClient, latestKnownId])
 
   // Track scroll position
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function Feed() {
         {allEvents.map((event: any, index: number) => (
           <div
             className="container mx-auto max-w-4xl rounded-lg bg-white p-4 shadow"
-            key={event.newBlob.cid}
+            key={event.id}
             ref={index === allEvents.length - 1 ? lastElementRef : undefined}
           >
             <DataViewer data={event} onNavigate={navigate} />

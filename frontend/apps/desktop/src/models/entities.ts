@@ -1,11 +1,12 @@
 import {grpcClient} from '@/grpc-client'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {DiscoverEntityResponse} from '@shm/shared'
+import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {
-  HMAccountsMetadata,
-  HMDocumentMetadataSchema,
-  HMEntityContent,
-  HMMetadataPayload,
+  AggregatedDiscoveryState,
+  DiscoveryProgress,
+  DiscoveryState,
+  HMResource,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
@@ -13,24 +14,25 @@ import {
   createBatchAccountsResolver,
   getErrorMessage,
   HMRedirectError,
-  useResources,
 } from '@shm/shared/models/entity'
-import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo, useRef} from 'react'
-import {queryListDirectory, usePushResource} from './documents'
+import {usePushResource} from './documents'
 
 type DeleteEntitiesInput = {
   ids: UnpackedHypermediaId[]
   capabilityId?: string
   signingAccountUid: string
 }
+
+const DISCOVERY_POLL_INTERVAL_MS = 3_000 // 3 seconds
 
 export function useDeleteEntities(
   opts: UseMutationOptions<void, unknown, DeleteEntitiesInput>,
@@ -110,31 +112,6 @@ export function useUndeleteEntity(
   })
 }
 
-export function getParentPaths(path?: string[] | null): string[][] {
-  if (!path) return [[]]
-  let walkParentPaths: string[] = []
-  return [
-    [],
-    ...path.map((term) => {
-      walkParentPaths = [...walkParentPaths, term]
-      return walkParentPaths
-    }),
-  ]
-}
-
-function getIdsFromIds(id: UnpackedHypermediaId): Array<UnpackedHypermediaId> {
-  return getParentPaths(id.path).map((path) => hmId(id.uid, {path}))
-}
-
-export function useItemsFromId(
-  id: UnpackedHypermediaId,
-): Array<UnpackedHypermediaId> {
-  return useMemo(() => {
-    const ids = getIdsFromIds(id)
-    return ids
-  }, [id])
-}
-
 function catchNotFound<Result>(
   promise: Promise<Result>,
 ): Promise<Result | null> {
@@ -147,64 +124,123 @@ function catchNotFound<Result>(
 // Use shared resource fetcher
 export const fetchResource = createResourceFetcher(grpcClient)
 
-export async function fetchAccount(
-  accountUid: string,
-): Promise<HMMetadataPayload> {
-  try {
-    const grpcAccount = await grpcClient.documents.getAccount({
-      id: accountUid,
-    })
-
-    const serverAccount = toPlainMessage(grpcAccount)
-    if (serverAccount.aliasAccount) {
-      return await fetchAccount(serverAccount.aliasAccount)
-    }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
-    const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
-    return {
-      id: hmId(accountUid, {
-        // this is mega confusing, sorry. We need to include this version of the home document so we know when to invalidate the account after discovery completes.
-        // it is technically incorrect, because the version should be the version of the profile, not the fallback home document where we currently load account metadata from.
-        // one day we can have improved data normalization in the client, and the backend should give details if the metadata is coming from the profile or the home doc.
-        // this is used by discoveryResultWithLatestVersion to invalidate the account after discovery completes
-        version: serverAccount.homeDocumentInfo?.version,
-        // If this confuses you, ask Eric and hopefully he still remembers this.
-      }),
-      metadata,
-    } as HMMetadataPayload
-  } catch (error) {
-    return {
-      id: hmId(accountUid),
-      metadata: {},
-    } as HMMetadataPayload
-  }
-}
-
 export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export const fetchQuery = createQueryResolver(grpcClient)
 
-type EntitySubscription = {
+export type EntitySubscription = {
   id?: UnpackedHypermediaId | null
   recursive?: boolean
+}
+
+// Discovery state tracking with StateStream
+const discoveryStreams = new Map<
+  string,
+  {
+    write: (state: DiscoveryState | null) => void
+    stream: StateStream<DiscoveryState | null>
+  }
+>()
+
+// Track which entities have active recursive subscriptions
+const recursiveSubscriptions = new Set<string>()
+
+function getOrCreateDiscoveryStream(entityId: string) {
+  if (!discoveryStreams.has(entityId)) {
+    const [write, stream] = writeableStateStream<DiscoveryState | null>(null)
+    discoveryStreams.set(entityId, {write, stream})
+  }
+  return discoveryStreams.get(entityId)!
+}
+
+export function getDiscoveryStream(
+  entityId: string,
+): StateStream<DiscoveryState | null> {
+  return getOrCreateDiscoveryStream(entityId).stream
+}
+
+// Aggregated discovery state across all entities
+const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
+  writeableStateStream<AggregatedDiscoveryState>({
+    activeCount: 0,
+    blobsDiscovered: 0,
+    blobsDownloaded: 0,
+    blobsFailed: 0,
+  })
+
+export function getAggregatedDiscoveryStream(): StateStream<AggregatedDiscoveryState> {
+  return aggregatedDiscoveryStream
+}
+
+function updateAggregatedDiscoveryState() {
+  let activeCount = 0
+  let blobsDiscovered = 0
+  let blobsDownloaded = 0
+  let blobsFailed = 0
+
+  discoveryStreams.forEach(({stream}) => {
+    const state = stream.get()
+    if (state?.isDiscovering) {
+      activeCount++
+      if (state.progress) {
+        blobsDiscovered += state.progress.blobsDiscovered
+        blobsDownloaded += state.progress.blobsDownloaded
+        blobsFailed += state.progress.blobsFailed
+      }
+    }
+  })
+
+  writeAggregatedDiscovery({
+    activeCount,
+    blobsDiscovered,
+    blobsDownloaded,
+    blobsFailed,
+  })
+}
+
+// Check if entity is covered by a parent's recursive subscription
+function isEntityCoveredByRecursive(id: UnpackedHypermediaId): boolean {
+  if (!id.path?.length) return false
+
+  // Build all parent paths and check if any have recursive subscription
+  // e.g., for uid/foo/bar/baz, check hm://uid/*, hm://uid/foo/*, hm://uid/foo/bar/*
+  const basePath = `hm://${id.uid}`
+  for (let i = 0; i <= id.path.length; i++) {
+    const parentPath =
+      i === 0
+        ? `${basePath}/*`
+        : `${basePath}/${id.path.slice(0, i).join('/')}/*`
+    if (recursiveSubscriptions.has(parentPath)) {
+      return true
+    }
+  }
+  return false
 }
 
 function discoveryResultWithLatestVersion(
   id: UnpackedHypermediaId,
   version: string,
 ) {
-  const lastEntity = queryClient.getQueryData<HMEntityContent>([
+  const lastEntity = queryClient.getQueryData<HMResource | null>([
     queryKeys.ENTITY,
     id.id,
     undefined, // this signifies the "latest" version we have in cache
   ])
-  if (lastEntity && lastEntity?.document?.version !== version) {
-    // console.log('[sync] new version discovered for entity', id, version)
+
+  // Invalidate if:
+  // 1. No cached entity yet
+  // 2. Cached entity is not-found (discovery succeeded, so refetch)
+  // 3. Cached entity has a different version
+  const cachedVersion =
+    lastEntity?.type === 'document' ? lastEntity.document?.version : undefined
+  const shouldInvalidate =
+    !lastEntity || lastEntity?.type === 'not-found' || cachedVersion !== version
+
+  if (shouldInvalidate) {
     invalidateQueries([queryKeys.ENTITY, id.id])
     invalidateQueries([queryKeys.ACCOUNT, id.uid])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
   }
-  // we should also invalidate the queryKeys.ACCOUNT entry in the cache
 }
 
 export async function discoverDocument(
@@ -212,6 +248,7 @@ export async function discoverDocument(
   path: string[] | null,
   version?: string | null,
   recursive?: boolean,
+  onProgress?: (progress: DiscoveryProgress) => void,
 ) {
   const discoverRequest = {
     account: uid,
@@ -228,13 +265,20 @@ export async function discoverDocument(
     async () => {
       const discoverResp =
         await grpcClient.entities.discoverEntity(discoverRequest)
+      if (discoverResp.progress && onProgress) {
+        onProgress({
+          blobsDiscovered: discoverResp.progress.blobsDiscovered,
+          blobsDownloaded: discoverResp.progress.blobsDownloaded,
+          blobsFailed: discoverResp.progress.blobsFailed,
+        })
+      }
       if (checkDiscoverySuccess(discoverResp))
         return {version: discoverResp.version}
 
       return null
     },
     {
-      maxRetryMs: 10_000, // 10 seconds because subscriptions are scheduled to run discovery every 10 seconds
+      maxRetryMs: DISCOVERY_POLL_INTERVAL_MS,
       retryDelayMs: 2_000,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
@@ -244,22 +288,49 @@ export async function discoverDocument(
   )
 }
 
-async function updateEntitySubscription(sub: EntitySubscription) {
+// Invalidate directory queries for an entity and all its parents
+// This ensures recursive queries at parent levels are also refreshed
+function invalidateDirectoryQueries(id: UnpackedHypermediaId) {
+  // Invalidate the entity's own directory query
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
+
+  // Invalidate all parent directory queries (they may have recursive queries)
+  const path = id.path || []
+  for (let i = 0; i < path.length; i++) {
+    const parentId = hmId(id.uid, {path: path.slice(0, i)})
+    invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+  }
+
+  // Also invalidate the root (account home)
+  const rootId = hmId(id.uid)
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
+}
+
+async function updateEntitySubscription(
+  sub: EntitySubscription,
+  onProgress?: (progress: DiscoveryProgress) => void,
+) {
   const {id, recursive} = sub
   if (!id) return
-  await discoverDocument(id.uid, id.path, undefined, recursive)
+  await discoverDocument(id.uid, id.path, undefined, recursive, onProgress)
     .then((result) => {
       discoveryResultWithLatestVersion(id, result.version)
       if (recursive) {
-        invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.uid])
-        queryClient
-          .fetchQuery(queryListDirectory(id))
-          // @ts-expect-error
-          .then((newDir: HMDocumentInfo[]) => {
-            newDir.forEach((doc) => {
-              discoveryResultWithLatestVersion(doc.id, doc.version)
-            })
+        // Invalidate directory queries for this entity and all parents
+        invalidateDirectoryQueries(id)
+        fetchQuery({
+          includes: [
+            {
+              space: id.uid,
+              mode: 'Children',
+              path: hmIdPathToEntityQueryPath(id.path),
+            },
+          ],
+        }).then((result) => {
+          result?.results?.forEach((doc) => {
+            discoveryResultWithLatestVersion(doc.id, doc.version)
           })
+        })
       }
     })
     .finally(() => {})
@@ -271,22 +342,76 @@ const entitySubscriptionCounts: Record<string, number> = {}
 function createEntitySubscription(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   if (!key) return () => {}
-  // console.log('[sync] createEntitySubscription', key)
 
-  let loopTimer: NodeJS.Timeout | null = null
-  function _updateSubscriptionLoop() {
-    updateEntitySubscription(sub).finally(() => {
-      loopTimer = setTimeout(_updateSubscriptionLoop, 10_000)
+  const {id, recursive} = sub
+  if (!id) return () => {}
+
+  // Track recursive subscriptions for deduplication
+  if (recursive) {
+    recursiveSubscriptions.add(key)
+  }
+
+  // Skip discovery if covered by a parent's recursive subscription
+  const isCovered = !recursive && isEntityCoveredByRecursive(id)
+
+  // Set discovering state (even if covered, to handle race conditions)
+  const discoveryStream = getOrCreateDiscoveryStream(id.id)
+  if (!isCovered) {
+    discoveryStream.write({
+      isDiscovering: true,
+      startedAt: Date.now(),
+      entityId: id.id,
     })
   }
+
+  let loopTimer: NodeJS.Timeout | null = null
+
+  function _updateSubscriptionLoop() {
+    if (isCovered) {
+      // If covered by parent, just schedule next check (parent handles discovery)
+      loopTimer = setTimeout(
+        _updateSubscriptionLoop,
+        DISCOVERY_POLL_INTERVAL_MS,
+      )
+      return
+    }
+
+    updateEntitySubscription(sub, (progress) => {
+      discoveryStream.write({
+        isDiscovering: true,
+        startedAt: Date.now(),
+        entityId: id!.id,
+        progress,
+      })
+      updateAggregatedDiscoveryState()
+    })
+      .then(() => {
+        // Discovery completed successfully - clear discovering state
+        discoveryStream.write(null)
+        updateAggregatedDiscoveryState()
+      })
+      .catch(() => {
+        // Discovery failed but will retry - keep discovering state
+      })
+      .finally(() => {
+        loopTimer = setTimeout(
+          _updateSubscriptionLoop,
+          DISCOVERY_POLL_INTERVAL_MS,
+        )
+      })
+  }
+
+  // Debounce initial discovery
   loopTimer = setTimeout(
     _updateSubscriptionLoop,
-    100 + Math.random() * 300, // delay the first discovery to avoid too many simultaneous updates
+    DISCOVERY_DEBOUNCE_MS + Math.random() * 100,
   )
 
   return () => {
-    // console.log('[sync] releaseEntitySubscription', key)
     loopTimer && clearTimeout(loopTimer)
+    if (recursive) {
+      recursiveSubscriptions.delete(key)
+    }
   }
 }
 
@@ -296,7 +421,7 @@ function getEntitySubscriptionKey(sub: EntitySubscription) {
   return id.id + (recursive ? '/*' : '')
 }
 
-function addSubscribedEntity(sub: EntitySubscription) {
+export function addSubscribedEntity(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   // console.log('[sync] addSubscribedEntity', sub, key)
   if (!key) return
@@ -310,7 +435,7 @@ function addSubscribedEntity(sub: EntitySubscription) {
   }
 }
 
-function removeSubscribedEntity(sub: EntitySubscription) {
+export function removeSubscribedEntity(sub: EntitySubscription) {
   const key = getEntitySubscriptionKey(sub)
   if (!key) return
   // console.log('[sync] removeSubscribedEntity', key)
@@ -325,86 +450,4 @@ function removeSubscribedEntity(sub: EntitySubscription) {
       }
     }, 300) // no rush
   }
-}
-
-export function useSubscribedResources(
-  subs: {id: UnpackedHypermediaId | null | undefined; recursive?: boolean}[],
-) {
-  const entities = useResources(subs.map((sub) => sub.id))
-  const isAllEntitiesInitialLoaded = entities.every(
-    (entity) => entity.isInitialLoading === false,
-  )
-  useEffect(() => {
-    if (!isAllEntitiesInitialLoaded) return
-    subs.forEach(addSubscribedEntity)
-    return () => {
-      // console.log('[sync] unsubscribing', subs)
-      subs.forEach(removeSubscribedEntity)
-    }
-  }, [
-    subs, // because subs/ids are expected to be volatile, this effect will probably run every time
-    isAllEntitiesInitialLoaded,
-  ])
-  return entities
-}
-
-export function useSubscribedResource(
-  id: UnpackedHypermediaId | null | undefined,
-  recursive?: boolean,
-  handleRedirectOrDeleted?: (opts: {
-    isDeleted: boolean
-    redirectTarget: UnpackedHypermediaId | null
-  }) => void,
-) {
-  const result = useSubscribedResources([{id, recursive}])[0]
-  const redirectTarget =
-    result.data?.type === 'redirect' ? result.data.redirectTarget : null
-
-  // Use ref to avoid re-triggering effect when callback changes
-  const handleRedirectOrDeletedRef = useRef(handleRedirectOrDeleted)
-  handleRedirectOrDeletedRef.current = handleRedirectOrDeleted
-
-  // Track if we've already handled this redirect to prevent duplicate toasts
-  const handledRedirectRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (redirectTarget && handledRedirectRef.current !== redirectTarget.id) {
-      handledRedirectRef.current = redirectTarget.id
-      handleRedirectOrDeletedRef.current?.({
-        isDeleted: false,
-        redirectTarget,
-      })
-    }
-    // todo: handle deleted
-  }, [redirectTarget])
-  return result
-}
-
-export function useSubscribedResourceIds(
-  ids: Array<UnpackedHypermediaId>,
-): {id: UnpackedHypermediaId; entity?: HMEntityContent}[] {
-  // @ts-ignore
-  return useSubscribedResources(
-    ids.map((id) => {
-      return {id}
-    }),
-  ).map((result, i) => {
-    return {id: ids[i], entity: result.data || undefined}
-  })
-}
-
-export function useAccountsMetadata(ids: string[]): HMAccountsMetadata {
-  const accounts = useSubscribedResources(ids.map((id) => ({id: hmId(id)})))
-  return Object.fromEntries(
-    accounts
-      .map((account) => {
-        if (!account.data) return null
-        return [
-          account.data.id.uid,
-          // @ts-expect-error
-          {id: account.data.id, metadata: account.data.document?.metadata},
-        ]
-      })
-      .filter((entry) => !!entry),
-  )
 }

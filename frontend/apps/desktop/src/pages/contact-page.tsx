@@ -7,7 +7,7 @@ import {
   useSaveContact,
   useSelectedAccountContacts,
 } from '@/models/contacts'
-import {useSubscribedResources} from '@/models/entities'
+import {useResources} from '@shm/shared/models/entity'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {PlainMessage} from '@bufbuild/protobuf'
@@ -427,8 +427,9 @@ function AccountContacts({
   contact: HMContact
   ownerLabel: string
 }) {
-  const subjectAccounts = useSubscribedResources(
-    contact.contacts?.map((c) => ({id: hmId(c.subject)})) || [],
+  const subjectAccounts = useResources(
+    contact.contacts?.map((c) => hmId(c.subject)) || [],
+    {subscribed: true},
   )
   const navigate = useNavigate()
   return (
@@ -440,9 +441,11 @@ function AccountContacts({
       </h3>
       <div className="flex flex-col">
         {contact.contacts?.map((contact) => {
-          const subjectAccount = subjectAccounts.find(
+          const subjectAccountResult = subjectAccounts.find(
             (a) => a.data?.id?.uid === contact.subject,
-          )?.data
+          )
+          const subjectAccount = subjectAccountResult?.data
+          const isDiscovering = subjectAccountResult?.isDiscovering
           const contactName = contact.name
           const subjectName =
             subjectAccount?.type === 'document'
@@ -474,8 +477,12 @@ function AccountContacts({
                   }
                   size={32}
                 />
-              ) : null}
-              <span className="font-bold">{subjectName}</span>
+              ) : (
+                <HMIcon id={hmId(contact.subject)} size={32} />
+              )}
+              <span className="font-bold">
+                {isDiscovering ? 'Loading...' : subjectName}
+              </span>
               {subjectName !== contactName ? (
                 <span className="text-gray-500 dark:text-gray-300">
                   | {contactName}

@@ -1,8 +1,11 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {createCommentsResolver, unpackHmId} from '@shm/shared'
-import {ListCommentsResponse} from '@shm/shared/models/comments-service'
+import {
+  createCommentsResolver,
+  HMListCommentsOutput,
+  unpackHmId,
+} from '@shm/shared'
 
 const loadComments = createCommentsResolver(grpcClient)
 
@@ -12,7 +15,7 @@ export const loader = async ({
 }: {
   request: Request
   params: Params
-}): Promise<WrappedResponse<ListCommentsResponse>> => {
+}): Promise<WrappedResponse<HMListCommentsOutput>> => {
   const url = new URL(request.url)
   const targetId = unpackHmId(url.searchParams.get('targetId') || undefined)
   if (!targetId) throw new Error('targetId is required')

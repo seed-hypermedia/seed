@@ -1,5 +1,5 @@
-import {fetchResource} from '@/models/entities'
 import {grpcClient} from '@/grpc-client'
+import {fetchResource} from '@/models/entities'
 import {
   calculateInteractionSummary,
   HMResolvedResource,
@@ -49,10 +49,18 @@ export function useInteractionSummary(
 
       // Fetch mentions and resolve resource (uses React Query cache)
       const [mentions, resource] = await Promise.all([
-        grpcClient.entities.listEntityMentions({
-          id: docId.id,
-          pageSize: BIG_INT,
-        }),
+        grpcClient.entities
+          .listEntityMentions({
+            id: docId.id,
+            pageSize: BIG_INT,
+          })
+          .catch((err) => {
+            // todo; proper handling of "not_found" error
+            console.error(err)
+            return {
+              mentions: [],
+            }
+          }),
         resolveResourceCached(docId),
       ])
 

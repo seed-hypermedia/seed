@@ -1,4 +1,9 @@
-import {HMMetadata, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {
+  abbreviateUid,
+  HMMetadata,
+  UnpackedHypermediaId,
+  useRouteLink,
+} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {AlertCircle} from 'lucide-react'
 import {memo} from 'react'
@@ -101,12 +106,7 @@ export function LinkIcon({
   )
 
   return (
-    <Tooltip
-      content={
-        getMetadataName(metadata) ||
-        `${id.uid.slice(0, 5)}...${id.uid.slice(-5)}`
-      }
-    >
+    <Tooltip content={getMetadataName(metadata) || abbreviateUid(id.uid)}>
       <a
         className="no-window-drag relative min-h-5 min-w-5 p-0"
         {...linkProps}

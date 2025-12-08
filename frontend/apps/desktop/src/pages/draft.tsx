@@ -5,15 +5,11 @@ import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {
-  useDraftEditor,
-  useListDirectory,
-  useSiteNavigationItems,
-} from '@/models/documents'
+import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
@@ -34,12 +30,12 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
-  HMEntityContent,
   HMMetadata,
   HMNavigationItem,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -62,7 +58,6 @@ import {ActorRefFrom} from 'xstate'
 import './draft-page.css'
 
 export default function DraftPage() {
-  const commentsService = new DesktopCommentsService()
   const route = useNavRoute()
   const replace = useNavigate('replace')
   const push = useNavigate('push')
@@ -181,7 +176,7 @@ export default function DraftPage() {
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <CommentsProvider
-        service={commentsService}
+        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={(replyComment) => {
           const targetRoute = isRouteEqualToCommentTarget({
             id: editId || locationId,
@@ -710,7 +705,7 @@ function DraftAppHeader({
   onDocNav,
   actor,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   document?: HMDocument
   draftMetadata?: HMMetadata
@@ -718,7 +713,7 @@ function DraftAppHeader({
   onDocNav: (navigation: HMNavigationItem[]) => void
   actor: any // TODO: proper type
 }) {
-  const dir = useListDirectory(docId, {mode: 'Children'})
+  const dir = useDirectory(docId, {mode: 'Children'})
   const notifyServiceHost = useNotifyServiceHost()
   const currentDocNav: HMNavigationItem[] | undefined = useSelector(
     actor,
@@ -1009,7 +1004,7 @@ function DraftCover({
 function DraftRebaseBanner() {
   const [isRebasing, setIsRebasing] = useState(false)
   // const willEditDocId = getDraftEditId(draftData)
-  // const latestDoc = useSubscribedResource(willEditDocId)
+  // const latestDoc = useResource(willEditDocId, {subscribed: true})
 
   async function performRebase() {
     //   setIsRebasing(true)

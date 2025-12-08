@@ -1,9 +1,9 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {useSubscribedResource} from '@/models/entities'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocAccessoryOption} from '@shm/shared'
+import {useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {
   useNavRoute,
@@ -133,7 +133,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     [state?.sidebarLocked, state?.accessoryWidth],
   )
 
-  const resource = useSubscribedResource(docId)
+  const resource = useResource(docId, {subscribed: true})
 
   const isDocument = resource.data?.type == 'document'
   const allDocumentCapabilities = useAllDocumentCapabilities(docId)

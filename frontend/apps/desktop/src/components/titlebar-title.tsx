@@ -5,15 +5,16 @@ import {
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
-import {useAccountDraftList, useListDirectory} from '@/models/documents'
+import {useAccountDraftList} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useItemsFromId, useSubscribedResourceIds} from '@/models/entities'
+import {useDirectory, useResources} from '@shm/shared/models/entity'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  getParentPaths,
   hmId,
   HMMetadata,
   HMQueryResult,
@@ -143,6 +144,7 @@ type CrumbDetails = {
   id: UnpackedHypermediaId | null
   isError?: boolean
   isLoading?: boolean
+  isTombstone?: boolean
   crumbKey: string
 }
 
@@ -166,8 +168,23 @@ function BreadcrumbTitle({
   const isLatest =
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
-  const entityIds = useItemsFromId(entityId)
-  const entityContents = useSubscribedResourceIds(entityIds)
+  const entityIds = useMemo(
+    () =>
+      getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
+    [entityId],
+  )
+  const entityResults = useResources(entityIds, {subscribed: true})
+  const entityContents = entityIds.map((id, i) => {
+    const result = entityResults[i]
+    const data = result?.data
+    const isDiscovering = result?.isDiscovering
+    if (!data) return {id, entity: undefined, isDiscovering}
+    if (data.type === 'tombstone')
+      return {id, entity: {id: data.id, isTombstone: true}, isDiscovering}
+    if (data.type === 'document')
+      return {id, entity: {id: data.id, document: data.document}, isDiscovering}
+    return {id, entity: undefined, isDiscovering}
+  })
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [itemMaxWidths, setItemMaxWidths] = useState<Record<string, number>>({})
@@ -191,7 +208,9 @@ function BreadcrumbTitle({
           name,
           fallbackName: id.path?.at(-1),
           isError: contents.entity && !contents.entity.document,
-          isLoading: !contents.entity,
+          isTombstone: contents.entity?.isTombstone || false,
+          // Show loading if no entity loaded OR if we're still discovering
+          isLoading: !contents.entity || contents.isDiscovering,
           id,
           crumbKey: `id-${idIndex}`,
         },
@@ -569,6 +588,15 @@ function BreadcrumbItem({
       </div>
     )
   }
+  if (details.isTombstone) {
+    return (
+      <Tooltip content="This Document has been deleted">
+        <TitleTextButton className="no-window-drag text-destructive">
+          {details.fallbackName}
+        </TitleTextButton>
+      </Tooltip>
+    )
+  }
   if (details.isError) {
     if (details.fallbackName) {
       return (
@@ -657,7 +685,7 @@ function PathItemCard({
   homeMetadata: HMMetadata | undefined
 }) {
   const docId = details.id ?? undefined
-  const dir = useListDirectory(docId, {mode: 'Children'})
+  const dir = useDirectory(docId, {mode: 'Children'})
   const capability = useSelectedAccountCapability(docId)
   const canEditDoc = roleCanWrite(capability?.role)
   const drafts = useAccountDraftList(docId?.uid)

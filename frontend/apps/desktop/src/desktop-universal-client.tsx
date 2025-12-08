@@ -1,46 +1,43 @@
-import {useSelectedAccountContacts} from '@/models/contacts'
-import {useListDirectory} from '@/models/documents'
 import {
-  fetchAccount,
-  fetchBatchAccounts,
-  fetchQuery,
-  fetchResource,
-  useAccountsMetadata,
+  addSubscribedEntity,
+  getDiscoveryStream,
+  removeSubscribedEntity,
 } from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
-import {fetchSearch} from '@/models/search'
 import type {UnpackedHypermediaId} from '@shm/shared'
-import {useResource, useResources} from '@shm/shared/models/entity'
-import type {UniversalClient} from '@shm/shared/universal-client'
+import type {
+  DeleteCommentInput,
+  UniversalClient,
+} from '@shm/shared/universal-client'
 import {CommentBox} from './components/commenting'
+import {desktopRequest} from './desktop-api'
+import {grpcClient} from './grpc-client'
+
+async function deleteComment(input: DeleteCommentInput): Promise<void> {
+  await grpcClient.comments.deleteComment({
+    id: input.commentId,
+    signingKeyName: input.signingAccountId,
+  })
+}
 
 export const desktopUniversalClient: UniversalClient = {
-  useResource: ((
-    id: UnpackedHypermediaId | null | undefined,
-    _options?: {recursive?: boolean},
-  ) => {
-    return useResource(id)
-  }) as UniversalClient['useResource'],
-  useResources: (ids: (UnpackedHypermediaId | null | undefined)[]) => {
-    return useResources(ids)
-  },
-  useDirectory: useListDirectory,
-  useContacts: () => {
-    const contacts = useSelectedAccountContacts()
-    // PlainMessage<Contact> is compatible with Contact for our purposes
-    // Cast the entire result to satisfy the UniversalClient interface
-    return contacts as any
-  },
-  useAccountsMetadata: useAccountsMetadata,
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => (
     <CommentBox docId={docId} context="document-content" />
   ),
 
-  fetchSearch: fetchSearch,
-  fetchQuery: fetchQuery,
-  fetchResource: fetchResource,
-  fetchAccount: fetchAccount,
-  fetchBatchAccounts: fetchBatchAccounts,
   fetchRecents: fetchRecents,
   deleteRecent: deleteRecent,
+  deleteComment: deleteComment,
+
+  request: desktopRequest,
+
+  subscribeEntity: ({id, recursive}) => {
+    const sub = {id, recursive}
+    addSubscribedEntity(sub)
+    return () => removeSubscribedEntity(sub)
+  },
+
+  discovery: {
+    getDiscoveryStream,
+  },
 }

@@ -1,12 +1,15 @@
 import {grpcClient} from '@/client.server'
 import {wrapJSON, WrappedResponse} from '@/wrapping.server'
 import {Params} from '@remix-run/react'
-import {createDiscussionsResolver, unpackHmId} from '@shm/shared'
-import {ListDiscussionsResponse} from '@shm/shared/models/comments-service'
+import {
+  createDiscussionsResolver,
+  HMListDiscussionsOutput,
+  unpackHmId,
+} from '@shm/shared'
 
 const loadDiscussions = createDiscussionsResolver(grpcClient)
 
-export type HMDiscussionsPayload = ListDiscussionsResponse
+export type HMDiscussionsPayload = HMListDiscussionsOutput
 
 export const loader = async ({
   request,

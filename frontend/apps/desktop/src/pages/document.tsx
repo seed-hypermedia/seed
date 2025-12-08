@@ -6,8 +6,7 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useTemplateDialog} from '@/components/site-template'
-import {DesktopActivityService} from '@/desktop-activity-service'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
@@ -21,7 +20,7 @@ import {
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useSubscribedResource, useSubscribedResources} from '@/models/entities'
+import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
@@ -33,21 +32,19 @@ import {
   AccessoryOptions,
   DocumentRoute,
   HMDocument,
-  HMEntityContent,
   HMResource,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
   getCommentTargetId,
   hmId,
 } from '@shm/shared'
-import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
-import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -76,9 +73,6 @@ import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 
 export default function DocumentPage() {
-  const commentsService = new DesktopCommentsService()
-
-  const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
   const docId = route.key == 'document' && route.id
@@ -117,81 +111,77 @@ export default function DocumentPage() {
   const templateDialogContent = useTemplateDialog(route)
 
   return (
-    <>
-      <ActivityProvider service={activityService}>
-        <CommentsProvider
-          service={commentsService}
-          onReplyClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
+    <CommentsProvider
+      useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
+      onReplyClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
 
-            if (targetRoute) {
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              console.log('targetRoute is the same. replacing...')
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-            triggerCommentDraftFocus(docId.id, replyComment.id)
-          }}
-          onReplyCountClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
-            if (targetRoute) {
-              // comment target is not the same as the route, so we need to change the whole route
-              push({
-                key: 'document',
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              // comment target is the same as the route, so we can replace safely
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-          }}
-        >
-          <DocumentPageContent
-            docId={docId}
-            route={route}
-            replace={replace}
-            push={push}
-            mainPanelRef={mainPanelRef}
-            accessoryKey={accessoryKey}
-            templateDialogContent={templateDialogContent}
-            notifSettingsDialogContent={notifSettingsDialog.content}
-          />
-        </CommentsProvider>
-      </ActivityProvider>
-    </>
+        if (targetRoute) {
+          push({
+            key: 'document',
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          console.log('targetRoute is the same. replacing...')
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+        triggerCommentDraftFocus(docId.id, replyComment.id)
+      }}
+      onReplyCountClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
+        if (targetRoute) {
+          // comment target is not the same as the route, so we need to change the whole route
+          push({
+            key: 'document',
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          // comment target is the same as the route, so we can replace safely
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+      }}
+    >
+      <DocumentPageContent
+        docId={docId}
+        route={route}
+        replace={replace}
+        push={push}
+        mainPanelRef={mainPanelRef}
+        accessoryKey={accessoryKey}
+        templateDialogContent={templateDialogContent}
+        notifSettingsDialogContent={notifSettingsDialog.content}
+      />
+    </CommentsProvider>
   )
 }
 
@@ -307,17 +297,17 @@ function _MainDocumentPage({
     }
   }, [account.data])
 
-  const resource = useSubscribedResource(
-    id,
+  const resource = useResource(id, {
+    subscribed: true,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
-    true,
-    ({redirectTarget}) => {
+    recursive: true,
+    onRedirectOrDeleted: ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
         replace({key: 'document', id: redirectTarget})
       }
     },
-  )
+  })
   const loadedCommentResource =
     // @ts-ignore
     resource.data?.type === 'comment' ? resource.data : undefined
@@ -335,12 +325,14 @@ function _MainDocumentPage({
     }
   }, [loadedCommentResource])
 
-  const siteHomeEntity = useSubscribedResource(
+  const siteHomeEntity = useResource(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
-
-    id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    {
+      subscribed: true,
+      recursive: id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    },
   )
 
   const document =
@@ -398,7 +390,15 @@ function _MainDocumentPage({
 
   // @ts-ignore
   if (resource.data?.type === 'not-found') {
-    return <DocDiscovery />
+    if (resource.isDiscovering) {
+      return <DocDiscovery />
+    }
+    return (
+      <DocMessageBox
+        title="Document Not Found"
+        message="This document could not be found on the network."
+      />
+    )
   }
 
   if (loadedCommentResource) {
@@ -413,11 +413,6 @@ function _MainDocumentPage({
       ? // @ts-ignore
         siteHomeEntity.data
       : null
-
-  console.log(
-    '=== interactionSummary.data?.comments',
-    interactionSummary.data?.comments,
-  )
 
   const documentTools = (
     <DocumentTools
@@ -533,11 +528,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')
@@ -640,16 +635,24 @@ function DocPageHeader({
   documentTools?: any
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
-  useSubscribedResources(authors?.map((a) => ({id: hmId(a)})) || [])
+  const authorIds = useMemo(() => authors?.map((a) => hmId(a)) || [], [authors])
+  const authorResources = useResources(authorIds, {subscribed: true})
   const authorContacts = useContactsMetadata(authors || [])
 
   if (!document) return null
 
   const authorMetadata = authors
-    .map((a) => {
+    .map((a, index) => {
       const contact = authorContacts[a]
-      if (!contact) return null
-      return {id: hmId(a), metadata: contact.metadata}
+      const resource = authorResources[index]
+      const isDiscovering = resource?.isDiscovering
+      // Use resource data if available, fall back to contacts
+      const metadata =
+        resource?.data?.type === 'document'
+          ? resource.data.document?.metadata
+          : contact?.metadata
+      if (!metadata && !isDiscovering) return null
+      return {id: hmId(a), metadata, isDiscovering}
     })
     .filter((a) => a !== null)
 

@@ -13,7 +13,11 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {useAccount, useAccounts} from '@shm/shared/models/entity'
+import {
+  useAccount,
+  useAccounts,
+  useAccountsMetadata,
+} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
 import {
@@ -23,8 +27,8 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
+import {useResources} from '@shm/shared/models/entity'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
-import {useAccountsMetadata, useSubscribedResources} from './entities'
 import {useConnectedPeers} from './networking'
 
 function queryContactListOfSubject(accountUid: string | undefined) {
@@ -306,7 +310,10 @@ export function useSelectedAccountContacts() {
 export function useContacts(accountUids: string[]) {
   const accounts = useAccounts(accountUids)
   // we're currently relying on the account discovery here. we would ideally build it into useAccounts
-  useSubscribedResources(accountUids.map((uid) => ({id: hmId(uid)})))
+  useResources(
+    accountUids.map((uid) => hmId(uid)),
+    {subscribed: true},
+  )
   const contacts = useSelectedAccountContacts()
 
   return accounts.map((account) => {
@@ -330,7 +337,7 @@ export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
   const accountsMetadata = useAccountsMetadata(ids)
   const contacts = useSelectedAccountContacts()
   return Object.fromEntries(
-    Object.entries(accountsMetadata).map(([uid, account]) => {
+    Object.entries(accountsMetadata.data).map(([uid, account]) => {
       return [
         uid,
         {

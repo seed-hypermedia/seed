@@ -1,6 +1,6 @@
 import type {UnpackedHypermediaId} from '@shm/shared'
 import {createWebUniversalClient} from '@shm/shared'
-import {queryAPI, useAPI} from './models'
+import {queryAPI} from './models'
 
 // Placeholder comment editor for notify app
 function NotifyCommentEditor({docId}: {docId: UnpackedHypermediaId}) {
@@ -9,7 +9,6 @@ function NotifyCommentEditor({docId}: {docId: UnpackedHypermediaId}) {
 
 export const notifyUniversalClient = createWebUniversalClient({
   queryAPI,
-  useAPI,
   CommentEditor: NotifyCommentEditor,
   // Notify app doesn't have recents
   fetchRecents: async () => [],

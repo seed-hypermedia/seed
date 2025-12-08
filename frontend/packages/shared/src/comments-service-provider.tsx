@@ -1,33 +1,41 @@
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query'
 import {createContext, PropsWithChildren, useContext, useMemo} from 'react'
-import {HMComment, UnpackedHypermediaId} from './hm-types'
 import {
-  CommentsService,
-  DeleteCommentRequest,
-  GetReplyCountRequest,
-  ListCommentsByReferenceRequest,
-  ListCommentsByReferenceResponse,
-  ListCommentsResponse,
-  ListDiscussionsRequest,
-  ListDiscussionsResponse,
-} from './models/comments-service'
+  HMComment,
+  HMGetCommentReplyCountRequest,
+  HMListCommentsByReferenceInput,
+  HMListCommentsByReferenceRequest,
+  HMListCommentsInput,
+  HMListCommentsOutput,
+  HMListCommentsRequest,
+  HMListDiscussionsInput,
+  HMListDiscussionsOutput,
+  HMListDiscussionsRequest,
+  UnpackedHypermediaId,
+} from './hm-types'
 import {queryKeys} from './models/query-keys'
+import {useUniversalClient} from './routing'
+import {DeleteCommentInput} from './universal-client'
 import {hmId} from './utils/entity-id-url'
 
 type CommentsProviderValue = {
   onReplyClick: (comment: HMComment) => void
   onReplyCountClick: (comment: HMComment) => void
-  service: CommentsService | null
+  /**
+   * Desktop-only hook to subscribe to author resources for syncing.
+   * No-op on web. This is a temporary workaround while syncing is improved.
+   */
+  useHackyAuthorsSubscriptions?: (authorIds: string[]) => void
 }
 
-const defaultCommentsContext = {
+const defaultCommentsContext: CommentsProviderValue = {
   onReplyClick: (comment: HMComment) => {
     console.log('onReplyClick not implemented', comment)
   },
   onReplyCountClick: (comment: HMComment) => {
     console.log('onReplyCountClick not implemented', comment)
   },
-  service: null,
+  useHackyAuthorsSubscriptions: undefined,
 }
 
 const CommentsContext = createContext<CommentsProviderValue>(
@@ -38,13 +46,13 @@ export function CommentsProvider({
   children,
   onReplyClick = defaultCommentsContext.onReplyClick,
   onReplyCountClick = defaultCommentsContext.onReplyCountClick,
-  service = null,
+  useHackyAuthorsSubscriptions,
 }: PropsWithChildren<CommentsProviderValue>) {
   return (
     <CommentsContext.Provider
       value={useMemo(
-        () => ({onReplyClick, onReplyCountClick, service}),
-        [onReplyClick, onReplyCountClick, service],
+        () => ({onReplyClick, onReplyCountClick, useHackyAuthorsSubscriptions}),
+        [onReplyClick, onReplyCountClick, useHackyAuthorsSubscriptions],
       )}
     >
       {children}
@@ -60,29 +68,27 @@ export function useCommentsServiceContext() {
   return context
 }
 
-export function useCommentsService(params: ListDiscussionsRequest) {
-  const context = useCommentsServiceContext()
+export function useCommentsService(params: HMListCommentsInput) {
+  const client = useUniversalClient()
   return useQuery({
-    queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId, params.commentId],
-    queryFn: async (): Promise<ListCommentsResponse> => {
-      if (!context.service) {
-        return {comments: [], authors: {}}
-      }
+    queryKey: [queryKeys.DOCUMENT_COMMENTS, params.targetId],
+    queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        const res = await context.service.listComments(params)
-        return res
+        return await client.request<HMListCommentsRequest>(
+          'ListComments',
+          params,
+        )
       } catch (error) {
         console.error('Error fetching comments:', error)
         throw error
       }
     },
-    enabled: !!context.service,
     retry: 1,
   })
 }
 
-export function useDiscussionsService(params: ListDiscussionsRequest) {
-  const context = useCommentsServiceContext()
+export function useDiscussionsService(params: HMListDiscussionsInput) {
+  const client = useUniversalClient()
 
   return useQuery({
     queryKey: [
@@ -90,51 +96,46 @@ export function useDiscussionsService(params: ListDiscussionsRequest) {
       params.targetId,
       params.commentId,
     ],
-    queryFn: async (): Promise<ListDiscussionsResponse> => {
-      if (!context.service) {
-        return {discussions: [], authors: {}, citingDiscussions: []}
-      }
-
+    queryFn: async (): Promise<HMListDiscussionsOutput> => {
       try {
-        const res = await context.service.listDiscussions(params)
-        return res
+        return await client.request<HMListDiscussionsRequest>(
+          'ListDiscussions',
+          params,
+        )
       } catch (error) {
         console.error('Error fetching discussions:', error)
         throw error
       }
     },
-    enabled: !!context.service,
     retry: 1,
   })
 }
 
 export function useBlockDiscussionsService(
-  params: ListCommentsByReferenceRequest,
+  params: HMListCommentsByReferenceInput,
 ) {
-  const context = useCommentsServiceContext()
+  const client = useUniversalClient()
 
   return useQuery({
     queryKey: [queryKeys.BLOCK_DISCUSSIONS, params.targetId],
-    queryFn: async (): Promise<ListCommentsByReferenceResponse> => {
-      if (!context.service) {
-        return {comments: [], authors: {}}
-      }
+    queryFn: async (): Promise<HMListCommentsOutput> => {
       try {
-        const res = await context.service.listCommentsByReference(params)
-        return res
+        return await client.request<HMListCommentsByReferenceRequest>(
+          'ListCommentsByReference',
+          params,
+        )
       } catch (error) {
         console.error('Error fetching block discussions:', error)
         throw error
       }
     },
-    enabled: !!context.service,
     retry: 1,
   })
 }
 
 export function useHackyAuthorsSubscriptions(authorIds: string[]) {
-  const context = useCommentsServiceContext()!
-  context.service!.useHackyAuthorsSubscriptions(authorIds)
+  const context = useCommentsServiceContext()
+  context.useHackyAuthorsSubscriptions?.(authorIds)
 }
 
 export function isRouteEqualToCommentTarget({
@@ -165,15 +166,12 @@ export function isRouteEqualToCommentTarget({
 }
 
 export function useDeleteComment() {
-  const context = useCommentsServiceContext()
+  const client = useUniversalClient()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (params: DeleteCommentRequest) => {
-      if (!context.service) {
-        throw new Error('CommentsService not available')
-      }
-      await context.service.deleteComment(params)
+    mutationFn: async (params: DeleteCommentInput) => {
+      await client.deleteComment(params)
     },
     onSuccess: () => {
       // Invalidate all comment-related queries to refresh the UI
@@ -193,13 +191,15 @@ export function useDeleteComment() {
   })
 }
 
-export function useCommentReplyCount({id}: GetReplyCountRequest) {
-  const context = useCommentsServiceContext()
+export function useCommentReplyCount({id}: {id: string}) {
+  const client = useUniversalClient()
 
   return useQuery({
     queryKey: [id, 'replyCount'],
-    queryFn: () => context.service?.getReplyCount({id}),
-    enabled: !!context.service,
+    queryFn: () =>
+      client.request<HMGetCommentReplyCountRequest>('GetCommentReplyCount', {
+        id,
+      }),
     retry: 1,
   })
 }

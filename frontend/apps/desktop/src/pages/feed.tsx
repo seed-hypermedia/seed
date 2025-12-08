@@ -2,8 +2,7 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {ImportDropdownButton} from '@/components/import-doc-button'
-import {DesktopActivityService} from '@/desktop-activity-service'
-import {DesktopCommentsService} from '@/desktop-comments-service'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
@@ -13,7 +12,7 @@ import {
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useSubscribedResource} from '@/models/entities'
+import {useResource} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
@@ -24,11 +23,10 @@ import {
   FeedRoute,
   getCommentTargetId,
   HMDocument,
-  HMEntityContent,
   hmId,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {ActivityProvider} from '@shm/shared/activity-service-provider'
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
@@ -36,7 +34,6 @@ import {
 import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
@@ -49,13 +46,12 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
 
 export default function FeedPage() {
-  const commentsService = new DesktopCommentsService()
-  const activityService = new DesktopActivityService()
   const route = useNavRoute()
 
   const docId: UnpackedHypermediaId | null =
@@ -76,103 +72,99 @@ export default function FeedPage() {
   const mainPanelRef = useRef<HTMLDivElement>(null)
 
   return (
-    <>
-      <ActivityProvider service={activityService}>
-        <CommentsProvider
-          service={commentsService}
-          onReplyClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
+    <CommentsProvider
+      useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
+      onReplyClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
 
-            if (targetRoute) {
-              push({
-                key: route.key,
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              console.log('targetRoute is the same. replacing...')
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-            triggerCommentDraftFocus(docId.id, replyComment.id)
+        if (targetRoute) {
+          push({
+            key: route.key,
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          console.log('targetRoute is the same. replacing...')
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+        triggerCommentDraftFocus(docId.id, replyComment.id)
+      }}
+      onReplyCountClick={(replyComment) => {
+        const targetRoute = isRouteEqualToCommentTarget({
+          id: route.id,
+          comment: replyComment,
+        })
+        if (targetRoute) {
+          // comment target is not the same as the route, so we need to change the whole route
+          push({
+            key: route.key,
+            id: targetRoute,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        } else {
+          // comment target is the same as the route, so we can replace safely
+          replace({
+            ...route,
+            accessory: {
+              key: 'discussions',
+              openComment: replyComment.id,
+              isReplying: true,
+            },
+          })
+        }
+      }}
+    >
+      <div className="flex h-full flex-1 flex-col">
+        <AccessoryLayout
+          mainPanelRef={mainPanelRef}
+          accessory={accessory}
+          accessoryKey={accessoryKey}
+          onAccessorySelect={(key: typeof accessoryKey) => {
+            if (key === accessoryKey || key === undefined)
+              return replace({...route, accessory: null})
+            replace({...route, accessory: {key}})
           }}
-          onReplyCountClick={(replyComment) => {
-            const targetRoute = isRouteEqualToCommentTarget({
-              id: route.id,
-              comment: replyComment,
-            })
-            if (targetRoute) {
-              // comment target is not the same as the route, so we need to change the whole route
-              push({
-                key: route.key,
-                id: targetRoute,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            } else {
-              // comment target is the same as the route, so we can replace safely
-              replace({
-                ...route,
-                accessory: {
-                  key: 'discussions',
-                  openComment: replyComment.id,
-                  isReplying: true,
-                },
-              })
-            }
-          }}
+          accessoryOptions={accessoryOptions}
         >
-          <div className="flex h-full flex-1 flex-col">
-            <AccessoryLayout
-              mainPanelRef={mainPanelRef}
-              accessory={accessory}
-              accessoryKey={accessoryKey}
-              onAccessorySelect={(key: typeof accessoryKey) => {
-                if (key === accessoryKey || key === undefined)
-                  return replace({...route, accessory: null})
-                replace({...route, accessory: {key}})
-              }}
-              accessoryOptions={accessoryOptions}
-            >
-              <FeedContent
-                id={homeId}
-                route={route}
-                isBlockFocused={false}
-                onScrollParamSet={useCallback((isFrozen) => {
-                  mainPanelRef.current?.style.setProperty(
-                    'overflow',
-                    isFrozen ? 'hidden' : 'auto',
-                  )
-                }, [])}
-                isCommentingPanelOpen={route.accessory?.key === 'activity'}
-                onAccessory={useCallback(
-                  (accessory) => {
-                    replace({...route, accessory})
-                  },
-                  [route, replace],
-                )}
-              />
-            </AccessoryLayout>
-          </div>
-        </CommentsProvider>
-      </ActivityProvider>
-    </>
+          <FeedContent
+            id={homeId}
+            route={route}
+            isBlockFocused={false}
+            onScrollParamSet={useCallback((isFrozen) => {
+              mainPanelRef.current?.style.setProperty(
+                'overflow',
+                isFrozen ? 'hidden' : 'auto',
+              )
+            }, [])}
+            isCommentingPanelOpen={route.accessory?.key === 'activity'}
+            onAccessory={useCallback(
+              (accessory) => {
+                replace({...route, accessory})
+              },
+              [route, replace],
+            )}
+          />
+        </AccessoryLayout>
+      </div>
+    </CommentsProvider>
   )
 }
 
@@ -204,17 +196,17 @@ function _FeedContent({
     }
   }, [account.data])
 
-  const resource = useSubscribedResource(
-    id,
+  const resource = useResource(id, {
+    subscribed: true,
     // true for recursive subscription. this component may not require children, but the directory will also be recursively subscribing, and we want to avoid an extra subscription
-    true,
-    ({redirectTarget}) => {
+    recursive: true,
+    onRedirectOrDeleted: ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
         replace({key: route.key, id: redirectTarget})
       }
     },
-  )
+  })
   const loadedCommentResource =
     // @ts-ignore
     resource.data?.type == 'comment' ? resource.data : undefined
@@ -232,12 +224,14 @@ function _FeedContent({
     }
   }, [loadedCommentResource])
 
-  const siteHomeEntity = useSubscribedResource(
+  const siteHomeEntity = useResource(
     // if the route document ID matches the home document, then use it because it may be referring to a specific version
     id.path?.length ? hmId(id.uid) : id,
     // otherwise, create an ID with the latest version of the home document
-
-    id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    {
+      subscribed: true,
+      recursive: id.path?.length ? false : true, // avoiding redundant subscription if the doc is not the home document
+    },
   )
 
   const document =
@@ -274,7 +268,15 @@ function _FeedContent({
   }
 
   if (resource.data?.type === 'not-found') {
-    return <DocDiscovery />
+    if (resource.isDiscovering) {
+      return <DocDiscovery />
+    }
+    return (
+      <DocMessageBox
+        title="Document Not Found"
+        message="This document could not be found on the network."
+      />
+    )
   }
 
   if (loadedCommentResource) {
@@ -347,11 +349,11 @@ function _AppDocSiteHeader({
   supportDocuments,
   onScrollParamSet,
 }: {
-  siteHomeEntity: HMEntityContent | undefined | null
+  siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMEntityContent[]
+  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')

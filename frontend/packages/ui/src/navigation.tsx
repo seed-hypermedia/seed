@@ -3,9 +3,9 @@ import {
   getNodesOutline,
   HMDocument,
   HMDocumentInfo,
-  HMEntityContent,
   HMListedDraft,
   HMMetadata,
+  HMResourceFetchResult,
   NavRoute,
   NodeOutline,
   UnpackedHypermediaId,
@@ -215,7 +215,7 @@ export function getSiteNavDirectory({
 export function useNodesOutline(
   document: HMDocument | null | undefined,
   id: UnpackedHypermediaId,
-  supportDocuments?: HMEntityContent[],
+  supportDocuments?: HMResourceFetchResult[],
 ) {
   return useMemo(
     () => getNodesOutline(document?.content || [], id, supportDocuments),

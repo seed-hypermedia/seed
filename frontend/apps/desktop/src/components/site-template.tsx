@@ -18,8 +18,8 @@ import blogDark from '@/images/template-blog-dark.png'
 import blogLight from '@/images/template-blog-light.png'
 import documentationDark from '@/images/template-documentation-dark.png'
 import documentationLight from '@/images/template-documentation-light.png'
-import {useSubscribedResource} from '@/models/entities'
 import {useIsOnline} from '@/models/networking'
+import {useResource} from '@shm/shared/models/entity'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {nanoid} from 'nanoid'
@@ -38,10 +38,10 @@ export function SiteTemplate({
   const route = input
   const navigate = useNavigate('push')
   const openWindow = useNavigate('spawn')
-  const blogTemplate = useSubscribedResource(hmId(templates.blog))
-  const documentationTemplate = useSubscribedResource(
-    hmId(templates.documentation),
-  )
+  const blogTemplate = useResource(hmId(templates.blog), {subscribed: true})
+  const documentationTemplate = useResource(hmId(templates.documentation), {
+    subscribed: true,
+  })
   const blogTemplateDocument =
     // @ts-ignore
     blogTemplate.data?.type === 'document'
@@ -231,7 +231,7 @@ function TemplateItem({
   onPress?: () => void
   onPressExternal?: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
-  const resource = useSubscribedResource(hmId(template))
+  const resource = useResource(hmId(template), {subscribed: true})
   const document = {
     /* @ts-ignore */
   }

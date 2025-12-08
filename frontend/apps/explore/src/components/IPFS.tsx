@@ -1,9 +1,9 @@
-import {base58btc} from "multiformats/bases/base58";
-import React, {useMemo} from "react";
-import {useNavigate, useParams} from "react-router-dom";
-import {useApiHost} from "../apiHostStore";
-import {useCID} from "../models";
-import {CopyTextButton} from "./CopyTextButton";
+import {useCID} from '@shm/shared'
+import {base58btc} from 'multiformats/bases/base58'
+import React, {useMemo} from 'react'
+import {useNavigate, useParams} from 'react-router-dom'
+import {useApiHost} from '../apiHostStore'
+import {CopyTextButton} from './CopyTextButton'
 import {DataViewer} from "./DataViewer";
 import {DownloadButton} from "./DownloadButton";
 import {Title} from "./Title";

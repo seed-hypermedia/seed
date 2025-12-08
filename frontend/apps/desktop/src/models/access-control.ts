@@ -4,7 +4,7 @@ import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_contr
 import {BIG_INT} from '@shm/shared/constants'
 import {
   HMCapability,
-  HMEntityContent,
+  HMResourceFetchResult,
   HMRole,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
@@ -125,7 +125,7 @@ const EMPTY_TIMESTAMP = {
 } as const
 
 export type HMWritableDocument = {
-  entity: HMEntityContent
+  entity: HMResourceFetchResult
   accountsWithWrite: string[]
 }
 

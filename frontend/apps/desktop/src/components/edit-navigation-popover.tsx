@@ -1,4 +1,3 @@
-import {useListDirectory} from '@/models/documents'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {
   draggable,
@@ -7,7 +6,7 @@ import {
 } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {HMNavigationItem, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
@@ -380,7 +379,7 @@ function SearchUI({
   const isWebUrl = query.match(/^https?:\/\//)
   const search = useSearch(query, {enabled: !!query})
   const [focusedIndex, setFocusedIndex] = useState(0)
-  const dirList = useListDirectory(homeId, {mode: 'Children'})
+  const dirList = useDirectory(homeId, {mode: 'Children'})
   const isSearching = !!query.length
   const Icon = isWebUrl ? Globe : Search
   const results: SearchResult[] = isSearching

@@ -1,10 +1,14 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
+import {getAggregatedDiscoveryStream} from '@/models/entities'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {useStream} from '@shm/shared/use-stream'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {Progress} from '@shm/ui/components/progress'
 import {FooterWrapper} from '@shm/ui/footer'
 import {Cable} from '@shm/ui/icons'
+import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {ReactNode} from 'react'
@@ -37,6 +41,7 @@ export default function Footer({children}: {children?: ReactNode}) {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-1">
+        <DiscoveryIndicator />
         {children}
       </div>
     </FooterWrapper>
@@ -83,6 +88,43 @@ function FooterNetworkingButton() {
         <SizableText size="xs">{summary.connectedCount}</SizableText>
       </Button>
       {networkDialog.content}
+    </div>
+  )
+}
+
+function DiscoveryIndicator() {
+  const discovery = useStream(getAggregatedDiscoveryStream())
+  if (!discovery || discovery.activeCount === 0) return null
+
+  const {blobsDiscovered, blobsDownloaded} = discovery
+  const hasBlobs = blobsDiscovered > 0
+  const progress = hasBlobs ? (blobsDownloaded / blobsDiscovered) * 100 : 0
+
+  return (
+    <div className="flex items-center gap-2 px-2">
+      {hasBlobs ? (
+        <>
+          <SizableText
+            size="xs"
+            className="text-muted-foreground select-none"
+            style={{fontSize: 10}}
+          >
+            Downloading ({Math.round(progress)}%)
+          </SizableText>
+          <Progress value={progress} className="h-1 w-16" />
+        </>
+      ) : (
+        <>
+          <SizableText
+            size="xs"
+            className="text-muted-foreground select-none"
+            style={{fontSize: 10}}
+          >
+            Searching peers...
+          </SizableText>
+          <Spinner size="small" className="text-muted-foreground" />
+        </>
+      )}
     </div>
   )
 }

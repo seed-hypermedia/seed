@@ -5,7 +5,6 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useSelectedAccountContacts} from '@/models/contacts'
-import {useSubscribedResource} from '@/models/entities'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
@@ -21,6 +20,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {AccessoryContent} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -316,7 +316,7 @@ function CollaboratorItem({
   const navigate = useNavigate('push')
   const myContacts = useSelectedAccountContacts()
   const collaboratorId = hmId(capability.accountUid)
-  const collaborator = useSubscribedResource(collaboratorId)
+  const collaborator = useResource(collaboratorId, {subscribed: true})
   const collaboratorMetadata =
     // @ts-ignore
     collaborator.data?.type === 'document'
@@ -324,26 +324,27 @@ function CollaboratorItem({
         collaborator.data.document?.metadata
       : undefined
   if (capability.role === 'owner') return null
+  const isLoading = collaborator.isLoading || collaborator.isDiscovering
   return (
     <Button
       onClick={() => navigate({key: 'contact', id: collaboratorId})}
       className="w-full"
     >
       <HMIcon
-        name={collaboratorMetadata?.name}
-        icon={collaboratorMetadata?.icon}
+        name={isLoading ? undefined : collaboratorMetadata?.name}
+        icon={isLoading ? undefined : collaboratorMetadata?.icon}
         id={collaboratorId}
         size={24}
       />
       <div className="flex flex-1 items-center gap-2 overflow-hidden">
         <SizableText size="sm" className="flex-1 truncate text-left">
-          {
-            getContactMetadata(
-              capability.accountUid,
-              collaboratorMetadata,
-              myContacts.data,
-            )?.name
-          }
+          {isLoading
+            ? 'Loading...'
+            : getContactMetadata(
+                capability.accountUid,
+                collaboratorMetadata,
+                myContacts.data,
+              )?.name}
         </SizableText>
         <SizableText size="xs" color="muted">
           {getRoleName(capability.role)}{' '}
@@ -531,7 +532,7 @@ function UnresolvedItem({value}: {value: SearchResult}) {
     resource.data?.type === 'document'
       ? resource.data.document?.metadata
       : undefined
-  let label = metadata?.name || value.id.uid.slice(0, 10)
+  let label = metadata?.name || abbreviateUid(value.id.uid)
   return (
     <>
       <UIAvatar label={label} id={value.id.uid} />

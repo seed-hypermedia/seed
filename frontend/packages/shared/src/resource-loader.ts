@@ -5,12 +5,14 @@ import {
   HMResource,
   HMResourceNotFound,
   HMResourceRedirect,
+  HMResourceTombstone,
   UnpackedHypermediaId,
 } from './hm-types'
 import {
   getErrorMessage,
   HMNotFoundError,
   HMRedirectError,
+  HMResourceTombstoneError,
 } from './models/entity'
 import {packHmId} from './utils'
 
@@ -43,6 +45,12 @@ export function createResourceFetcher(grpcClient: GRPCClient) {
       throw new Error(`Unable to get resource with kind: ${resource.kind.case}`)
     } catch (e) {
       const err = getErrorMessage(e)
+      if (err instanceof HMResourceTombstoneError) {
+        return {
+          type: 'tombstone',
+          id,
+        } satisfies HMResourceTombstone
+      }
       if (err instanceof HMRedirectError) {
         return {
           type: 'redirect',

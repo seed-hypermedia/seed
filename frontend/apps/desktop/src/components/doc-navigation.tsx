@@ -9,7 +9,6 @@ import {
   useDocumentEmbeds,
   useListSite,
 } from '@/models/documents'
-import {useSubscribedResource} from '@/models/entities'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {
@@ -35,7 +34,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   if (route.key !== 'document')
     throw new Error('DocNavigation only supports document route')
   const {id} = route
-  const entity = useSubscribedResource(id, true) // recursive subscriptions to make sure children get loaded
+  const entity = useResource(id, {subscribed: true, recursive: true}) // recursive subscriptions to make sure children get loaded
   const navigate = useNavigate('replace')
   const document =
     // @ts-ignore

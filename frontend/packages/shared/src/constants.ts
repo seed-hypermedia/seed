@@ -154,3 +154,7 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
   IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
   process.env.NOTIFY_SERVICE_HOST || // web server
   WEB_ENV.NOTIFY_SERVICE_HOST // web client
+
+// Discovery timeouts
+export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found
+export const DISCOVERY_DEBOUNCE_MS = 100 // debounce rapid mounts
