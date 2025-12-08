@@ -7,7 +7,12 @@ import {
   useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
-import {abbreviateUid, hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {
+  abbreviateUid,
+  hmId,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
