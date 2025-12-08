@@ -1,4 +1,5 @@
 import {
+  abbreviateUid,
   AnyTimestamp,
   formattedDateShort,
   HMMetadata,
@@ -50,7 +51,7 @@ export function InlineDescriptor({children}: {children: React.ReactNode}) {
 }
 
 export function AuthorNameLink({author}: {author: HMContactItem | null}) {
-  const authorName = author?.metadata?.name || author?.id?.uid.slice(0, 10)
+  const authorName = author?.metadata?.name || abbreviateUid(author?.id?.uid)
   const linkProps = useRouteLink(
     author?.id ? {key: 'profile', id: author.id} : null,
   )

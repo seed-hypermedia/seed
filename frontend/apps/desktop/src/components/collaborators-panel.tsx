@@ -20,6 +20,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {AccessoryContent} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -531,7 +532,7 @@ function UnresolvedItem({value}: {value: SearchResult}) {
     resource.data?.type === 'document'
       ? resource.data.document?.metadata
       : undefined
-  let label = metadata?.name || value.id.uid.slice(0, 10)
+  let label = metadata?.name || abbreviateUid(value.id.uid)
   return (
     <>
       <UIAvatar label={label} id={value.id.uid} />

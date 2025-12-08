@@ -2,6 +2,7 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {GRPCClient} from './grpc-client'
 import {HMContactItem, HMMetadata} from './hm-types'
 import {hmId} from './utils'
+import {abbreviateUid} from './utils/abbreviate'
 
 /**
  * Resolves an account ID to a contact item with metadata
@@ -34,7 +35,7 @@ export async function resolveAccount(
     return {
       id,
       metadata: {
-        name: accountId.slice(0, 8) + '...',
+        name: abbreviateUid(accountId),
       },
     }
   }

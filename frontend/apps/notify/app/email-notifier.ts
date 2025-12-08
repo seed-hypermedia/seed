@@ -2,6 +2,7 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
+  abbreviateUid,
   BlockNode,
   createWebHMUrl,
   entityQueryPathToHmIdPath,
@@ -709,15 +710,15 @@ async function resolveAnnotationNames(blocks: BlockNode[]) {
               const account = await getAccount(unpacked.uid)
               resolvedNames[annotation.link] = account.metadata?.name
                 ? account.metadata?.name
-                : `@${unpacked.uid.slice(0, 6)}…`
+                : `@${abbreviateUid(unpacked.uid)}`
             } else {
               const meta = await getMetadata(unpacked)
               resolvedNames[annotation.link] = meta.metadata?.name
                 ? meta.metadata?.name
-                : `@${unpacked.uid.slice(0, 6)}…`
+                : `@${abbreviateUid(unpacked.uid)}`
             }
           } catch {
-            resolvedNames[annotation.link] = `@${unpacked.uid.slice(0, 6)}…`
+            resolvedNames[annotation.link] = `@${abbreviateUid(unpacked.uid)}`
           }
         }
       }

@@ -120,7 +120,7 @@ function DiscoveryIndicator() {
             className="text-muted-foreground select-none"
             style={{fontSize: 10}}
           >
-            Scanning...
+            Searching peers...
           </SizableText>
           <Spinner size="small" className="text-muted-foreground" />
         </>

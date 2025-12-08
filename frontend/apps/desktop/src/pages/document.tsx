@@ -635,16 +635,27 @@ function DocPageHeader({
   documentTools?: any
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
-  useResources(authors?.map((a) => hmId(a)) || [], {subscribed: true})
+  const authorIds = useMemo(
+    () => authors?.map((a) => hmId(a)) || [],
+    [authors],
+  )
+  const authorResources = useResources(authorIds, {subscribed: true})
   const authorContacts = useContactsMetadata(authors || [])
 
   if (!document) return null
 
   const authorMetadata = authors
-    .map((a) => {
+    .map((a, index) => {
       const contact = authorContacts[a]
-      if (!contact) return null
-      return {id: hmId(a), metadata: contact.metadata}
+      const resource = authorResources[index]
+      const isDiscovering = resource?.isDiscovering
+      // Use resource data if available, fall back to contacts
+      const metadata =
+        resource?.data?.type === 'document'
+          ? resource.data.document?.metadata
+          : contact?.metadata
+      if (!metadata && !isDiscovering) return null
+      return {id: hmId(a), metadata, isDiscovering}
     })
     .filter((a) => a !== null)
 

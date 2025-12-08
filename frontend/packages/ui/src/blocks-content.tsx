@@ -120,6 +120,7 @@ import {toast} from 'sonner'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {useHighlighter} from './highlight-context'
 import {DocumentNameLink} from './inline-descriptor'
+import {InlineError} from './inline-feedback'
 
 export type BlockRangeSelectOptions = BlockRange & {
   copyToClipboard?: boolean
@@ -2702,7 +2703,7 @@ export function InlineEmbedButton({
   entityId,
   style,
 }: {
-  children: string
+  children: React.ReactNode
   entityId: UnpackedHypermediaId
   style?: React.CSSProperties
 }) {
@@ -2856,21 +2857,30 @@ function InlineEmbed({
   const ctx = useBlocksContentContext()
   const document = doc.data?.type === 'document' ? doc.data.document : undefined
 
-  let name: string
   if (doc.isDiscovering) {
-    name = 'Loading...'
-  } else if (doc.data?.type === 'not-found') {
-    name = '[not found]'
-  } else {
-    name = getMetadataName(document?.metadata) || '...'
-    if (!entityId.path?.length) {
-      const contactName = getContactMetadata(
-        entityId.uid,
-        document?.metadata,
-        ctx?.contacts,
-      ).name
-      name = contactName
-    }
+    return (
+      <InlineEmbedButton entityId={entityId} style={style}>
+        <Spinner size="small" />
+      </InlineEmbedButton>
+    )
+  }
+
+  if (doc.data?.type === 'not-found') {
+    return (
+      <InlineEmbedButton entityId={entityId} style={style}>
+        <InlineError message="Could not find this content" />
+      </InlineEmbedButton>
+    )
+  }
+
+  let name = getMetadataName(document?.metadata) || '...'
+  if (!entityId.path?.length) {
+    const contactName = getContactMetadata(
+      entityId.uid,
+      document?.metadata,
+      ctx?.contacts,
+    ).name
+    name = contactName
   }
 
   return (

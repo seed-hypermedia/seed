@@ -7,7 +7,7 @@ import {
   useSetEmailUnsubscribed,
 } from '@/email-notifications-token-models'
 import {useSearchParams} from '@remix-run/react'
-import {hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
+import {abbreviateUid, hmId, HMMetadata, UnpackedHypermediaId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {SwitchField} from '@shm/ui/form-fields'
@@ -168,7 +168,7 @@ function AccountTitle({
   accountId: UnpackedHypermediaId
   metadata: HMMetadata
 }) {
-  const displayName = metadata?.name || accountId.uid.slice(0, 8) + '...'
+  const displayName = metadata?.name || abbreviateUid(accountId.uid)
 
   return (
     <div className="flex w-full items-center gap-2 border-t border-gray-300 pt-2">

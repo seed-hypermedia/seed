@@ -1,4 +1,5 @@
 import {
+  abbreviateUid,
   getMetadataName,
   HMDocument,
   HMMetadata,
@@ -12,7 +13,12 @@ import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
+import {Spinner} from './spinner'
 import {SizableText} from './text'
+
+export type AuthorPayload = HMMetadataPayload & {
+  isDiscovering?: boolean
+}
 
 export function DocumentHeader({
   docId,
@@ -25,7 +31,7 @@ export function DocumentHeader({
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
-  authors: HMMetadataPayload[]
+  authors: AuthorPayload[]
   updateTime: HMDocument['updateTime'] | null
   breadcrumbs?: Array<{
     id: UnpackedHypermediaId
@@ -84,11 +90,20 @@ export function DocumentHeader({
                   <p className="text-sm font-bold">
                     {authors.flatMap((a, index) => {
                       return [
-                        <AuthorLink
-                          name={getMetadataName(a.metadata)}
-                          id={a.id}
-                          key={a.id.id}
-                        />,
+                        a.isDiscovering ? (
+                          <span className="text-muted-foreground">
+                            {abbreviateUid(a.id.uid)}
+                            <span className="ml-1">
+                              <Spinner size="small" />
+                            </span>
+                          </span>
+                        ) : (
+                          <AuthorLink
+                            name={getMetadataName(a.metadata)}
+                            id={a.id}
+                            key={a.id.id}
+                          />
+                        ),
                         index !== authors.length - 1 ? (
                           index === authors.length - 2 ? (
                             <SizableText
