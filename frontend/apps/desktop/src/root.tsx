@@ -15,11 +15,9 @@ import {
   QueryClientProvider,
   QueryKey,
 } from '@tanstack/react-query'
-import {ipcLink} from 'electron-trpc/renderer'
-import React, {Suspense, useEffect, useMemo, useState} from 'react'
+import React, {Suspense, useEffect, useState} from 'react'
 import ReactDOM from 'react-dom/client'
 import {ErrorBoundary} from 'react-error-boundary'
-import superjson from 'superjson'
 import {getOnboardingState} from './app-onboarding'
 import {RootAppError} from './components/app-error'
 import {DebugDialogs} from './components/debug-dialogs'
@@ -36,7 +34,7 @@ import Main from './pages/main'
 import type {AppInfoType} from './preload'
 import './root.css'
 import './tailwind.css'
-import {client, trpc} from './trpc'
+import {client} from './trpc'
 
 import {AppWindowEvent} from '@/utils/window-events'
 import {
@@ -321,7 +319,6 @@ function MainApp({}: {}) {
   const daemonState = useGoDaemonState()
   const isDarkMode = useDarkMode()
   const windowUtils = useWindowUtils(ipc)
-  const utils = trpc.useUtils()
 
   // Initialize showOnboarding state with all checks to avoid flashing
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -366,59 +363,16 @@ function MainApp({}: {}) {
     const sub = client.queryInvalidation.subscribe(undefined, {
       // called when invalidation happens in any window (including this one), here we are performing the local invalidation
       onData: (value: unknown) => {
-        const queryKey = value as unknown[]
+        const queryKey = value as QueryKey
         if (!queryKey) return
-        if (queryKey[0] === 'trpc.experiments.get') {
-          utils.experiments.get.invalidate()
-        } else if (queryKey[0] === 'trpc.favorites.get') {
-          utils.favorites.get.invalidate()
-        } else if (queryKey[0] === 'trpc.host.get') {
-          utils.host.get.invalidate()
-        } else if (queryKey[0] === 'trpc.recentSigners.get') {
-          utils.recentSigners.get.invalidate()
-        } else if (queryKey[0] === 'trpc.comments.getCommentDraft') {
-          utils.comments.getCommentDraft.invalidate()
-        } else if (queryKey[0] === 'trpc.comments.listCommentDrafts') {
-          utils.comments.listCommentDrafts.invalidate()
-        } else if (queryKey[0] === 'trpc.gatewaySettings.getGatewayUrl') {
-          utils.gatewaySettings.getGatewayUrl.invalidate()
-        } else if (
-          queryKey[0] === 'trpc.gatewaySettings.getNotifyServiceHost'
-        ) {
-          utils.gatewaySettings.getNotifyServiceHost.invalidate()
-        } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnCopy') {
-          utils.gatewaySettings.getPushOnCopy.invalidate()
-        } else if (queryKey[0] === 'trpc.gatewaySettings.getPushOnPublish') {
-          utils.gatewaySettings.getPushOnPublish.invalidate()
-          // } else if (queryKey[0] === queryKeys.RECENTS) {
-          //   console.log('~~ invalidateRecents', queryKey)
-          //   utils.recents.getRecents.invalidate()
-        } else if (queryKey[0] === 'trpc.appSettings.getAutoUpdatePreference') {
-          utils.appSettings.getAutoUpdatePreference.invalidate()
-        } else if (queryKey[0] == 'trpc.drafts.get') {
-          utils.drafts.get.invalidate(queryKey[1] as string | undefined)
-        } else if (queryKey[0] == 'trpc.drafts.list') {
-          utils.drafts.list.invalidate()
-        } else if (queryKey[0] == 'trpc.drafts.listAccount') {
-          utils.drafts.listAccount.invalidate()
-          // Also invalidate the shared ACCOUNT_DRAFTS query used by useDirectoryWithDrafts
-          queryClient.invalidateQueries({queryKey: [queryKeys.ACCOUNT_DRAFTS]})
-        } else if (queryKey[0] == queryKeys.SETTINGS) {
-          console.log('~~ invalidateSettings', queryKey)
-          utils.appSettings.getSetting.invalidate(queryKey[1] as string)
-        } else if (queryKey[0] == 'trpc.secureStorage.get') {
-          utils.secureStorage.invalidate()
-
-          utils.secureStorage.read.invalidate()
-        } else {
-          queryClient.invalidateQueries({queryKey})
-        }
+        // All queries now use queryKeys constants, so we can just invalidate directly
+        queryClient.invalidateQueries({queryKey})
       },
     })
     return () => {
       sub.unsubscribe()
     }
-  }, [utils, showOnboarding])
+  }, [showOnboarding])
 
   let mainContent = showOnboarding ? (
     <>
@@ -580,20 +534,7 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
 }
 
 function ElectronApp() {
-  const trpcClient = useMemo(
-    () =>
-      trpc.createClient({
-        links: [ipcLink()],
-        transformer: superjson,
-      }),
-    [],
-  )
-
-  return (
-    <trpc.Provider queryClient={queryClient} client={trpcClient}>
-      <MainApp />
-    </trpc.Provider>
-  )
+  return <MainApp />
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

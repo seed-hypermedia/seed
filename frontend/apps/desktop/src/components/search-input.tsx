@@ -1,8 +1,9 @@
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
+import {useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {useSelectedAccountId} from '@/selected-account'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
@@ -32,6 +33,7 @@ import {
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {useMutation} from '@tanstack/react-query'
 import {useDeferredValue, useEffect, useMemo, useRef, useState} from 'react'
 
 export function SearchInput({
@@ -315,8 +317,10 @@ export function SearchInput({
 }
 
 function useURLHandler() {
-  const experiments = trpc.experiments.get.useQuery()
-  const webQuery = trpc.webQuery.useMutation()
+  const experiments = useExperiments()
+  const webQuery = useMutation({
+    mutationFn: (input: {webUrl: string}) => client.webQuery.mutate(input),
+  })
   const connect = useConnectPeer({
     onSuccess: () => {
       // toast.success('Connection Added')

@@ -25,7 +25,8 @@ import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {useMutation} from '@tanstack/react-query'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -90,7 +91,10 @@ export default function DocumentPage() {
   const immediatePromptNotifs =
     route.immediatelyPromptNotifs && !route.id?.path?.length
 
-  const markPromptedKey = trpc.prompting.markPromptedKey.useMutation()
+  const markPromptedKey = useMutation({
+    mutationFn: (input: {key: string; isPrompted: boolean}) =>
+      client.prompting.markPromptedKey.mutate(input),
+  })
 
   useEffect(() => {
     if (immediatePromptNotifs && notifyServiceHost) {

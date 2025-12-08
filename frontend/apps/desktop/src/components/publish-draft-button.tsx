@@ -2,11 +2,13 @@ import {DraftStatus, draftStatus} from '@/draft-status'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
-import {client, trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation} from '@tanstack/react-query'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -50,9 +52,10 @@ export default function PublishDraftButton() {
     ? hmId(draftRoute.editUid, {path: draftRoute.editPath})
     : draftEditId(draft.data)
 
-  const deleteDraft = trpc.drafts.delete.useMutation({
+  const deleteDraft = useMutation({
+    mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
     onSuccess: () => {
-      invalidateQueries(['trpc.drafts.get'])
+      invalidateQueries([queryKeys.DRAFT])
     },
   })
   const pushResource = usePushResource()
@@ -139,9 +142,9 @@ export default function PublishDraftButton() {
                 console.error('Failed to delete draft', e)
               })
               .then(() => {
-                invalidateQueries(['trpc.drafts.get']) // todo, invalidate the specific draft id
-                invalidateQueries(['trpc.drafts.list'])
-                invalidateQueries(['trpc.drafts.listAccount'])
+                invalidateQueries([queryKeys.DRAFT]) // todo, invalidate the specific draft id
+                invalidateQueries([queryKeys.DRAFTS_LIST])
+                invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
               })
           if (resultDocId) {
             const hasAlreadyPrompted =

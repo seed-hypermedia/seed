@@ -1,4 +1,5 @@
 import {hasBlockContent} from '@shm/shared/content'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   HMCommentDraft,
   HMListedCommentDraft,
@@ -225,7 +226,7 @@ export const commentsApi = t.router({
       const draft = {blocks}
       await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
 
-      appInvalidateQueries(['trpc.comments.listCommentDrafts'])
+      appInvalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
       return draftId
     }),
   removeCommentDraft: t.procedure
@@ -258,7 +259,7 @@ export const commentsApi = t.router({
       const draftPath = join(commentDraftsDir, `${existingDraft.id}.json`)
       try {
         await fs.unlink(draftPath)
-        appInvalidateQueries(['trpc.comments.listCommentDrafts'])
+        appInvalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
       } catch (e) {
         error('[COMMENT DRAFT]: Error deleting comment draft', {
           id: existingDraft.id,

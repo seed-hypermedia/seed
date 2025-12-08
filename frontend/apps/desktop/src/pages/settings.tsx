@@ -24,7 +24,9 @@ import {
 import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {useUniversalAppContext} from '@shm/shared'
 import {
   COMMIT_HASH,
@@ -173,7 +175,9 @@ export default function Settings() {
 
 export function DeleteDraftLogs() {
   const [isConfirming, setIsConfirming] = useState(false)
-  const destroyDraftLogs = trpc.diagnosis.destroyDraftLogFolder.useMutation()
+  const destroyDraftLogs = useMutation({
+    mutationFn: () => client.diagnosis.destroyDraftLogFolder.mutate(),
+  })
 
   if (isConfirming) {
     return (
@@ -206,7 +210,9 @@ export function DeleteDraftLogs() {
 
 export function DeleteAllRecents() {
   const [isConfirming, setIsConfirming] = useState(false)
-  const clearAllRecents = trpc.recents.clearAllRecents.useMutation()
+  const clearAllRecents = useMutation({
+    mutationFn: () => client.recents.clearAllRecents.mutate(),
+  })
 
   if (isConfirming) {
     return (
@@ -275,7 +281,9 @@ export function DeveloperSettings() {
   const writeExperiments = useWriteExperiments()
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
-  const openDraftLogs = trpc.diagnosis.openDraftLogFolder.useMutation()
+  const openDraftLogs = useMutation({
+    mutationFn: () => client.diagnosis.openDraftLogFolder.mutate(),
+  })
   return (
     <>
       <SettingsSection title="Developer Tools">
@@ -339,7 +347,9 @@ export function DeveloperSettings() {
 function AccountKeys() {
   const deleteKey = useDeleteKey()
   const keys = useMyAccountIds()
-  const deleteWords = trpc.secureStorage.delete.useMutation()
+  const deleteWords = useMutation({
+    mutationFn: (name: string) => client.secureStorage.delete.mutate(name),
+  })
   const [walletId, setWalletId] = useState<string | undefined>(undefined)
   const [selectedAccount, setSelectedAccount] = useState<undefined | string>(
     () => {
@@ -501,7 +511,7 @@ function AccountKeys() {
                                     .then(() => {
                                       toast.success('Words deleted!')
                                       invalidateQueries([
-                                        'trpc.secureStorage.get',
+                                        queryKeys.SECURE_STORAGE,
                                       ])
                                     })
                                 }
@@ -1143,10 +1153,16 @@ function AppSettings() {
   const ipc = useIPC()
   // @ts-expect-error versions is not typed
   const versions = useMemo(() => ipc.versions(), [ipc])
-  const appInfo = trpc.getAppInfo.useQuery().data
+  const appInfo = useQuery({
+    queryKey: ['app-info'],
+    queryFn: () => client.getAppInfo.query(),
+  }).data
   const openUrl = useOpenUrl()
   const {value: autoUpdate, setAutoUpdate} = useAutoUpdatePreference()
-  const daemonInfo = trpc.getDaemonInfo.useQuery().data
+  const daemonInfo = useQuery({
+    queryKey: ['daemon-info'],
+    queryFn: () => client.getDaemonInfo.query(),
+  }).data
   let goBuildInfo = ''
   if (daemonInfo?.errors.length) {
     goBuildInfo = daemonInfo.errors.join('\n')

@@ -2,7 +2,10 @@ import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useCreateDraft, useDraftList} from '@/models/documents'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateMedium,
@@ -27,7 +30,10 @@ type UnifiedDraft =
 
 export default function DraftsPage() {
   const documentDrafts = useDraftList()
-  const commentDrafts = trpc.comments.listCommentDrafts.useQuery()
+  const commentDrafts = useQuery({
+    queryKey: [queryKeys.COMMENT_DRAFTS_LIST],
+    queryFn: () => client.comments.listCommentDrafts.query(),
+  })
   const navigate = useNavigate()
 
   const allTargetDocIds = useMemo(() => {
@@ -247,11 +253,16 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
   const navigate = useNavigate()
   const targetDocId = useMemo(() => unpackHmId(item.targetDocId), [item])
   const targetDoc = useResource(targetDocId)
-  const utils = trpc.useContext()
-  const deleteCommentDraft = trpc.comments.removeCommentDraft.useMutation({
+  const deleteCommentDraft = useMutation({
+    mutationFn: (input: {
+      targetDocId: string
+      replyCommentId?: string
+      quotingBlockId?: string
+      context?: 'accessory' | 'feed' | 'document-content'
+    }) => client.comments.removeCommentDraft.mutate(input),
     onSuccess: () => {
       // Invalidate the comment drafts list to refresh the UI
-      utils.comments.listCommentDrafts.invalidate()
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
     },
   })
 

@@ -1,10 +1,11 @@
 import {dispatchOnboardingDialog} from '@/components/onboarding'
 import {grpcClient} from '@/grpc-client'
 import {useDraft} from '@/models/accounts'
+import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
-import {trpc, client as trpcClient} from '@/trpc'
+import {client} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
@@ -105,11 +106,16 @@ export function useDocumentList(
 }
 
 export function useDraftList() {
-  return trpc.drafts.list.useQuery(undefined, {})
+  return useQuery({
+    queryKey: [queryKeys.DRAFTS_LIST],
+    queryFn: () => client.drafts.list.query(),
+  })
 }
 
 export function useAccountDraftList(accountUid?: string) {
-  return trpc.drafts.listAccount.useQuery(accountUid, {
+  return useQuery({
+    queryKey: [queryKeys.DRAFTS_LIST_ACCOUNT, accountUid],
+    queryFn: () => client.drafts.listAccount.query(accountUid),
     enabled: !!accountUid,
   })
 }
@@ -117,14 +123,15 @@ export function useAccountDraftList(accountUid?: string) {
 export function useDeleteDraft(
   opts?: UseMutationOptions<void, unknown, string>,
 ) {
-  const deleteDraft = trpc.drafts.delete.useMutation({
-    ...opts,
+  const deleteDraft = useMutation({
+    mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
     onSuccess: (data, input, ctx) => {
-      invalidateQueries(['trpc.drafts.get', input])
-      invalidateQueries(['trpc.drafts.list'])
-      invalidateQueries(['trpc.drafts.listAccount'])
+      invalidateQueries([queryKeys.DRAFT, input])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
       opts?.onSuccess?.(data, input, ctx)
     },
+    ...opts,
   })
   return deleteDraft
 }
@@ -170,8 +177,14 @@ export function getDefaultShortname(
 }
 
 function useDraftDiagnosis() {
-  const appendDraft = trpc.diagnosis.appendDraftLog.useMutation()
-  const completeDraft = trpc.diagnosis.completeDraftLog.useMutation()
+  const appendDraft = useMutation({
+    mutationFn: (input: {draftId: string; event: unknown}) =>
+      client.diagnosis.appendDraftLog.mutate(input),
+  })
+  const completeDraft = useMutation({
+    mutationFn: (input: {draftId: string; event: unknown}) =>
+      client.diagnosis.completeDraftLog.mutate(input),
+  })
   return {
     // @ts-expect-error
     append(draftId, event) {
@@ -197,7 +210,10 @@ export function usePublishResource(
   const editEntity = useResource(editId)
   const editDocument =
     editEntity.data?.type === 'document' ? editEntity.data.document : undefined
-  const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
+  const writeRecentSigner = useMutation({
+    mutationFn: (signingKeyName: string) =>
+      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+  })
   return useMutation<HMDocument, any, PublishDraftInput>({
     mutationFn: async ({
       draft,
@@ -272,7 +288,7 @@ export function usePublishResource(
               capabilityId = capability.id
             }
             writeRecentSigner.mutateAsync(accountId).then(() => {
-              invalidateQueries(['trpc.recentSigners.get'])
+              invalidateQueries([queryKeys.RECENT_SIGNERS])
             })
 
             const publishedDoc =
@@ -498,14 +514,24 @@ export function useDraftEditor() {
   }, [editId, editHomeEntity.data])
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
-  const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const experiments = useExperiments()
+  const showNostr = experiments.data?.nostr
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
-  const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const saveDraft = trpc.drafts.write.useMutation()
+  const checkWebUrl = useMutation({
+    mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
+  })
+  const saveDraft = useMutation({
+    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) =>
+      client.drafts.write.mutate(input),
+  })
   const selectedAccountId = useSelectedAccountId()
   const {onMentionsQuery} = useInlineMentions(selectedAccountId)
-  const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const importWebFile = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.webImporting.importWebFile.mutate>[0],
+    ) => client.webImporting.importWebFile.mutate(input),
+  })
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -811,7 +837,7 @@ export type BlocksMapItem = {
 }
 
 export function usePushResource() {
-  const client = useUniversalClient()
+  const universalClient = useUniversalClient()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
 
   return async (
@@ -819,7 +845,10 @@ export function usePushResource() {
     onlyPushToHost?: string,
     onStatusChange?: (status: PushResourceStatus) => void,
   ): Promise<boolean> => {
-    const resource = await client.request<HMResourceRequest>('Resource', id)
+    const resource = await universalClient.request<HMResourceRequest>(
+      'Resource',
+      id,
+    )
     // step 1. find all the site IDs that will be affected by this resource.
     // console.log('== publish 1', id, resource, gwUrl)
     let destinationSiteUids = new Set<string>()
@@ -894,7 +923,7 @@ export function usePushResource() {
     await Promise.all(
       Array.from(destinationSiteUids).map(async (uid) => {
         try {
-          const resource = await client.request<HMResourceRequest>(
+          const resource = await universalClient.request<HMResourceRequest>(
             'Resource',
             hmId(uid),
           )
@@ -976,7 +1005,7 @@ export function usePushResource() {
       Array.from(destinationHosts).map(async (host) => {
         try {
           updateHostStatus(host, 'pending', 'Connecting...')
-          const config = await trpcClient.web.configOfHost.query({
+          const config = await client.web.configOfHost.query({
             host,
             timeout: 10_000,
           })

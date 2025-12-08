@@ -6,7 +6,9 @@ import {
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useQuery} from '@tanstack/react-query'
 import {pathNameify} from '@/utils/path'
 import {
   createSiteUrl,
@@ -439,7 +441,10 @@ function useDefaultAccountId(
   allowedAccounts?: string[],
   defaultLocation?: UnpackedHypermediaId | null,
 ): string | null {
-  const recentSigners = trpc.recentSigners.get.useQuery()
+  const recentSigners = useQuery({
+    queryKey: [queryKeys.RECENT_SIGNERS],
+    queryFn: () => client.recentSigners.get.query(),
+  })
   const {data: myAccountIds} = useMyAccountIds()
   const parentLocation = getParent(defaultLocation)
   const allDocumentCapabilities = useAllDocumentCapabilities(

@@ -2,7 +2,8 @@ import {desktopUniversalClient} from '@/desktop-universal-client'
 import {ipc} from '@/ipc'
 import {useSelectedAccountContacts} from '@/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {client, trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {useExperiments} from '@/models/experiments'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
@@ -71,7 +72,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
 
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
 
-  const experiments = trpc.experiments.get.useQuery().data
+  const experiments = useExperiments().data
 
   const contacts = useSelectedAccountContacts()
 
@@ -122,7 +123,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
 }
 
 function DevTools() {
-  const {data: experiments} = trpc.experiments.get.useQuery()
+  const {data: experiments} = useExperiments()
   const route = useNavRoute()
   const routeDialog = useAppDialog(RouteDialog)
   return experiments?.developerTools ? (

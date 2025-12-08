@@ -1,4 +1,5 @@
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   HMDocumentMetadataSchema,
   HMDraft,
@@ -307,8 +308,8 @@ export const draftsApi = t.router({
 
       try {
         await fs.writeFile(draftPath, JSON.stringify(draft, null, 2))
-        appInvalidateQueries(['trpc.drafts.list'])
-        appInvalidateQueries(['trpc.drafts.listAccount'])
+        appInvalidateQueries([queryKeys.DRAFTS_LIST])
+        appInvalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
         return {id: draftId}
       } catch (error) {
         throw Error(

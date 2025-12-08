@@ -3,7 +3,7 @@ import {hmBlockSchema} from '@/editor'
 import {useMyAccountsWithWriteAccess} from '@/models/access-control'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
 import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
@@ -16,6 +16,8 @@ import {
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {Button} from '@shm/ui/button'
 import {
   DialogClose,
@@ -149,11 +151,16 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     // @ts-ignore
     return accts.length ? accts[0].data : undefined
   }, [accts])
-  const createDraft = trpc.drafts.write.useMutation()
+  const createDraft = useMutation({
+    mutationFn: (input: Parameters<typeof client.drafts.write.mutate>[0]) =>
+      client.drafts.write.mutate(input),
+  })
   const {grpcClient} = useAppContext()
   const openUrl = useOpenUrl()
   const gwUrl = useGatewayUrlStream()
-  const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
+  const checkWebUrl = useMutation({
+    mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
+  })
 
   const importDialog = useImportConfirmDialog()
 
@@ -269,7 +276,10 @@ function WebImportDialog({
 }) {
   const [importId, setImportId] = useState<string | null>(null)
   const [hostname, setHostname] = useState<string | null>(null)
-  const startImport = trpc.webImporting.importWebSite.useMutation()
+  const startImport = useMutation({
+    mutationFn: (input: {url: string}) =>
+      client.webImporting.importWebSite.mutate(input),
+  })
 
   return (
     <>
@@ -313,10 +323,18 @@ function WebImportInProgress({
   destinationId: UnpackedHypermediaId
   hostname: string
 }) {
-  const {data: status} = trpc.webImporting.importWebSiteStatus.useQuery(id, {
+  const {data: status} = useQuery({
+    queryKey: ['WEB_IMPORT_STATUS', id],
+    queryFn: () => client.webImporting.importWebSiteStatus.query(id),
     refetchInterval: 250,
   })
-  const confirmImport = trpc.webImporting.importWebSiteConfirm.useMutation()
+  const confirmImport = useMutation({
+    mutationFn: (
+      input: Parameters<
+        typeof client.webImporting.importWebSiteConfirm.mutate
+      >[0],
+    ) => client.webImporting.importWebSiteConfirm.mutate(input),
+  })
   const accounts = useMyAccountsWithWriteAccess(destinationId)
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
   useEffect(() => {
@@ -612,8 +630,8 @@ const ImportDocumentsWithFeedback = (
       resolve({draftIds})
       // `Imported ${documents.length} documents.`)
 
-      invalidateQueries(['trpc.drafts.list'])
-      invalidateQueries(['trpc.drafts.listAccount'])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
     } catch (error) {
       console.error('Error importing documents:', error)
       reject(error)

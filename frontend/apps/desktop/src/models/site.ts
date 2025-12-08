@@ -1,5 +1,5 @@
 import {grpcClient} from '@/grpc-client'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {hmId} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -13,8 +13,6 @@ export function useSiteRegistration(accountUid: string) {
   const entity = useResource(accountId)
   const document =
     entity.data?.type === 'document' ? entity.data.document : undefined
-  const registerSite = trpc.sites.registerSite.useMutation()
-  const getSiteConfig = trpc.sites.getConfig.useMutation()
   return useMutation({
     mutationFn: async (input: {url: string}) => {
       // http://localhost:5175/hm/register?secret=abc
@@ -23,7 +21,7 @@ export function useSiteRegistration(accountUid: string) {
       const siteUrl = `${url.protocol}//${url.host}`
       const registerUrl = `${siteUrl}/hm/api/register`
       console.log('registerUrl', registerUrl)
-      const siteConfig = await getSiteConfig.mutateAsync(siteUrl)
+      const siteConfig = await client.sites.getConfig.mutate(siteUrl)
       console.log('siteConfig', siteConfig)
       if (!siteConfig) throw new Error('Site is not set up.')
 
@@ -45,7 +43,7 @@ export function useSiteRegistration(accountUid: string) {
           addrs: peerInfo.addrs,
         }
         console.log(JSON.stringify(registerPayload, null, 2))
-        const registerResult = await registerSite.mutateAsync({
+        const registerResult = await client.sites.registerSite.mutate({
           url: registerUrl,
           payload: registerPayload,
         })

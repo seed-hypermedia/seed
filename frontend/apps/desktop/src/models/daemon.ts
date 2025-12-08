@@ -1,5 +1,5 @@
 import {grpcClient} from '@/grpc-client'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {
   GenMnemonicResponse,
@@ -166,11 +166,10 @@ export function useRegisterKey(
 export function useDeleteKey(
   opts?: UseMutationOptions<any, unknown, {accountId: string}>,
 ) {
-  const deleteAccount = trpc.deleteAccount.useMutation()
   return useMutation({
     mutationFn: async ({accountId}) => {
       // Use TRPC to handle the entire deletion process on the backend
-      return await deleteAccount.mutateAsync(accountId)
+      return await client.deleteAccount.mutate(accountId)
     },
     onSuccess: async (data, variables, context) => {
       invalidateQueries([queryKeys.LOCAL_ACCOUNT_ID_LIST])
@@ -185,7 +184,9 @@ export function useDeleteKey(
 }
 
 export function useSavedMnemonics(name: NamedKey['name'] | undefined) {
-  return trpc.secureStorage.read.useQuery(name, {
+  return useQuery({
+    queryKey: [queryKeys.SECURE_STORAGE, name],
+    queryFn: () => client.secureStorage.read.query(name),
     enabled: !!name,
   })
 }

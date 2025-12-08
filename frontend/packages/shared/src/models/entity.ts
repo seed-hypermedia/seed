@@ -646,7 +646,14 @@ export function useDirectoryWithDrafts(
       isLoading: directory.isLoading || drafts.isLoading,
       isInitialLoading: directory.isInitialLoading || drafts.isInitialLoading,
     }
-  }, [directory.data, drafts.data, directory.isLoading, drafts.isLoading, directory.isInitialLoading, drafts.isInitialLoading])
+  }, [
+    directory.data,
+    drafts.data,
+    directory.isLoading,
+    drafts.isLoading,
+    directory.isInitialLoading,
+    drafts.isInitialLoading,
+  ])
 }
 
 export function useRootDocuments() {

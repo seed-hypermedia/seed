@@ -1,10 +1,11 @@
 // @ts-expect-error
 import type {BlockNoteEditor} from '@/editor/BlockNoteEditor'
 import {grpcClient} from '@/grpc-client'
+import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {useBlockNote, type BlockSchema} from '@shm/editor/blocknote'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
@@ -60,17 +61,25 @@ export function useCommentDraft(
   commentId: string | undefined,
   quotingBlockId: string | undefined,
   context: 'accessory' | 'feed' | 'document-content' | undefined,
-  opts?: Parameters<typeof trpc.comments.getCommentDraft.useQuery>[1],
+  opts?: {enabled?: boolean},
 ) {
-  const comment = trpc.comments.getCommentDraft.useQuery(
-    {
-      targetDocId: targetDocId.id,
-      replyCommentId: commentId,
-      quotingBlockId: quotingBlockId,
-      context: context,
-    },
-    opts,
-  )
+  const comment = useQuery({
+    queryKey: [
+      queryKeys.COMMENT_DRAFT,
+      targetDocId.id,
+      commentId,
+      quotingBlockId,
+      context,
+    ],
+    queryFn: () =>
+      client.comments.getCommentDraft.query({
+        targetDocId: targetDocId.id,
+        replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
+      }),
+    enabled: opts?.enabled,
+  })
   return {
     ...comment,
     data: comment.data ? HMCommentDraftSchema.parse(comment.data) : undefined,
@@ -206,8 +215,11 @@ export function useCommentEditor(
 ) {
   const selectedAccount = useSelectedAccount()
   const targetEntity = useResource(targetDocId)
-  const checkWebUrl = trpc.webImporting.checkWebUrl.useMutation()
-  const showNostr = trpc.experiments.get.useQuery().data?.nostr
+  const checkWebUrl = useMutation({
+    mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
+  })
+  const experiments = useExperiments()
+  const showNostr = experiments.data?.nostr
   const openUrl = useOpenUrl()
   const [setIsSaved, isSaved] = writeableStateStream<boolean>(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>()
@@ -221,63 +233,42 @@ export function useCommentEditor(
   const setSubmitTriggerRef = useRef(setSubmitTrigger)
   setSubmitTriggerRef.current = setSubmitTrigger
 
-  const write = trpc.comments.writeCommentDraft.useMutation({
+  const commentDraftQueryKey = [
+    queryKeys.COMMENT_DRAFT,
+    targetDocId.id,
+    commentId,
+    quotingBlockId,
+    context,
+  ]
+
+  const write = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.comments.writeCommentDraft.mutate>[0],
+    ) => client.comments.writeCommentDraft.mutate(input),
     onSuccess: () => {
-      invalidateQueries(['trpc.comments.listCommentDrafts'])
-      invalidateQueries([
-        'trpc.comments.getCommentDraft',
-        {
-          targetDocId: targetDocId.id,
-          replyCommentId: commentId,
-          quotingBlockId: quotingBlockId,
-          context: context,
-        },
-      ])
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+      invalidateQueries(commentDraftQueryKey)
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       toast.error(err.message)
     },
   })
 
-  const removeDraft = trpc.comments.removeCommentDraft.useMutation({
+  const removeDraft = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.comments.removeCommentDraft.mutate>[0],
+    ) => client.comments.removeCommentDraft.mutate(input),
     onMutate: async () => {
       isDeletingDraft.current = true
       clearTimeout(saveTimeoutRef.current)
 
-      await queryClient.cancelQueries([
-        'trpc.comments.getCommentDraft',
-        {
-          targetDocId: targetDocId.id,
-          replyCommentId: commentId,
-          quotingBlockId: quotingBlockId,
-          context: context,
-        },
-      ])
+      await queryClient.cancelQueries(commentDraftQueryKey)
 
-      queryClient.setQueryData(
-        [
-          'trpc.comments.getCommentDraft',
-          {
-            targetDocId: targetDocId.id,
-            replyCommentId: commentId,
-            quotingBlockId: quotingBlockId,
-            context: context,
-          },
-        ],
-        null,
-      )
+      queryClient.setQueryData(commentDraftQueryKey, null)
     },
     onSuccess: () => {
-      invalidateQueries(['trpc.comments.listCommentDrafts'])
-      invalidateQueries([
-        'trpc.comments.getCommentDraft',
-        {
-          targetDocId: targetDocId.id,
-          replyCommentId: commentId,
-          quotingBlockId: quotingBlockId,
-          context: context,
-        },
-      ])
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+      invalidateQueries(commentDraftQueryKey)
       onDiscardDraft?.()
       isDeletingDraft.current = false
     },
@@ -430,7 +421,10 @@ export function useCommentEditor(
       window.removeEventListener('keydown', handleSelectAll)
     }
   }, [])
-  const writeRecentSigner = trpc.recentSigners.writeRecentSigner.useMutation()
+  const writeRecentSigner = useMutation({
+    mutationFn: (signingKeyName: string) =>
+      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+  })
   const publishComment = useMutation({
     // @ts-expect-error
     mutationFn: async ({
@@ -472,7 +466,7 @@ export function useCommentEditor(
         targetVersion: targetEntity.data?.document?.version!,
       })
       writeRecentSigner.mutateAsync(signingKeyName).then(() => {
-        invalidateQueries(['trpc.recentSigners.get'])
+        invalidateQueries([queryKeys.RECENT_SIGNERS])
       })
       if (!resultComment) throw new Error('no resultComment')
       return resultComment

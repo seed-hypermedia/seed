@@ -1,4 +1,4 @@
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -103,7 +103,10 @@ export function useHostSession({
 }: {
   onAuthenticated?: () => void
 } = {}) {
-  const {data: hostState} = trpc.host.get.useQuery()
+  const {data: hostState} = useQuery({
+    queryKey: [queryKeys.HOST_STATE],
+    queryFn: () => client.host.get.query(),
+  })
   async function hostAPI(
     path: string,
     method: 'GET' | 'POST' | 'DELETE',
@@ -129,7 +132,10 @@ export function useHostSession({
     const respJson = await res.json()
     return respJson
   }
-  const setHostState = trpc.host.set.useMutation()
+  const setHostState = useMutation({
+    mutationFn: (state: Parameters<typeof client.host.set.mutate>[0]) =>
+      client.host.set.mutate(state),
+  })
   const login = useMutation({
     mutationFn: async (email: string) => {
       const respJson = await hostAPI('auth/start', 'POST', {email})

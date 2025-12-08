@@ -1,7 +1,7 @@
 import {templates} from '@/app-templates'
 import {grpcClient} from '@/grpc-client'
 import {useMyAccountIds} from '@/models/daemon'
-import {client, trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {GRPCClient} from '@shm/shared/grpc-client'
@@ -79,7 +79,9 @@ export function useSetProfile_deprecated() {
 }
 
 export function useDraft(id: string | undefined) {
-  return trpc.drafts.get.useQuery(id, {
+  return useQuery({
+    queryKey: [queryKeys.DRAFT, id],
+    queryFn: () => client.drafts.get.query(id),
     enabled: !!id,
   })
 }

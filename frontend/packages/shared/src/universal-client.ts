@@ -11,7 +11,9 @@ export type {RecentsResult}
 
 // Drafts service for querying drafts (desktop only)
 export type DraftsService = {
-  listAccountDrafts: (accountUid: string | undefined) => Promise<HMListedDraft[]>
+  listAccountDrafts: (
+    accountUid: string | undefined,
+  ) => Promise<HMListedDraft[]>
 }
 
 export type DeleteCommentInput = {

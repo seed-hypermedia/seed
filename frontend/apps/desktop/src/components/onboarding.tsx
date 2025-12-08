@@ -1,6 +1,6 @@
 import {grpcClient} from '@/grpc-client'
 import {useMnemonics, useRegisterKey} from '@/models/daemon'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
 import {fileUpload} from '@/utils/file-upload'
 import {extractWords, isWordsValid} from '@/utils/onboarding'
 import {useNavigate} from '@/utils/useNavigate'
@@ -14,6 +14,7 @@ import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/do
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {useMutation} from '@tanstack/react-query'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -646,7 +647,11 @@ function ExistingStep({
 }) {
   const [secretWords, setSecretWords] = useState('')
   const register = useRegisterKey()
-  const saveWords = trpc.secureStorage.write.useMutation()
+  const saveWords = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.secureStorage.write.mutate>[0],
+    ) => client.secureStorage.write.mutate(input),
+  })
   const [shouldSaveWords, setShouldSaveWords] = useState(true)
 
   const mnemonic = useMemo(() => {
@@ -774,7 +779,11 @@ function RecoveryStep({
 }) {
   const register = useRegisterKey()
   const mnemonics = useMnemonics()
-  const saveWords = trpc.secureStorage.write.useMutation()
+  const saveWords = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.secureStorage.write.mutate>[0],
+    ) => client.secureStorage.write.mutate(input),
+  })
   const [shouldSaveWords, setShouldSaveWords] = useState(true)
 
   const [formData, setFormData] = useState<ProfileFormData>(() => {

@@ -1,10 +1,7 @@
 import {dispatchDraftStatus, DraftStatus} from '@/draft-status'
-import {
-  HMDraft,
-  HMNavigationItem,
-  HMResourceFetchResult,
-  invalidateQueries,
-} from '@shm/shared'
+import {HMDraft, HMNavigationItem, HMResourceFetchResult} from '@shm/shared'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {assign, setup, StateFrom} from 'xstate'
 
 export type DraftMachineState = StateFrom<typeof draftMachine>
@@ -68,7 +65,7 @@ export const draftMachine = setup({
       }
     },
     onSaveSuccess: ({context, event}, params: {id: string}) => {
-      invalidateQueries(['trpc.drafts.get', params.id])
+      invalidateQueries([queryKeys.DRAFT, params.id])
     },
     onCreatingSuccess: ({context}) => {},
     populateData: assign({

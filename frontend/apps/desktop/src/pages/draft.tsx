@@ -13,7 +13,8 @@ import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
-import {trpc} from '@/trpc'
+import {client} from '@/trpc'
+import {useMutation} from '@tanstack/react-query'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
@@ -350,7 +351,9 @@ function DocumentEditor({
   const openUrl = useOpenUrl()
   const replace = useNavigate('replace')
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
-  const importWebFile = trpc.webImporting.importWebFile.useMutation()
+  const importWebFile = useMutation({
+    mutationFn: (url: string) => client.webImporting.importWebFile.mutate(url),
+  })
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
   const showOutline =
@@ -626,30 +629,26 @@ function DocumentEditor({
 
     urls.forEach((url) => {
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        importWebFile.mutate(
-          // @ts-expect-error
-          {url},
-          {
-            onSuccess: (result) => {
-              let webEmbedBlock = {
-                id: generateBlockId(),
-                type: 'WebEmbed',
-                props: {
-                  // @ts-expect-error
-                  url: result.data.url,
-                },
-                content: [],
-                children: [],
-              }
-              editor.insertBlocks(
-                // @ts-ignore
-                [webEmbedBlock],
+        importWebFile.mutate(url, {
+          onSuccess: (result) => {
+            let webEmbedBlock = {
+              id: generateBlockId(),
+              type: 'WebEmbed',
+              props: {
                 // @ts-expect-error
-                editor._tiptapEditor.state.selection,
-              )
-            },
+                url: result.data.url,
+              },
+              content: [],
+              children: [],
+            }
+            editor.insertBlocks(
+              // @ts-ignore
+              [webEmbedBlock],
+              // @ts-expect-error
+              editor._tiptapEditor.state.selection,
+            )
           },
-        )
+        })
       } else if (url.startsWith('hm://')) {
         let parsedId = unpackHmId(url)
         if (parsedId) {

@@ -26,7 +26,6 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
     drafts,
   })
 
-
   if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center p-4">
