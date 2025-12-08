@@ -52,6 +52,9 @@ export function DocumentSmallListItem({
   const linkProps = useRouteLink(route, {onClick: onClick})
   const color = isPublished === false ? '$color11' : undefined
   const highlight = useHighlighter()
+  const icon = id ? (
+    <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
+  ) : null
   if (items)
     return (
       <SmallCollapsableListItem
@@ -59,16 +62,7 @@ export function DocumentSmallListItem({
         color={color}
         key={draftId || id?.id}
         title={getMetadataName(metadata)}
-        icon={
-          id && (
-            <HMIcon
-              id={id}
-              name={metadata?.name}
-              icon={metadata?.icon}
-              size={20}
-            />
-          )
-        }
+        icon={icon}
         indented={indented}
         active={active}
         {...linkProps}
@@ -91,16 +85,7 @@ export function DocumentSmallListItem({
       key={draftId || id?.id}
       title={getMetadataName(metadata)}
       {...highlight(id)}
-      icon={
-        id && (
-          <HMIcon
-            id={id}
-            name={metadata?.name}
-            icon={metadata?.icon}
-            size={20}
-          />
-        )
-      }
+      icon={icon}
       indented={indented}
       active={active}
       isDraft={!!draftId}
@@ -128,28 +113,28 @@ export function getSiteNavDirectory({
   directory?: HMDocumentInfo[]
   drafts?: HMListedDraft[]
 }): DocNavigationItem[] {
+  const draftsArray = Array.isArray(drafts) ? drafts : []
   const editIds = new Set<string>(
-    drafts
+    draftsArray
       // @ts-expect-error
-      ?.map((d) => d.editId)
+      .map((d) => d.editId)
       .filter((id) => !!id)
-      .map((id) => id.id) || [],
+      .map((id) => id.id),
   )
-  const unpublishedDraftItems: DocNavigationItem[] =
-    drafts
-      // @ts-expect-error
-      ?.filter((draft) => draft.locationId && draft.locationId.id === id.id)
-      .map(
-        (draft) =>
-          ({
-            key: draft.id,
-            id: undefined,
-            draftId: draft.id,
-            metadata: draft.metadata,
-            sortTime: new Date(draft.lastUpdateTime),
-            isPublished: false,
-          }) satisfies DocNavigationItem,
-      ) || []
+  const unpublishedDraftItems: DocNavigationItem[] = draftsArray
+    // @ts-expect-error
+    .filter((draft) => draft.locationId && draft.locationId.id === id.id)
+    .map(
+      (draft) =>
+        ({
+          key: draft.id,
+          id: undefined,
+          draftId: draft.id,
+          metadata: draft.metadata,
+          sortTime: new Date(draft.lastUpdateTime),
+          isPublished: false,
+        }) satisfies DocNavigationItem,
+    )
   const publishedItems: DocNavigationItem[] =
     directory?.map((item) => {
       const id = item.id
@@ -161,11 +146,11 @@ export function getSiteNavDirectory({
         sortTime,
         draftId: editIds.has(id.id)
           ? // @ts-expect-error
-            drafts?.find((d) => d.editId?.id === id.id)?.id
+            draftsArray.find((d) => d.editId?.id === id.id)?.id
           : undefined,
         isPublished: true,
       }
-    }) || []
+    }) ?? []
   unpublishedDraftItems
     .sort((a, b) => (b.sortTime?.getTime() || 0) - (a.sortTime?.getTime() || 0))
     .reverse()

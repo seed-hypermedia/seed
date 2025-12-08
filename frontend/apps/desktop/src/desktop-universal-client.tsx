@@ -4,6 +4,7 @@ import {
   removeSubscribedEntity,
 } from '@/models/entities'
 import {deleteRecent, fetchRecents} from '@/models/recents'
+import {client as trpcClient} from '@/trpc'
 import type {UnpackedHypermediaId} from '@shm/shared'
 import type {
   DeleteCommentInput,
@@ -39,5 +40,10 @@ export const desktopUniversalClient: UniversalClient = {
 
   discovery: {
     getDiscoveryStream,
+  },
+
+  drafts: {
+    listAccountDrafts: (accountUid) =>
+      trpcClient.drafts.listAccount.query(accountUid),
   },
 }

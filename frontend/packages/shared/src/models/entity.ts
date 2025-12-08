@@ -40,6 +40,7 @@ import {
   HMListCommentsByAuthorRequest,
   HMListCommentsOutput,
   HMListCommentsRequest,
+  HMListedDraft,
   HMListEventsOutput,
   HMListEventsRequest,
   HMMetadata,
@@ -617,6 +618,35 @@ export function useDirectory(
     },
     enabled: !!id,
   })
+}
+
+export function useAccountDrafts(accountUid: string | undefined) {
+  const client = useUniversalClient()
+  return useQuery({
+    queryKey: [queryKeys.ACCOUNT_DRAFTS, accountUid],
+    queryFn: async (): Promise<HMListedDraft[]> => {
+      if (!accountUid || !client.drafts) return []
+      return client.drafts.listAccountDrafts(accountUid)
+    },
+    enabled: !!accountUid && !!client.drafts,
+  })
+}
+
+export function useDirectoryWithDrafts(
+  id: UnpackedHypermediaId | null | undefined,
+  options?: {mode?: 'Children' | 'AllDescendants'},
+) {
+  const directory = useDirectory(id, options)
+  const drafts = useAccountDrafts(id?.uid)
+
+  return useMemo(() => {
+    return {
+      directory: directory.data,
+      drafts: drafts.data ?? [],
+      isLoading: directory.isLoading || drafts.isLoading,
+      isInitialLoading: directory.isInitialLoading || drafts.isInitialLoading,
+    }
+  }, [directory.data, drafts.data, directory.isLoading, drafts.isLoading, directory.isInitialLoading, drafts.isInitialLoading])
 }
 
 export function useRootDocuments() {

@@ -1,8 +1,18 @@
-import type {DiscoveryState, HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {
+  DiscoveryState,
+  HMListedDraft,
+  HMRequest,
+  UnpackedHypermediaId,
+} from './hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 
 export type {RecentsResult}
+
+// Drafts service for querying drafts (desktop only)
+export type DraftsService = {
+  listAccountDrafts: (accountUid: string | undefined) => Promise<HMListedDraft[]>
+}
 
 export type DeleteCommentInput = {
   commentId: string
@@ -40,4 +50,7 @@ export type UniversalClient = {
 
   // Discovery state tracking (desktop only - undefined on web)
   discovery?: DiscoveryService
+
+  // Drafts service (desktop only - undefined on web)
+  drafts?: DraftsService
 }

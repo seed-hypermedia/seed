@@ -37,6 +37,7 @@ export const queryKeys = {
   ACCOUNT_DOCUMENTS: 'ACCOUNT_DOCUMENTS', //, accountId: string
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
   DRAFT: 'DRAFT', // , id: string
+  ACCOUNT_DRAFTS: 'ACCOUNT_DRAFTS', // , accountUid: string
   LIST_ROOT_DOCUMENTS: 'LIST_ROOT_DOCUMENTS', //
   DOCUMENT_INTERACTION_SUMMARY: 'DOCUMENT_INTERACTION_SUMMARY', //, docId.id: string
 
@@ -153,6 +154,8 @@ export function labelOfQueryKey(key: QueryKey) {
       return 'Account Publications'
     case queryKeys.DRAFT:
       return `Editor Draft ${abbreviateCid(arg1)}`
+    case queryKeys.ACCOUNT_DRAFTS:
+      return `Account Drafts`
     case queryKeys.ENTITY:
     case queryKeys.RESOLVED_ENTITY:
       return `Entity`

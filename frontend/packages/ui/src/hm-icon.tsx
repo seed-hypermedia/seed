@@ -47,7 +47,7 @@ function _HMIcon({
   className,
   ...props
 }: Omit<UIAvatarProps, 'id'> & {
-  id: UnpackedHypermediaId
+  id?: UnpackedHypermediaId
   name?: HMMetadata['name'] | null
   icon?: HMMetadata['icon'] | null
   size?: number
@@ -58,9 +58,9 @@ function _HMIcon({
 
   const isHomeDocument = id.path && id.path.length === 0
 
-  // We decided that for non-home documents we don't want to show any icons, unless it's specified in the metadat.
+  // We decided that for non-home documents we don't want to show any icons, unless it's specified in the metadata.
   if (!isHomeDocument && !icon) {
-    return <></>
+    return null
   }
 
   return (

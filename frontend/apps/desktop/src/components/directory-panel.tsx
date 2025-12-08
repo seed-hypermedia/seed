@@ -1,10 +1,9 @@
-import {useAccountList} from '@/models/accounts'
-import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton} from '@/pages/document'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {AccessoryContent} from '@shm/ui/accessories'
-import {SubDocumentItem} from '@shm/ui/activity'
+import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
@@ -17,19 +16,25 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
     getStorageKey: () => getRouteKey(route),
     debug: true,
   })
-  const childrenActivity = useChildrenActivity(docId)
-  const directory = childrenActivity.data
-  const accounts = useAccountList()
+  const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
+    mode: 'Children',
+  })
 
-  const isInitialLoad = childrenActivity.isInitialLoading
-  if (isInitialLoad) {
+  const directoryItems = getSiteNavDirectory({
+    id: docId,
+    directory,
+    drafts,
+  })
+
+
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center p-4">
         <Spinner />
       </div>
     )
   }
-  if (directory.length == 0) {
+  if (directoryItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 p-4">
         <Folder className="text-muted-foreground size-25" />
@@ -51,18 +56,16 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
       }
     >
       <div className="flex h-full flex-col gap-2">
-        {directory.map((activityItem) => {
-          if (activityItem.type === 'document') {
-            return (
-              <SubDocumentItem
-                hideIcon
-                item={activityItem}
-                key={activityItem.id.id}
-                accountsMetadata={accounts.data?.accountsMetadata || {}}
-              />
-            )
-          }
-          return null
+        {directoryItems.map((item) => {
+          return (
+            <DocumentSmallListItem
+              key={item.id?.path?.join('/') || item.id?.id || item.draftId}
+              metadata={item.metadata}
+              id={item.id}
+              draftId={item.draftId}
+              isPublished={item.isPublished}
+            />
+          )
         })}
       </div>
     </AccessoryContent>

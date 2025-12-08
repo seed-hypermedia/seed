@@ -401,6 +401,8 @@ function MainApp({}: {}) {
           utils.drafts.list.invalidate()
         } else if (queryKey[0] == 'trpc.drafts.listAccount') {
           utils.drafts.listAccount.invalidate()
+          // Also invalidate the shared ACCOUNT_DRAFTS query used by useDirectoryWithDrafts
+          queryClient.invalidateQueries({queryKey: [queryKeys.ACCOUNT_DRAFTS]})
         } else if (queryKey[0] == queryKeys.SETTINGS) {
           console.log('~~ invalidateSettings', queryKey)
           utils.appSettings.getSetting.invalidate(queryKey[1] as string)

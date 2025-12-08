@@ -5,9 +5,8 @@ import {
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
-import {useAccountDraftList} from '@/models/documents'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useDirectory, useResources} from '@shm/shared/models/entity'
+import {useDirectoryWithDrafts, useResources} from '@shm/shared/models/entity'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
@@ -17,7 +16,6 @@ import {
   getParentPaths,
   hmId,
   HMMetadata,
-  HMQueryResult,
   hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
@@ -685,22 +683,14 @@ function PathItemCard({
   homeMetadata: HMMetadata | undefined
 }) {
   const docId = details.id ?? undefined
-  const dir = useDirectory(docId, {mode: 'Children'})
+  const {directory, drafts} = useDirectoryWithDrafts(docId, {mode: 'Children'})
   const capability = useSelectedAccountCapability(docId)
   const canEditDoc = roleCanWrite(capability?.role)
-  const drafts = useAccountDraftList(docId?.uid)
   if (!docId) return null
-  const supportQueries: HMQueryResult[] = []
-  if (dir.data) {
-    supportQueries.push({
-      in: docId,
-      results: dir.data,
-    })
-  }
   const directoryItems = getSiteNavDirectory({
     id: docId,
-    directory: dir.data,
-    drafts: drafts.data,
+    directory,
+    drafts,
   })
   return (
     <div className="flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden p-2">
