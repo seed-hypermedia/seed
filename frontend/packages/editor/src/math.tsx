@@ -1,11 +1,11 @@
+import {blocksContentContext} from '@shm/ui/blocks-content'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
 import {cn} from '@shm/ui/utils'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import {NodeSelection} from 'prosemirror-state'
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {useBlocksContentContext} from '../../ui/src/blocks-content'
+import {useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
@@ -51,7 +51,10 @@ const Render = (
   const containerRef = useRef<HTMLDivElement>(null)
   const [isContentSmallerThanContainer, setIsContentSmallerThanContainer] =
     useState(true)
-  const {commentStyle} = useBlocksContentContext()
+
+  // Use context directly to avoid error when not in a provider
+  const blocksContentCtx = useContext(blocksContentContext)
+  const commentStyle = blocksContentCtx?.commentStyle ?? false
 
   useEffect(() => {
     const selectedNode = getBlockInfoFromSelection(tiptapEditor.state)
