@@ -52,7 +52,17 @@ import {
   createResourceResolver,
 } from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/blocks-content'
+import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
+import {
+  createPrefetchContext,
+  dehydratePrefetchContext,
+  prefetchAuthorsMetadata,
+  prefetchDocDirectory,
+  prefetchHomeDirectory,
+  prefetchHomeDocument,
+  prefetchSupportDocuments,
+} from './queries.server'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
@@ -141,6 +151,9 @@ export type WebResourcePayload = {
   supportQueries?: HMQueryResult[]
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
+
+  // Dehydrated React Query state for SSR hydration
+  dehydratedState?: DehydratedState
 }
 
 export async function getDocument(
@@ -350,6 +363,24 @@ async function loadResourcePayload(
     metadata: document.metadata,
   })
 
+  // Create prefetch context and populate with data for SSR hydration
+  const prefetchCtx = createPrefetchContext()
+
+  // Prefetch home document
+  prefetchHomeDocument(prefetchCtx, docId.uid, homeDocument)
+
+  // Prefetch all support documents
+  prefetchSupportDocuments(prefetchCtx, supportDocuments)
+
+  // Prefetch directory queries
+  prefetchHomeDirectory(prefetchCtx, docId.uid, homeDirectoryResults)
+  prefetchDocDirectory(prefetchCtx, docId, directoryResults)
+
+  // Prefetch account metadata
+  prefetchAuthorsMetadata(prefetchCtx, authors)
+
+  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
+
   return {
     document,
     comment,
@@ -361,6 +392,7 @@ async function loadResourcePayload(
     isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...docId, version: document.version},
     breadcrumbs,
+    dehydratedState,
     ...getOriginRequestData(parsedRequest),
   }
 }

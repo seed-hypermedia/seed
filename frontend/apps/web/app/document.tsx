@@ -101,13 +101,14 @@ const DEFAULT_MAIN_PANEL_SIZE = 65
 export function DocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const {siteHost, origin, prefersLanguages, document} = props
+  const {siteHost, origin, prefersLanguages, document, dehydratedState} = props
   return (
     <WebSiteProvider
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
       prefersLanguages={supportedLanguages(prefersLanguages)}
+      dehydratedState={dehydratedState}
     >
       {document ? (
         <InnerDocumentPage {...props} />
@@ -762,7 +763,7 @@ function InnerDocumentPage(
                               })
                               if (!href) {
                                 toast.error('Failed to create block link')
-                                return false
+                                return
                               }
                               if (shouldCopy) {
                                 window.navigator.clipboard.writeText(
@@ -786,9 +787,7 @@ function InnerDocumentPage(
                                   replace: true,
                                   preventScrollReset: true,
                                 })
-                                return true
                               }
-                              return false
                             }}
                             blockCitations={interactionSummary.data?.blocks}
                           >

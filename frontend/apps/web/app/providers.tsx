@@ -24,11 +24,39 @@ import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {
+  DehydratedState,
+  Hydrate,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {webUniversalClient} from './universal-client'
 
-const queryClient = new QueryClient()
+const [queryClient] = (() => {
+  let client: QueryClient | null = null
+  return [
+    () => {
+      if (!client) {
+        client = new QueryClient({
+          defaultOptions: {
+            queries: {
+              staleTime: Infinity,
+              refetchOnMount: false,
+              refetchOnWindowFocus: false,
+              refetchOnReconnect: false,
+            },
+          },
+        })
+      }
+      return client
+    },
+  ]
+})()
+
+export function getQueryClient() {
+  return queryClient()
+}
 
 type ThemeContextType = {
   theme: 'light' | 'dark'
@@ -47,11 +75,10 @@ export const useTheme = () => {
 }
 
 export const Providers = (props: {children: any}) => {
+  const [client] = useState(queryClient)
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        {props.children}
-      </QueryClientProvider>
+      <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
     </ThemeProvider>
   )
 }
@@ -121,6 +148,7 @@ export function WebSiteProvider(props: {
   siteHost?: string
   origin?: string
   prefersLanguages?: (keyof typeof languagePacks)[]
+  dehydratedState?: DehydratedState
 }) {
   const navigate = useNavigate()
   const languagePack = useMemo(() => {
@@ -204,9 +232,11 @@ export function WebSiteProvider(props: {
         toast.success('Comment link copied to clipboard')
       }}
     >
-      <NavContextProvider value={navigation}>
-        {props.children}
-      </NavContextProvider>
+      <Hydrate state={props.dehydratedState}>
+        <NavContextProvider value={navigation}>
+          {props.children}
+        </NavContextProvider>
+      </Hydrate>
     </UniversalAppProvider>
   )
 }

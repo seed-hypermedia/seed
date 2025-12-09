@@ -11,6 +11,7 @@ import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
+import {useHomeDirectory, useHomeDocument} from './queries'
 
 export type WebSiteHeaderProps = {
   noScroll?: boolean
@@ -19,6 +20,7 @@ export type WebSiteHeaderProps = {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   document?: HMDocument
+  // Legacy props - kept for backward compatibility during transition
   supportDocuments?: HMResourceFetchResult[]
   supportQueries?: HMQueryResult[]
   origin?: string
@@ -31,13 +33,21 @@ export function WebSiteHeader({
   ...props
 }: React.PropsWithChildren<WebSiteHeaderProps>) {
   const [searchParams] = useSearchParams()
+
+  // Use hydrated queries - data comes from server prefetch
+  const homeDocQuery = useHomeDocument(props.docId?.uid || '')
+  const homeDirectoryQuery = useHomeDirectory(props.docId?.uid || '')
+
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
+
+  // Prefer hydrated query data, fall back to legacy props
   const homeDocument =
     props.document?.path === ''
       ? props.document
-      : props.supportDocuments?.find(
+      : homeDocQuery.data ||
+        props.supportDocuments?.find(
           (doc) =>
             props.docId?.uid &&
             doc.id.uid === props.docId?.uid &&
@@ -65,13 +75,16 @@ export function WebSiteHeader({
     : []
 
   // Directory items for current document (only when not on home)
+  // Prefer hydrated query data, fall back to legacy props
   const isHomeDoc = props.docId?.path?.length === 0
+  const directoryResults =
+    homeDirectoryQuery.data || props.supportQueries?.[0]?.results
   const directoryItems = isHomeDoc
     ? []
     : props.siteHomeId
     ? getSiteNavDirectory({
         id: props.siteHomeId,
-        directory: props.supportQueries?.[0]?.results,
+        directory: directoryResults,
       })
     : []
 

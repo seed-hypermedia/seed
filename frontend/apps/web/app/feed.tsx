@@ -20,7 +20,7 @@ const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
 export function FeedPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const {siteHost, origin, prefersLanguages, originHomeId} = props
+  const {siteHost, origin, prefersLanguages, dehydratedState} = props
 
   return (
     <WebSiteProvider
@@ -28,6 +28,7 @@ export function FeedPage(
       originHomeId={props.originHomeId}
       siteHost={siteHost}
       prefersLanguages={supportedLanguages(prefersLanguages)}
+      dehydratedState={dehydratedState}
     >
       <InnerFeedPage {...props} />
     </WebSiteProvider>

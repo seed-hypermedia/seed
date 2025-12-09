@@ -96,3 +96,13 @@ export function useInteractionSummary(
   )
   return response
 }
+
+// Re-export hydrated query hooks from queries.ts
+// These use data prefetched on the server and hydrated on the client
+export {
+  useHomeDocument,
+  useSupportDocument,
+  useHomeDirectory,
+  useDocDirectory,
+  useAccountMetadata,
+} from './queries'
