@@ -12657,6 +12657,7 @@ __metadata:
   resolution: "@shm/tests@workspace:tests"
   dependencies:
     cheerio: ^1.1.2
+    playwright: 1.40.1
     vitest: ^3.0.9
   languageName: unknown
   linkType: soft

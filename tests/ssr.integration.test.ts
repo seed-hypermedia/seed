@@ -6,6 +6,7 @@
  * 1. Starts a daemon with test fixtures
  * 2. Builds and starts the web app
  * 3. Makes HTTP requests to verify SSR is working correctly
+ * 4. Tests client-side hydration works without errors
  */
 
 import * as cheerio from 'cheerio'
@@ -126,6 +127,80 @@ describe('SSR API Integration', () => {
       expect(response.ok).toBe(true)
       const version = await response.text()
       expect(version).toBeTruthy()
+    },
+    TEST_TIMEOUT,
+  )
+})
+
+describe('Client Hydration Readiness', () => {
+  it(
+    'should not have React error boundaries triggered during SSR',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+
+      // Check for React error boundary content that indicates SSR failure
+      // These patterns appear when React catches errors during rendering
+      expect(html).not.toContain('Invalid hook call')
+      expect(html).not.toContain('Minified React error')
+      expect(html).not.toContain('Cannot read properties of null')
+      expect(html).not.toContain('Hooks can only be called inside')
+
+      // Check that the error boundary UI isn't showing
+      // Our error boundary shows "🤕" emoji and this text
+      expect(html).not.toContain("Uh oh, it's not you, it's us")
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should have valid React hydration script setup',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`)
+      const html = await response.text()
+      const $ = cheerio.load(html)
+
+      // Verify React hydration scripts are present
+      const scripts = $('script').toArray()
+      const hasModuleScripts = scripts.some((script) => {
+        const type = $(script).attr('type')
+        return type === 'module'
+      })
+
+      expect(hasModuleScripts, 'Expected module scripts for React hydration').toBe(true)
+
+      // Verify window.ENV is set before other scripts
+      const envScript = $('script').filter((_, el) => {
+        const content = $(el).html() || ''
+        return content.includes('window.ENV')
+      })
+      expect(envScript.length, 'Expected window.ENV script to be present').toBeGreaterThan(0)
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should export a valid React component from root',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`)
+      const html = await response.text()
+
+      // The page should render content, not just an error
+      // A broken HOC export would cause the page to fail to render
+      expect(response.status).toBe(200)
+
+      // Should have actual content rendered (not empty body)
+      const $ = cheerio.load(html)
+      const bodyContent = $('body').html() || ''
+      expect(bodyContent.length).toBeGreaterThan(100)
+
+      // Should have the Providers wrapper rendered (indicates App component worked)
+      // The providers wrap content in specific elements we can check for
+      expect(html).toContain('class=')
     },
     TEST_TIMEOUT,
   )

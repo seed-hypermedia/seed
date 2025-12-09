@@ -176,9 +176,8 @@ export function ErrorBoundary({}: {}) {
   )
 }
 
-function App() {
+// Sentry HOC is safe here - withSentry returns a component, doesn't invoke hooks
+// The wrapped component will be used by Remix for routing
+export default withSentry(function App() {
   return <Outlet />
-}
-
-// Wrap with Sentry in production for error tracking
-export default process.env.NODE_ENV === 'production' ? withSentry(App) : App
+})

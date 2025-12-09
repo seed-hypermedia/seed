@@ -6,5 +6,12 @@ export default defineConfig({
     hookTimeout: 120_000,
     include: ['**/*.integration.test.ts'],
     globals: true,
+    // Run integration tests sequentially to avoid shared resource conflicts
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
   },
 })
