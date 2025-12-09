@@ -619,8 +619,6 @@ function InnerDocumentPage(
             siteHomeId={hmId(id.uid)}
             docId={id}
             document={document}
-            supportDocuments={supportDocuments}
-            supportQueries={supportQueries}
             origin={origin}
             isLatest={isLatest}
           />

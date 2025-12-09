@@ -1,12 +1,5 @@
 import {useSearchParams} from '@remix-run/react'
-import {
-  HMDocument,
-  HMMetadata,
-  HMQueryResult,
-  HMResourceFetchResult,
-  UnpackedHypermediaId,
-  unpackHmId,
-} from '@shm/shared'
+import {HMDocument, HMMetadata, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
@@ -20,9 +13,6 @@ export type WebSiteHeaderProps = {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   document?: HMDocument
-  // Legacy props - kept for backward compatibility during transition
-  supportDocuments?: HMResourceFetchResult[]
-  supportQueries?: HMQueryResult[]
   origin?: string
   isLatest?: boolean
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
@@ -42,17 +32,9 @@ export function WebSiteHeader({
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
 
-  // Prefer hydrated query data, fall back to legacy props
+  // Use the current document if it's the home doc, otherwise use query data
   const homeDocument =
-    props.document?.path === ''
-      ? props.document
-      : homeDocQuery.data ||
-        props.supportDocuments?.find(
-          (doc) =>
-            props.docId?.uid &&
-            doc.id.uid === props.docId?.uid &&
-            !doc.id.path?.length,
-        )?.document
+    props.document?.path === '' ? props.document : homeDocQuery.data
   const navigationBlockNode = homeDocument?.detachedBlocks?.navigation
 
   // Home navigation items from the navigation block
@@ -75,10 +57,8 @@ export function WebSiteHeader({
     : []
 
   // Directory items for current document (only when not on home)
-  // Prefer hydrated query data, fall back to legacy props
   const isHomeDoc = props.docId?.path?.length === 0
-  const directoryResults =
-    homeDirectoryQuery.data || props.supportQueries?.[0]?.results
+  const directoryResults = homeDirectoryQuery.data
   const directoryItems = isHomeDoc
     ? []
     : props.siteHomeId

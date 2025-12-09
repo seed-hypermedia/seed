@@ -57,7 +57,12 @@ describe('SSR Integration', () => {
   it(
     'should server-render document content from test fixtures',
     async () => {
-      const response = await fetch(`${env.web.baseUrl}/`)
+      // Use a bot user-agent to get fully-rendered SSR HTML (not streamed)
+      const response = await fetch(`${env.web.baseUrl}/`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
       const html = await response.text()
       const $ = cheerio.load(html)
 

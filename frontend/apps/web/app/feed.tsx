@@ -42,8 +42,6 @@ function InnerFeedPage(
     homeMetadata,
     id,
     siteHost,
-    supportDocuments,
-    supportQueries,
     originHomeId,
     origin,
     isLatest,
@@ -80,8 +78,6 @@ function InnerFeedPage(
           siteHomeId={hmId(id.uid)}
           docId={id}
           document={document}
-          supportDocuments={supportDocuments}
-          supportQueries={supportQueries}
           origin={origin}
           isLatest={isLatest}
         />

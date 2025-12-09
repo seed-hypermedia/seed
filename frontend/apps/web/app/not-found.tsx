@@ -8,8 +8,6 @@ export function NotFoundPage({
   id,
   homeMetadata,
   originHomeId,
-  supportDocuments,
-  supportQueries,
   origin,
   isLatest,
 }: SiteDocumentPayload) {
@@ -23,8 +21,6 @@ export function NotFoundPage({
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
         docId={id}
-        supportDocuments={supportDocuments}
-        supportQueries={supportQueries}
         origin={origin}
         isLatest={isLatest}
       />

@@ -176,10 +176,9 @@ export function ErrorBoundary({}: {}) {
   )
 }
 
-export default function App(props: any) {
-  if (process.env.NODE_ENV === 'production') {
-    return withSentry(Outlet)
-  }
-
+function App() {
   return <Outlet />
 }
+
+// Wrap with Sentry in production for error tracking
+export default process.env.NODE_ENV === 'production' ? withSentry(App) : App
