@@ -4,7 +4,9 @@ import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
+import {useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -163,25 +165,38 @@ function FavoritesSection() {
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
         return (
-          <SmallListItem
+          <FavoriteListItem
             key={id.id}
-            docId={id.id}
-            title={metadata?.name || 'Untitled'}
-            icon={
-              <HMIcon
-                id={id}
-                name={metadata?.name}
-                icon={metadata?.icon}
-                size={20}
-              />
-            }
+            id={id}
+            metadata={metadata}
             active={route.key === 'document' && route.id.id === id.id}
-            onClick={() => {
-              navigate({key: 'document', id})
-            }}
           />
         )
       })}
     </SidebarSection>
+  )
+}
+
+function FavoriteListItem({
+  id,
+  metadata,
+  active,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+  active: boolean
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <SmallListItem
+      key={id.id}
+      docId={id.id}
+      active={active}
+      title={metadata?.name || 'Untitled'}
+      icon={
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
+      }
+      {...linkProps}
+    />
   )
 }
