@@ -12454,7 +12454,7 @@ __metadata:
   resolution: "@shm/explore@workspace:frontend/apps/explore"
   dependencies:
     "@shm/shared": "*"
-    "@tanstack/react-query": ^5.74.4
+    "@tanstack/react-query": ^4.36.1
     "@types/react": ^18.2.56
     "@types/react-dom": ^18.2.19
     "@typescript-eslint/eslint-plugin": ^7.0.2
@@ -13902,13 +13902,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:5.90.7":
-  version: 5.90.7
-  resolution: "@tanstack/query-core@npm:5.90.7"
-  checksum: 1f867b26ed5d6dc44ddce6f90ce34193550101f77127ef143ce6777780c619424da0fb22b5cff32e01bdad5a2c7d30503f34c8bd146b6a9dedbc8212f1389c1b
-  languageName: node
-  linkType: hard
-
 "@tanstack/react-query-devtools@npm:4.36.1":
   version: 4.36.1
   resolution: "@tanstack/react-query-devtools@npm:4.36.1"
@@ -13940,17 +13933,6 @@ __metadata:
     react-native:
       optional: true
   checksum: d5492a1b8681c1270244d75ec613becbec47612b28308e678d339d1a3858f4c10d23a4761bf7dae476792daf8dc4fd50e27ea705c76998fda71b5acb5045d059
-  languageName: node
-  linkType: hard
-
-"@tanstack/react-query@npm:^5.74.4":
-  version: 5.90.7
-  resolution: "@tanstack/react-query@npm:5.90.7"
-  dependencies:
-    "@tanstack/query-core": 5.90.7
-  peerDependencies:
-    react: ^18 || ^19
-  checksum: fe8bbd193dd72b7af23a7ead2f01cdd36ce3492a3c93baba7feaba5c30a7858473f60e70b2c76e6c376e723a14841ca83f63f2e03d8d1c7a62cbb236a22f6d38
   languageName: node
   linkType: hard
 

@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@shm/shared": "*",
-    "@tanstack/react-query": "^5.74.4",
+    "@tanstack/react-query": "^4.36.1",
     "lucide-react": "^0.358.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
