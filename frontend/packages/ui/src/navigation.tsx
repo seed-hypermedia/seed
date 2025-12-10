@@ -164,7 +164,6 @@ export function getSiteNavDirectory({
   return directoryItems
 }
 
-
 export function useNodesOutline(
   document: HMDocument | null | undefined,
   id: UnpackedHypermediaId,

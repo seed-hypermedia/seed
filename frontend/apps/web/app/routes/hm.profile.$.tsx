@@ -124,8 +124,14 @@ function ProfilePageContent({
   )
 }
 export default function ProfilePage() {
-  const {originHomeId, siteHost, origin, homeMetadata, profile, dehydratedState} =
-    unwrap<ProfilePagePayload>(useLoaderData())
+  const {
+    originHomeId,
+    siteHost,
+    origin,
+    homeMetadata,
+    profile,
+    dehydratedState,
+  } = unwrap<ProfilePagePayload>(useLoaderData())
   const userKeyPair = useLocalKeyPair()
 
   if (!originHomeId) {

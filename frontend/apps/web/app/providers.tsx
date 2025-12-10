@@ -82,7 +82,9 @@ export const Providers = (props: {children: any}) => {
   const [client] = useState(getQueryClient)
   return (
     <ThemeProvider>
-      <QueryClientProvider client={client}>{props.children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        {props.children}
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

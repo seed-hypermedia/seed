@@ -38,15 +38,8 @@ export function FeedPage(
 function InnerFeedPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const {
-    homeMetadata,
-    id,
-    siteHost,
-    originHomeId,
-    origin,
-    isLatest,
-    document,
-  } = props
+  const {homeMetadata, id, siteHost, originHomeId, origin, isLatest, document} =
+    props
 
   const keyPair = useLocalKeyPair()
   const currentAccount = useAccount(keyPair?.id || undefined)

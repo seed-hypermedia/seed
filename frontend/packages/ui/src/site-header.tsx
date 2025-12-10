@@ -93,10 +93,10 @@ export function SiteHeader({
     docId && !docId.path?.length
       ? {document, id: docId} // On home page with actual docId
       : siteHomeDocument
-        ? {document: siteHomeDocument, id: siteHomeId} // Non-home page or utility page
-        : document
-          ? {document, id: siteHomeId} // Fallback if document provided without docId
-          : undefined
+      ? {document: siteHomeDocument, id: siteHomeId} // Non-home page or utility page
+      : document
+      ? {document, id: siteHomeId} // Fallback if document provided without docId
+      : undefined
   const headerSearch = (
     <>
       <Button
