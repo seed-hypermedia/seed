@@ -171,14 +171,20 @@ describe('Client Hydration Readiness', () => {
         return type === 'module'
       })
 
-      expect(hasModuleScripts, 'Expected module scripts for React hydration').toBe(true)
+      expect(
+        hasModuleScripts,
+        'Expected module scripts for React hydration',
+      ).toBe(true)
 
       // Verify window.ENV is set before other scripts
       const envScript = $('script').filter((_, el) => {
         const content = $(el).html() || ''
         return content.includes('window.ENV')
       })
-      expect(envScript.length, 'Expected window.ENV script to be present').toBeGreaterThan(0)
+      expect(
+        envScript.length,
+        'Expected window.ENV script to be present',
+      ).toBeGreaterThan(0)
     },
     TEST_TIMEOUT,
   )
