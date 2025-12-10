@@ -2,18 +2,21 @@
  * Server-side query utilities for SSR hydration.
  *
  * These utilities prefetch data into a QueryClient for dehydration.
- * The prefetched data is then hydrated on the client.
+ * The prefetched data is then hydrated on the client using the same
+ * query keys as the shared models (useResource, useDirectory, etc.).
  */
 
 import {
   HMDocument,
+  HMDocumentInfo,
   HMMetadata,
   HMMetadataPayload,
-  HMQueryResult,
+  HMResource,
+  hmId,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {dehydrate, QueryClient} from '@tanstack/react-query'
-import {webQueryKeys} from './queries'
 
 export type PrefetchContext = {
   queryClient: QueryClient
@@ -43,59 +46,81 @@ export function dehydratePrefetchContext(ctx: PrefetchContext) {
   return dehydrate(ctx.queryClient)
 }
 
-// Prefetch utilities - these set data directly (no fetch needed since loader already has data)
+// Prefetch utilities - use the same query keys as shared models
 
-export function prefetchHomeDocument(
+/**
+ * Prefetch a resource (document, comment, etc.)
+ * Uses same key as useResource: [queryKeys.ENTITY, id.id, version]
+ */
+export function prefetchResource(
   ctx: PrefetchContext,
-  uid: string,
-  document: HMDocument,
+  id: UnpackedHypermediaId,
+  resource: HMResource,
 ) {
-  ctx.queryClient.setQueryData(webQueryKeys.homeDocument(uid), document)
+  const version = id.version || undefined
+  ctx.queryClient.setQueryData([queryKeys.ENTITY, id.id, version], resource)
 }
 
-export function prefetchSupportDocument(
+/**
+ * Prefetch a document as a resource.
+ * Wraps the document in HMResource format.
+ */
+export function prefetchDocument(
   ctx: PrefetchContext,
   id: UnpackedHypermediaId,
   document: HMDocument,
 ) {
-  ctx.queryClient.setQueryData(webQueryKeys.supportDocument(id), document)
+  const resource: HMResource = {
+    type: 'document',
+    id,
+    document,
+  }
+  prefetchResource(ctx, id, resource)
 }
 
-export function prefetchHomeDirectory(
-  ctx: PrefetchContext,
-  uid: string,
-  results: HMQueryResult['results'],
-) {
-  ctx.queryClient.setQueryData(webQueryKeys.homeDirectory(uid), results)
-}
-
-export function prefetchDocDirectory(
+/**
+ * Prefetch directory listing.
+ * Uses same key as useDirectory: [queryKeys.DOC_LIST_DIRECTORY, id.id, mode]
+ */
+export function prefetchDirectory(
   ctx: PrefetchContext,
   id: UnpackedHypermediaId,
-  results: HMQueryResult['results'],
+  results: HMDocumentInfo[],
+  mode: 'Children' | 'AllDescendants' = 'Children',
 ) {
-  ctx.queryClient.setQueryData(webQueryKeys.docDirectory(id), results)
+  ctx.queryClient.setQueryData(
+    [queryKeys.DOC_LIST_DIRECTORY, id.id, mode],
+    results,
+  )
 }
 
-export function prefetchAccountMetadata(
+/**
+ * Prefetch account metadata.
+ * Uses same key as useAccount: [queryKeys.ACCOUNT, uid]
+ */
+export function prefetchAccount(
   ctx: PrefetchContext,
   uid: string,
   metadata: HMMetadata | null,
 ) {
   if (metadata) {
-    ctx.queryClient.setQueryData(webQueryKeys.accountMetadata(uid), metadata)
+    const payload: HMMetadataPayload = {
+      id: hmId(uid),
+      metadata,
+    }
+    ctx.queryClient.setQueryData([queryKeys.ACCOUNT, uid], payload)
   }
 }
 
 /**
- * Prefetch all support documents from a list.
+ * Prefetch all embedded documents from a list.
  */
-export function prefetchSupportDocuments(
+export function prefetchEmbeddedDocuments(
   ctx: PrefetchContext,
-  supportDocuments: Array<{id: UnpackedHypermediaId; document: HMDocument}>,
+  embeddedDocs: Array<{id: UnpackedHypermediaId; document: HMDocument}>,
 ) {
-  for (const {id, document} of supportDocuments) {
-    prefetchSupportDocument(ctx, id, document)
+  for (const {id, document} of embeddedDocs) {
+    prefetchDocument(ctx, id, document)
   }
 }
 
@@ -107,6 +132,6 @@ export function prefetchAuthorsMetadata(
   authors: Array<HMMetadataPayload>,
 ) {
   for (const author of authors) {
-    prefetchAccountMetadata(ctx, author.id.uid, author.metadata)
+    prefetchAccount(ctx, author.id.uid, author.metadata)
   }
 }

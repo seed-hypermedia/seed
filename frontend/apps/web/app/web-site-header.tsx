@@ -1,10 +1,15 @@
 import {useSearchParams} from '@remix-run/react'
-import {HMDocument, HMMetadata, UnpackedHypermediaId, unpackHmId} from '@shm/shared'
+import {
+  HMDocument,
+  HMMetadata,
+  UnpackedHypermediaId,
+  unpackHmId,
+} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
-import {useHomeDirectory, useHomeDocument} from './queries'
 
 export type WebSiteHeaderProps = {
   noScroll?: boolean
@@ -24,17 +29,23 @@ export function WebSiteHeader({
 }: React.PropsWithChildren<WebSiteHeaderProps>) {
   const [searchParams] = useSearchParams()
 
-  // Use hydrated queries - data comes from server prefetch
-  const homeDocQuery = useHomeDocument(props.docId?.uid || '')
-  const homeDirectoryQuery = useHomeDirectory(props.docId?.uid || '')
+  // Use shared models - data comes from server prefetch via same query keys
+  const homeResourceQuery = useResource(props.siteHomeId)
+  const homeDirectoryQuery = useDirectory(props.siteHomeId)
 
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
 
+  // Extract document from resource query result
+  const homeDocFromQuery =
+    homeResourceQuery.data?.type === 'document'
+      ? homeResourceQuery.data.document
+      : null
+
   // Use the current document if it's the home doc, otherwise use query data
   const homeDocument =
-    props.document?.path === '' ? props.document : homeDocQuery.data
+    props.document?.path === '' ? props.document : homeDocFromQuery
   const navigationBlockNode = homeDocument?.detachedBlocks?.navigation
 
   // Home navigation items from the navigation block
@@ -56,15 +67,11 @@ export function WebSiteHeader({
         .filter((item) => !!item) || []
     : []
 
-  // Directory items for current document (only when not on home)
-  const isHomeDoc = props.docId?.path?.length === 0
   const directoryResults = homeDirectoryQuery.data
-  const directoryItems = isHomeDoc
-    ? []
-    : props.siteHomeId
+  const directoryItems = props.siteHomeId
     ? getSiteNavDirectory({
         id: props.siteHomeId,
-        directory: directoryResults,
+        directory: directoryResults ?? undefined,
       })
     : []
 
@@ -81,6 +88,7 @@ export function WebSiteHeader({
       ) : null}
       <SiteHeader
         {...props}
+        siteHomeDocument={homeDocFromQuery}
         hideSiteBarClassName={props.hideSiteBarClassName}
         isCenterLayout={isCenterLayout}
         items={items}

@@ -26,9 +26,10 @@ import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {
   DehydratedState,
-  Hydrate,
+  hydrate,
   QueryClient,
   QueryClientProvider,
+  useQueryClient,
 } from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {webUniversalClient} from './universal-client'
@@ -151,6 +152,13 @@ export function WebSiteProvider(props: {
   dehydratedState?: DehydratedState
 }) {
   const navigate = useNavigate()
+  const client = useQueryClient()
+
+  // Hydrate synchronously so SSR hooks can access prefetched data
+  if (props.dehydratedState) {
+    hydrate(client, props.dehydratedState)
+  }
+
   const languagePack = useMemo(() => {
     const language = props.prefersLanguages?.[0]
     if (language) {
@@ -232,11 +240,9 @@ export function WebSiteProvider(props: {
         toast.success('Comment link copied to clipboard')
       }}
     >
-      <Hydrate state={props.dehydratedState}>
-        <NavContextProvider value={navigation}>
-          {props.children}
-        </NavContextProvider>
-      </Hydrate>
+      <NavContextProvider value={navigation}>
+        {props.children}
+      </NavContextProvider>
     </UniversalAppProvider>
   )
 }

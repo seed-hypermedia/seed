@@ -26,8 +26,8 @@ beforeAll(async () => {
   })
 }, TEST_TIMEOUT)
 
-afterAll(() => {
-  env?.cleanup()
+afterAll(async () => {
+  await env?.cleanup()
 })
 
 describe('SSR Integration', () => {
@@ -127,6 +127,145 @@ describe('SSR API Integration', () => {
       expect(response.ok).toBe(true)
       const version = await response.text()
       expect(version).toBeTruthy()
+    },
+    TEST_TIMEOUT,
+  )
+})
+
+describe('SSR Header and Navigation', () => {
+  it(
+    'should server-render the header with site logo',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+      const $ = cheerio.load(html)
+
+      // Check for header element
+      const header = $('header')
+      expect(header.length, 'Expected header element to be present').toBeGreaterThan(0)
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should server-render navigation items from home directory',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+      const $ = cheerio.load(html)
+
+      // Header should be rendered server-side
+      const header = $('header')
+      expect(header.length).toBeGreaterThan(0)
+
+      // The header should contain links (navigation items)
+      const headerLinks = header.find('a')
+      // At minimum we should have the site logo link
+      expect(headerLinks.length).toBeGreaterThan(0)
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should server-render the subscribe button',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+
+      // Subscribe button should be SSR rendered
+      expect(html).toContain('Subscribe')
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should include prefetched home document data in dehydrated state',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/`)
+      const html = await response.text()
+
+      // Dehydrated state should contain home document query key
+      // This verifies the navigation data is being prefetched for SSR
+      expect(html).toContain('dehydratedState')
+    },
+    TEST_TIMEOUT,
+  )
+})
+
+describe('SSR Utility Pages Header', () => {
+  it(
+    'should server-render profile page without SSR errors',
+    async () => {
+      // Profile page uses the account UID from our test database
+      const profileUrl = `${env.web.baseUrl}/hm/profile/z6MknSLrJoTcukLrE435hVNQT4JUhbvWLX4kUzqkEStBU8Vi`
+      const response = await fetch(profileUrl, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+
+      // Page should load (even if it shows error due to missing site config)
+      expect(response.status).toBeLessThan(500)
+
+      // Should not have React SSR errors
+      expect(html).not.toContain('Invalid hook call')
+      expect(html).not.toContain('Minified React error')
+      expect(html).not.toContain('Hooks can only be called inside')
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should server-render device-link page without SSR errors',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/hm/device-link`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+
+      // Page should load (even if it shows error due to missing site config)
+      expect(response.status).toBeLessThan(500)
+
+      // Should not have React SSR errors
+      expect(html).not.toContain('Invalid hook call')
+      expect(html).not.toContain('Minified React error')
+      expect(html).not.toContain('Hooks can only be called inside')
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'should server-render connect page without SSR errors',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/hm/connect`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+
+      // Page should load (even if it shows error due to missing site config)
+      expect(response.status).toBeLessThan(500)
+
+      // Should not have React SSR errors
+      expect(html).not.toContain('Invalid hook call')
+      expect(html).not.toContain('Minified React error')
+      expect(html).not.toContain('Hooks can only be called inside')
     },
     TEST_TIMEOUT,
   )

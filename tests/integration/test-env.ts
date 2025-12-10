@@ -48,7 +48,7 @@ export type TestEnvConfig = {
 export type TestEnv = {
   daemon: DaemonInstance
   web: WebServerInstance
-  cleanup: () => void
+  cleanup: () => Promise<void>
 }
 
 // Default ports for integration tests (avoid common dev ports)
@@ -110,10 +110,13 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
   console.log('=== Test environment ready ===')
   console.log(`Web server: ${web.baseUrl}`)
 
-  const cleanup = () => {
+  const cleanup = async () => {
     console.log('=== Cleaning up test environment ===')
     web.kill()
     daemon.kill()
+    // Small delay to let processes close gracefully before Vitest worker shutdown
+    // This helps avoid "Channel closed" errors from tinypool
+    await new Promise((resolve) => setTimeout(resolve, 500))
   }
 
   // Handle process exit

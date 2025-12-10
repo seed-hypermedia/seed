@@ -39,7 +39,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await browser?.close()
-  env?.cleanup()
+  await env?.cleanup()
 })
 
 describe('Browser Hydration', () => {
