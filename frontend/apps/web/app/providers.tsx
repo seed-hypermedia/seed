@@ -34,29 +34,32 @@ import {
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {webUniversalClient} from './universal-client'
 
-const [queryClient] = (() => {
-  let client: QueryClient | null = null
-  return [
-    () => {
-      if (!client) {
-        client = new QueryClient({
-          defaultOptions: {
-            queries: {
-              staleTime: Infinity,
-              refetchOnMount: false,
-              refetchOnWindowFocus: false,
-              refetchOnReconnect: false,
-            },
-          },
-        })
-      }
-      return client
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      },
     },
-  ]
-})()
+  })
+}
 
-export function getQueryClient() {
-  return queryClient()
+// Browser singleton - only created once on client
+let browserQueryClient: QueryClient | null = null
+
+function getQueryClient() {
+  // Server: always create new client for each request (avoid data leakage)
+  if (typeof window === 'undefined') {
+    return createQueryClient()
+  }
+  // Browser: use singleton
+  if (!browserQueryClient) {
+    browserQueryClient = createQueryClient()
+  }
+  return browserQueryClient
 }
 
 type ThemeContextType = {
@@ -76,7 +79,7 @@ export const useTheme = () => {
 }
 
 export const Providers = (props: {children: any}) => {
-  const [client] = useState(queryClient)
+  const [client] = useState(getQueryClient)
   return (
     <ThemeProvider>
       <QueryClientProvider client={client}>{props.children}</QueryClientProvider>

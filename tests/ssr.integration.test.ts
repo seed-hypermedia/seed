@@ -250,6 +250,30 @@ describe('SSR Utility Pages Header', () => {
   )
 
   it(
+    'should server-render device-link page with header and subscribe button',
+    async () => {
+      const response = await fetch(`${env.web.baseUrl}/hm/device-link`, {
+        headers: {
+          'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+        },
+      })
+      const html = await response.text()
+      const $ = cheerio.load(html)
+
+      // Check for header element
+      const header = $('header')
+      expect(
+        header.length,
+        'Expected header element to be present on device-link page',
+      ).toBeGreaterThan(0)
+
+      // Subscribe button should be SSR rendered
+      expect(html).toContain('Subscribe')
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
     'should server-render connect page without SSR errors',
     async () => {
       const response = await fetch(`${env.web.baseUrl}/hm/connect`, {

@@ -87,11 +87,16 @@ export function SiteHeader({
     _setIsMobileMenuOpen(isOpen)
     onShowMobileMenu?.(isOpen)
   }
-  const homeDoc = !docId?.path?.length
-    ? {document, id: docId}
-    : siteHomeDocument
-    ? {document: siteHomeDocument, id: siteHomeId}
-    : undefined
+  // Determine the home document for logo/branding
+  // Priority: current doc if on home page, otherwise siteHomeDocument
+  const homeDoc =
+    docId && !docId.path?.length
+      ? {document, id: docId} // On home page with actual docId
+      : siteHomeDocument
+        ? {document: siteHomeDocument, id: siteHomeId} // Non-home page or utility page
+        : document
+          ? {document, id: siteHomeId} // Fallback if document provided without docId
+          : undefined
   const headerSearch = (
     <>
       <Button
