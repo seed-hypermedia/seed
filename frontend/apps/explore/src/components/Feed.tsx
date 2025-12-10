@@ -1,5 +1,4 @@
-import {useInfiniteFeed, useLatestEvent} from '@shm/shared'
-import {useQueryClient} from '@tanstack/react-query'
+import {useInfiniteFeed, useLatestEvent, useQueryClient} from '@shm/shared'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import DataViewer from './DataViewer'

@@ -1,6 +1,5 @@
-import {QueryClient} from "@tanstack/react-query";
-
-export const queryClient = new QueryClient();
+// Re-export queryClient from shared to ensure single instance
+export {queryClient} from "@shm/shared";
 
 const API_HOST_STORAGE_KEY = "explore_api_host";
 
