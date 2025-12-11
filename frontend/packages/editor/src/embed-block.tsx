@@ -5,7 +5,6 @@ import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
-  hmIdWithVersion,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
@@ -103,16 +102,8 @@ const Render = (
       setLoading(true)
       resolveHypermediaUrl(url)
         .then((res) => {
-          const fullHmId = hmIdWithVersion(
-            res?.id,
-            res?.version,
-            // @ts-expect-error
-            res?.blockRef,
-            // @ts-expect-error
-            res?.blockRange,
-          )
-          if (fullHmId) {
-            assign({props: {url: fullHmId}} as MediaType)
+          if (res?.hmId) {
+            assign({props: {url: packHmId(res.hmId)}} as MediaType)
             const cursorPosition = editor.getTextCursorPosition()
             editor.focus()
             if (cursorPosition.block.id === block.id) {

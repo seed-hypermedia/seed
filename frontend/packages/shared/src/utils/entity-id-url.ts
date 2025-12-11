@@ -312,6 +312,7 @@ export function normalizeHmId(
           blockRange: unpacked.blockRange,
           blockRef: unpacked.blockRef,
           version: unpacked.version,
+          latest: unpacked.latest,
         }),
       )
     }
@@ -338,12 +339,14 @@ export function hmIdWithVersion(
   if (!id) return null
   const unpacked = unpackHmId(id)
   if (!unpacked) return null
+  const effectiveVersion = version || unpacked.version
   return packHmId(
     hmId(unpacked.uid, {
       path: unpacked.path,
-      version: version || unpacked.version,
+      version: effectiveVersion,
       blockRef,
       blockRange,
+      latest: !effectiveVersion ? unpacked.latest : null,
     }),
   )
 }
