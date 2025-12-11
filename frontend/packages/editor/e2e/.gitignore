@@ -1,0 +1,10 @@
+# Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Test harness build output
+test-app/dist/
+
+
+

@@ -9,10 +9,17 @@
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "build:types": "tsc -p tsconfig.types.json"
+    "build:types": "tsc -p tsconfig.types.json",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:harness": "vite --config e2e/vite.config.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
+    "@mantine/core": "^6.0.21",
+    "@mantine/utils": "^6.0.21",
     "@shm/ui": "workspace:*",
     "@tippyjs/react": "4.2.6",
     "@tiptap/core": "2.0.3",
@@ -59,6 +66,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.40.1",
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
     "@vitejs/plugin-react": "^4.3.4",
