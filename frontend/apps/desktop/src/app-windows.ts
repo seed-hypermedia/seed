@@ -9,6 +9,7 @@ import {
   app,
   globalShortcut,
   nativeTheme,
+  screen,
   shell,
 } from 'electron'
 import path from 'node:path'
@@ -130,10 +131,10 @@ const appWindowSchema = z.object({
   routeIndex: z.number(),
   bounds: z
     .object({
-      x: z.number(),
-      y: z.number(),
-      width: z.number(),
-      height: z.number(),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
     })
     .nullable()
     .optional(),
@@ -143,7 +144,7 @@ const appWindowSchema = z.object({
   selectedIdentity: z.string().nullable().optional(),
 })
 
-type AppWindow = z.infer<typeof appWindowSchema>
+export type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
 
@@ -163,6 +164,54 @@ function getAWindow() {
   const allWins = Object.values(allWindows)
   const window: BrowserWindow | undefined = allWins[allWins.length - 1]
   return window
+}
+
+/**
+ * Gets a valid window for inheriting properties (size, position, etc).
+ * Returns null if window is in an invalid state (fullscreen, maximized, minimized, or destroyed).
+ */
+function getValidWindowForInheritance(): BrowserWindow | null {
+  const win = getAWindow()
+  if (!win || win.isDestroyed()) return null
+  if (win.isFullScreen() || win.isMaximized() || win.isMinimized()) return null
+  return win
+}
+
+/**
+ * Validates and adjusts window position to ensure it's visible on a display.
+ * Returns adjusted bounds if the window would be off-screen.
+ */
+function validateWindowPosition(bounds: {
+  x: number
+  y: number
+  width: number
+  height: number
+}): {x: number; y: number; width: number; height: number} {
+  const displays = screen.getAllDisplays()
+
+  // Check if window would be visible on any display
+  const isVisible = displays.some((display) => {
+    const workArea = display.workArea
+    // Window is visible if any part overlaps with display
+    return !(
+      bounds.x + bounds.width < workArea.x ||
+      bounds.x > workArea.x + workArea.width ||
+      bounds.y + bounds.height < workArea.y ||
+      bounds.y > workArea.y + workArea.height
+    )
+  })
+
+  if (!isVisible) {
+    // Fallback to primary display
+    const primary = screen.getPrimaryDisplay()
+    return {
+      ...bounds,
+      x: primary.workArea.x + 60,
+      y: primary.workArea.y + 60,
+    }
+  }
+
+  return bounds
 }
 
 let lastFocusedWindowId: string | null = null
@@ -278,36 +327,83 @@ export function createAppWindow(
   }
 
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
-  const win = getAWindow()
-  const prevWindowBounds = win?.getBounds()
   const initActiveRoute = initRoutes[initRouteIndex]
   const windowType = getRouteWindowType(initActiveRoute)
-  const bounds = input.bounds
-    ? input.bounds
-    : prevWindowBounds
-    ? {
-        ...prevWindowBounds,
-        width: Math.max(
-          windowType.minWidth,
-          Math.min(
-            prevWindowBounds.width,
-            windowType.maxWidth || windowType.initWidth || 1024,
-          ),
-        ),
-        height: Math.max(
-          windowType.minHeight,
-          Math.min(
-            prevWindowBounds.height,
-            windowType.maxHeight || windowType.initHeight || 768,
-          ),
-        ),
-        x: prevWindowBounds.x + 60,
-        y: prevWindowBounds.y + 60,
+
+  // Calculate bounds for the new window
+  let bounds: {x?: number; y?: number; width: number; height: number}
+
+  // Check if input.bounds has full position (x, y, width, height) - used for window restoration
+  if (
+    input.bounds &&
+    input.bounds.x !== undefined &&
+    input.bounds.y !== undefined &&
+    input.bounds.width !== undefined &&
+    input.bounds.height !== undefined
+  ) {
+    // Full bounds provided, use directly for window restoration
+    bounds = {
+      x: input.bounds.x,
+      y: input.bounds.y,
+      width: input.bounds.width,
+      height: input.bounds.height,
+    }
+  } else {
+    // Determine dimensions
+    let width: number
+    let height: number
+
+    if (
+      input.bounds?.width !== undefined &&
+      input.bounds?.height !== undefined
+    ) {
+      // Use provided width/height from bounds (e.g., inherited from focused window)
+      width = input.bounds.width
+      height = input.bounds.height
+    } else {
+      // Get valid window for inheritance (null if fullscreen/maximized/minimized)
+      const validWindow = getValidWindowForInheritance()
+      if (validWindow) {
+        const prevBounds = validWindow.getBounds()
+        width = prevBounds.width
+        height = prevBounds.height
+      } else {
+        // Use defaults from windowType
+        width = windowType.initWidth || windowType.minWidth
+        height = windowType.initHeight || windowType.minHeight
       }
-    : {
-        width: windowType.initWidth || windowType.minWidth,
-        height: windowType.initHeight || windowType.minHeight,
+    }
+
+    // Apply windowType constraints to dimensions
+    // Apply min constraint
+    width = Math.max(windowType.minWidth, width)
+    height = Math.max(windowType.minHeight, height)
+
+    // Apply max constraint only if it exists
+    if (windowType.maxWidth !== undefined) {
+      width = Math.min(width, windowType.maxWidth)
+    }
+    if (windowType.maxHeight !== undefined) {
+      height = Math.min(height, windowType.maxHeight)
+    }
+
+    // Calculate position
+    const validWindow = getValidWindowForInheritance()
+    if (validWindow) {
+      const prevBounds = validWindow.getBounds()
+      const proposedBounds = {
+        x: prevBounds.x + 60,
+        y: prevBounds.y + 60,
+        width,
+        height,
       }
+      // Validate position is on-screen, adjust if needed
+      bounds = validateWindowPosition(proposedBounds)
+    } else {
+      // No valid window to inherit from, let Electron position it
+      bounds = {width, height}
+    }
+  }
   const browserWindow = new BrowserWindow({
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#151515' : '#f9f9f9',

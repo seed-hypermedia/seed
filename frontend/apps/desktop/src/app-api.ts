@@ -301,10 +301,10 @@ export const router = t.router({
         accessoryWidth: z.number().default(20),
         bounds: z
           .object({
-            x: z.number(),
-            y: z.number(),
-            width: z.number(),
-            height: z.number(),
+            x: z.number().optional(),
+            y: z.number().optional(),
+            width: z.number().optional(),
+            height: z.number().optional(),
           })
           .or(z.null())
           .optional(),

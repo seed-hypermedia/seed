@@ -48,6 +48,7 @@ import {appInvalidateQueries} from './app-invalidation'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
 import {
+  AppWindow,
   deleteWindowsState,
   getAllWindows,
   getFocusedWindow,
@@ -311,10 +312,14 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    // Get the focused window's selected identity and accessoryWidth to copy them to the new window
+    // Get the focused window's properties to copy them to the new window
     const focusedWindow = getLastFocusedWindow()
-    let selectedIdentity: string | null = null
-    let accessoryWidth: number | undefined = undefined
+    let selectedIdentity: AppWindow['selectedIdentity'] = null
+    let accessoryWidth: AppWindow['accessoryWidth'] | undefined = undefined
+    let sidebarLocked: AppWindow['sidebarLocked'] | undefined = undefined
+    let sidebarWidth: AppWindow['sidebarWidth'] | undefined = undefined
+    let width: number | undefined = undefined
+    let height: number | undefined = undefined
 
     if (focusedWindow) {
       const focusedWindowId = Array.from(getAllWindows().entries()).find(
@@ -323,11 +328,24 @@ function initializeIpcHandlers() {
 
       if (focusedWindowId) {
         // Use in-memory windowNavState instead of persisted windowsState
-        // to get the most current selected identity and accessoryWidth
+        // to get the most current state values
         const windowNavState = getWindowNavState()
         const focusedWindowState = windowNavState[focusedWindowId]
         selectedIdentity = focusedWindowState?.selectedIdentity || null
         accessoryWidth = focusedWindowState?.accessoryWidth
+        sidebarLocked = focusedWindowState?.sidebarLocked
+        sidebarWidth = focusedWindowState?.sidebarWidth
+
+        // Only get dimensions if window is in a valid state (not fullscreen/maximized/minimized)
+        if (
+          !focusedWindow.isFullScreen() &&
+          !focusedWindow.isMaximized() &&
+          !focusedWindow.isMinimized()
+        ) {
+          const bounds = focusedWindow.getBounds()
+          width = bounds.width
+          height = bounds.height
+        }
       }
     }
 
@@ -335,6 +353,12 @@ function initializeIpcHandlers() {
       routes: [defaultRoute],
       selectedIdentity,
       accessoryWidth,
+      sidebarLocked,
+      sidebarWidth,
+      bounds:
+        width !== undefined && height !== undefined
+          ? {width, height}
+          : undefined,
     })
   })
 
