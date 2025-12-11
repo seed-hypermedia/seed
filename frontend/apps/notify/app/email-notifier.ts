@@ -641,7 +641,7 @@ async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
       ? newestEvent.data.value?.sourceBlob?.cid
       : undefined
   if (!lastProcessedBlobCid) return
-  reportError(
+  console.log(
     'Setting notifier last processed blob CID to ' + lastProcessedBlobCid,
   )
   await setNotifierLastProcessedBlobCid(lastProcessedBlobCid)
