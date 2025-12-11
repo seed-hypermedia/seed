@@ -6,7 +6,6 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {useTemplateDialog} from '@/components/site-template'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
@@ -20,13 +19,12 @@ import {
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {useMutation} from '@tanstack/react-query'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -46,6 +44,7 @@ import {
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
+import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -70,6 +69,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {useMutation} from '@tanstack/react-query'
 import {FilePlus} from 'lucide-react'
 import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
 
@@ -430,7 +430,7 @@ function _MainDocumentPage({
       commentsCount={interactionSummary.data?.comments || 0}
       onCommentsClick={onCommentsClick}
       onFeedClick={onFeedClick}
-      collabsCount={collaborators?.length}
+      collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
       onDirectoryClick={() => {
         replace({...route, accessory: {key: 'directory'}} as DocumentRoute)
