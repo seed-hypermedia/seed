@@ -840,10 +840,40 @@ function extractMentionsFromBlockNode(
   if (children) extractMentionsFromBlockNodes(children, mentionMap)
 }
 
+// Timeout for IPFS fetches to prevent hanging when daemon is slow/unresponsive.
+// Without this, a single slow/missing CID can block the entire notification system.
+const IPFS_FETCH_TIMEOUT_MS = 5_000
+
 async function loadRefFromIpfs(cid: string): Promise<any> {
   const url = `${DAEMON_HTTP_URL}/ipfs/${cid}`
-  const buffer = await fetch(url).then((res) => res.arrayBuffer())
-  return cborDecode(new Uint8Array(buffer))
+
+  // Use AbortController for fetch timeout since fetch() doesn't have native timeout
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), IPFS_FETCH_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(url, {signal: controller.signal})
+
+    // Check HTTP status before attempting to decode - a 404/500 would cause CBOR decode errors
+    if (!response.ok) {
+      throw new Error(
+        `IPFS fetch failed for CID ${cid}: HTTP ${response.status} ${response.statusText}`,
+      )
+    }
+
+    const buffer = await response.arrayBuffer()
+    return cborDecode(new Uint8Array(buffer))
+  } catch (error: any) {
+    // Convert AbortError to more descriptive timeout error
+    if (error.name === 'AbortError') {
+      throw new Error(
+        `IPFS fetch timed out after ${IPFS_FETCH_TIMEOUT_MS}ms for CID ${cid}`,
+      )
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 function deduplicateSubscriptions(
