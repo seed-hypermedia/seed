@@ -1,0 +1,17 @@
+{
+  "name": "@shm/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest --run",
+    "test:skip-build": "SKIP_BUILD=true vitest --run",
+    "test:install-browsers": "npx playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "1.40.1",
+    "vitest": "^3.0.9"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2"
+  }
+}

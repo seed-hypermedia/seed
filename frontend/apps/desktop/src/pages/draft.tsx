@@ -765,7 +765,7 @@ function DraftAppHeader({
           />
         ) : null
       }
-      supportDocuments={[siteHomeEntity]}
+      siteHomeDocument={siteHomeEntity.document}
       isMainFeedVisible={false}
       notifyServiceHost={notifyServiceHost}
     />

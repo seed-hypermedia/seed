@@ -52,7 +52,16 @@ import {
   createResourceResolver,
 } from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/blocks-content'
+import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
+import {
+  createPrefetchContext,
+  dehydratePrefetchContext,
+  prefetchAuthorsMetadata,
+  prefetchDirectory,
+  prefetchDocument,
+  prefetchEmbeddedDocuments,
+} from './queries.server'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
@@ -137,10 +146,11 @@ export type WebResourcePayload = {
   // supporting metadata for referenced accounts
   accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
-  supportQueries?: HMQueryResult[]
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
+
+  // Dehydrated React Query state for SSR hydration
+  dehydratedState?: DehydratedState
 }
 
 export async function getDocument(
@@ -247,7 +257,7 @@ async function loadResourcePayload(
     }),
   )
   const refs = extractRefs(document.content)
-  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
+  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] = (
     await Promise.all(
       // @ts-expect-error
       refs.map(async (ref) => {
@@ -263,7 +273,7 @@ async function loadResourcePayload(
           if (!doc) return null
           return {document: doc, id: ref.refId}
         } catch (e) {
-          console.error('error fetching supportDocument', ref, e)
+          console.error('error fetching embeddedDoc', ref, e)
         }
       }),
     )
@@ -274,15 +284,15 @@ async function loadResourcePayload(
 
   const homeDocument = await getDocument(homeId)
 
-  supportDocuments.push({
+  embeddedDocs.push({
     id: homeId,
     document: homeDocument,
   })
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
   const directoryResults = await getDirectory(docId)
-  const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
-  const supportAuthorsUidsToFetch = new Set<string>()
+  const alreadyEmbeddedDocIds = new Set(embeddedDocs.map((doc) => doc.id.id))
+  const embeddedAuthorsUidsToFetch = new Set<string>()
   const queryBlockQueries = (
     await Promise.all(
       queryBlocks.map(async (block) => {
@@ -290,12 +300,7 @@ async function loadResourcePayload(
       }),
     )
   ).filter((result) => !!result)
-  const supportQueries: HMQueryResult[] = [
-    homeDirectoryQuery,
-    {in: docId, results: directoryResults},
-    ...queryBlockQueries,
-  ]
-  supportDocuments.push(
+  embeddedDocs.push(
     ...(await Promise.all(
       queryBlockQueries
         .flatMap((item) => item.results)
@@ -303,8 +308,8 @@ async function loadResourcePayload(
           const id = item.id
           const document = await getDocument(id)
           document.authors.forEach((author) => {
-            if (!alreadySupportDocIds.has(hmId(author).id)) {
-              supportAuthorsUidsToFetch.add(author)
+            if (!alreadyEmbeddedDocIds.has(hmId(author).id)) {
+              embeddedAuthorsUidsToFetch.add(author)
             }
           })
           return {
@@ -315,10 +320,10 @@ async function loadResourcePayload(
     )),
   )
   // now we need to get the author content for queried docs
-  supportDocuments.push(
+  embeddedDocs.push(
     ...(
       await Promise.all(
-        Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
+        Array.from(embeddedAuthorsUidsToFetch).map(async (uid) => {
           try {
             const document = await getDocument(hmId(uid), {
               discover: true,
@@ -350,17 +355,34 @@ async function loadResourcePayload(
     metadata: document.metadata,
   })
 
+  // Create prefetch context and populate with data for SSR hydration
+  const prefetchCtx = createPrefetchContext()
+
+  // Prefetch home document (root document of the site)
+  prefetchDocument(prefetchCtx, homeId, homeDocument)
+
+  // Prefetch all embedded documents
+  prefetchEmbeddedDocuments(prefetchCtx, embeddedDocs)
+
+  // Prefetch directory queries
+  prefetchDirectory(prefetchCtx, homeId, homeDirectoryResults)
+  prefetchDirectory(prefetchCtx, docId, directoryResults)
+
+  // Prefetch account metadata
+  prefetchAuthorsMetadata(prefetchCtx, authors)
+
+  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
+
   return {
     document,
     comment,
-    supportDocuments,
-    supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
     isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...docId, version: document.version},
     breadcrumbs,
+    dehydratedState,
     ...getOriginRequestData(parsedRequest),
   }
 }
@@ -699,12 +721,10 @@ export async function loadSiteResource<T>(
   }
   try {
     const resourceContent = await loadResourceWithDiscovery(id, parsedRequest)
-    let supportQueries = resourceContent.supportQueries
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
       homeMetadata,
-      supportQueries,
       origin,
       originHomeId,
     }
@@ -737,28 +757,6 @@ export async function loadSiteResource<T>(
       }
     }
 
-    // Load home document and directory for the header to render properly
-    let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] =
-      []
-    let supportQueries: HMQueryResult[] = []
-    if (config.registeredAccountUid) {
-      try {
-        const homeId = hmId(config.registeredAccountUid, {
-          latest: true,
-          version: undefined,
-        })
-        const homeDocument = await getDocument(homeId)
-        supportDocuments.push({
-          id: homeId,
-          document: homeDocument,
-        })
-        const homeDirectoryResults = await getDirectory(homeId, 'Children')
-        supportQueries.push({in: homeId, results: homeDirectoryResults})
-      } catch (homeError) {
-        console.error('Error loading home document for error page', homeError)
-      }
-    }
-
     return wrapJSON(
       {
         id,
@@ -766,11 +764,73 @@ export async function loadSiteResource<T>(
         origin,
         originHomeId,
         daemonError,
-        supportDocuments,
-        supportQueries,
         ...(extraData || {}),
       },
       {status: id ? 200 : 404},
     )
+  }
+}
+
+/**
+ * Site header payload for utility pages (profile, device-link, connect, etc.)
+ * These pages need the home document and directory for navigation but don't
+ * have their own document content.
+ */
+export type SiteHeaderPayload = {
+  originHomeId: UnpackedHypermediaId | undefined
+  homeMetadata: HMMetadata | null
+  origin: string
+  siteHost: string
+  dehydratedState?: DehydratedState
+}
+
+/**
+ * Load site header data for utility pages.
+ * Prefetches home document and directory for navigation rendering via React Query hydration.
+ */
+export async function loadSiteHeaderData(
+  parsedRequest: ParsedRequest,
+): Promise<SiteHeaderPayload> {
+  const {hostname, origin} = parsedRequest
+  const config = await getConfig(hostname)
+
+  if (!config?.registeredAccountUid) {
+    return {
+      originHomeId: undefined,
+      homeMetadata: null,
+      origin,
+      siteHost: origin,
+    }
+  }
+
+  const homeId = hmId(config.registeredAccountUid, {latest: true})
+  const prefetchCtx = createPrefetchContext()
+
+  try {
+    // Load home document and directory for navigation
+    const homeDocument = await getDocument(homeId)
+    const homeDirectoryResults = await getDirectory(homeId, 'Children')
+
+    // Prefetch for SSR hydration
+    prefetchDocument(prefetchCtx, homeId, homeDocument)
+    prefetchDirectory(prefetchCtx, homeId, homeDirectoryResults)
+
+    return {
+      originHomeId: homeId,
+      homeMetadata: homeDocument.metadata,
+      origin,
+      siteHost: origin,
+      dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    }
+  } catch (e) {
+    console.error('Error loading site header data', e)
+    // Return minimal data on error
+    const metadataResult = await getMetadata(homeId)
+    return {
+      originHomeId: homeId,
+      homeMetadata: metadataResult.metadata,
+      origin,
+      siteHost: origin,
+    }
   }
 }

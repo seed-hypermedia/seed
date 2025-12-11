@@ -133,7 +133,7 @@ export type BlocksContentContextProps = {
   contacts?: HMContactRecord[] | null
   commentStyle?: boolean
   onBlockSelect?:
-    | ((blockId: string, opts?: BlockRangeSelectOptions) => boolean)
+    | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
     | null
     | undefined
   onBlockCitationClick?: ((blockId?: string | null) => void) | undefined

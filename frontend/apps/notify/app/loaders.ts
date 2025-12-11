@@ -2,8 +2,6 @@ import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code} from '@connectrpc/connect'
 import {
   EditorText,
-  extractQueryBlocks,
-  extractRefs,
   getCommentTargetId,
   getParentPaths,
   HMBlock,
@@ -39,10 +37,7 @@ import {
   HMResourceNotFound,
   HMResourceRedirect,
 } from '@shm/shared/hm-types'
-import {
-  createDirectoryResolver,
-  createQueryResolver,
-} from '@shm/shared/models/directory'
+import {createQueryResolver} from '@shm/shared/models/directory'
 import {
   documentMetadataParseAdjustments,
   getErrorMessage,
@@ -131,8 +126,6 @@ export type WebResourcePayload = {
   // supporting metadata for referenced accounts
   accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
-  supportQueries?: HMQueryResult[]
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
 }
@@ -187,7 +180,6 @@ export async function resolveHMDocument(
   }
 }
 
-const getDirectory = createDirectoryResolver(grpcClient)
 const getQueryResults = createQueryResolver(grpcClient)
 
 export function getOriginRequestData(parsedRequest: ParsedRequest) {
@@ -240,95 +232,6 @@ async function loadResourcePayload(
       return await getMetadata(hmId(authorUid))
     }),
   )
-  const refs = extractRefs(document.content)
-  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
-    await Promise.all(
-      // @ts-expect-error
-      refs.map(async (ref) => {
-        try {
-          const doc = await resolveHMDocument({
-            ...ref.refId,
-            // removing version from home document to get the latest site navigation all the time
-            version:
-              ref.refId.path && ref.refId.path.length > 0
-                ? ref.refId.version
-                : null,
-          })
-          if (!doc) return null
-          return {document: doc, id: ref.refId}
-        } catch (e) {
-          console.error('error fetching supportDocument', ref, e)
-        }
-      }),
-    )
-  ).filter((doc) => !!doc)
-
-  const queryBlocks = extractQueryBlocks(document.content)
-  const homeId = hmId(docId.uid, {latest: true, version: undefined})
-
-  const homeDocument = await getDocument(homeId)
-
-  supportDocuments.push({
-    id: homeId,
-    document: homeDocument,
-  })
-  const homeDirectoryResults = await getDirectory(homeId, 'Children')
-  const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
-  const directoryResults = await getDirectory(docId)
-  const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
-  const supportAuthorsUidsToFetch = new Set<string>()
-  const queryBlockQueries = (
-    await Promise.all(
-      queryBlocks.map(async (block) => {
-        return await getQueryResults(block.attributes.query)
-      }),
-    )
-  ).filter((result) => !!result)
-  const supportQueries: HMQueryResult[] = [
-    homeDirectoryQuery,
-    {in: docId, results: directoryResults},
-    ...queryBlockQueries,
-  ]
-  supportDocuments.push(
-    ...(await Promise.all(
-      queryBlockQueries
-        .flatMap((item) => item.results)
-        .map(async (item) => {
-          const id = item.id
-          const document = await getDocument(id)
-          document.authors.forEach((author) => {
-            if (!alreadySupportDocIds.has(hmId(author).id)) {
-              supportAuthorsUidsToFetch.add(author)
-            }
-          })
-          return {
-            id,
-            document,
-          }
-        }),
-    )),
-  )
-  // now we need to get the author content for queried docs
-  supportDocuments.push(
-    ...(
-      await Promise.all(
-        Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
-          try {
-            const document = await getDocument(hmId(uid), {
-              discover: true,
-            })
-            return {
-              id: hmId(uid),
-              document,
-            }
-          } catch (e) {
-            console.error('error fetching author', uid, e)
-            return null
-          }
-        }),
-      )
-    ).filter((doc) => !!doc),
-  )
   const crumbs = getParentPaths(docId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
@@ -347,8 +250,6 @@ async function loadResourcePayload(
   return {
     document,
     comment,
-    supportDocuments,
-    supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),

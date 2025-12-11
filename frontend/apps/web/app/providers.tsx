@@ -24,11 +24,43 @@ import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {
+  DehydratedState,
+  hydrate,
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {webUniversalClient} from './universal-client'
 
-const queryClient = new QueryClient()
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+      },
+    },
+  })
+}
+
+// Browser singleton - only created once on client
+let browserQueryClient: QueryClient | null = null
+
+function getQueryClient() {
+  // Server: always create new client for each request (avoid data leakage)
+  if (typeof window === 'undefined') {
+    return createQueryClient()
+  }
+  // Browser: use singleton
+  if (!browserQueryClient) {
+    browserQueryClient = createQueryClient()
+  }
+  return browserQueryClient
+}
 
 type ThemeContextType = {
   theme: 'light' | 'dark'
@@ -47,9 +79,10 @@ export const useTheme = () => {
 }
 
 export const Providers = (props: {children: any}) => {
+  const [client] = useState(getQueryClient)
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={client}>
         {props.children}
       </QueryClientProvider>
     </ThemeProvider>
@@ -121,8 +154,16 @@ export function WebSiteProvider(props: {
   siteHost?: string
   origin?: string
   prefersLanguages?: (keyof typeof languagePacks)[]
+  dehydratedState?: DehydratedState
 }) {
   const navigate = useNavigate()
+  const client = useQueryClient()
+
+  // Hydrate synchronously so SSR hooks can access prefetched data
+  if (props.dehydratedState) {
+    hydrate(client, props.dehydratedState)
+  }
+
   const languagePack = useMemo(() => {
     const language = props.prefersLanguages?.[0]
     if (language) {
