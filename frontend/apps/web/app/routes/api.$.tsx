@@ -1,4 +1,5 @@
 import {grpcClient} from '@/client.server'
+import {withCors} from '@/utils/cors'
 import {wrapJSON} from '@/wrapping.server'
 import {LoaderFunctionArgs} from '@remix-run/node'
 import {HMRequest, HMRequestSchema} from '@shm/shared'
@@ -22,13 +23,13 @@ export async function loader({request, params}: LoaderFunctionArgs) {
   const key = pathParts[0]
 
   if (!key) {
-    return new Response('Missing API key', {status: 400})
+    return withCors(new Response('Missing API key', {status: 400}))
   }
 
   // Get the API definition from the router
   const apiDefinition = APIRouter[key as HMRequest['key']]
   if (!apiDefinition) {
-    return new Response(`Unknown API key: ${key}`, {status: 404})
+    return withCors(new Response(`Unknown API key: ${key}`, {status: 404}))
   }
 
   // Find the matching request schema
@@ -37,7 +38,7 @@ export async function loader({request, params}: LoaderFunctionArgs) {
   )
 
   if (!requestSchema) {
-    return new Response(`No schema found for key: ${key}`, {status: 500})
+    return withCors(new Response(`No schema found for key: ${key}`, {status: 500}))
   }
 
   try {
@@ -68,14 +69,16 @@ export async function loader({request, params}: LoaderFunctionArgs) {
     // Validate output with schema
     const validatedOutput = requestSchema.shape.output.parse(output)
 
-    return wrapJSON(validatedOutput)
+    return withCors(wrapJSON(validatedOutput))
   } catch (error) {
     console.error('API error:', error)
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }),
-      {status: 500, headers: {'Content-Type': 'application/json'}},
+    return withCors(
+      new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+        {status: 500, headers: {'Content-Type': 'application/json'}},
+      ),
     )
   }
 }
