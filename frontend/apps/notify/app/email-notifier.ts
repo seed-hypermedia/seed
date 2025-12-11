@@ -2,8 +2,6 @@ import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
 import {
-  abbreviateUid,
-  BlockNode,
   createWebHMUrl,
   entityQueryPathToHmIdPath,
   Event,
@@ -13,29 +11,34 @@ import {
   HMComment,
   HMCommentSchema,
   HMDocument,
-  HMDocumentMetadataSchema,
   hmId,
   HMMetadata,
-  HMMetadataPayload,
   normalizeDate,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
 import {CID} from 'multiformats'
-import {grpcClient} from './client.server'
 import {
   BaseSubscription,
   getAllEmails,
-  getBatchNotifierLastProcessedBlobCid,
+  getBatchNotifierLastProcessedEventId,
   getBatchNotifierLastSendTime,
-  getNotifierLastProcessedBlobCid,
-  setBatchNotifierLastProcessedBlobCid,
+  getNotifierLastProcessedEventId,
+  setBatchNotifierLastProcessedEventId,
   setBatchNotifierLastSendTime,
-  setNotifierLastProcessedBlobCid,
+  setNotifierLastProcessedEventId,
 } from './db'
-import {getAccount, getComment, getDocument, getMetadata} from './loaders'
 import {sendEmail} from './mailer'
+import {grpcClient, requestAPI} from './notify-request'
+
+async function getDocument(id: UnpackedHypermediaId) {
+  const resource = await requestAPI('Resource', id)
+  if (resource.type !== 'document') {
+    throw new Error(`Expected document resource, got ${resource.type}`)
+  }
+  return resource.document
+}
 
 let currentNotifProcessing: Promise<void> | undefined = undefined
 let currentBatchNotifProcessing: Promise<void> | undefined = undefined
@@ -158,26 +161,26 @@ export async function initEmailNotifier() {
 
 async function handleBatchNotifications() {
   const lastSendTime = getBatchNotifierLastSendTime()
-  const lastProcessedBlobCid = getBatchNotifierLastProcessedBlobCid()
-  const lastBlobCid = await getLastEventBlobCid()
-  if (!lastBlobCid) {
+  const lastProcessedEventId = getBatchNotifierLastProcessedEventId()
+  const lastEventId = await getLastEventId()
+  if (!lastEventId) {
     reportError(
-      'No last blob CID found. Verify connection to the daemon and make sure the activity api has events.',
+      'No last event ID found. Verify connection to the daemon and make sure the activity api has events.',
     )
     return
   }
-  if (!lastSendTime || !lastProcessedBlobCid) {
+  if (!lastSendTime || !lastProcessedEventId) {
     const resetTime = new Date()
     // we refuse to send all notifications for the whole historical feed. so if we haven't sent any notifications yet, we will do so after the first interval elapses
     reportError(
       'Batch notifier missing cursor values. Setting initial: ' +
         JSON.stringify({
           resetTime: resetTime.toISOString(),
-          lastBlobCid,
+          lastEventId,
         }),
     )
     setBatchNotifierLastSendTime(resetTime)
-    setBatchNotifierLastProcessedBlobCid(lastBlobCid)
+    setBatchNotifierLastProcessedEventId(lastEventId)
     return
   }
   const nowTime = Date.now()
@@ -185,14 +188,14 @@ async function handleBatchNotifications() {
     lastSendTime.getTime() + emailBatchNotifIntervalHours * 60 * 60 * 1000
   if (nextSendTime < nowTime) {
     try {
-      await sendBatchNotifications(lastProcessedBlobCid)
+      await sendBatchNotifications(lastProcessedEventId)
     } catch (error: any) {
       reportError('Error sending batch notifications: ' + error.message)
     } finally {
       // even if there is an error, we still want to mark the events as processed.
       // so that we don't attempt to process the same events again.
       setBatchNotifierLastSendTime(new Date())
-      setBatchNotifierLastProcessedBlobCid(lastBlobCid)
+      setBatchNotifierLastProcessedEventId(lastEventId)
     }
   } else {
     console.log(
@@ -204,53 +207,48 @@ async function handleBatchNotifications() {
 }
 
 async function handleEmailNotifications() {
-  const lastProcessedBlobCid = getNotifierLastProcessedBlobCid()
-  if (lastProcessedBlobCid) {
-    await handleImmediateNotificationsAfterBlobCid(lastProcessedBlobCid)
+  const lastProcessedEventId = getNotifierLastProcessedEventId()
+  if (lastProcessedEventId) {
+    await handleImmediateNotificationsAfterEventId(lastProcessedEventId)
   } else {
     reportError(
-      'No last processed blob CID found. Resetting last processed blob CID',
+      'No last processed event ID found. Resetting last processed event ID',
     )
-    await resetNotifierLastProcessedBlobCid()
+    await resetNotifierLastProcessedEventId()
   }
 }
 
-async function getLastEventBlobCid(): Promise<string | undefined> {
+async function getLastEventId(): Promise<string | undefined> {
   const {events} = await grpcClient.activityFeed.listEvents({
     pageToken: undefined,
     pageSize: 5,
   })
   const event = events.at(0)
   if (!event) return
-  const lastBlobCid =
-    event.data.case === 'newBlob'
-      ? event.data.value?.cid
-      : event.data.case === 'newMention'
-      ? event.data.value?.sourceBlob?.cid
-      : undefined
-  if (!lastBlobCid) return
-  return lastBlobCid
+  const lastEventId = getEventId(event)
+  if (!lastEventId) return
+  return lastEventId
 }
 
-async function sendBatchNotifications(lastProcessedBlobCid: string) {
-  console.log('Sending batch notifications', lastProcessedBlobCid)
-  const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
+async function sendBatchNotifications(lastProcessedEventId: string) {
+  console.log('Sending batch notifications', lastProcessedEventId)
+  const eventsToProcess = await loadEventsAfterEventId(lastProcessedEventId)
   console.log('Batch notifications events to process:', eventsToProcess.length)
   if (eventsToProcess.length === 0) return
   await handleEmailNotifs(eventsToProcess, notifReasonsBatch)
 }
 
-async function resetNotifierLastProcessedBlobCid() {
-  const lastBlobCid = await getLastEventBlobCid()
-  reportError('Resetting notifier last processed blob CID to ' + lastBlobCid)
-  if (!lastBlobCid) return
-  setNotifierLastProcessedBlobCid(lastBlobCid)
+async function resetNotifierLastProcessedEventId() {
+  const lastEventId = await getLastEventId()
+  if (!lastEventId) return
+  reportError('Resetting notifier last processed event ID to ' + lastEventId)
+  setNotifierLastProcessedEventId(lastEventId)
 }
 
-async function handleImmediateNotificationsAfterBlobCid(
-  lastProcessedBlobCid: string,
+async function handleImmediateNotificationsAfterEventId(
+  lastProcessedEventId: string,
 ) {
-  const eventsToProcess = await loadEventsAfterBlobCid(lastProcessedBlobCid)
+  const eventsToProcess = await loadEventsAfterEventId(lastProcessedEventId)
   if (eventsToProcess.length === 0) return
   try {
     await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
@@ -259,7 +257,7 @@ async function handleImmediateNotificationsAfterBlobCid(
   } finally {
     // even if there is an error, we still want to mark the events as processed.
     // so that we don't attempt to process the same events again.
-    await markEventsAsProcessed(eventsToProcess)
+    markEventsAsProcessed(eventsToProcess)
   }
 }
 
@@ -372,11 +370,9 @@ async function evaluateEventForNotifications(
     considerationTime <
       new Date(Date.now() - emailBatchNotifIntervalHours * 60 * 60 * 1000)
   ) {
-    // const eventId = event.data.case === 'newBlob' ? event.data.value?.cid : event.data.case === 'newMention' ? event.data.value?.
+    const eventId = getEventId(event)
     reportError(
-      `Event ${getEventId(
-        event,
-      )} is older than ${emailBatchNotifIntervalHours} hours. Ignoring!`,
+      `Event ${eventId} is older than ${emailBatchNotifIntervalHours} hours. Ignoring!`,
     )
     return
   }
@@ -421,7 +417,7 @@ async function evaluateDocUpdateForNotifications(
 ) {
   for (const sub of allSubscriptions) {
     if (sub.notifyAllMentions && refEvent.newMentions[sub.id]) {
-      const subjectAccountMeta = (await getAccount(sub.id)).metadata
+      const subjectAccountMeta = (await requestAPI('Account', sub.id)).metadata
       appendNotification(sub, {
         reason: 'mention',
         source: 'document',
@@ -451,7 +447,7 @@ async function evaluateNewCommentForNotifications(
   let targetMeta = null
 
   try {
-    commentAuthorMeta = (await getAccount(comment.author)).metadata
+    commentAuthorMeta = (await requestAPI('Account', comment.author)).metadata
   } catch (error: any) {
     reportError(
       `Error getting comment author ${comment.author}: ${error.message}`,
@@ -460,7 +456,8 @@ async function evaluateNewCommentForNotifications(
 
   try {
     targetMeta = (
-      await getMetadata(
+      await requestAPI(
+        'ResourceMetadata',
         hmId(comment.targetAccount, {
           path: entityQueryPathToHmIdPath(comment.targetPath),
         }),
@@ -506,7 +503,7 @@ async function evaluateNewCommentForNotifications(
   let parentCommentAuthor: string | null = null
   if (comment.replyParent) {
     try {
-      const parentComment = await getComment(comment.replyParent)
+      const parentComment = await requestAPI('Comment', comment.replyParent)
       if (parentComment) {
         parentCommentAuthor = parentComment.author
       }
@@ -519,7 +516,7 @@ async function evaluateNewCommentForNotifications(
 
   for (const sub of allSubscriptions) {
     if (sub.notifyAllMentions && mentionedUsers.has(sub.id)) {
-      const subjectAccountMeta = await getAccount(sub.id)
+      const subjectAccountMeta = await requestAPI('Account', sub.id)
       if (!subjectAccountMeta) {
         throw new Error(`Error getting subject account meta for ${sub.id}`)
       }
@@ -575,32 +572,6 @@ async function evaluateNewCommentForNotifications(
   }
 }
 
-// function getMentions(comment: PlainMessage<Comment>) {
-//   const allMentions = new Set<string>()
-//   comment.content.forEach((rawBlockNode) => {
-//     const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-//     const mentions = getBlockNodeMentions(blockNode)
-//     for (const mention of mentions) {
-//       allMentions.add(mention)
-//     }
-//   })
-//   return allMentions
-// }
-
-// function getBlockNodeMentions(blockNode: HMBlockNode): Set<string> {
-//   const mentions: Set<string> = new Set()
-//   // @ts-expect-error
-//   for (const annotation of blockNode.block?.annotations || []) {
-//     if (annotation.type === 'Embed') {
-//       const hmId = unpackHmId(annotation.link)
-//       if (hmId && !hmId.path?.length) {
-//         mentions.add(hmId.uid)
-//       }
-//     }
-//   }
-//   return mentions
-// }
-
 async function getParentComments(comment: HMComment) {
   const parentComments: HMComment[] = []
   let currentComment = comment
@@ -631,24 +602,19 @@ async function getParentComments(comment: HMComment) {
   return parentComments
 }
 
-async function markEventsAsProcessed(events: PlainMessage<Event>[]) {
+function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   const newestEvent = events.at(0)
   if (!newestEvent) return
-  const lastProcessedBlobCid =
-    newestEvent.data.case === 'newBlob'
-      ? newestEvent.data.value?.cid
-      : newestEvent.data.case === 'newMention'
-      ? newestEvent.data.value?.sourceBlob?.cid
-      : undefined
-  if (!lastProcessedBlobCid) return
+  const lastProcessedEventId = getEventId(newestEvent)
+  if (!lastProcessedEventId) return
   console.log(
-    'Setting notifier last processed blob CID to ' + lastProcessedBlobCid,
+    'Setting notifier last processed event ID to ' + lastProcessedEventId,
   )
-  await setNotifierLastProcessedBlobCid(lastProcessedBlobCid)
+  setNotifierLastProcessedEventId(lastProcessedEventId)
 }
 
-async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
-  const eventsAfterBlobCid = []
+async function loadEventsAfterEventId(lastProcessedEventId: string) {
+  const eventsAfterEventId = []
   let currentPageToken: string | undefined
 
   while (true) {
@@ -658,18 +624,12 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
     })
 
     for (const event of events) {
-      const eventCid =
-        event.data.case === 'newBlob'
-          ? event.data.value?.cid
-          : event.data.case === 'newMention'
-          ? event.data.value?.sourceBlob?.cid
-          : undefined
-
-      if (eventCid) {
-        if (eventCid === lastProcessedBlobCid) {
-          return eventsAfterBlobCid
+      const eventId = getEventId(event)
+      if (eventId) {
+        if (eventId === lastProcessedEventId) {
+          return eventsAfterEventId
         }
-        eventsAfterBlobCid.push(toPlainMessage(event))
+        eventsAfterEventId.push(toPlainMessage(event))
       }
     }
 
@@ -677,55 +637,7 @@ async function loadEventsAfterBlobCid(lastProcessedBlobCid: string) {
     currentPageToken = nextPageToken
   }
 
-  return eventsAfterBlobCid
-}
-
-async function resolveAccount(accountId: string) {
-  const account = await grpcClient.documents.getAccount({id: accountId})
-  if (account.aliasAccount) {
-    return await resolveAccount(account.aliasAccount)
-  }
-  const result: HMMetadataPayload = {
-    id: hmId(accountId),
-    metadata: HMDocumentMetadataSchema.parse(account.metadata),
-  }
-  return result
-}
-
-async function resolveAnnotationNames(blocks: BlockNode[]) {
-  const resolvedNames: Record<string, string> = {}
-
-  for (const block of blocks) {
-    const blockNode = HMBlockNodeSchema.parse(block)
-    // @ts-expect-error
-    for (const annotation of blockNode.block?.annotations || []) {
-      if (annotation.type === 'Embed' && annotation.link) {
-        const unpacked = unpackHmId(annotation.link)
-
-        if (unpacked) {
-          const isAccountLink = !unpacked.path || unpacked.path.length === 0
-
-          try {
-            if (isAccountLink) {
-              const account = await getAccount(unpacked.uid)
-              resolvedNames[annotation.link] = account.metadata?.name
-                ? account.metadata?.name
-                : `@${abbreviateUid(unpacked.uid)}`
-            } else {
-              const meta = await getMetadata(unpacked)
-              resolvedNames[annotation.link] = meta.metadata?.name
-                ? meta.metadata?.name
-                : `@${abbreviateUid(unpacked.uid)}`
-            }
-          } catch {
-            resolvedNames[annotation.link] = `@${abbreviateUid(unpacked.uid)}`
-          }
-        }
-      }
-    }
-  }
-
-  return resolvedNames
+  return eventsAfterEventId
 }
 
 async function loadRefEvent(event: PlainMessage<Event>) {
@@ -784,7 +696,7 @@ async function loadRefEvent(event: PlainMessage<Event>) {
       }
     }
   }
-  const authorMeta = (await getAccount(blob.author)).metadata
+  const authorMeta = (await requestAPI('Account', blob.author)).metadata
   if (!authorMeta)
     throw new Error('Error getting author meta for ' + blob.author)
   return {

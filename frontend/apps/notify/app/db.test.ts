@@ -7,11 +7,11 @@ import {
   createSubscription,
   getAllEmails,
   getEmailWithToken,
-  getNotifierLastProcessedBlobCid,
+  getNotifierLastProcessedEventId,
   getSubscription,
   initDatabase,
   setEmailUnsubscribed,
-  setNotifierLastProcessedBlobCid,
+  setNotifierLastProcessedEventId,
   setSubscription,
   updateSubscription,
 } from './db'
@@ -466,23 +466,23 @@ describe('Database', () => {
 
   describe('notifier operations', () => {
     it('should get and set last processed blob CID', () => {
-      const testCid =
+      const testId =
         'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi'
 
       // Initially should be undefined
-      expect(getNotifierLastProcessedBlobCid()).toBeUndefined()
+      expect(getNotifierLastProcessedEventId()).toBeUndefined()
 
       // Set the CID
-      setNotifierLastProcessedBlobCid(testCid)
+      setNotifierLastProcessedEventId(testId)
 
       // Should now return the set CID
-      expect(getNotifierLastProcessedBlobCid()).toBe(testCid)
+      expect(getNotifierLastProcessedEventId()).toBe(testId)
 
       // Setting a new CID should update the value
       const newCid =
         'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
-      setNotifierLastProcessedBlobCid(newCid)
-      expect(getNotifierLastProcessedBlobCid()).toBe(newCid)
+      setNotifierLastProcessedEventId(newCid)
+      expect(getNotifierLastProcessedEventId()).toBe(newCid)
     })
   })
 })

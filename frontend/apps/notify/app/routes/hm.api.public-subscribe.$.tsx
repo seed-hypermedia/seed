@@ -1,10 +1,9 @@
 import {setSubscription} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
-import {getMetadata} from '@/loaders'
+import {requestAPI} from '@/notify-request'
 import {withCors} from '@/utils/cors'
 import {ActionFunction, LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/react'
-import {hmId} from '@shm/shared'
 import {z} from 'zod'
 
 export const loader: LoaderFunction = async ({request, params}) => {
@@ -55,7 +54,7 @@ export const action: ActionFunction = async ({request}) => {
 
     // Send welcome email
     try {
-      const metadata = await getMetadata(hmId(payload.accountId))
+      const metadata = await requestAPI('Account', payload.accountId)
       if (metadata.metadata) {
         const {getEmail} = await import('@/db')
         const newEmail = getEmail(payload.email)

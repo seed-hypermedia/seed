@@ -50,12 +50,8 @@ let stmtInsertEmail: Database.Statement
 let stmtInsertSubscription: Database.Statement
 let stmtGetSubscription: Database.Statement
 let stmtGetSubscriptionsForAccount: Database.Statement
-let stmtGetNotifierLastProcessedBlobCid: Database.Statement
-let stmtSetNotifierLastProcessedBlobCid: Database.Statement
-let stmtGetBatchNotifierLastProcessedBlobCid: Database.Statement
-let stmtSetBatchNotifierLastProcessedBlobCid: Database.Statement
-let stmtGetBatchNotifierLastSendTime: Database.Statement
-let stmtSetBatchNotifierLastSendTime: Database.Statement
+let stmtSetNotifierStatus: Database.Statement
+let stmtGetNotifierStatus: Database.Statement
 let stmtUpdateSubscription: Database.Statement
 let stmtGetEmail: Database.Statement
 let stmtGetEmailWithToken: Database.Statement
@@ -183,23 +179,11 @@ export async function initDatabase(): Promise<void> {
     FROM email_subscriptions es
     WHERE es.id = ?
   `)
-  stmtGetNotifierLastProcessedBlobCid = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'last_processed_blob_cid'
-  `)
-  stmtSetNotifierLastProcessedBlobCid = db.prepare(`
+  stmtSetNotifierStatus = db.prepare(`
     INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
   `)
-  stmtGetBatchNotifierLastProcessedBlobCid = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'last_processed_batch_blob_cid'
-  `)
-  stmtSetBatchNotifierLastProcessedBlobCid = db.prepare(`
-    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
-  `)
-  stmtGetBatchNotifierLastSendTime = db.prepare(`
-    SELECT value FROM notifier_status WHERE field = 'batch_notifier_last_send_time'
-  `)
-  stmtSetBatchNotifierLastSendTime = db.prepare(`
-    INSERT OR REPLACE INTO notifier_status (field, value) VALUES (?, ?)
+  stmtGetNotifierStatus = db.prepare(`
+    SELECT value FROM notifier_status WHERE field = ?
   `)
   stmtUpdateSubscription = db.prepare(`
     UPDATE email_subscriptions SET notifyAllMentions = ?, notifyAllReplies = ?, notifyOwnedDocChange = ?, notifySiteDiscussions = ?, notifyAllComments = ? WHERE id = ?
@@ -309,35 +293,30 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
   }))
 }
 
-export function getNotifierLastProcessedBlobCid(): string | undefined {
-  const result = stmtGetNotifierLastProcessedBlobCid.get() as
+export function getNotifierLastProcessedEventId(): string | undefined {
+  const result = stmtGetNotifierStatus.get('last_processed_event_id') as
     | {value: string}
     | undefined
   return result?.value
 }
 
-// delete from notifier_status where field='last_processed_blob_cid';
-
-export function setNotifierLastProcessedBlobCid(cid: string): void {
-  stmtSetNotifierLastProcessedBlobCid.run('last_processed_blob_cid', cid)
+export function setNotifierLastProcessedEventId(eventId: string): void {
+  stmtSetNotifierStatus.run('last_processed_event_id', eventId)
 }
 
-export function getBatchNotifierLastProcessedBlobCid(): string | undefined {
-  const result = stmtGetBatchNotifierLastProcessedBlobCid.get() as
+export function getBatchNotifierLastProcessedEventId(): string | undefined {
+  const result = stmtGetNotifierStatus.get('last_processed_batch_event_id') as
     | {value: string}
     | undefined
   return result?.value
 }
 
-export function setBatchNotifierLastProcessedBlobCid(cid: string): void {
-  stmtSetBatchNotifierLastProcessedBlobCid.run(
-    'last_processed_batch_blob_cid',
-    cid,
-  )
+export function setBatchNotifierLastProcessedEventId(eventId: string): void {
+  stmtSetNotifierStatus.run('last_processed_batch_event_id', eventId)
 }
 
 export function getBatchNotifierLastSendTime(): Date | undefined {
-  const result = stmtGetBatchNotifierLastSendTime.get() as
+  const result = stmtGetNotifierStatus.get('batch_notifier_last_send_time') as
     | {value: string}
     | undefined
   if (!result?.value) return undefined
@@ -345,10 +324,7 @@ export function getBatchNotifierLastSendTime(): Date | undefined {
 }
 
 export function setBatchNotifierLastSendTime(time: Date): void {
-  stmtSetBatchNotifierLastSendTime.run(
-    'batch_notifier_last_send_time',
-    time.toISOString(),
-  )
+  stmtSetNotifierStatus.run('batch_notifier_last_send_time', time.toISOString())
 }
 
 export function updateSubscription(

@@ -1,5 +1,6 @@
 import {HMRequest} from '.'
 import {Account, AccountParams} from './api-account'
+import {Comment} from './api-comment'
 import {AccountContacts} from './api-account-contacts'
 import {ListEvents} from './api-activity'
 import {BatchAccounts} from './api-batch-accounts'
@@ -25,6 +26,7 @@ export const APIRouter = {
   Resource,
   ResourceMetadata,
   Account,
+  Comment,
   AccountContacts,
   BatchAccounts,
   Search,

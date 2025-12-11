@@ -1316,6 +1316,13 @@ export const HMAccountRequestSchema = z.object({
 })
 export type HMAccountRequest = z.infer<typeof HMAccountRequestSchema>
 
+export const HMCommentRequestSchema = z.object({
+  key: z.literal('Comment'),
+  input: z.string(),
+  output: HMCommentSchema,
+})
+export type HMCommentRequest = z.infer<typeof HMCommentRequestSchema>
+
 export const HMBatchAccountsRequestSchema = z.object({
   key: z.literal('BatchAccounts'),
   input: z.array(z.string()),
@@ -1624,6 +1631,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
   HMAccountRequestSchema,
+  HMCommentRequestSchema,
   HMBatchAccountsRequestSchema,
   HMSearchRequestSchema,
   HMQueryRequestSchema,

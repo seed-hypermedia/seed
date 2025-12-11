@@ -1,8 +1,7 @@
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
-import type {SiteDocumentPayload} from './loaders'
 
-export function NotFoundPage({id}: SiteDocumentPayload) {
+export function NotFoundPage() {
   const tx = useTx()
   return (
     <div className="flex h-screen w-screen flex-col">
