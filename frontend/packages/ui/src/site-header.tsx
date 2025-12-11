@@ -8,7 +8,7 @@ import {
   useRouteLink,
 } from '@shm/shared'
 import {useTxString, useTxUtils} from '@shm/shared/translation'
-import React, {useCallback, useMemo, useRef, useState} from 'react'
+import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
@@ -722,38 +722,70 @@ function GotoLatestBanner({
 
 export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'
 
-export function useAutoHideSiteHeader() {
+export function useAutoHideSiteHeader(
+  scrollContainerRef?: React.RefObject<HTMLElement>,
+) {
   const media = useMedia()
   const prevScrollPos = useRef(0)
-  const [className, setClassName] =
-    useState<AutoHideSiteHeaderClassName>('translate-y-0')
+  const [isHidden, setIsHidden] = useState(false)
 
-  const onScroll = useCallback(
-    (e: any) => {
-      if (media.gtSm) return
-      if (!e.currentTarget) return
+  useEffect(() => {
+    const handleScroll = () => {
+      let currentScrollPos: number
 
-      const currentScrollPos = e.currentTarget.scrollTop
-      const threshold = 10 // Add threshold to prevent flickering on small movements
+      // Get scroll position from appropriate source
+      if (media.gtSm && scrollContainerRef?.current) {
+        // Desktop: use custom scroll container
+        currentScrollPos = scrollContainerRef.current.scrollTop
+      } else if (!media.gtSm) {
+        // Mobile: use window scroll
+        currentScrollPos = window.scrollY
+      } else {
+        // Desktop without container ref - skip
+        return
+      }
+
+      const threshold = 10 // Prevent flickering on small movements
 
       // Only update if scroll difference is significant
       if (Math.abs(currentScrollPos - prevScrollPos.current) < threshold) {
         return
       }
 
+      // Hide when scrolling down past 50px, show when scrolling up
       if (currentScrollPos > prevScrollPos.current && currentScrollPos > 50) {
-        setClassName('-translate-y-full')
+        setIsHidden(true)
       } else {
-        setClassName('translate-y-0')
+        setIsHidden(false)
       }
 
       prevScrollPos.current = currentScrollPos
-    },
-    [media.gtSm],
-  )
+    }
+
+    // Attach scroll listener to appropriate target
+    if (media.gtSm && scrollContainerRef?.current) {
+      // Desktop: listen to custom container
+      const container = scrollContainerRef.current
+      container.addEventListener('scroll', handleScroll, {passive: true})
+      return () => {
+        container.removeEventListener('scroll', handleScroll)
+      }
+    } else if (!media.gtSm) {
+      // Mobile: listen to window
+      window.addEventListener('scroll', handleScroll, {passive: true})
+      return () => {
+        window.removeEventListener('scroll', handleScroll)
+      }
+    }
+    // Desktop without scroll ref - no cleanup needed
+    return undefined
+  }, [media.gtSm, scrollContainerRef])
 
   return {
-    hideSiteBarClassName: className,
-    onScroll,
+    hideSiteHeaderClassName: isHidden
+      ? '-translate-y-full'
+      : ('translate-y-0' as AutoHideSiteHeaderClassName),
+    hideMobileBarClassName: isHidden ? 'opacity-40' : '',
+    onScroll: () => {}, // Keep for backward compatibility
   }
 }

@@ -188,18 +188,8 @@ function InnerDocumentPage(
   const keyPair = useLocalKeyPair()
   const currentAccount = useAccount(keyPair?.id || undefined)
 
-  const {hideSiteBarClassName, onScroll} = useAutoHideSiteHeader()
-
-  // Attach onScroll handler to main scroll container
-  useEffect(() => {
-    const container = mainScrollRef.current
-    if (!container) return
-
-    container.addEventListener('scroll', onScroll, {passive: true})
-    return () => {
-      container.removeEventListener('scroll', onScroll)
-    }
-  }, [onScroll])
+  const {hideSiteHeaderClassName, hideMobileBarClassName} =
+    useAutoHideSiteHeader(media.gtSm ? mainScrollRef : undefined)
 
   useEffect(() => {
     if (!id) return
@@ -207,22 +197,13 @@ function InnerDocumentPage(
   }, [id, document?.metadata?.name])
 
   useEffect(() => {
-    if (media.gtSm) {
-      const mainPanel = mainPanelRef.current
-      if (!mainPanel) return
-      if (panel) {
-        mainPanel.resize(DEFAULT_MAIN_PANEL_SIZE)
-        mainPanel.expand()
-      }
-    } else {
-      const mainPanel = mainPanelRef.current
-      if (!mainPanel) return
-      if (panel) {
-        setTimeout(() => {
-          mainPanel.collapse()
-        }, 1)
-      }
-    }
+    if (!media.gtSm || !panel) return
+
+    const mainPanel = mainPanelRef.current
+    if (!mainPanel) return
+
+    mainPanel.resize(DEFAULT_MAIN_PANEL_SIZE)
+    mainPanel.expand()
   }, [panel, media.gtSm])
 
   const isHomeDoc = !id?.path?.length
@@ -354,27 +335,6 @@ function InnerDocumentPage(
     }
   }, [comment?.id, blockRef, blockRange])
 
-  // Lock body scroll when mobile panel opens
-  useEffect(() => {
-    if (typeof window === 'undefined' || media.gtSm || !isMobilePanelOpen)
-      return
-
-    const scrollY = window.scrollY
-    const body = window.document.body
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.width = '100%'
-    body.style.overflow = 'hidden'
-
-    return () => {
-      body.style.position = ''
-      body.style.top = ''
-      body.style.width = ''
-      body.style.overflow = ''
-      window.scrollTo(0, scrollY)
-    }
-  }, [isMobilePanelOpen, media.gtSm])
-
   const context = useUniversalAppContext()
   const onActivateBlock = useCallback(
     (blockId: string) => {
@@ -420,20 +380,9 @@ function InnerDocumentPage(
     enabled: activityEnabled,
   })
 
-  const onBlockCitationClick = useCallback(
-    (blockId?: string | null) => {
-      setDocumentPanel({type: 'discussions', blockId: blockId})
-
-      if (!media.gtSm) {
-        const mainPanel = mainPanelRef.current
-        if (!mainPanel) return
-        setTimeout(() => {
-          mainPanel.collapse()
-        }, 1)
-      }
-    },
-    [media.gtSm],
-  )
+  const onBlockCitationClick = useCallback((blockId?: string | null) => {
+    setDocumentPanel({type: 'discussions', blockId: blockId})
+  }, [])
 
   const onBlockCommentClick = useCallback(
     (
@@ -609,9 +558,15 @@ function InnerDocumentPage(
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
+        <div
+          className={cn(
+            'bg-panel flex w-screen flex-col',
+            media.gtSm && 'h-screen max-h-screen overflow-hidden',
+            !media.gtSm && 'min-h-svh',
+          )}
+        >
           <WebSiteHeader
-            hideSiteBarClassName={hideSiteBarClassName}
+            hideSiteBarClassName={hideSiteHeaderClassName}
             noScroll={!!panel}
             homeMetadata={homeMetadata}
             originHomeId={originHomeId}
@@ -645,8 +600,11 @@ function InnerDocumentPage(
                   </div>
                 ) : null}
                 <div
-                  className="flex flex-1 flex-col overflow-y-auto"
-                  ref={mainScrollRef}
+                  className={cn(
+                    'flex flex-1 flex-col',
+                    media.gtSm && 'overflow-y-auto',
+                  )}
+                  ref={media.gtSm ? mainScrollRef : null}
                 >
                   <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
                     <DocumentCover cover={document.metadata.cover} />
@@ -893,6 +851,7 @@ function InnerDocumentPage(
                 }}
                 commentsCount={interactionSummary.data?.comments || 0}
                 id={id}
+                hideMobileBarClassName={hideMobileBarClassName}
               />
 
               <div
@@ -959,10 +918,12 @@ function MobileInteractionCardCollapsed({
   onClick,
   commentsCount = 0,
   id,
+  hideMobileBarClassName,
 }: {
   onClick: () => void
   commentsCount: number
   id: UnpackedHypermediaId
+  hideMobileBarClassName?: string
 }) {
   const keyPair = useLocalKeyPair()
   // Use retry and disable refetchOnWindowFocus to avoid 404 errors while account is being created
@@ -1007,7 +968,11 @@ function MobileInteractionCardCollapsed({
   return (
     <>
       <div
-        className="dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2"
+        className={cn(
+          'dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2',
+          'transition-all duration-200',
+          hideMobileBarClassName,
+        )}
         style={{
           boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
         }}
