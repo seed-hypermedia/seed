@@ -38,7 +38,9 @@ export async function loader({request, params}: LoaderFunctionArgs) {
   )
 
   if (!requestSchema) {
-    return withCors(new Response(`No schema found for key: ${key}`, {status: 500}))
+    return withCors(
+      new Response(`No schema found for key: ${key}`, {status: 500}),
+    )
   }
 
   try {
