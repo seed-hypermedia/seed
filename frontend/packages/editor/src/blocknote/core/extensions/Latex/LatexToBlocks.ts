@@ -532,9 +532,8 @@ export async function LatexToBlocks(
 
       // Lists
       if (node.env === 'itemize' || node.env === 'enumerate') {
-        const listType =
-          node.env === 'itemize' ? 'Unordered' : 'Ordered'
-        const listItems: Block<BlockSchema>[] = []
+        const listType = node.env === 'itemize' ? 'Unordered' : 'Ordered'
+        const listItemChildren: Block<BlockSchema>[] = []
 
         let currentItemContent: Ast.Node[] = []
 
@@ -542,12 +541,9 @@ export async function LatexToBlocks(
           if (currentItemContent.length > 0) {
             const styledContent = nodesToStyledText(currentItemContent)
             if (styledContent.length > 0) {
-              listItems.push(
-                createBlock(
-                  'paragraph',
-                  {type: 'p', childrenType: listType},
-                  styledContent,
-                ),
+              // Each list item is a normal paragraph as a child
+              listItemChildren.push(
+                createBlock('paragraph', {type: 'p'}, styledContent),
               )
             }
             currentItemContent = []
@@ -563,9 +559,16 @@ export async function LatexToBlocks(
         }
         flushItem()
 
-        // Add list items as children of a container or directly
-        for (const item of listItems) {
-          blocks.push(item)
+        // Create parent block with childrenType set to list type, children are the items
+        if (listItemChildren.length > 0) {
+          blocks.push(
+            createBlock(
+              'paragraph',
+              {type: 'p', childrenType: listType},
+              [], // empty content for parent
+              listItemChildren,
+            ),
+          )
         }
         return
       }
@@ -574,11 +577,15 @@ export async function LatexToBlocks(
       if (node.env === 'quote' || node.env === 'quotation') {
         const styledContent = nodesToStyledText(node.content)
         if (styledContent.length > 0) {
+          // Create a child paragraph with the quote content
+          const quoteChild = createBlock('paragraph', {type: 'p'}, styledContent)
+          // Create parent block with childrenType: 'Blockquote' and the content as child
           blocks.push(
             createBlock(
               'paragraph',
               {type: 'p', childrenType: 'Blockquote'},
-              styledContent,
+              [], // empty content for parent
+              [quoteChild],
             ),
           )
         }
