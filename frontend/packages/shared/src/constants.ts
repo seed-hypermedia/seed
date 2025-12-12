@@ -69,9 +69,7 @@ export const IS_PROD_DESKTOP =
 // Always use 'hm' for document URLs (backend only supports this)
 export const HYPERMEDIA_SCHEME = 'hm'
 
-// Use separate scheme for OS protocol registration in development
-// This prevents conflicts between dev and production desktop apps
-export const OS_PROTOCOL_SCHEME = IS_PROD_DESKTOP ? 'hm' : 'hm-dev'
+export const OS_PROTOCOL_SCHEME = 'hm'
 
 export const IS_DESKTOP = (() => {
   try {

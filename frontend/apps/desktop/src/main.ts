@@ -78,7 +78,7 @@ import {
 } from './app-onboarding-store'
 import {templates} from './app-templates'
 
-// Use 'hm-dev' in development, 'hm' in production for OS protocol registration
+// Use 'hm' in production for OS protocol registration
 const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
 // @ts-ignore
 global.electronTRPC = {}

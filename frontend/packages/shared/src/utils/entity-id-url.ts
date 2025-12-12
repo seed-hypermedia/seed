@@ -71,7 +71,7 @@ export function createHMUrl({
 
 /**
  * Create URL for OS protocol registration (to open desktop app).
- * Uses 'hm-dev://' in development, 'hm://' in production.
+ * Uses 'hm://'
  * This is separate from createHMUrl which creates document URLs.
  */
 export function createOSProtocolUrl({
@@ -263,12 +263,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     hostname = parsed.path[0]
     uid = parsed.path[2]
     path = parsed.path.slice(3)
-  } else if (
-    parsed.scheme === HYPERMEDIA_SCHEME ||
-    parsed.scheme === 'hm' ||
-    parsed.scheme === 'hm-dev'
-  ) {
-    // Accept both 'hm' and 'hm-dev' schemes for compatibility
+  } else if (parsed.scheme === HYPERMEDIA_SCHEME || parsed.scheme === 'hm') {
+    // Accept 'hm' scheme for compatibility
     uid = parsed.path[0]
     path = parsed.path.slice(1)
   } else {
@@ -306,9 +302,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
 
 export function isHypermediaScheme(url?: string) {
   return (
-    !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) ||
-    !!url?.startsWith('hm://') ||
-    !!url?.startsWith('hm-dev://')
+    !!url?.startsWith(`${HYPERMEDIA_SCHEME}://`) || !!url?.startsWith('hm://')
   )
 }
 
