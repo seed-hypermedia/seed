@@ -2,7 +2,7 @@
   "name": "seed",
   "private": true,
   "scripts": {
-    "test": "yarn web:test && yarn shared:test",
+    "test": "yarn web:test && yarn shared:test && yarn desktop:test:unit",
     "shared:test": "yarn workspace @shm/shared test",
     "format:check": "yarn workspaces foreach -pt run format:check",
     "typecheck": "echo '🛠️ Building shared packages types...' && yarn workspace @shm/shared build:types && echo '✅ Types built Successfully' && echo '🛠️ Checking types across all workspaces...' && yarn workspaces foreach -pt run typecheck && echo '✅ Types checked Successfully'",
@@ -32,6 +32,7 @@
     "desktop:publish": "yarn workspace @shm/desktop publish",
     "desktop:test": "yarn workspace @shm/desktop test",
     "desktop:test:only": "yarn workspace @shm/desktop test:only",
+    "desktop:test:unit": "yarn workspace @shm/desktop test:unit",
     "desktop:devtools": "yarn workspace @shm/desktop devtools",
     "desktop:perf": "yarn workspace @shm/performance test",
     "explore": "yarn workspace @shm/explore dev",

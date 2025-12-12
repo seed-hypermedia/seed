@@ -222,6 +222,9 @@ export function getWindowNavState() {
   return windowNavState
 }
 
+// Re-export the pure utility function from utils/account-selection
+export {getSelectedIdentityFromWindowState} from './utils/account-selection'
+
 /**
  * Gets the most recently focused window, even if app is in background.
  * Used by auto-updater to send notifications when app isn't focused.

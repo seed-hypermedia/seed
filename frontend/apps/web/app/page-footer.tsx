@@ -1,4 +1,4 @@
-import {createHMUrl, UnpackedHypermediaId} from '@shm/shared'
+import {createOSProtocolUrl, UnpackedHypermediaId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
@@ -54,12 +54,9 @@ export function PageFooter({
               className="hidden sm:flex"
               size="sm"
               variant="default"
-              onClick={() => {
-                createHMUrl(id)
-              }}
               asChild
             >
-              <a href={createHMUrl(id)}>
+              <a href={createOSProtocolUrl(id)}>
                 <ExternalLink className="size-3" />
                 {tx('Open App')}
               </a>

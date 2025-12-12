@@ -28,8 +28,6 @@ const WEB_ENV = (() => {
   }
 })()
 
-export const HYPERMEDIA_SCHEME = 'hm'
-
 export const DEFAULT_GATEWAY_URL: string =
   IME.VITE_GATEWAY_URL || process.env.VITE_GATEWAY_URL || 'https://hyper.media'
 
@@ -67,6 +65,13 @@ export const COMMIT_HASH =
 
 export const IS_PROD_DESKTOP =
   !!IME.PROD || process.env.NODE_ENV === 'production'
+
+// Always use 'hm' for document URLs (backend only supports this)
+export const HYPERMEDIA_SCHEME = 'hm'
+
+// Use separate scheme for OS protocol registration in development
+// This prevents conflicts between dev and production desktop apps
+export const OS_PROTOCOL_SCHEME = IS_PROD_DESKTOP ? 'hm' : 'hm-dev'
 
 export const IS_DESKTOP = (() => {
   try {

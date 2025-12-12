@@ -44,7 +44,11 @@ import {
   createAppWindow,
   dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
+  getAllWindows,
   getFocusedWindow,
+  getLastFocusedWindow,
+  getSelectedIdentityFromWindowState,
+  getWindowNavState,
   getWindowsState,
 } from './app-windows'
 import * as log from './logger'
@@ -434,8 +438,27 @@ export async function handleUrlOpen(url: string) {
   const id = unpackHmId(url)
   const appRoute = id ? appRouteOfId(id) : null
   if (appRoute) {
+    // Get selectedIdentity from last focused window
+    const lastFocusedWindow = getLastFocusedWindow()
+    const lastFocusedWindowId = lastFocusedWindow
+      ? Array.from(getAllWindows().entries()).find(
+          ([_, window]) => window === lastFocusedWindow,
+        )?.[0]
+      : null
+
+    let selectedIdentity = getSelectedIdentityFromWindowState(
+      getWindowNavState(),
+      lastFocusedWindowId,
+    )
+
+    // Fallback to first available account if no focused window
+    if (!selectedIdentity) {
+      selectedIdentity = await getFirstAvailableAccount()
+    }
+
     trpc.createAppWindow({
       routes: [appRoute],
+      selectedIdentity,
     })
     return
   }

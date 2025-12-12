@@ -62,7 +62,12 @@ import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
-import {BIG_INT, IS_PROD_DESKTOP, VERSION} from '@shm/shared/constants'
+import {
+  BIG_INT,
+  IS_PROD_DESKTOP,
+  OS_PROTOCOL_SCHEME,
+  VERSION,
+} from '@shm/shared/constants'
 import {defaultRoute} from '@shm/shared/routes'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
@@ -73,7 +78,8 @@ import {
 } from './app-onboarding-store'
 import {templates} from './app-templates'
 
-const OS_REGISTER_SCHEME = 'hm'
+// Use 'hm-dev' in development, 'hm' in production for OS protocol registration
+const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
 // @ts-ignore
 global.electronTRPC = {}
 
