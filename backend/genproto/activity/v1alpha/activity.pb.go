@@ -308,10 +308,12 @@ type NewBlobEvent struct {
 	// The type of the blob that was created.
 	// Defined as string for extensibility.
 	// Some of the currently supported blob types are:
-	//   - KeyDelegation
+	//   - Capability
 	//   - Change
 	//   - Comment
 	//   - DagPB
+	//   - Contact
+	//   - Ref
 	BlobType string `protobuf:"bytes,2,opt,name=blob_type,json=blobType,proto3" json:"blob_type,omitempty"`
 	// The user account ID that has created the blob.
 	Author string `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`

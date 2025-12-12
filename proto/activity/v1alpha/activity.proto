@@ -89,10 +89,12 @@ message NewBlobEvent {
   // The type of the blob that was created.
   // Defined as string for extensibility.
   // Some of the currently supported blob types are:
-  //   - KeyDelegation
+  //   - Capability
   //   - Change
   //   - Comment
   //   - DagPB
+  //   - Contact
+  //   - Ref
   string blob_type = 2;
 
   // The user account ID that has created the blob.

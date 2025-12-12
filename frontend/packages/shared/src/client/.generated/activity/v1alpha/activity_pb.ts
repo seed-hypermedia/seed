@@ -251,10 +251,12 @@ export class NewBlobEvent extends Message<NewBlobEvent> {
    * The type of the blob that was created.
    * Defined as string for extensibility.
    * Some of the currently supported blob types are:
-   *   - KeyDelegation
+   *   - Capability
    *   - Change
    *   - Comment
    *   - DagPB
+   *   - Contact
+   *   - Ref
    *
    * @generated from field: string blob_type = 2;
    */
