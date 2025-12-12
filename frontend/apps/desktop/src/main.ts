@@ -563,6 +563,150 @@ function initializeIpcHandlers() {
     }
   })
 
+  // LaTeX file handlers
+  ipcMain.on('open-latex-directory', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
+
+    const options: OpenDialogOptions = {
+      title: 'Select directories containing LaTeX files',
+      properties: [
+        'openDirectory',
+        'multiSelections',
+      ] as OpenDialogOptions['properties'],
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const directories = result.filePaths
+        const validDocuments = []
+
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
+
+        for (const dirPath of directories) {
+          const files = fs.readdirSync(dirPath)
+          const isDirectory = fs.lstatSync(dirPath).isDirectory()
+
+          const latexFiles = files.filter((file) => file.endsWith('.tex'))
+          if (latexFiles.length > 0 && isDirectory) {
+            for (const latexFile of latexFiles) {
+              const latexFilePath = path.join(dirPath, latexFile)
+              const latexContent = fs.readFileSync(latexFilePath, 'utf-8')
+
+              const fileName = path.basename(latexFile, '.tex')
+              const title = formatTitle(fileName)
+
+              docMap.set('./' + latexFile, {
+                name: title,
+                path: path.join(
+                  accountId,
+                  title.toLowerCase().replace(/\s+/g, '-'),
+                ),
+              })
+
+              validDocuments.push({
+                latexContent,
+                title,
+                directoryPath: dirPath,
+              })
+            }
+          }
+        }
+
+        event.sender.send('latex-directories-content-response', {
+          success: true,
+          result: {
+            documents: validDocuments,
+            docMap: docMap,
+          },
+        })
+      } else {
+        event.sender.send('latex-directories-content-response', {
+          success: false,
+          error: 'Directory selection was canceled',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Error selecting directories:', err)
+      event.sender.send('latex-directories-content-response', {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
+      })
+    }
+  })
+
+  ipcMain.on('open-latex-file', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
+
+    const options: OpenDialogOptions = {
+      title: 'Select LaTeX files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{name: 'LaTeX Files', extensions: ['tex']}],
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const files = result.filePaths
+        const validDocuments = []
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
+
+        for (const filePath of files) {
+          const stats = fs.lstatSync(filePath)
+          if (stats.isFile() && filePath.endsWith('.tex')) {
+            const latexContent = fs.readFileSync(filePath, 'utf-8')
+            const dirName = path.basename(filePath)
+            const title = formatTitle(dirName)
+
+            docMap.set('./' + dirName, {
+              name: title,
+              path: path.join(
+                accountId,
+                title.toLowerCase().replace(/\s+/g, '-'),
+              ),
+            })
+
+            validDocuments.push({
+              latexContent,
+              title,
+              directoryPath: path.dirname(filePath),
+            })
+          }
+        }
+
+        event.sender.send('latex-files-content-response', {
+          success: true,
+          result: {documents: validDocuments, docMap: docMap},
+        })
+      } else {
+        event.sender.send('latex-files-content-response', {
+          success: false,
+          error: 'File selection was canceled',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Error selecting file:', err)
+      event.sender.send('latex-files-content-response', {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
+      })
+    }
+  })
+
   ipcMain.on('read-media-file', async (event, filePath) => {
     try {
       const absoluteFilePath = path.resolve(filePath)

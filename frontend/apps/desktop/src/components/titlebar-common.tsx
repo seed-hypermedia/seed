@@ -270,6 +270,8 @@ export function DocOptionsButton({
         importDialog.open({
           onImportFile: importing.importFile,
           onImportDirectory: importing.importDirectory,
+          onImportLatexFile: importing.importLatexFile,
+          onImportLatexDirectory: importing.importLatexDirectory,
           onImportWebSite: importing.importWebSite,
         })
       },

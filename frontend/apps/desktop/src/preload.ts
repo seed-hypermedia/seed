@@ -101,6 +101,34 @@ contextBridge.exposeInMainWorld('docImport', {
       ipcRenderer.send('read-media-file', filePath)
     })
   },
+
+  openLatexDirectories: (accountId: string) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('latex-directories-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.result)
+        } else {
+          reject(response.error)
+        }
+      })
+
+      ipcRenderer.send('open-latex-directory', accountId)
+    })
+  },
+
+  openLatexFiles: (accountId: string) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('latex-files-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.result)
+        } else {
+          reject(response.error)
+        }
+      })
+
+      ipcRenderer.send('open-latex-file', accountId)
+    })
+  },
 })
 
 contextBridge.exposeInMainWorld('docExport', {

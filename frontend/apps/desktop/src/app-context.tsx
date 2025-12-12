@@ -29,6 +29,22 @@ export type AppContext = {
     }[]
     docMap: Map<string, {name: string; path: string}>
   }>
+  openLatexDirectories: (accountId: string) => Promise<{
+    documents: {
+      latexContent: string
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
+  openLatexFiles: (accountId: string) => Promise<{
+    documents: {
+      latexContent: string
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
   readMediaFile: (filePath: string) => Promise<{
     filePath: string
     content: string
