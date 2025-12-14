@@ -516,17 +516,23 @@ export function createAppWindow(
     childWindow.close()
   })
 
-  const windValue = {
+  const selectedIdentity =
+    input.selectedIdentity ||
+    (lastFocusedWindowId &&
+      windowNavState[lastFocusedWindowId]?.selectedIdentity) ||
+    null
+
+  const initNavState = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
     sidebarLocked:
       typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
     sidebarWidth: input.sidebarWidth || 15,
     accessoryWidth: input.accessoryWidth || 20,
-    selectedIdentity: input.selectedIdentity || null,
+    selectedIdentity,
   }
 
-  windowNavState[windowId] = windValue
+  windowNavState[windowId] = initNavState
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
     e.returnValue = {
@@ -577,8 +583,7 @@ export function createAppWindow(
 
   // Set the persistent window state - this should match the windValue above
   setWindowState(windowId, {
-    ...windValue,
-    routeIndex: input.routeIndex || 0,
+    ...initNavState,
     bounds: null,
   })
 
