@@ -134,7 +134,11 @@ export function createWebHMUrl(
     res += `/${path.join('/')}`
   }
   if (res === '') res = '/'
-  res += getHMQueryString({latest, version, feed})
+  res += getHMQueryString({
+    latest: null,
+    version: latest ? undefined : version,
+    feed,
+  })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
