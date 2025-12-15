@@ -15,6 +15,7 @@ import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
   useCreateDraft,
+  useDocumentEmbeds,
   useDocumentRead,
   usePushResource,
   useSiteNavigationItems,
@@ -527,34 +528,22 @@ const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 function _AppDocSiteHeader({
   siteHomeEntity,
   docId,
-  children,
   document,
-  supportDocuments,
   onScrollParamSet,
 }: {
   siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
-  children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
   const notifyServiceHost = useNotifyServiceHost()
+  const embeds = useDocumentEmbeds(document)
 
   if (!siteHomeEntity) return null
   if (route.key !== 'document' && route.key != 'feed') return null
-
-  // Prepare supportDocuments with siteHomeEntity that has the latest flag set
-  const supportDocsWithHome = [
-    ...(supportDocuments || []),
-    {
-      ...siteHomeEntity,
-      id: {...siteHomeEntity.id, latest: true},
-    },
-  ]
 
   return (
     <SiteHeader
@@ -567,6 +556,8 @@ function _AppDocSiteHeader({
           'Seed/Experimental/Newspaper'
       }
       document={document}
+      siteHomeDocument={siteHomeEntity.document}
+      embeds={embeds}
       onBlockFocus={(blockId) => {
         const element = window.document.getElementById(blockId)
         if (element) {
@@ -575,7 +566,6 @@ function _AppDocSiteHeader({
 
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
-      supportDocuments={supportDocsWithHome}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}

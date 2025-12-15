@@ -12651,6 +12651,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@shm/tests@workspace:tests":
+  version: 0.0.0-use.local
+  resolution: "@shm/tests@workspace:tests"
+  dependencies:
+    cheerio: ^1.1.2
+    playwright: 1.40.1
+    vitest: ^3.0.9
+  languageName: unknown
+  linkType: soft
+
 "@shm/ui@*, @shm/ui@workspace:*, @shm/ui@workspace:frontend/packages/ui":
   version: 0.0.0-use.local
   resolution: "@shm/ui@workspace:frontend/packages/ui"
@@ -18052,7 +18062,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cheerio@npm:^1.0.0, cheerio@npm:^1.0.0-rc.12":
+"cheerio@npm:^1.0.0, cheerio@npm:^1.0.0-rc.12, cheerio@npm:^1.1.2":
   version: 1.1.2
   resolution: "cheerio@npm:1.1.2"
   dependencies:

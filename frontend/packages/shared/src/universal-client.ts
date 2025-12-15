@@ -30,14 +30,14 @@ export type DiscoveryService = {
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
   // Comment editor component (platform-specific)
-  CommentEditor: React.ComponentType<{docId: UnpackedHypermediaId}>
+  CommentEditor?: React.ComponentType<{docId: UnpackedHypermediaId}>
 
-  fetchRecents(): Promise<RecentsResult[]>
+  fetchRecents?: () => Promise<RecentsResult[]>
 
-  deleteRecent(id: string): Promise<void>
+  deleteRecent?: (id: string) => Promise<void>
 
   // Delete a comment (desktop-only, requires signing key)
-  deleteComment(input: DeleteCommentInput): Promise<void>
+  deleteComment?: (input: DeleteCommentInput) => Promise<void>
 
   request<Request extends HMRequest>(
     key: Request['key'],

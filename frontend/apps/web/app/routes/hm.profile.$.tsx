@@ -5,43 +5,35 @@ import {
   LogoutButton,
   useLocalKeyPair,
 } from '@/auth'
-import {getMetadata, getOriginRequestData} from '@/loaders'
+import {getMetadata, loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config.server'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
+import {WebSiteHeader} from '@/web-site-header'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
 import {hmId} from '@shm/shared'
-import {
-  HMMetadata,
-  HMMetadataPayload,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {HMProfilePage} from '@shm/ui/profile-page'
-import {SmallSiteHeader} from '@shm/ui/site-header'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare} from 'lucide-react'
 
-type ProfilePagePayload = {
-  originHomeId: UnpackedHypermediaId | undefined
-  originHomeMetadata: HMMetadata | undefined
-  origin: string
+type ProfilePagePayload = SiteHeaderPayload & {
   profile: HMMetadataPayload
-} & ReturnType<typeof getOriginRequestData>
+}
 
 export const meta: MetaFunction = ({data}) => {
-  const {originHomeMetadata, profile} = unwrap<ProfilePagePayload>(data)
+  const {homeMetadata, profile} = unwrap<ProfilePagePayload>(data)
   const meta: MetaDescriptor[] = []
-  const homeIcon = originHomeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(originHomeMetadata.icon), 'S')
+  const homeIcon = homeMetadata?.icon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S')
     : null
   meta.push({
     tagName: 'link',
@@ -57,33 +49,27 @@ export const meta: MetaFunction = ({data}) => {
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
-  const config = await getConfig(parsedRequest.hostname)
+  const headerData = await loadSiteHeaderData(parsedRequest)
 
-  const originHome = config?.registeredAccountUid
-    ? await getMetadata(hmId(config.registeredAccountUid))
-    : undefined
   const uid = parsedRequest.pathParts[2]
   const profile = await getMetadata(hmId(uid))
+
   return wrapJSON({
-    originHomeId: config?.registeredAccountUid
-      ? hmId(config.registeredAccountUid)
-      : undefined,
-    ...getOriginRequestData(parsedRequest),
-    originHomeMetadata: originHome?.metadata ?? undefined,
+    ...headerData,
     profile,
   } satisfies ProfilePagePayload)
 }
 
 function ProfilePageContent({
-  originHomeMetadata,
+  homeMetadata,
   originHomeId,
-  siteHost,
+  origin,
   profile,
   currentAccount,
 }: {
-  originHomeMetadata: HMMetadata | undefined
+  homeMetadata: ProfilePagePayload['homeMetadata']
   originHomeId: UnpackedHypermediaId
-  siteHost: string
+  origin: string
   profile: HMMetadataPayload
   currentAccount?: string
 }) {
@@ -95,13 +81,13 @@ function ProfilePageContent({
   return (
     <>
       <div className="flex min-h-screen flex-1 flex-col items-center">
-        {originHomeMetadata && (
-          <SmallSiteHeader
-            originHomeMetadata={originHomeMetadata}
-            originHomeId={originHomeId}
-            siteHost={siteHost}
-          />
-        )}
+        <WebSiteHeader
+          homeMetadata={homeMetadata}
+          originHomeId={originHomeId}
+          siteHomeId={originHomeId}
+          docId={null}
+          origin={origin}
+        />
         <PageContainer>
           <HMProfilePage
             profile={{
@@ -138,8 +124,14 @@ function ProfilePageContent({
   )
 }
 export default function ProfilePage() {
-  const {originHomeId, siteHost, origin, originHomeMetadata, profile} =
-    unwrap<ProfilePagePayload>(useLoaderData())
+  const {
+    originHomeId,
+    siteHost,
+    origin,
+    homeMetadata,
+    profile,
+    dehydratedState,
+  } = unwrap<ProfilePagePayload>(useLoaderData())
   const userKeyPair = useLocalKeyPair()
 
   if (!originHomeId) {
@@ -150,11 +142,12 @@ export default function ProfilePage() {
       origin={origin}
       originHomeId={originHomeId}
       siteHost={siteHost}
+      dehydratedState={dehydratedState}
     >
       <ProfilePageContent
-        originHomeMetadata={originHomeMetadata}
+        homeMetadata={homeMetadata}
         originHomeId={originHomeId}
-        siteHost={siteHost}
+        origin={origin}
         profile={profile}
         currentAccount={userKeyPair?.id}
       />

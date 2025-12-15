@@ -2,7 +2,7 @@ import {APIParams} from './api'
 import type {HMRequest, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
-import type {DeleteCommentInput, UniversalClient} from './universal-client'
+import type {UniversalClient} from './universal-client'
 
 export type WebClientDependencies = {
   // API utilities
@@ -22,14 +22,9 @@ export function createWebUniversalClient(
   return {
     CommentEditor: deps.CommentEditor,
 
-    fetchRecents: deps.fetchRecents || (async () => []),
+    fetchRecents: deps.fetchRecents,
 
-    deleteRecent: deps.deleteRecent || (async () => {}),
-
-    // Not available on web - requires signing key which only desktop has
-    deleteComment: async (_input: DeleteCommentInput) => {
-      throw new Error('Delete comment not available on web')
-    },
+    deleteRecent: deps.deleteRecent,
 
     request: async <Req extends HMRequest>(
       key: Req['key'],

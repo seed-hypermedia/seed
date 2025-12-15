@@ -18,6 +18,8 @@
     "web:dev:cross-origin": "yarn web:prod && concurrently -c \"blue,green\" -p \"[{name}]\" \"SEED_IDENTITY_ENABLED=true PORT=3099 SEED_BASE_URL=\\\"http://localhost:3099\\\" SEED_IDENTITY_DEFAULT_ORIGIN=\\\"http://localhost:3000\\\" yarn web:start\" \"SEED_SIGNING_ENABLED=true yarn web:start\"",
     "web:extract": "DISABLE_EXTRACTION=false yarn workspace @shm/site dev",
     "web:test": "yarn workspace @shm/web test",
+    "test:integration": "cd tests && yarn test",
+    "test:integration:skip-build": "cd tests && yarn test:skip-build",
     "web:perf": "yarn workspace @shm/perf-web start --url http://localhost:3000 --app web",
     "notify": "cd frontend/apps/notify && yarn dev",
     "notify:build": "cd frontend/apps/notify && yarn build",
@@ -52,7 +54,8 @@
     "frontend/apps/*",
     "frontend/packages/*",
     "frontend/scripts",
-    "docs"
+    "docs",
+    "tests"
   ],
   "dependencies": {
     "@babel/runtime": "7.18.9",

@@ -9,6 +9,7 @@ export function useStream<StreamValue>(
       return stream ? stream.subscribe(onStoreChange) : () => {}
     },
     () => stream?.get(),
+    () => stream?.get(), // Server snapshot - same as client for SSR compatibility
   )
 }
 

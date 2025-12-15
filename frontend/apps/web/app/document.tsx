@@ -3,6 +3,7 @@ import {useLocation, useNavigate} from '@remix-run/react'
 import avatarPlaceholder from '@shm/editor/assets/avatar.png'
 import {
   BlockRange,
+  HMBlockNode,
   HMComment,
   HMDocument,
   HMMetadata,
@@ -11,6 +12,7 @@ import {
   UnpackedHypermediaId,
   hmId,
   routeToHref,
+  unpackHmId,
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -19,7 +21,7 @@ import {
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
 import {supportedLanguages} from '@shm/shared/language-packs'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
 import {useTx, useTxString} from '@shm/shared/translation'
@@ -106,13 +108,14 @@ const DEFAULT_MAIN_PANEL_SIZE = 65
 export function DocumentPage(
   props: SiteDocumentPayload & {prefersLanguages?: string[]},
 ) {
-  const {siteHost, origin, prefersLanguages, document} = props
+  const {siteHost, origin, prefersLanguages, document, dehydratedState} = props
   return (
     <WebSiteProvider
       origin={origin}
       originHomeId={props.originHomeId}
       siteHost={siteHost}
       prefersLanguages={supportedLanguages(prefersLanguages)}
+      dehydratedState={dehydratedState}
     >
       {document ? (
         <InnerDocumentPage {...props} />
@@ -140,8 +143,6 @@ function InnerDocumentPage(
     homeMetadata,
     id,
     siteHost,
-    supportDocuments,
-    supportQueries,
     accountsMetadata,
     origin,
     comment,
@@ -572,8 +573,6 @@ function InnerDocumentPage(
             siteHomeId={hmId(id.uid)}
             docId={id}
             document={document}
-            supportDocuments={supportDocuments}
-            supportQueries={supportQueries}
             origin={origin}
             isLatest={isLatest}
           />
@@ -617,7 +616,6 @@ function InnerDocumentPage(
                           <div className="hide-scrollbar overflow-scroll pb-6">
                             <WebDocumentOutline
                               showCollapsed={showCollapsed}
-                              supportDocuments={props.supportDocuments}
                               onActivateBlock={onActivateBlock}
                               id={id}
                               document={document}
@@ -710,7 +708,7 @@ function InnerDocumentPage(
                               })
                               if (!href) {
                                 toast.error('Failed to create block link')
-                                return false
+                                return
                               }
                               if (shouldCopy) {
                                 window.navigator.clipboard.writeText(
@@ -734,9 +732,7 @@ function InnerDocumentPage(
                                   replace: true,
                                   preventScrollReset: true,
                                 })
-                                return true
                               }
-                              return false
                             }}
                             blockCitations={interactionSummary.data?.blocks}
                           >
@@ -1068,20 +1064,69 @@ function DocumentDiscoveryPage({
   )
 }
 
+/**
+ * Extract all embed IDs from document content (for outline rendering).
+ */
+function extractEmbedIds(
+  content: HMBlockNode[],
+  collected: Set<string> = new Set(),
+): UnpackedHypermediaId[] {
+  for (const node of content) {
+    if (node.block.type === 'Embed' && node.block.link) {
+      const embedId = unpackHmId(node.block.link)
+      if (embedId && !collected.has(embedId.id)) {
+        collected.add(embedId.id)
+      }
+    }
+    if (node.children) {
+      extractEmbedIds(node.children, collected)
+    }
+  }
+  return Array.from(collected)
+    .map((id) => {
+      const parsed = unpackHmId(`hm://${id}`)
+      return parsed!
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Hook to get embedded documents for outline rendering.
+ * Extracts embed IDs from document content and fetches from React Query cache.
+ */
+function useEmbeddedDocumentsForOutline(
+  content: HMBlockNode[] | undefined,
+): HMResourceFetchResult[] {
+  const embedIds = content ? extractEmbedIds(content) : []
+  const queries = useResources(embedIds)
+
+  const results: HMResourceFetchResult[] = []
+  queries.forEach((query, i) => {
+    const embedId = embedIds[i]
+    if (query.data?.type === 'document' && embedId) {
+      results.push({
+        id: embedId,
+        document: query.data.document,
+      })
+    }
+  })
+  return results
+}
+
 function WebDocumentOutline({
   showCollapsed,
   document,
   id,
   onActivateBlock,
-  supportDocuments,
 }: {
   showCollapsed: boolean
   document: HMDocument | null | undefined
   id: UnpackedHypermediaId
   onActivateBlock: (blockId: string) => void
-  supportDocuments: HMResourceFetchResult[] | undefined
 }) {
-  const outline = useNodesOutline(document, id, supportDocuments)
+  // Get embedded documents from React Query cache (prefetched during SSR)
+  const embeddedDocs = useEmbeddedDocumentsForOutline(document?.content)
+  const outline = useNodesOutline(document, id, embeddedDocs)
   if (!outline.length) return null
   return (
     <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>

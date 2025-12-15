@@ -50,7 +50,8 @@ export function SiteHeader({
   isCenterLayout = false,
   document,
   draftMetadata,
-  supportDocuments,
+  siteHomeDocument,
+  embeds,
   onBlockFocus,
   onShowMobileMenu,
   hideSiteBarClassName,
@@ -68,7 +69,8 @@ export function SiteHeader({
   isCenterLayout?: boolean
   document?: HMDocument | undefined
   draftMetadata?: HMMetadata
-  supportDocuments?: HMResourceFetchResult[]
+  siteHomeDocument?: HMDocument | null
+  embeds?: HMResourceFetchResult[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
@@ -85,15 +87,16 @@ export function SiteHeader({
     _setIsMobileMenuOpen(isOpen)
     onShowMobileMenu?.(isOpen)
   }
-  const homeDoc = !docId?.path?.length
-    ? {document, id: docId}
-    : supportDocuments?.find(
-        (doc) =>
-          doc.id.uid === docId?.uid &&
-          !doc.id.path?.length &&
-          !doc.id.blockRef &&
-          doc.id.latest,
-      )
+  // Determine the home document for logo/branding
+  // Priority: current doc if on home page, otherwise siteHomeDocument
+  const homeDoc =
+    docId && !docId.path?.length
+      ? {document, id: docId} // On home page with actual docId
+      : siteHomeDocument
+      ? {document: siteHomeDocument, id: siteHomeId} // Non-home page or utility page
+      : document
+      ? {document, id: siteHomeId} // Fallback if document provided without docId
+      : undefined
   const headerSearch = (
     <>
       <Button
@@ -276,7 +279,7 @@ export function SiteHeader({
                     }}
                     document={document}
                     docId={docId}
-                    supportDocuments={supportDocuments}
+                    embeds={embeds}
                   />
                 </>
               )}
@@ -330,14 +333,14 @@ function MobileMenuOutline({
   onActivateBlock,
   document,
   docId,
-  supportDocuments,
+  embeds,
 }: {
   onActivateBlock: (blockId: string) => void
   document: HMDocument
   docId: UnpackedHypermediaId
-  supportDocuments: HMResourceFetchResult[] | undefined
+  embeds?: HMResourceFetchResult[]
 }) {
-  const outline = useNodesOutline(document, docId, supportDocuments)
+  const outline = useNodesOutline(document, docId, embeds)
 
   return (
     <DocumentOutline
@@ -346,25 +349,6 @@ function MobileMenuOutline({
       id={docId}
       activeBlockId={docId.blockRef}
     />
-  )
-}
-
-export function SmallSiteHeader({
-  originHomeMetadata,
-  originHomeId,
-}: {
-  originHomeMetadata: HMMetadata
-  originHomeId: UnpackedHypermediaId
-  siteHost: string
-}) {
-  return (
-    <div className="flex w-screen flex-col items-start border-b bg-white px-2 py-4 dark:bg-black">
-      <div className="flex w-full justify-start">
-        <div className="p-2">
-          <SiteLogo id={originHomeId} metadata={originHomeMetadata} />
-        </div>
-      </div>
-    </div>
   )
 }
 

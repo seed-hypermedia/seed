@@ -9,6 +9,7 @@ import {
 } from '@/models/access-control'
 import {
   useCreateDraft,
+  useDocumentEmbeds,
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
@@ -289,7 +290,6 @@ function _FeedContent({
         siteHomeEntity={siteHomeEntity.data}
         docId={id}
         document={document}
-        supportDocuments={[]} // todo: handle embeds for outline!!
         onScrollParamSet={onScrollParamSet}
       />
       <div
@@ -344,22 +344,19 @@ const AppDocSiteHeader = React.memo(_AppDocSiteHeader)
 function _AppDocSiteHeader({
   siteHomeEntity,
   docId,
-  children,
   document,
-  supportDocuments,
   onScrollParamSet,
 }: {
   siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
-  children?: React.ReactNode
   document?: HMDocument
-  supportDocuments?: HMResourceFetchResult[]
   onScrollParamSet: (isFrozen: boolean) => void
 }) {
   const replace = useNavigate('replace')
   const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
   const notifyServiceHost = useNotifyServiceHost()
+  const embeds = useDocumentEmbeds(document)
   if (!siteHomeEntity) return null
   if (route.key != 'document' && route.key != 'feed') return null
   return (
@@ -373,10 +370,11 @@ function _AppDocSiteHeader({
           'Seed/Experimental/Newspaper'
       }
       document={document}
+      siteHomeDocument={siteHomeEntity.document}
+      embeds={embeds}
       onBlockFocus={(blockId) => {
         replace({...route, id: {...route.id, blockRef: blockId}})
       }}
-      supportDocuments={[...(supportDocuments || []), siteHomeEntity]}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}
