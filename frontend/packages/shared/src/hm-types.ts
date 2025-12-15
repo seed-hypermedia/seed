@@ -1627,6 +1627,40 @@ export type HMListCapabilitiesRequest = z.infer<
   typeof HMListCapabilitiesRequestSchema
 >
 
+// InteractionSummary - gets interaction summary for a document
+export const HMInteractionSummaryInputSchema = z.object({
+  id: unpackedHmIdSchema,
+})
+export type HMInteractionSummaryInput = z.infer<
+  typeof HMInteractionSummaryInputSchema
+>
+
+export const HMInteractionSummaryOutputSchema = z.object({
+  citations: z.number(),
+  comments: z.number(),
+  changes: z.number(),
+  children: z.number(),
+  blocks: z.record(
+    z.string(),
+    z.object({
+      citations: z.number(),
+      comments: z.number(),
+    }),
+  ),
+})
+export type HMInteractionSummaryOutput = z.infer<
+  typeof HMInteractionSummaryOutputSchema
+>
+
+export const HMInteractionSummaryRequestSchema = z.object({
+  key: z.literal('InteractionSummary'),
+  input: HMInteractionSummaryInputSchema,
+  output: HMInteractionSummaryOutputSchema,
+})
+export type HMInteractionSummaryRequest = z.infer<
+  typeof HMInteractionSummaryRequestSchema
+>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
@@ -1647,6 +1681,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListCitationsRequestSchema,
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
+  HMInteractionSummaryRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

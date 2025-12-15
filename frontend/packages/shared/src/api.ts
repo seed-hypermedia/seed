@@ -14,6 +14,7 @@ import {
   ListDiscussions,
 } from './api-comments'
 import {GetCID} from './api-get-cid'
+import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'
 import {ListCommentsByAuthor} from './api-list-comments-by-author'
 import {Query} from './api-query'
@@ -42,6 +43,7 @@ export const APIRouter = {
   ListCitations,
   ListChanges,
   ListCapabilities,
+  InteractionSummary,
 } as const satisfies {
   [K in HMRequest as K['key']]: HMRequestImplementation<K>
 }

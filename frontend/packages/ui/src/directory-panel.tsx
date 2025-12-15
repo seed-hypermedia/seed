@@ -1,15 +1,21 @@
-import {NewSubDocumentButton} from '@/pages/document'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {AccessoryContent} from '@shm/ui/accessories'
-import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
-import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {Folder} from 'lucide-react'
+import {ReactNode} from 'react'
+import {AccessoryContent} from './accessories'
+import {DocumentSmallListItem, getSiteNavDirectory} from './navigation'
+import {Spinner} from './spinner'
+import {SizableText} from './text'
+import {useScrollRestoration} from './use-scroll-restoration'
 
-export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
+export function DirectoryPanel({
+  docId,
+  header,
+}: {
+  docId: UnpackedHypermediaId
+  header?: ReactNode
+}) {
   const route = useNavRoute()
   const scrollRef = useScrollRestoration({
     scrollId: `directory-${docId.id}`,
@@ -40,20 +46,13 @@ export function DirectoryPanel({docId}: {docId: UnpackedHypermediaId}) {
         <SizableText color="muted" weight="medium" size="xl">
           There are no children documents
         </SizableText>
-        <div className="flex p-3">
-          <NewSubDocumentButton locationId={docId} importDropdown={false} />
-        </div>
+        {header ? <div className="flex p-3">{header}</div> : null}
       </div>
     )
   }
 
   return (
-    <AccessoryContent
-      scrollRef={scrollRef}
-      header={
-        <NewSubDocumentButton locationId={docId} importDropdown={false} />
-      }
-    >
+    <AccessoryContent scrollRef={scrollRef} header={header}>
       <div className="flex h-full flex-col gap-2">
         {directoryItems.map((item) => {
           return (

@@ -341,6 +341,11 @@ export function usePublishResource(
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
+        getParentPaths(resultDocId.path).forEach((path) => {
+          const parentId = hmId(resultDocId.uid, {path})
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+        })
       }
     },
   })
@@ -1321,6 +1326,18 @@ export function useMoveDocument() {
       })
       push(from)
       push(to)
+    },
+    onSuccess: (_, {from, to}) => {
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, from.id])
+      invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, to.id])
+      getParentPaths(from.path).forEach((path) => {
+        const parentId = hmId(from.uid, {path})
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+      })
+      getParentPaths(to.path).forEach((path) => {
+        const parentId = hmId(to.uid, {path})
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+      })
     },
   })
 }

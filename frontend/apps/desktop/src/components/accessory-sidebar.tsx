@@ -1,6 +1,6 @@
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocAccessoryOption} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'

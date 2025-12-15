@@ -21,6 +21,7 @@ import {useDeleteRecent} from '@shm/shared/models/recents'
 import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {useMutation, UseMutationOptions, useQuery} from '@tanstack/react-query'
@@ -62,6 +63,13 @@ export function useDeleteEntities(
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
       invalidateQueries([])
+      input.ids.forEach((id) => {
+        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id])
+        getParentPaths(id.path).forEach((path) => {
+          const parentId = hmId(id.uid, {path})
+          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+        })
+      })
       opts?.onSuccess?.(result, input, context)
     },
   })

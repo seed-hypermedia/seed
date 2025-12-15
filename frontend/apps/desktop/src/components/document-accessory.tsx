@@ -8,9 +8,10 @@ import {Feed} from '@shm/ui/feed'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {ReactNode, useEffect, useState} from 'react'
 import {ActorRefFrom} from 'xstate'
+import {NewSubDocumentButton} from '@/pages/document'
+import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {CommentBox} from './commenting'
-import {DirectoryPanel} from './directory-panel'
 import {DiscussionsPanel} from './discussions-panel'
 import {OptionsPanel} from './options-panel'
 
@@ -90,7 +91,12 @@ export function useDocumentAccessory({
     // @ts-expect-error
     accessory = <CollaboratorsPanel docId={docId} />
   } else if (accessoryKey === 'directory') {
-    accessory = docId ? <DirectoryPanel docId={docId} /> : null
+    accessory = docId ? (
+      <DirectoryPanel
+        docId={docId}
+        header={<NewSubDocumentButton locationId={docId} importDropdown={false} />}
+      />
+    ) : null
   } else if (accessoryKey === 'options' || isNewDraft) {
     // TODO update options panel flow of updating from newspaper layout
     accessory =

@@ -20,8 +20,8 @@ import {
   useSiteNavigationItems,
 } from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
-import {useInteractionSummary} from '@/models/interaction-summary'
 import {useChildrenActivity} from '@/models/library'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'

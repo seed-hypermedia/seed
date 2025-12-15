@@ -7,7 +7,6 @@ import {
 } from '@shm/shared'
 import {useQuery, UseQueryOptions} from '@tanstack/react-query'
 import {ActivityPayload} from './routes/hm.api.activity'
-import {InteractionSummaryPayload} from './routes/hm.api.interaction-summary'
 import {unwrap} from './wrapping'
 
 // queryAPI for universal client and useAPI hook - unwraps superjson
@@ -80,19 +79,5 @@ export function useCitations(
     enabled: opts.enabled,
   })
 
-  return response
-}
-
-export function useInteractionSummary(
-  id: UnpackedHypermediaId,
-  opts: {enabled?: boolean} = {},
-) {
-  const response = useAPI<InteractionSummaryPayload>(
-    `/hm/api/interaction-summary?id=${id.id}`,
-    {
-      queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id],
-      enabled: opts.enabled,
-    },
-  )
   return response
 }

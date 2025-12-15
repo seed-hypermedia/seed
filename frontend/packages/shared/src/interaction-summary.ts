@@ -9,6 +9,7 @@ export type InteractionSummaryPayload = {
   citations: number
   comments: number
   changes: number
+  children: number
   blocks: Record<
     string,
     {
@@ -99,12 +100,13 @@ function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {
 }
 
 /**
- * Calculates interaction summary from mentions, comments, and changes
+ * Calculates interaction summary from mentions, comments, changes, and children
  */
 export function calculateInteractionSummary(
   mentions: ListEntityMentionsResponse['mentions'],
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
+  childrenCount: number = 0,
 ): InteractionSummaryPayload {
   // Process mentions into citations
   const allCitations = processMentionsToCitations(mentions, targetDocId)
@@ -124,6 +126,7 @@ export function calculateInteractionSummary(
     citations: citationCount, // Document citations/references to this document
     comments: uniqueCommentSources.size, // Count distinct comment sources
     changes: changes.length,
+    children: childrenCount,
     blocks,
   }
 }
