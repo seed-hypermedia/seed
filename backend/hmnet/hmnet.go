@@ -243,7 +243,7 @@ func (n *Node) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiadd
 
 // ArePrivateIPsAllowed check if private IPs (local) are allowed to connect.
 func (n *Node) ArePrivateIPsAllowed() bool {
-	return !n.cfg.NoPrivateIps
+	return n.cfg.PrivateIps
 }
 
 // GetAccountByKeyName returns the account attached to the given named key.
@@ -470,7 +470,7 @@ func newLibp2p(cfg config.P2P, device crypto.PrivKey, protocolID protocol.ID, lo
 		opts = append(opts,
 			libp2p.AddrsFactory(func(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
 				announce := make([]multiaddr.Multiaddr, 0, len(addrs))
-				if cfg.NoPrivateIps {
+				if !cfg.PrivateIps {
 					for _, a := range addrs {
 						if manet.IsPublicAddr(a) {
 							announce = append(announce, a)

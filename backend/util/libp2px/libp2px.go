@@ -38,14 +38,15 @@ func DefaultListenAddrs(port int) []string {
 	portstr := strconv.Itoa(port)
 	return []string{
 		"/ip4/0.0.0.0/udp/" + portstr + "/quic-v1",
-		"/ip4/0.0.0.0/udp/" + portstr + "/quic-v1/webtransport",
-		"/ip4/0.0.0.0/udp/" + portstr + "/webrtc-direct",
+		//"/ip4/0.0.0.0/udp/" + portstr + "/quic-v1/webtransport",
+		//"/ip4/0.0.0.0/udp/" + portstr + "/webrtc-direct",
 		"/ip4/0.0.0.0/tcp/" + portstr,
-
+		/* //No IPv6 for now
 		"/ip6/::/udp/" + portstr + "/quic-v1",
 		"/ip6/::/udp/" + portstr + "/quic-v1/webtransport",
 		"/ip6/::/udp/" + portstr + "/webrtc-direct",
 		"/ip6/::/tcp/" + portstr,
+		*/
 	}
 }
 
@@ -54,14 +55,15 @@ func DefaultListenAddrsDNS(hostname string, port int) []string {
 	portstr := strconv.Itoa(port)
 	return []string{
 		"/dns4/" + hostname + "/udp/" + portstr + "/quic-v1",
-		"/dns4/" + hostname + "/udp/" + portstr + "/quic-v1/webtransport",
-		"/dns4/" + hostname + "/udp/" + portstr + "/webrtc-direct",
+		//"/dns4/" + hostname + "/udp/" + portstr + "/quic-v1/webtransport",
+		//"/dns4/" + hostname + "/udp/" + portstr + "/webrtc-direct",
 		"/dns4/" + hostname + "/tcp/" + portstr,
-
+		/* //No IPv6 for now
 		"/dns6/" + hostname + "/udp/" + portstr + "/quic-v1",
 		"/dns6/" + hostname + "/udp/" + portstr + "/quic-v1/webtransport",
 		"/dns6/" + hostname + "/udp/" + portstr + "/webrtc-direct",
 		"/dns6/" + hostname + "/tcp/" + portstr,
+		*/
 	}
 }
 
