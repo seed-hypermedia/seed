@@ -64,7 +64,7 @@ func TestRefCausality(t *testing.T) {
 		testID := strings.Join(order, "+")
 		t.Run(testID, func(t *testing.T) {
 			db := storage.MakeTestDB(t)
-			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop(), nil)
 			require.NoError(t, err)
 
 			for _, blob := range test {

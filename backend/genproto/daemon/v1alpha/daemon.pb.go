@@ -77,6 +77,55 @@ func (State) EnumDescriptor() ([]byte, []int) {
 	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{0}
 }
 
+// Different types of tasks that the daemon can perform.
+type TaskName int32
+
+const (
+	// Unknown task.
+	TaskName_TASK_NAME_UNSPECIFIED TaskName = 0
+	// Task for reindexing the database.
+	TaskName_REINDEXING TaskName = 1
+)
+
+// Enum value maps for TaskName.
+var (
+	TaskName_name = map[int32]string{
+		0: "TASK_NAME_UNSPECIFIED",
+		1: "REINDEXING",
+	}
+	TaskName_value = map[string]int32{
+		"TASK_NAME_UNSPECIFIED": 0,
+		"REINDEXING":            1,
+	}
+)
+
+func (x TaskName) Enum() *TaskName {
+	p := new(TaskName)
+	*p = x
+	return p
+}
+
+func (x TaskName) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TaskName) Descriptor() protoreflect.EnumDescriptor {
+	return file_daemon_v1alpha_daemon_proto_enumTypes[1].Descriptor()
+}
+
+func (TaskName) Type() protoreflect.EnumType {
+	return &file_daemon_v1alpha_daemon_proto_enumTypes[1]
+}
+
+func (x TaskName) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TaskName.Descriptor instead.
+func (TaskName) EnumDescriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{1}
+}
+
 // Request to generate mnemonic words.
 type GenMnemonicRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1106,7 +1155,9 @@ type Info struct {
 	// Start time of the node.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// The libp2p protocol ID that the daemon is using.
-	ProtocolId    string `protobuf:"bytes,4,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	ProtocolId string `protobuf:"bytes,4,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	// The tasks that the daemon is currently performing.
+	Tasks         []*Task `protobuf:"bytes,5,rep,name=tasks,proto3" json:"tasks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1169,6 +1220,77 @@ func (x *Info) GetProtocolId() string {
 	return ""
 }
 
+func (x *Info) GetTasks() []*Task {
+	if x != nil {
+		return x.Tasks
+	}
+	return nil
+}
+
+// Description of a task that the daemon is performing.
+type Task struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name of the task.
+	TaskName TaskName `protobuf:"varint,1,opt,name=task_name,json=taskName,proto3,enum=com.seed.daemon.v1alpha.TaskName" json:"task_name,omitempty"`
+	// Description of the task.
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	// Progress of the task, from 0.0 to 1.0.
+	Progress      float64 `protobuf:"fixed64,3,opt,name=progress,proto3" json:"progress,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Task) Reset() {
+	*x = Task{}
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Task) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Task) ProtoMessage() {}
+
+func (x *Task) ProtoReflect() protoreflect.Message {
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Task.ProtoReflect.Descriptor instead.
+func (*Task) Descriptor() ([]byte, []int) {
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *Task) GetTaskName() TaskName {
+	if x != nil {
+		return x.TaskName
+	}
+	return TaskName_TASK_NAME_UNSPECIFIED
+}
+
+func (x *Task) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *Task) GetProgress() float64 {
+	if x != nil {
+		return x.Progress
+	}
+	return 0
+}
+
 // Signing key with an internal name.
 type NamedKey struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1185,7 +1307,7 @@ type NamedKey struct {
 
 func (x *NamedKey) Reset() {
 	*x = NamedKey{}
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1197,7 +1319,7 @@ func (x *NamedKey) String() string {
 func (*NamedKey) ProtoMessage() {}
 
 func (x *NamedKey) ProtoReflect() protoreflect.Message {
-	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[22]
+	mi := &file_daemon_v1alpha_daemon_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1210,7 +1332,7 @@ func (x *NamedKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamedKey.ProtoReflect.Descriptor instead.
 func (*NamedKey) Descriptor() ([]byte, []int) {
-	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{22}
+	return file_daemon_v1alpha_daemon_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *NamedKey) GetPublicKey() string {
@@ -1291,14 +1413,19 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x05addrs\x18\x02 \x03(\tR\x05addrs\",\n" +
 	"\x04Blob\x12\x10\n" +
 	"\x03cid\x18\x01 \x01(\tR\x03cid\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"\xb1\x01\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\xe6\x01\n" +
 	"\x04Info\x124\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1e.com.seed.daemon.v1alpha.StateR\x05state\x12\x17\n" +
 	"\apeer_id\x18\x02 \x01(\tR\x06peerId\x129\n" +
 	"\n" +
 	"start_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12\x1f\n" +
 	"\vprotocol_id\x18\x04 \x01(\tR\n" +
-	"protocolId\"\\\n" +
+	"protocolId\x123\n" +
+	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\x84\x01\n" +
+	"\x04Task\x12>\n" +
+	"\ttask_name\x18\x01 \x01(\x0e2!.com.seed.daemon.v1alpha.TaskNameR\btaskName\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1a\n" +
+	"\bprogress\x18\x03 \x01(\x01R\bprogress\"\\\n" +
 	"\bNamedKey\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x01 \x01(\tR\tpublicKey\x12\x12\n" +
@@ -1309,7 +1436,11 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +
 	"\n" +
-	"\x06ACTIVE\x10\x032\x87\n" +
+	"\x06ACTIVE\x10\x03*5\n" +
+	"\bTaskName\x12\x19\n" +
+	"\x15TASK_NAME_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"REINDEXING\x10\x012\x87\n" +
 	"\n" +
 	"\x06Daemon\x12h\n" +
 	"\vGenMnemonic\x12+.com.seed.daemon.v1alpha.GenMnemonicRequest\x1a,.com.seed.daemon.v1alpha.GenMnemonicResponse\x12]\n" +
@@ -1339,75 +1470,79 @@ func file_daemon_v1alpha_daemon_proto_rawDescGZIP() []byte {
 	return file_daemon_v1alpha_daemon_proto_rawDescData
 }
 
-var file_daemon_v1alpha_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_daemon_v1alpha_daemon_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_daemon_v1alpha_daemon_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_daemon_v1alpha_daemon_proto_goTypes = []any{
 	(State)(0),                             // 0: com.seed.daemon.v1alpha.State
-	(*GenMnemonicRequest)(nil),             // 1: com.seed.daemon.v1alpha.GenMnemonicRequest
-	(*GenMnemonicResponse)(nil),            // 2: com.seed.daemon.v1alpha.GenMnemonicResponse
-	(*RegisterKeyRequest)(nil),             // 3: com.seed.daemon.v1alpha.RegisterKeyRequest
-	(*GetInfoRequest)(nil),                 // 4: com.seed.daemon.v1alpha.GetInfoRequest
-	(*ForceSyncRequest)(nil),               // 5: com.seed.daemon.v1alpha.ForceSyncRequest
-	(*ForceReindexRequest)(nil),            // 6: com.seed.daemon.v1alpha.ForceReindexRequest
-	(*ForceReindexResponse)(nil),           // 7: com.seed.daemon.v1alpha.ForceReindexResponse
-	(*DeleteAllKeysRequest)(nil),           // 8: com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	(*ListKeysRequest)(nil),                // 9: com.seed.daemon.v1alpha.ListKeysRequest
-	(*ListKeysResponse)(nil),               // 10: com.seed.daemon.v1alpha.ListKeysResponse
-	(*UpdateKeyRequest)(nil),               // 11: com.seed.daemon.v1alpha.UpdateKeyRequest
-	(*DeleteKeyRequest)(nil),               // 12: com.seed.daemon.v1alpha.DeleteKeyRequest
-	(*StoreBlobsRequest)(nil),              // 13: com.seed.daemon.v1alpha.StoreBlobsRequest
-	(*StoreBlobsResponse)(nil),             // 14: com.seed.daemon.v1alpha.StoreBlobsResponse
-	(*CreateDeviceLinkSessionRequest)(nil), // 15: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	(*GetDeviceLinkSessionRequest)(nil),    // 16: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	(*SignDataRequest)(nil),                // 17: com.seed.daemon.v1alpha.SignDataRequest
-	(*SignDataResponse)(nil),               // 18: com.seed.daemon.v1alpha.SignDataResponse
-	(*DeviceLinkSession)(nil),              // 19: com.seed.daemon.v1alpha.DeviceLinkSession
-	(*AddrInfo)(nil),                       // 20: com.seed.daemon.v1alpha.AddrInfo
-	(*Blob)(nil),                           // 21: com.seed.daemon.v1alpha.Blob
-	(*Info)(nil),                           // 22: com.seed.daemon.v1alpha.Info
-	(*NamedKey)(nil),                       // 23: com.seed.daemon.v1alpha.NamedKey
-	(*timestamppb.Timestamp)(nil),          // 24: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                  // 25: google.protobuf.Empty
+	(TaskName)(0),                          // 1: com.seed.daemon.v1alpha.TaskName
+	(*GenMnemonicRequest)(nil),             // 2: com.seed.daemon.v1alpha.GenMnemonicRequest
+	(*GenMnemonicResponse)(nil),            // 3: com.seed.daemon.v1alpha.GenMnemonicResponse
+	(*RegisterKeyRequest)(nil),             // 4: com.seed.daemon.v1alpha.RegisterKeyRequest
+	(*GetInfoRequest)(nil),                 // 5: com.seed.daemon.v1alpha.GetInfoRequest
+	(*ForceSyncRequest)(nil),               // 6: com.seed.daemon.v1alpha.ForceSyncRequest
+	(*ForceReindexRequest)(nil),            // 7: com.seed.daemon.v1alpha.ForceReindexRequest
+	(*ForceReindexResponse)(nil),           // 8: com.seed.daemon.v1alpha.ForceReindexResponse
+	(*DeleteAllKeysRequest)(nil),           // 9: com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	(*ListKeysRequest)(nil),                // 10: com.seed.daemon.v1alpha.ListKeysRequest
+	(*ListKeysResponse)(nil),               // 11: com.seed.daemon.v1alpha.ListKeysResponse
+	(*UpdateKeyRequest)(nil),               // 12: com.seed.daemon.v1alpha.UpdateKeyRequest
+	(*DeleteKeyRequest)(nil),               // 13: com.seed.daemon.v1alpha.DeleteKeyRequest
+	(*StoreBlobsRequest)(nil),              // 14: com.seed.daemon.v1alpha.StoreBlobsRequest
+	(*StoreBlobsResponse)(nil),             // 15: com.seed.daemon.v1alpha.StoreBlobsResponse
+	(*CreateDeviceLinkSessionRequest)(nil), // 16: com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	(*GetDeviceLinkSessionRequest)(nil),    // 17: com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	(*SignDataRequest)(nil),                // 18: com.seed.daemon.v1alpha.SignDataRequest
+	(*SignDataResponse)(nil),               // 19: com.seed.daemon.v1alpha.SignDataResponse
+	(*DeviceLinkSession)(nil),              // 20: com.seed.daemon.v1alpha.DeviceLinkSession
+	(*AddrInfo)(nil),                       // 21: com.seed.daemon.v1alpha.AddrInfo
+	(*Blob)(nil),                           // 22: com.seed.daemon.v1alpha.Blob
+	(*Info)(nil),                           // 23: com.seed.daemon.v1alpha.Info
+	(*Task)(nil),                           // 24: com.seed.daemon.v1alpha.Task
+	(*NamedKey)(nil),                       // 25: com.seed.daemon.v1alpha.NamedKey
+	(*timestamppb.Timestamp)(nil),          // 26: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                  // 27: google.protobuf.Empty
 }
 var file_daemon_v1alpha_daemon_proto_depIdxs = []int32{
-	23, // 0: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
-	21, // 1: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
-	20, // 2: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
-	24, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
-	24, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
+	25, // 0: com.seed.daemon.v1alpha.ListKeysResponse.keys:type_name -> com.seed.daemon.v1alpha.NamedKey
+	22, // 1: com.seed.daemon.v1alpha.StoreBlobsRequest.blobs:type_name -> com.seed.daemon.v1alpha.Blob
+	21, // 2: com.seed.daemon.v1alpha.DeviceLinkSession.addr_info:type_name -> com.seed.daemon.v1alpha.AddrInfo
+	26, // 3: com.seed.daemon.v1alpha.DeviceLinkSession.expire_time:type_name -> google.protobuf.Timestamp
+	26, // 4: com.seed.daemon.v1alpha.DeviceLinkSession.redeem_time:type_name -> google.protobuf.Timestamp
 	0,  // 5: com.seed.daemon.v1alpha.Info.state:type_name -> com.seed.daemon.v1alpha.State
-	24, // 6: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
-	1,  // 7: com.seed.daemon.v1alpha.Daemon.GenMnemonic:input_type -> com.seed.daemon.v1alpha.GenMnemonicRequest
-	3,  // 8: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
-	4,  // 9: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
-	5,  // 10: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
-	6,  // 11: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
-	9,  // 12: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
-	11, // 13: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
-	12, // 14: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
-	8,  // 15: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
-	13, // 16: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
-	15, // 17: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
-	16, // 18: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
-	17, // 19: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
-	2,  // 20: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
-	23, // 21: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	22, // 22: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
-	25, // 23: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
-	7,  // 24: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
-	10, // 25: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
-	23, // 26: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
-	25, // 27: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
-	25, // 28: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
-	14, // 29: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
-	19, // 30: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	19, // 31: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
-	18, // 32: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
-	20, // [20:33] is the sub-list for method output_type
-	7,  // [7:20] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	26, // 6: com.seed.daemon.v1alpha.Info.start_time:type_name -> google.protobuf.Timestamp
+	24, // 7: com.seed.daemon.v1alpha.Info.tasks:type_name -> com.seed.daemon.v1alpha.Task
+	1,  // 8: com.seed.daemon.v1alpha.Task.task_name:type_name -> com.seed.daemon.v1alpha.TaskName
+	2,  // 9: com.seed.daemon.v1alpha.Daemon.GenMnemonic:input_type -> com.seed.daemon.v1alpha.GenMnemonicRequest
+	4,  // 10: com.seed.daemon.v1alpha.Daemon.RegisterKey:input_type -> com.seed.daemon.v1alpha.RegisterKeyRequest
+	5,  // 11: com.seed.daemon.v1alpha.Daemon.GetInfo:input_type -> com.seed.daemon.v1alpha.GetInfoRequest
+	6,  // 12: com.seed.daemon.v1alpha.Daemon.ForceSync:input_type -> com.seed.daemon.v1alpha.ForceSyncRequest
+	7,  // 13: com.seed.daemon.v1alpha.Daemon.ForceReindex:input_type -> com.seed.daemon.v1alpha.ForceReindexRequest
+	10, // 14: com.seed.daemon.v1alpha.Daemon.ListKeys:input_type -> com.seed.daemon.v1alpha.ListKeysRequest
+	12, // 15: com.seed.daemon.v1alpha.Daemon.UpdateKey:input_type -> com.seed.daemon.v1alpha.UpdateKeyRequest
+	13, // 16: com.seed.daemon.v1alpha.Daemon.DeleteKey:input_type -> com.seed.daemon.v1alpha.DeleteKeyRequest
+	9,  // 17: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:input_type -> com.seed.daemon.v1alpha.DeleteAllKeysRequest
+	14, // 18: com.seed.daemon.v1alpha.Daemon.StoreBlobs:input_type -> com.seed.daemon.v1alpha.StoreBlobsRequest
+	16, // 19: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.CreateDeviceLinkSessionRequest
+	17, // 20: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:input_type -> com.seed.daemon.v1alpha.GetDeviceLinkSessionRequest
+	18, // 21: com.seed.daemon.v1alpha.Daemon.SignData:input_type -> com.seed.daemon.v1alpha.SignDataRequest
+	3,  // 22: com.seed.daemon.v1alpha.Daemon.GenMnemonic:output_type -> com.seed.daemon.v1alpha.GenMnemonicResponse
+	25, // 23: com.seed.daemon.v1alpha.Daemon.RegisterKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	23, // 24: com.seed.daemon.v1alpha.Daemon.GetInfo:output_type -> com.seed.daemon.v1alpha.Info
+	27, // 25: com.seed.daemon.v1alpha.Daemon.ForceSync:output_type -> google.protobuf.Empty
+	8,  // 26: com.seed.daemon.v1alpha.Daemon.ForceReindex:output_type -> com.seed.daemon.v1alpha.ForceReindexResponse
+	11, // 27: com.seed.daemon.v1alpha.Daemon.ListKeys:output_type -> com.seed.daemon.v1alpha.ListKeysResponse
+	25, // 28: com.seed.daemon.v1alpha.Daemon.UpdateKey:output_type -> com.seed.daemon.v1alpha.NamedKey
+	27, // 29: com.seed.daemon.v1alpha.Daemon.DeleteKey:output_type -> google.protobuf.Empty
+	27, // 30: com.seed.daemon.v1alpha.Daemon.DeleteAllKeys:output_type -> google.protobuf.Empty
+	15, // 31: com.seed.daemon.v1alpha.Daemon.StoreBlobs:output_type -> com.seed.daemon.v1alpha.StoreBlobsResponse
+	20, // 32: com.seed.daemon.v1alpha.Daemon.CreateDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	20, // 33: com.seed.daemon.v1alpha.Daemon.GetDeviceLinkSession:output_type -> com.seed.daemon.v1alpha.DeviceLinkSession
+	19, // 34: com.seed.daemon.v1alpha.Daemon.SignData:output_type -> com.seed.daemon.v1alpha.SignDataResponse
+	22, // [22:35] is the sub-list for method output_type
+	9,  // [9:22] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_daemon_v1alpha_daemon_proto_init() }
@@ -1420,8 +1555,8 @@ func file_daemon_v1alpha_daemon_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_daemon_v1alpha_daemon_proto_rawDesc), len(file_daemon_v1alpha_daemon_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   23,
+			NumEnums:      2,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

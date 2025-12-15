@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"fmt"
+	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"slices"
 	"time"
@@ -52,7 +53,21 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		blobsIndexed int
 	)
 	idx.log.Info("ReindexingStarted")
-
+	const taskID = "blob_reindex"
+	if idx.taskMgr != nil {
+		prevState := idx.taskMgr.GlobalState()
+		idx.taskMgr.UpdateGlobalState(daemon.State_MIGRATING)
+		_, err := idx.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs")
+		if err != nil {
+			idx.log.Warn("Failed to create reindexing task", zap.Error(err))
+		}
+		defer func() {
+			if err == nil {
+				idx.taskMgr.DeleteTask(taskID)
+			}
+			idx.taskMgr.UpdateGlobalState(prevState)
+		}()
+	}
 	defer func() {
 		idx.log.Info("ReindexingFinished",
 			zap.Error(err),
@@ -105,7 +120,9 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 			err = indexBlob(false, conn, id, c, data, idx.bs, idx.log)
 			blobsIndexed++
-
+			if idx.taskMgr != nil {
+				idx.taskMgr.UpdateProgress(taskID, float64(blobsIndexed)/float64(blobsTotal))
+			}
 			return err
 		}, args...); err != nil {
 			return err

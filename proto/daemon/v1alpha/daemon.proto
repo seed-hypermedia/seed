@@ -221,6 +221,9 @@ message Info {
 
   // The libp2p protocol ID that the daemon is using.
   string protocol_id = 4;
+
+  // The tasks that the daemon is currently performing.
+  repeated Task tasks = 5;
 }
 
 // State describes various states of the daemon.
@@ -234,6 +237,27 @@ enum State {
 
   // Daemon is active and ready to use.
   ACTIVE = 3;
+}
+
+// Different types of tasks that the daemon can perform.
+enum TaskName {
+  // Unknown task.
+  TASK_NAME_UNSPECIFIED = 0;
+
+  // Task for reindexing the database.
+  REINDEXING = 1;
+}
+
+// Description of a task that the daemon is performing.
+message Task {
+  // Name of the task.
+  TaskName task_name = 1;
+
+  // Description of the task.
+  string description = 2;
+
+  // Progress of the task, from 0.0 to 1.0.
+  double progress = 3;
 }
 
 // Signing key with an internal name.

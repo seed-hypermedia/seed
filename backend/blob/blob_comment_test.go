@@ -86,7 +86,7 @@ func TestCommentCausality(t *testing.T) {
 
 		t.Run(strings.Join(order, "+"), func(t *testing.T) {
 			db := storage.MakeTestDB(t)
-			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop(), nil)
 			require.NoError(t, err)
 			for _, blob := range test {
 				require.NoError(t, idx.Put(t.Context(), blob))

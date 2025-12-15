@@ -1212,7 +1212,7 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	db := storage.MakeTestMemoryDB(t)
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
-	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug"), nil))
 	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), &mockedSyncingClient{})
 	return testServer{Server: srv, me: u}
 }

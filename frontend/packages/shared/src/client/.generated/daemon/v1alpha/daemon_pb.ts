@@ -42,6 +42,32 @@ proto3.util.setEnumType(State, "com.seed.daemon.v1alpha.State", [
 ]);
 
 /**
+ * Different types of tasks that the daemon can perform.
+ *
+ * @generated from enum com.seed.daemon.v1alpha.TaskName
+ */
+export enum TaskName {
+  /**
+   * Unknown task.
+   *
+   * @generated from enum value: TASK_NAME_UNSPECIFIED = 0;
+   */
+  TASK_NAME_UNSPECIFIED = 0,
+
+  /**
+   * Task for reindexing the database.
+   *
+   * @generated from enum value: REINDEXING = 1;
+   */
+  REINDEXING = 1,
+}
+// Retrieve enum metadata with: proto3.getEnumType(TaskName)
+proto3.util.setEnumType(TaskName, "com.seed.daemon.v1alpha.TaskName", [
+  { no: 0, name: "TASK_NAME_UNSPECIFIED" },
+  { no: 1, name: "REINDEXING" },
+]);
+
+/**
  * Request to generate mnemonic words.
  *
  * @generated from message com.seed.daemon.v1alpha.GenMnemonicRequest
@@ -982,6 +1008,13 @@ export class Info extends Message<Info> {
    */
   protocolId = "";
 
+  /**
+   * The tasks that the daemon is currently performing.
+   *
+   * @generated from field: repeated com.seed.daemon.v1alpha.Task tasks = 5;
+   */
+  tasks: Task[] = [];
+
   constructor(data?: PartialMessage<Info>) {
     super();
     proto3.util.initPartial(data, this);
@@ -994,6 +1027,7 @@ export class Info extends Message<Info> {
     { no: 2, name: "peer_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "start_time", kind: "message", T: Timestamp },
     { no: 4, name: "protocol_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "tasks", kind: "message", T: Task, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Info {
@@ -1010,6 +1044,63 @@ export class Info extends Message<Info> {
 
   static equals(a: Info | PlainMessage<Info> | undefined, b: Info | PlainMessage<Info> | undefined): boolean {
     return proto3.util.equals(Info, a, b);
+  }
+}
+
+/**
+ * Description of a task that the daemon is performing.
+ *
+ * @generated from message com.seed.daemon.v1alpha.Task
+ */
+export class Task extends Message<Task> {
+  /**
+   * Name of the task.
+   *
+   * @generated from field: com.seed.daemon.v1alpha.TaskName task_name = 1;
+   */
+  taskName = TaskName.TASK_NAME_UNSPECIFIED;
+
+  /**
+   * Description of the task.
+   *
+   * @generated from field: string description = 2;
+   */
+  description = "";
+
+  /**
+   * Progress of the task, from 0.0 to 1.0.
+   *
+   * @generated from field: double progress = 3;
+   */
+  progress = 0;
+
+  constructor(data?: PartialMessage<Task>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.daemon.v1alpha.Task";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "task_name", kind: "enum", T: proto3.getEnumType(TaskName) },
+    { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "progress", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Task {
+    return new Task().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Task {
+    return new Task().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Task {
+    return new Task().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Task | PlainMessage<Task> | undefined, b: Task | PlainMessage<Task> | undefined): boolean {
+    return proto3.util.equals(Task, a, b);
   }
 }
 

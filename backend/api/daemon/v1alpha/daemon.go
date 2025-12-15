@@ -51,10 +51,12 @@ type Server struct {
 
 	// Mainly to ensure there's only one registration request at a time.
 	mu sync.Mutex
+
+	taskMgr *core.TaskManager
 }
 
 // NewServer creates a new Server.
-func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service) *Server {
+func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *core.TaskManager) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}
@@ -63,9 +65,10 @@ func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.
 		store:     store,
 		startTime: time.Now(),
 		// wallet:        w, // TODO(hm24): Put the wallet back.
-		p2p:    n,
-		blocks: idx,
-		dlink:  dlink,
+		p2p:     n,
+		blocks:  idx,
+		dlink:   dlink,
+		taskMgr: taskMgr,
 	}
 }
 
@@ -178,8 +181,9 @@ func (srv *Server) GetInfo(context.Context, *daemon.GetInfoRequest) (*daemon.Inf
 	resp := &daemon.Info{
 		PeerId:     srv.store.Device().PeerID().String(),
 		StartTime:  timestamppb.New(srv.startTime),
-		State:      daemon.State_ACTIVE, // TODO(hm24): handle the state correctly, providing feedback for database migrations.
+		State:      srv.taskMgr.GlobalState(),
 		ProtocolId: string(srv.p2p.ProtocolID()),
+		Tasks:      srv.taskMgr.Tasks(),
 	}
 
 	return resp, nil

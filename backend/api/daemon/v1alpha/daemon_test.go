@@ -120,10 +120,10 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 
-	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
+	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop(), nil)
 	require.NoError(t, err)
 
-	return NewServer(store, &mockedP2PNode{}, idx, nil)
+	return NewServer(store, &mockedP2PNode{}, idx, nil, nil)
 }
 
 type mockedP2PNode struct{}

@@ -15,7 +15,9 @@ import (
 	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core"
 	"seed/backend/devicelink"
+	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/logging"
@@ -41,6 +43,8 @@ type App struct {
 	g     *errgroup.Group
 
 	log *zap.Logger
+
+	taskMgr *core.TaskManager
 
 	Storage      *storage.Store
 	HTTPListener net.Listener
@@ -107,6 +111,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,
+		taskMgr: core.NewTaskManager(),
 	}
 	a.g, ctx = errgroup.WithContext(ctx)
 
@@ -145,11 +150,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	otel.SetTracerProvider(tp)
 
-	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
+	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), a.taskMgr)
 	if err != nil {
 		return nil, err
 	}
-
+	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
 		return nil, err
@@ -164,7 +169,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +195,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.setupLogging(ctx, cfg)
-
+	a.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
 	return
 }
 
@@ -321,6 +326,7 @@ func initGRPC(
 	isMainnet bool,
 	opts grpcOpts,
 	dlink *devicelink.Service,
+	taskMgr *core.TaskManager,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
@@ -328,7 +334,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet, dlink)
+	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr)
 	apis.Register(srv)
 
 	for _, extra := range opts.extraServices {

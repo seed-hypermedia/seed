@@ -18,7 +18,7 @@ func TestPublicBlockstorePrivateBlobs(t *testing.T) {
 
 	pool := storage.MakeTestMemoryDB(t)
 	log := zaptest.NewLogger(t)
-	idx, err := OpenIndex(ctx, pool, log)
+	idx, err := OpenIndex(ctx, pool, log, nil)
 	require.NoError(t, err)
 
 	alice := coretest.NewTester("alice")

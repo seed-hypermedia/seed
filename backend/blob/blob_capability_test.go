@@ -17,7 +17,7 @@ func TestOutOfOrderCapability(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	bob := coretest.NewTester("bob").Account
 	db := storage.MakeTestDB(t)
-	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop(), nil)
 	require.NoError(t, err)
 
 	clock := cclock.New()

@@ -96,16 +96,18 @@ type Index struct {
 	db  *sqlitex.Pool
 	log *zap.Logger
 
-	mu sync.Mutex // protects from concurrent reindexing
+	mu      sync.Mutex // protects from concurrent reindexing
+	taskMgr *core.TaskManager
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
-func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, error) {
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *core.TaskManager) (*Index, error) {
 	idx := &Index{
-		bs:  newBlockstore(db),
-		db:  db,
-		log: log,
+		bs:      newBlockstore(db),
+		db:      db,
+		log:     log,
+		taskMgr: taskMgr,
 	}
 
 	if err := idx.MaybeReindex(ctx); err != nil {
