@@ -13,6 +13,7 @@ import path from 'path'
 import {grpcClient, markGRPCReady} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
+import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
@@ -145,6 +146,12 @@ export async function startMainDaemon(): Promise<{
     async () => {
       log.debug('Waiting for daemon to boot...')
       const info = await grpcClient.daemon.getInfo({})
+      if (info.state !== State.ACTIVE) {
+        if (info.state === State.MIGRATING && info.tasks.length === 1) {
+          log.info(`Daemon migrating: ${info.tasks[0].progress * 100}%`)
+        }
+        throw new Error(`Daemon not ready yet: ${info.state}`)
+      }
       log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
     },
     'waiting for daemon gRPC to be ready',
