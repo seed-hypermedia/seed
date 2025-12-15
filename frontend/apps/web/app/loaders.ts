@@ -358,26 +358,32 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const client = serverUniversalClient
 
-  // Prefetch home document
-  await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
+  // Prefetch critical data with error handling to prevent SSR crashes
+  try {
+    // Prefetch home document
+    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
 
-  // Prefetch all embedded documents
-  await Promise.all(
+    // Prefetch directory queries
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, homeId, 'Children'),
+    )
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, docId, 'Children'),
+    )
+  } catch (e) {
+    console.error('Error prefetching critical data for SSR', e)
+    // Continue with degraded state - client will fetch missing data
+  }
+
+  // Prefetch all embedded documents (use allSettled for graceful degradation)
+  await Promise.allSettled(
     embeddedDocs.map((doc) =>
       prefetchCtx.queryClient.prefetchQuery(queryResource(client, doc.id)),
     ),
   )
 
-  // Prefetch directory queries
-  await prefetchCtx.queryClient.prefetchQuery(
-    queryDirectory(client, homeId, 'Children'),
-  )
-  await prefetchCtx.queryClient.prefetchQuery(
-    queryDirectory(client, docId, 'Children'),
-  )
-
-  // Prefetch account metadata
-  await Promise.all(
+  // Prefetch account metadata (use allSettled for graceful degradation)
+  await Promise.allSettled(
     authors.map((author) =>
       prefetchCtx.queryClient.prefetchQuery(
         queryAccount(client, author.id.uid),
@@ -823,10 +829,12 @@ export async function loadSiteHeaderData(
 
   try {
     // Prefetch home document and directory for navigation
-    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
-    await prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, homeId, 'Children'),
-    )
+    await Promise.allSettled([
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
+      prefetchCtx.queryClient.prefetchQuery(
+        queryDirectory(client, homeId, 'Children'),
+      ),
+    ])
 
     // Read from cache
     const homeResource = prefetchCtx.queryClient.getQueryData(
