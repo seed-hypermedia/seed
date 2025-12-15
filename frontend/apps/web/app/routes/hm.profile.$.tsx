@@ -5,18 +5,17 @@ import {
   LogoutButton,
   useLocalKeyPair,
 } from '@/auth'
-import {getMetadata, loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
+import {loadProfilePageData, ProfilePagePayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
+import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
-import {WebSiteHeader} from '@/web-site-header'
 import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
 import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {hmId} from '@shm/shared'
-import {HMMetadataPayload, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
@@ -25,15 +24,12 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare} from 'lucide-react'
 
-type ProfilePagePayload = SiteHeaderPayload & {
-  profile: HMMetadataPayload
-}
-
 export const meta: MetaFunction = ({data}) => {
-  const {homeMetadata, profile} = unwrap<ProfilePagePayload>(data)
+  const payload = unwrap<ProfilePagePayload>(data)
   const meta: MetaDescriptor[] = []
-  const homeIcon = homeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S')
+  // Use origin site's home icon for favicon
+  const homeIcon = payload?.homeMetadata?.icon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(payload.homeMetadata.icon), 'S')
     : null
   meta.push({
     tagName: 'link',
@@ -42,45 +38,41 @@ export const meta: MetaFunction = ({data}) => {
     type: 'image/png',
   })
   meta.push({
-    title: profile.metadata?.name || 'Profile',
+    title: payload?.profileName || 'Profile',
   })
   return meta
 }
 
 export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
-  const headerData = await loadSiteHeaderData(parsedRequest)
-
   const uid = parsedRequest.pathParts[2]
-  const profile = await getMetadata(hmId(uid))
-
-  return wrapJSON({
-    ...headerData,
-    profile,
-  } satisfies ProfilePagePayload)
+  if (!uid) {
+    throw new Response('Profile ID required', {status: 400})
+  }
+  const data = await loadProfilePageData(parsedRequest, uid)
+  return wrapJSON(data)
 }
 
 function ProfilePageContent({
   homeMetadata,
   originHomeId,
   origin,
-  profile,
+  profileId,
   currentAccount,
 }: {
   homeMetadata: ProfilePagePayload['homeMetadata']
   originHomeId: UnpackedHypermediaId
   origin: string
-  profile: HMMetadataPayload
+  profileId: UnpackedHypermediaId
   currentAccount?: string
 }) {
   const editProfileDialog = useAppDialog(EditProfileDialog)
-  const account = useAccount(profile.id.uid)
-  const displayMetadata = account.data?.metadata ?? profile.metadata
-  const isCurrentAccount = currentAccount === profile.id.uid
+  const account = useAccount(profileId.uid)
+  const isCurrentAccount = currentAccount === profileId.uid
   const linkKeysDialog = useAppDialog(LinkKeysDialog)
   return (
     <>
-      <div className="flex min-h-screen flex-1 flex-col items-center">
+      <div className="flex flex-col flex-1 items-center min-h-screen">
         <WebSiteHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
@@ -91,12 +83,12 @@ function ProfilePageContent({
         <PageContainer>
           <HMProfilePage
             profile={{
-              id: profile.id,
-              metadata: displayMetadata,
-              hasSite: profile.hasSite,
+              id: profileId,
+              metadata: account.data?.metadata || null,
+              hasSite: account.data?.hasSite,
             }}
             onEditProfile={() =>
-              editProfileDialog.open({accountUid: profile.id.uid})
+              editProfileDialog.open({accountUid: profileId.uid})
             }
             currentAccount={currentAccount}
             headerButtons={
@@ -124,14 +116,8 @@ function ProfilePageContent({
   )
 }
 export default function ProfilePage() {
-  const {
-    originHomeId,
-    siteHost,
-    origin,
-    homeMetadata,
-    profile,
-    dehydratedState,
-  } = unwrap<ProfilePagePayload>(useLoaderData())
+  const {originHomeId, origin, homeMetadata, profileId, dehydratedState} =
+    unwrap<ProfilePagePayload>(useLoaderData())
   const userKeyPair = useLocalKeyPair()
 
   if (!originHomeId) {
@@ -141,14 +127,13 @@ export default function ProfilePage() {
     <WebSiteProvider
       origin={origin}
       originHomeId={originHomeId}
-      siteHost={siteHost}
       dehydratedState={dehydratedState}
     >
       <ProfilePageContent
         homeMetadata={homeMetadata}
         originHomeId={originHomeId}
         origin={origin}
-        profile={profile}
+        profileId={profileId}
         currentAccount={userKeyPair?.id}
       />
     </WebSiteProvider>
@@ -160,7 +145,7 @@ const PageContainer = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)}
+    className={cn('flex flex-col gap-5 items-center p-4 rounded-sm', className)}
     {...props}
   />
 )

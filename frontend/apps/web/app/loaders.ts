@@ -148,6 +148,9 @@ export type WebResourcePayload = {
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
 
+  // Icon from the document's home (for favicon in SSR)
+  siteHomeIcon?: string | null
+
   // Dehydrated React Query state for SSR hydration
   dehydratedState?: DehydratedState
 }
@@ -402,6 +405,7 @@ async function loadResourcePayload(
     isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...docId, version: document.version},
     breadcrumbs,
+    siteHomeIcon: homeDocument.metadata?.icon || null,
     dehydratedState,
     ...getOriginRequestData(parsedRequest),
   }
@@ -859,6 +863,87 @@ export async function loadSiteHeaderData(
       homeMetadata: metadataResult.metadata,
       origin,
       siteHost: origin,
+    }
+  }
+}
+
+export type ProfilePagePayload = SiteHeaderPayload & {
+  profileId: UnpackedHypermediaId
+  // For SSR meta tags
+  profileName: string | null
+}
+
+/**
+ * Load profile page data with prefetched account data.
+ */
+export async function loadProfilePageData(
+  parsedRequest: ParsedRequest,
+  profileUid: string,
+): Promise<ProfilePagePayload> {
+  const {hostname, origin} = parsedRequest
+  const config = await getConfig(hostname)
+
+  const profileId = hmId(profileUid)
+  const prefetchCtx = createPrefetchContext()
+  const client = serverUniversalClient
+
+  // Prefetch profile account data
+  await prefetchCtx.queryClient.prefetchQuery(queryAccount(client, profileUid))
+
+  // Read profile data from cache for SSR meta tags
+  const profileData = prefetchCtx.queryClient.getQueryData(
+    queryAccount(client, profileUid).queryKey,
+  ) as {metadata?: {name?: string}} | null
+  const profileName = profileData?.metadata?.name || null
+
+  if (!config?.registeredAccountUid) {
+    return {
+      originHomeId: undefined,
+      homeMetadata: null,
+      origin,
+      siteHost: origin,
+      profileId,
+      profileName,
+      dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    }
+  }
+
+  const homeId = hmId(config.registeredAccountUid, {latest: true})
+
+  try {
+    // Prefetch home document and directory for navigation
+    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, homeId, 'Children'),
+    )
+
+    // Read from cache
+    const homeResource = prefetchCtx.queryClient.getQueryData(
+      queryResource(client, homeId).queryKey,
+    ) as {type: 'document'; document: HMDocument} | null
+    const homeDocument =
+      homeResource?.type === 'document' ? homeResource.document : null
+
+    return {
+      originHomeId: homeId,
+      homeMetadata: homeDocument?.metadata || null,
+      origin,
+      siteHost: origin,
+      profileId,
+      profileName,
+      dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    }
+  } catch (e) {
+    console.error('Error loading profile page data', e)
+    const metadataResult = await getMetadata(homeId)
+    return {
+      originHomeId: homeId,
+      homeMetadata: metadataResult.metadata,
+      origin,
+      siteHost: origin,
+      profileId,
+      profileName,
+      dehydratedState: dehydratePrefetchContext(prefetchCtx),
     }
   }
 }

@@ -34,18 +34,16 @@ export const documentPageMeta = ({
   data: Wrapped<SiteDocumentPayload>
 }): ReturnType<MetaFunction> => {
   const siteDocument = unwrap<SiteDocumentPayload>(data)
-  const homeIcon = siteDocument?.homeMetadata?.icon
-    ? getOptimizedImageUrl(
-        extractIpfsUrlCid(siteDocument.homeMetadata.icon),
-        'S',
-      )
+  // Use the document's home icon (siteHomeIcon), not the origin site's icon
+  const siteHomeIcon = siteDocument?.siteHomeIcon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(siteDocument.siteHomeIcon), 'S')
     : null
   const meta: ReturnType<MetaFunction> = []
 
   meta.push({
     tagName: 'link',
     rel: 'icon',
-    href: homeIcon || defaultSiteIcon,
+    href: siteHomeIcon || defaultSiteIcon,
     type: 'image/png',
   })
 
