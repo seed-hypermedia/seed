@@ -67,7 +67,10 @@ export function useDeleteEntities(
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id])
         getParentPaths(id.path).forEach((path) => {
           const parentId = hmId(id.uid, {path})
-          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+          invalidateQueries([
+            queryKeys.DOCUMENT_INTERACTION_SUMMARY,
+            parentId.id,
+          ])
         })
       })
       opts?.onSuccess?.(result, input, context)

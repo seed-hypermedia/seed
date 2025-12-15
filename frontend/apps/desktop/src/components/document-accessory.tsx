@@ -94,7 +94,9 @@ export function useDocumentAccessory({
     accessory = docId ? (
       <DirectoryPanel
         docId={docId}
-        header={<NewSubDocumentButton locationId={docId} importDropdown={false} />}
+        header={
+          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+        }
       />
     ) : null
   } else if (accessoryKey === 'options' || isNewDraft) {

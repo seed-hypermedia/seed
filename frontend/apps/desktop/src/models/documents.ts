@@ -341,10 +341,16 @@ export function usePublishResource(
         invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
-        invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
+        invalidateQueries([
+          queryKeys.DOCUMENT_INTERACTION_SUMMARY,
+          resultDocId.id,
+        ])
         getParentPaths(resultDocId.path).forEach((path) => {
           const parentId = hmId(resultDocId.uid, {path})
-          invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, parentId.id])
+          invalidateQueries([
+            queryKeys.DOCUMENT_INTERACTION_SUMMARY,
+            parentId.id,
+          ])
         })
       }
     },
