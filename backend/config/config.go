@@ -252,7 +252,7 @@ type P2P struct {
 	DelegatedDHTURL         string
 	ForceReachabilityPublic bool
 	NoPeerSharing           bool
-	PrivateIps              bool
+	NoPrivateIps            bool
 	NoMetrics               bool
 	RelayBackoff            time.Duration
 }
@@ -289,7 +289,7 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	fs.Var(newAddrsFlag(p2p.AnnounceAddrs, &p2p.AnnounceAddrs), "p2p.announce-addrs", "Multiaddrs this node will announce as being reachable at (comma separated)")
 	fs.StringVar(&p2p.DelegatedDHTURL, "p2p.delegated-dht", p2p.DelegatedDHTURL, "URL of the remote DHT delegated server. In not provided, then a local dht client is created.")
 	fs.BoolVar(&p2p.ForceReachabilityPublic, "p2p.force-reachability-public", p2p.ForceReachabilityPublic, "Force the node into thinking it's publicly reachable")
-	fs.BoolVar(&p2p.PrivateIps, "p2p.private-ips", p2p.PrivateIps, "Allow announcing private IP addresses (ignored when using -p2p.announce-addrs)")
+	fs.BoolVar(&p2p.NoPrivateIps, "p2p.no-private-ips", p2p.NoPrivateIps, "Avoid announcing private IP addresses (ignored when using -p2p.announce-addrs)")
 	fs.BoolVar(&p2p.NoMetrics, "p2p.no-metrics", p2p.NoMetrics, "Disable Prometheus metrics collection")
 	fs.BoolVar(&p2p.NoPeerSharing, "syncing.no-peer-sharing", p2p.NoPeerSharing, "We don't share our peer list whenever we connect to another seed peer")
 	fs.DurationVar(&p2p.RelayBackoff, "p2p.relay-backoff", p2p.RelayBackoff, "The time the autorelay waits to reconnect after failing to obtain a reservation with a candidate")
