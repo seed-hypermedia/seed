@@ -15,7 +15,7 @@ import (
 	activity "seed/backend/api/activity/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
-	"seed/backend/core"
+	taskmanager "seed/backend/daemon/task_manager"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
@@ -44,7 +44,7 @@ type App struct {
 
 	log *zap.Logger
 
-	taskMgr *core.TaskManager
+	taskMgr *taskmanager.TaskManager
 
 	Storage      *storage.Store
 	HTTPListener net.Listener
@@ -111,7 +111,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,
-		taskMgr: core.NewTaskManager(),
+		taskMgr: taskmanager.NewTaskManager(),
 	}
 	a.g, ctx = errgroup.WithContext(ctx)
 
@@ -326,7 +326,7 @@ func initGRPC(
 	isMainnet bool,
 	opts grpcOpts,
 	dlink *devicelink.Service,
-	taskMgr *core.TaskManager,
+	taskMgr *taskmanager.TaskManager,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {

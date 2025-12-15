@@ -9,7 +9,7 @@ import (
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
-	"seed/backend/core"
+	taskmanager "seed/backend/daemon/task_manager"
 	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
@@ -49,7 +49,7 @@ func New(
 	LogLevel string,
 	isMainnet bool,
 	dlink *devicelink.Service,
-	taskMgr *core.TaskManager,
+	taskMgr *taskmanager.TaskManager,
 ) Server {
 	db := repo.DB()
 	proxy := &p2pProxy{node: node}

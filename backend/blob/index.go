@@ -8,6 +8,7 @@ import (
 	"iter"
 	"net/url"
 	"seed/backend/core"
+	taskmanager "seed/backend/daemon/task_manager"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -97,12 +98,12 @@ type Index struct {
 	log *zap.Logger
 
 	mu      sync.Mutex // protects from concurrent reindexing
-	taskMgr *core.TaskManager
+	taskMgr *taskmanager.TaskManager
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
-func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *core.TaskManager) (*Index, error) {
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, error) {
 	idx := &Index{
 		bs:      newBlockstore(db),
 		db:      db,

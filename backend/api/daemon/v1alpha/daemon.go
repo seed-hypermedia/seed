@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
+	taskmanager "seed/backend/daemon/task_manager"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"
@@ -52,11 +53,11 @@ type Server struct {
 	// Mainly to ensure there's only one registration request at a time.
 	mu sync.Mutex
 
-	taskMgr *core.TaskManager
+	taskMgr *taskmanager.TaskManager
 }
 
 // NewServer creates a new Server.
-func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *core.TaskManager) *Server {
+func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager) *Server {
 	if n == nil {
 		panic("BUG: p2p node is required")
 	}

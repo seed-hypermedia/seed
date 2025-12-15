@@ -5,6 +5,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
+	taskmanager "seed/backend/daemon/task_manager"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"testing"
@@ -119,7 +120,7 @@ func newTestServer(t *testing.T, name string) *Server {
 	store, err := storage.Open(t.TempDir(), u.Device.Libp2pKey(), core.NewMemoryKeyStore(), "debug")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
-	tMgr := core.NewTaskManager()
+	tMgr := taskmanager.NewTaskManager()
 	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop(), tMgr)
 	require.NoError(t, err)
 

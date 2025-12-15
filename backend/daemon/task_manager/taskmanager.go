@@ -1,5 +1,4 @@
-// File: backend/daemon/task_mgr.go
-package core
+package taskmanager
 
 import (
 	"errors"
