@@ -14,6 +14,7 @@ export function useRecents() {
   return useQuery({
     queryKey: [queryKeys.RECENTS],
     queryFn: async () => {
+      if (!client.fetchRecents) return []
       const r = await client.fetchRecents()
       if (Array.isArray(r)) {
         return r
@@ -22,6 +23,7 @@ export function useRecents() {
         return []
       }
     },
+    enabled: !!client.fetchRecents,
   })
 }
 
@@ -30,6 +32,9 @@ export function useDeleteRecent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => {
+      if (!client.deleteRecent) {
+        throw new Error('deleteRecent not available on this platform')
+      }
       return client.deleteRecent(id)
     },
     onSuccess: () => {

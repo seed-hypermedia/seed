@@ -52,7 +52,15 @@ import {
   createResourceResolver,
 } from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/blocks-content'
+import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
+import {
+  queryAccount,
+  queryDirectory,
+  queryResource,
+} from '@shm/shared/models/queries'
+import {createPrefetchContext, dehydratePrefetchContext} from './queries.server'
+import {serverUniversalClient} from './server-universal-client'
 import {ParsedRequest} from './request'
 import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
@@ -137,10 +145,11 @@ export type WebResourcePayload = {
   // supporting metadata for referenced accounts
   accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
-  supportDocuments?: {id: UnpackedHypermediaId; document: HMDocument}[]
-  supportQueries?: HMQueryResult[]
   isLatest: boolean
   breadcrumbs: Array<HMMetadataPayload>
+
+  // Dehydrated React Query state for SSR hydration
+  dehydratedState?: DehydratedState
 }
 
 export async function getDocument(
@@ -247,7 +256,7 @@ async function loadResourcePayload(
     }),
   )
   const refs = extractRefs(document.content)
-  let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] = (
+  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] = (
     await Promise.all(
       // @ts-expect-error
       refs.map(async (ref) => {
@@ -263,7 +272,7 @@ async function loadResourcePayload(
           if (!doc) return null
           return {document: doc, id: ref.refId}
         } catch (e) {
-          console.error('error fetching supportDocument', ref, e)
+          console.error('error fetching embeddedDoc', ref, e)
         }
       }),
     )
@@ -274,15 +283,15 @@ async function loadResourcePayload(
 
   const homeDocument = await getDocument(homeId)
 
-  supportDocuments.push({
+  embeddedDocs.push({
     id: homeId,
     document: homeDocument,
   })
   const homeDirectoryResults = await getDirectory(homeId, 'Children')
   const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
   const directoryResults = await getDirectory(docId)
-  const alreadySupportDocIds = new Set(supportDocuments.map((doc) => doc.id.id))
-  const supportAuthorsUidsToFetch = new Set<string>()
+  const alreadyEmbeddedDocIds = new Set(embeddedDocs.map((doc) => doc.id.id))
+  const embeddedAuthorsUidsToFetch = new Set<string>()
   const queryBlockQueries = (
     await Promise.all(
       queryBlocks.map(async (block) => {
@@ -290,12 +299,7 @@ async function loadResourcePayload(
       }),
     )
   ).filter((result) => !!result)
-  const supportQueries: HMQueryResult[] = [
-    homeDirectoryQuery,
-    {in: docId, results: directoryResults},
-    ...queryBlockQueries,
-  ]
-  supportDocuments.push(
+  embeddedDocs.push(
     ...(await Promise.all(
       queryBlockQueries
         .flatMap((item) => item.results)
@@ -303,8 +307,8 @@ async function loadResourcePayload(
           const id = item.id
           const document = await getDocument(id)
           document.authors.forEach((author) => {
-            if (!alreadySupportDocIds.has(hmId(author).id)) {
-              supportAuthorsUidsToFetch.add(author)
+            if (!alreadyEmbeddedDocIds.has(hmId(author).id)) {
+              embeddedAuthorsUidsToFetch.add(author)
             }
           })
           return {
@@ -315,10 +319,10 @@ async function loadResourcePayload(
     )),
   )
   // now we need to get the author content for queried docs
-  supportDocuments.push(
+  embeddedDocs.push(
     ...(
       await Promise.all(
-        Array.from(supportAuthorsUidsToFetch).map(async (uid) => {
+        Array.from(embeddedAuthorsUidsToFetch).map(async (uid) => {
           try {
             const document = await getDocument(hmId(uid), {
               discover: true,
@@ -350,17 +354,55 @@ async function loadResourcePayload(
     metadata: document.metadata,
   })
 
+  // Create prefetch context and populate with data for SSR hydration
+  const prefetchCtx = createPrefetchContext()
+  const client = serverUniversalClient
+
+  // Prefetch critical data with error handling to prevent SSR crashes
+  try {
+    // Prefetch home document
+    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
+
+    // Prefetch directory queries
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, homeId, 'Children'),
+    )
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, docId, 'Children'),
+    )
+  } catch (e) {
+    console.error('Error prefetching critical data for SSR', e)
+    // Continue with degraded state - client will fetch missing data
+  }
+
+  // Prefetch all embedded documents (use allSettled for graceful degradation)
+  await Promise.allSettled(
+    embeddedDocs.map((doc) =>
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, doc.id)),
+    ),
+  )
+
+  // Prefetch account metadata (use allSettled for graceful degradation)
+  await Promise.allSettled(
+    authors.map((author) =>
+      prefetchCtx.queryClient.prefetchQuery(
+        queryAccount(client, author.id.uid),
+      ),
+    ),
+  )
+
+  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
+
   return {
     document,
     comment,
-    supportDocuments,
-    supportQueries,
     accountsMetadata: Object.fromEntries(
       authors.map((author) => [author.id.uid, author]),
     ),
     isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...docId, version: document.version},
     breadcrumbs,
+    dehydratedState,
     ...getOriginRequestData(parsedRequest),
   }
 }
@@ -699,12 +741,10 @@ export async function loadSiteResource<T>(
   }
   try {
     const resourceContent = await loadResourceWithDiscovery(id, parsedRequest)
-    let supportQueries = resourceContent.supportQueries
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
       homeMetadata,
-      supportQueries,
       origin,
       originHomeId,
     }
@@ -737,28 +777,6 @@ export async function loadSiteResource<T>(
       }
     }
 
-    // Load home document and directory for the header to render properly
-    let supportDocuments: {id: UnpackedHypermediaId; document: HMDocument}[] =
-      []
-    let supportQueries: HMQueryResult[] = []
-    if (config.registeredAccountUid) {
-      try {
-        const homeId = hmId(config.registeredAccountUid, {
-          latest: true,
-          version: undefined,
-        })
-        const homeDocument = await getDocument(homeId)
-        supportDocuments.push({
-          id: homeId,
-          document: homeDocument,
-        })
-        const homeDirectoryResults = await getDirectory(homeId, 'Children')
-        supportQueries.push({in: homeId, results: homeDirectoryResults})
-      } catch (homeError) {
-        console.error('Error loading home document for error page', homeError)
-      }
-    }
-
     return wrapJSON(
       {
         id,
@@ -766,11 +784,81 @@ export async function loadSiteResource<T>(
         origin,
         originHomeId,
         daemonError,
-        supportDocuments,
-        supportQueries,
         ...(extraData || {}),
       },
       {status: id ? 200 : 404},
     )
+  }
+}
+
+/**
+ * Site header payload for utility pages (profile, device-link, connect, etc.)
+ * These pages need the home document and directory for navigation but don't
+ * have their own document content.
+ */
+export type SiteHeaderPayload = {
+  originHomeId: UnpackedHypermediaId | undefined
+  homeMetadata: HMMetadata | null
+  origin: string
+  siteHost: string
+  dehydratedState?: DehydratedState
+}
+
+/**
+ * Load site header data for utility pages.
+ * Prefetches home document and directory for navigation rendering via React Query hydration.
+ */
+export async function loadSiteHeaderData(
+  parsedRequest: ParsedRequest,
+): Promise<SiteHeaderPayload> {
+  const {hostname, origin} = parsedRequest
+  const config = await getConfig(hostname)
+
+  if (!config?.registeredAccountUid) {
+    return {
+      originHomeId: undefined,
+      homeMetadata: null,
+      origin,
+      siteHost: origin,
+    }
+  }
+
+  const homeId = hmId(config.registeredAccountUid, {latest: true})
+  const prefetchCtx = createPrefetchContext()
+  const client = serverUniversalClient
+
+  try {
+    // Prefetch home document and directory for navigation
+    await Promise.allSettled([
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
+      prefetchCtx.queryClient.prefetchQuery(
+        queryDirectory(client, homeId, 'Children'),
+      ),
+    ])
+
+    // Read from cache
+    const homeResource = prefetchCtx.queryClient.getQueryData(
+      queryResource(client, homeId).queryKey,
+    ) as {type: 'document'; document: HMDocument} | null
+    const homeDocument =
+      homeResource?.type === 'document' ? homeResource.document : null
+
+    return {
+      originHomeId: homeId,
+      homeMetadata: homeDocument?.metadata || null,
+      origin,
+      siteHost: origin,
+      dehydratedState: dehydratePrefetchContext(prefetchCtx),
+    }
+  } catch (e) {
+    console.error('Error loading site header data', e)
+    // Return minimal data on error
+    const metadataResult = await getMetadata(homeId)
+    return {
+      originHomeId: homeId,
+      homeMetadata: metadataResult.metadata,
+      origin,
+      siteHost: origin,
+    }
   }
 }

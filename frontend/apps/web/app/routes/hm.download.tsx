@@ -114,8 +114,6 @@ export default function DownloadPage() {
     homeMetadata,
     id,
     document,
-    supportDocuments,
-    supportQueries,
     origin,
   } = data
   //   const os = getOS();
@@ -193,8 +191,6 @@ export default function DownloadPage() {
           siteHomeId={originHomeId}
           docId={id}
           document={document}
-          supportDocuments={supportDocuments}
-          supportQueries={supportQueries}
           origin={origin}
         />
         <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">

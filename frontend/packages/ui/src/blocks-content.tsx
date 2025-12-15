@@ -133,7 +133,7 @@ export type BlocksContentContextProps = {
   contacts?: HMContactRecord[] | null
   commentStyle?: boolean
   onBlockSelect?:
-    | ((blockId: string, opts?: BlockRangeSelectOptions) => boolean)
+    | ((blockId: string, opts?: BlockRangeSelectOptions) => void)
     | null
     | undefined
   onBlockCitationClick?: ((blockId?: string | null) => void) | undefined
@@ -1802,13 +1802,15 @@ export function BlockEmbedComments({
     >
       <Discussions
         commentEditor={
-          <div
-            onClick={(e) => {
-              e.stopPropagation()
-            }}
-          >
-            <CommentEditor docId={id} />
-          </div>
+          CommentEditor ? (
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+            >
+              <CommentEditor docId={id} />
+            </div>
+          ) : null
         }
         targetId={id}
       />

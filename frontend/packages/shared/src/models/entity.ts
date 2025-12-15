@@ -19,9 +19,7 @@ import {getContactMetadata} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {
   HMAccountContactsRequest,
-  HMAccountRequest,
   HMAccountsMetadata,
-  HMBatchAccountsRequest,
   HMContactRecord,
   HMDocumentInfo,
   HMDocumentInfoSchema,
@@ -30,22 +28,13 @@ import {
   HMGetCIDRequest,
   HMListAccountsOutput,
   HMListAccountsRequest,
-  HMListCapabilitiesOutput,
-  HMListCapabilitiesRequest,
-  HMListChangesOutput,
-  HMListChangesRequest,
-  HMListCitationsOutput,
-  HMListCitationsRequest,
   HMListCommentsByAuthorOutput,
   HMListCommentsByAuthorRequest,
-  HMListCommentsOutput,
-  HMListCommentsRequest,
   HMListedDraft,
   HMListEventsOutput,
   HMListEventsRequest,
   HMMetadata,
   HMMetadataPayload,
-  HMQueryRequest,
   HMResolvedResource,
   HMResource,
   HMResourceRequest,
@@ -55,13 +44,18 @@ import {
 } from '../hm-types'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
-import {
-  entityQueryPathToHmIdPath,
-  hmId,
-  hmIdPathToEntityQueryPath,
-  unpackHmId,
-} from '../utils'
+import {entityQueryPathToHmIdPath, hmId, unpackHmId} from '../utils'
 import {queryKeys} from './query-keys'
+import {
+  queryAccount,
+  queryBatchAccounts,
+  queryCapabilities,
+  queryChanges,
+  queryCitations,
+  queryComments,
+  queryDirectory,
+  queryResource,
+} from './queries'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
@@ -228,7 +222,6 @@ export function useResource(
   },
 ) {
   const client = useUniversalClient()
-  const version = id?.version || undefined
   const {subscribed, recursive, onRedirectOrDeleted, ...queryOptions} =
     options ?? {}
 
@@ -239,12 +232,7 @@ export function useResource(
   }, [subscribed, recursive, id?.id, client.subscribeEntity])
 
   const result = useQuery({
-    enabled: queryOptions?.enabled ?? !!id,
-    queryKey: [queryKeys.ENTITY, id?.id, version],
-    queryFn: async (): Promise<HMResource | null> => {
-      if (!id) return null
-      return await client.request<HMResourceRequest>('Resource', id)
-    },
+    ...queryResource(client, id),
     ...queryOptions,
   })
 
@@ -280,12 +268,7 @@ export function useAccount(
 ) {
   const client = useUniversalClient()
   return useQuery({
-    enabled: options?.enabled ?? !!id,
-    queryKey: [queryKeys.ACCOUNT, id],
-    queryFn: async (): Promise<HMMetadataPayload | null> => {
-      if (!id) return null
-      return await client.request<HMAccountRequest>('Account', id)
-    },
+    ...queryAccount(client, id),
     ...options,
   })
 }
@@ -391,18 +374,10 @@ export function useResources(
   const discoveryStates = useDiscoveryStates(entityIdStrings)
 
   const queryResults = useQueries({
-    queries: ids.map((id) => {
-      const version = id?.version || undefined
-      return {
-        enabled: queryOptions?.enabled ?? !!id,
-        queryKey: [queryKeys.ENTITY, id?.id, version],
-        queryFn: async (): Promise<HMResource | null> => {
-          if (!id) return null
-          const r = await client.request<HMResourceRequest>('Resource', id)
-          return r
-        },
-      }
-    }),
+    queries: ids.map((id) => ({
+      ...queryResource(client, id),
+      ...queryOptions,
+    })),
   })
 
   // Combine query results with discovery state
@@ -424,12 +399,8 @@ export function useAccounts(
   const client = useUniversalClient()
   return useQueries({
     queries: ids.map((id) => ({
-      enabled: options?.enabled ?? !!id,
-      queryKey: [queryKeys.ACCOUNT, id],
-      queryFn: async (): Promise<HMMetadataPayload | null> => {
-        if (!id) return null
-        return await client.request<HMAccountRequest>('Account', id)
-      },
+      ...queryAccount(client, id),
+      ...options,
     })),
   })
 }
@@ -441,14 +412,7 @@ export type HMAccountsMetadataResult = {
 
 export function useAccountsMetadata(uids: string[]): HMAccountsMetadataResult {
   const client = useUniversalClient()
-  const result = useQuery({
-    enabled: uids.length > 0,
-    queryKey: [queryKeys.BATCH_ACCOUNTS, ...uids.slice().sort()],
-    queryFn: async (): Promise<HMAccountsMetadata> => {
-      if (uids.length === 0) return {}
-      return await client.request<HMBatchAccountsRequest>('BatchAccounts', uids)
-    },
-  })
+  const result = useQuery(queryBatchAccounts(client, uids))
   return {data: result.data || {}, isLoading: result.isLoading}
 }
 
@@ -601,23 +565,7 @@ export function useDirectory(
 ) {
   const client = useUniversalClient()
   const mode = options?.mode || 'Children'
-  return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode],
-    queryFn: async (): Promise<HMDocumentInfo[]> => {
-      if (!id) return []
-      const results = await client.request<HMQueryRequest>('Query', {
-        includes: [
-          {
-            space: id.uid,
-            mode,
-            path: hmIdPathToEntityQueryPath(id.path),
-          },
-        ],
-      })
-      return results?.results || []
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryDirectory(client, id, mode))
 }
 
 export function useAccountDrafts(accountUid: string | undefined) {
@@ -682,16 +630,7 @@ export function useCID(cid: string | undefined) {
 
 export function useComments(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.COMMENTS, id?.id],
-    queryFn: async (): Promise<HMListCommentsOutput> => {
-      if (!id) throw new Error('ID required')
-      return await client.request<HMListCommentsRequest>('ListComments', {
-        targetId: id,
-      })
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryComments(client, id))
 }
 
 export function useAuthoredComments(
@@ -714,45 +653,17 @@ export function useAuthoredComments(
 
 export function useCitations(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.CITATIONS, id?.id],
-    queryFn: async (): Promise<HMListCitationsOutput> => {
-      if (!id) throw new Error('ID required')
-      return await client.request<HMListCitationsRequest>('ListCitations', {
-        targetId: id,
-      })
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryCitations(client, id))
 }
 
 export function useChanges(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.CHANGES, id?.id],
-    queryFn: async (): Promise<HMListChangesOutput> => {
-      if (!id) throw new Error('ID required')
-      return await client.request<HMListChangesRequest>('ListChanges', {
-        targetId: id,
-      })
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryChanges(client, id))
 }
 
 export function useCapabilities(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.CAPABILITIES, id?.id],
-    queryFn: async (): Promise<HMListCapabilitiesOutput> => {
-      if (!id) throw new Error('ID required')
-      return await client.request<HMListCapabilitiesRequest>(
-        'ListCapabilities',
-        {targetId: id},
-      )
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryCapabilities(client, id))
 }
 
 export function useInfiniteFeed(pageSize: number = 10) {
@@ -787,23 +698,7 @@ export function useLatestEvent() {
 
 export function useChildrenList(id: UnpackedHypermediaId | null | undefined) {
   const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, 'Children'],
-    queryFn: async (): Promise<HMDocumentInfo[]> => {
-      if (!id) return []
-      const result = await client.request<HMQueryRequest>('Query', {
-        includes: [
-          {
-            space: id.uid,
-            path: hmIdPathToEntityQueryPath(id.path),
-            mode: 'Children',
-          },
-        ],
-      })
-      return result?.results || []
-    },
-    enabled: !!id,
-  })
+  return useQuery(queryDirectory(client, id, 'Children'))
 }
 
 export function extractIpfsUrlCid(cidOrIPFSUrl: string): string | null {

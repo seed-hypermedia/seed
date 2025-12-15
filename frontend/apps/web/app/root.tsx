@@ -87,10 +87,17 @@ export function Layout({children}: {children: React.ReactNode}) {
     siteHost = '',
   } = data || {}
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        {/* Blocking script to apply dark mode class before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.classList.add('dark')}catch(e){}})()`,
+          }}
+        />
         <Meta />
         {/* Inject environment variables BEFORE JS bundles load */}
         <script
@@ -176,10 +183,8 @@ export function ErrorBoundary({}: {}) {
   )
 }
 
-export default function App(props: any) {
-  if (process.env.NODE_ENV === 'production') {
-    return withSentry(Outlet)
-  }
-
+// Sentry HOC is safe here - withSentry returns a component, doesn't invoke hooks
+// The wrapped component will be used by Remix for routing
+export default withSentry(function App() {
   return <Outlet />
-}
+})

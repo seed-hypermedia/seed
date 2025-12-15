@@ -171,6 +171,9 @@ export function useDeleteComment() {
 
   return useMutation({
     mutationFn: async (params: DeleteCommentInput) => {
+      if (!client.deleteComment) {
+        throw new Error('deleteComment not available on this platform')
+      }
       await client.deleteComment(params)
     },
     onSuccess: () => {
