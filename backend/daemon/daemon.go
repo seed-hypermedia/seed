@@ -150,10 +150,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	otel.SetTracerProvider(tp)
 
-	a.Index, err = blob.OpenIndex(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), a.taskMgr)
+	idx, errChan := blob.OpenIndexAsync(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), a.taskMgr)
 	if err != nil {
 		return nil, err
 	}
+	a.Index = idx
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
@@ -173,6 +174,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if err != nil {
 		return nil, err
 	}
+
 	a.Syncing.SetDocGetter(a.RPC.DocumentsV3)
 	var fm *hmnet.FileManager
 	{
@@ -195,6 +197,10 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.setupLogging(ctx, cfg)
+	err = <-errChan
+	if err != nil {
+		return nil, err
+	}
 	a.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
 	return
 }

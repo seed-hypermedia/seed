@@ -114,10 +114,24 @@ func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *
 	if err := idx.MaybeReindex(ctx); err != nil {
 		return nil, err
 	}
-
 	return idx, nil
 }
 
+// OpenIndexAsync creates the index and starts reindexing the data if necessary in a separate goroutine.
+func OpenIndexAsync(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, chan error) {
+	idx := &Index{
+		bs:      newBlockstore(db),
+		db:      db,
+		log:     log,
+		taskMgr: taskMgr,
+	}
+	initComplete := make(chan error)
+	go func() {
+		initComplete <- idx.MaybeReindex(ctx)
+		close(initComplete)
+	}()
+	return idx, initComplete
+}
 func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
