@@ -17,7 +17,7 @@ export type DaemonConfig = {
 export type DaemonInstance = {
   process: ChildProcess
   config: DaemonConfig
-  kill: () => void
+  kill: () => Promise<void>
   waitForReady: () => Promise<void>
 }
 
@@ -126,9 +126,31 @@ export async function spawnDaemon(config: DaemonConfig): Promise<DaemonInstance>
     await waitForHttpReady(config.httpPort)
   }
 
-  const kill = () => {
-    console.log('[Daemon] Killing process...')
-    daemonProcess.kill()
+  const kill = (): Promise<void> => {
+    return new Promise((resolve) => {
+      console.log('[Daemon] Killing process...')
+
+      // Close readline interfaces to prevent "Channel closed" errors
+      stderr.close()
+      stdout.close()
+
+      if (daemonProcess.exitCode !== null) {
+        // Already exited
+        resolve()
+        return
+      }
+
+      daemonProcess.once('close', () => resolve())
+      daemonProcess.kill()
+
+      // Force kill after 5s if graceful shutdown fails
+      setTimeout(() => {
+        if (daemonProcess.exitCode === null) {
+          daemonProcess.kill('SIGKILL')
+        }
+        resolve()
+      }, 5000)
+    })
   }
 
   return {

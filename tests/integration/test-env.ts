@@ -112,11 +112,8 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
 
   const cleanup = async () => {
     console.log('=== Cleaning up test environment ===')
-    web.kill()
-    daemon.kill()
-    // Small delay to let processes close gracefully before Vitest worker shutdown
-    // This helps avoid "Channel closed" errors from tinypool
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    // Wait for processes to fully exit to avoid "Channel closed" errors from tinypool
+    await Promise.all([web.kill(), daemon.kill()])
   }
 
   // Handle process exit

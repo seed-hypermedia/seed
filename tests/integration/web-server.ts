@@ -16,7 +16,7 @@ export type WebServerConfig = {
 export type WebServerInstance = {
   process: ChildProcess
   config: WebServerConfig
-  kill: () => void
+  kill: () => Promise<void>
   waitForReady: () => Promise<void>
   baseUrl: string
 }
@@ -121,9 +121,31 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     await new Promise((r) => setTimeout(r, 1000))
   }
 
-  const kill = () => {
-    console.log('[Web] Killing process...')
-    webProcess.kill()
+  const kill = (): Promise<void> => {
+    return new Promise((resolve) => {
+      console.log('[Web] Killing process...')
+
+      // Close readline interfaces to prevent "Channel closed" errors
+      stdout.close()
+      stderr.close()
+
+      if (webProcess.exitCode !== null) {
+        // Already exited
+        resolve()
+        return
+      }
+
+      webProcess.once('close', () => resolve())
+      webProcess.kill()
+
+      // Force kill after 5s if graceful shutdown fails
+      setTimeout(() => {
+        if (webProcess.exitCode === null) {
+          webProcess.kill('SIGKILL')
+        }
+        resolve()
+      }, 5000)
+    })
   }
 
   return {
