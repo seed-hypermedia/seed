@@ -75,12 +75,26 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
         const schema = view.state.schema
         const linkMarkType = options.type
 
-        function addLinkMarksToFragment(fragment: Fragment): Fragment {
+        function addLinkMarksToFragment(
+          fragment: Fragment,
+          inCodeBlock: boolean = false,
+        ): Fragment {
           const nodes: any[] = []
 
           fragment.forEach((node: any) => {
+            const isCodeBlock =
+              !!node.type?.spec?.code || node.type?.name === 'code-block'
+
+            const isInCode = inCodeBlock || isCodeBlock
+
             if (node.type.name === 'text') {
               const text = node.text || ''
+
+              if (isInCode) {
+                nodes.push(schema.text(text)) // Don't add link marks to code blocks
+                return
+              }
+
               const links = find(text) || []
 
               if (links.length === 0) {
@@ -121,7 +135,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               }
             } else if (node.content && node.content.size > 0) {
               // Process child content
-              const transformedContent = addLinkMarksToFragment(node.content)
+              const transformedContent = addLinkMarksToFragment(
+                node.content,
+                isInCode,
+              )
               nodes.push(node.copy(transformedContent))
             } else {
               nodes.push(node)
