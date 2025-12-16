@@ -99,7 +99,7 @@ function windowBlurred(windowId: string) {
 }
 
 export function ensureFocusedWindowVisible() {
-  const focusedWindow = getFocusedWindow()
+  const focusedWindow = getLastFocusedWindow()
   if (focusedWindow) {
     if (focusedWindow.isMinimized()) focusedWindow.restore()
     focusedWindow.focus()
@@ -159,7 +159,7 @@ export function getWindowsState() {
 }
 
 function getAWindow() {
-  const focused = getFocusedWindow()
+  const focused = getLastFocusedWindow()
   if (focused) return focused
   const allWins = Object.values(allWindows)
   const window: BrowserWindow | undefined = allWins[allWins.length - 1]
@@ -297,7 +297,7 @@ export function updateWindowState(
 }
 
 export function dispatchFocusedWindowAppEvent(event: AppWindowEvent) {
-  const focusedWindow = getFocusedWindow()
+  const focusedWindow = getLastFocusedWindow()
   if (focusedWindow) {
     focusedWindow.webContents.send('appWindowEvent', event)
   }
@@ -666,7 +666,7 @@ export function createAppWindow(
     }
 
     globalShortcut.register('CommandOrControl+F', () => {
-      const focusedWindow = getFocusedWindow()
+      const focusedWindow = getLastFocusedWindow()
       if (focusedWindow) {
         let findInPageView = focusedWindow.contentView.children[0] as
           | WebContentsView
