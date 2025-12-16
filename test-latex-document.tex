@@ -1,0 +1,123 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+
+\title{Sample Document for Testing LaTeX Import}
+\author{Test Author}
+\date{December 2024}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This is a sample LaTeX document to test the Hypermedia LaTeX importer. It includes various LaTeX features that should be converted to Hypermedia blocks.
+
+This paragraph contains \textbf{bold text}, \textit{italic text}, \underline{underlined text}, and \texttt{monospace code}. You can also combine them like \textbf{\textit{bold italic}}.
+
+\section{Mathematical Content}
+
+\subsection{Inline Math}
+
+The famous equation $E = mc^2$ changed our understanding of physics. The quadratic formula is $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$.
+
+\subsection{Display Math}
+
+Here is a display equation:
+
+$$\int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$
+
+And using the equation environment:
+
+\begin{equation}
+\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}
+\end{equation}
+
+\begin{align}
+a &= b + c \\
+d &= e + f + g
+\end{align}
+
+\section{Lists}
+
+\subsection{Unordered List}
+
+\begin{itemize}
+\item First item in the list
+\item Second item with some details
+\item Third item to complete the list
+\end{itemize}
+
+\subsection{Ordered List}
+
+\begin{enumerate}
+\item Step one: Initialize the system
+\item Step two: Configure the parameters
+\item Step three: Run the process
+\item Step four: Verify the results
+\end{enumerate}
+
+\section{Code Blocks}
+
+Here is a code example using verbatim:
+
+\begin{verbatim}
+function hello() {
+    console.log("Hello, World!");
+    return 42;
+}
+\end{verbatim}
+
+And using lstlisting:
+
+\begin{lstlisting}[language=Python]
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+\end{lstlisting}
+
+\section{Quotations}
+
+\begin{quote}
+This is a quoted block of text. It should be rendered as a blockquote in the Hypermedia document. Quotes are often used to highlight important information or cite sources.
+\end{quote}
+
+\section{Links}
+
+You can visit \href{https://example.com}{Example Website} for more information. Or check out \url{https://github.com} directly.
+
+\section{Subsubsection Example}
+
+\subsection{Level 2 Heading}
+
+Some content under a subsection.
+
+\subsubsection{Level 3 Heading}
+
+Content under a subsubsection. This tests the heading hierarchy.
+
+\paragraph{Paragraph Heading}
+
+This is content under a paragraph-level heading.
+
+\section{Conclusion}
+
+This document covers the main LaTeX features supported by the importer:
+
+\begin{itemize}
+\item Sections and subsections (headings)
+\item Text formatting (bold, italic, underline, code)
+\item Inline and display math
+\item Ordered and unordered lists
+\item Code blocks
+\item Blockquotes
+\item Links
+\end{itemize}
+
+If all these elements render correctly in Hypermedia, the importer is working as expected.
+
+\end{document}

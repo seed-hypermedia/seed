@@ -3,7 +3,8 @@ import {Text} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 
 export type ImportedDocument = {
-  markdownContent: string
+  markdownContent?: string
+  latexContent?: string
   title: string
   directoryPath: string
 }

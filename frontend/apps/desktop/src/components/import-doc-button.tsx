@@ -9,6 +9,10 @@ import {ScrapeStatus} from '@/web-scraper'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {BlockNoteEditor, type BlockSchema} from '@shm/editor/blocknote'
 import {
+  LatexToBlocks,
+  extractLatexMetadata,
+} from '@shm/editor/blocknote/core/extensions/Latex/LatexToBlocks'
+import {
   MarkdownToBlocks,
   processLinkMarkdown,
   processMediaMarkdown,
@@ -59,6 +63,8 @@ export function ImportDialog({
   input: {
     onImportFile: () => void
     onImportDirectory: () => void
+    onImportLatexFile: () => void
+    onImportLatexDirectory: () => void
     onImportWebSite: () => void
   }
   onClose: () => void
@@ -67,7 +73,7 @@ export function ImportDialog({
     <>
       <DialogTitle>Import Documents</DialogTitle>
       <DialogDescription>
-        You can import a single Markdown file, or a folder of Markdown files.
+        Import Markdown or LaTeX files, folders, or websites.
       </DialogDescription>
       <DialogClose />
       <div className="flex flex-col gap-4">
@@ -80,7 +86,7 @@ export function ImportDialog({
           }}
         >
           <File className="size-3" />
-          Import File
+          Import Markdown File
         </Button>
         <Button
           className="border-border border"
@@ -91,7 +97,29 @@ export function ImportDialog({
           }}
         >
           <Folder className="size-3" />
-          Import Directory
+          Import Markdown Directory
+        </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportLatexFile()
+          }}
+        >
+          <File className="size-3" />
+          Import LaTeX File
+        </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportLatexDirectory()
+          }}
+        >
+          <Folder className="size-3" />
+          Import LaTeX Directory
         </Button>
         <Button
           className="border-border border"
@@ -116,7 +144,13 @@ export function ImportDropdownButton({
   id: UnpackedHypermediaId
   button: ReactElement
 }) {
-  const {importFile, importDirectory, content} = useImporting(id)
+  const {
+    importFile,
+    importDirectory,
+    importLatexFile,
+    importLatexDirectory,
+    content,
+  } = useImporting(id)
 
   return (
     <>
@@ -135,6 +169,18 @@ export function ImportDropdownButton({
             onClick: () => importDirectory(),
             icon: <FolderInput className="size-4" />,
           },
+          {
+            key: 'latex-file',
+            label: 'Import LaTeX File',
+            onClick: () => importLatexFile(),
+            icon: <FileInput className="size-4" />,
+          },
+          {
+            key: 'latex-directory',
+            label: 'Import LaTeX Folder',
+            onClick: () => importLatexDirectory(),
+            icon: <FolderInput className="size-4" />,
+          },
         ]}
       />
 
@@ -144,7 +190,12 @@ export function ImportDropdownButton({
 }
 
 export function useImporting(parentId: UnpackedHypermediaId) {
-  const {openMarkdownDirectories, openMarkdownFiles} = useAppContext()
+  const {
+    openMarkdownDirectories,
+    openMarkdownFiles,
+    openLatexDirectories,
+    openLatexFiles,
+  } = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
   const signingAccount = useMemo(() => {
@@ -247,9 +298,43 @@ export function useImporting(parentId: UnpackedHypermediaId) {
 
   const webImporting = useWebImporting()
 
+  // Wrapper to handle LaTeX file import
+  function startLatexImport(
+    importFunction: (id: string) => Promise<{
+      documents: {latexContent: string; title: string; directoryPath: string}[]
+      docMap: Map<string, {name: string; path: string}>
+    }>,
+  ) {
+    importFunction(parentId.id)
+      .then(async (result) => {
+        // Convert to ImportedDocument format
+        const docs: ImportedDocument[] = result.documents.map((doc) => ({
+          latexContent: doc.latexContent,
+          title: doc.title,
+          directoryPath: doc.directoryPath,
+        }))
+        if (docs.length) {
+          importDialog.open({
+            documents: docs,
+            documentCount: docs.length,
+            docMap: result.docMap,
+            onSuccess: handleConfirm,
+          })
+        } else {
+          toast.error('No documents found inside the selected directory.')
+        }
+      })
+      .catch((error) => {
+        console.error('Error importing LaTeX documents:', error)
+        toast.error(`Import error: ${error.message || error}`)
+      })
+  }
+
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
+    importLatexFile: () => startLatexImport(openLatexFiles),
+    importLatexDirectory: () => startLatexImport(openLatexDirectories),
     importWebSite: () => webImporting.open({destinationId: parentId}),
     content: (
       <>
@@ -504,60 +589,66 @@ const ImportDocumentsWithFeedback = (
   return new Promise<{draftIds: string[]}>(async (resolve, reject) => {
     const draftIds: string[] = []
     try {
-      for (const {markdownContent, title, directoryPath} of documents) {
-        let {data: frontmatter, content: markdown} = matter(markdownContent)
+      for (const {
+        markdownContent,
+        latexContent,
+        title,
+        directoryPath,
+      } of documents) {
+        let documentTitle: string = title
+        let icon: string | undefined
+        let cover: string | undefined
+        let blocks: any[]
 
-        // Process media and links in the markdown content
-        markdown = await processMediaMarkdown(markdown, directoryPath)
-        markdown = processLinkMarkdown(markdown, docMap)
+        if (latexContent) {
+          // Process LaTeX document
+          const metadata = extractLatexMetadata(latexContent)
+          documentTitle = metadata.title || title
+          blocks = await LatexToBlocks(latexContent, directoryPath)
+        } else if (markdownContent) {
+          // Process Markdown document
+          let {data: frontmatter, content: markdown} = matter(markdownContent)
 
-        let documentTitle: string = frontmatter.title || title
+          // Process media and links in the markdown content
+          markdown = await processMediaMarkdown(markdown, directoryPath)
+          markdown = processLinkMarkdown(markdown, docMap)
 
-        // If no title in frontmatter, check for an h1 as the first non-empty line
-        if (!frontmatter.title) {
-          let lines = markdown.split('\n')
+          documentTitle = frontmatter.title || title
 
-          // Find the first non-empty line index
-          const firstNonEmptyLineIndex = lines.findIndex(
-            (line) => line.trim() !== '',
-          )
+          // If no title in frontmatter, check for an h1 as the first non-empty line
+          if (!frontmatter.title) {
+            let lines = markdown.split('\n')
 
-          if (
-            firstNonEmptyLineIndex !== -1 &&
-            // @ts-ignore
-            lines[firstNonEmptyLineIndex].startsWith('# ')
-          ) {
-            // Extract the h1 as the title and update documentTitle
-            // @ts-ignore
-            documentTitle = lines[firstNonEmptyLineIndex]
-              .replace('# ', '')
-              .trim()
+            // Find the first non-empty line index
+            const firstNonEmptyLineIndex = lines.findIndex(
+              (line) => line.trim() !== '',
+            )
 
-            // Remove the h1 line from the markdown content
-            lines.splice(firstNonEmptyLineIndex, 1)
-            markdown = lines.join('\n')
+            if (
+              firstNonEmptyLineIndex !== -1 &&
+              // @ts-ignore
+              lines[firstNonEmptyLineIndex].startsWith('# ')
+            ) {
+              // Extract the h1 as the title and update documentTitle
+              // @ts-ignore
+              documentTitle = lines[firstNonEmptyLineIndex]
+                .replace('# ', '')
+                .trim()
+
+              // Remove the h1 line from the markdown content
+              lines.splice(firstNonEmptyLineIndex, 1)
+              markdown = lines.join('\n')
+            }
           }
+
+          icon = frontmatter.icon
+          cover = frontmatter.cover_image
+
+          blocks = await MarkdownToBlocks(markdown, editor)
+        } else {
+          console.error('Document has no content:', title)
+          continue
         }
-
-        const icon = frontmatter.icon
-        const cover = frontmatter.cover_image
-        const createdAt = frontmatter.created_at
-          ? new Date(frontmatter.created_at)
-          : new Date()
-
-        // let path = frontmatter.path
-        //   ? frontmatter.path.slice(1)
-        //   : pathNameify(documentTitle)
-
-        // // Handle duplicate paths by appending a counter number
-        // if (pathCounter[path]) {
-        //   pathCounter[path] += 1
-        //   path = `${path}-${pathCounter[path] - 1}`
-        // } else {
-        //   pathCounter[path] = 1
-        // }
-
-        const blocks = await MarkdownToBlocks(markdown, editor)
 
         // Commented code below is subdirectories import
 

@@ -15,6 +15,8 @@ export function AppContextProvider({
   openDirectory,
   openMarkdownFiles,
   openMarkdownDirectories,
+  openLatexFiles,
+  openLatexDirectories,
   readMediaFile,
   exportDocument,
   exportDocuments,
@@ -39,6 +41,22 @@ export function AppContextProvider({
   openMarkdownDirectories: (accountId: string) => Promise<{
     documents: {
       markdownContent: string
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
+  openLatexFiles: (accountId: string) => Promise<{
+    documents: {
+      latexContent: string
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
+  openLatexDirectories: (accountId: string) => Promise<{
+    documents: {
+      latexContent: string
       title: string
       directoryPath: string
     }[]
@@ -79,6 +97,8 @@ export function AppContextProvider({
       openDirectory,
       openMarkdownFiles,
       openMarkdownDirectories,
+      openLatexFiles,
+      openLatexDirectories,
       readMediaFile,
       exportDocument,
       exportDocuments,

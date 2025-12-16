@@ -430,6 +430,14 @@ function MainApp({}: {}) {
             // @ts-ignore
             return window.docImport.openMarkdownDirectories(accountId)
           }}
+          openLatexFiles={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openLatexFiles(accountId)
+          }}
+          openLatexDirectories={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openLatexDirectories(accountId)
+          }}
           readMediaFile={(filePath: string) => {
             // @ts-ignore
             return window.docImport.readMediaFile(filePath)
