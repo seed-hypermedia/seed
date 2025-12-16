@@ -119,6 +119,15 @@ export function createAppMenu() {
         },
         {type: 'separator'},
         {
+          id: 'toggle_sidebar',
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+B',
+          click: () => {
+            dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
+          },
+        },
+        {type: 'separator'},
+        {
           id: 'route_contacts',
           label: 'Contacts',
           accelerator: 'CmdOrCtrl+9',

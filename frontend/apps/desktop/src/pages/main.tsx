@@ -200,6 +200,10 @@ function PanelContent({children}: {children: ReactNode}) {
   const sidebarWidth = useStream(ctx.sidebarWidth)
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
+  useListenAppEvent('toggle_sidebar', () => {
+    ctx.onToggleMenuLock()
+  })
+
   useEffect(() => {
     const panelGroup = ref.current
     if (panelGroup) {

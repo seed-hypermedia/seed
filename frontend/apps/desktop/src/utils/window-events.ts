@@ -9,6 +9,7 @@ export type AppWindowEvent =
   | {type: 'open_launcher'}
   | {type: 'find_in_page'}
   | {type: 'discover'}
+  | {type: 'toggle_sidebar'}
   | {type: 'window_state_changed'}
   | {type: 'connectPeer'; connectionUrl: string}
   | {type: 'hypermediaHoverIn'; id: string}

@@ -693,6 +693,10 @@ export function createAppWindow(
         }
       }
     })
+
+    globalShortcut.register('CommandOrControl+B', () => {
+      dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
+    })
   })
 
   browserWindow.webContents.on('found-in-page', (event, result) => {
@@ -704,6 +708,7 @@ export function createAppWindow(
   browserWindow.on('blur', () => {
     windowBlurred(windowId)
     globalShortcut.unregister('CommandOrControl+F')
+    globalShortcut.unregister('CommandOrControl+B')
   })
 
   windowFocused(windowId)
