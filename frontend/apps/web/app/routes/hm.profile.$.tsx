@@ -6,7 +6,7 @@ import {
   useLocalKeyPair,
 } from '@/auth'
 import {loadProfilePageData, ProfilePagePayload} from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
+import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
@@ -24,11 +24,15 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {KeySquare} from 'lucide-react'
 
+const defaultProfileMeta = defaultPageMeta('Profile')
+
 export const meta: MetaFunction = ({data}) => {
   const payload = unwrap<ProfilePagePayload>(data)
+  if (!payload) return defaultProfileMeta()
+
   const meta: MetaDescriptor[] = []
   // Use origin site's home icon for favicon
-  const homeIcon = payload?.homeMetadata?.icon
+  const homeIcon = payload.homeMetadata?.icon
     ? getOptimizedImageUrl(extractIpfsUrlCid(payload.homeMetadata.icon), 'S')
     : null
   meta.push({
@@ -38,7 +42,7 @@ export const meta: MetaFunction = ({data}) => {
     type: 'image/png',
   })
   meta.push({
-    title: payload?.profileName || 'Profile',
+    title: payload.profileName || 'Profile',
   })
   return meta
 }
