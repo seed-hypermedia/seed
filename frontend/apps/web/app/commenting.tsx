@@ -66,12 +66,6 @@ export default function WebCommenting({
   commentingOriginUrl,
   autoFocus,
 }: WebCommentingProps) {
-  console.log('[WebCommenting] Component called', {
-    docId,
-    hasVersion: !!docId.version,
-    isServer: typeof window === 'undefined',
-  })
-
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const tx = useTxString()
@@ -128,13 +122,7 @@ export default function WebCommenting({
 
   const docVersion = docId.version
 
-  console.log('[WebCommenting] Version check', {
-    docVersion,
-    willRender: !!docVersion,
-  })
-
   if (!docVersion) {
-    console.log('[WebCommenting] No version, returning null')
     return null
   }
 
