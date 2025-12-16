@@ -223,7 +223,13 @@ export function usePublishResource(
       const blocksMap = editId
         ? createBlocksMap(editDocument?.content || [], '')
         : {}
-      const newContent = removeTrailingBlocks(draft.content || [])
+      let newContent = removeTrailingBlocks(draft.content || [])
+
+      // Fill query blocks for new documents
+      if (!editId) {
+        newContent = fillEmptyQueryBlocks(newContent, destinationId)
+      }
+
       const changes = compareBlocksWithMap(blocksMap, newContent, '')
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
@@ -1202,6 +1208,47 @@ export function useListProfileDocuments() {
       return res.documents.map(toPlainMessage)
     },
     queryKey: [queryKeys.LIST_ROOT_DOCUMENTS],
+  })
+}
+
+function fillEmptyQueryBlocks(
+  blocks: EditorBlock[],
+  destinationId: UnpackedHypermediaId,
+): EditorBlock[] {
+  return blocks.map((block) => {
+    if (block.type === 'query') {
+      const queryIncludes = JSON.parse(
+        block.props.queryIncludes ||
+          '[{"space":"","path":"","mode":"Children"}]',
+      )
+
+      // Fill empty space with destination
+      if (!queryIncludes[0]?.space || queryIncludes[0]?.space === '') {
+        queryIncludes[0] = {
+          space: destinationId.uid,
+          path: destinationId.path?.join('/') || '',
+          mode: queryIncludes[0]?.mode || 'Children',
+        }
+
+        block = {
+          ...block,
+          props: {
+            ...block.props,
+            queryIncludes: JSON.stringify(queryIncludes),
+          },
+        }
+      }
+    }
+
+    // Recursively process children
+    if (block.children?.length) {
+      block = {
+        ...block,
+        children: fillEmptyQueryBlocks(block.children, destinationId),
+      }
+    }
+
+    return block
   })
 }
 
