@@ -12398,6 +12398,9 @@ __metadata:
     "@tiptap/react": 2.0.3
     "@types/react": 18.2.64
     "@types/react-dom": 18.2.21
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-parse": ^1.8.0
+    "@unified-latex/unified-latex-util-visit": ^1.8.0
     "@vitejs/plugin-react": ^4.3.4
     eslint: ^9.17.0
     eslint-plugin-react-hooks: ^5.0.0
@@ -15615,6 +15618,223 @@ __metadata:
   version: 1.3.0
   resolution: "@ungap/structured-clone@npm:1.3.0"
   checksum: 64ed518f49c2b31f5b50f8570a1e37bde3b62f2460042c50f132430b2d869c4a6586f13aa33a58a4722715b8158c68cae2827389d6752ac54da2893c83e480fc
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-builder@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-builder@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+  checksum: 54af93d8adbc57e547ca9e7bf9020b7eec4fd20aa77b7917f339c363f318dbcab60b18e7e62ebd0a5048581fa41676f7ac8fb54f34b73d4c51119aa924ed11b7
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-ctan@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-ctan@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-builder": ^1.8.3
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-argspec": ^1.8.3
+    "@unified-latex/unified-latex-util-arguments": ^1.8.3
+    "@unified-latex/unified-latex-util-comments": ^1.8.3
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-pegjs": ^1.8.1
+    "@unified-latex/unified-latex-util-print-raw": ^1.8.0
+    "@unified-latex/unified-latex-util-render-info": ^1.8.3
+    "@unified-latex/unified-latex-util-replace": ^1.8.3
+    "@unified-latex/unified-latex-util-scan": ^1.8.0
+    "@unified-latex/unified-latex-util-split": ^1.8.0
+    "@unified-latex/unified-latex-util-trim": ^1.8.3
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    color: ^4.2.3
+  checksum: 878e946a6e5592e30bebc6a550ff49f54cf441549c172985e9f9aaae22f992ad13881334e1e01b6d990c29aeeec6fe8df0f9aca719385598ad9b09561fc7fb29
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-types@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@unified-latex/unified-latex-types@npm:1.8.0"
+  checksum: 09f28a2a93407d96425a0f6700fc032b6c0923e93b231b1923da26d3fd7095c333eb214b4249064c75840dddfafc157e0f9c383d086d61405a732883bb0fb83a
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-argspec@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-argspec@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-util-pegjs": ^1.8.1
+  checksum: e23b475673855380979dc8d2193854b01e2647f206f9f8e53fea7b2e723f52bfb782a259ebd55e8d3d3193065557d753b387d67af2568fdf38eb7ce41bb8bc8e
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-arguments@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-arguments@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-builder": ^1.8.3
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-argspec": ^1.8.3
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-render-info": ^1.8.3
+    "@unified-latex/unified-latex-util-scan": ^1.8.0
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    unified: ^10.1.2
+  checksum: 92a84b1ef0815515cc8f70b228b01c42eb1619295f6df672ee6ee6fccf95ebbea8f1ff84acb65d3504a8108099c36d33586480f3f4d49a139d525a578716af64
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-catcode@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-catcode@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+  checksum: 4d10b4fb4e35bf95e76921a7a94778d01f78a6caa7a2a3c121caf6bd14ec5e9532ff44180c3b68c92a214d24dd9807187a1cd6ff0d8836cfecd623b88075ec6f
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-comments@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-comments@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-replace": ^1.8.3
+  checksum: 57472f9c31cb9350216a1df1512844c1182ae413671f68dc4067d516eecd99905242d577dc83c4003843151aab39e5f1c561680fcdafb3d369a6d48f6190e0ea
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-environments@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-environments@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-arguments": ^1.8.3
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-print-raw": ^1.8.0
+    "@unified-latex/unified-latex-util-render-info": ^1.8.3
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    unified: ^10.1.2
+  checksum: bfca4162e9f7fe28f7e330b4c8cf6e8528b5bc5a7b629d12ba0aabf3e5aae71b93171390a96e2c60aa908c3e242b94baa464540ee4bd1eecc8db149017f4a9a4
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-match@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@unified-latex/unified-latex-util-match@npm:1.8.0"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-print-raw": ^1.8.0
+  checksum: fd987436b009acf97e72cca7f5455450d666181e23712accea1d2c4ef00f79ba05f7b2ee2cb6e982c73681b9eb5c7221245efab8ca2fd5ed54c8f2b120138173
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-parse@npm:^1.8.0":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-parse@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-ctan": ^1.8.3
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-arguments": ^1.8.3
+    "@unified-latex/unified-latex-util-catcode": ^1.8.3
+    "@unified-latex/unified-latex-util-environments": ^1.8.3
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-pegjs": ^1.8.1
+    "@unified-latex/unified-latex-util-print-raw": ^1.8.0
+    "@unified-latex/unified-latex-util-trim": ^1.8.3
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    unified: ^10.1.2
+  checksum: efd4cc58a887a2ec100a796ff7c1199e94d5334252df81d82a94f03720fcb92e2dcf642436b95a5b55fb3793540b82440b4c3ba5668dc5045f19cf9a522ad35d
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-pegjs@npm:^1.8.1":
+  version: 1.8.1
+  resolution: "@unified-latex/unified-latex-util-pegjs@npm:1.8.1"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+  checksum: 817dc24d1c2ed18c2edc4b93749b2c83c96bbc4be7a34da45fd4ea6abce5ed8ff676994b91cd1d23c3f65ebc604b3d4a739210a4514ad86ea710bc2b5b22be02
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-print-raw@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@unified-latex/unified-latex-util-print-raw@npm:1.8.0"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+  checksum: aba8717a653a01975cdd1b3e32d2c60f9ba51eed67fd81b2276b95741414939631ac7436e68e35e9f3a01bea8e71e5447223e52ce3a3803e070713aee0594f8e
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-render-info@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-render-info@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+  checksum: 6dad1fd9a57a7174d042bc15671b647a29b29e2c13a627d7058f99c6c371d34ada59ea879c0b6327061a6448315a5b55525803b1bfe6b2893c82f65b71294974
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-replace@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-replace@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-split": ^1.8.0
+    "@unified-latex/unified-latex-util-trim": ^1.8.3
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    unified: ^10.1.2
+  checksum: 638b4aae204b108bc4b8f7dbdcd8d82facb8fb25761cdb9e1e7f17710b2064e43973039f09c7aabe57ba8320c6991313c666dc024c641057ebe7257397227042
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-scan@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@unified-latex/unified-latex-util-scan@npm:1.8.0"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-print-raw": ^1.8.0
+    trie-prefix-tree: ^1.5.1
+  checksum: f914e0f9581a7e3bef4468bfc86fe759e62fd4cb8e0bed84ec4b468e7198b0f926a7cedde2ec63a270d22306e101c18efe65366fbd7d429e27176172487394d9
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-split@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@unified-latex/unified-latex-util-split@npm:1.8.0"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+  checksum: deaf14d77f52cecc2651468b91d73ed709c2b06517e372bcd1f8b2dc3758c81ba9ba57603aa6b3060a2b594e0e2d490079f3b7b487ba534ddcad764ae5c64031
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-trim@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-trim@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+    "@unified-latex/unified-latex-util-visit": ^1.8.3
+    unified: ^10.1.2
+  checksum: 0be8fe3fe3e9233300ba553ecb60f547e8a4230abb7d44982bed9f1b71f731d4fe9b783141dc3a8ce78607769b258040447d425a89dfb12e0101f981659a0b8d
+  languageName: node
+  linkType: hard
+
+"@unified-latex/unified-latex-util-visit@npm:^1.8.0, @unified-latex/unified-latex-util-visit@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@unified-latex/unified-latex-util-visit@npm:1.8.3"
+  dependencies:
+    "@unified-latex/unified-latex-types": ^1.8.0
+    "@unified-latex/unified-latex-util-match": ^1.8.0
+  checksum: f4682cb35412434ec0f568858df7fc66743ad77b12a7f62c9cf027684901dd1856092327e302b92f86de820daec1edbf89fafee647dd9f7e6d2e615a14075d72
   languageName: node
   linkType: hard
 
@@ -36704,6 +36924,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"trie-prefix-tree@npm:^1.5.1":
+  version: 1.5.1
+  resolution: "trie-prefix-tree@npm:1.5.1"
+  checksum: be7a910a8e962ae0c09732fe17e747de2b71aab3bbb4471fc621bb3f3f82cb1b266900ef3bc10481aaea60f87d8306fc6f866980a4c84c26840eb4cf8ece90a1
+  languageName: node
+  linkType: hard
+
 "trim-lines@npm:^3.0.0":
   version: 3.0.1
   resolution: "trim-lines@npm:3.0.1"
@@ -37388,7 +37615,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"unified@npm:10.1.2, unified@npm:^10.0.0":
+"unified@npm:10.1.2, unified@npm:^10.0.0, unified@npm:^10.1.2":
   version: 10.1.2
   resolution: "unified@npm:10.1.2"
   dependencies:
