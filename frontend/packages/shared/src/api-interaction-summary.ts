@@ -1,3 +1,4 @@
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
@@ -36,12 +37,19 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         path: apiPath,
         version: latestDoc.version,
       })
+      const childrenCount = toPlainMessage(children).documents.filter((d) => {
+        if (d.path === apiPath) return false
+        // filter out children of children
+        if (d.path.split('/').length > apiPath.split('/').length + 1)
+          return false
+        return true
+      }).length
 
       return calculateInteractionSummary(
         mentions.mentions,
         changes.changes,
         id,
-        children.documents.length,
+        childrenCount,
       )
     },
   }
