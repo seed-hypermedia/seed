@@ -192,17 +192,17 @@ function nodesToStyledText(nodes: Ast.Node[]): StyledText[] {
 
         if (node.content === 'url' && args.length >= 1) {
           const urlArg = args[0]
-          if (urlArg.content) {
+          if (urlArg && urlArg.content) {
             href = getStringContent(urlArg.content)
             linkText = href
           }
         } else if (node.content === 'href' && args.length >= 2) {
           const urlArg = args[0]
           const textArg = args[1]
-          if (urlArg.content) {
+          if (urlArg && urlArg.content) {
             href = getStringContent(urlArg.content)
           }
-          if (textArg.content) {
+          if (textArg && textArg.content) {
             linkText = getStringContent(textArg.content)
           }
         }
@@ -285,8 +285,7 @@ function getLatexSource(nodes: Ast.Node[]): string {
         let result = '\\' + node.content
         if (node.args) {
           for (const arg of node.args) {
-            result +=
-              arg.openMark + getLatexSource(arg.content) + arg.closeMark
+            result += arg.openMark + getLatexSource(arg.content) + arg.closeMark
           }
         }
         return result
@@ -295,7 +294,9 @@ function getLatexSource(nodes: Ast.Node[]): string {
         return '{' + getLatexSource(node.content) + '}'
       }
       if (node.type === 'environment') {
-        return `\\begin{${node.env}}${getLatexSource(node.content)}\\end{${node.env}}`
+        return `\\begin{${node.env}}${getLatexSource(node.content)}\\end{${
+          node.env
+        }}`
       }
       return ''
     })
@@ -356,7 +357,7 @@ export async function processLatexMedia(
   })
 
   // Process each media file
-  for (const [originalPath] of mediaMap) {
+  for (const originalPath of Array.from(mediaMap.keys())) {
     try {
       // Try different extensions if no extension specified
       const extensions = ['', '.png', '.jpg', '.jpeg', '.pdf', '.eps', '.svg']
@@ -367,8 +368,9 @@ export async function processLatexMedia(
         try {
           const fileResponse = await readMediaFile(fullPath)
           if (fileResponse) {
-            const fileContent = Uint8Array.from(atob(fileResponse.content), (c) =>
-              c.charCodeAt(0),
+            const fileContent = Uint8Array.from(
+              atob(fileResponse.content),
+              (c) => c.charCodeAt(0),
             )
             const file = new File([fileContent], fileResponse.fileName, {
               type: fileResponse.mimeType,
@@ -473,7 +475,7 @@ export async function LatexToBlocks(
             // Parse options like width=0.5\textwidth
             const optStr = getStringContent(arg.content)
             const widthMatch = optStr.match(/width\s*=\s*([^\s,]+)/)
-            if (widthMatch) {
+            if (widthMatch && widthMatch[1]) {
               width = widthMatch[1]
             }
           }
@@ -515,17 +517,13 @@ export async function LatexToBlocks(
       ) {
         const mathContent = getLatexSource(node.content)
         blocks.push(
-          createBlock(
-            'math',
-            {},
-            [
-              {
-                type: 'text',
-                text: mathContent,
-                styles: {},
-              },
-            ],
-          ),
+          createBlock('math', {}, [
+            {
+              type: 'text',
+              text: mathContent,
+              styles: {},
+            },
+          ]),
         )
         return
       }
@@ -537,7 +535,7 @@ export async function LatexToBlocks(
 
         let currentItemContent: Ast.Node[] = []
 
-        function flushItem() {
+        const flushItem = () => {
           if (currentItemContent.length > 0) {
             const styledContent = nodesToStyledText(currentItemContent)
             if (styledContent.length > 0) {
@@ -578,7 +576,11 @@ export async function LatexToBlocks(
         const styledContent = nodesToStyledText(node.content)
         if (styledContent.length > 0) {
           // Create a child paragraph with the quote content
-          const quoteChild = createBlock('paragraph', {type: 'p'}, styledContent)
+          const quoteChild = createBlock(
+            'paragraph',
+            {type: 'p'},
+            styledContent,
+          )
           // Create parent block with childrenType: 'Blockquote' and the content as child
           blocks.push(
             createBlock(
@@ -609,7 +611,7 @@ export async function LatexToBlocks(
             if (arg.content) {
               const argStr = getStringContent(arg.content)
               const langMatch = argStr.match(/language\s*=\s*(\w+)/)
-              if (langMatch) {
+              if (langMatch && langMatch[1]) {
                 language = langMatch[1].toLowerCase()
               }
             }
@@ -655,17 +657,13 @@ export async function LatexToBlocks(
       flushParagraph()
       const mathContent = getLatexSource(node.content)
       blocks.push(
-        createBlock(
-          'math',
-          {},
-          [
-            {
-              type: 'text',
-              text: mathContent,
-              styles: {},
-            },
-          ],
-        ),
+        createBlock('math', {}, [
+          {
+            type: 'text',
+            text: mathContent,
+            styles: {},
+          },
+        ]),
       )
       return
     }
@@ -703,20 +701,22 @@ export async function LatexToBlocks(
     const headingLevel = getHeadingLevel(block)
 
     if (headingLevel > 0) {
-      while (stack.length && stack[stack.length - 1].level >= headingLevel) {
+      while (stack.length && stack[stack.length - 1]!.level >= headingLevel) {
         stack.pop()
       }
 
-      if (stack.length) {
-        stack[stack.length - 1].block.children.push(block)
+      const parent = stack[stack.length - 1]
+      if (parent) {
+        parent.block.children.push(block)
       } else {
         organizedBlocks.push(block)
       }
 
       stack.push({level: headingLevel, block})
     } else {
-      if (stack.length) {
-        stack[stack.length - 1].block.children.push(block)
+      const parent = stack[stack.length - 1]
+      if (parent) {
+        parent.block.children.push(block)
       } else {
         organizedBlocks.push(block)
       }

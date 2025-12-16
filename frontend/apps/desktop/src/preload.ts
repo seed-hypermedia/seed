@@ -104,13 +104,16 @@ contextBridge.exposeInMainWorld('docImport', {
 
   openLatexDirectories: (accountId: string) => {
     return new Promise((resolve, reject) => {
-      ipcRenderer.once('latex-directories-content-response', (event, response) => {
-        if (response.success) {
-          resolve(response.result)
-        } else {
-          reject(response.error)
-        }
-      })
+      ipcRenderer.once(
+        'latex-directories-content-response',
+        (event, response) => {
+          if (response.success) {
+            resolve(response.result)
+          } else {
+            reject(response.error)
+          }
+        },
+      )
 
       ipcRenderer.send('open-latex-directory', accountId)
     })
