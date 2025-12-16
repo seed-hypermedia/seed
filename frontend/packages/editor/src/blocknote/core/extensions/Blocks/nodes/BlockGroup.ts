@@ -226,7 +226,7 @@ export const BlockGroup = Node.create<{
         props: {
           transformPasted: (slice, view) => {
             const schema = view.state.schema
-            const normalizedContent = normalizeFragment(slice.content, schema)
+            let normalizedContent = normalizeFragment(slice.content, schema)
 
             // If all wrapper nodes are properly structured, close the slice boundaries to indicate it's a complete slice.
             let allTopLevelNodesAreStructured = true
@@ -269,10 +269,15 @@ function listNode(listType: HMBlockChildrenType) {
   return 'div'
 }
 
+/**
+ * This function fixes the blockContainer node in case it has multiple blockContent node children after paste.
+ * This is invalid structure
+ */
 function splitBlockContainerNode(node: any) {
   const blockContents: any[] = []
   let blockGroup: any = null
 
+  // Traverse blockContainer's children and retrieve all blockContent nodes and the last blockGroup node
   node.forEach((child: any) => {
     if (child.type.spec.group === 'blockContent') {
       blockContents.push(child)
@@ -281,10 +286,12 @@ function splitBlockContainerNode(node: any) {
     }
   })
 
+  // If there is only one blockContent node, return the blockContainer node
   if (blockContents.length <= 1) {
     return [node]
   }
 
+  // If there are multiple blockContent nodes, split the blockContainer node into multiple blockContainer nodes and return them
   const containers: any[] = []
   blockContents.forEach((blockContent, index) => {
     const children = [blockContent]
@@ -316,11 +323,35 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
     }
 
     if (node.type.name === 'blockGroup') {
-      const normalizedGroupContent = normalizeFragment(node.content, schema)
+      let groupNode = node
+      let groupContent = normalizeFragment(node.content, schema)
 
-      if (node.attrs?.listType === 'Group') {
+      // Unwrap when the group has a blockContainer child with a single blockGroup child
+      // This is invalid structure and happens when copy pasting a nested blockGroup without a parent.
+      if (
+        groupNode.attrs?.listType === 'Group' && // outer is the dumb wrapper
+        groupContent.childCount === 1
+      ) {
+        const onlyChild = groupContent.firstChild
+
+        if (
+          onlyChild &&
+          onlyChild.type?.name === 'blockContainer' &&
+          onlyChild.childCount === 1 &&
+          onlyChild.firstChild &&
+          onlyChild.firstChild.type?.name === 'blockGroup'
+        ) {
+          const innerGroup = onlyChild.firstChild
+
+          // ✅ Treat outer "Group" as a wrapper and adopt the inner group instead
+          groupNode = innerGroup
+          groupContent = normalizeFragment(innerGroup.content, schema)
+        }
+      }
+
+      if (groupNode.attrs?.listType === 'Group') {
         let hasNestedLists = false
-        normalizedGroupContent.forEach((child: any) => {
+        groupContent.forEach((child: any) => {
           if (
             child.type?.name === 'blockContainer' &&
             child.lastChild?.type?.name === 'blockGroup'
@@ -330,19 +361,18 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
         })
 
         if (!hasNestedLists) {
-          normalizedGroupContent.forEach((childNode: any) => {
+          groupContent.forEach((childNode: any) => {
             nodes.push(childNode)
           })
           return
         }
       }
 
-      const normalizedGroup = node.type.create(
-        node.attrs,
-        normalizedGroupContent,
+      const normalizedGroup = groupNode.type.create(
+        groupNode.attrs,
+        groupContent,
       )
 
-      // Wrap blockGroup nodes in blockContainers.
       if (schema) {
         const prevNode = nodes[nodes.length - 1]
         const wrappedContainer = wrapBlockGroupInContainer(
@@ -351,10 +381,8 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
           prevNode,
         )
         if (prevNode && wrappedContainer !== normalizedGroup) {
-          // If we merged into previous node, replace it
           nodes[nodes.length - 1] = wrappedContainer
         } else {
-          // Otherwise, add as new node
           nodes.push(wrappedContainer)
         }
       } else {
@@ -387,7 +415,9 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
 function normalizeBlockContainer(node: any, schema?: any) {
   const children: any[] = []
 
-  node.forEach((child: any) => {
+  // Traverse blockContainer's children
+  node.forEach((child: any, index: number) => {
+    // If the child is a blockGroup, normalize it and add it to the children array
     if (child.type?.name === 'blockGroup') {
       children.push(
         child.type.create(
