@@ -181,8 +181,10 @@ export function BlocksContentProvider({
   }
 >) {
   const {experiments, contacts, saveCidAsFile} = useUniversalAppContext()
-  const layoutUnit = props.layoutUnit ?? contentLayoutUnit
-  const textUnit = props.textUnit ?? contentTextUnit
+  const parentCtx = useContext(blocksContentContext)
+  // Priority: explicit props > parent context > defaults
+  const layoutUnit = props.layoutUnit ?? parentCtx?.layoutUnit ?? contentLayoutUnit
+  const textUnit = props.textUnit ?? parentCtx?.textUnit ?? contentTextUnit
   const [tUnit, setTUnit] = useState(textUnit)
   const [lUnit, setLUnit] = useState(layoutUnit)
   const [debug, setDebug] = useState(false)
