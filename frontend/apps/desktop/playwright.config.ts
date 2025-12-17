@@ -11,7 +11,8 @@ const config: PlaywrightTestConfig = {
     video: 'on',
   },
   retries: process.env.CI ? 2 : 0,
-  workers: 1,
+  // Run 2 workers in parallel in CI for faster execution
+  workers: process.env.CI ? 2 : 1,
   expect: {
     timeout: 30 * 1000,
   },

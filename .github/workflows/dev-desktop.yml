@@ -40,22 +40,12 @@ jobs:
         run: |
           echo "App Version: ${{ steps.set_version.outputs.version }}"
 
+  # Use the reusable parallel test workflow
   frontend-tests:
-    runs-on: ubuntu-latest
     needs: [build-info]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Check for new TypeScript directives
-        run: node scripts/check-ts-directives.mjs
-      - name: Install dependencies
-        run: yarn install
-      - name: Validate Code Formatting
-        run: yarn format:check
-      - name: Run typecheck
-        run: yarn typecheck
-      - name: Run tests
-        run: yarn test
+    uses: ./.github/workflows/test-frontend-parallel.yml
+    with:
+      run-integration-tests: false
 
   build-binaries:
     timeout-minutes: 30
