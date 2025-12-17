@@ -7381,6 +7381,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mantine/core@npm:^6.0.21":
+  version: 6.0.22
+  resolution: "@mantine/core@npm:6.0.22"
+  dependencies:
+    "@floating-ui/react": ^0.19.1
+    "@mantine/styles": 6.0.22
+    "@mantine/utils": 6.0.22
+    "@radix-ui/react-scroll-area": 1.0.2
+    react-remove-scroll: ^2.5.5
+    react-textarea-autosize: 8.3.4
+  peerDependencies:
+    "@mantine/hooks": 6.0.22
+    react: ">=16.8.0"
+    react-dom: ">=16.8.0"
+  checksum: bc4cedb8f10a663459306a8b4a1cacb8866623f27e851b0c7f84d6c809f6a3e61c7d7ce56ca7487424bb8c4e60b4c5fe3c493d48ed42e687eff2eb6ee46e0e5e
+  languageName: node
+  linkType: hard
+
 "@mantine/hooks@npm:6.0.13":
   version: 6.0.13
   resolution: "@mantine/hooks@npm:6.0.13"
@@ -7404,12 +7422,35 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mantine/styles@npm:6.0.22":
+  version: 6.0.22
+  resolution: "@mantine/styles@npm:6.0.22"
+  dependencies:
+    clsx: 1.1.1
+    csstype: 3.0.9
+  peerDependencies:
+    "@emotion/react": ">=11.9.0"
+    react: ">=16.8.0"
+    react-dom: ">=16.8.0"
+  checksum: e00968849e2baac09799b595a01aac7192f139684a1ef54cc9ad2c1c7bf1bff512441e13015b7215768e567d4d01b44e8b6b228557b8ba327c5abd6edbdceb67
+  languageName: node
+  linkType: hard
+
 "@mantine/utils@npm:6.0.13":
   version: 6.0.13
   resolution: "@mantine/utils@npm:6.0.13"
   peerDependencies:
     react: ">=16.8.0"
   checksum: 7b59db35a7245af138b9af7b143b4ef30e9b5d0bf85e796034ab2368b1a449d67f2023d9d174c532ebd94e9e63037d2e4e0da46e259572de7397e4b0d8867ca0
+  languageName: node
+  linkType: hard
+
+"@mantine/utils@npm:6.0.22, @mantine/utils@npm:^6.0.21":
+  version: 6.0.22
+  resolution: "@mantine/utils@npm:6.0.22"
+  peerDependencies:
+    react: ">=16.8.0"
+  checksum: f1379d2b35cb6c0724c009e576e462d1ec37ff162c1cd56be3de600c2cc1eed0123ee73909684d18f7d9ef0c6d1ff72d6858d17e21b052e8412275c4dfee9761
   languageName: node
   linkType: hard
 
@@ -8779,6 +8820,17 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: ae094e6cb809365c0707ee2b184e42d2a2542569ada020d2d44ca5866066941262bd9a67af185f86c2fb0133c9b712ea8cb73e2959a289e4261c5fd17077283c
+  languageName: node
+  linkType: hard
+
+"@playwright/test@npm:^1.40.1":
+  version: 1.57.0
+  resolution: "@playwright/test@npm:1.57.0"
+  dependencies:
+    playwright: 1.57.0
+  bin:
+    playwright: cli.js
+  checksum: 1a84783a240d69c2c8081a127b446f812a8dc86fe6f60a9511dd501cc0e6229cbec7e7753972678f3f063ad2bebb2cedbe9caebc5faa41014aebed35773ea242
   languageName: node
   linkType: hard
 
@@ -12379,6 +12431,9 @@ __metadata:
   dependencies:
     "@emotion/react": ^11.14.0
     "@eslint/js": ^9.17.0
+    "@mantine/core": ^6.0.21
+    "@mantine/utils": ^6.0.21
+    "@playwright/test": ^1.40.1
     "@shm/ui": "workspace:*"
     "@tippyjs/react": 4.2.6
     "@tiptap/core": 2.0.3
@@ -31310,6 +31365,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"playwright-core@npm:1.57.0":
+  version: 1.57.0
+  resolution: "playwright-core@npm:1.57.0"
+  bin:
+    playwright-core: cli.js
+  checksum: 960e80d6ec06305b11a3ca9e78e8e4201cc17f37dd37279cb6fece4df43d74bf589833f4f94535fadd284b427f98c5f1cf09368e22f0f00b6a9477571ce6b03b
+  languageName: node
+  linkType: hard
+
 "playwright@npm:1.40.1":
   version: 1.40.1
   resolution: "playwright@npm:1.40.1"
@@ -31322,6 +31386,21 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 9e36791c1b4a649c104aa365fdd9d049924eeb518c5967c0e921aa38b9b00994aa6ee54784d6c2af194b3b494b6f69772673081ef53c6c4a4b2065af9955c4ba
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.57.0":
+  version: 1.57.0
+  resolution: "playwright@npm:1.57.0"
+  dependencies:
+    fsevents: 2.3.2
+    playwright-core: 1.57.0
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    playwright: cli.js
+  checksum: 176fd9fd890f390e0aa00d42697b70072d534243b15467d9430f3af329e77b3225b67a0afa12ea76fb440300dabd92d4cf040baf5edceee8eeff0ee1590ae5b7
   languageName: node
   linkType: hard
 
