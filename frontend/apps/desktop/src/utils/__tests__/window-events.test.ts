@@ -147,16 +147,13 @@ describe('window-events', () => {
       triggerEvent({type: 'toggle_accessory', index: 1})
 
       expect(mockIPCSend).toHaveBeenCalledTimes(2)
-      expect(mockIPCSend).toHaveBeenNthCalledWith(
-        1,
-        'focusedWindowAppEvent',
-        {type: 'toggle_sidebar'},
-      )
-      expect(mockIPCSend).toHaveBeenNthCalledWith(
-        2,
-        'focusedWindowAppEvent',
-        {type: 'toggle_accessory', index: 1},
-      )
+      expect(mockIPCSend).toHaveBeenNthCalledWith(1, 'focusedWindowAppEvent', {
+        type: 'toggle_sidebar',
+      })
+      expect(mockIPCSend).toHaveBeenNthCalledWith(2, 'focusedWindowAppEvent', {
+        type: 'toggle_accessory',
+        index: 1,
+      })
     })
   })
 })

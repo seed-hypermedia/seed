@@ -44,8 +44,10 @@ describe('accessory shortcut logic', () => {
     })
 
     it('should determine to open when current key does not match target key', () => {
-      const currentAccessoryKey: AccessoryOptions = 'activity'
-      const targetAccessoryKey: AccessoryOptions = 'discussions'
+      const currentAccessoryKey: AccessoryOptions | undefined =
+        'activity' as AccessoryOptions
+      const targetAccessoryKey: AccessoryOptions =
+        'discussions' as AccessoryOptions
 
       const shouldClose = currentAccessoryKey === targetAccessoryKey
       expect(shouldClose).toBe(false)
@@ -109,7 +111,11 @@ describe('accessory shortcut logic', () => {
     })
 
     it('should return undefined when no accessory in route', () => {
-      const route = {
+      const route: {
+        key: 'document'
+        id: {uid: string}
+        accessory?: {key: AccessoryOptions} | null
+      } = {
         key: 'document' as const,
         id: {uid: 'test'},
         accessory: null,
@@ -121,14 +127,29 @@ describe('accessory shortcut logic', () => {
     })
 
     it('should return undefined for non-document/draft routes', () => {
-      const route = {
-        key: 'feed' as const,
+      type Route =
+        | {key: 'feed'}
+        | {
+            key: 'document'
+            id: {uid: string}
+            accessory?: {key: AccessoryOptions}
+          }
+        | {key: 'draft'; id: string; accessory?: {key: AccessoryOptions}}
+
+      const route: Route = {
+        key: 'feed',
       }
 
-      const accessoryKey =
-        route.key === 'document' || route.key === 'draft'
-          ? route.accessory?.key
-          : undefined
+      function getAccessoryKey(r: Route): AccessoryOptions | undefined {
+        if (r.key === 'document') {
+          return r.accessory?.key
+        } else if (r.key === 'draft') {
+          return r.accessory?.key
+        }
+        return undefined
+      }
+
+      const accessoryKey = getAccessoryKey(route)
       expect(accessoryKey).toBeUndefined()
     })
   })

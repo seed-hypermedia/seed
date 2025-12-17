@@ -201,6 +201,33 @@ function PanelContent({children}: {children: ReactNode}) {
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
+    // Check if editor is focused with selection - if so, trigger bold instead of sidebar toggle
+    const activeElement = document.activeElement
+    const isEditorFocused =
+      activeElement &&
+      (activeElement.classList.contains('ProseMirror') ||
+        activeElement.closest('.ProseMirror'))
+
+    if (isEditorFocused) {
+      const selection = window.getSelection()
+      // If there's a text selection, dispatch Cmd+B to the editor for bold formatting
+      if (selection && !selection.isCollapsed) {
+        // Dispatch keyboard event to the focused element so editor can handle bold
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+        const event = new KeyboardEvent('keydown', {
+          key: 'b',
+          code: 'KeyB',
+          metaKey: isMac,
+          ctrlKey: !isMac,
+          bubbles: true,
+          cancelable: true,
+        })
+        activeElement.dispatchEvent(event)
+        return
+      }
+    }
+
+    // Otherwise, toggle the sidebar
     ctx.onToggleMenuLock()
   })
 
