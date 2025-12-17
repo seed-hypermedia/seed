@@ -27,6 +27,7 @@ import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import '@shm/editor/editor.css'
 import {
   AccessoryOptions,
@@ -239,6 +240,25 @@ function DocumentPageContent({
     onCommentDelete,
     deleteCommentDialogContent: deleteCommentDialog.content,
     targetDomain,
+  })
+
+  useListenAppEvent('toggle_accessory', (event) => {
+    // Navigation guard: Check if accessory exists at this index
+    const targetAccessory = accessoryOptions[event.index]
+
+    if (!targetAccessory) {
+      // No accessory at this index, do nothing
+      return
+    }
+
+    // Check if already open
+    if (accessoryKey === targetAccessory.key) {
+      // Already open → close it
+      replace({...route, accessory: null})
+    } else {
+      // Not open → open it
+      replace({...route, accessory: {key: targetAccessory.key}})
+    }
   })
 
   return (

@@ -22,21 +22,8 @@ export async function startApp() {
     executablePath: appInfo.executable,
   })
 
-  // // wait for splash-screen to pass
-  // await electronApp.firstWindow();
-  // while (electronApp.windows().length === 2) {
-
-  //   await pause(100);
-  // }
-
-  const windows = electronApp.windows()
-
-  // if (windows.length != 1) {
-  //   console.log(`== ~ startApp ~ windows:`, windows)
-  //   throw new Error('too many windows open')
-  // }
-  // @ts-ignore
-  const appWindow: Page = windows[0]
+  // Wait for the first window to be created
+  const appWindow: Page = await electronApp.firstWindow()
   appWindow.on('console', log.info)
 
   // await appWindow.screenshot({
@@ -64,9 +51,7 @@ export async function startApp() {
   // await appWindow.screenshot({
   //   path: getRecordingPath(appInfo.platform, 'initial-screen.png'),
   // });
-  await electronApp.on('window', () => {
-    console.log('-- helloooo')
-  })
+
   return {
     getWindow: async () => await electronApp.firstWindow(),
     appInfo,

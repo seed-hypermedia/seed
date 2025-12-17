@@ -697,6 +697,16 @@ export function createAppWindow(
     globalShortcut.register('CommandOrControl+B', () => {
       dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
     })
+
+    // Register numbered shortcuts for accessories
+    for (let i = 1; i <= 5; i++) {
+      globalShortcut.register(`CommandOrControl+${i}`, () => {
+        dispatchFocusedWindowAppEvent({
+          type: 'toggle_accessory',
+          index: i - 1, // 0-based index
+        })
+      })
+    }
   })
 
   browserWindow.webContents.on('found-in-page', (event, result) => {
@@ -709,6 +719,11 @@ export function createAppWindow(
     windowBlurred(windowId)
     globalShortcut.unregister('CommandOrControl+F')
     globalShortcut.unregister('CommandOrControl+B')
+
+    // Unregister numbered shortcuts
+    for (let i = 1; i <= 5; i++) {
+      globalShortcut.unregister(`CommandOrControl+${i}`)
+    }
   })
 
   windowFocused(windowId)

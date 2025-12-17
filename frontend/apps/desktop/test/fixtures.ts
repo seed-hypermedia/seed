@@ -1,7 +1,9 @@
-import {test as baseTest} from '@playwright/test'
+import {test as baseTest, expect as baseExpect} from '@playwright/test'
 import {HomePage} from './home-page.pom'
 import {OnboardingPage} from './onboadring.pom'
 import {startApp} from './utils'
+
+export const expect = baseExpect
 
 export const test = baseTest.extend<{
   onboardingPage: OnboardingPage

@@ -17,6 +17,7 @@ import {client} from '@/trpc'
 import {useMutation} from '@tanstack/react-query'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import {BlockNoteEditor} from '@shm/editor/blocknote'
 import {dispatchScroll} from '@shm/editor/editor-on-scroll-stream'
 import '@shm/editor/editor.css'
@@ -117,6 +118,25 @@ export default function DraftPage() {
     state,
     actor,
     isEditingHomeDoc,
+  })
+
+  useListenAppEvent('toggle_accessory', (event) => {
+    // Navigation guard: Check if accessory exists at this index
+    const targetAccessory = accessoryOptions[event.index]
+
+    if (!targetAccessory) {
+      // No accessory at this index, do nothing
+      return
+    }
+
+    // Check if already open
+    if (accessoryKey === targetAccessory.key) {
+      // Already open → close it
+      replace({...route, accessory: null})
+    } else {
+      // Not open → open it
+      replace({...route, accessory: {key: targetAccessory.key}})
+    }
   })
 
   function handleFocusAtMousePos(event: any) {
