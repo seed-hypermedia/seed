@@ -121,9 +121,7 @@ export function createAppMenu() {
         {
           id: 'toggle_sidebar',
           label: 'Toggle Sidebar',
-          // Only register accelerator in non-test environments
-          // In tests, Cmd+B should be handled by the editor directly
-          accelerator: process.env.NODE_ENV === 'test' ? undefined : 'CmdOrCtrl+B',
+          accelerator: 'CmdOrCtrl+B',
           click: () => {
             dispatchFocusedWindowAppEvent({type: 'toggle_sidebar'})
           },

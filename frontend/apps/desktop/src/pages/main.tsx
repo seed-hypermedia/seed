@@ -213,38 +213,30 @@ function PanelContent({children}: {children: ReactNode}) {
       // If there's a text selection, try to toggle bold in the editor
       if (selection && !selection.isCollapsed) {
         try {
-          // Try to find the TipTap/ProseMirror editor instance
-          // Look through parent elements for the editor
-          let element: Element | null = activeElement
-          let editorView: any = null
+          // Access ProseMirror view through the pmViewDesc property
+          const pmElement = activeElement.classList.contains('ProseMirror')
+            ? activeElement
+            : activeElement.closest('.ProseMirror')
 
-          while (element && !editorView) {
-            // Try various properties where the editor might be stored
-            editorView =
-              (element as any).editor?.view || // TipTap editor
-              (element as any).__vue__?.$editor?.view || // Vue TipTap
-              (element as any).__reactProps__?.editor?.view || // React props
-              (element as any)._reactInternals?.memoizedProps?.editor?.view || // React internals
-              (element as any).pmView || // Direct ProseMirror view
-              null
+          if (pmElement) {
+            // Get the ProseMirror EditorView from the DOM node
+            const editorView = (pmElement as any).pmViewDesc?.view
 
-            element = element.parentElement
-          }
+            if (editorView && editorView.state && editorView.dispatch) {
+              const {state} = editorView
+              const boldMark = state.schema.marks.bold
 
-          if (editorView && editorView.state && editorView.dispatch) {
-            const {state} = editorView
-            const boldMark = state.schema.marks.bold
+              if (boldMark) {
+                const {from, to} = state.selection
+                const hasBold = state.doc.rangeHasMark(from, to, boldMark)
 
-            if (boldMark) {
-              const {from, to} = state.selection
-              const hasBold = state.doc.rangeHasMark(from, to, boldMark)
+                const tr = hasBold
+                  ? state.tr.removeMark(from, to, boldMark)
+                  : state.tr.addMark(from, to, boldMark.create())
 
-              const tr = hasBold
-                ? state.tr.removeMark(from, to, boldMark)
-                : state.tr.addMark(from, to, boldMark.create())
-
-              editorView.dispatch(tr)
-              return
+                editorView.dispatch(tr)
+                return
+              }
             }
           }
         } catch (e) {
