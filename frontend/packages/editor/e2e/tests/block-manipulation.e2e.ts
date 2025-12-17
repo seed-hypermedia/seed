@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import {expect, test} from './fixtures'
 
 test.describe('Block Manipulation', () => {
   test.describe('Block Insertion', () => {

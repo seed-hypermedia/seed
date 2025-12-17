@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import {expect, test} from './fixtures'
 import {
   htmlContent,
   markdownContent,
@@ -49,11 +49,11 @@ test.describe('Copy and Paste', () => {
       context,
     }) => {
       await editorHelpers.focusEditor()
-      await editorHelpers.typeText("Line 1")
+      await editorHelpers.typeText('Line 1')
       await editorHelpers.pressKey('Shift+Enter')
-      await editorHelpers.typeText("Line 2")
+      await editorHelpers.typeText('Line 2')
       await editorHelpers.pressKey('Shift+Enter')
-      await editorHelpers.typeText("Line 3")
+      await editorHelpers.typeText('Line 3')
 
       // Select all and copy
       await editorHelpers.selectAll()
@@ -385,8 +385,12 @@ test.describe('Copy and Paste', () => {
         expect(listBlock.props?.childrenType).toBe('Unordered')
         expect(listBlock.children[0].content[0].text).toBe('Parent item')
         expect(listBlock.children[0].props?.childrenType).toBe('Unordered')
-        expect(listBlock.children[0].children[0].content[0].text).toBe('Child item 1')
-        expect(listBlock.children[0].children[1].content[0].text).toBe('Child item 2')
+        expect(listBlock.children[0].children[0].content[0].text).toBe(
+          'Child item 1',
+        )
+        expect(listBlock.children[0].children[1].content[0].text).toBe(
+          'Child item 2',
+        )
         expect(listBlock.children[1].content[0].text).toBe('Another parent')
       })
 
@@ -397,16 +401,18 @@ test.describe('Copy and Paste', () => {
       }) => {
         await context.grantPermissions(['clipboard-read', 'clipboard-write'])
         await editorHelpers.focusEditor()
-  
+
         await editorHelpers.setClipboardHTML(htmlContent.blockquote)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
-  
+
         const blocks = await editorHelpers.getBlocks()
         const blockquoteBlock = blocks[0]
         expect(blockquoteBlock).toBeDefined()
         expect(blockquoteBlock.props?.childrenType).toBe('Blockquote')
-        expect(blockquoteBlock.children[0].content[0].text).toContain('quoted text')
+        expect(blockquoteBlock.children[0].content[0].text).toContain(
+          'quoted text',
+        )
       })
 
       // test('Should paste plain text list-like content', async ({
@@ -713,17 +719,17 @@ test.describe('Copy and Paste', () => {
       expect(listBlock.props?.childrenType).toBe('Unordered')
 
       // Check that there's a nested unordered child list
-      const hasNestedList = listBlock.children?.some(
-        (child: any) => {
-          if (child.children?.length > 0 && child.props?.childrenType === 'Unordered') {
-            return child.children?.some((nested: any) => {
-              return nested.content?.some((c: any) => c.text?.includes('Test 5'))
-            })
-          }
-          return false
+      const hasNestedList = listBlock.children?.some((child: any) => {
+        if (
+          child.children?.length > 0 &&
+          child.props?.childrenType === 'Unordered'
+        ) {
+          return child.children?.some((nested: any) => {
+            return nested.content?.some((c: any) => c.text?.includes('Test 5'))
+          })
         }
-          
-      )
+        return false
+      })
       expect(hasNestedList).toBe(true)
     })
 

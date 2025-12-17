@@ -1,17 +1,17 @@
 import '@/blocknote/core/style.css'
 import '@/editor.css'
-import { writeableStateStream } from '@shm/shared'
-import { TooltipProvider } from '@shm/ui/tooltip'
-import { useEffect, useState } from 'react'
+import {writeableStateStream} from '@shm/shared'
+import {TooltipProvider} from '@shm/ui/tooltip'
+import {useEffect, useState} from 'react'
 import {
   BlockNoteView,
   SlashMenuPositioner,
   useBlockNote,
 } from '../../src/blocknote'
-import type { Block } from '../../src/blocknote/core/extensions/Blocks/api/blockTypes'
-import type { HMBlockSchema } from '../../src/schema'
-import { hmBlockSchema } from '../../src/schema'
-import { getSlashMenuItems } from '../../src/slash-menu-items'
+import type {Block} from '../../src/blocknote/core/extensions/Blocks/api/blockTypes'
+import type {HMBlockSchema} from '../../src/schema'
+import {hmBlockSchema} from '../../src/schema'
+import {getSlashMenuItems} from '../../src/slash-menu-items'
 
 // Create a dummy gateway URL stream for testing
 const [, gwUrl] = writeableStateStream<string | null>('https://hyper.media')

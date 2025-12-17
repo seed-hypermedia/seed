@@ -90,31 +90,31 @@ function ProfilePageContent({
         />
         <NavigationLoadingContent className="flex w-full flex-1 flex-col items-center pt-[var(--site-header-h)] sm:pt-0">
           <PageContainer>
-          <HMProfilePage
-            profile={{
-              id: profileId,
-              metadata: account.data?.metadata || null,
-              hasSite: account.data?.hasSite,
-            }}
-            onEditProfile={() =>
-              editProfileDialog.open({accountUid: profileId.uid})
-            }
-            currentAccount={currentAccount}
-            headerButtons={
-              isCurrentAccount ? (
-                <>
-                  <LogoutButton />
-                  <Button
-                    variant="outline"
-                    onClick={() => linkKeysDialog.open({})}
-                  >
-                    <KeySquare className="size-4" />
-                    Link Keys
-                  </Button>
-                </>
-              ) : null
-            }
-          />
+            <HMProfilePage
+              profile={{
+                id: profileId,
+                metadata: account.data?.metadata || null,
+                hasSite: account.data?.hasSite,
+              }}
+              onEditProfile={() =>
+                editProfileDialog.open({accountUid: profileId.uid})
+              }
+              currentAccount={currentAccount}
+              headerButtons={
+                isCurrentAccount ? (
+                  <>
+                    <LogoutButton />
+                    <Button
+                      variant="outline"
+                      onClick={() => linkKeysDialog.open({})}
+                    >
+                      <KeySquare className="size-4" />
+                      Link Keys
+                    </Button>
+                  </>
+                ) : null
+              }
+            />
           </PageContainer>
           <MyAccountBubble />
           <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />

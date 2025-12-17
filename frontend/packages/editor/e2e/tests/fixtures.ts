@@ -1,4 +1,4 @@
-import { test as base, Locator } from '@playwright/test'
+import {test as base, Locator} from '@playwright/test'
 
 /**
  * Custom test fixture for editor E2E tests.
@@ -335,4 +335,4 @@ export const test = base.extend<{
   },
 })
 
-export { expect } from '@playwright/test'
+export {expect} from '@playwright/test'

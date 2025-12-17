@@ -9,32 +9,33 @@
 // =============================================================================
 
 export const htmlContent = {
-  // Multiple paragraphs 
+  // Multiple paragraphs
   multiParagraphHTML: `<p>First paragraph</p><p>Second paragraph</p><p>Third paragraph</p>`,
-  
+
   // Basic text with inline formatting
   boldText: '<p>The <strong>important</strong> message</p>',
   italicText: '<p>An <em>emphasized</em> phrase</p>',
   mixedFormatting:
     '<p>This has <strong>strong</strong>, <em>emphasis</em>, and <u>underlined</u> words</p>',
-  
+
   // Links
   simpleLink: '<p>Visit <a href="https://example.com">Example Site</a></p>',
-  multiplLinks: '<p><a href="https://one.com">One</a> and <a href="https://two.com">Two</a></p>',
-  
+  multiplLinks:
+    '<p><a href="https://one.com">One</a> and <a href="https://two.com">Two</a></p>',
+
   // Lists
   unorderedList: `<ul>
     <li>Item 1</li>
     <li>Item 2</li>
     <li>Item 3</li>
   </ul>`,
-  
+
   orderedList: `<ol>
     <li>Item 1</li>
     <li>Item 2</li>
     <li>Item 3</li>
   </ol>`,
-  
+
   nestedList: `<ul>
     <li>Parent item
       <ul>
@@ -44,20 +45,21 @@ export const htmlContent = {
     </li>
     <li>Another parent</li>
   </ul>`,
-  
+
   // Blockquotes
   blockquote: '<blockquote>This is a quoted text from somewhere</blockquote>',
-  nestedBlockquote: '<blockquote>Quote level 1<blockquote>Quote level 2</blockquote></blockquote>',
-  
+  nestedBlockquote:
+    '<blockquote>Quote level 1<blockquote>Quote level 2</blockquote></blockquote>',
+
   // Headings
   heading1: '<h1>Main Heading</h1>',
   heading2: '<h2>Subheading</h2>',
   headingWithText: '<h2>My Heading</h2><p>Some paragraph text below</p>',
-  
+
   // Code
   inlineCode: '<p>Use the <code>console.log()</code> function</p>',
   codeBlock: '<pre><code>function hello() {\n  return "world";\n}</code></pre>',
-  
+
   complexDocument:
     '<h2>Project Overview</h2><p>This is a <strong>complex</strong> document.</p><p>Learn more at our website.</p>',
 
@@ -75,7 +77,7 @@ export const htmlContent = {
     // Notion often includes data attributes
     toggle: `<meta charset='utf-8'><details><summary>Toggle heading</summary><p>Toggle content</p></details>`,
   },
-  
+
   // Paste from ChatGPT web app
   chatGpt: {
     formattedText: `<meta charset='utf-8'><h3 data-start="168" data-end="202"><strong data-start="172" data-end="202">✔ DC IN → charging / power</strong></h3>
@@ -145,17 +147,17 @@ export const htmlContent = {
 export const plainTextContent = {
   singleLine: 'Hello World',
   multiLine: `Line 1\nLine 2\nLine 3`,
-  
+
   multiParagraph: `First paragraph
 
 Second paragraph
 
 Third paragraph`,
-  
+
   unorderedListLike: `- Item 1
 - Item 2
 - Item 3`,
-  
+
   numberedListLike: `1. Item 1
 2. Item 2
 3. Item 3`,
@@ -168,26 +170,26 @@ Third paragraph`,
 export const markdownContent = {
   heading: '# Main Heading',
   subheading: '## Subheading',
-  
+
   bold: '**bold text**',
   italic: '*italic text*',
   mixed: 'Text with **bold** and *italic* words',
-  
+
   link: '[Example](https://example.com)',
-  
+
   unorderedList: `- Item 1
 - Item 2
 - Item 3`,
-  
+
   orderedList: `1. Item 1
 2. Item 2
 3. Item 3`,
-  
+
   blockquote: '> This is a quote',
-  
+
   code: '`inline code`',
   codeBlock: '```\nfunction hello() {\n  return "world";\n}\n```',
-  
+
   complexDocument: `# Document Title
 
 This is a paragraph with **bold** and *italic* text.
@@ -231,4 +233,3 @@ export function createClipboardHTML(
     plain: plainText || html.replace(/<[^>]*>/g, ''),
   }
 }
-

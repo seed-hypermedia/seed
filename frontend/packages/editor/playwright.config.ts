@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test'
+import {defineConfig, devices} from '@playwright/test'
 
 /**
  * Playwright configuration for the @shm/editor E2E tests.
@@ -21,8 +21,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   // Reporter to use
   reporter: process.env.CI
-  ? [['github']]
-  : [['html', { outputFolder: 'e2e/playwright-report', open: 'never' }]],
+    ? [['github']]
+    : [['html', {outputFolder: 'e2e/playwright-report', open: 'never'}]],
   // Shared settings for all projects
   use: {
     // Base URL to use in actions like `await page.goto('/')`

@@ -138,7 +138,7 @@ export function NavigationLoadingContent({
   return (
     <div
       className={`transition-opacity duration-200 ${
-        isLoading ? 'opacity-50 pointer-events-none' : ''
+        isLoading ? 'pointer-events-none opacity-50' : ''
       } ${className || ''}`}
     >
       {children}
@@ -190,7 +190,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
     <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
       <TooltipProvider>
         <NavigationLoadingProvider>{children}</NavigationLoadingProvider>
-        <div className="fixed right-0 bottom-0 z-50 w-full h-auto">
+        <div className="fixed right-0 bottom-0 z-50 h-auto w-full">
           <Toaster theme={theme} />
         </div>
       </TooltipProvider>

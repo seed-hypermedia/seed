@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import {expect, test} from './fixtures'
 
 test.describe('Selection Behavior', () => {
   test.describe('Text Selection', () => {
