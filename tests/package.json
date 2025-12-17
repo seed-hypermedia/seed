@@ -8,7 +8,7 @@
     "test:install-browsers": "npx playwright install chromium"
   },
   "devDependencies": {
-    "playwright": "1.40.1",
+    "playwright": "1.57.0",
     "vitest": "^3.0.9"
   },
   "dependencies": {

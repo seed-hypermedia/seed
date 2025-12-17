@@ -29,6 +29,12 @@ jobs:
         run: yarn typecheck
       - name: Run tests
         run: yarn test
+      - name: Install Playwright browsers
+        run: | 
+          yarn workspace @shm/editor playwright install chromium
+          yarn workspace @shm/desktop playwright install chromium
+      - name: Run Editor E2E tests
+        run: yarn workspace @shm/editor test:e2e
   backend-tests:
     runs-on: ubuntu-latest
     steps:

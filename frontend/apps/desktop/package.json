@@ -155,7 +155,7 @@
     "@electron-forge/plugin-vite": "7.9.0",
     "@electron-forge/publisher-s3": "7.9.0",
     "@electron-forge/shared-types": "7.9.0",
-    "@playwright/test": "1.40.1",
+    "@playwright/test": "1.57.0",
     "@reforged/maker-appimage": "^5.1.0",
     "@types/katex": "0.16.7",
     "@types/node": "^22.15.24",

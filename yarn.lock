@@ -8812,18 +8812,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:1.40.1":
-  version: 1.40.1
-  resolution: "@playwright/test@npm:1.40.1"
-  dependencies:
-    playwright: 1.40.1
-  bin:
-    playwright: cli.js
-  checksum: ae094e6cb809365c0707ee2b184e42d2a2542569ada020d2d44ca5866066941262bd9a67af185f86c2fb0133c9b712ea8cb73e2959a289e4261c5fd17077283c
-  languageName: node
-  linkType: hard
-
-"@playwright/test@npm:^1.40.1":
+"@playwright/test@npm:1.57.0":
   version: 1.57.0
   resolution: "@playwright/test@npm:1.57.0"
   dependencies:
@@ -12298,7 +12287,7 @@ __metadata:
     "@mantine/core": 6.0.13
     "@mantine/hooks": 6.0.13
     "@manuscripts/prosemirror-recreate-steps": 0.1.4
-    "@playwright/test": 1.40.1
+    "@playwright/test": 1.57.0
     "@radix-ui/colors": 0.1.9
     "@radix-ui/react-dropdown-menu": 2.0.5
     "@reforged/maker-appimage": ^5.1.0
@@ -12433,7 +12422,7 @@ __metadata:
     "@eslint/js": ^9.17.0
     "@mantine/core": ^6.0.21
     "@mantine/utils": ^6.0.21
-    "@playwright/test": ^1.40.1
+    "@playwright/test": 1.57.0
     "@shm/ui": "workspace:*"
     "@tippyjs/react": 4.2.6
     "@tiptap/core": 2.0.3
@@ -12683,7 +12672,7 @@ __metadata:
     commander: ^11.0.0
     glob: ^10.2.2
     lighthouse: ^12.4.0
-    playwright: ^1.36.0
+    playwright: 1.57.0
     ts-node: ^10.9.1
     typescript: 5.8.3
   languageName: unknown
@@ -12714,7 +12703,7 @@ __metadata:
   resolution: "@shm/tests@workspace:tests"
   dependencies:
     cheerio: ^1.1.2
-    playwright: 1.40.1
+    playwright: 1.57.0
     vitest: ^3.0.9
   languageName: unknown
   linkType: soft
@@ -31347,45 +31336,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.40.1":
-  version: 1.40.1
-  resolution: "playwright-core@npm:1.40.1"
-  bin:
-    playwright-core: cli.js
-  checksum: 84d92fb9b86e3c225b16b6886bf858eb5059b4e60fa1205ff23336e56a06dcb2eac62650992dede72f406c8e70a7b6a5303e511f9b4bc0b85022ede356a01ee0
-  languageName: node
-  linkType: hard
-
-"playwright-core@npm:1.56.1":
-  version: 1.56.1
-  resolution: "playwright-core@npm:1.56.1"
-  bin:
-    playwright-core: cli.js
-  checksum: 170dff398b47da140182631ae025190248dabde7a5264335f54e238546a478f522ac9a620b31462e6e31c883273223bff8e883b502a699da490abe9741fb3b71
-  languageName: node
-  linkType: hard
-
 "playwright-core@npm:1.57.0":
   version: 1.57.0
   resolution: "playwright-core@npm:1.57.0"
   bin:
     playwright-core: cli.js
   checksum: 960e80d6ec06305b11a3ca9e78e8e4201cc17f37dd37279cb6fece4df43d74bf589833f4f94535fadd284b427f98c5f1cf09368e22f0f00b6a9477571ce6b03b
-  languageName: node
-  linkType: hard
-
-"playwright@npm:1.40.1":
-  version: 1.40.1
-  resolution: "playwright@npm:1.40.1"
-  dependencies:
-    fsevents: 2.3.2
-    playwright-core: 1.40.1
-  dependenciesMeta:
-    fsevents:
-      optional: true
-  bin:
-    playwright: cli.js
-  checksum: 9e36791c1b4a649c104aa365fdd9d049924eeb518c5967c0e921aa38b9b00994aa6ee54784d6c2af194b3b494b6f69772673081ef53c6c4a4b2065af9955c4ba
   languageName: node
   linkType: hard
 
@@ -31401,21 +31357,6 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 176fd9fd890f390e0aa00d42697b70072d534243b15467d9430f3af329e77b3225b67a0afa12ea76fb440300dabd92d4cf040baf5edceee8eeff0ee1590ae5b7
-  languageName: node
-  linkType: hard
-
-"playwright@npm:^1.36.0":
-  version: 1.56.1
-  resolution: "playwright@npm:1.56.1"
-  dependencies:
-    fsevents: 2.3.2
-    playwright-core: 1.56.1
-  dependenciesMeta:
-    fsevents:
-      optional: true
-  bin:
-    playwright: cli.js
-  checksum: e7537e7d5048a1a8544d7675b005196ba9db919edc3b6d46b92273ee6f20e37ada8991774c5df9ef5123ea4610978d582feb141c8a02f4cf256a6c0b224b8793
   languageName: node
   linkType: hard
 
@@ -34891,7 +34832,7 @@ __metadata:
     cross-env: 7.0.3
     jscodeshift: ^17.3.0
     lighthouse: ^12.4.0
-    playwright: 1.40.1
+    playwright: 1.57.0
     prettier: 3.0.2
     prettier-plugin-tailwindcss: ^0.6.13
     react-native: 0.75.2
