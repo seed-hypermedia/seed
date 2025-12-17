@@ -84,7 +84,7 @@ function InnerFeedPage(
                 {...wrapperProps}
                 className={cn(
                   wrapperProps.className,
-                  'flex pt-[var(--site-header-h)]',
+                  'flex pt-[var(--site-header-h)] sm:pt-0',
                 )}
               >
                 {showSidebars ? (

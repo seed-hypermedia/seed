@@ -72,7 +72,7 @@ export default function ConnectPage() {
           docId={null}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-4">
+        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-0">
           <div className="px-4">
             <HMConnectPage />
           </div>

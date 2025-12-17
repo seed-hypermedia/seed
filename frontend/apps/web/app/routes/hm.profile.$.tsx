@@ -88,7 +88,7 @@ function ProfilePageContent({
           docId={null}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex w-full flex-1 flex-col items-center">
+        <NavigationLoadingContent className="flex w-full flex-1 flex-col items-center pt-[var(--site-header-h)] sm:pt-0">
           <PageContainer>
           <HMProfilePage
             profile={{

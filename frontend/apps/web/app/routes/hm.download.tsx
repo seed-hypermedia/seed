@@ -193,7 +193,7 @@ export default function DownloadPage() {
           document={document}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex flex-1 flex-col">
+        <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
           <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
             <Container className="gap-4 px-6">
               <h1 className="text-center text-4xl font-bold md:text-5xl">
