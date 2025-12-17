@@ -109,3 +109,4 @@ data
 
 # Scratchpad files and other stuff you wouldn't want to commit.
 .local
+.yarn/cache

@@ -94,28 +94,14 @@ export const draftMachine = setup({
         return context.deps
       },
       navigation: ({context, event}) => {
-        console.log('🔍 DEBUG: Navigation assignment called:', {
-          eventType: event.type,
-          payloadType:
-            event.type === 'fetch.success' ? event.payload.type : 'N/A',
-        })
         if (event.type == 'fetch.success') {
           if (event.payload.type == 'draft') {
-            console.log(
-              '🔍 DEBUG: Loading navigation from draft:',
-              event.payload.data.navigation,
-            )
             return event.payload.data.navigation
           } else if (event.payload.type == 'edit') {
             // When editing an existing document, extract navigation from the document
             const navNode =
               event.payload.data.document?.detachedBlocks?.navigation
-            console.log('🔍 DEBUG: Loading navigation from edit document:', {
-              hasNavNode: !!navNode,
-              navNode,
-              hasChildren: !!(navNode && navNode.children),
-              childrenCount: navNode?.children?.length || 0,
-            })
+
             if (navNode && navNode.children) {
               const extractedNavigation = navNode.children.map((child) => ({
                 type: 'Link' as const,
@@ -123,18 +109,12 @@ export const draftMachine = setup({
                 text: (child.block as any).text || '',
                 link: (child.block as any).link || '',
               }))
-              console.log(
-                '🔍 DEBUG: Extracted navigation:',
-                extractedNavigation,
-              )
+
               return extractedNavigation
             }
           }
         }
-        console.log(
-          '🔍 DEBUG: Returning existing context navigation:',
-          context.navigation,
-        )
+
         return context.navigation
       },
     }),

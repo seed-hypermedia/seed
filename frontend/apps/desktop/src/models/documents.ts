@@ -27,7 +27,6 @@ import {
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMDocumentInfo,
   HMDocumentMetadataSchema,
   HMDraft,
   HMDraftContent,
@@ -67,7 +66,6 @@ import {eventStream} from '@shm/shared/utils/stream'
 import {DocNavigationItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {PushResourceStatus} from '@shm/ui/push-toast'
 import {toast} from '@shm/ui/toast'
-import type {UseQueryResult} from '@tanstack/react-query'
 import {
   UseInfiniteQueryOptions,
   useMutation,
@@ -87,7 +85,6 @@ import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
 import {setGroupTypes} from './editor-utils'
-import {fetchQuery} from './entities'
 import {useGatewayUrl, useGatewayUrlStream} from './gateway-settings'
 import {getNavigationChanges} from './navigation'
 
@@ -234,36 +231,11 @@ export function usePublishResource(
 
       const deleteChanges = extractDeletes(blocksMap, changes.touchedBlocks)
 
-      console.log('🔍 DEBUG: Navigation data before getNavigationChanges:', {
-        draftNavigation: draft.navigation,
-        editDocumentNavigationBlock: editDocument?.detachedBlocks?.navigation,
-        hasNavigation: !!draft.navigation,
-        navigationLength: draft.navigation?.length || 0,
-        hasOldNavigationBlock: !!editDocument?.detachedBlocks?.navigation,
-        editDocumentExists: !!editDocument,
-        editDocumentDetachedBlocks: editDocument?.detachedBlocks,
-        editId,
-      })
-
       const navigationChanges = getNavigationChanges(
         draft.navigation,
         editDocument?.detachedBlocks?.navigation,
       )
 
-      console.log('🔍 DEBUG: Navigation changes generated:', {
-        changesCount: navigationChanges.length,
-        changes: navigationChanges.map((change) => ({
-          op: change.op.case,
-          blockId:
-            change.op.case === 'replaceBlock'
-              ? change.op.value.id
-              : change.op.case === 'moveBlock'
-              ? change.op.value.blockId
-              : change.op.case === 'deleteBlock'
-              ? change.op.value
-              : 'unknown',
-        })),
-      })
       if (accts.data?.length == 0) {
         dispatchOnboardingDialog(true)
       } else {
