@@ -31,7 +31,8 @@ export default function Navbar() {
     {href: 'https://seed.hyper.media/resources', label: 'Resources'},
     {href: 'https://seed.hyper.media/blog', label: 'Blog'},
     {href: 'https://seed.hyper.media/team', label: 'Team'},
-    {href: 'https://seed.hyper.media/community', label: 'Community'},
+    {href: 'https://seed.hyper.media/community', label: 'Support'},
+    {href: 'https://seedteamtalks.hyper.media/', label: 'Development'},
   ]
 
   return (
