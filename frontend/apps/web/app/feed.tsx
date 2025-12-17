@@ -12,7 +12,7 @@ import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
 import type {SiteDocumentPayload} from './loaders'
-import {WebSiteProvider} from './providers'
+import {NavigationLoadingContent, WebSiteProvider} from './providers'
 import {WebSiteHeader} from './web-site-header'
 
 const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
@@ -74,7 +74,7 @@ function InnerFeedPage(
           origin={origin}
           isLatest={isLatest}
         />
-        <div className="dark:bg-background flex flex-1 overflow-hidden bg-white">
+        <NavigationLoadingContent className="dark:bg-background flex flex-1 overflow-hidden bg-white">
           <div
             className="relative flex h-full w-full flex-col"
             ref={elementRef}
@@ -131,7 +131,7 @@ function InnerFeedPage(
               <MyAccountBubble />
             </div>
           </div>
-        </div>
+        </NavigationLoadingContent>
       </div>
     </Suspense>
   )

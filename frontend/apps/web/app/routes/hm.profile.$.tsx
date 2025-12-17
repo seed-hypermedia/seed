@@ -8,7 +8,11 @@ import {
 import {loadProfilePageData, ProfilePagePayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
+import {
+  getOptimizedImageUrl,
+  NavigationLoadingContent,
+  WebSiteProvider,
+} from '@/providers'
 import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
@@ -84,7 +88,8 @@ function ProfilePageContent({
           docId={null}
           origin={origin}
         />
-        <PageContainer>
+        <NavigationLoadingContent className="flex w-full flex-1 flex-col items-center">
+          <PageContainer>
           <HMProfilePage
             profile={{
               id: profileId,
@@ -110,9 +115,10 @@ function ProfilePageContent({
               ) : null
             }
           />
-        </PageContainer>
-        <MyAccountBubble />
-        <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />
+          </PageContainer>
+          <MyAccountBubble />
+          <PageFooter className="mt-auto w-full" hideDeviceLinkToast={true} />
+        </NavigationLoadingContent>
         {linkKeysDialog.content}
         {editProfileDialog.content}
       </div>

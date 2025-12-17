@@ -1,4 +1,4 @@
-import {useNavigate} from '@remix-run/react'
+import {useNavigate, useNavigation} from '@remix-run/react'
 import {
   createWebHMUrl,
   NavRoute,
@@ -22,6 +22,7 @@ import {
 } from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {
@@ -89,6 +90,62 @@ export const Providers = (props: {children: any}) => {
   )
 }
 
+function useNavigationLoading() {
+  const navigation = useNavigation()
+  const isNavigating = navigation.state === 'loading'
+  const [showLoading, setShowLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isNavigating) {
+      setShowLoading(false)
+      return
+    }
+    const timeout = setTimeout(() => setShowLoading(true), 400)
+    return () => clearTimeout(timeout)
+  }, [isNavigating])
+
+  return showLoading
+}
+
+const NavigationLoadingContext = createContext(false)
+
+export function useIsNavigationLoading() {
+  return useContext(NavigationLoadingContext)
+}
+
+function NavigationLoadingProvider({children}: {children: React.ReactNode}) {
+  const showLoading = useNavigationLoading()
+  return (
+    <NavigationLoadingContext.Provider value={showLoading}>
+      {children}
+      {showLoading && (
+        <div className="fixed right-4 bottom-16 z-50 sm:bottom-4">
+          <Spinner size="small" />
+        </div>
+      )}
+    </NavigationLoadingContext.Provider>
+  )
+}
+
+export function NavigationLoadingContent({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  const isLoading = useIsNavigationLoading()
+  return (
+    <div
+      className={`transition-opacity duration-200 ${
+        isLoading ? 'opacity-50 pointer-events-none' : ''
+      } ${className || ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function ThemeProvider({children}: {children: React.ReactNode}) {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Check system preference on initial load
@@ -132,8 +189,8 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   return (
     <ThemeContext.Provider value={{theme, setTheme, toggleTheme}}>
       <TooltipProvider>
-        {children}
-        <div className="fixed right-0 bottom-0 z-50 h-auto w-full">
+        <NavigationLoadingProvider>{children}</NavigationLoadingProvider>
+        <div className="fixed right-0 bottom-0 z-50 w-full h-auto">
           <Toaster theme={theme} />
         </div>
       </TooltipProvider>

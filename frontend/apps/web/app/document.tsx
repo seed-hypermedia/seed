@@ -70,7 +70,7 @@ import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
 import {PageFooter} from './page-footer'
-import {WebSiteProvider} from './providers'
+import {NavigationLoadingContent, WebSiteProvider} from './providers'
 import {useScrollRestoration} from './use-scroll-restoration'
 import {WebSiteHeader} from './web-site-header'
 
@@ -576,11 +576,12 @@ function InnerDocumentPage(
             origin={origin}
             isLatest={isLatest}
           />
-          <PanelGroup
-            direction="horizontal"
-            autoSaveId="web-document"
-            className="dark:bg-background flex flex-1 overflow-hidden bg-white"
-          >
+          <NavigationLoadingContent className="flex flex-1 overflow-hidden">
+            <PanelGroup
+              direction="horizontal"
+              autoSaveId="web-document"
+              className="dark:bg-background flex flex-1 overflow-hidden bg-white"
+            >
             <Panel
               ref={mainPanelRef}
               collapsible
@@ -826,7 +827,8 @@ function InnerDocumentPage(
                 </Panel>
               </>
             ) : null}
-          </PanelGroup>
+            </PanelGroup>
+          </NavigationLoadingContent>
 
           {media.gtSm || !activityEnabled ? null : (
             <>

@@ -1,7 +1,11 @@
 import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
+import {
+  getOptimizedImageUrl,
+  NavigationLoadingContent,
+  WebSiteProvider,
+} from '@/providers'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
@@ -68,11 +72,11 @@ export default function ConnectPage() {
           docId={null}
           origin={origin}
         />
-        <div className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-4">
+        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-4">
           <div className="px-4">
             <HMConnectPage />
           </div>
-        </div>
+        </NavigationLoadingContent>
         <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>

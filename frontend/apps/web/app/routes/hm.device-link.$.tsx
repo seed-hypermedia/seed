@@ -3,7 +3,11 @@ import {ClientOnly} from '@/client-lazy'
 import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
+import {
+  getOptimizedImageUrl,
+  NavigationLoadingContent,
+  WebSiteProvider,
+} from '@/providers'
 import {parseRequest} from '@/request'
 import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
@@ -101,11 +105,11 @@ export default function DeviceLinkPage() {
           docId={null}
           origin={origin}
         />
-        <div className="bg-muted dark:bg-panel flex flex-1 justify-center pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="bg-muted dark:bg-panel flex flex-1 justify-center pt-[var(--site-header-h)] sm:pt-0">
           <ClientOnly>
             <HMDeviceLink />
           </ClientOnly>
-        </div>
+        </NavigationLoadingContent>
         <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>

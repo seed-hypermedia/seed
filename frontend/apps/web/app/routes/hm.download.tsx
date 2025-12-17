@@ -3,7 +3,7 @@ import {useFullRender} from '@/cache-policy'
 import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {WebSiteProvider} from '@/providers'
+import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {WebSiteHeader} from '@/web-site-header'
@@ -193,49 +193,51 @@ export default function DownloadPage() {
           document={document}
           origin={origin}
         />
-        <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
-          <Container className="gap-4 px-6">
-            <h1 className="text-center text-4xl font-bold md:text-5xl">
-              Download Seed Hypermedia Today!
-            </h1>
-            <SizableText size="xl" className="text-center">
-              Start writing and collaborating with your peers.
-            </SizableText>
-            <div className="flex flex-col gap-4">
-              {suggestedButtons.length > 0 && suggestedButtons}
+        <NavigationLoadingContent className="flex flex-1 flex-col">
+          <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
+            <Container className="gap-4 px-6">
+              <h1 className="text-center text-4xl font-bold md:text-5xl">
+                Download Seed Hypermedia Today!
+              </h1>
+              <SizableText size="xl" className="text-center">
+                Start writing and collaborating with your peers.
+              </SizableText>
+              <div className="flex flex-col gap-4">
+                {suggestedButtons.length > 0 && suggestedButtons}
+              </div>
+            </Container>
+          </div>
+          <Container>
+            <div className="flex flex-col items-center justify-center gap-4">
+              <SizableText size="2xl" weight="bold">
+                Download Seed Hypermedia {stableRelease.name}
+              </SizableText>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
+              {stableRelease.assets?.macos && (
+                <PlatformItem
+                  label="MacOS"
+                  icon={Macos}
+                  assets={stableRelease.assets.macos}
+                />
+              )}
+              {stableRelease.assets?.win32 && (
+                <PlatformItem
+                  label="Windows"
+                  icon={Win32}
+                  assets={stableRelease.assets.win32}
+                />
+              )}
+              {stableRelease.assets?.linux && (
+                <PlatformItem
+                  label="Linux"
+                  icon={Linux}
+                  assets={stableRelease.assets.linux}
+                />
+              )}
             </div>
           </Container>
-        </div>
-        <Container>
-          <div className="flex flex-col items-center justify-center gap-4">
-            <SizableText size="2xl" weight="bold">
-              Download Seed Hypermedia {stableRelease.name}
-            </SizableText>
-          </div>
-          <div className="flex flex-col items-center justify-center gap-4 p-4 sm:flex-row">
-            {stableRelease.assets?.macos && (
-              <PlatformItem
-                label="MacOS"
-                icon={Macos}
-                assets={stableRelease.assets.macos}
-              />
-            )}
-            {stableRelease.assets?.win32 && (
-              <PlatformItem
-                label="Windows"
-                icon={Win32}
-                assets={stableRelease.assets.win32}
-              />
-            )}
-            {stableRelease.assets?.linux && (
-              <PlatformItem
-                label="Linux"
-                icon={Linux}
-                assets={stableRelease.assets.linux}
-              />
-            )}
-          </div>
-        </Container>
+        </NavigationLoadingContent>
         <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>

@@ -2,6 +2,7 @@ import {hmId} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import type {SiteDocumentPayload} from './loaders'
+import {NavigationLoadingContent} from './providers'
 import {WebSiteHeader} from './web-site-header'
 
 export function NotFoundPage({
@@ -24,7 +25,7 @@ export function NotFoundPage({
         origin={origin}
         isLatest={isLatest}
       />
-      <div className="flex flex-1 items-start justify-center px-4 py-12">
+      <NavigationLoadingContent className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="3xl">☹️</SizableText>
           <SizableText size="2xl" weight="bold">
@@ -51,7 +52,7 @@ export function NotFoundPage({
             </p>
           </SizableText>
         </div>
-      </div>
+      </NavigationLoadingContent>
     </div>
   )
 }
