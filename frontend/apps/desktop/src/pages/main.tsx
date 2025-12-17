@@ -210,19 +210,48 @@ function PanelContent({children}: {children: ReactNode}) {
 
     if (isEditorFocused) {
       const selection = window.getSelection()
-      // If there's a text selection, dispatch Cmd+B to the editor for bold formatting
+      // If there's a text selection, try to toggle bold in the editor
       if (selection && !selection.isCollapsed) {
-        // Dispatch keyboard event to the focused element so editor can handle bold
-        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-        const event = new KeyboardEvent('keydown', {
-          key: 'b',
-          code: 'KeyB',
-          metaKey: isMac,
-          ctrlKey: !isMac,
-          bubbles: true,
-          cancelable: true,
-        })
-        activeElement.dispatchEvent(event)
+        try {
+          // Try to find the TipTap/ProseMirror editor instance
+          // Look through parent elements for the editor
+          let element: Element | null = activeElement
+          let editorView: any = null
+
+          while (element && !editorView) {
+            // Try various properties where the editor might be stored
+            editorView =
+              (element as any).editor?.view || // TipTap editor
+              (element as any).__vue__?.$editor?.view || // Vue TipTap
+              (element as any).__reactProps__?.editor?.view || // React props
+              (element as any)._reactInternals?.memoizedProps?.editor?.view || // React internals
+              (element as any).pmView || // Direct ProseMirror view
+              null
+
+            element = element.parentElement
+          }
+
+          if (editorView && editorView.state && editorView.dispatch) {
+            const {state} = editorView
+            const boldMark = state.schema.marks.bold
+
+            if (boldMark) {
+              const {from, to} = state.selection
+              const hasBold = state.doc.rangeHasMark(from, to, boldMark)
+
+              const tr = hasBold
+                ? state.tr.removeMark(from, to, boldMark)
+                : state.tr.addMark(from, to, boldMark.create())
+
+              editorView.dispatch(tr)
+              return
+            }
+          }
+        } catch (e) {
+          console.error('Failed to toggle bold:', e)
+        }
+
+        // If we can't toggle bold, at least prevent sidebar toggle
         return
       }
     }
