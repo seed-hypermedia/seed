@@ -163,7 +163,9 @@ async function handleConfigureService(
   serviceConfig: ServiceConfig,
 ): Promise<AdminResult> {
   await writeConfig(
-    `${action.name}.${serviceConfig.rootHostname}`,
+    action.name
+      ? `${action.name}.${serviceConfig.rootHostname}`
+      : serviceConfig.rootHostname,
     action.config,
   )
   return {
