@@ -104,7 +104,7 @@ jobs:
             echo 'SKIP DESKTOP E2E FOR NOW.'
             # yarn desktop:test
           else
-            yarn workspace @shm/editor test:e2e
+            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
           fi
 
       - name: Upload test results

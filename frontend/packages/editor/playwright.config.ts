@@ -31,6 +31,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     // Capture screenshot on failure
     screenshot: 'only-on-failure',
+    // Run in headed mode in CI with xvfb to fix keyboard/clipboard issues
+    headless: process.env.CI ? false : true,
   },
   // Configure projects for different browsers
   projects: [
