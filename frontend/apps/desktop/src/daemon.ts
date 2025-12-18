@@ -1,4 +1,4 @@
-import { State } from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
+import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {
   DAEMON_GRPC_PORT,
   DAEMON_HTTP_PORT,
@@ -7,13 +7,13 @@ import {
   P2P_PORT,
   VERSION,
 } from '@shm/shared/constants'
-import { spawn } from 'child_process'
-import { app } from 'electron'
+import {spawn} from 'child_process'
+import {app} from 'electron'
 import * as readline from 'node:readline'
 import path from 'path'
-import { grpcClient, markGRPCReady } from './app-grpc'
-import { userDataPath } from './app-paths'
-import { getDaemonBinaryPath } from './daemon-path'
+import {grpcClient, markGRPCReady} from './app-grpc'
+import {userDataPath} from './app-paths'
+import {getDaemonBinaryPath} from './daemon-path'
 import * as log from './logger'
 
 let goDaemonExecutablePath = getDaemonBinaryPath()
@@ -148,7 +148,9 @@ export async function startMainDaemon(): Promise<{
       const info = await grpcClient.daemon.getInfo({})
       if (info.state !== State.ACTIVE) {
         if (info.state === State.MIGRATING && info.tasks.length === 1) {
-          log.info(`Daemon migrating: ${info.tasks[0].completed}/${info.tasks[0].total}`)
+          log.info(
+            `Daemon migrating: ${info.tasks[0].completed}/${info.tasks[0].total}`,
+          )
         }
         throw new Error(`Daemon not ready yet: ${info.state}`)
       }
