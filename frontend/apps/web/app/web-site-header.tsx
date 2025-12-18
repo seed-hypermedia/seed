@@ -29,7 +29,6 @@ export function WebSiteHeader({
 }: React.PropsWithChildren<WebSiteHeaderProps>) {
   const [searchParams] = useSearchParams()
 
-  // Use shared models - data comes from server prefetch via same query keys
   const homeResourceQuery = useResource(props.siteHomeId)
   const homeDirectoryQuery = useDirectory(props.siteHomeId)
 
@@ -37,18 +36,14 @@ export function WebSiteHeader({
     props.homeMetadata?.theme?.headerLayout === 'Center' ||
     props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
 
-  // Extract document from resource query result
   const homeDocFromQuery =
     homeResourceQuery.data?.type === 'document'
       ? homeResourceQuery.data.document
       : null
 
-  // Use the current document if it's the home doc, otherwise use query data
-  const homeDocument =
-    props.document?.path === '' ? props.document : homeDocFromQuery
-  const navigationBlockNode = homeDocument?.detachedBlocks?.navigation
+  const navigationBlockNode = homeDocFromQuery?.detachedBlocks?.navigation
+  console.log('navigationBlockNode', navigationBlockNode)
 
-  // Home navigation items from the navigation block
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
         ?.map((child) => {
