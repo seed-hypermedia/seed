@@ -41,19 +41,30 @@ jobs:
 
   # Job 2: Integration tests (only for docker workflows)
   integration-tests:
-    name: Integration Tests
     runs-on: ubuntu-latest
-    if: ${{ inputs.run-integration-tests }}
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "yarn"
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.4"
       - name: Install dependencies
         run: yarn install
-
+      - name: Build daemon binary
+        run: |
+          mkdir -p plz-out/bin/backend
+          go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+      - name: Build web app
+        run: yarn web:prod
       - name: Install Playwright browsers
         run: cd tests && yarn test:install-browsers
-
       - name: Run integration tests
         run: cd tests && yarn test
 
@@ -68,6 +79,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "yarn"
 
       - name: Install dependencies
         run: yarn install

@@ -40,6 +40,18 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         // Grant clipboard permissions for copy/paste tests
         permissions: ['clipboard-read', 'clipboard-write'],
+        // Launch args for better keyboard/clipboard handling in CI
+        launchOptions: {
+          args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process',
+          ],
+        },
+        // Ensure proper focus and input handling
+        hasTouch: false,
+        isMobile: false,
       },
     },
     // Uncomment to add more browsers
