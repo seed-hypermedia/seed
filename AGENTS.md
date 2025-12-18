@@ -22,12 +22,15 @@
 - macOS/Linux contributors rely on Nix + Direnv; run `direnv allow` after cloning to sync toolchains.
 - The `docs/docs/dev-setup.md` guide stays authoritative—update it whenever tooling or bootstrapping steps change.
 
-## Further Instructions
+## Extra Rules
 
-Always try see if there's a an additional `AGENTS.md` file near the files you're working with. It can be anywhere up the directory tree.
+Always read `AGENTS.md` file near the files you're working with. It can be anywhere up the directory tree.
 
-- For backend-related tasks, refer to @backend/AGENTS.md.
-- For frontend-related tasks, refer to @frontend/AGENTS.md.
-- For protobuf-related tasks, refer to @proto/AGENTS.md.
+Here's a non-exhaustive list of extra rule files. Read them in full when working on files in those subtrees, but don't bother reading them if you're not:
 
-There may be additional `AGENTS.md` files in other directories, this list is not exhaustive.
+- `backend/**` — @backend/AGENTS.md.
+- `backend/storage/**` — @backend/storage/AGENTS.md.
+- `frontend/**` — @frontend/AGENTS.md.
+- `proto/**` — @proto/AGENTS.md.
+
+When you learn any new context that is generalized enough to be useful in the future for you, suggest updates to this or others AGENTS.md files.
