@@ -10,11 +10,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
-import {
-  createBatchAccountsResolver,
-  getErrorMessage,
-  HMRedirectError,
-} from '@shm/shared/models/entity'
+import {getErrorMessage, HMRedirectError} from '@shm/shared/models/entity'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useDeleteRecent} from '@shm/shared/models/recents'
@@ -134,8 +130,6 @@ function catchNotFound<Result>(
 
 // Use shared resource fetcher
 export const fetchResource = createResourceFetcher(grpcClient)
-
-export const fetchBatchAccounts = createBatchAccountsResolver(grpcClient)
 
 export const fetchQuery = createQueryResolver(grpcClient)
 

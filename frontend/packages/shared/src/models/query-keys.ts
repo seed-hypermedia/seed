@@ -28,7 +28,6 @@ export const queryKeys = {
   // accounts
   LIST_ACCOUNTS: 'LIST_ACCOUNTS', //
   ACCOUNT: 'ACCOUNT', // , accountId: string
-  BATCH_ACCOUNTS: 'BATCH_ACCOUNTS', // , ...accountUids: string[]
 
   // entities
   ENTITY_TIMELINE: 'ENTITY_TIMELINE', //, entityId: string, includeDrafts: boolean

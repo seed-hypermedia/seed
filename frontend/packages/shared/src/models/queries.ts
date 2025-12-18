@@ -8,7 +8,6 @@
 import type {UniversalClient} from '../universal-client'
 import type {
   HMAccountRequest,
-  HMBatchAccountsRequest,
   HMListCapabilitiesOutput,
   HMListCapabilitiesRequest,
   HMListChangesOutput,
@@ -23,7 +22,6 @@ import type {
   HMResourceRequest,
   UnpackedHypermediaId,
   HMDocumentInfo,
-  HMAccountsMetadata,
 } from '../hm-types'
 import {hmIdPathToEntityQueryPath} from '../utils'
 import {queryKeys} from './query-keys'
@@ -87,20 +85,6 @@ export function queryDirectory(
       return results?.results || []
     },
     enabled: !!id,
-  }
-}
-
-/**
- * Query options for batch fetching account metadata.
- */
-export function queryBatchAccounts(client: UniversalClient, uids: string[]) {
-  return {
-    queryKey: [queryKeys.BATCH_ACCOUNTS, ...uids.slice().sort()] as const,
-    queryFn: async (): Promise<HMAccountsMetadata> => {
-      if (uids.length === 0) return {}
-      return await client.request<HMBatchAccountsRequest>('BatchAccounts', uids)
-    },
-    enabled: uids.length > 0,
   }
 }
 

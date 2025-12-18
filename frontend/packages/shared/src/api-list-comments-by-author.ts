@@ -1,3 +1,4 @@
+import {loadAccounts} from './api-account'
 import {HMRequestImplementation} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
@@ -7,7 +8,6 @@ import {
   HMListCommentsByAuthorRequest,
   HMMetadataPayload,
 } from './hm-types'
-import {createBatchAccountsResolver} from './models/entity'
 
 function parseComment(rawComment: any): HMComment | null {
   const commentJson =
@@ -29,8 +29,6 @@ export const ListCommentsByAuthor: HMRequestImplementation<HMListCommentsByAutho
       grpcClient: GRPCClient,
       input,
     ): Promise<HMListCommentsByAuthorRequest['output']> {
-      const loadBatchAccounts = createBatchAccountsResolver(grpcClient)
-
       const res = await grpcClient.comments.listCommentsByAuthor({
         author: input.authorId.uid,
         pageSize: BIG_INT,
@@ -55,7 +53,7 @@ export const ListCommentsByAuthor: HMRequestImplementation<HMListCommentsByAutho
       const authorAccountUids = Array.from(authorUids)
       const authors: Record<string, HMMetadataPayload> =
         authorAccountUids.length > 0
-          ? await loadBatchAccounts(authorAccountUids)
+          ? await loadAccounts(grpcClient, authorAccountUids)
           : {}
 
       return {

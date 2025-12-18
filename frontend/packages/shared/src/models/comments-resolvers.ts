@@ -1,3 +1,4 @@
+import {loadAccounts} from '../api-account'
 import {GRPCClient} from '../grpc-client'
 import {
   HMComment,
@@ -12,10 +13,7 @@ import {BIG_INT} from '../constants'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'
 import {parseFragment, unpackHmId} from '../utils'
-import {
-  createBatchAccountsResolver,
-  documentMetadataParseAdjustments,
-} from './entity'
+import {documentMetadataParseAdjustments} from './entity'
 
 /**
  * Parses raw comment data with validation, filtering out invalid comments
@@ -93,8 +91,6 @@ async function loadDocumentMetadata(
  * @returns Async function that loads comments and authors
  */
 export function createCommentsResolver(client: GRPCClient) {
-  const loadBatchAccounts = createBatchAccountsResolver(client)
-
   return async (
     targetId: UnpackedHypermediaId,
   ): Promise<{
@@ -121,7 +117,7 @@ export function createCommentsResolver(client: GRPCClient) {
 
       const authors =
         authorAccountUids.length > 0
-          ? await loadBatchAccounts(authorAccountUids)
+          ? await loadAccounts(client, authorAccountUids)
           : {}
 
       return {
@@ -144,8 +140,6 @@ export function createCommentsResolver(client: GRPCClient) {
  * @returns Async function that loads discussions with authors
  */
 export function createDiscussionsResolver(client: GRPCClient) {
-  const loadBatchAccounts = createBatchAccountsResolver(client)
-
   return async (
     targetId: UnpackedHypermediaId,
     commentId?: string,
@@ -286,7 +280,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
     try {
       const authorAccountUids = Array.from(authorAccounts)
       if (authorAccountUids.length > 0) {
-        authors = await loadBatchAccounts(authorAccountUids)
+        authors = await loadAccounts(client, authorAccountUids)
       }
     } catch (e) {
       console.error(`Failed to load authors for ${targetId.id}:`, e)
@@ -306,8 +300,6 @@ export function createDiscussionsResolver(client: GRPCClient) {
  * @returns Async function that loads comments for a specific block
  */
 export function createCommentsByReferenceResolver(client: GRPCClient) {
-  const loadBatchAccounts = createBatchAccountsResolver(client)
-
   return async (
     targetId: UnpackedHypermediaId,
     blockRef: string,
@@ -372,7 +364,7 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
       const authorAccountUids = Array.from(authorAccounts)
       const authors =
         authorAccountUids.length > 0
-          ? await loadBatchAccounts(authorAccountUids)
+          ? await loadAccounts(client, authorAccountUids)
           : {}
 
       return {
@@ -398,8 +390,6 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
  * @returns Async function that loads comments by their IDs
  */
 export function createCommentsByIdResolver(client: GRPCClient) {
-  const loadBatchAccounts = createBatchAccountsResolver(client)
-
   return async (
     commentIds: string[],
   ): Promise<{
@@ -443,7 +433,7 @@ export function createCommentsByIdResolver(client: GRPCClient) {
       const authorAccountUids = Array.from(authorAccounts)
       const authors =
         authorAccountUids.length > 0
-          ? await loadBatchAccounts(authorAccountUids)
+          ? await loadAccounts(client, authorAccountUids)
           : {}
 
       return {
@@ -467,8 +457,6 @@ export function createCommentsByIdResolver(client: GRPCClient) {
  * @returns Async function that loads discussion thread with comment groups
  */
 export function createDiscussionThreadResolver(client: GRPCClient) {
-  const loadBatchAccounts = createBatchAccountsResolver(client)
-
   return async (
     targetId: UnpackedHypermediaId,
     commentId: string,
@@ -529,7 +517,7 @@ export function createDiscussionThreadResolver(client: GRPCClient) {
       const authorAccountUids = Array.from(authorAccounts)
       const authors =
         authorAccountUids.length > 0
-          ? await loadBatchAccounts(authorAccountUids)
+          ? await loadAccounts(client, authorAccountUids)
           : {}
 
       return {

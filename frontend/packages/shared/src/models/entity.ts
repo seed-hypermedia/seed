@@ -13,10 +13,8 @@ import {
 } from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
-import {Status} from '../client/.generated/google/rpc/status_pb'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {getContactMetadata} from '../content'
-import {GRPCClient} from '../grpc-client'
 import {
   HMAccountContactsRequest,
   HMAccountsMetadata,
@@ -48,7 +46,6 @@ import {entityQueryPathToHmIdPath, hmId, unpackHmId} from '../utils'
 import {queryKeys} from './query-keys'
 import {
   queryAccount,
-  queryBatchAccounts,
   queryCapabilities,
   queryChanges,
   queryCitations,
@@ -107,89 +104,6 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
 
 export function documentParseAdjustments(document: any) {
   documentMetadataParseAdjustments(document?.metadata)
-}
-
-export function createBatchAccountsResolver(client: GRPCClient) {
-  async function getBatchAccountsResolved(
-    accountUids: string[],
-  ): Promise<Record<string, HMMetadataPayload>> {
-    if (accountUids.length === 0) return {}
-
-    const _accounts = await client.documents.batchGetAccounts({
-      ids: accountUids,
-    })
-
-    Object.entries(_accounts.errors).forEach(([id, error]) => {
-      try {
-        const status = Status.fromBinary(error)
-        console.error(`Error loading account ${id}: `, toPlainMessage(status))
-      } catch (e) {
-        console.error(
-          `Error loading account ${id}: (error parse failure) `,
-          Buffer.from(error).toString('hex'),
-        )
-      }
-    })
-
-    if (!_accounts?.accounts) {
-      return {}
-    }
-
-    const resolvedAccounts: Record<string, HMMetadataPayload> = {}
-    const aliasesToResolve: string[] = []
-    const aliasMapping: Record<string, string[]> = {}
-
-    Object.entries(_accounts.accounts).forEach(([id, account]) => {
-      const serverAccount = toPlainMessage(account)
-
-      if (serverAccount.aliasAccount) {
-        const aliasAccount = serverAccount.aliasAccount
-        if (!aliasMapping[aliasAccount]) {
-          aliasMapping[aliasAccount] = []
-        }
-        aliasMapping[aliasAccount].push(id)
-
-        if (!aliasesToResolve.includes(aliasAccount)) {
-          aliasesToResolve.push(aliasAccount)
-        }
-      } else {
-        const serverMetadata = account.metadata?.toJson() || {}
-        documentMetadataParseAdjustments(serverMetadata)
-        const metadata = HMDocumentMetadataSchema.safeParse(serverMetadata)
-        if (!metadata.success) {
-          console.error(
-            `Error parsing metadata for account ${id}: `,
-            metadata.error,
-          )
-          return
-        }
-        resolvedAccounts[id] = {
-          id: hmId(id),
-          metadata: metadata.data,
-        } as HMMetadataPayload
-      }
-    })
-
-    if (aliasesToResolve.length > 0) {
-      const resolvedAliases = await getBatchAccountsResolved(aliasesToResolve)
-
-      Object.entries(resolvedAliases).forEach(
-        ([resolvedId, resolvedAccount]) => {
-          resolvedAccounts[resolvedId] = resolvedAccount
-
-          if (aliasMapping[resolvedId]) {
-            aliasMapping[resolvedId].forEach((originalId) => {
-              resolvedAccounts[originalId] = resolvedAccount
-            })
-          }
-        },
-      )
-    }
-
-    return resolvedAccounts
-  }
-
-  return getBatchAccountsResolved
 }
 
 export function useDiscoveryState(entityId: string | undefined) {
@@ -412,8 +326,18 @@ export type HMAccountsMetadataResult = {
 
 export function useAccountsMetadata(uids: string[]): HMAccountsMetadataResult {
   const client = useUniversalClient()
-  const result = useQuery(queryBatchAccounts(client, uids))
-  return {data: result.data || {}, isLoading: result.isLoading}
+  const results = useQueries({
+    queries: uids.map((uid) => queryAccount(client, uid)),
+  })
+  const isLoading = results.some((r) => r.isLoading)
+  const data: HMAccountsMetadata = {}
+  results.forEach((result, index) => {
+    const uid = uids[index]
+    if (result.data && uid) {
+      data[uid] = result.data
+    }
+  })
+  return {data, isLoading}
 }
 
 export function useResolvedResources(

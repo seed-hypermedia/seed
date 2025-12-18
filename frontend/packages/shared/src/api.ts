@@ -3,7 +3,6 @@ import {Account, AccountParams} from './api-account'
 import {Comment} from './api-comment'
 import {AccountContacts} from './api-account-contacts'
 import {ListEvents} from './api-activity'
-import {BatchAccounts} from './api-batch-accounts'
 import {ListCapabilities} from './api-capabilities'
 import {ListChanges} from './api-changes'
 import {ListCitations} from './api-citations'
@@ -29,7 +28,6 @@ export const APIRouter = {
   Account,
   Comment,
   AccountContacts,
-  BatchAccounts,
   Search,
   Query,
   ListComments,
