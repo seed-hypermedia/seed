@@ -90,6 +90,19 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
       Number(createTime.seconds) * 1000 + createTime.nanos / 1000000,
     )
   }
+
+  // Transform redirectInfo from proto format to frontend format
+  let redirectInfo
+  if (docInfo.redirectInfo) {
+    const target = `${docInfo.redirectInfo.account}${
+      docInfo.redirectInfo.path ? `/${docInfo.redirectInfo.path}` : ''
+    }`
+    redirectInfo = {
+      type: 'redirect' as const,
+      target,
+    }
+  }
+
   return HMDocumentInfoSchema.parse({
     ...docInfo,
     metadata: prepareHMDocumentMetadata(doc.metadata),
@@ -99,6 +112,7 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
     sortTime,
     id: hmId(docInfo.account, {path, version: docInfo.version, latest: true}),
     path,
+    redirectInfo,
   } as const)
 }
 
