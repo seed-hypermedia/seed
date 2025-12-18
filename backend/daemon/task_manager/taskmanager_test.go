@@ -10,11 +10,11 @@ import (
 func TestTaskManagerLifecycle(t *testing.T) {
 	tm := NewTaskManager()
 
-	if _, err := tm.AddTask("reindex", daemonpb.TaskName_REINDEXING, "reindex blobs"); err != nil {
+	if _, err := tm.AddTask("reindex", daemonpb.TaskName_REINDEXING, "reindex blobs", 10); err != nil {
 		t.Fatalf("AddTask: unexpected error: %v", err)
 	}
 
-	if _, err := tm.AddTask("reindex", daemonpb.TaskName_REINDEXING, "duplicate"); !errors.Is(err, ErrTaskExists) {
+	if _, err := tm.AddTask("reindex", daemonpb.TaskName_REINDEXING, "duplicate", 10); !errors.Is(err, ErrTaskExists) {
 		t.Fatalf("AddTask duplicate: expected ErrTaskExists, got %v", err)
 	}
 
@@ -22,12 +22,12 @@ func TestTaskManagerLifecycle(t *testing.T) {
 		t.Fatalf("Tasks: expected 1 task, got %d", len(got))
 	}
 
-	updated, err := tm.UpdateProgress("reindex", 2.0)
+	updated, err := tm.UpdateProgress("reindex", 10, 5)
 	if err != nil {
 		t.Fatalf("UpdateProgress: unexpected error: %v", err)
 	}
-	if updated.Progress != 1.0 {
-		t.Fatalf("UpdateProgress: expected progress to clamp to 1.0, got %v", updated.Progress)
+	if updated.Completed != 5 {
+		t.Fatalf("UpdateProgress: expected completed to be 5, got %v", updated.Completed)
 	}
 
 	if _, err := tm.DeleteTask("reindex"); err != nil {

@@ -57,7 +57,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 	if idx.taskMgr != nil {
 		prevState := idx.taskMgr.GlobalState()
 		idx.taskMgr.UpdateGlobalState(daemon.State_MIGRATING)
-		_, err := idx.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs")
+		_, err := idx.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs", int64(0))
 		if err != nil {
 			idx.log.Warn("Failed to create reindexing task", zap.Error(err))
 		}
@@ -89,7 +89,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		if err != nil {
 			return err
 		}
-
+		idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(0))
 		const q = "SELECT * FROM blobs WHERE codec IN (?, ?) AND size > 0 ORDER BY id"
 		args := []any{
 			uint64(multicodec.DagCbor),
@@ -121,7 +121,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			err = indexBlob(false, conn, id, c, data, idx.bs, idx.log)
 			blobsIndexed++
 			if idx.taskMgr != nil {
-				idx.taskMgr.UpdateProgress(taskID, float64(blobsIndexed)/float64(blobsTotal))
+				idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(blobsIndexed))
 			}
 			return err
 		}, args...); err != nil {

@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * State describes various states of the daemon.
@@ -1068,11 +1068,18 @@ export class Task extends Message<Task> {
   description = "";
 
   /**
-   * Progress of the task, from 0.0 to 1.0.
+   * Total amount of work for the task.
    *
-   * @generated from field: double progress = 3;
+   * @generated from field: int64 total = 3;
    */
-  progress = 0;
+  total = protoInt64.zero;
+
+  /**
+   * Amount of work completed. Always less than or equal to total.
+   *
+   * @generated from field: int64 completed = 4;
+   */
+  completed = protoInt64.zero;
 
   constructor(data?: PartialMessage<Task>) {
     super();
@@ -1084,7 +1091,8 @@ export class Task extends Message<Task> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "task_name", kind: "enum", T: proto3.getEnumType(TaskName) },
     { no: 2, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "progress", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "total", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "completed", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Task {

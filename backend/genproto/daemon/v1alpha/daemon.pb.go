@@ -1234,8 +1234,10 @@ type Task struct {
 	TaskName TaskName `protobuf:"varint,1,opt,name=task_name,json=taskName,proto3,enum=com.seed.daemon.v1alpha.TaskName" json:"task_name,omitempty"`
 	// Description of the task.
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// Progress of the task, from 0.0 to 1.0.
-	Progress      float64 `protobuf:"fixed64,3,opt,name=progress,proto3" json:"progress,omitempty"`
+	// Total amount of work for the task.
+	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	// Amount of work completed. Always less than or equal to total.
+	Completed     int64 `protobuf:"varint,4,opt,name=completed,proto3" json:"completed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1284,9 +1286,16 @@ func (x *Task) GetDescription() string {
 	return ""
 }
 
-func (x *Task) GetProgress() float64 {
+func (x *Task) GetTotal() int64 {
 	if x != nil {
-		return x.Progress
+		return x.Total
+	}
+	return 0
+}
+
+func (x *Task) GetCompleted() int64 {
+	if x != nil {
+		return x.Completed
 	}
 	return 0
 }
@@ -1421,11 +1430,12 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"start_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12\x1f\n" +
 	"\vprotocol_id\x18\x04 \x01(\tR\n" +
 	"protocolId\x123\n" +
-	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\x84\x01\n" +
+	"\x05tasks\x18\x05 \x03(\v2\x1d.com.seed.daemon.v1alpha.TaskR\x05tasks\"\x9c\x01\n" +
 	"\x04Task\x12>\n" +
 	"\ttask_name\x18\x01 \x01(\x0e2!.com.seed.daemon.v1alpha.TaskNameR\btaskName\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1a\n" +
-	"\bprogress\x18\x03 \x01(\x01R\bprogress\"\\\n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\x03R\x05total\x12\x1c\n" +
+	"\tcompleted\x18\x04 \x01(\x03R\tcompleted\"\\\n" +
 	"\bNamedKey\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x01 \x01(\tR\tpublicKey\x12\x12\n" +

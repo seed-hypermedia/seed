@@ -32,7 +32,7 @@ func NewTaskManager() *TaskManager {
 }
 
 // AddTask adds a new task with the given ID, name, and description.
-func (m *TaskManager) AddTask(id string, name daemonpb.TaskName, description string) (*daemonpb.Task, error) {
+func (m *TaskManager) AddTask(id string, name daemonpb.TaskName, description string, total int64) (*daemonpb.Task, error) {
 	if id == "" {
 		return nil, ErrTaskIDEmpty
 	}
@@ -47,7 +47,8 @@ func (m *TaskManager) AddTask(id string, name daemonpb.TaskName, description str
 	task := &daemonpb.Task{
 		TaskName:    name,
 		Description: description,
-		Progress:    0,
+		Total:       total,
+		Completed:   0,
 	}
 	m.tasks[id] = task
 
@@ -69,7 +70,7 @@ func (m *TaskManager) GlobalState() daemonpb.State {
 }
 
 // UpdateProgress updates the progress of the given task.
-func (m *TaskManager) UpdateProgress(id string, progress float64) (*daemonpb.Task, error) {
+func (m *TaskManager) UpdateProgress(id string, total int64, completed int64) (*daemonpb.Task, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -78,7 +79,12 @@ func (m *TaskManager) UpdateProgress(id string, progress float64) (*daemonpb.Tas
 		return nil, fmt.Errorf("task %q: %w", id, ErrTaskMissing)
 	}
 
-	task.Progress = clampProgress(progress)
+	if completed > total {
+		return nil, fmt.Errorf("task %q: completed %d exceeds total %d", id, completed, total)
+	}
+
+	task.Total = total
+	task.Completed = completed
 	return cloneTask(task), nil
 }
 
@@ -107,17 +113,6 @@ func (m *TaskManager) Tasks() []*daemonpb.Task {
 	}
 
 	return list
-}
-
-func clampProgress(p float64) float64 {
-	switch {
-	case p < 0:
-		return 0
-	case p > 1:
-		return 1
-	default:
-		return p
-	}
 }
 
 func cloneTask(t *daemonpb.Task) *daemonpb.Task {
