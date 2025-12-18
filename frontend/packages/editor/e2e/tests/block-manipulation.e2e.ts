@@ -119,7 +119,7 @@ test.describe('Block Manipulation', () => {
       expect(initialBlocks.length).toBeGreaterThanOrEqual(2)
 
       // Move cursor to start of second paragraph
-      await editorHelpers.pressKey('Meta+ArrowLeft')
+      await editorHelpers.pressKey('ControlOrMeta+ArrowLeft')
       await page.waitForTimeout(100)
 
       // Backspace should merge with previous block

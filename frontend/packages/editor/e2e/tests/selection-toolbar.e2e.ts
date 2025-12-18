@@ -168,7 +168,7 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
 
       // Apply bold with keyboard shortcut
-      await editorHelpers.pressKey('Meta+B')
+      await editorHelpers.pressKey('ControlOrMeta+B')
       await page.waitForTimeout(100)
 
       // Verify bold mark is applied
@@ -189,7 +189,7 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
 
       // Apply italic with keyboard shortcut
-      await editorHelpers.pressKey('Meta+I')
+      await editorHelpers.pressKey('ControlOrMeta+I')
       await page.waitForTimeout(100)
 
       // Verify italic mark is applied
@@ -210,7 +210,7 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
 
       // Apply bold
-      await editorHelpers.pressKey('Meta+B')
+      await editorHelpers.pressKey('ControlOrMeta+B')
       await page.waitForTimeout(100)
 
       // Verify bold is applied
@@ -222,7 +222,7 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
 
       // Remove bold (toggle off)
-      await editorHelpers.pressKey('Meta+B')
+      await editorHelpers.pressKey('ControlOrMeta+B')
       await page.waitForTimeout(100)
 
       // The text should no longer be bold
