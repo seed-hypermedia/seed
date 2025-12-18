@@ -56,6 +56,7 @@ import {grpcClient} from './client.server'
 import {
   queryAccount,
   queryDirectory,
+  queryInteractionSummary,
   queryResource,
 } from '@shm/shared/models/queries'
 import {createPrefetchContext, dehydratePrefetchContext} from './queries.server'
@@ -322,6 +323,9 @@ async function loadResourcePayload(
       ),
       prefetchCtx.queryClient.prefetchQuery(
         queryDirectory(client, docId, 'Children'),
+      ),
+      prefetchCtx.queryClient.prefetchQuery(
+        queryInteractionSummary(client, docId),
       ),
     ])
   } catch (e) {

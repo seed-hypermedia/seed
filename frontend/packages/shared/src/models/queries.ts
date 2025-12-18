@@ -8,6 +8,8 @@
 import type {UniversalClient} from '../universal-client'
 import type {
   HMAccountRequest,
+  HMInteractionSummaryOutput,
+  HMInteractionSummaryRequest,
   HMListCapabilitiesOutput,
   HMListCapabilitiesRequest,
   HMListChangesOutput,
@@ -162,5 +164,33 @@ export function queryCapabilities(
       )
     },
     enabled: !!targetId,
+  }
+}
+
+/**
+ * Query options for fetching interaction summary for a document.
+ */
+export function queryInteractionSummary(
+  client: UniversalClient,
+  id: UnpackedHypermediaId | null | undefined,
+) {
+  return {
+    queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY, id?.id] as const,
+    queryFn: async (): Promise<HMInteractionSummaryOutput> => {
+      if (!id) {
+        return {
+          citations: 0,
+          comments: 0,
+          changes: 0,
+          children: 0,
+          blocks: {},
+        }
+      }
+      return await client.request<HMInteractionSummaryRequest>(
+        'InteractionSummary',
+        {id},
+      )
+    },
+    enabled: !!id,
   }
 }
