@@ -4,7 +4,6 @@ import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
   EditorText,
-  extractQueryBlocks,
   extractRefs,
   getChildrenType,
   getCommentTargetId,
@@ -281,67 +280,20 @@ async function loadResourcePayload(
     )
   ).filter((doc) => !!doc)
 
-  const queryBlocks = extractQueryBlocks(document.content)
   const homeId = hmId(docId.uid, {latest: true, version: undefined})
 
-  const homeDocument = await getDocument(homeId)
+  // Parallelize independent fetches for better performance
+  const [homeDocument, homeDirectoryResults, directoryResults] =
+    await Promise.all([
+      getDocument(homeId),
+      getDirectory(homeId, 'Children'),
+      getDirectory(docId),
+    ])
 
   embeddedDocs.push({
     id: homeId,
     document: homeDocument,
   })
-  const homeDirectoryResults = await getDirectory(homeId, 'Children')
-  const homeDirectoryQuery = {in: homeId, results: homeDirectoryResults}
-  const directoryResults = await getDirectory(docId)
-  const alreadyEmbeddedDocIds = new Set(embeddedDocs.map((doc) => doc.id.id))
-  const embeddedAuthorsUidsToFetch = new Set<string>()
-  const queryBlockQueries = (
-    await Promise.all(
-      queryBlocks.map(async (block) => {
-        return await getQueryResults(block.attributes.query)
-      }),
-    )
-  ).filter((result) => !!result)
-  embeddedDocs.push(
-    ...(await Promise.all(
-      queryBlockQueries
-        .flatMap((item) => item.results)
-        .map(async (item) => {
-          const id = item.id
-          const document = await getDocument(id)
-          document.authors.forEach((author) => {
-            if (!alreadyEmbeddedDocIds.has(hmId(author).id)) {
-              embeddedAuthorsUidsToFetch.add(author)
-            }
-          })
-          return {
-            id,
-            document,
-          }
-        }),
-    )),
-  )
-  // now we need to get the author content for queried docs
-  embeddedDocs.push(
-    ...(
-      await Promise.all(
-        Array.from(embeddedAuthorsUidsToFetch).map(async (uid) => {
-          try {
-            const document = await getDocument(hmId(uid), {
-              discover: true,
-            })
-            return {
-              id: hmId(uid),
-              document,
-            }
-          } catch (e) {
-            console.error('error fetching author', uid, e)
-            return null
-          }
-        }),
-      )
-    ).filter((doc) => !!doc),
-  )
   const crumbs = getParentPaths(docId.path).slice(0, -1)
   const breadcrumbs = await Promise.all(
     crumbs.map(async (crumbPath) => {
@@ -361,18 +313,17 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const client = serverUniversalClient
 
-  // Prefetch critical data with error handling to prevent SSR crashes
+  // Prefetch critical data in parallel with error handling to prevent SSR crashes
   try {
-    // Prefetch home document
-    await prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId))
-
-    // Prefetch directory queries
-    await prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, homeId, 'Children'),
-    )
-    await prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, docId, 'Children'),
-    )
+    await Promise.all([
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
+      prefetchCtx.queryClient.prefetchQuery(
+        queryDirectory(client, homeId, 'Children'),
+      ),
+      prefetchCtx.queryClient.prefetchQuery(
+        queryDirectory(client, docId, 'Children'),
+      ),
+    ])
   } catch (e) {
     console.error('Error prefetching critical data for SSR', e)
     // Continue with degraded state - client will fetch missing data
