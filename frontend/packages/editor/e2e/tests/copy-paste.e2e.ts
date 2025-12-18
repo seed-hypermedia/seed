@@ -33,8 +33,9 @@ test.describe('Copy and Paste', () => {
 
       // Unselect all and paste
       await editorHelpers.pressKey('ArrowRight')
+      await page.waitForTimeout(100)
       await editorHelpers.paste()
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(300)
 
       // Check that there are two blocks with the same text
       const blocks = await editorHelpers.getBlocks()
@@ -62,8 +63,9 @@ test.describe('Copy and Paste', () => {
 
       // Unselect all and paste
       await editorHelpers.pressKey('ArrowRight')
+      await page.waitForTimeout(100)
       await editorHelpers.paste()
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(300)
 
       // Check that there are two blocks with the same multi-line text
       const blocks = await editorHelpers.getBlocks()
@@ -292,12 +294,15 @@ test.describe('Copy and Paste', () => {
         // Create a paragraph with a list
         await editorHelpers.typeText('Parent')
         await editorHelpers.pressKey('Enter')
+        await page.waitForTimeout(100)
         await editorHelpers.typeText('* ')
         await page.waitForTimeout(100)
         await editorHelpers.typeText('Item 1')
         await editorHelpers.pressKey('Enter')
+        await page.waitForTimeout(100)
         await editorHelpers.typeText('Item 2')
         await editorHelpers.pressKey('Enter')
+        await page.waitForTimeout(100)
         await editorHelpers.typeText('Item 3')
         await page.waitForTimeout(100)
 
@@ -309,9 +314,9 @@ test.describe('Copy and Paste', () => {
 
         // Unselect all and paste
         await editorHelpers.pressKey('ArrowRight')
-        await page.waitForTimeout(50)
-        await editorHelpers.paste()
         await page.waitForTimeout(100)
+        await editorHelpers.paste()
+        await page.waitForTimeout(200)
 
         const text = await editorHelpers.getEditorText()
         // Should have duplicated items
@@ -587,9 +592,9 @@ test.describe('Copy and Paste', () => {
       await page.waitForTimeout(100)
 
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
       await editorHelpers.cut()
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(300)
 
       const text = await editorHelpers.getEditorText()
       expect(text.trim()).toBe('')

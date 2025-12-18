@@ -79,10 +79,11 @@ test.describe('Selection Behavior', () => {
       await editorHelpers.focusEditor()
       await editorHelpers.typeText('First block')
       await editorHelpers.pressKey('Enter')
+      await page.waitForTimeout(100)
       await editorHelpers.typeText('Second block')
 
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       const selectedText = await editorHelpers.getSelectedText()
       expect(selectedText).toContain('First block')
@@ -160,14 +161,15 @@ test.describe('Formatting Toolbar', () => {
     }) => {
       await editorHelpers.focusEditor()
       await editorHelpers.typeText('Bold text')
+      await page.waitForTimeout(100)
 
       // Select all
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Apply bold with keyboard shortcut
       await editorHelpers.pressKey('Meta+B')
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Verify bold mark is applied
       const hasBold = await editorHelpers.hasMarkType('bold')
@@ -180,14 +182,15 @@ test.describe('Formatting Toolbar', () => {
     }) => {
       await editorHelpers.focusEditor()
       await editorHelpers.typeText('Italic text')
+      await page.waitForTimeout(100)
 
       // Select all
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Apply italic with keyboard shortcut
       await editorHelpers.pressKey('Meta+I')
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Verify italic mark is applied
       const hasItalic = await editorHelpers.hasMarkType('italic')
@@ -200,14 +203,15 @@ test.describe('Formatting Toolbar', () => {
     }) => {
       await editorHelpers.focusEditor()
       await editorHelpers.typeText('Toggle test')
+      await page.waitForTimeout(100)
 
       // Select all
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Apply bold
       await editorHelpers.pressKey('Meta+B')
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Verify bold is applied
       const hasBoldAfterApply = await editorHelpers.hasMarkType('bold')
@@ -215,11 +219,11 @@ test.describe('Formatting Toolbar', () => {
 
       // Re-select all (selection may have been lost)
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Remove bold (toggle off)
       await editorHelpers.pressKey('Meta+B')
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // The text should no longer be bold
       const hasBoldAfterRemove = await editorHelpers.hasMarkType('bold')

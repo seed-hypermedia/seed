@@ -120,11 +120,11 @@ test.describe('Block Manipulation', () => {
 
       // Move cursor to start of second paragraph
       await editorHelpers.pressKey('Meta+ArrowLeft')
-      // await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       // Backspace should merge with previous block
       await editorHelpers.pressKey('Backspace')
-      // await page.waitForTimeout(100)
+      await page.waitForTimeout(100)
 
       // Text should be merged
       const text = await editorHelpers.getEditorText()
@@ -140,9 +140,9 @@ test.describe('Block Manipulation', () => {
 
       // Select all and delete
       await editorHelpers.selectAll()
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
       await editorHelpers.pressKey('Delete')
-      await page.waitForTimeout(50)
+      await page.waitForTimeout(100)
 
       const text = await editorHelpers.getEditorText()
       // After deleting all content, we should have an empty block
