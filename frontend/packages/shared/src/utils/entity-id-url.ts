@@ -255,6 +255,15 @@ export function hmId(
   }
 }
 
+// Special static paths that should not be treated as Hypermedia document UIDs
+const STATIC_HM_PATHS = new Set([
+  'download',
+  'connect',
+  'register',
+  'device-link',
+  'profile',
+])
+
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
   if (!hypermediaId) return null
   const parsed = parseCustomURL(hypermediaId)
@@ -266,6 +275,8 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     if (parsed.path[1] !== 'hm') return null
     hostname = parsed.path[0]
     uid = parsed.path[2]
+    // Skip special static paths
+    if (uid && STATIC_HM_PATHS.has(uid)) return null
     path = parsed.path.slice(3)
   } else if (parsed.scheme === HYPERMEDIA_SCHEME || parsed.scheme === 'hm') {
     // Accept 'hm' scheme for compatibility

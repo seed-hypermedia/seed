@@ -79,6 +79,14 @@ describe('unpackHmId', () => {
         path: [],
       })
     })
+    test('returns null for special static paths', () => {
+      expect(unpackHmId('https://seed.hyper.media/hm/download')).toBeNull()
+      expect(unpackHmId('https://seed.hyper.media/hm/download?l')).toBeNull()
+      expect(unpackHmId('https://seed.hyper.media/hm/connect')).toBeNull()
+      expect(unpackHmId('https://seed.hyper.media/hm/register')).toBeNull()
+      expect(unpackHmId('https://seed.hyper.media/hm/device-link')).toBeNull()
+      expect(unpackHmId('https://seed.hyper.media/hm/profile')).toBeNull()
+    })
   })
 })
 
