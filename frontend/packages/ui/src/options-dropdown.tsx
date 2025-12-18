@@ -45,9 +45,13 @@ export function OptionsDropdown({
           ? 'opacity-0'
           : 'opacity-100',
         className,
+        popoverState.open && '!opacity-100', // Force visible when dropdown is open
       )}
     >
-      <DropdownMenu>
+      <DropdownMenu
+        open={popoverState.open}
+        onOpenChange={popoverState.onOpenChange}
+      >
         <DropdownMenuTrigger
           className={cn(
             buttonVariants({size: 'icon', variant: 'ghost'}),

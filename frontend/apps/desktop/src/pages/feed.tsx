@@ -31,11 +31,13 @@ import {
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
+  useDeleteComment,
 } from '@shm/shared/comments-service-provider'
 import {useAccount} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {Feed} from '@shm/ui/feed'
@@ -190,6 +192,25 @@ function _FeedContent({
 
   const selectedAccount = useSelectedAccount()
 
+  const deleteComment = useDeleteComment()
+  const deleteCommentDialog = useDeleteCommentDialog()
+
+  const onCommentDelete = useCallback(
+    (commentId: string, signingAccountId?: string) => {
+      if (!signingAccountId) return
+      deleteCommentDialog.open({
+        onConfirm: () => {
+          deleteComment.mutate({
+            commentId,
+            targetDocId: id,
+            signingAccountId,
+          })
+        },
+      })
+    },
+    [id, selectedAccount?.id?.uid, deleteComment, deleteCommentDialog],
+  )
+
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
@@ -239,6 +260,11 @@ function _FeedContent({
     // @ts-ignore
     resource.data?.type == 'document' ? resource.data.document : undefined
   const metadata = document?.metadata
+
+  const targetDomain =
+    siteHomeEntity.data?.type === 'document'
+      ? siteHomeEntity.data.document.metadata.siteUrl
+      : undefined
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
 
@@ -318,12 +344,15 @@ function _FeedContent({
               </Text>
               <TSeparator />
 
+              {deleteCommentDialog.content}
               <Feed
                 commentEditor={
                   homeId ? <CommentBox docId={homeId} context="feed" /> : null
                 }
                 filterResource={`${homeId.id}*`}
                 currentAccount={selectedAccount?.id.uid || ''}
+                onCommentDelete={onCommentDelete}
+                targetDomain={targetDomain}
               />
             </Container>
             {showSidebars ? (
