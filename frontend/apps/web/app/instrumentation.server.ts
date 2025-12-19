@@ -87,6 +87,10 @@ export function endSpan(ctx: InstrumentationContext): void {
 /**
  * Wrap an async function with instrumentation.
  * Automatically starts a span before and ends it after.
+ *
+ * IMPORTANT: This function captures the parent span at call time to correctly
+ * handle parallel operations (Promise.all). Each parallel span becomes a sibling
+ * rather than nesting incorrectly.
  */
 export async function instrument<T>(
   ctx: InstrumentationContext,
@@ -97,11 +101,28 @@ export async function instrument<T>(
     return fn()
   }
 
-  startSpan(ctx, name)
+  // Capture parent at call time to handle parallel operations correctly
+  const parent = ctx.current
+  const span: InstrumentationSpan = {
+    name,
+    start: performance.now(),
+    children: [],
+    parent,
+  }
+  parent.children.push(span)
+
+  // Defer setting current until after synchronous phase completes
+  // This allows Promise.all map callbacks to all capture the same parent
+  await Promise.resolve()
+
+  // Set as current for any nested instrumentation within fn()
+  ctx.current = span
   try {
     return await fn()
   } finally {
-    endSpan(ctx)
+    span.end = performance.now()
+    // Restore to parent (not prevCurrent, since parallel siblings may have changed it)
+    ctx.current = parent
   }
 }
 
