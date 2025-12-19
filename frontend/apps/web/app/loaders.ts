@@ -15,6 +15,7 @@ import {
   HMMetadata,
   HMMetadataPayload,
   packHmId,
+  queryBlockSortedItems,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
@@ -336,6 +337,61 @@ async function prefetchResourceData(
       ),
     ]),
   )
+
+  // Wave 3: Card-view query block resources (depends on Wave 2 directory data)
+  const cardViewQueryBlocks = queryBlocks.filter(
+    (block) => block.attributes.style === 'Card',
+  )
+
+  if (cardViewQueryBlocks.length > 0) {
+    await instrument(ctx || noopCtx, 'prefetchWave3', async () => {
+      const resourceIds: UnpackedHypermediaId[] = []
+
+      for (const block of cardViewQueryBlocks) {
+        const include = block.attributes.query.includes[0]
+        if (!include) continue
+
+        const targetId = hmId(include.space, {
+          path: entityQueryPathToHmIdPath(include.path),
+        })
+
+        // Get directory data from Wave 2 cache
+        const directoryData = prefetchCtx.queryClient.getQueryData(
+          queryDirectory(client, targetId, include.mode).queryKey,
+        ) as HMDocumentInfo[] | null
+
+        if (!directoryData) continue
+
+        // Apply same sort/limit logic as client (reuse queryBlockSortedItems)
+        const querySort = block.attributes.query.sort
+        const sorted = querySort
+          ? queryBlockSortedItems({entries: directoryData, sort: querySort})
+          : queryBlockSortedItems({
+              entries: directoryData,
+              sort: [{term: 'UpdateTime', reverse: false}],
+            })
+
+        const queryLimit = block.attributes.query.limit
+        const limited =
+          queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
+
+        // Collect resource IDs to prefetch
+        limited.forEach((item) => resourceIds.push(item.id))
+      }
+
+      // Prefetch all card resources in parallel
+      await Promise.allSettled(
+        resourceIds.map((id) =>
+          instrument(
+            ctx || noopCtx,
+            `prefetchCardResource(${packHmId(id)})`,
+            () =>
+              prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+          ),
+        ),
+      )
+    })
+  }
 }
 
 /**
