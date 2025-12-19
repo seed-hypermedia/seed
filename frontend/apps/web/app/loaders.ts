@@ -4,6 +4,7 @@ import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
   EditorText,
+  extractQueryBlocks, // ADD THIS IMPORT
   extractRefs,
   getChildrenType,
   getCommentTargetId,
@@ -24,12 +25,10 @@ import {
   HMLoadedTextContentNode,
   HMMetadata,
   HMMetadataPayload,
-  HMQueryResult,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
-import {instrument, InstrumentationContext} from './instrumentation.server'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
@@ -48,21 +47,22 @@ import {
   HMRedirectError,
 } from '@shm/shared/models/entity'
 import {
+  queryAccount,
+  queryDirectory,
+  queryInteractionSummary,
+  queryResource,
+} from '@shm/shared/models/queries'
+import {
   createResourceFetcher,
   createResourceResolver,
 } from '@shm/shared/resource-loader'
 import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
-import {
-  queryAccount,
-  queryDirectory,
-  queryInteractionSummary,
-  queryResource,
-} from '@shm/shared/models/queries'
+import {instrument, InstrumentationContext} from './instrumentation.server'
 import {createPrefetchContext, dehydratePrefetchContext} from './queries.server'
-import {serverUniversalClient} from './server-universal-client'
 import {ParsedRequest} from './request'
+import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
@@ -313,6 +313,49 @@ async function loadResourcePayload(
     id: homeId,
     document: homeDocument,
   })
+
+  // CRITICAL: Extract and prefetch query blocks (RESTORED)
+  const queryBlocks = extractQueryBlocks(document.content)
+
+  if (queryBlocks.length > 0) {
+    await instrument(ctx || noopCtx, 'prefetchQueryBlocks', async () => {
+      const queryBlockQueries = await Promise.all(
+        queryBlocks.map(async (block) => {
+          try {
+            return await getQueryResults(block.attributes.query)
+          } catch (e) {
+            console.error('Error executing query block', e)
+            return null
+          }
+        }),
+      )
+
+      // Add query result documents to embeddedDocs for prefetching
+      const queryResultDocs = await Promise.allSettled(
+        queryBlockQueries
+          .filter((item) => item !== null && item.results)
+          .flatMap((item) => item!.results)
+          .map(async (item) => {
+            try {
+              const id = item.id
+              const document = await getDocument(id)
+              return {id, document}
+            } catch (e) {
+              console.error('Error fetching query result document', item.id, e)
+              return null
+            }
+          }),
+      )
+
+      // Add successfully fetched query result docs to embeddedDocs
+      queryResultDocs.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          embeddedDocs.push(result.value)
+        }
+      })
+    })
+  }
+
   const crumbs = getParentPaths(docId.path).slice(0, -1)
   const breadcrumbs = await instrument(ctx || noopCtx, 'getBreadcrumbs', () =>
     Promise.all(
