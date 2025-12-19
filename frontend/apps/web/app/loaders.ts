@@ -3,31 +3,19 @@ import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
 import {
   createWebHMUrl,
-  EditorText,
-  extractQueryBlocks, // ADD THIS IMPORT
+  entityQueryPathToHmIdPath,
+  extractQueryBlocks,
   extractRefs,
-  getChildrenType,
   getCommentTargetId,
   getParentPaths,
-  HMBlock,
-  HMBlockNode,
-  hmBlockToEditorBlock,
   HMDocument,
   HMDocumentMetadataSchema,
   hmId,
   hmIdPathToEntityQueryPath,
-  HMInlineContent,
-  HMLoadedBlock,
-  HMLoadedBlockNode,
-  HMLoadedInlineEmbedNode,
-  HMLoadedLinkNode,
-  HMLoadedText,
-  HMLoadedTextContentNode,
   HMMetadata,
   HMMetadataPayload,
   packHmId,
   UnpackedHypermediaId,
-  unpackHmId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
@@ -35,11 +23,9 @@ import {
   HMAccountsMetadata,
   HMComment,
   HMCommentSchema,
+  HMDocumentInfo,
+  HMResource,
 } from '@shm/shared/hm-types'
-import {
-  createDirectoryResolver,
-  createQueryResolver,
-} from '@shm/shared/models/directory'
 import {
   documentMetadataParseAdjustments,
   getErrorMessage,
@@ -57,11 +43,14 @@ import {
   createResourceFetcher,
   createResourceResolver,
 } from '@shm/shared/resource-loader'
-import {getBlockNodeById} from '@shm/ui/blocks-content'
 import {DehydratedState} from '@tanstack/react-query'
 import {grpcClient} from './client.server'
 import {instrument, InstrumentationContext} from './instrumentation.server'
-import {createPrefetchContext, dehydratePrefetchContext} from './queries.server'
+import {
+  createPrefetchContext,
+  dehydratePrefetchContext,
+  PrefetchContext,
+} from './queries.server'
 import {ParsedRequest} from './request'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
@@ -207,9 +196,6 @@ export async function resolveHMDocument(
   }
 }
 
-const getDirectory = createDirectoryResolver(grpcClient)
-const getQueryResults = createQueryResolver(grpcClient)
-
 export function getOriginRequestData(parsedRequest: ParsedRequest) {
   const enableWebSigning =
     WEB_SIGNING_ENABLED && parsedRequest.origin === SITE_BASE_URL
@@ -245,6 +231,194 @@ export async function loadDocument(
   })
 }
 
+// =============================================================================
+// PREFETCH ARCHITECTURE
+// =============================================================================
+
+/**
+ * Prefetch all data needed for React Query hydration.
+ * This replaces the dual-phase (eager fetch + prefetch) architecture with a single
+ * prefetch-only approach. React Query deduplicates identical queries automatically.
+ */
+async function prefetchResourceData(
+  docId: UnpackedHypermediaId,
+  document: HMDocument,
+  prefetchCtx: PrefetchContext,
+  ctx?: InstrumentationContext,
+): Promise<void> {
+  const client = serverUniversalClient
+  const homeId = hmId(docId.uid, {latest: true})
+  const noopCtx = createNoopInstrumentationContext()
+
+  // Wave 1: Core navigation data (parallel, no dependencies)
+  await instrument(ctx || noopCtx, 'prefetchWave1', () =>
+    Promise.allSettled([
+      instrument(ctx || noopCtx, `prefetchResource(${packHmId(docId)})`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId)),
+      ),
+      instrument(ctx || noopCtx, `prefetchResource(${packHmId(homeId)})`, () =>
+        prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
+      ),
+      instrument(
+        ctx || noopCtx,
+        `prefetchDirectory(${packHmId(homeId)}, Children)`,
+        () =>
+          prefetchCtx.queryClient.prefetchQuery(
+            queryDirectory(client, homeId, 'Children'),
+          ),
+      ),
+      // AllDescendants for breadcrumb metadata (covers all nested paths)
+      instrument(
+        ctx || noopCtx,
+        `prefetchDirectory(${packHmId(homeId)}, AllDescendants)`,
+        () =>
+          prefetchCtx.queryClient.prefetchQuery(
+            queryDirectory(client, homeId, 'AllDescendants'),
+          ),
+      ),
+      instrument(
+        ctx || noopCtx,
+        `prefetchDirectory(${packHmId(docId)}, Children)`,
+        () =>
+          prefetchCtx.queryClient.prefetchQuery(
+            queryDirectory(client, docId, 'Children'),
+          ),
+      ),
+      instrument(
+        ctx || noopCtx,
+        `prefetchInteractionSummary(${packHmId(docId)})`,
+        () =>
+          prefetchCtx.queryClient.prefetchQuery(
+            queryInteractionSummary(client, docId),
+          ),
+      ),
+    ]),
+  )
+
+  // Wave 2: Content dependencies (parallel, depends on document content)
+  const queryBlocks = extractQueryBlocks(document.content)
+  const refs = extractRefs(document.content)
+
+  await instrument(ctx || noopCtx, 'prefetchWave2', () =>
+    Promise.allSettled([
+      // Query block directories
+      ...queryBlocks.map((block) => {
+        const include = block.attributes.query.includes[0]
+        if (!include) return Promise.resolve()
+        const targetId = hmId(include.space, {
+          path: entityQueryPathToHmIdPath(include.path),
+        })
+        return instrument(
+          ctx || noopCtx,
+          `prefetchQueryDirectory(${packHmId(targetId)})`,
+          () =>
+            prefetchCtx.queryClient.prefetchQuery(
+              queryDirectory(client, targetId, include.mode),
+            ),
+        )
+      }),
+      // Embedded document content
+      ...refs.map((ref) =>
+        instrument(
+          ctx || noopCtx,
+          `prefetchEmbedResource(${packHmId(ref.refId)})`,
+          () =>
+            prefetchCtx.queryClient.prefetchQuery(
+              queryResource(client, ref.refId),
+            ),
+        ),
+      ),
+      // Author accounts
+      ...document.authors.map((uid) =>
+        instrument(ctx || noopCtx, `prefetchAccount(${uid})`, () =>
+          prefetchCtx.queryClient.prefetchQuery(queryAccount(client, uid)),
+        ),
+      ),
+    ]),
+  )
+}
+
+/**
+ * Extract home document from the prefetch cache.
+ */
+function getHomeDocumentFromCache(
+  prefetchCtx: PrefetchContext,
+  homeId: UnpackedHypermediaId,
+): HMDocument | null {
+  const client = serverUniversalClient
+  const resource = prefetchCtx.queryClient.getQueryData(
+    queryResource(client, homeId).queryKey,
+  ) as HMResource | null
+  return resource?.type === 'document' ? resource.document : null
+}
+
+/**
+ * Build breadcrumbs from directory cache instead of individual metadata fetches.
+ * Uses AllDescendants directory which contains all documents in the account.
+ */
+function buildBreadcrumbsFromCache(
+  prefetchCtx: PrefetchContext,
+  docId: UnpackedHypermediaId,
+  document: HMDocument,
+): HMMetadataPayload[] {
+  const client = serverUniversalClient
+  const homeId = hmId(docId.uid, {latest: true})
+
+  // Use AllDescendants which contains all documents (including intermediate parents)
+  const allDescendants = prefetchCtx.queryClient.getQueryData(
+    queryDirectory(client, homeId, 'AllDescendants').queryKey,
+  ) as HMDocumentInfo[] | null
+
+  const crumbPaths = getParentPaths(docId.path).slice(0, -1)
+  const breadcrumbs = crumbPaths.map((crumbPath) => {
+    const id = hmId(docId.uid, {path: crumbPath})
+    const dirEntry = allDescendants?.find((d) => d.id.id === id.id)
+    return {
+      id,
+      metadata: dirEntry?.metadata || {},
+    }
+  })
+
+  // Add current document
+  breadcrumbs.push({id: docId, metadata: document.metadata})
+  return breadcrumbs
+}
+
+/**
+ * Build accounts metadata from prefetch cache.
+ */
+function buildAccountsMetadataFromCache(
+  prefetchCtx: PrefetchContext,
+  authorUids: string[],
+): HMAccountsMetadata {
+  const client = serverUniversalClient
+  return Object.fromEntries(
+    authorUids.map((uid) => {
+      const account = prefetchCtx.queryClient.getQueryData(
+        queryAccount(client, uid).queryKey,
+      ) as HMMetadataPayload | null
+      return [uid, account || {id: hmId(uid), metadata: {}}]
+    }),
+  )
+}
+
+/**
+ * Create a noop instrumentation context for when none is provided.
+ */
+function createNoopInstrumentationContext(): InstrumentationContext {
+  return {
+    enabled: false,
+    requestPath: '',
+    requestMethod: '',
+    root: {name: '', start: 0, children: []},
+    current: {name: '', start: 0, children: []},
+  } as InstrumentationContext
+}
+
+/**
+ * Load resource payload using prefetch-only architecture.
+ * React Query handles deduplication automatically.
+ */
 async function loadResourcePayload(
   docId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
@@ -256,272 +430,29 @@ async function loadResourcePayload(
   ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
   const {document, latestDocument, comment} = payload
-  const noopCtx = {
-    enabled: false,
-    requestPath: '',
-    requestMethod: '',
-    root: {name: '', start: 0, children: []},
-    current: {name: '', start: 0, children: []},
-  } as InstrumentationContext
-
-  let authors = await instrument(
-    ctx || noopCtx,
-    `getAuthors(${document.authors.length})`,
-    () =>
-      Promise.all(
-        document.authors.map(async (authorUid) => {
-          return await instrument(
-            ctx || noopCtx,
-            `getMetadata(${packHmId(hmId(authorUid))})`,
-            () => getMetadata(hmId(authorUid)),
-          )
-        }),
-      ),
-  )
-
-  const refs = extractRefs(document.content)
-  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] =
-    await instrument(
-      ctx || noopCtx,
-      `getEmbeddedDocs(${refs.length})`,
-      async () =>
-        (
-          await Promise.all(
-            // @ts-expect-error
-            refs.map(async (ref) => {
-              try {
-                const doc = await instrument(
-                  ctx || noopCtx,
-                  `resolveHMDocument(${packHmId(ref.refId)})`,
-                  () =>
-                    resolveHMDocument({
-                      ...ref.refId,
-                      // removing version from home document to get the latest site navigation all the time
-                      version:
-                        ref.refId.path && ref.refId.path.length > 0
-                          ? ref.refId.version
-                          : null,
-                    }),
-                )
-                if (!doc) return null
-                return {document: doc, id: ref.refId}
-              } catch (e) {
-                console.error('error fetching embeddedDoc', ref, e)
-              }
-            }),
-          )
-        ).filter((doc) => !!doc),
-    )
-
-  const homeId = hmId(docId.uid, {latest: true, version: undefined})
-
-  // Parallelize independent fetches for better performance
-  const [homeDocument, homeDirectoryResults, directoryResults] =
-    await instrument(
-      ctx || noopCtx,
-      `getHomeAndDirectories(${packHmId(docId)})`,
-      () =>
-        Promise.all([
-          instrument(ctx || noopCtx, `getDocument(${packHmId(homeId)})`, () =>
-            getDocument(homeId),
-          ),
-          instrument(
-            ctx || noopCtx,
-            `getDirectory(${packHmId(homeId)}, Children)`,
-            () => getDirectory(homeId, 'Children'),
-          ),
-          instrument(ctx || noopCtx, `getDirectory(${packHmId(docId)})`, () =>
-            getDirectory(docId),
-          ),
-        ]),
-    )
-
-  embeddedDocs.push({
-    id: homeId,
-    document: homeDocument,
-  })
-
-  // CRITICAL: Extract and prefetch query blocks (RESTORED)
-  const queryBlocks = extractQueryBlocks(document.content)
-
-  if (queryBlocks.length > 0) {
-    await instrument(
-      ctx || noopCtx,
-      `prefetchQueryBlocks(${queryBlocks.length} blocks)`,
-      async () => {
-        const queryBlockQueries = await Promise.all(
-          queryBlocks.map(async (block) => {
-            try {
-              return await instrument(
-                ctx || noopCtx,
-                `getQueryResults(block:${block.id})`,
-                () => getQueryResults(block.attributes.query),
-              )
-            } catch (e) {
-              console.error('Error executing query block', e)
-              return null
-            }
-          }),
-        )
-
-        // Add query result documents to embeddedDocs for prefetching
-        const queryResultDocs = await Promise.allSettled(
-          queryBlockQueries
-            .filter((item) => item !== null && item.results)
-            .flatMap((item) => item!.results)
-            .map(async (item) => {
-              try {
-                const id = item.id
-                const document = await instrument(
-                  ctx || noopCtx,
-                  `getDocument(queryResult:${packHmId(id)})`,
-                  () => getDocument(id),
-                )
-                return {id, document}
-              } catch (e) {
-                console.error(
-                  'Error fetching query result document',
-                  item.id,
-                  e,
-                )
-                return null
-              }
-            }),
-        )
-
-        // Add successfully fetched query result docs to embeddedDocs
-        queryResultDocs.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            embeddedDocs.push(result.value)
-          }
-        })
-      },
-    )
-  }
-
-  const crumbs = getParentPaths(docId.path).slice(0, -1)
-  const breadcrumbs = await instrument(
-    ctx || noopCtx,
-    `getBreadcrumbs(${crumbs.length})`,
-    () =>
-      Promise.all(
-        crumbs.map(async (crumbPath) => {
-          const id = hmId(docId.uid, {path: crumbPath})
-          const metadataPayload = await instrument(
-            ctx || noopCtx,
-            `getMetadata(${packHmId(id)})`,
-            () => getMetadata(id),
-          )
-          return {
-            ...metadataPayload,
-          }
-        }),
-      ),
-  )
-  breadcrumbs.push({
-    id: docId,
-    metadata: document.metadata,
-  })
-
-  // Create prefetch context and populate with data for SSR hydration
   const prefetchCtx = createPrefetchContext()
-  const client = serverUniversalClient
+  const homeId = hmId(docId.uid, {latest: true})
 
-  // Prefetch critical data in parallel with error handling to prevent SSR crashes
-  await instrument(
-    ctx || noopCtx,
-    `prefetchCriticalData(${packHmId(docId)})`,
-    async () => {
-      try {
-        await Promise.all([
-          instrument(
-            ctx || noopCtx,
-            `prefetchResource(${packHmId(homeId)})`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(
-                queryResource(client, homeId),
-              ),
-          ),
-          instrument(
-            ctx || noopCtx,
-            `prefetchDirectory(${packHmId(homeId)}, Children)`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(
-                queryDirectory(client, homeId, 'Children'),
-              ),
-          ),
-          instrument(
-            ctx || noopCtx,
-            `prefetchDirectory(${packHmId(docId)}, Children)`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(
-                queryDirectory(client, docId, 'Children'),
-              ),
-          ),
-          instrument(
-            ctx || noopCtx,
-            `prefetchInteractionSummary(${packHmId(docId)})`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(
-                queryInteractionSummary(client, docId),
-              ),
-          ),
-        ])
-      } catch (e) {
-        console.error('Error prefetching critical data for SSR', e)
-        // Continue with degraded state - client will fetch missing data
-      }
-    },
+  // Single prefetch phase - React Query handles deduplication
+  await prefetchResourceData(docId, document, prefetchCtx, ctx)
+
+  // Extract data from cache for SSR response
+  const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
+  const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document)
+  const accountsMetadata = buildAccountsMetadataFromCache(
+    prefetchCtx,
+    document.authors,
   )
-
-  // Prefetch all embedded documents (use allSettled for graceful degradation)
-  await instrument(
-    ctx || noopCtx,
-    `prefetchEmbeddedDocs(${embeddedDocs.length})`,
-    () =>
-      Promise.allSettled(
-        embeddedDocs.map((doc) =>
-          instrument(
-            ctx || noopCtx,
-            `prefetchResource(${packHmId(doc.id)})`,
-            () =>
-              prefetchCtx.queryClient.prefetchQuery(
-                queryResource(client, doc.id),
-              ),
-          ),
-        ),
-      ),
-  )
-
-  // Prefetch account metadata (use allSettled for graceful degradation)
-  await instrument(ctx || noopCtx, `prefetchAccounts(${authors.length})`, () =>
-    Promise.allSettled(
-      authors.map((author) =>
-        instrument(
-          ctx || noopCtx,
-          `prefetchAccount(${packHmId(author.id)})`,
-          () =>
-            prefetchCtx.queryClient.prefetchQuery(
-              queryAccount(client, author.id.uid),
-            ),
-        ),
-      ),
-    ),
-  )
-
-  const dehydratedState = dehydratePrefetchContext(prefetchCtx)
 
   return {
     document,
     comment,
-    accountsMetadata: Object.fromEntries(
-      authors.map((author) => [author.id.uid, author]),
-    ),
+    accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
     id: {...docId, version: document.version},
     breadcrumbs,
-    siteHomeIcon: homeDocument.metadata?.icon || null,
-    dehydratedState,
+    siteHomeIcon: homeDocument?.metadata?.icon || null,
+    dehydratedState: dehydratePrefetchContext(prefetchCtx),
     ...getOriginRequestData(parsedRequest),
   }
 }
@@ -626,243 +557,6 @@ export async function loadResourceWithDiscovery(
     }
     throw e
   }
-}
-
-function textNodeAttributes(
-  node: EditorText,
-): Partial<HMLoadedTextContentNode> {
-  const attributes: Partial<HMLoadedTextContentNode> = {}
-  if (node.styles.bold) attributes.bold = true
-  if (node.styles.italic) attributes.italic = true
-  if (node.styles.underline) attributes.underline = true
-  if (node.styles.strike) attributes.strike = true
-  if (node.styles.code) attributes.code = true
-  return attributes
-}
-
-async function loadEditorNodes(
-  nodes: HMInlineContent[],
-): Promise<HMLoadedText> {
-  const content = await Promise.all(
-    nodes.map(async (editorNode) => {
-      if (editorNode.type === 'inline-embed') {
-        const id = unpackHmId(editorNode.link)
-        if (!id)
-          return {
-            type: 'InlineEmbed',
-            ref: editorNode.link,
-            text: null,
-            id: null,
-          } satisfies HMLoadedInlineEmbedNode
-        try {
-          const document = await getDocument(id)
-          return {
-            type: 'InlineEmbed',
-            ref: editorNode.link,
-            id,
-            text: document.metadata.name || '(?)',
-          } satisfies HMLoadedInlineEmbedNode
-        } catch (e) {
-          console.error('Error loading inline embed', editorNode, e)
-          return {
-            type: 'InlineEmbed',
-            ref: editorNode.link,
-            text: null,
-            id,
-          } satisfies HMLoadedInlineEmbedNode
-        }
-      }
-      if (editorNode.type === 'text') {
-        return {
-          type: 'Text',
-          text: editorNode.text,
-          ...textNodeAttributes(editorNode),
-        } satisfies HMLoadedTextContentNode
-      }
-      if (editorNode.type === 'link') {
-        return {
-          type: 'Link',
-          link: editorNode.href,
-          content: editorNode.content
-            .map((node) => {
-              if (node.type === 'inline-embed') return null
-              if (node.type === 'link') return null
-              return {
-                type: 'Text',
-                text: node.text,
-                ...textNodeAttributes(node),
-              } satisfies HMLoadedTextContentNode
-            })
-            .filter((node) => !!node),
-        } satisfies HMLoadedLinkNode
-      }
-      console.log('Unhandled editor node', editorNode)
-      return null
-    }),
-  )
-  return content.filter((node) => !!node)
-}
-
-async function loadDocumentBlock(block: HMBlock): Promise<HMLoadedBlock> {
-  if (block.type === 'Paragraph') {
-    const editorBlock = hmBlockToEditorBlock(block)
-    if (editorBlock.type !== 'paragraph')
-      throw new Error('Unexpected situation with paragraph block conversion')
-    const content = await loadEditorNodes(editorBlock.content)
-    return {
-      type: 'Paragraph',
-      id: block.id,
-      content,
-    }
-  }
-  if (block.type === 'Heading') {
-    const editorBlock = hmBlockToEditorBlock(block)
-    if (editorBlock.type !== 'heading')
-      throw new Error('Unexpected situation with heading block conversion')
-    const content = await loadEditorNodes(editorBlock.content)
-    return {
-      type: 'Heading',
-      id: block.id,
-      content,
-    }
-  }
-  if (block.type === 'Embed') {
-    const id = unpackHmId(block.link)
-    if (!id) {
-      return {
-        type: 'Embed',
-        id: block.id,
-        link: block.link,
-        authors: {},
-        view: block.attributes.view,
-        updateTime: null,
-        metadata: null,
-        content: null,
-      }
-    }
-    try {
-      const document = await getDocument(id)
-      const selectedBlock = id.blockRef
-        ? getBlockNodeById(document.content, id.blockRef)
-        : null
-      const selectedContent = selectedBlock ? [selectedBlock] : document.content
-      if (!selectedContent) {
-        return {
-          type: 'Embed',
-          id: block.id,
-          link: block.link,
-          authors: await loadAuthors(document.authors),
-          view: block.attributes.view,
-          updateTime: document.updateTime,
-          metadata: document.metadata,
-          content: null,
-        }
-      }
-      return {
-        type: 'Embed',
-        id: block.id,
-        link: block.link,
-        authors: await loadAuthors(document.authors),
-        view: block.attributes.view,
-        updateTime: document.updateTime,
-        metadata: document.metadata,
-        content: await loadDocumentContent(selectedContent),
-      }
-    } catch (e) {
-      console.error('Error loading embed', block, e)
-      return {
-        type: 'Embed',
-        id: block.id,
-        link: block.link,
-        authors: {},
-        view: block.attributes.view,
-        updateTime: null,
-        metadata: null,
-        content: null,
-      }
-    }
-  }
-  if (block.type === 'Video') {
-    return {
-      type: 'Video',
-      id: block.id,
-      link: block.link,
-      name: block.attributes.name,
-      width: block.attributes.width,
-    }
-  }
-  if (block.type === 'File') {
-    return {
-      type: 'File',
-      id: block.id,
-      link: block.link,
-      name: block.attributes.name,
-      size: block.attributes.size,
-    }
-  }
-  if (block.type === 'Image') {
-    return {
-      type: 'Image',
-      id: block.id,
-      link: block.link,
-      name: block.attributes.name,
-      width: block.attributes.width,
-    }
-  }
-  if (block.type === 'Query') {
-    const q = await getQueryResults(block.attributes.query)
-    return {
-      type: 'Query',
-      id: block.id,
-      query: block.attributes.query,
-      results: q?.results,
-    }
-  }
-  return {
-    type: 'Unsupported',
-    id: block.id,
-  }
-}
-
-async function loadDocumentBlockNode(
-  blockNode: HMBlockNode,
-): Promise<HMLoadedBlockNode> {
-  const childrenType = getChildrenType(blockNode.block)
-  const outputBlockNode: HMLoadedBlockNode = {
-    block: await loadDocumentBlock(blockNode.block),
-    children: await loadDocumentContent(blockNode.children),
-  }
-  if (childrenType) {
-    outputBlockNode.childrenType = childrenType
-  }
-  return outputBlockNode
-}
-
-async function loadDocumentContent(
-  blockNodes: undefined | HMBlockNode[],
-): Promise<HMLoadedBlockNode[]> {
-  if (!blockNodes) return []
-  return await Promise.all(blockNodes.map(loadDocumentBlockNode))
-}
-
-export async function loadAuthors(
-  authors: string[],
-): Promise<HMAccountsMetadata> {
-  const accountMetas = await Promise.all(
-    authors.map(async (author) => {
-      const metadata = await getMetadata(hmId(author))
-      return {
-        [author]: metadata,
-      }
-    }),
-  )
-  return Object.fromEntries(
-    accountMetas.map((meta) => {
-      const key = Object.keys(meta)[0]
-      // @ts-expect-error
-      return [key, meta[key]]
-    }),
-  )
 }
 
 export type SiteDocumentPayload = WebResourcePayload & {
