@@ -1,9 +1,15 @@
 import {OptimizedImageSize, useUniversalAppContext} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 
-export function getDaemonFileUrl(ipfsUrl?: string) {
+export function getDaemonFileUrl(ipfsUrl?: string, filename?: string) {
   if (ipfsUrl) {
-    return `${DAEMON_FILE_URL}/${extractIpfsUrlCid(ipfsUrl)}`
+    const cid = extractIpfsUrlCid(ipfsUrl)
+    const url = `${DAEMON_FILE_URL}/${cid}`
+    // File name parameter for web download
+    if (filename) {
+      return `${url}?filename=${encodeURIComponent(filename)}`
+    }
+    return url
   }
   return ''
 }

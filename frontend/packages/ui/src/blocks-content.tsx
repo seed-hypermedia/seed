@@ -2296,12 +2296,22 @@ export function getBlockNodeById(
 export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
   const {saveCidAsFile} = useUniversalAppContext()
   const fileCid = block.link ? extractIpfsUrlCid(block.link) : ''
+  const fileName = getBlockAttribute(block.attributes, 'name') || 'File'
+
+  // Navigate to URL with filename parameter for web download
+  const handleWebDownload = (e: React.MouseEvent) => {
+    e.preventDefault()
+    // Pass file name as a parameter
+    const fileUrl = getDaemonFileUrl(fileCid, fileName)
+    window.location.href = fileUrl
+  }
+
   if (block.type !== 'File') return null
   return (
     <div
       data-content-type="file"
       data-url={block.link}
-      data-name={getBlockAttribute(block.attributes, 'name')}
+      data-name={fileName}
       data-size={getBlockAttribute(block.attributes, 'size')}
       className={cn(
         'block-content group block-file border-muted dark:border-muted relative overflow-hidden rounded-md border p-4',
@@ -2310,7 +2320,7 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
       <div className="relative flex w-full flex-1 items-center gap-2">
         <File size={18} className="flex-0" />
         <SizableText className="flex-1 truncate overflow-hidden text-sm whitespace-nowrap select-text">
-          {getBlockAttribute(block.attributes, 'name') || 'Untitled File'}
+          {fileName === 'File' ? 'Untitled File' : fileName}
         </SizableText>
         {getBlockAttribute(block.attributes, 'size') && (
           <SizableText color="muted" size="xs">
@@ -2325,27 +2335,23 @@ export function BlockContentFile({block}: BlockContentProps<HMBlockFile>) {
           size="sm"
           asChild
         >
-          <a
-            download
-            {...(saveCidAsFile
-              ? {
-                  onClick: () => {
-                    saveCidAsFile(
-                      fileCid,
-                      getBlockAttribute(block.attributes, 'name') || 'File',
-                    )
-                  },
-                }
-              : {
-                  download: getBlockAttribute(block.attributes, 'name') || true,
-                  href: getDaemonFileUrl(fileCid),
-                  style: {
-                    textDecoration: 'none',
-                  },
-                })}
-          >
-            Download
-          </a>
+          {saveCidAsFile ? (
+            <a
+              download
+              onClick={() => {
+                saveCidAsFile(fileCid, fileName)
+              }}
+            >
+              Download
+            </a>
+          ) : (
+            <a
+              href={getDaemonFileUrl(fileCid, fileName)}
+              onClick={handleWebDownload}
+            >
+              Download
+            </a>
+          )}
         </Button>
       )}
     </div>

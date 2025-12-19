@@ -147,6 +147,10 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", cidStr)
 	w.Header().Set("Cache-Control", "public, max-age=29030400, immutable")
 
+	if filename := r.URL.Query().Get("filename"); filename != "" {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	}
+
 	// Handle range requests if we know the size
 	if size >= 0 {
 		rangeHeader := r.Header.Get("Range")
