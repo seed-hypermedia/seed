@@ -49,6 +49,8 @@ import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
 import {
   AppWindow,
+  closeLoadingWindow,
+  createLoadingWindow,
   deleteWindowsState,
   getAllWindows,
   getFocusedWindow,
@@ -56,12 +58,13 @@ import {
   getWindowNavState,
 } from './app-windows'
 import autoUpdate from './auto-update'
-import {startMainDaemon} from './daemon'
+import {startMainDaemon, subscribeDaemonState} from './daemon'
 import {startLocalServer, stopLocalServer} from './local-server'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
 
+import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {
   BIG_INT,
   IS_PROD_DESKTOP,
@@ -142,6 +145,95 @@ app.on('before-quit', () => {
   stopLocalServer()
 })
 
+/**
+ * Starts the daemon with conditional loading window display.
+ * Shows loading window only if first daemon getInfo() returns NOT ACTIVE.
+ * Can be forced to show with VITE_FORCE_LOADING_WINDOW env var for testing.
+ */
+async function startDaemonWithLoadingWindow(): Promise<void> {
+  const forceLoadingWindow =
+    typeof __FORCE_LOADING_WINDOW__ !== 'undefined' &&
+    __FORCE_LOADING_WINDOW__ === 'true'
+  let loadingWindowShown = false
+  let unsubscribe: (() => void) | null = null
+  let daemonIsPolling = false
+
+  logger.info(
+    `[MAIN]: __FORCE_LOADING_WINDOW__ = ${
+      typeof __FORCE_LOADING_WINDOW__ !== 'undefined'
+        ? __FORCE_LOADING_WINDOW__
+        : 'undefined'
+    }`,
+  )
+  logger.info(`[MAIN]: forceLoadingWindow = ${forceLoadingWindow}`)
+
+  // Subscribe to daemon state changes to show/hide loading window
+  unsubscribe = subscribeDaemonState((state) => {
+    // First 'ready' event: daemon gRPC started, check if ACTIVE
+    if (state.t === 'ready' && !daemonIsPolling && !forceLoadingWindow) {
+      daemonIsPolling = true
+      logger.info('[MAIN]: Daemon gRPC ready, checking initial state...')
+
+      grpcClient.daemon
+        .getInfo({})
+        .then((info) => {
+          if (info.state !== State.ACTIVE) {
+            // Not ACTIVE yet, show loading window
+            loadingWindowShown = true
+            createLoadingWindow()
+            logger.info(
+              `[MAIN]: Daemon not ACTIVE (state: ${info.state}), showing loading window`,
+            )
+          } else {
+            logger.info(
+              '[MAIN]: Daemon already ACTIVE, skipping loading window',
+            )
+          }
+        })
+        .catch((err) => {
+          logger.error('[MAIN]: Error checking initial daemon state:', err)
+        })
+    }
+    // Second 'ready' event: daemon became ACTIVE, close loading window
+    else if (
+      state.t === 'ready' &&
+      daemonIsPolling &&
+      loadingWindowShown &&
+      !forceLoadingWindow
+    ) {
+      closeLoadingWindow()
+      logger.info('[MAIN]: Daemon is ACTIVE, loading window closed')
+      if (unsubscribe) {
+        unsubscribe()
+        unsubscribe = null
+      }
+    }
+  })
+
+  try {
+    // Start daemon - this spawns the process and polls until ACTIVE
+    // Daemon will send state updates (startup, migrating, etc) to loading window
+    await startMainDaemon()
+    logger.info('[MAIN]: Daemon is ACTIVE')
+  } finally {
+    // Cleanup: unsubscribe if still subscribed
+    if (unsubscribe) {
+      unsubscribe()
+    }
+  }
+
+  // If forced, show loading window and wait forever for debug button
+  if (forceLoadingWindow) {
+    loadingWindowShown = true
+    createLoadingWindow()
+    logger.info(
+      '[MAIN]: VITE_FORCE_LOADING_WINDOW enabled - daemon started, showing loading window and waiting for debug button',
+    )
+    // Return a promise that never resolves - wait for debug button click
+    return new Promise(() => {})
+  }
+}
+
 app.whenReady().then(async () => {
   logger.debug('[MAIN]: Seed ready')
 
@@ -192,7 +284,10 @@ app.whenReady().then(async () => {
     performance.mark('app-ready-start')
   }
 
-  startMainDaemon()
+  // Initialize IPC handlers early so loading window can use them
+  initializeIpcHandlers()
+
+  startDaemonWithLoadingWindow()
     .then(() => {
       logger.info('DaemonStarted')
       return Promise.all([
@@ -205,8 +300,6 @@ app.whenReady().then(async () => {
       ])
     })
     .then(() => {
-      // Initialize IPC handlers after the app is ready
-      initializeIpcHandlers()
       initAccountSubscriptions()
         .then(() => {
           logger.info('InitAccountSubscriptionsComplete')
@@ -308,6 +401,56 @@ async function initAccountSubscriptions() {
 function initializeIpcHandlers() {
   setupOnboardingHandlers()
 
+  // Debug: force active state from loading window (continue app startup)
+  ipcMain.on('forceActiveState', () => {
+    logger.info('[MAIN]: Force active state requested from loading window')
+
+    // Close loading window
+    closeLoadingWindow()
+    logger.info('[MAIN]: Loading window closed from debug button')
+
+    // Continue with app initialization (daemon is already started)
+    Promise.all([
+      initDrafts().then(() => {
+        logger.info('Drafts ready')
+      }),
+      initCommentDrafts().then(() => {
+        logger.info('Comment Drafts ready')
+      }),
+    ])
+      .then(() => {
+        initAccountSubscriptions()
+          .then(() => {
+            logger.info('InitAccountSubscriptionsComplete')
+          })
+          .catch((e: Error) => {
+            logger.error('InitAccountSubscriptionsError ' + e.message)
+          })
+
+        grpcClient.daemon.listKeys({}).then(async (response) => {
+          const onboardingState = getOnboardingState()
+          setInitialAccountIdCount(response.keys.length)
+          if (
+            response.keys.length === 0 &&
+            !onboardingState.hasCompletedOnboarding &&
+            !onboardingState.hasSkippedOnboarding
+          ) {
+            deleteWindowsState().then(() => {
+              trpc.createAppWindow({routes: [defaultRoute]})
+            })
+          } else {
+            await openInitialWindows()
+          }
+        })
+
+        autoUpdate()
+      })
+      .catch((e: Error) => {
+        logger.error('App startup error from debug button', {error: e.message})
+        app.quit()
+      })
+  })
+
   // Window management handlers
   ipcMain.on('invalidate_queries', (_event, info) => {
     appInvalidateQueries(info)
@@ -402,6 +545,17 @@ function initializeIpcHandlers() {
 
   ipcMain.on('close_window', (_event, _info) => {
     getFocusedWindow()?.close()
+  })
+
+  // Development: manually open loading window for testing
+  ipcMain.on('open_loading_window', () => {
+    logger.info('[MAIN]: Manual loading window open requested')
+    createLoadingWindow()
+  })
+
+  ipcMain.on('close_loading_window', () => {
+    logger.info('[MAIN]: Manual loading window close requested')
+    closeLoadingWindow()
   })
 
   ipcMain.on('find_in_page_query', (_event, _info) => {

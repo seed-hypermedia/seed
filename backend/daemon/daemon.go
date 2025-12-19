@@ -197,6 +197,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if err != nil {
 		return nil, err
 	}
+
 	a.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
 	return
 }
