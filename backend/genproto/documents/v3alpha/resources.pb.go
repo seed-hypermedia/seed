@@ -187,7 +187,9 @@ type PushResourcesToPeerRequest struct {
 	// related blobs to those resources. No wilcards are supported.
 	// Only documents resources can be specified. No single comments supported yet.
 	// See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
-	Resources     []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
+	Resources []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
+	// Optional. Whether to push children documents recursively as well.
+	Recursive     bool `protobuf:"varint,3,opt,name=recursive,proto3" json:"recursive,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -236,6 +238,13 @@ func (x *PushResourcesToPeerRequest) GetResources() []string {
 	return nil
 }
 
+func (x *PushResourcesToPeerRequest) GetRecursive() bool {
+	if x != nil {
+		return x.Recursive
+	}
+	return false
+}
+
 var File_documents_v3alpha_resources_proto protoreflect.FileDescriptor
 
 const file_documents_v3alpha_resources_proto_rawDesc = "" +
@@ -248,10 +257,11 @@ const file_documents_v3alpha_resources_proto_rawDesc = "" +
 	"\acomment\x18\x02 \x01(\v2#.com.seed.documents.v3alpha.CommentH\x00R\acomment\x12?\n" +
 	"\acontact\x18\x03 \x01(\v2#.com.seed.documents.v3alpha.ContactH\x00R\acontact\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversionB\x06\n" +
-	"\x04kind\"P\n" +
+	"\x04kind\"n\n" +
 	"\x1aPushResourcesToPeerRequest\x12\x14\n" +
 	"\x05addrs\x18\x01 \x03(\tR\x05addrs\x12\x1c\n" +
-	"\tresources\x18\x02 \x03(\tR\tresources2\xee\x01\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\x12\x1c\n" +
+	"\trecursive\x18\x03 \x01(\bR\trecursive2\xee\x01\n" +
 	"\tResources\x12c\n" +
 	"\vGetResource\x12..com.seed.documents.v3alpha.GetResourceRequest\x1a$.com.seed.documents.v3alpha.Resource\x12|\n" +
 	"\x13PushResourcesToPeer\x126.com.seed.documents.v3alpha.PushResourcesToPeerRequest\x1a+.com.seed.p2p.v1alpha.AnnounceBlobsProgress0\x01B3Z1seed/backend/genproto/documents/v3alpha;documentsb\x06proto3"

@@ -50,4 +50,7 @@ message PushResourcesToPeerRequest {
   // Only documents resources can be specified. No single comments supported yet.
   // See https://seedteamtalks.hyper.media/projects/daemon-pushing-algo
   repeated string resources = 2;
+
+  // Optional. Whether to push children documents recursively as well.
+  bool recursive = 3;
 }

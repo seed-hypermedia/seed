@@ -140,6 +140,13 @@ export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerReque
    */
   resources: string[] = [];
 
+  /**
+   * Optional. Whether to push children documents recursively as well.
+   *
+   * @generated from field: bool recursive = 3;
+   */
+  recursive = false;
+
   constructor(data?: PartialMessage<PushResourcesToPeerRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -150,6 +157,7 @@ export class PushResourcesToPeerRequest extends Message<PushResourcesToPeerReque
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "addrs", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 2, name: "resources", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PushResourcesToPeerRequest {

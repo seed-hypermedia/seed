@@ -50,7 +50,7 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 			result["path"] = ""
 		}
 		resource := "hm://" + result["account"] + result["path"]
-		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource)}] = struct{}{}
+		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource), Recursive: req.Recursive}] = struct{}{}
 	}
 
 	var cids []syncing.CIDWithTS
