@@ -70,9 +70,6 @@ export default defineConfig(({command, mode}) => {
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
       },
     },
-    alias: {
-      'react-native': 'react-native-web',
-    },
     optimizeDeps: {
       esbuildOptions: {
         resolveExtensions: extensions,

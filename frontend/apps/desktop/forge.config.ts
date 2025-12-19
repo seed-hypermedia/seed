@@ -214,6 +214,10 @@ const config: ForgeConfig = {
           entry: 'src/preload-find-in-page.ts',
           config: 'vite.preload.config.mts',
         },
+        {
+          entry: 'src/preload-loading.ts',
+          config: 'vite.preload.config.mts',
+        },
       ],
       renderer: [
         {
@@ -223,6 +227,10 @@ const config: ForgeConfig = {
         {
           name: 'find_in_page',
           config: 'vite.renderer.find-in-page.config.mts',
+        },
+        {
+          name: 'loading_window',
+          config: 'vite.renderer.loading.config.mts',
         },
       ],
     }),

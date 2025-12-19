@@ -49,8 +49,13 @@ const daemonArguments = [
 type ReadyState = {t: 'ready'}
 type ErrorState = {t: 'error'; message: string}
 type StartupState = {t: 'startup'}
+type MigratingState = {t: 'migrating'; completed: number; total: number}
 
-export type GoDaemonState = ReadyState | ErrorState | StartupState
+export type GoDaemonState =
+  | ReadyState
+  | ErrorState
+  | StartupState
+  | MigratingState
 
 let goDaemonState: GoDaemonState = {t: 'startup'}
 
@@ -148,13 +153,21 @@ export async function startMainDaemon(): Promise<{
       const info = await grpcClient.daemon.getInfo({})
       if (info.state !== State.ACTIVE) {
         if (info.state === State.MIGRATING && info.tasks.length === 1) {
-          log.info(
-            `Daemon migrating: ${info.tasks[0].completed}/${info.tasks[0].total}`,
-          )
+          const completed = Number(info.tasks[0].completed)
+          const total = Number(info.tasks[0].total)
+          log.info(`Daemon migrating: ${completed}/${total}`)
+          // Broadcast migration progress to loading window
+          updateGoDaemonState({
+            t: 'migrating',
+            completed,
+            total,
+          })
         }
         throw new Error(`Daemon not ready yet: ${info.state}`)
       }
       log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
+      // Daemon is ACTIVE - update state so loading window can close
+      updateGoDaemonState({t: 'ready'})
     },
     'waiting for daemon gRPC to be ready',
     200, // try every 200ms
