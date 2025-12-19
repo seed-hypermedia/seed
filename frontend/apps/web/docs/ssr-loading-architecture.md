@@ -2,13 +2,17 @@
 
 ## Overview
 
-The web app uses React Query for data fetching on both server and client. The server prefetches data into a QueryClient, dehydrates it, and sends it to the client. The client hydrates the cache and renders instantly without refetching.
+The web app uses React Query for data fetching on both server and client. The
+server prefetches data into a QueryClient, dehydrates it, and sends it to the
+client. The client hydrates the cache and renders instantly without refetching.
 
 ## Core Principle
 
 **The server prefetches exactly what the client will query.**
 
-Components use React Query hooks (`useResource`, `useDirectory`, `useResources`, `useAccount`). The server's job is to prefetch those same queries so the client renders instantly from cache.
+Components use React Query hooks (`useResource`, `useDirectory`, `useResources`,
+`useAccount`). The server's job is to prefetch those same queries so the client
+renders instantly from cache.
 
 ## Data Flow
 
@@ -71,25 +75,29 @@ Components use React Query hooks (`useResource`, `useDirectory`, `useResources`,
 
 ## Query Definitions
 
-Queries are defined in `@shm/shared/models/queries.ts`. Each returns a `{queryKey, queryFn}` object compatible with both `useQuery()` and `prefetchQuery()`.
+Queries are defined in `@shm/shared/models/queries.ts`. Each returns a
+`{queryKey, queryFn}` object compatible with both `useQuery()` and
+`prefetchQuery()`.
 
-| Query | Purpose | Used By |
-|-------|---------|---------|
-| `queryResource(id)` | Fetch document/comment/contact | `useResource()` hook |
-| `queryDirectory(id, mode)` | List child documents | `useDirectory()` hook |
-| `queryAccount(uid)` | Fetch account metadata | `useAccount()` hook |
-| `queryInteractionSummary(id)` | Comment/citation counts | Interaction badges |
-| `queryComments(id)` | Comments on a document | Comment sections |
-| `queryCitations(id)` | Citations to a document | Citation panels |
+| Query                         | Purpose                        | Used By               |
+| ----------------------------- | ------------------------------ | --------------------- |
+| `queryResource(id)`           | Fetch document/comment/contact | `useResource()` hook  |
+| `queryDirectory(id, mode)`    | List child documents           | `useDirectory()` hook |
+| `queryAccount(uid)`           | Fetch account metadata         | `useAccount()` hook   |
+| `queryInteractionSummary(id)` | Comment/citation counts        | Interaction badges    |
+| `queryComments(id)`           | Comments on a document         | Comment sections      |
+| `queryCitations(id)`          | Citations to a document        | Citation panels       |
 
 ## Deduplication
 
-React Query automatically deduplicates queries by `queryKey`. If the same query is prefetched twice (e.g., an embed references the home document), only one fetch occurs.
+React Query automatically deduplicates queries by `queryKey`. If the same query
+is prefetched twice (e.g., an embed references the home document), only one
+fetch occurs.
 
 ```typescript
 // These result in ONE fetch, not two:
 await prefetchQuery(queryResource(client, homeId))
-await prefetchQuery(queryResource(client, homeId))  // returns cached
+await prefetchQuery(queryResource(client, homeId)) // returns cached
 ```
 
 ## Wave Strategy
@@ -97,6 +105,7 @@ await prefetchQuery(queryResource(client, homeId))  // returns cached
 Prefetches are grouped into waves based on data dependencies:
 
 **Wave 1** - No dependencies, fetch in parallel:
+
 - Main document resource
 - Home document resource
 - Home directory (for navigation)
@@ -104,24 +113,26 @@ Prefetches are grouped into waves based on data dependencies:
 - Interaction summary
 
 **Wave 2** - Depends on document content, fetch in parallel:
+
 - Authors (from `document.authors`)
 - Embedded documents (from `extractRefs(document.content)`)
 - Query block directories (from `extractQueryBlocks(document.content)`)
 
 ## What Components Render From
 
-| Component | Data Source | Query |
-|-----------|-------------|-------|
-| Navigation menu | Home directory listing | `queryDirectory(homeId, 'Children')` |
-| Breadcrumbs | Directory + document metadata | Built from `queryDirectory` cache |
-| Document content | Main document | `queryResource(docId)` |
-| Query blocks | Directory listing for query target | `queryDirectory(queryTargetId)` |
-| Embed blocks | Referenced document | `queryResource(embedId)` |
-| Author badges | Account metadata | `queryAccount(authorUid)` |
+| Component        | Data Source                        | Query                                |
+| ---------------- | ---------------------------------- | ------------------------------------ |
+| Navigation menu  | Home directory listing             | `queryDirectory(homeId, 'Children')` |
+| Breadcrumbs      | Directory + document metadata      | Built from `queryDirectory` cache    |
+| Document content | Main document                      | `queryResource(docId)`               |
+| Query blocks     | Directory listing for query target | `queryDirectory(queryTargetId)`      |
+| Embed blocks     | Referenced document                | `queryResource(embedId)`             |
+| Author badges    | Account metadata                   | `queryAccount(authorUid)`            |
 
 ## Query Block Rendering
 
-Query blocks (lists of child documents) render from directory metadata, not full documents:
+Query blocks (lists of child documents) render from directory metadata, not full
+documents:
 
 ```typescript
 // BlockContentQuery in blocks-content.tsx
@@ -134,7 +145,9 @@ const directoryItems = useDirectory(queryIncludeId, {mode})
 // Renders cards from metadata - no need to fetch full documents
 ```
 
-For query blocks, we prefetch the directory listing. The client renders cards from `HMDocumentInfo` metadata. Full document content is only fetched if a user clicks through.
+For query blocks, we prefetch the directory listing. The client renders cards
+from `HMDocumentInfo` metadata. Full document content is only fetched if a user
+clicks through.
 
 ## Embedded Document Rendering
 
@@ -145,34 +158,34 @@ Embeds that show document content need the full document:
 const refs = extractRefs(document.content)
 
 // Prefetch each referenced document
-refs.forEach(ref =>
-  prefetchQuery(queryResource(client, ref.refId))
-)
+refs.forEach((ref) => prefetchQuery(queryResource(client, ref.refId)))
 ```
 
 ## Error Handling
 
-- Use `Promise.allSettled()` for prefetches - one failure shouldn't break the page
+- Use `Promise.allSettled()` for prefetches - one failure shouldn't break the
+  page
 - Missing data is handled gracefully - client will fetch on demand
 - Log errors for debugging but don't throw
 
 ## Performance Characteristics
 
-| Scenario | gRPC Calls | Latency |
-|----------|------------|---------|
-| Simple document (no embeds/queries) | ~5 | <50ms |
-| Document with 3 query blocks | ~8 | <80ms |
-| Document with 10 embeds | ~15 | <100ms |
-| Complex page (embeds + queries) | ~20 | <150ms |
+| Scenario                            | gRPC Calls | Latency |
+| ----------------------------------- | ---------- | ------- |
+| Simple document (no embeds/queries) | ~5         | <50ms   |
+| Document with 3 query blocks        | ~8         | <80ms   |
+| Document with 10 embeds             | ~15        | <100ms  |
+| Complex page (embeds + queries)     | ~20        | <150ms  |
 
-All calls are local (same machine), so latency is dominated by database queries, not network.
+All calls are local (same machine), so latency is dominated by database queries,
+not network.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `frontend/apps/web/app/loaders.ts` | SSR data loading |
-| `frontend/apps/web/app/queries.server.ts` | QueryClient creation |
-| `frontend/packages/shared/src/models/queries.ts` | Query definitions |
-| `frontend/packages/shared/src/models/entity.ts` | React Query hooks |
-| `frontend/packages/ui/src/blocks-content.tsx` | Content rendering |
+| File                                             | Purpose              |
+| ------------------------------------------------ | -------------------- |
+| `frontend/apps/web/app/loaders.ts`               | SSR data loading     |
+| `frontend/apps/web/app/queries.server.ts`        | QueryClient creation |
+| `frontend/packages/shared/src/models/queries.ts` | Query definitions    |
+| `frontend/packages/shared/src/models/entity.ts`  | React Query hooks    |
+| `frontend/packages/ui/src/blocks-content.tsx`    | Content rendering    |

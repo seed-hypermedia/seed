@@ -4,15 +4,20 @@
 
 `loaders.ts` has ~1100 lines with a confused architecture:
 
-1. **Manual fetching phase** (lines 267-425): Direct gRPC calls via `getDocument()`, `getMetadata()`, `getDirectory()`, accumulating data into arrays
-2. **React Query prefetch phase** (lines 426-510): Prefetches the SAME data again via `queryResource()`, `queryDirectory()`, `queryAccount()`
-3. **Query block explosion** (lines 347-400): For each query block, fetches ALL result documents individually (100+ calls)
+1. **Manual fetching phase** (lines 267-425): Direct gRPC calls via
+   `getDocument()`, `getMetadata()`, `getDirectory()`, accumulating data into
+   arrays
+2. **React Query prefetch phase** (lines 426-510): Prefetches the SAME data
+   again via `queryResource()`, `queryDirectory()`, `queryAccount()`
+3. **Query block explosion** (lines 347-400): For each query block, fetches ALL
+   result documents individually (100+ calls)
 
 Result: 200+ gRPC calls for a single page, 1173ms load time.
 
 ## Target State
 
-Single-phase architecture using React Query prefetching only. ~80 lines for `loadResourcePayload()`.
+Single-phase architecture using React Query prefetching only. ~80 lines for
+`loadResourcePayload()`.
 
 ## Step-by-Step Implementation
 
@@ -35,9 +40,15 @@ async function prefetchResourceData(
   await Promise.allSettled([
     prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId)),
     prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
-    prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, homeId, 'Children')),
-    prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, docId, 'Children')),
-    prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, docId)),
+    prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, homeId, 'Children'),
+    ),
+    prefetchCtx.queryClient.prefetchQuery(
+      queryDirectory(client, docId, 'Children'),
+    ),
+    prefetchCtx.queryClient.prefetchQuery(
+      queryInteractionSummary(client, docId),
+    ),
   ])
 
   // Wave 2: Content dependencies (parallel)
@@ -46,23 +57,23 @@ async function prefetchResourceData(
 
   await Promise.allSettled([
     // Query block directories
-    ...queryBlocks.map(block => {
+    ...queryBlocks.map((block) => {
       const include = block.attributes.query.includes[0]
       if (!include) return Promise.resolve()
       const targetId = hmId(include.space, {
         path: entityQueryPathToHmIdPath(include.path),
       })
       return prefetchCtx.queryClient.prefetchQuery(
-        queryDirectory(client, targetId, include.mode)
+        queryDirectory(client, targetId, include.mode),
       )
     }),
     // Embedded document content
-    ...refs.map(ref =>
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, ref.refId))
+    ...refs.map((ref) =>
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, ref.refId)),
     ),
     // Author accounts
-    ...document.authors.map(uid =>
-      prefetchCtx.queryClient.prefetchQuery(queryAccount(client, uid))
+    ...document.authors.map((uid) =>
+      prefetchCtx.queryClient.prefetchQuery(queryAccount(client, uid)),
     ),
   ])
 }
@@ -79,7 +90,7 @@ function getHomeDocumentFromCache(
 ): HMDocument | null {
   const client = serverUniversalClient
   const resource = prefetchCtx.queryClient.getQueryData(
-    queryResource(client, homeId).queryKey
+    queryResource(client, homeId).queryKey,
   ) as HMResource | null
   return resource?.type === 'document' ? resource.document : null
 }
@@ -94,13 +105,13 @@ function buildBreadcrumbsFromCache(
 
   // Get all descendants to find parent metadata
   const allDocs = prefetchCtx.queryClient.getQueryData(
-    queryDirectory(client, homeId, 'Children').queryKey
+    queryDirectory(client, homeId, 'Children').queryKey,
   ) as HMDocumentInfo[] | null
 
   const crumbPaths = getParentPaths(docId.path).slice(0, -1)
-  const breadcrumbs = crumbPaths.map(crumbPath => {
+  const breadcrumbs = crumbPaths.map((crumbPath) => {
     const id = hmId(docId.uid, {path: crumbPath})
-    const dirEntry = allDocs?.find(d => d.id.id === id.id)
+    const dirEntry = allDocs?.find((d) => d.id.id === id.id)
     return {
       id,
       metadata: dirEntry?.metadata || {},
@@ -118,12 +129,12 @@ function buildAccountsMetadataFromCache(
 ): HMAccountsMetadata {
   const client = serverUniversalClient
   return Object.fromEntries(
-    authorUids.map(uid => {
+    authorUids.map((uid) => {
       const account = prefetchCtx.queryClient.getQueryData(
-        queryAccount(client, uid).queryKey
+        queryAccount(client, uid).queryKey,
       ) as HMMetadataPayload | null
       return [uid, account || {id: hmId(uid), metadata: {}}]
-    })
+    }),
   )
 }
 ```
@@ -153,7 +164,10 @@ async function loadResourcePayload(
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
   const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document)
-  const accountsMetadata = buildAccountsMetadataFromCache(prefetchCtx, document.authors)
+  const accountsMetadata = buildAccountsMetadataFromCache(
+    prefetchCtx,
+    document.authors,
+  )
 
   return {
     document,
@@ -186,21 +200,25 @@ After verifying the new implementation works, remove:
 
 1. **Lines 71-90**: `getMetadata()` function (replaced by `queryAccount`)
 2. **Lines 210-211**: `getDirectory` and `getQueryResults` declarations
-3. **Lines 267-425**: The entire manual fetching section in old `loadResourcePayload`
-4. **Lines 631-866**: `loadEditorNodes`, `loadDocumentBlock`, `loadDocumentBlockNode`, `loadDocumentContent`, `loadAuthors` functions (unused after refactor)
+3. **Lines 267-425**: The entire manual fetching section in old
+   `loadResourcePayload`
+4. **Lines 631-866**: `loadEditorNodes`, `loadDocumentBlock`,
+   `loadDocumentBlockNode`, `loadDocumentContent`, `loadAuthors` functions
+   (unused after refactor)
 
 ### Step 6: Update instrumentation
 
-The new implementation should still support instrumentation. Wrap prefetch calls:
+The new implementation should still support instrumentation. Wrap prefetch
+calls:
 
 ```typescript
 await instrument(ctx, 'prefetchWave1', () =>
   Promise.allSettled([
     instrument(ctx, `prefetchResource(${packHmId(docId)})`, () =>
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId))
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId)),
     ),
     // ... etc
-  ])
+  ]),
 )
 ```
 
@@ -251,8 +269,9 @@ The new function is additive. If issues arise:
 
 ## Files Changed
 
-| File | Changes |
-|------|---------|
+| File                               | Changes        |
+| ---------------------------------- | -------------- |
 | `frontend/apps/web/app/loaders.ts` | Major refactor |
 
-No other files need changes - the query definitions and client hooks are already correct.
+No other files need changes - the query definitions and client hooks are already
+correct.
