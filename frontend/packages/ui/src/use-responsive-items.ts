@@ -22,14 +22,15 @@ export function useResponsiveItems<T extends {key: string}>({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const [visibleItems, setVisibleItems] = useState<T[]>([])
+  // null = not measured yet, show all items (SSR)
+  const [measuredVisible, setMeasuredVisible] = useState<T[] | null>(null)
   const [overflowItems, setOverflowItems] = useState<T[]>([])
   const updateTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Calculate which items fit in the available space
   const updateVisibility = useCallback(() => {
     if (!containerRef.current || !items?.length) {
-      setVisibleItems([])
+      setMeasuredVisible([])
       setOverflowItems([])
       return
     }
@@ -99,7 +100,7 @@ export function useResponsiveItems<T extends {key: string}>({
       }
     }
 
-    setVisibleItems(visible)
+    setMeasuredVisible(visible)
     setOverflowItems(overflow)
   }, [items, activeKey, getItemWidth, reservedWidth, gapWidth])
 
@@ -159,7 +160,8 @@ export function useResponsiveItems<T extends {key: string}>({
   return {
     containerRef,
     itemRefs,
-    visibleItems,
+    // Before measurement, show all items (SSR-friendly)
+    visibleItems: measuredVisible ?? items,
     overflowItems,
   }
 }

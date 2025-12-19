@@ -437,7 +437,8 @@ export function SiteHeaderMenu({
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
+  // null = not measured yet (SSR), show text by default
+  const [containerWidth, setContainerWidth] = useState<number | null>(null)
 
   // Calculate reserved width for the dropdown button, edit pane, and feed button
   const editNavPaneWidth =
@@ -494,8 +495,8 @@ export function SiteHeaderMenu({
     }
   }, [containerRef])
 
-  // Show text only when container is larger than 500px
-  const showFeedText = containerWidth > 500
+  // Show text by default (SSR) or when container is larger than 500px
+  const showFeedText = containerWidth === null || containerWidth > 500
 
   return (
     <div
