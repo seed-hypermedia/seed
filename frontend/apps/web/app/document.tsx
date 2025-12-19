@@ -751,7 +751,7 @@ function InnerDocumentPage(
                         ) : null}
                       </div>
                       <MyAccountBubble />
-                      <div className="mb-6 flex-none shrink-0 grow-0 md:mb-0">
+                      <div className="mb-[80px] flex-none shrink-0 grow-0 md:mb-0">
                         <PageFooter id={id} />
                       </div>
                     </div>
