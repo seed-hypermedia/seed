@@ -69,61 +69,61 @@ jobs:
         run: cd tests && yarn test
 
   # Job 3: E2E tests (desktop and editor in parallel)
-  # e2e-tests:
-  #   name: E2E Tests - ${{ matrix.suite }}
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       suite: [desktop, editor]
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+  e2e-tests:
+    name: E2E Tests - ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [desktop, editor]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Install Node.js 22
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: 22
-  #         cache: "yarn"
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "yarn"
 
-  #     - name: Install dependencies
-  #       run: yarn install
+      - name: Install dependencies
+        run: yarn install
 
-  #     - name: Install Playwright browsers
-  #       run: |
-  #         if [ "${{ matrix.suite }}" == "desktop" ]; then
-  #           echo 'SKIP DESKTOP E2E FOR NOW.'
-  #           # yarn workspace @shm/desktop playwright install chromium --with-deps
-  #         else
-  #           yarn workspace @shm/editor playwright install chromium --with-deps
-  #         fi
+      - name: Install Playwright browsers
+        run: |
+          if [ "${{ matrix.suite }}" == "desktop" ]; then
+            echo 'SKIP DESKTOP E2E FOR NOW.'
+            # yarn workspace @shm/desktop playwright install chromium --with-deps
+          else
+            yarn workspace @shm/editor playwright install chromium --with-deps
+          fi
 
-  #     - name: Run E2E tests
-  #       run: |
-  #         if [ "${{ matrix.suite }}" == "desktop" ]; then
-  #           echo 'SKIP DESKTOP E2E FOR NOW.'
-  #           # yarn desktop:test
-  #         else
-  #           xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
-  #         fi
+      - name: Run E2E tests
+        run: |
+          if [ "${{ matrix.suite }}" == "desktop" ]; then
+            echo 'SKIP DESKTOP E2E FOR NOW.'
+            # yarn desktop:test
+          else
+            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
+          fi
 
-  #     - name: Upload test results
-  #       if: failure()
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: e2e-${{ matrix.suite }}-results
-  #         path: |
-  #           frontend/apps/${{ matrix.suite }}/test-results/
-  #           frontend/apps/${{ matrix.suite }}/playwright-report/
-  #           frontend/packages/${{ matrix.suite }}/test-results/
-  #           frontend/packages/${{ matrix.suite }}/playwright-report/
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.suite }}-results
+          path: |
+            frontend/apps/${{ matrix.suite }}/test-results/
+            frontend/apps/${{ matrix.suite }}/playwright-report/
+            frontend/packages/${{ matrix.suite }}/test-results/
+            frontend/packages/${{ matrix.suite }}/playwright-report/
 
   # Final check: all tests must pass
   all-tests-passed:
     name: All Tests Passed
     runs-on: ubuntu-latest
-    # needs: [unit-tests, integration-tests, e2e-tests]
-    needs: [unit-tests, integration-tests]
+    needs: [unit-tests, integration-tests, e2e-tests]
+    # needs: [unit-tests, integration-tests]
     if: always()
     steps:
       - name: Check test results

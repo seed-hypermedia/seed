@@ -83,7 +83,7 @@ test.describe('Selection Behavior', () => {
       await editorHelpers.typeText('Second block')
 
       await editorHelpers.selectAll()
-      await page.waitForTimeout(100)
+      await page.waitForTimeout(200)
 
       const selectedText = await editorHelpers.getSelectedText()
       expect(selectedText).toContain('First block')
