@@ -91,22 +91,25 @@ jobs:
         run: yarn install
 
       - name: Install Playwright browsers
-        run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # yarn workspace @shm/desktop playwright install chromium --with-deps
-          else
-            yarn workspace @shm/editor playwright install chromium --with-deps
-          fi
+        run: yarn workspace @shm/editor playwright install chromium --with-deps
+          # | 
+          # if [ "${{ matrix.suite }}" == "desktop" ]; then
+          #   echo 'SKIP DESKTOP E2E FOR NOW.'
+          #   # yarn workspace @shm/desktop playwright install chromium --with-deps
+          # else
+          #   yarn workspace @shm/editor playwright install chromium --with-deps
+          # fi
 
       - name: Run E2E tests
-        run: |
-          if [ "${{ matrix.suite }}" == "desktop" ]; then
-            echo 'SKIP DESKTOP E2E FOR NOW.'
-            # yarn desktop:test
-          else
-            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
-          fi
+        run:
+          xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
+          # |
+          # if [ "${{ matrix.suite }}" == "desktop" ]; then
+          #   echo 'SKIP DESKTOP E2E FOR NOW.'
+          #   # yarn desktop:test
+          # else
+          #   xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
+          # fi
 
       - name: Upload test results
         if: failure()
