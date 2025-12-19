@@ -1050,6 +1050,7 @@ export function usePushResource() {
         try {
           const pushProgress = grpcClient.resources.pushResourcesToPeer({
             addrs,
+            recursive: true,
             resources: [pushResourceUrl],
           })
           for await (const progress of pushProgress) {
