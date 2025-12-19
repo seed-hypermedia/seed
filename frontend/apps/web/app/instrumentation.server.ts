@@ -139,9 +139,7 @@ export function printInstrumentationSummary(ctx: InstrumentationContext): void {
   const totalMs = ctx.root.end - ctx.root.start
 
   console.log('')
-  console.log(
-    `[INSTRUMENTATION] ${ctx.requestMethod} ${ctx.requestPath}`,
-  )
+  console.log(`[INSTRUMENTATION] ${ctx.requestMethod} ${ctx.requestPath}`)
   console.log('═══════════════════════════════════════════════════════════')
   console.log(`Total: ${totalMs.toFixed(1)}ms`)
   console.log('')
@@ -235,7 +233,9 @@ export function runWithInstrumentation<T>(
  * Get the current instrumentation context from AsyncLocalStorage.
  * Returns undefined if not in an instrumented context.
  */
-export function getInstrumentationContext(): InstrumentationContext | undefined {
+export function getInstrumentationContext():
+  | InstrumentationContext
+  | undefined {
   return instrumentationStorage.getStore()
 }
 
