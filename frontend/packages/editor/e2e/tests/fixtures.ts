@@ -145,7 +145,7 @@ export const test = base.extend<{
 
       async selectAll() {
         await this.focusEditor()
-        await page.keyboard.press('Meta+A')
+        await page.keyboard.press('ControlOrMeta+A')
       },
 
       async openSlashMenu() {
