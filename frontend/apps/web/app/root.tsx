@@ -11,6 +11,7 @@ import {
 } from '@remix-run/react'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
+  DAEMON_HTTP_URL,
   ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
   NOTIFY_SERVICE_HOST,
@@ -27,12 +28,36 @@ import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
 
 export const links: LinksFunction = () => {
-  return [
+  const links: ReturnType<LinksFunction> = []
+
+  // Resource hints for performance - preconnect to critical origins
+  const apiOrigin = SEED_ASSET_HOST || DAEMON_HTTP_URL
+  if (apiOrigin) {
+    links.push({
+      rel: 'preconnect',
+      href: apiOrigin,
+      crossOrigin: 'anonymous' as const,
+    })
+  }
+
+  // DNS prefetch for external services
+  if (LIGHTNING_API_URL) {
+    links.push({rel: 'dns-prefetch', href: LIGHTNING_API_URL})
+  }
+
+  if (NOTIFY_SERVICE_HOST) {
+    links.push({rel: 'dns-prefetch', href: NOTIFY_SERVICE_HOST})
+  }
+
+  // Stylesheets
+  links.push(
     {rel: 'stylesheet', href: globalStyles},
     {rel: 'stylesheet', href: localTailwindStyles},
     {rel: 'stylesheet', href: sonnerStyles},
     {rel: 'stylesheet', href: slashMenuStyles},
-  ]
+  )
+
+  return links
 }
 
 // enable statistics when SEED_ENABLE_STATISTICS is "true" or "1" at build-time

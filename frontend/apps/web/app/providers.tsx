@@ -39,7 +39,9 @@ function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: Infinity,
+        // 60 seconds - balances cache performance with data freshness
+        // Allows background refetch after 1 minute while keeping SSR benefits
+        staleTime: 60000,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,

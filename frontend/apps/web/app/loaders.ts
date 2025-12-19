@@ -377,7 +377,7 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const client = serverUniversalClient
 
-  // Prefetch critical data in parallel with error handling to prevent SSR crashes
+  // Prefetch CRITICAL data - must succeed for shell render
   await instrument(ctx || noopCtx, 'prefetchCriticalData', async () => {
     try {
       await Promise.all([
@@ -388,9 +388,6 @@ async function loadResourcePayload(
         prefetchCtx.queryClient.prefetchQuery(
           queryDirectory(client, docId, 'Children'),
         ),
-        prefetchCtx.queryClient.prefetchQuery(
-          queryInteractionSummary(client, docId),
-        ),
       ])
     } catch (e) {
       console.error('Error prefetching critical data for SSR', e)
@@ -398,24 +395,25 @@ async function loadResourcePayload(
     }
   })
 
-  // Prefetch all embedded documents (use allSettled for graceful degradation)
-  await instrument(ctx || noopCtx, 'prefetchEmbeddedDocs', () =>
-    Promise.allSettled(
-      embeddedDocs.map((doc) =>
+  // Prefetch NON-CRITICAL data - use allSettled for graceful degradation
+  // Client will fetch missing data if these fail
+  await instrument(ctx || noopCtx, 'prefetchNonCriticalData', () =>
+    Promise.allSettled([
+      // Interaction summary - comment counts, likes (non-blocking)
+      prefetchCtx.queryClient.prefetchQuery(
+        queryInteractionSummary(client, docId),
+      ),
+      // Embedded documents - will load on client if missing
+      ...embeddedDocs.map((doc) =>
         prefetchCtx.queryClient.prefetchQuery(queryResource(client, doc.id)),
       ),
-    ),
-  )
-
-  // Prefetch account metadata (use allSettled for graceful degradation)
-  await instrument(ctx || noopCtx, 'prefetchAccounts', () =>
-    Promise.allSettled(
-      authors.map((author) =>
+      // Account metadata - will load on client if missing
+      ...authors.map((author) =>
         prefetchCtx.queryClient.prefetchQuery(
           queryAccount(client, author.id.uid),
         ),
       ),
-    ),
+    ]),
   )
 
   const dehydratedState = dehydratePrefetchContext(prefetchCtx)
