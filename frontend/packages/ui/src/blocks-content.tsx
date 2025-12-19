@@ -832,7 +832,6 @@ export function BlockNodeContent({
         }}
         {...debugStyles(debug, 'red')}
         className={cn(
-          'relative',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
           // @ts-expect-error
           headingStyles.className,
@@ -840,154 +839,159 @@ export function BlockNodeContent({
         onMouseEnter={embedDepth ? undefined : () => setHover(true)}
         onMouseLeave={embedDepth ? undefined : () => setHover(false)}
       >
-        {!hideCollapseButtons && bnChildren ? (
-          <Tooltip
-            delay={1000}
-            content={
-              _expanded
-                ? tx(
-                    'collapse_block',
-                    'You can collapse this block and hide its children',
-                  )
-                : tx(
-                    'block_is_collapsed',
-                    'This block is collapsed. you can expand it and see its children',
-                  )
-            }
-          >
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn(
-                'bg-background hover:bg-background border-border absolute left-[-24px] z-20 size-6 border p-0 opacity-0 select-none hover:opacity-100 dark:hover:bg-black',
-                childrenType && ['Unordered', 'Ordered'].includes(childrenType)
-                  ? 'top-2'
-                  : 'top-4',
-                hover ? 'opacity-100' : _expanded ? 'opacity-0' : 'opacity-100',
-              )}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleBlockNodeToggle()
-              }}
+        <div className="relative">
+          {!hideCollapseButtons && bnChildren ? (
+            <Tooltip
+              delay={1000}
+              content={
+                _expanded
+                  ? tx(
+                      'collapse_block',
+                      'You can collapse this block and hide its children',
+                    )
+                  : tx(
+                      'block_is_collapsed',
+                      'This block is collapsed. you can expand it and see its children',
+                    )
+              }
             >
-              {_expanded ? (
-                <ChevronDown size={12} className="size-3" />
-              ) : (
-                <ChevronRight size={12} className="size-3" />
-              )}
-            </Button>
-          </Tooltip>
-        ) : null}
-        <div {...highlighter({...resourceId, blockRef: blockNode.block?.id})}>
-          {media.gtSm ? (
-            <HoverCard
-              openDelay={500}
-              closeDelay={500}
-              open={isHighlight || undefined}
-            >
-              <HoverCardTrigger>
+              <Button
+                size="iconSm"
+                variant="ghost"
+                data-block-type={blockNode.block?.type}
+                data-depth={depth}
+                className={cn(
+                  'bg-background hover:bg-background border-border absolute left-[-32px] z-20 size-5 border p-0 opacity-0 select-none hover:opacity-100 dark:hover:bg-black',
+                  hover
+                    ? 'opacity-100'
+                    : _expanded
+                    ? 'opacity-0'
+                    : 'opacity-100',
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleBlockNodeToggle()
+                }}
+              >
+                {_expanded ? (
+                  <ChevronDown size={12} className="size-3" />
+                ) : (
+                  <ChevronRight size={12} className="size-3" />
+                )}
+              </Button>
+            </Tooltip>
+          ) : null}
+          <div {...highlighter({...resourceId, blockRef: blockNode.block?.id})}>
+            {media.gtSm ? (
+              <HoverCard
+                openDelay={500}
+                closeDelay={500}
+                open={isHighlight || undefined}
+              >
+                <HoverCardTrigger>
+                  <BlockContent
+                    block={blockWithHighlights}
+                    depth={depth}
+                    parentBlockId={parentBlockId}
+                    // {...interactiveProps}
+                  />
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="top"
+                  align="end"
+                  className="z-10 w-auto p-0"
+                >
+                  {hoverCardContent}
+                </HoverCardContent>
+              </HoverCard>
+            ) : (
+              <>
+                {isHighlight ? (
+                  <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
+                    {hoverCardContent}
+                  </div>
+                ) : undefined}
                 <BlockContent
                   block={blockWithHighlights}
                   depth={depth}
                   parentBlockId={parentBlockId}
                   // {...interactiveProps}
                 />
-              </HoverCardTrigger>
-              <HoverCardContent
-                side="top"
-                align="end"
-                className="z-10 w-auto p-0"
-              >
-                {hoverCardContent}
-              </HoverCardContent>
-            </HoverCard>
-          ) : (
-            <>
-              {isHighlight ? (
-                <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
-                  {hoverCardContent}
-                </div>
-              ) : undefined}
-              <BlockContent
-                block={blockWithHighlights}
-                depth={depth}
-                parentBlockId={parentBlockId}
-                // {...interactiveProps}
-              />
-            </>
-          )}
-        </div>
-        {embedDepth
-          ? null
-          : blockCitationCount > 0 && (
-              <div
-                className={cn(
-                  'absolute top-0 right-[-18px] flex flex-col gap-2 pl-4',
-                  hover && 'z-30',
-                )}
-                style={{
-                  borderRadius: layoutUnit / 4,
-                }}
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
-              >
-                {media.gtSm ? (
-                  <HoverCard openDelay={0}>
-                    <HoverCardTrigger>
-                      <Badge
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          if (blockNode.block?.id) {
-                            onBlockCommentClick?.(
-                              blockNode.block.id,
-                              undefined,
-                              citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                            )
-                          } else {
-                            console.error(
-                              'onBlockCommentClick Error: no blockId available',
-                            )
-                          }
-                        }}
-                        variant="outline"
-                      >
-                        {blockCitationCount}
-                      </Badge>
-                    </HoverCardTrigger>
-                    <HoverCardContent
-                      side="top"
-                      align="end"
-                      className="z-10 w-auto p-0"
-                    >
-                      {hoverCardContent}
-                    </HoverCardContent>
-                  </HoverCard>
-                ) : (
-                  <Badge
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      e.preventDefault()
-                      if (blockNode.block?.id) {
-                        onBlockCommentClick?.(
-                          blockNode.block.id,
-                          undefined,
-                          citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
-                        )
-                      } else {
-                        console.error(
-                          'onBlockCommentClick Error: no blockId available',
-                        )
-                      }
-                    }}
-                    variant="outline"
-                    className="cursor-pointer"
-                  >
-                    {blockCitationCount}
-                  </Badge>
-                )}
-              </div>
+              </>
             )}
+          </div>
+          {embedDepth
+            ? null
+            : blockCitationCount > 0 && (
+                <div
+                  className={cn(
+                    'absolute top-0 right-[-18px] flex flex-col gap-2 pl-4',
+                    hover && 'z-30',
+                  )}
+                  style={{
+                    borderRadius: layoutUnit / 4,
+                  }}
+                  onMouseEnter={() => setHover(true)}
+                  onMouseLeave={() => setHover(false)}
+                >
+                  {media.gtSm ? (
+                    <HoverCard openDelay={0}>
+                      <HoverCardTrigger>
+                        <Badge
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            if (blockNode.block?.id) {
+                              onBlockCommentClick?.(
+                                blockNode.block.id,
+                                undefined,
+                                citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                              )
+                            } else {
+                              console.error(
+                                'onBlockCommentClick Error: no blockId available',
+                              )
+                            }
+                          }}
+                          variant="outline"
+                        >
+                          {blockCitationCount}
+                        </Badge>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="top"
+                        align="end"
+                        className="z-10 w-auto p-0"
+                      >
+                        {hoverCardContent}
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <Badge
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (blockNode.block?.id) {
+                          onBlockCommentClick?.(
+                            blockNode.block.id,
+                            undefined,
+                            citationsCount?.comments ? false : true, // start commenting now if no comments, otherwise just open
+                          )
+                        } else {
+                          console.error(
+                            'onBlockCommentClick Error: no blockId available',
+                          )
+                        }
+                      }}
+                      variant="outline"
+                      className="cursor-pointer"
+                    >
+                      {blockCitationCount}
+                    </Badge>
+                  )}
+                </div>
+              )}
+        </div>
       </div>
       {bnChildren && _expanded ? (
         <BlockNodeList
