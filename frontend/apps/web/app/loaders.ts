@@ -29,6 +29,10 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
+import {
+  instrument,
+  InstrumentationContext,
+} from './instrumentation.server'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
@@ -251,59 +255,76 @@ async function loadResourcePayload(
     latestDocument?: HMDocument | null
     comment?: HMComment
   },
+  ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
   const {document, latestDocument, comment} = payload
-  let authors = await Promise.all(
-    document.authors.map(async (authorUid) => {
-      return await getMetadata(hmId(authorUid))
-    }),
-  )
-  const refs = extractRefs(document.content)
-  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] = (
-    await Promise.all(
-      // @ts-expect-error
-      refs.map(async (ref) => {
-        try {
-          const doc = await resolveHMDocument({
-            ...ref.refId,
-            // removing version from home document to get the latest site navigation all the time
-            version:
-              ref.refId.path && ref.refId.path.length > 0
-                ? ref.refId.version
-                : null,
-          })
-          if (!doc) return null
-          return {document: doc, id: ref.refId}
-        } catch (e) {
-          console.error('error fetching embeddedDoc', ref, e)
-        }
+  const noopCtx = {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}} as InstrumentationContext
+
+  let authors = await instrument(ctx || noopCtx, 'getAuthors', () =>
+    Promise.all(
+      document.authors.map(async (authorUid) => {
+        return await getMetadata(hmId(authorUid))
       }),
-    )
-  ).filter((doc) => !!doc)
+    ),
+  )
+
+  const refs = extractRefs(document.content)
+  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] = await instrument(
+    ctx || noopCtx,
+    'getEmbeddedDocs',
+    async () =>
+      (
+        await Promise.all(
+          // @ts-expect-error
+          refs.map(async (ref) => {
+            try {
+              const doc = await resolveHMDocument({
+                ...ref.refId,
+                // removing version from home document to get the latest site navigation all the time
+                version:
+                  ref.refId.path && ref.refId.path.length > 0
+                    ? ref.refId.version
+                    : null,
+              })
+              if (!doc) return null
+              return {document: doc, id: ref.refId}
+            } catch (e) {
+              console.error('error fetching embeddedDoc', ref, e)
+            }
+          }),
+        )
+      ).filter((doc) => !!doc),
+  )
 
   const homeId = hmId(docId.uid, {latest: true, version: undefined})
 
   // Parallelize independent fetches for better performance
-  const [homeDocument, homeDirectoryResults, directoryResults] =
-    await Promise.all([
-      getDocument(homeId),
-      getDirectory(homeId, 'Children'),
-      getDirectory(docId),
-    ])
+  const [homeDocument, homeDirectoryResults, directoryResults] = await instrument(
+    ctx || noopCtx,
+    'getHomeAndDirectories',
+    () =>
+      Promise.all([
+        getDocument(homeId),
+        getDirectory(homeId, 'Children'),
+        getDirectory(docId),
+      ]),
+  )
 
   embeddedDocs.push({
     id: homeId,
     document: homeDocument,
   })
   const crumbs = getParentPaths(docId.path).slice(0, -1)
-  const breadcrumbs = await Promise.all(
-    crumbs.map(async (crumbPath) => {
-      const id = hmId(docId.uid, {path: crumbPath})
-      const metadataPayload = await getMetadata(id)
-      return {
-        ...metadataPayload,
-      }
-    }),
+  const breadcrumbs = await instrument(ctx || noopCtx, 'getBreadcrumbs', () =>
+    Promise.all(
+      crumbs.map(async (crumbPath) => {
+        const id = hmId(docId.uid, {path: crumbPath})
+        const metadataPayload = await getMetadata(id)
+        return {
+          ...metadataPayload,
+        }
+      }),
+    ),
   )
   breadcrumbs.push({
     id: docId,
@@ -315,36 +336,42 @@ async function loadResourcePayload(
   const client = serverUniversalClient
 
   // Prefetch critical data in parallel with error handling to prevent SSR crashes
-  try {
-    await Promise.all([
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
-      prefetchCtx.queryClient.prefetchQuery(
-        queryDirectory(client, homeId, 'Children'),
-      ),
-      prefetchCtx.queryClient.prefetchQuery(
-        queryDirectory(client, docId, 'Children'),
-      ),
-      prefetchCtx.queryClient.prefetchQuery(
-        queryInteractionSummary(client, docId),
-      ),
-    ])
-  } catch (e) {
-    console.error('Error prefetching critical data for SSR', e)
-    // Continue with degraded state - client will fetch missing data
-  }
+  await instrument(ctx || noopCtx, 'prefetchCriticalData', async () => {
+    try {
+      await Promise.all([
+        prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
+        prefetchCtx.queryClient.prefetchQuery(
+          queryDirectory(client, homeId, 'Children'),
+        ),
+        prefetchCtx.queryClient.prefetchQuery(
+          queryDirectory(client, docId, 'Children'),
+        ),
+        prefetchCtx.queryClient.prefetchQuery(
+          queryInteractionSummary(client, docId),
+        ),
+      ])
+    } catch (e) {
+      console.error('Error prefetching critical data for SSR', e)
+      // Continue with degraded state - client will fetch missing data
+    }
+  })
 
   // Prefetch all embedded documents (use allSettled for graceful degradation)
-  await Promise.allSettled(
-    embeddedDocs.map((doc) =>
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, doc.id)),
+  await instrument(ctx || noopCtx, 'prefetchEmbeddedDocs', () =>
+    Promise.allSettled(
+      embeddedDocs.map((doc) =>
+        prefetchCtx.queryClient.prefetchQuery(queryResource(client, doc.id)),
+      ),
     ),
   )
 
   // Prefetch account metadata (use allSettled for graceful degradation)
-  await Promise.allSettled(
-    authors.map((author) =>
-      prefetchCtx.queryClient.prefetchQuery(
-        queryAccount(client, author.id.uid),
+  await instrument(ctx || noopCtx, 'prefetchAccounts', () =>
+    Promise.allSettled(
+      authors.map((author) =>
+        prefetchCtx.queryClient.prefetchQuery(
+          queryAccount(client, author.id.uid),
+        ),
       ),
     ),
   )
@@ -376,47 +403,60 @@ export const resolveResource = createResourceResolver(grpcClient)
 export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
+  ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
-  const resource = await resolveResource(id)
+  const resource = await instrument(
+    ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+    'resolveResource',
+    () => resolveResource(id),
+  )
   if (resource.type === 'comment') {
     const comment = resource.comment
     const targetDocId = getCommentTargetId(comment)
     if (!targetDocId) throw new Error('targetDocId not found')
-    const document = await getDocument(targetDocId, {discover: true})
+    const document = await instrument(
+      ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+      'getDocument(comment)',
+      () => getDocument(targetDocId, {discover: true}),
+    )
     return await loadResourcePayload(targetDocId, parsedRequest, {
       document,
       comment,
-    })
+    }, ctx)
   }
   if (resource.type === 'tombstone') {
     throw new Error('Resource has been deleted')
   }
   // resource.type === 'document'
   const document = resource.document
-  const latestDocument = await getLatestDocument(id)
+  const latestDocument = await instrument(
+    ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+    'getLatestDocument',
+    () => getLatestDocument(id),
+  )
   return await loadResourcePayload(id, parsedRequest, {
     document,
     latestDocument,
-  })
+  }, ctx)
 }
 
 // High-level loader with discovery fallback - tries to discover if not found
 export async function loadResourceWithDiscovery(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
+  ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
   try {
-    return await loadResource(id, parsedRequest)
+    return await loadResource(id, parsedRequest, ctx)
   } catch (e) {
     if (e instanceof HMNotFoundError) {
-      const discovered = await discoverDocument(
-        id.uid,
-        id.path || [],
-        id.version || undefined,
-        id.latest,
+      const discovered = await instrument(
+        ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+        'discoverDocument',
+        () => discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
       )
       if (discovered) {
-        return await loadResource(id, parsedRequest)
+        return await loadResource(id, parsedRequest, ctx)
       }
     }
     throw e
@@ -677,12 +717,14 @@ export type GRPCError = {
   code: Code
 }
 
-export async function loadSiteResource<T>(
+export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
-  extraData?: T,
-): Promise<WrappedResponse<SiteDocumentPayload & T>> {
+  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
+  const ctx = extraData?.instrumentationCtx
+
   const config = await getConfig(hostname)
   if (!config) {
     throw new Error('No config found for hostname ' + hostname)
@@ -691,15 +733,21 @@ export async function loadSiteResource<T>(
   let originHomeId: undefined | UnpackedHypermediaId = undefined
   if (config.registeredAccountUid) {
     try {
-      const {id, metadata} = await getMetadata(
-        hmId(config.registeredAccountUid),
+      const result = await instrument(
+        ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+        'getHomeMetadata',
+        () => getMetadata(hmId(config.registeredAccountUid!)),
       )
-      homeMetadata = metadata
-      originHomeId = id
+      homeMetadata = result.metadata
+      originHomeId = result.id
     } catch (e) {}
   }
   try {
-    const resourceContent = await loadResourceWithDiscovery(id, parsedRequest)
+    const resourceContent = await instrument(
+      ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+      'loadResourceWithDiscovery',
+      () => loadResourceWithDiscovery(id, parsedRequest, ctx),
+    )
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
@@ -707,10 +755,12 @@ export async function loadSiteResource<T>(
       origin,
       originHomeId,
     }
+    // Remove instrumentationCtx from the response
+    const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
     const headers: Record<string, string> = {}
     headers['x-hypermedia-id'] = id.id
     headers['x-hypermedia-version'] = resourceContent.document.version
-    return wrapJSON(loadedSiteDocument, {
+    return wrapJSON(cleanDocument, {
       headers,
     })
   } catch (e) {

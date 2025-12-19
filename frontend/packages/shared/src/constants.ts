@@ -161,3 +161,6 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
 // Discovery timeouts
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found
 export const DISCOVERY_DEBOUNCE_MS = 100 // debounce rapid mounts
+
+export const ENABLE_WEB_INSTRUMENTATION =
+  process.env.SEED_INSTRUMENTATION === 'dev'

@@ -1,6 +1,12 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage} from '@/document'
 import {FeedPage} from '@/feed'
+import {
+  createInstrumentationContext,
+  instrument,
+  printInstrumentationSummary,
+  setRequestInstrumentationContext,
+} from '@/instrumentation.server'
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
@@ -154,16 +160,48 @@ export const loader = async ({
   request: Request
 }) => {
   const parsedRequest = parseRequest(request)
+  const ctx = createInstrumentationContext(
+    parsedRequest.url.pathname,
+    request.method,
+  )
 
-  if (!useFullRender(parsedRequest)) return null
+  // Check if this is a data request (client-side navigation) vs document request (full page)
+  // Remix single fetch normalizes URLs, so check sec-fetch-mode header
+  const isDataRequest = request.headers.get('Sec-Fetch-Mode') === 'cors'
+
+  // Store context for SSR phase access (will be retrieved in entry.server.tsx)
+  // Only needed for document requests that will go through SSR
+  if (!isDataRequest) {
+    setRequestInstrumentationContext(request.url, ctx)
+  }
+
+  if (!useFullRender(parsedRequest)) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return null
+  }
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
   const feed = url.searchParams.get('feed') === 'true'
-  const serviceConfig = await getConfig(hostname)
-  if (!serviceConfig) return wrapJSON('no-site', {status: 404})
+
+  const serviceConfig = await instrument(ctx, 'getConfig', () =>
+    getConfig(hostname),
+  )
+  if (!serviceConfig) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON('no-site', {status: 404})
+  }
   const {registeredAccountUid} = serviceConfig
-  if (!registeredAccountUid) return wrapJSON('unregistered', {status: 404})
+  if (!registeredAccountUid) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON('unregistered', {status: 404})
+  }
 
   let documentId
 
@@ -180,10 +218,21 @@ export const loader = async ({
     const path = params['*'] ? params['*'].split('/').filter(Boolean) : []
     documentId = hmId(registeredAccountUid, {path, version, latest})
   }
-  return await loadSiteResource(parsedRequest, documentId, {
-    prefersLanguages: parsedRequest.prefersLanguages,
-    feed,
-  })
+
+  const result = await instrument(ctx, 'loadSiteResource', () =>
+    loadSiteResource(parsedRequest, documentId, {
+      prefersLanguages: parsedRequest.prefersLanguages,
+      feed,
+      instrumentationCtx: ctx,
+    }),
+  )
+
+  // For data requests (client-side nav), print summary here since there's no SSR phase
+  if (isDataRequest && ctx.enabled) {
+    printInstrumentationSummary(ctx)
+  }
+
+  return result
 }
 
 export default function UnifiedDocumentPage() {

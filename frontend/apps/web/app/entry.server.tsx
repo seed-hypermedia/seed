@@ -20,6 +20,13 @@ import {dirname, join, resolve} from 'path'
 import {renderToPipeableStream} from 'react-dom/server'
 import {ENABLE_HTML_CACHE, useFullRender} from './cache-policy'
 import {grpcClient} from './client.server'
+import {
+  clearRequestInstrumentationContext,
+  endSpan,
+  getRequestInstrumentationContext,
+  printInstrumentationSummary,
+  startSpan,
+} from './instrumentation.server'
 import {resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
@@ -471,6 +478,13 @@ function handleBotRequest(
   remixContext: EntryContext,
   onComplete: (msg: string) => void,
 ) {
+  // Get instrumentation context from loader phase
+  const ctx = getRequestInstrumentationContext(request.url)
+  if (ctx) {
+    startSpan(ctx, 'reactSSR')
+  }
+  const renderStartTime = performance.now()
+
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
@@ -482,6 +496,13 @@ function handleBotRequest(
       {
         onAllReady() {
           shellRendered = true
+          if (ctx) {
+            // Record shell rendering time
+            startSpan(ctx, 'shellRendering')
+            ctx.current.start = renderStartTime
+            endSpan(ctx)
+          }
+
           const body = new PassThrough()
           const stream = createReadableStreamFromReadable(body)
 
@@ -494,12 +515,25 @@ function handleBotRequest(
             }),
           )
 
+          if (ctx) {
+            startSpan(ctx, 'streamToClient')
+          }
           pipe(body)
           body.on('end', () => {
+            if (ctx) {
+              endSpan(ctx) // end streamToClient
+              endSpan(ctx) // end reactSSR
+              printInstrumentationSummary(ctx)
+              clearRequestInstrumentationContext(request.url)
+            }
             onComplete('handleBotRequest full load sent')
           })
         },
         onShellError(error: unknown) {
+          if (ctx) {
+            endSpan(ctx) // end reactSSR
+            clearRequestInstrumentationContext(request.url)
+          }
           reject(error)
         },
         onError(error: unknown) {
@@ -525,6 +559,13 @@ function handleBrowserRequest(
   remixContext: EntryContext,
   onComplete: (msg: string) => void,
 ) {
+  // Get instrumentation context from loader phase
+  const ctx = getRequestInstrumentationContext(request.url)
+  if (ctx) {
+    startSpan(ctx, 'reactSSR')
+  }
+  const renderStartTime = performance.now()
+
   return new Promise((resolve, reject) => {
     let shellRendered = false
     const {pipe, abort} = renderToPipeableStream(
@@ -536,6 +577,13 @@ function handleBrowserRequest(
       {
         onShellReady() {
           shellRendered = true
+          if (ctx) {
+            // Record shell rendering time
+            startSpan(ctx, 'shellRendering')
+            ctx.current.start = renderStartTime
+            endSpan(ctx)
+          }
+
           const body = new PassThrough()
           const stream = createReadableStreamFromReadable(body)
 
@@ -547,12 +595,26 @@ function handleBrowserRequest(
               status: responseStatusCode,
             }),
           )
+
+          if (ctx) {
+            startSpan(ctx, 'streamToClient')
+          }
           body.on('end', () => {
+            if (ctx) {
+              endSpan(ctx) // end streamToClient
+              endSpan(ctx) // end reactSSR
+              printInstrumentationSummary(ctx)
+              clearRequestInstrumentationContext(request.url)
+            }
             onComplete('handleBrowserRequest full load sent')
           })
           pipe(body)
         },
         onShellError(error: unknown) {
+          if (ctx) {
+            endSpan(ctx) // end reactSSR
+            clearRequestInstrumentationContext(request.url)
+          }
           reject(error)
         },
         onError(error: unknown) {

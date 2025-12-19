@@ -42,7 +42,6 @@ export function WebSiteHeader({
       : null
 
   const navigationBlockNode = homeDocFromQuery?.detachedBlocks?.navigation
-  console.log('navigationBlockNode', navigationBlockNode)
 
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
