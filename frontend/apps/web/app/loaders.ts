@@ -29,10 +29,7 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
-import {
-  instrument,
-  InstrumentationContext,
-} from './instrumentation.server'
+import {instrument, InstrumentationContext} from './instrumentation.server'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
   HMAccountsMetadata,
@@ -258,7 +255,13 @@ async function loadResourcePayload(
   ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
   const {document, latestDocument, comment} = payload
-  const noopCtx = {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}} as InstrumentationContext
+  const noopCtx = {
+    enabled: false,
+    requestPath: '',
+    requestMethod: '',
+    root: {name: '', start: 0, children: []},
+    current: {name: '', start: 0, children: []},
+  } as InstrumentationContext
 
   let authors = await instrument(ctx || noopCtx, 'getAuthors', () =>
     Promise.all(
@@ -269,10 +272,8 @@ async function loadResourcePayload(
   )
 
   const refs = extractRefs(document.content)
-  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] = await instrument(
-    ctx || noopCtx,
-    'getEmbeddedDocs',
-    async () =>
+  let embeddedDocs: {id: UnpackedHypermediaId; document: HMDocument}[] =
+    await instrument(ctx || noopCtx, 'getEmbeddedDocs', async () =>
       (
         await Promise.all(
           // @ts-expect-error
@@ -294,21 +295,19 @@ async function loadResourcePayload(
           }),
         )
       ).filter((doc) => !!doc),
-  )
+    )
 
   const homeId = hmId(docId.uid, {latest: true, version: undefined})
 
   // Parallelize independent fetches for better performance
-  const [homeDocument, homeDirectoryResults, directoryResults] = await instrument(
-    ctx || noopCtx,
-    'getHomeAndDirectories',
-    () =>
+  const [homeDocument, homeDirectoryResults, directoryResults] =
+    await instrument(ctx || noopCtx, 'getHomeAndDirectories', () =>
       Promise.all([
         getDocument(homeId),
         getDirectory(homeId, 'Children'),
         getDirectory(docId),
       ]),
-  )
+    )
 
   embeddedDocs.push({
     id: homeId,
@@ -406,7 +405,13 @@ export async function loadResource(
   ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
   const resource = await instrument(
-    ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+    ctx || {
+      enabled: false,
+      requestPath: '',
+      requestMethod: '',
+      root: {name: '', start: 0, children: []},
+      current: {name: '', start: 0, children: []},
+    },
     'resolveResource',
     () => resolveResource(id),
   )
@@ -415,14 +420,25 @@ export async function loadResource(
     const targetDocId = getCommentTargetId(comment)
     if (!targetDocId) throw new Error('targetDocId not found')
     const document = await instrument(
-      ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+      ctx || {
+        enabled: false,
+        requestPath: '',
+        requestMethod: '',
+        root: {name: '', start: 0, children: []},
+        current: {name: '', start: 0, children: []},
+      },
       'getDocument(comment)',
       () => getDocument(targetDocId, {discover: true}),
     )
-    return await loadResourcePayload(targetDocId, parsedRequest, {
-      document,
-      comment,
-    }, ctx)
+    return await loadResourcePayload(
+      targetDocId,
+      parsedRequest,
+      {
+        document,
+        comment,
+      },
+      ctx,
+    )
   }
   if (resource.type === 'tombstone') {
     throw new Error('Resource has been deleted')
@@ -430,14 +446,25 @@ export async function loadResource(
   // resource.type === 'document'
   const document = resource.document
   const latestDocument = await instrument(
-    ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+    ctx || {
+      enabled: false,
+      requestPath: '',
+      requestMethod: '',
+      root: {name: '', start: 0, children: []},
+      current: {name: '', start: 0, children: []},
+    },
     'getLatestDocument',
     () => getLatestDocument(id),
   )
-  return await loadResourcePayload(id, parsedRequest, {
-    document,
-    latestDocument,
-  }, ctx)
+  return await loadResourcePayload(
+    id,
+    parsedRequest,
+    {
+      document,
+      latestDocument,
+    },
+    ctx,
+  )
 }
 
 // High-level loader with discovery fallback - tries to discover if not found
@@ -451,9 +478,21 @@ export async function loadResourceWithDiscovery(
   } catch (e) {
     if (e instanceof HMNotFoundError) {
       const discovered = await instrument(
-        ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+        ctx || {
+          enabled: false,
+          requestPath: '',
+          requestMethod: '',
+          root: {name: '', start: 0, children: []},
+          current: {name: '', start: 0, children: []},
+        },
         'discoverDocument',
-        () => discoverDocument(id.uid, id.path || [], id.version || undefined, id.latest),
+        () =>
+          discoverDocument(
+            id.uid,
+            id.path || [],
+            id.version || undefined,
+            id.latest,
+          ),
       )
       if (discovered) {
         return await loadResource(id, parsedRequest, ctx)
@@ -717,11 +756,15 @@ export type GRPCError = {
   code: Code
 }
 
-export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
+export async function loadSiteResource<
+  T extends Record<string, unknown> = Record<string, never>,
+>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T & {instrumentationCtx?: InstrumentationContext},
-): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+): Promise<
+  WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>
+> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
 
@@ -734,7 +777,13 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   if (config.registeredAccountUid) {
     try {
       const result = await instrument(
-        ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+        ctx || {
+          enabled: false,
+          requestPath: '',
+          requestMethod: '',
+          root: {name: '', start: 0, children: []},
+          current: {name: '', start: 0, children: []},
+        },
         'getHomeMetadata',
         () => getMetadata(hmId(config.registeredAccountUid!)),
       )
@@ -744,7 +793,13 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   }
   try {
     const resourceContent = await instrument(
-      ctx || {enabled: false, requestPath: '', requestMethod: '', root: {name: '', start: 0, children: []}, current: {name: '', start: 0, children: []}},
+      ctx || {
+        enabled: false,
+        requestPath: '',
+        requestMethod: '',
+        root: {name: '', start: 0, children: []},
+        current: {name: '', start: 0, children: []},
+      },
       'loadResourceWithDiscovery',
       () => loadResourceWithDiscovery(id, parsedRequest, ctx),
     )
