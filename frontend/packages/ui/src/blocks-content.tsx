@@ -2199,7 +2199,11 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
       : directoryItems.data
     const queryLimit = block.attributes.query.limit
     return queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
-  }, [directoryItems.data, block.attributes.query.sort, block.attributes.query.limit])
+  }, [
+    directoryItems.data,
+    block.attributes.query.sort,
+    block.attributes.query.limit,
+  ])
 
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
