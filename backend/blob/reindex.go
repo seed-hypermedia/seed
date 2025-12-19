@@ -89,7 +89,9 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		if err != nil {
 			return err
 		}
-		idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(0))
+		if idx.taskMgr != nil {
+			_, _ = idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(0))
+		}
 		const q = "SELECT * FROM blobs WHERE codec IN (?, ?) AND size > 0 ORDER BY id"
 		args := []any{
 			uint64(multicodec.DagCbor),
