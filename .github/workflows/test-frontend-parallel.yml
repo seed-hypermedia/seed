@@ -9,6 +9,13 @@ on:
         type: boolean
         default: true
 
+  pull_request:
+    paths:
+      - ".github/workflows/test-frontend-parallel.yml"
+      - "frontend/**"
+    branches-ignore:
+      - "renovate/**"
+
 jobs:
   # Job 1: All unit tests together (fast)
   unit-tests:
