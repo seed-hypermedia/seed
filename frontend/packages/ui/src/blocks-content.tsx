@@ -35,6 +35,7 @@ import {
   hmBlockToEditorBlock,
   isHypermediaScheme,
   packHmId,
+  queryBlockSortedItems,
   unpackHmId,
   useHover,
   useLowlight,
@@ -2189,19 +2190,30 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
     subscribed: true,
   })
 
+  // Apply sorting and limit
+  const sortedItems = useMemo(() => {
+    if (!directoryItems.data) return []
+    const querySort = block.attributes.query.sort
+    const sorted = querySort
+      ? queryBlockSortedItems({entries: directoryItems.data, sort: querySort})
+      : directoryItems.data
+    const queryLimit = block.attributes.query.limit
+    return queryLimit && queryLimit > 0 ? sorted.slice(0, queryLimit) : sorted
+  }, [directoryItems.data, block.attributes.query.sort, block.attributes.query.limit])
+
   // Extract author IDs for metadata loading
   const authorIds = useMemo(() => {
     const ids = new Set<string>()
-    directoryItems.data?.forEach(
+    sortedItems.forEach(
       (item) => item.authors?.forEach((authorId: string) => ids.add(authorId)),
     )
     return Array.from(ids)
-  }, [directoryItems.data])
+  }, [sortedItems])
 
   // Batch load documents and authors
   const docIds = useMemo(
-    () => directoryItems.data?.map((item) => item.id),
-    [directoryItems.data],
+    () => sortedItems.map((item) => item.id),
+    [sortedItems],
   )
 
   const documents = useResources([
@@ -2236,7 +2248,7 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
 
   return (
     <QueryBlockContent
-      items={directoryItems.data || []}
+      items={sortedItems}
       style={block.attributes.style || 'Card'}
       columnCount={block.attributes.columnCount}
       banner={block.attributes.banner || false}
