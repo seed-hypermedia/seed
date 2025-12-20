@@ -920,7 +920,8 @@ export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
   limit: z.preprocess(
-    (val) => (val === '' || val === null || val === undefined ? undefined : val),
+    (val) =>
+      val === '' || val === null || val === undefined ? undefined : val,
     z.coerce.number().optional(),
   ),
 })
