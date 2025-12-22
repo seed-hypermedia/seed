@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core"
-	taskmanager "seed/backend/daemon/task_manager"
+	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/ipfs"

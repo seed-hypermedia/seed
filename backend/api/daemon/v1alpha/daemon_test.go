@@ -5,7 +5,7 @@ import (
 	"seed/backend/blob"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
-	taskmanager "seed/backend/daemon/task_manager"
+	taskmanager "seed/backend/daemon/taskmanager"
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"testing"

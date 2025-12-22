@@ -8,7 +8,7 @@ import (
 	"iter"
 	"net/url"
 	"seed/backend/core"
-	taskmanager "seed/backend/daemon/task_manager"
+	taskmanager "seed/backend/daemon/taskmanager"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -104,13 +104,7 @@ type Index struct {
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
 func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, error) {
-	idx := &Index{
-		bs:      newBlockstore(db),
-		db:      db,
-		log:     log,
-		taskMgr: taskMgr,
-	}
-
+	idx := newIndex(db, log, taskMgr)
 	if err := idx.MaybeReindex(ctx); err != nil {
 		return nil, err
 	}
@@ -119,19 +113,25 @@ func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *
 
 // OpenIndexAsync creates the index and starts reindexing the data if necessary in a separate goroutine.
 func OpenIndexAsync(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, chan error) {
-	idx := &Index{
-		bs:      newBlockstore(db),
-		db:      db,
-		log:     log,
-		taskMgr: taskMgr,
-	}
-	initComplete := make(chan error)
+	idx := newIndex(db, log, taskMgr)
+	initComplete := make(chan error, 1)
 	go func() {
 		initComplete <- idx.MaybeReindex(ctx)
 		close(initComplete)
 	}()
 	return idx, initComplete
 }
+
+func newIndex(db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) *Index {
+	idx := &Index{
+		bs:      newBlockstore(db),
+		db:      db,
+		log:     log,
+		taskMgr: taskMgr,
+	}
+	return idx
+}
+
 func indexBlob(trackUnreads bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {

@@ -9,7 +9,7 @@ import (
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
-	taskmanager "seed/backend/daemon/task_manager"
+	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet"
