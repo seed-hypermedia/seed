@@ -868,6 +868,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		if isTitleA != isTitleB {
 			return isTitleA
 		}
+		if isTitleA && isTitleB {
+			lenA := utf8.RuneCountInString(a.Content)
+			lenB := utf8.RuneCountInString(b.Content)
+			if lenA != lenB {
+				return lenA < lenB
+			}
+		}
 
 		// 3) then by DocId (lexicographically)
 		if a.DocId != b.DocId {
