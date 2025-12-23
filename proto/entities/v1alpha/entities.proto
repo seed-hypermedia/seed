@@ -91,8 +91,8 @@ message DiscoverEntityResponse {
   // The state of the discovery task.
   DiscoveryTaskState state = 2;
 
-  // The number of times we've called the discovery process for this entity and version so far.
-  int32 call_count = 3;
+  // Deprecated field.
+  reserved 3;
 
   // The timestamp of the last result we've found.
   // It can be empty if the discovery is still in progress.

@@ -14,6 +14,7 @@ import (
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
 	entity_proto "seed/backend/genproto/entities/v1alpha"
+	"seed/backend/hmnet/syncing"
 	"seed/backend/storage"
 	"slices"
 	"sort"
@@ -33,17 +34,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type syncer interface {
-	DiscoverObject(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool) (blob.Version, error)
-}
-
 // Server implements the Activity gRPC API.
 type Server struct {
 	db        *sqlitex.Pool
 	startTime time.Time
 	clean     *cleanup.Stack
 	log       *zap.Logger
-	syncer    syncer
+	sync      *syncing.Service
 }
 
 type head struct {
@@ -54,19 +51,14 @@ type head struct {
 var resourcePattern = regexp.MustCompile(`^hm://[a-zA-Z0-9*]+/?[a-zA-Z0-9*-/]*$`)
 
 // NewServer creates a new Server.
-func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack) *Server {
+func NewServer(db *sqlitex.Pool, log *zap.Logger, clean *cleanup.Stack, sync *syncing.Service) *Server {
 	return &Server{
 		db:        db,
 		startTime: time.Now(),
 		clean:     clean,
 		log:       log,
+		sync:      sync,
 	}
-}
-
-// SetSyncer includes the syncer into the server in case it
-// was not available during initialization.
-func (srv *Server) SetSyncer(sync syncer) {
-	srv.syncer = sync
 }
 
 // RegisterServer registers the server with the gRPC server.

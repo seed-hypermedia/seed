@@ -2,8 +2,6 @@ package activity
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
 	activity "seed/backend/genproto/activity/v1alpha"
@@ -12,7 +10,6 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
-	"seed/backend/util/sqlitegen"
 	"strings"
 
 	"go.uber.org/zap"
@@ -58,27 +55,27 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 
 	srv.log.Debug("Subscribe called", zap.Bool("async", async))
 
-	if err := srv.db.WithTx(ctx, func(conn *sqlite.Conn) error {
-		const q = "INSERT OR REPLACE INTO subscriptions (iri, is_recursive) VALUES (?, ?);"
-		return sqlitex.Exec(conn, q, nil, string(wantedIRI), req.Recursive)
-	}); err != nil {
+	// Delegate to syncing.Service which handles both DB and scheduler.
+	if srv.sync == nil {
+		return nil, status.Error(codes.Unavailable, "syncing service not available")
+	}
+	if err := srv.sync.Subscribe(ctx, wantedIRI, req.Recursive); err != nil {
 		return nil, err
 	}
 
-	if srv.syncer != nil {
-		if async {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
-				defer cancel()
-				_, err := srv.syncer.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
-				if err != nil {
-					srv.log.Debug("Non blocking Sync failed", zap.Error(err))
-				}
-			}()
-		} else {
-			// We ignore the error here because discovering the object during subscribing is a best-effort operation.
-			_, _ = srv.syncer.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
-		}
+	// Trigger discovery.
+	if async {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), syncing.DefaultDiscoveryTimeout)
+			defer cancel()
+			_, err := srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
+			if err != nil {
+				srv.log.Debug("Non blocking Sync failed", zap.Error(err))
+			}
+		}()
+	} else {
+		// We ignore the error here because discovering the object during subscribing is a best-effort operation.
+		_, _ = srv.sync.DiscoverObject(ctx, wantedIRI, "", req.Recursive)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -86,86 +83,87 @@ func (srv *Server) Subscribe(ctx context.Context, req *activity.SubscribeRequest
 
 // Unsubscribe removes a subscription.
 func (srv *Server) Unsubscribe(ctx context.Context, req *activity.UnsubscribeRequest) (*emptypb.Empty, error) {
-	conn, cancel, err := srv.db.Conn(ctx)
+	acc, err := core.DecodePrincipal(req.Account)
 	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid account: %v", err)
+	}
+
+	iri, err := blob.NewIRI(acc, req.Path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid path: %v", err)
+	}
+
+	// Delegate to syncing.Service which handles both DB and scheduler.
+	if srv.sync == nil {
+		return nil, status.Error(codes.Unavailable, "syncing service not available")
+	}
+	if err := srv.sync.Unsubscribe(ctx, iri); err != nil {
 		return nil, err
 	}
-	defer cancel()
 
-	const query = `DELETE FROM subscriptions WHERE subscriptions.iri = :id`
-
-	before := func(stmt *sqlite.Stmt) {
-		stmt.SetText(":id", "hm://"+req.Account+req.Path)
-	}
-
-	onStep := func(_ int, _ *sqlite.Stmt) error {
-		return nil
-	}
-
-	return &emptypb.Empty{}, sqlitegen.ExecStmt(conn, query, before, onStep)
+	return &emptypb.Empty{}, nil
 }
 
 // ListSubscriptions list all the active subscriptions.
 func (srv *Server) ListSubscriptions(ctx context.Context, req *activity.ListSubscriptionsRequest) (*activity.ListSubscriptionsResponse, error) {
-	var cursorID int64 = math.MaxInt32
-	if req.PageToken != "" {
-		if err := apiutil.DecodePageToken(req.PageToken, &cursorID, nil); err != nil {
-			return nil, fmt.Errorf("failed to decode page token: %w", err)
-		}
+	if srv.sync == nil {
+		return &activity.ListSubscriptionsResponse{}, nil
 	}
-	conn, cancel, err := srv.db.Conn(ctx)
+	subs, err := srv.sync.ListSubscriptions(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer cancel()
 
-	var subscriptions []*activity.Subscription
+	// Handle pagination in the API layer.
+	cursorID := int64(len(subs))
+	if req.PageToken != "" {
+		if err := apiutil.DecodePageToken(req.PageToken, &cursorID, nil); err != nil {
+			return nil, err
+		}
+	}
 
 	if req.PageSize <= 0 {
 		req.PageSize = 30
 	}
-	var lastBlobID int64
-	err = sqlitex.Exec(conn, qListSubscriptions(), func(stmt *sqlite.Stmt) error {
-		lastBlobID = stmt.ColumnInt64(0)
-		iri := strings.TrimPrefix(stmt.ColumnText(1), "hm://")
-		recursive := stmt.ColumnInt(2)
-		insertTime := stmt.ColumnInt64(3)
-		acc := strings.Split(iri, "/")[0]
-		item := activity.Subscription{
-			Account:   acc,
-			Path:      strings.TrimPrefix(iri, acc),
-			Recursive: recursive != 0,
-			Since:     &timestamppb.Timestamp{Seconds: insertTime},
-		}
 
-		subscriptions = append(subscriptions, &item)
-		return nil
-	}, cursorID, req.PageSize)
-	if err != nil {
-		return nil, fmt.Errorf("Problem collecting subscriptions, Probably no subscriptions or token out of range: %w", err)
+	// Subscriptions are already sorted by ID DESC.
+	var subscriptions []*activity.Subscription
+	startIdx := int64(len(subs)) - cursorID
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	endIdx := startIdx + int64(req.PageSize)
+	if endIdx > int64(len(subs)) {
+		endIdx = int64(len(subs))
+	}
+
+	for i := startIdx; i < endIdx; i++ {
+		sub := subs[i]
+		iriStr := strings.TrimPrefix(string(sub.IRI), "hm://")
+		accPath := strings.SplitN(iriStr, "/", 2)
+		acc := accPath[0]
+		path := ""
+		if len(accPath) > 1 {
+			path = "/" + accPath[1]
+		}
+		subscriptions = append(subscriptions, &activity.Subscription{
+			Account:   acc,
+			Path:      path,
+			Recursive: sub.Recursive,
+			Since:     timestamppb.New(sub.Since),
+		})
 	}
 
 	var nextPageToken string
-	if lastBlobID != 0 && int(req.PageSize) == len(subscriptions) {
-		nextPageToken = apiutil.EncodePageToken(lastBlobID-1, nil)
+	if endIdx < int64(len(subs)) {
+		nextPageToken = apiutil.EncodePageToken(cursorID-int64(req.PageSize), nil)
 	}
 
 	return &activity.ListSubscriptionsResponse{
 		Subscriptions: subscriptions,
 		NextPageToken: nextPageToken,
-	}, err
+	}, nil
 }
-
-var qListSubscriptions = dqb.Str(`
-	SELECT
-		id,
-		iri,
-		is_recursive,
-		insert_time
-	FROM subscriptions
-	WHERE id < :last_cursor
-	ORDER BY id DESC LIMIT :page_size;
-`)
 
 var qGetResource = dqb.Str(`
 	SELECT

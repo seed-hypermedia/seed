@@ -27,10 +27,10 @@ var derivedTables = []string{
 	storage.T_StashedBlobs,
 	storage.T_Fts,
 	storage.T_FtsIndex,
-	storage.T_PublicBlobs,
+	storage.T_BlobVisibility,
 }
 
-// Reindex forces deletes all the information derived from the blobs and reindexes them.
+// Reindex the entire database. Usually needed only after migrations.
 func (idx *Index) Reindex(ctx context.Context) (err error) {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
@@ -138,7 +138,8 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 	return nil
 }
 
-// MaybeReindex will trigger reindexing if it's needed.
+// MaybeReindex will trigger reindexing of the entire database if needed,
+// i.e. if we've reset the last index timestamp in a migration.
 func (idx *Index) MaybeReindex(ctx context.Context) error {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {

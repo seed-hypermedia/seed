@@ -1,10 +1,10 @@
 package core
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"seed/backend/util/unsafeutil"
-	"unsafe"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multibase"
@@ -16,11 +16,11 @@ import (
 // It's used when the full parsed public key structure is not needed.
 type Principal []byte
 
-// PrincipalUnsafeMapKey is a named type useful for storing principals as map keys.
-type PrincipalUnsafeMapKey string
+// PrincipalUnsafeString is a named type useful for storing principals as map keys.
+type PrincipalUnsafeString string
 
 // Unwrap returns the underlying bytes of the principal.
-func (pp PrincipalUnsafeMapKey) Unwrap() Principal {
+func (pp PrincipalUnsafeString) Unwrap() Principal {
 	return unsafeutil.BytesFromString(pp)
 }
 
@@ -32,9 +32,9 @@ func (p Principal) ActorID() ActorID {
 	return ActorID(binary.LittleEndian.Uint64(sum[:8]))
 }
 
-// MapKey returns a type for use as a map key.
-func (p Principal) MapKey() PrincipalUnsafeMapKey {
-	return PrincipalUnsafeMapKey(unsafeutil.StringFromBytes(p))
+// UnsafeString returns a type for use as a map key.
+func (p Principal) UnsafeString() PrincipalUnsafeString {
+	return PrincipalUnsafeString(unsafeutil.StringFromBytes(p))
 }
 
 // PeerID returns the Libp2p PeerID representation of a key.
@@ -68,15 +68,9 @@ func (p Principal) String() string {
 	return s
 }
 
-// UnsafeString casts raw bytes to a without copying.
-// Useful for using as map key.
-func (p Principal) UnsafeString() string {
-	return unsafe.String(&p[0], len(p))
-}
-
 // Equal checks if two principals are equal.
 func (p Principal) Equal(pp Principal) bool {
-	return p.UnsafeString() == pp.UnsafeString()
+	return bytes.Equal(p, pp)
 }
 
 // Parse the packed public key into the full [PublicKey] structure.

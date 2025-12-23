@@ -160,12 +160,12 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if err != nil {
 		return nil, err
 	}
-	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean)
-	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, activitySrv, cfg.LogLevel)
+
+	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
-	activitySrv.SetSyncer(a.Syncing)
+	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean, a.Syncing)
 
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
@@ -291,8 +291,7 @@ func initSyncing(
 	db *sqlitex.Pool,
 	indexer *blob.Index,
 	node *hmnet.Node,
-	sstore syncing.SubscriptionStore,
-	LogLevel string,
+	logLevel string,
 ) (*syncing.Service, error) {
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -302,12 +301,12 @@ func initSyncing(
 		return nil
 	})
 
-	svc := syncing.NewService(cfg, logging.New("seed/syncing", LogLevel), db, indexer, node, sstore)
+	svc := syncing.NewService(cfg, logging.New("seed/syncing", logLevel), db, indexer, node, node.KeyStore())
 	if cfg.NoPull {
 		close(done)
 	} else {
 		g.Go(func() error {
-			err := svc.Start(ctx)
+			err := svc.Run(ctx)
 			close(done)
 			return err
 		})
