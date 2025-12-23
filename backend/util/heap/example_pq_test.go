@@ -20,10 +20,8 @@ type PriorityQueue struct {
 
 func NewQueue() *PriorityQueue {
 	h := heap.New(func(i, j *Item) bool { return i.priority > j.priority })
-	h.OnSwap = func(data []*Item, i, j int) {
-		// Record the indices of the swapped elements.
-		data[i].index = i
-		data[j].index = j
+	h.OnIndexChange = func(item *Item, newIndex int) {
+		item.index = newIndex
 	}
 
 	return &PriorityQueue{
@@ -33,16 +31,13 @@ func NewQueue() *PriorityQueue {
 
 func (pq *PriorityQueue) Pop() *Item {
 	it := pq.Heap.Pop()
-	it.index = -1
+	// index is already set to -1 by OnIndexChange callback.
 	return it
 }
 
 func (pq *PriorityQueue) Push(item *Item) {
-	item.index = -1
 	pq.Heap.Push(item)
-	if item.index == -1 {
-		item.index = pq.Heap.Len() - 1
-	}
+	// index is set by OnIndexChange callback.
 }
 
 // update modifies the priority and value of an Item in the queue.

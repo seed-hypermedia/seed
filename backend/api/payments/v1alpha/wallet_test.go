@@ -91,7 +91,7 @@ func makeTestService(t *testing.T, name string) *Server {
 }
 
 func makeTestPeer(t *testing.T, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {
-	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"), nil))
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/hyper", "debug"),))
 
 	n, err := hmnet.New(config.P2P{
 		NoRelay:        true,

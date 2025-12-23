@@ -34,6 +34,7 @@ require (
 	github.com/libp2p/go-libp2p-gostream v0.6.0
 	github.com/libp2p/go-libp2p-kad-dht v0.35.1
 	github.com/lightningnetwork/lnd v0.15.1-beta.rc2
+	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multibase v0.2.0
 	github.com/multiformats/go-multicodec v0.9.2
@@ -47,6 +48,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.10
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/btree v1.7.0
+	github.com/tidwall/gjson v1.18.0
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/zalando/go-keyring v0.2.5
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.25.0
@@ -106,6 +108,8 @@ require (
 	github.com/pion/turn/v4 v4.0.2 // indirect
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
@@ -118,7 +122,7 @@ require (
 require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20241020182519-7843d2ba8fdf // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/ipfs/go-bitfield v1.1.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.55.0

@@ -23,6 +23,10 @@ type structuralBlob struct {
 	ResourceLinks []resourceLink
 	ExtraAttrs    any
 	Visibility    Visibility
+	// VisibilitySpaces are the principals who own/control this blob for private visibility.
+	// Only set for private blobs. For public blobs, this is empty.
+	// A blob can have multiple visibility spaces (e.g., a comment owned by both signer and target doc space).
+	VisibilitySpaces []core.Principal
 }
 
 func newStructuralBlob(
@@ -35,13 +39,15 @@ func newStructuralBlob(
 	resourceOwner core.Principal,
 	resourceTimestamp time.Time,
 	visibility Visibility,
+	visibilitySpaces []core.Principal,
 ) structuralBlob {
 	sb := structuralBlob{
-		CID:        id,
-		Type:       blobType,
-		Author:     author,
-		Ts:         ts,
-		Visibility: visibility,
+		CID:              id,
+		Type:             blobType,
+		Author:           author,
+		Ts:               ts,
+		Visibility:       visibility,
+		VisibilitySpaces: visibilitySpaces,
 	}
 	sb.Resource.ID = resource
 	sb.Resource.Owner = resourceOwner

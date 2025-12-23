@@ -63,6 +63,35 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2025-12-30.173837", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP VIEW public_blobs;
+
+			CREATE VIEW public_blobs AS
+			SELECT id FROM blob_visibility WHERE space = 0;
+		`))
+	}},
+	{Version: "2025-12-30.173836", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, "CREATE INDEX blob_visibility_by_space ON blob_visibility (space, id);")
+	}},
+	{Version: "2025-12-07.01", Run: func(_ *Store, conn *sqlite.Conn) error {
+		// Migrate from public_blobs table to blob_visibility table with space tracking.
+		if err := scheduleReindex(conn); err != nil {
+			return err
+		}
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE public_blobs;
+
+			CREATE TABLE blob_visibility (
+			    id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+			    space INTEGER NOT NULL,
+			    PRIMARY KEY (id, space)
+			) WITHOUT ROWID;
+
+			CREATE VIEW public_blobs AS
+			SELECT DISTINCT id FROM blob_visibility WHERE space = 0;
+		`))
+	}},
 	{Version: "2025-11-18.01", Run: func(_ *Store, conn *sqlite.Conn) error {
 		if err := scheduleReindex(conn); err != nil {
 			return err

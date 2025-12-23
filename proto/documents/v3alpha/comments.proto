@@ -163,6 +163,10 @@ message Comment {
 
   // Timestamp when the comment was last updated.
   google.protobuf.Timestamp update_time = 14;
+
+  // Visibility of the comment, inherited from the target document at creation time.
+  // Empty string means public visibility.
+  string visibility = 15;
 }
 
 // Request to update a comment.

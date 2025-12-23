@@ -220,16 +220,16 @@ func TestReset(t *testing.T) {
 	h.verify(t, 0)
 }
 
-func TestOnSwap(t *testing.T) {
+func TestOnIndexChange(t *testing.T) {
 	h := New(func(i, j int) bool { return i < j })
 
-	var swapCalls []struct {
-		i, j int
+	var indexChanges []struct {
+		elem, idx int
 	}
-	h.OnSwap = func(data []int, i, j int) {
-		swapCalls = append(swapCalls, struct {
-			i, j int
-		}{i, j})
+	h.OnIndexChange = func(elem int, newIndex int) {
+		indexChanges = append(indexChanges, struct {
+			elem, idx int
+		}{elem, newIndex})
 	}
 
 	h.Push(5)
@@ -237,15 +237,44 @@ func TestOnSwap(t *testing.T) {
 	h.Push(7)
 	h.Push(1)
 
-	if len(swapCalls) == 0 {
-		t.Error("Expected OnSwap to be called during Push operations")
+	if len(indexChanges) == 0 {
+		t.Error("Expected OnIndexChange to be called during Push operations")
 	}
 
-	swapCalls = nil
-	h.Pop()
+	// Verify that the callback reported the correct indices.
+	// Check that each element's last reported index matches its actual position.
+	positions := make(map[int]int)
+	for _, change := range indexChanges {
+		positions[change.elem] = change.idx
+	}
 
-	if len(swapCalls) == 0 {
-		t.Error("Expected OnSwap to be called during Pop operation")
+	// Verify all elements have valid indices.
+	for elem, idx := range positions {
+		if idx < 0 || idx >= h.Len() {
+			if idx != -1 { // -1 is valid for removed elements.
+				t.Errorf("Element %d has invalid index %d", elem, idx)
+			}
+		}
+		_ = elem
+	}
+
+	indexChanges = nil
+	popped := h.Pop()
+
+	if len(indexChanges) == 0 {
+		t.Error("Expected OnIndexChange to be called during Pop operation")
+	}
+
+	// The popped element should have been reported with index -1.
+	found := false
+	for _, change := range indexChanges {
+		if change.elem == popped && change.idx == -1 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected popped element %d to be reported with index -1", popped)
 	}
 }
 

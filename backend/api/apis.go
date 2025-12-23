@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	activity "seed/backend/api/activity/v1alpha"
 	daemon "seed/backend/api/daemon/v1alpha"
 	documentsv3 "seed/backend/api/documents/v3alpha"
@@ -17,8 +16,6 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -55,7 +52,7 @@ func New(
 	proxy := &p2pProxy{node: node}
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, &p2pNodeSubset{node: node, sync: sync}, idx, dlink, taskMgr),
+		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(db, sync),
 		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
@@ -76,25 +73,4 @@ func (s Server) Register(srv *grpc.Server) {
 	s.P2PProxy.RegisterServer(srv)
 
 	reflection.Register(srv)
-}
-
-type p2pNodeSubset struct {
-	node *hmnet.Node
-	sync *syncing.Service
-}
-
-func (p *p2pNodeSubset) SyncResourcesWithPeer(ctx context.Context, pid peer.ID, resources []string, prog *syncing.DiscoveryProgress) error {
-	return p.sync.SyncResourcesWithPeer(ctx, pid, resources, prog)
-}
-
-func (p *p2pNodeSubset) ProtocolID() protocol.ID {
-	return p.node.ProtocolID()
-}
-
-func (p *p2pNodeSubset) ProtocolVersion() string {
-	return p.node.ProtocolVersion()
-}
-
-func (p *p2pNodeSubset) AddrInfo() peer.AddrInfo {
-	return p.node.AddrInfo()
 }

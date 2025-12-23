@@ -110,8 +110,8 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		return err
 	}
 
-	// Contact blobs have public visibility.
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Signer, time.Time{}, VisibilityPublic)
+	// Contact blobs have public visibility, so no visibility spaces.
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Signer, time.Time{}, VisibilityPublic, nil)
 
 	extraAttrs := map[string]any{
 		"tsid": eb.TSID(),

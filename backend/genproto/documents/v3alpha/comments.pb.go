@@ -490,7 +490,10 @@ type Comment struct {
 	// Version of this comment.
 	Version string `protobuf:"bytes,11,opt,name=version,proto3" json:"version,omitempty"`
 	// Timestamp when the comment was last updated.
-	UpdateTime    *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Visibility of the comment, inherited from the target document at creation time.
+	// Empty string means public visibility.
+	Visibility    string `protobuf:"bytes,15,opt,name=visibility,proto3" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -621,6 +624,13 @@ func (x *Comment) GetUpdateTime() *timestamppb.Timestamp {
 		return x.UpdateTime
 	}
 	return nil
+}
+
+func (x *Comment) GetVisibility() string {
+	if x != nil {
+		return x.Visibility
+	}
+	return ""
 }
 
 // Request to update a comment.
@@ -864,7 +874,7 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListCommentsResponse\x12?\n" +
 	"\bcomments\x18\x01 \x03(\v2#.com.seed.documents.v3alpha.CommentR\bcomments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xbb\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xdb\x04\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0etarget_account\x18\x02 \x01(\tR\rtargetAccount\x12\x1f\n" +
@@ -886,7 +896,10 @@ const file_documents_v3alpha_comments_proto_rawDesc = "" +
 	"capability\x12\x18\n" +
 	"\aversion\x18\v \x01(\tR\aversion\x12;\n" +
 	"\vupdate_time\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"updateTime\"\x7f\n" +
+	"updateTime\x12\x1e\n" +
+	"\n" +
+	"visibility\x18\x0f \x01(\tR\n" +
+	"visibility\"\x7f\n" +
 	"\x14UpdateCommentRequest\x12=\n" +
 	"\acomment\x18\x01 \x01(\v2#.com.seed.documents.v3alpha.CommentR\acomment\x12(\n" +
 	"\x10signing_key_name\x18\x02 \x01(\tR\x0esigningKeyName\"P\n" +

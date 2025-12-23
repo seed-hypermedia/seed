@@ -31,6 +31,18 @@ func (v Value[T]) Value() T {
 	return v.value
 }
 
+// Set sets the value.
+func (v *Value[T]) Set(x T) {
+	v.set = true
+	v.value = x
+}
+
+// Clear clears the value.
+func (v *Value[T]) Clear() {
+	v.set = false
+	v.value = *(new(T))
+}
+
 // Any converts concrete value to an any, using nil is the concrete value is a zero value.
 func Any[T comparable](v T) any {
 	if v == *(new(T)) {

@@ -6,6 +6,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
+	"seed/backend/util/pprofx"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -150,22 +152,64 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	otel.SetTracerProvider(tp)
 
-	idx, errChan := blob.OpenIndexAsync(ctx, a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel), a.taskMgr)
-	if err != nil {
-		return nil, err
-	}
-	a.Index = idx
+	a.Index = blob.OpenIndexPendingReindex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
+
+	migratedc := make(chan struct{})
+	// Tracking db reindexing progress asynchronously.
+	{
+		a.g.Go(func() (err error) {
+			// If we want reindexing profile we force the reindexing with profiling.
+			if dirname := cfg.Debug.DBReindexProfileDir; dirname != "" {
+				perr := pprofx.Do(ctx, "db.reindex", dirname, func(ctx context.Context) {
+					err = a.Index.Reindex(ctx)
+				})
+				return errors.Join(err, perr)
+			}
+
+			// Otherwise we only reindex if necessary.
+			return a.Index.MaybeReindex(ctx)
+		})
+
+		a.g.Go(func() error {
+			defer close(migratedc)
+			a.taskMgr.UpdateGlobalState(daemon.State_MIGRATING)
+
+			const taskID = "blob_reindex"
+			if _, err := a.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs", 0); err != nil {
+				a.log.Warn("Failed to create reindexing task", zap.Error(err))
+			}
+
+			for {
+				info := a.Index.ReindexInfo()
+				if info.State == blob.ReindexStateCompleted || info.State == blob.ReindexStateNotNeeded {
+					break
+				}
+
+				if _, err := a.taskMgr.UpdateProgress(taskID, info.BlobsTotal, info.BlobsIndexed); err != nil {
+					a.log.Warn("Failed to update reindexing progress", zap.Error(err))
+				}
+				time.Sleep(30 * time.Millisecond)
+			}
+
+			if _, err := a.taskMgr.DeleteTask(taskID); err != nil {
+				a.log.Warn("failed to delete reindexing task", zap.Error(err))
+			}
+
+			return nil
+		})
+	}
+
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {
 		return nil, err
 	}
-	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean)
-	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, activitySrv, cfg.LogLevel)
+
+	a.Syncing, err = initSyncing(cfg.Syncing, &a.clean, a.g, a.Storage.DB(), a.Index, a.Net, cfg.LogLevel)
 	if err != nil {
 		return nil, err
 	}
-	activitySrv.SetSyncer(a.Syncing)
+	activitySrv := activity.NewServer(a.Storage.DB(), logging.New("seed/activity", cfg.LogLevel), &a.clean, a.Syncing)
 
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
@@ -193,12 +237,14 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.setupLogging(ctx, cfg)
-	err = <-errChan
-	if err != nil {
-		return nil, err
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-migratedc:
+		a.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
 	}
 
-	a.taskMgr.UpdateGlobalState(daemon.State_ACTIVE)
 	return
 }
 
@@ -291,8 +337,7 @@ func initSyncing(
 	db *sqlitex.Pool,
 	indexer *blob.Index,
 	node *hmnet.Node,
-	sstore syncing.SubscriptionStore,
-	LogLevel string,
+	logLevel string,
 ) (*syncing.Service, error) {
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -302,12 +347,12 @@ func initSyncing(
 		return nil
 	})
 
-	svc := syncing.NewService(cfg, logging.New("seed/syncing", LogLevel), db, indexer, node, sstore)
+	svc := syncing.NewService(cfg, logging.New("seed/syncing", logLevel), db, indexer, node, node.KeyStore())
 	if cfg.NoPull {
 		close(done)
 	} else {
 		g.Go(func() error {
-			err := svc.Start(ctx)
+			err := svc.Run(ctx)
 			close(done)
 			return err
 		})

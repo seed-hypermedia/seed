@@ -8,7 +8,6 @@ import (
 	"iter"
 	"net/url"
 	"seed/backend/core"
-	taskmanager "seed/backend/daemon/taskmanager"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -17,6 +16,7 @@ import (
 	"seed/backend/util/unsafeutil"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -24,6 +24,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -92,42 +93,54 @@ func (iri IRI) Breadcrumbs() []IRI {
 	return out
 }
 
+// Index is an indexed blob store.
 type Index struct {
 	bs  *blockStore
 	db  *sqlitex.Pool
 	log *zap.Logger
 
-	mu      sync.Mutex // protects from concurrent reindexing
-	taskMgr *taskmanager.TaskManager
+	mu sync.Mutex // protects from concurrent reindexing
+
+	// Peer access control fields.
+	peerAuth         *peerAuthStore
+	sitePeerResolver *sitePeerResolver
+
+	// Allowlist for temporary blob access during push operations.
+	// Maps peer ID -> request ID -> set of CIDs.
+	allowlistMu      sync.RWMutex
+	allowlistEntries map[peer.ID]map[string]map[cid.Cid]struct{}
+
+	reindexing struct {
+		blobsTotal   atomic.Int64
+		blobsIndexed atomic.Int64
+		state        atomic.Int32
+	}
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
-func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, error) {
-	idx := newIndex(db, log, taskMgr)
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, error) {
+	idx := newIndex(db, log)
 	if err := idx.MaybeReindex(ctx); err != nil {
 		return nil, err
 	}
 	return idx, nil
 }
 
-// OpenIndexAsync creates the index and starts reindexing the data if necessary in a separate goroutine.
-func OpenIndexAsync(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, chan error) {
-	idx := newIndex(db, log, taskMgr)
-	initComplete := make(chan error, 1)
-	go func() {
-		initComplete <- idx.MaybeReindex(ctx)
-		close(initComplete)
-	}()
-	return idx, initComplete
+// OpenIndexPendingReindex creates the index without running the initial reindexing.
+// Callers are responsible for calling [Index.MaybeReindex] before using it.
+func OpenIndexPendingReindex(db *sqlitex.Pool, log *zap.Logger) *Index {
+	return newIndex(db, log)
 }
 
-func newIndex(db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) *Index {
+func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	idx := &Index{
-		bs:      newBlockstore(db),
-		db:      db,
-		log:     log,
-		taskMgr: taskMgr,
+		bs:               newBlockstore(db),
+		db:               db,
+		log:              log,
+		peerAuth:         newPeerAuthStore(),
+		sitePeerResolver: newSitePeerResolver(500, 5*time.Minute),
+		allowlistEntries: make(map[peer.ID]map[string]map[cid.Cid]struct{}),
 	}
 	return idx
 }
@@ -929,7 +942,7 @@ type indexingCtx struct {
 	mustTrackUnreads bool
 
 	// Lookup tables for internal database IDs.
-	pubKeys   map[string]int64
+	pubKeys   map[core.PrincipalUnsafeString]int64
 	resources map[IRI]int64
 	blobs     map[cid.Cid]blobsGetSizeResult
 
@@ -945,7 +958,7 @@ func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *index
 		blobID: id,
 
 		// Setting arbitrary size for maps, to avoid dynamic resizing in most cases.
-		pubKeys:   make(map[string]int64, 16),
+		pubKeys:   make(map[core.PrincipalUnsafeString]int64, 16),
 		resources: make(map[IRI]int64, 16),
 		blobs:     make(map[cid.Cid]blobsGetSizeResult, 16),
 
@@ -1070,10 +1083,27 @@ func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 		}
 	}
 
-	if sb.Visibility == VisibilityPublic {
-		if _, err := markBlobPublic(idx.conn, idx.blobID); err != nil {
-			return fmt.Errorf("failed to mark blob as public: %w", err)
+	// Record blob visibility.
+	switch {
+	case sb.Visibility == VisibilityPublic:
+		if err := recordBlobVisibility(idx.conn, idx.blobID, 0); err != nil {
+			return fmt.Errorf("failed to record blob visibility: %w", err)
 		}
+	case sb.Visibility == VisibilityPrivate && len(sb.VisibilitySpaces) == 0:
+		// Private visibility blobs with no authorized spaces mean that visibility is not recorded but inherited.
+	case sb.Visibility == VisibilityPrivate && len(sb.VisibilitySpaces) > 0:
+		// Record visibility for each space this blob is owned by.
+		for _, space := range sb.VisibilitySpaces {
+			kid, err := idx.ensurePubKey(space)
+			if err != nil {
+				return fmt.Errorf("failed to ensure space public key: %w", err)
+			}
+			if err := recordBlobVisibility(idx.conn, idx.blobID, kid); err != nil {
+				return fmt.Errorf("failed to record blob visibility: %w", err)
+			}
+		}
+	default:
+		panic("BUG: unreachable")
 	}
 
 	return nil
@@ -1591,4 +1621,68 @@ var qLoadStashedBlobs = dqb.Str(`
 		WHERE reason = :reason
 		AND instr(extra_attrs, :match) > 0
 	)
+`)
+
+// GetSiteURL returns the siteURL metadata from the home document of a space.
+func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string, error) {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
+	homeIRI := "hm://" + space.String()
+	return sqlitex.QueryOne[string](conn, qGetSiteURL(), homeIRI)
+}
+
+var qGetSiteURL = dqb.Str(`
+	SELECT site_url
+	FROM (
+		SELECT
+			COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url,
+			dg.is_deleted AS is_deleted
+		FROM document_generations dg
+		JOIN resources r ON r.id = dg.resource
+		WHERE r.iri = :iri
+		ORDER BY dg.generation DESC
+		LIMIT 1
+	)
+	WHERE is_deleted = 0
+`)
+
+// GetDocumentVisibility returns the visibility of a document from the latest generation's metadata.
+// Returns VisibilityPublic if the document is not found or has no explicit visibility.
+func (idx *Index) GetDocumentVisibility(ctx context.Context, space core.Principal, path string) (Visibility, error) {
+	conn, release, err := idx.db.Conn(ctx)
+	if err != nil {
+		return VisibilityPublic, err
+	}
+	defer release()
+
+	iri, err := NewIRI(space, path)
+	if err != nil {
+		return VisibilityPublic, err
+	}
+
+	vis, err := sqlitex.QueryOne[string](conn, qGetDocumentVisibility(), iri)
+	if err != nil {
+		return VisibilityPublic, err
+	}
+
+	return Visibility(vis), nil
+}
+
+var qGetDocumentVisibility = dqb.Str(`
+	SELECT visibility
+	FROM (
+		SELECT
+			COALESCE(dg.metadata->>'$."$db.visibility".v', '') AS visibility,
+			dg.is_deleted AS is_deleted
+		FROM document_generations dg
+		JOIN resources r ON r.id = dg.resource
+		WHERE r.iri = :iri
+		ORDER BY dg.generation DESC
+		LIMIT 1
+	)
+	WHERE is_deleted = 0
 `)

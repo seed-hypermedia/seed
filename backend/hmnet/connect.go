@@ -314,7 +314,7 @@ func (n *Node) storeRemotePeers(id peer.ID) (err error) {
 func (n *Node) onLibp2pConnection(_ context.Context, event event.EvtPeerConnectednessChanged) {
 	// Clear authentication for disconnected peers.
 	if event.Connectedness == network.NotConnected {
-		n.authManager.ClearPeer(event.Peer)
+		n.index.ClearPeer(event.Peer)
 	}
 }
 

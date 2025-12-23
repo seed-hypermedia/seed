@@ -8,10 +8,11 @@ package heap
 type Heap[T any] struct {
 	data     []T
 	lessFunc func(i, j T) bool
-	// OnSwap will be called (if set) before swapping elements.
-	// It must not actually swap! It can be used only to record the resulting indices
-	// inside the data slice in order to call Remove() or Fix() afterwards.
-	OnSwap func(data []T, i, j int)
+	// OnIndexChange is called whenever an element's index changes.
+	// This includes: after Push (element gets its initial index),
+	// after swaps during up/down operations, and on Remove (with index -1).
+	// The callback receives the element and its new index.
+	OnIndexChange func(elem T, newIndex int)
 }
 
 // New creates a new heap using the comparator function less.
@@ -22,7 +23,7 @@ func New[T any](less func(T, T) bool) *Heap[T] {
 }
 
 // Reset the heap backing slice to the given size. Can be used when size of elements is known beforehand.
-// THe size is not the hard limit, the backing slice will expand as needed.
+// The size is not the hard limit, the backing slice will expand as needed.
 func (h *Heap[T]) Reset(size int) *Heap[T] {
 	h.data = make([]T, 0, size)
 	return h
@@ -32,10 +33,13 @@ func (h *Heap[T]) Reset(size int) *Heap[T] {
 // The complexity is O(log n) where n = h.Len().
 func (h *Heap[T]) Push(x T) {
 	h.data = append(h.data, x)
-	h.up(h.Len() - 1)
+	idx := h.Len() - 1
+	// Report initial index before bubbling up.
+	h.reportIndex(idx)
+	h.up(idx)
 }
 
-// Peek returns "minimal" element from the heap without poping it.
+// Peek returns "minimal" element from the heap without popping it.
 func (h *Heap[T]) Peek() T {
 	return h.data[0]
 }
@@ -53,8 +57,10 @@ func (h *Heap[T]) Pop() T {
 func (h *Heap[T]) pop() T {
 	n := len(h.data)
 	item := h.data[n-1]
-	h.data[n-1] = *new(T) // avoid memory leak
+	h.data[n-1] = *new(T) // Avoid memory leak.
 	h.data = h.data[:len(h.data)-1]
+	// Report removal with index -1.
+	h.reportIndexValue(item, -1)
 	return item
 }
 
@@ -89,15 +95,27 @@ func (h *Heap[T]) less(i, j int) bool {
 }
 
 func (h *Heap[T]) swap(i, j int) {
-	if h.OnSwap != nil {
-		h.OnSwap(h.data, i, j)
-	}
 	h.data[i], h.data[j] = h.data[j], h.data[i]
+	// Report new indices after swap.
+	h.reportIndex(i)
+	h.reportIndex(j)
+}
+
+func (h *Heap[T]) reportIndex(i int) {
+	if h.OnIndexChange != nil {
+		h.OnIndexChange(h.data[i], i)
+	}
+}
+
+func (h *Heap[T]) reportIndexValue(elem T, idx int) {
+	if h.OnIndexChange != nil {
+		h.OnIndexChange(elem, idx)
+	}
 }
 
 func (h *Heap[T]) up(j int) {
 	for {
-		i := (j - 1) / 2 // parent
+		i := (j - 1) / 2 // parent.
 		if i == j || !h.less(j, i) {
 			break
 		}
@@ -110,12 +128,12 @@ func (h *Heap[T]) down(i0, n int) bool {
 	i := i0
 	for {
 		j1 := 2*i + 1
-		if j1 >= n || j1 < 0 { // j1 < 0 after int overflow
+		if j1 >= n || j1 < 0 { // j1 < 0 after int overflow.
 			break
 		}
-		j := j1 // left child
+		j := j1 // left child.
 		if j2 := j1 + 1; j2 < n && h.less(j2, j1) {
-			j = j2 // = 2*i + 2  // right child
+			j = j2 // = 2*i + 2 // right child.
 		}
 		if !h.less(j, i) {
 			break

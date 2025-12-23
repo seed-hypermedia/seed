@@ -50,5 +50,5 @@ func TestListEvents(t *testing.T) {
 func newTestServer(t *testing.T, name string) *Server {
 	db := storage.MakeTestDB(t)
 	var clean cleanup.Stack
-	return NewServer(db, logging.New("seed/Activity", "debug"), &clean)
+	return NewServer(db, logging.New("seed/Activity", "debug"), &clean, nil)
 }

@@ -121,7 +121,7 @@ func newTestServer(t *testing.T, name string) *Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	tMgr := taskmanager.NewTaskManager()
-	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop(), tMgr)
+	idx, err := blob.OpenIndex(t.Context(), store.DB(), zap.NewNop())
 	require.NoError(t, err)
 
 	return NewServer(store, &mockedP2PNode{}, idx, nil, tMgr)

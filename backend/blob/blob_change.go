@@ -373,9 +373,9 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 			resourceTime = v.Ts
 		}
 
-		// By default changes are private, until they are references by a public Ref,
-		// at least transitively.
-		sb = newStructuralBlob(c, eb.Decoded.Type, author, v.Ts, "", v.Genesis, author, resourceTime, VisibilityPrivate)
+		// By default changes are private, owned by the signer.
+		// They stay private until referenced by a public Ref, at least transitively.
+		sb = newStructuralBlob(c, eb.Decoded.Type, author, v.Ts, "", v.Genesis, author, resourceTime, VisibilityPrivate, nil)
 	}
 
 	if v.Genesis.Defined() {

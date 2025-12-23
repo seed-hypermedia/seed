@@ -501,6 +501,14 @@ export class Comment extends Message<Comment> {
    */
   updateTime?: Timestamp;
 
+  /**
+   * Visibility of the comment, inherited from the target document at creation time.
+   * Empty string means public visibility.
+   *
+   * @generated from field: string visibility = 15;
+   */
+  visibility = "";
+
   constructor(data?: PartialMessage<Comment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -523,6 +531,7 @@ export class Comment extends Message<Comment> {
     { no: 10, name: "capability", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 11, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 14, name: "update_time", kind: "message", T: Timestamp },
+    { no: 15, name: "visibility", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Comment {

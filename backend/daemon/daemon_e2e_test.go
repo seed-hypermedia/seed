@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitedbg"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -362,6 +364,11 @@ func TestDiscoverHomeDocument(t *testing.T) {
 
 func TestSubscriptions(t *testing.T) {
 	t.Parallel()
+	// Test subscription system: verify that nodes only sync documents they explicitly subscribe to,
+	// and that subscriptions propagate updates and enable collaborative features (comments).
+	// Participants: Alice (document author), Bob (subscriber), Carol (discoverer).
+
+	// Setup Alice daemon with fast syncing.
 	aliceCfg := makeTestConfig(t)
 	aliceCfg.Syncing.RefreshInterval = time.Millisecond * 100
 	aliceCfg.Syncing.Interval = time.Millisecond * 200
@@ -369,6 +376,7 @@ func TestSubscriptions(t *testing.T) {
 	alice := makeTestApp(t, "alice", aliceCfg, true)
 	aliceIdentity := coretest.NewTester("alice")
 
+	// Setup Bob daemon.
 	bobCfg := makeTestConfig(t)
 	bobCfg.Syncing.RefreshInterval = time.Millisecond * 100
 	bobCfg.Syncing.Interval = time.Millisecond * 200
@@ -376,6 +384,7 @@ func TestSubscriptions(t *testing.T) {
 	bob := makeTestApp(t, "bob", bobCfg, true)
 	bobIdentity := coretest.NewTester("bob")
 
+	// Setup Carol daemon.
 	carolCfg := makeTestConfig(t)
 	carolCfg.Syncing.RefreshInterval = time.Millisecond * 100
 	carolCfg.Syncing.Interval = time.Millisecond * 200
@@ -385,6 +394,7 @@ func TestSubscriptions(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Phase 1: Create initial documents for all participants.
 	carolHome, err := carol.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        carolIdentity.Account.PublicKey.String(),
 		Path:           "",
@@ -560,12 +570,14 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Phase 2: Bob connects to Alice; no subscriptions yet.
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
 	time.Sleep(time.Millisecond * 300)
+	// Bob should not have aliceToyota yet since he hasn't subscribed.
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
 		Path:    aliceToyota.Path,
@@ -579,6 +591,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	// Phase 3: Bob subscribes to aliceToyota (non-recursively).
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceToyota.Account,
 		Path:      aliceToyota.Path,
@@ -586,6 +599,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Verify subscription is registered.
 	res, err := bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 1)
@@ -593,12 +607,14 @@ func TestSubscriptions(t *testing.T) {
 	require.Equal(t, aliceToyota.Path, res.Subscriptions[0].Path)
 	time.Sleep(time.Millisecond * 100)
 
+	// Alice should not have Bob's home yet (they are not bidirectionally connected for syncing).
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: bobHome.Account,
 		Path:    bobHome.Path,
 	})
 	require.Error(t, err)
 
+	// After subscription, Bob should now have aliceToyota via syncing.
 	bobGotAliceToyota, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceToyota.Account,
 		Path:    aliceToyota.Path,
@@ -606,31 +622,45 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, aliceToyota.Content, bobGotAliceToyota.Content)
 
-	// We should not sync this document since we did not subscribe recursively.
+	// Phase 4: Verify non-recursive subscription behavior.
+	// We should not sync aliceHonda since the subscription is not recursive.
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
 		Path:    aliceHonda.Path,
 	})
 	require.Error(t, err)
 
+	// Phase 5: Test unsubscribe.
 	_, err = bob.RPC.Activity.Unsubscribe(ctx, &activity.UnsubscribeRequest{
 		Account: aliceToyota.Account,
 		Path:    aliceToyota.Path,
 	})
 	require.NoError(t, err)
 
+	// Verify subscription is removed.
 	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
 	require.NoError(t, err)
 	require.Len(t, res.Subscriptions, 0)
 
-	// we have 2 subscriptions to force the multiple subscriptions error
+	// Phase 6: Test multiple overlapping subscriptions (non-recursive + recursive to parent).
+	// Subscribe to a sibling path to ensure we handle multiple subscriptions correctly.
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceHonda.Account,
-		Path:      "/non/existing/path",
+		Path:      "/cars/tesla",
 		Recursive: false,
 	})
 	require.NoError(t, err)
+
+	// Verify first subscription is registered.
+	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 1)
+	require.Equal(t, aliceHonda.Account, res.Subscriptions[0].Account)
+	require.Equal(t, "/cars/tesla", res.Subscriptions[0].Path)
+	require.False(t, res.Subscriptions[0].Recursive)
+
 	time.Sleep(time.Millisecond * 100)
+	// Subscribe recursively to parent path (/cars) to get aliceHonda (/cars/honda).
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceHonda.Account,
 		Path:      "/cars",
@@ -638,8 +668,17 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Verify second subscription is registered.
+	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 2)
+	subscriptionPaths := []string{res.Subscriptions[0].Path, res.Subscriptions[1].Path}
+	require.Contains(t, subscriptionPaths, "/cars/tesla")
+	require.Contains(t, subscriptionPaths, "/cars")
+
 	time.Sleep(time.Millisecond * 200)
 
+	// Recursive subscription to /cars should allow Bob to receive aliceHonda (/cars/honda).
 	bobGotAliceHonda, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHonda.Account,
 		Path:    aliceHonda.Path,
@@ -647,12 +686,20 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, aliceHonda.Content, bobGotAliceHonda.Content)
 
+	// Verify Bob is connected to Alice before testing update propagation.
+	peers, err := bob.RPC.Networking.ListPeers(ctx, &networking.ListPeersRequest{PageSize: 100})
+	require.NoError(t, err)
+	require.Len(t, peers.Peers, 1, "Bob should be connected to Alice")
+
+	// Phase 7: Verify Alice's home document is still inaccessible (Bob not subscribed).
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: aliceHome.Account,
 		Path:    aliceHome.Path,
 	})
 	require.Error(t, err, "bob is not explicitly subscribed to alice's home, so should not have it")
 
+	// Phase 8: Test update propagation through subscriptions.
+	t.Logf("Phase 8 starting at %v", time.Now())
 	aliceHondaUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		BaseVersion:    aliceHonda.Version,
@@ -669,18 +716,22 @@ func TestSubscriptions(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version)
+	require.NotEqual(t, aliceHonda.Version, aliceHondaUpdated.Version,
+		fmt.Sprintf("Update failed: old version %s, new version %s", aliceHonda.Version, aliceHondaUpdated.Version))
+	t.Logf("Alice updated /cars/honda from v%s to v%s", aliceHonda.Version, aliceHondaUpdated.Version)
 	require.Eventually(t, func() bool {
 		bobGotAliceHonda, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: aliceHondaUpdated.Account,
 			Path:    aliceHondaUpdated.Path,
 		})
 		require.NoError(t, err)
+		t.Logf("Bob has version: %s, waiting for %s", bobGotAliceHonda.Version, aliceHondaUpdated.Version)
 		return bobGotAliceHonda.Version == aliceHondaUpdated.Version
 	}, time.Second*5, time.Millisecond*200, "We should get the modified version, not the previous one")
 
 	require.Equal(t, aliceHondaUpdated.Content, bobGotAliceHonda.Content)
 
+	// Phase 9: Test commenting on subscribed documents.
 	bobComment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
@@ -697,6 +748,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Bob's comment should not appear in Alice's list yet (she hasn't subscribed to alice's own space).
 	comments, err := alice.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
@@ -704,13 +756,24 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, comments.Comments, 0)
 
+	// Alice subscribes to her own space to sync comments from others.
 	_, err = alice.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceHondaUpdated.Account,
 		Path:      "",
 		Recursive: true,
 	})
 	require.NoError(t, err)
+
+	// Verify subscription is registered.
+	res, err = alice.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 1)
+	require.Equal(t, aliceHondaUpdated.Account, res.Subscriptions[0].Account)
+	require.Equal(t, "", res.Subscriptions[0].Path)
+	require.True(t, res.Subscriptions[0].Recursive)
+
 	time.Sleep(time.Millisecond * 300)
+	// Now Alice should see Bob's comment.
 	comments, err = alice.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
@@ -719,6 +782,7 @@ func TestSubscriptions(t *testing.T) {
 	require.Len(t, comments.Comments, 1)
 	require.Equal(t, bobComment.Content, comments.Comments[0].Content)
 
+	// Phase 10: Test comment replies.
 	reply, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount:  aliceHondaUpdated.Account,
 		TargetPath:     aliceHondaUpdated.Path,
@@ -730,6 +794,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Phase 11: Test capability delegation.
 	cpb, err := alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
 		SigningKeyName: "main",
 		Delegate:       bobIdentity.Account.String(),
@@ -739,6 +804,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cpb)
+	// Verify Alice can list her own capability.
 	list, err := alice.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
 		Account: aliceIdentity.Account.PublicKey.String(),
 		Path:    aliceHonda.Path,
@@ -746,6 +812,7 @@ func TestSubscriptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, list.Capabilities, 1, "must return the capability")
 
+	// Bob should eventually see Alice's reply comment.
 	require.Eventually(t, func() bool {
 		comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: aliceHondaUpdated.Account,
@@ -758,6 +825,7 @@ func TestSubscriptions(t *testing.T) {
 	}, time.Second*5, time.Millisecond*200, "We should have two comments, the initial comment and the reply")
 	require.Equal(t, reply.Content, comments.Comments[1].Content)
 
+	// Bob should eventually see the capability Alice created for him.
 	var bobsCap *documents.ListCapabilitiesResponse
 	require.Eventually(t, func() bool {
 		var err error
@@ -773,11 +841,13 @@ func TestSubscriptions(t *testing.T) {
 
 	require.Len(t, bobsCap.Capabilities, 1, "must return the capability")
 
+	// Phase 12: Test Carol discovering and commenting on Alice's document (without subscription).
 	_, err = carol.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 
+	// Carol uses DiscoverEntity to pull aliceHonda on-demand (without subscription).
 	var entity *entities.DiscoverEntityResponse
 
 	var count int
@@ -799,11 +869,13 @@ func TestSubscriptions(t *testing.T) {
 		}
 	}
 
+	// Verify Carol only has her own home document (she hasn't subscribed to others).
 	carolRoots, err := carol.RPC.DocumentsV3.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{})
 	require.NoError(t, err)
-	require.Len(t, carolRoots.Documents, 1, "Carol must have Alice's & Bob's root document and her own")
+	require.Len(t, carolRoots.Documents, 1, "Carol must only have her own root document")
 	require.Equal(t, carolHome.Version, carolRoots.Documents[0].Version, "Carol must only have her own root document, because she is not explicitly subscribed to other roots")
 
+	// Carol comments on aliceHonda (discovered but not subscribed).
 	carolComment, err := carol.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
 		TargetAccount: aliceHondaUpdated.Account,
 		TargetPath:    aliceHondaUpdated.Path,
@@ -820,6 +892,7 @@ func TestSubscriptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Alice should receive Carol's comment via syncing.
 	require.Eventually(t, func() bool {
 		_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
 			Id: carolComment.Id,
@@ -827,6 +900,7 @@ func TestSubscriptions(t *testing.T) {
 		return err == nil
 	}, time.Second*1, time.Millisecond*100, "Alice should get Carol's comment")
 
+	// Bob should eventually see all three comments (Bob's, Alice's reply, and Carol's).
 	require.Eventually(t, func() bool {
 		comments, err = bob.RPC.DocumentsV3.ListComments(ctx, &documents.ListCommentsRequest{
 			TargetAccount: aliceHondaUpdated.Account,
@@ -838,25 +912,39 @@ func TestSubscriptions(t *testing.T) {
 		return len(comments.Comments) == 3
 	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
 
+	// Phase 13: Verify account isolation (commenters' profiles aren't auto-synced).
 	_, err = alice.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: carolHome.Account,
 	})
 	require.Error(t, err, "Commenter's profiles might be missing and need to be fetched separately")
 
+	// Bob hasn't subscribed to Carol's account.
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: carolIdentity.Account.PublicKey.String(),
 	})
 	require.Error(t, err, "bob is not subscribed to carol's home")
 	time.Sleep(time.Millisecond * 100)
 
+	// Phase 14: Test recursive subscriptions at root level.
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceHome.Account,
 		Path:      "",
 		Recursive: true,
 	})
 	require.NoError(t, err)
+
+	// Verify subscription is registered.
+	res, err = bob.RPC.Activity.ListSubscriptions(ctx, &activity.ListSubscriptionsRequest{})
+	require.NoError(t, err)
+	require.Len(t, res.Subscriptions, 3, "Bob should have 3 subscriptions: /cars/tesla, /cars, and root")
+	subscriptionPaths = []string{res.Subscriptions[0].Path, res.Subscriptions[1].Path, res.Subscriptions[2].Path}
+	require.Contains(t, subscriptionPaths, "/cars/tesla")
+	require.Contains(t, subscriptionPaths, "/cars")
+	require.Contains(t, subscriptionPaths, "")
+
 	time.Sleep(time.Millisecond * 100)
 
+	// Bob should now receive Alice's home document since he subscribed recursively.
 	require.Eventually(t, func() bool {
 		docGotten, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: aliceHome.Account,
@@ -866,8 +954,10 @@ func TestSubscriptions(t *testing.T) {
 			return false
 		}
 		return len(aliceHome.Content) == len(docGotten.Content)
-	}, time.Second*2, time.Millisecond*100, "We should have three comments, including carol's")
+	}, time.Second*2, time.Millisecond*100, "Bob should get Alice's home document")
 
+	// Phase 15: Verify access control for non-owned accounts.
+	// Bob should not have access to documents in accounts he doesn't own or subscribe to.
 	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 		Account: davidInAliceHome.Account,
 		Path:    davidInAliceHome.Path,
@@ -1109,7 +1199,7 @@ func TestRelatedMaterials(t *testing.T) {
 			IRI:       blob.IRI("hm://" + aliceHome.Account + aliceHome.Path),
 			Recursive: true,
 		}: {},
-	}, true)
+	}, true, nil)
 	require.NoError(t, err)
 
 	if blobCount != int64(len(allBlobs)) {
@@ -2301,7 +2391,6 @@ func TestCommentDiscovery(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Bob discovers the comment.
-	// TODO: use require.Eventually instead of manual loop.
 	require.Eventually(t, func() bool {
 		ok := false
 		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
@@ -2625,6 +2714,224 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	require.True(t, foundPublic, "Alice must see the public document in her document list")
 }
 
+func TestPrivateDocumentsSync(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := coretest.NewTester("alice").Account
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobKey := coretest.NewTester("bob").Account
+	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
+	gatewayKey := coretest.NewTester("carol").Account
+
+	var gatewayURL string
+	{
+		port := gateway.HTTPListener.Addr().(*net.TCPAddr).Port
+		ip := getLocalIP(t)
+		gatewayURL = "http://" + ip + ":" + strconv.Itoa(port)
+	}
+
+	// Create Alice's home document with siteUrl pointing to the gateway.
+	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home"},
+			}},
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "siteUrl", Value: gatewayURL},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a home document.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a private document for Alice.
+	aliceSecret, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/secret",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a private document that Bob should not be able to access.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Push Alice's private document to the gateway.
+	pushDocuments(t, alice, gateway, "hm://"+aliceSecret.Account+aliceSecret.Path)
+
+	// Verify gateway can see the private document.
+	{
+		resp, err := gateway.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, aliceSecret.Version, resp.Version, "gateway must receive the same version")
+	}
+
+	// 1. Alice creates a WRITER capability for Bob's account for her entire space.
+	// The capability must be for the root path (empty string) to grant access to all private documents.
+	capability, err := alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobKey.String(),
+		Account:        aliceKey.String(),
+		Path:           "", // Root path grants access to entire space
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, capability)
+
+	// Push the home document to sync the capability to the gateway.
+	// The root-path capability is stored at the home document's IRI.
+	pushDocuments(t, alice, gateway, "hm://"+aliceKey.String())
+
+	// 2. Bob connects to the gateway and syncs. Bob should NOT see the private document yet.
+	require.NoError(t, bob.Net.ForceConnect(ctx, gateway.Net.AddrInfo()))
+
+	// Wait a bit for connection to establish.
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to discover the private document without authentication - should not succeed.
+	// We don't actually start a discovery here because it would create a task that
+	// runs in the background and might interfere with the authenticated discovery later.
+	{
+		doc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.Error(t, err, "Bob must not be able to get the private document without authentication")
+		_ = doc
+	}
+
+	// 3. Bob first pulls Alice's home document (public). This gives Bob:
+	//    - The siteURL metadata (so Bob knows the gateway is Alice's siteURL server).
+	//    - The capability blob (so Bob knows he has access to Alice's space).
+	pullDocument(t, bob, aliceKey.String(), "", "")
+
+	// 4. Bob uses DiscoverEntity to pull the private document from the gateway.
+	pullDocument(t, bob, aliceSecret.Account, aliceSecret.Path, aliceSecret.Version)
+
+	// Verify Bob now has Alice's private document.
+	{
+		bobGotDoc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, aliceSecret.Version, bobGotDoc.Version, "Bob must have Alice's private document")
+	}
+
+	// 4. Bob creates a private document and the gateway should pull it from Bob.
+	// First, create Bob's home document with siteUrl pointing to the gateway.
+	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Home"},
+			}},
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "siteUrl", Value: gatewayURL},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bob creates a private document.
+	bobSecret, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "/bob-secret",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Secret Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is Bob's private document.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Push Bob's home document to the gateway first so it can resolve siteUrl.
+	pushDocuments(t, bob, gateway, "hm://"+bobHome.Account)
+
+	// The gateway should be able to pull the private document from Bob by space ID since Bob is authenticated.
+	// Gateway authenticates with Bob's peer.
+	{
+		bobPeerID := bob.Storage.Device().PeerID()
+		gatewayPeerID := gateway.Storage.Device().PeerID()
+
+		// Create the authentication token for gateway to Bob.
+		now := time.Now().Round(blob.ClockPrecision)
+		cpb, err := blob.NewEphemeralCapability(gatewayPeerID, gatewayKey.Principal(), bobPeerID, now, nil)
+		require.NoError(t, err)
+
+		err = blob.Sign(gatewayKey, cpb, &cpb.Sig)
+		require.NoError(t, err)
+
+		// Gateway calls Authenticate RPC on Bob.
+		client, err := gateway.Net.Client(ctx, bobPeerID)
+		require.NoError(t, err)
+
+		_, err = client.Authenticate(ctx, &p2p.AuthenticateRequest{
+			Account:   []byte(gatewayKey.Principal()),
+			Timestamp: now.UnixMilli(),
+			Signature: cpb.Sig,
+		})
+		require.NoError(t, err)
+	}
+
+	// Gateway discovers Bob's private document.
+	pullDocument(t, gateway, bobSecret.Account, bobSecret.Path, bobSecret.Version)
+
+	// Verify gateway has Bob's private document.
+	{
+		gatewayGotDoc, err := gateway.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: bobSecret.Account,
+			Path:    bobSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, bobSecret.Version, gatewayGotDoc.Version, "Gateway must have Bob's private document")
+	}
+}
+
 func getLocalIP(t *testing.T) string {
 	addrs, err := net.InterfaceAddrs()
 	require.NoError(t, err)
@@ -2663,5 +2970,21 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 		case prog := <-stream.C:
 			t.Log(prog)
 		}
+	}
+}
+
+func pullDocument(t *testing.T, app *App, account, path, wantVersion string) {
+	t.Helper()
+	ctx := t.Context()
+
+	var state entities.DiscoveryTaskState
+	for state != entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+		resp, err := app.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: account,
+			Path:    path,
+		})
+		require.NoError(t, err)
+		state = resp.State
+		time.Sleep(100 * time.Millisecond)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"os"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/grpcprom"
+	"seed/backend/util/pprofx"
 
 	"github.com/burdiyan/go/mainutil"
 	"github.com/getsentry/sentry-go"
@@ -41,9 +41,7 @@ func init() {
 }
 
 func main() {
-	// These settings are recommended in this video by a DataDog profiling expert: https://www.youtube.com/watch?v=7hg4T2Qqowk.
-	runtime.SetBlockProfileRate(10000)
-	runtime.SetMutexProfileFraction(10)
+	pprofx.UseRecommendedSettings()
 
 	const envVarPrefix = "SEED"
 

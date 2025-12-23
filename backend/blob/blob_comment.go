@@ -237,7 +237,16 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	extraAttrs := make(map[string]any)
 
 	// Comments have an explicit visibility field, which is usually inherited from the document they target.
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility)
+	// For private comments, they're owned by both the signer and the target document's space.
+	var visibilitySpaces []core.Principal
+	if v.Visibility == VisibilityPrivate {
+		visibilitySpaces = []core.Principal{v.Signer}
+		// Also include the target space to allow the space owner to access comments on their documents.
+		if !v.Signer.Equal(v.Space()) {
+			visibilitySpaces = append(visibilitySpaces, v.Space())
+		}
+	}
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, v.Space(), time.Time{}, v.Visibility, visibilitySpaces)
 	sb.ExtraAttrs = extraAttrs
 
 	if v.Visibility != VisibilityPublic {

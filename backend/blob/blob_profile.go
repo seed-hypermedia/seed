@@ -149,8 +149,8 @@ func indexProfile(ictx *indexingCtx, id int64, eb Encoded[*Profile]) error {
 		}
 	}
 
-	// Contact blobs have public visibility.
-	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, owner, time.Time{}, VisibilityPublic)
+	// Profile blobs have public visibility, so no visibility spaces.
+	sb := newStructuralBlob(c, v.Type, v.Signer, v.Ts, iri, cid.Undef, owner, time.Time{}, VisibilityPublic, nil)
 
 	signer, err := ictx.ensurePubKey(v.Signer)
 	if err != nil {

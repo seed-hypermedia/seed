@@ -3,7 +3,6 @@ package blob
 import (
 	"context"
 	"fmt"
-	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/storage"
 	"slices"
 	"time"
@@ -27,10 +26,38 @@ var derivedTables = []string{
 	storage.T_StashedBlobs,
 	storage.T_Fts,
 	storage.T_FtsIndex,
-	storage.T_PublicBlobs,
+	storage.T_BlobVisibility,
 }
 
-// Reindex forces deletes all the information derived from the blobs and reindexes them.
+// ReindexState represents the state of the initial re-indexing process.
+type ReindexState byte
+
+// Reindexing states.
+const (
+	ReindexStatePending ReindexState = iota
+	ReindexStateInProgress
+	ReindexStateCompleted
+	ReindexStateNotNeeded // Index is up to date. No reindexing is needed.
+)
+
+// ReindexInfo provides information about the **initial** reindexing process.
+type ReindexInfo struct {
+	State        ReindexState
+	BlobsTotal   int64
+	BlobsIndexed int64
+}
+
+// ReindexInfo provides information about the **initial** reindexing process at the time of the call.
+// This call is thread-safe because it's using atomics.
+func (idx *Index) ReindexInfo() ReindexInfo {
+	return ReindexInfo{
+		State:        ReindexState(idx.reindexing.state.Load()), //nolint:gosec
+		BlobsTotal:   idx.reindexing.blobsTotal.Load(),
+		BlobsIndexed: idx.reindexing.blobsIndexed.Load(),
+	}
+}
+
+// Reindex the entire database. Usually needed only after migrations.
 func (idx *Index) Reindex(ctx context.Context) (err error) {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
@@ -42,39 +69,30 @@ func (idx *Index) Reindex(ctx context.Context) (err error) {
 }
 
 func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
+	// Prevent concurrent reindexing.
+	// Just in case.
 	if !idx.mu.TryLock() {
 		return nil
 	}
 	defer idx.mu.Unlock()
 
+	idx.reindexing.state.Store(int32(ReindexStateInProgress)) //nolint:gosec
+
 	start := time.Now()
 	var (
-		blobsTotal   int
-		blobsIndexed int
+		blobsTotal   int64
+		blobsIndexed int64
 	)
-	idx.log.Info("ReindexingStarted")
-	const taskID = "blob_reindex"
-	if idx.taskMgr != nil {
-		prevState := idx.taskMgr.GlobalState()
-		idx.taskMgr.UpdateGlobalState(daemon.State_MIGRATING)
-		_, err := idx.taskMgr.AddTask(taskID, daemon.TaskName_REINDEXING, "Reindexing blobs", int64(0))
-		if err != nil {
-			idx.log.Warn("Failed to create reindexing task", zap.Error(err))
-		}
-		defer func() {
-			if err == nil {
-				idx.taskMgr.DeleteTask(taskID)
-			}
-			idx.taskMgr.UpdateGlobalState(prevState)
-		}()
-	}
 	defer func() {
+		idx.reindexing.state.Store(int32(ReindexStateCompleted)) //nolint:gosec
+		idx.reindexing.blobsIndexed.Store(blobsIndexed)
+
 		idx.log.Info("ReindexingFinished",
 			zap.Error(err),
 			zap.String("duration", time.Since(start).String()),
-			zap.Int("blobsTotal", blobsTotal),
-			zap.Int("blobsIndexed", blobsIndexed),
-			zap.Int("blobsSkipped", blobsTotal-blobsIndexed),
+			zap.Int64("blobsTotal", blobsTotal),
+			zap.Int64("blobsIndexed", blobsIndexed),
+			zap.Int64("blobsSkipped", blobsTotal-blobsIndexed),
 		)
 	}()
 
@@ -85,13 +103,14 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			}
 		}
 
-		blobsTotal, err = sqlitex.QueryOne[int](conn, "SELECT count() FROM blobs")
+		blobsTotal, err = sqlitex.QueryOne[int64](conn, "SELECT count() FROM blobs")
 		if err != nil {
 			return err
 		}
-		if idx.taskMgr != nil {
-			_, _ = idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(0))
-		}
+
+		idx.reindexing.blobsTotal.Store(blobsTotal)
+		idx.log.Info("ReindexingStarted", zap.Int64("blobsTotal", blobsTotal))
+
 		const q = "SELECT * FROM blobs WHERE codec IN (?, ?) AND size > 0 ORDER BY id"
 		args := []any{
 			uint64(multicodec.DagCbor),
@@ -122,9 +141,14 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 			err = indexBlob(false, conn, id, c, data, idx.bs, idx.log)
 			blobsIndexed++
-			if idx.taskMgr != nil {
-				idx.taskMgr.UpdateProgress(taskID, int64(blobsTotal), int64(blobsIndexed))
+
+			// We batch updates for progress reporting.
+			// The chosen number is a bit arbitrary.
+			const reportBatchSize = 30
+			if blobsIndexed%reportBatchSize == 0 {
+				idx.reindexing.blobsIndexed.Store(blobsIndexed)
 			}
+
 			return err
 		}, args...); err != nil {
 			return err
@@ -138,7 +162,8 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 	return nil
 }
 
-// MaybeReindex will trigger reindexing if it's needed.
+// MaybeReindex will trigger reindexing of the entire database if needed,
+// i.e. if we've reset the last index timestamp in a migration.
 func (idx *Index) MaybeReindex(ctx context.Context) error {
 	conn, release, err := idx.db.Conn(ctx)
 	if err != nil {
@@ -152,6 +177,7 @@ func (idx *Index) MaybeReindex(ctx context.Context) error {
 	}
 
 	if res != "" {
+		idx.reindexing.state.Store(int32(ReindexStateNotNeeded)) //nolint:gosec
 		return nil
 	}
 

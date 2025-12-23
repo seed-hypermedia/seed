@@ -196,10 +196,15 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 
 	var sb structuralBlob
 	// Refs have explicit visibility field.
+	// For private Refs, the visibility space is the space the ref is for.
+	var visibilitySpaces []core.Principal
+	if v.Visibility == VisibilityPrivate {
+		visibilitySpaces = []core.Principal{space}
+	}
 	if v.Ts.Equal(unixZero) {
-		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts, v.Visibility)
+		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, v.Ts, v.Visibility, visibilitySpaces)
 	} else {
-		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{}, v.Visibility)
+		sb = newStructuralBlob(c, eb.Decoded.Type, v.Signer, v.Ts, iri, v.GenesisBlob, space, time.Time{}, v.Visibility, visibilitySpaces)
 	}
 
 	if v.GenesisBlob.Defined() {

@@ -15,38 +15,65 @@ const (
 	VisibilityPrivate Visibility = "Private"
 )
 
-func propagateVisibility(ictx *indexingCtx, id int64) error {
-	var propagatePublic bool
-	if err := sqlitex.Exec(ictx.conn, qVisibilityCheck(), func(*sqlite.Stmt) error {
-		propagatePublic = true
-		return nil
-	}, map[string]any{":new_blob_id": id}); err != nil {
+// recordBlobVisibility records the visibility of a blob.
+// For public blobs, spaceKeyID is 0 (which is converted to NULL in the database).
+// For private blobs, spaceKeyID is the space owner's public key ID.
+func recordBlobVisibility(conn *sqlite.Conn, blobID int64, space int64) error {
+	return sqlitex.Exec(conn, qRecordBlobVisibility(), nil, blobID, space)
+}
+
+var qRecordBlobVisibility = dqb.Str(`
+	INSERT OR IGNORE INTO blob_visibility (id, space)
+	VALUES (:id, :space);
+`)
+
+func propagateVisibility(ictx *indexingCtx, id int64) (err error) {
+	// Collect all distinct spaces that should propagate from this blob.
+	// A blob can have multiple visibility rows (one per space), and we need to propagate all of them.
+	spaces := make(map[int64]struct{})
+
+	rows, discard, check := sqlitex.Query(ictx.conn, qVisibilityCheck(), id).All()
+	defer discard(&err)
+	for row := range rows {
+		spaceKeyID := row.ColumnInt64(0)
+		spaces[spaceKeyID] = struct{}{}
+	}
+	if err := check(); err != nil {
 		return err
 	}
 
-	if !propagatePublic {
+	if len(spaces) == 0 {
 		return nil
 	}
 
-	return sqlitex.Exec(ictx.conn, qForwardPropagation(), nil, map[string]any{
-		":start_id": id,
-	})
+	// Propagate for each distinct space (including public, spaceKeyID == 0).
+	for space := range spaces {
+		if err := sqlitex.Exec(ictx.conn, qForwardPropagation(), nil, map[string]any{
+			":start_id": id,
+			":space":    space,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-// This query returns as long as any parent blob (according to the visibility rules)
+// This query returns if any parent blob (according to the visibility rules)
 // is already public, and points to the new blob that we've just created.
 // Or if the new blob is already public by its nature.
+// Returns the space ID of the blob if it should propagate (NULL for public blobs).
 var qVisibilityCheck = dqb.Str(`
-	SELECT 1
+	SELECT bv.space
 	FROM blob_links_with_types bl
-	JOIN public_blobs pb ON pb.id = bl.source
+	JOIN blob_visibility bv ON bv.id = bl.source
 	JOIN blob_visibility_rules bvr
 	 	ON (bvr.source_type = bl.source_type OR bvr.source_type = '*')
 		AND (bvr.link_type = bl.link_type OR bvr.link_type = '*')
 		AND (bvr.target_type = bl.target_type OR bvr.target_type = '*')
 	WHERE bl.target = :new_blob_id
 	UNION ALL
-	SELECT 1 FROM public_blobs WHERE id = :new_blob_id;
+	SELECT bv.space FROM blob_visibility bv WHERE id = :new_blob_id;
 `)
 
 var qForwardPropagation = dqb.Str(`
@@ -60,27 +87,10 @@ var qForwardPropagation = dqb.Str(`
 			ON (bvr.source_type = bl.source_type OR bvr.source_type = '*')
 			AND (bvr.link_type = bl.link_type OR bvr.link_type = '*')
 			AND (bvr.target_type = bl.target_type OR bvr.target_type = '*')
-		WHERE bl.target NOT IN public_blobs
+		WHERE bl.target NOT IN (
+			SELECT id FROM blob_visibility WHERE space IS :space
+		)
 	)
-	INSERT OR IGNORE INTO public_blobs (id)
-	SELECT id FROM propagate;
-`)
-
-func markBlobPublic(conn *sqlite.Conn, blobID int64) (inserted bool, err error) {
-	rows, discard, check := sqlitex.Query(conn, qMarkBlobPublic(), blobID).All()
-	defer discard(&err)
-	// The INSERT OR IGNORE with RETURNING clause only returns when the row was actually inserted.
-	// If the value was already there, nothing gets returned.
-	for range rows {
-		inserted = true
-		break
-	}
-	err = check()
-	return inserted, err
-}
-
-var qMarkBlobPublic = dqb.Str(`
-	INSERT OR IGNORE INTO public_blobs
-	VALUES (:id)
-	RETURNING id
+	INSERT OR IGNORE INTO blob_visibility (id, space)
+	SELECT id, :space FROM propagate;
 `)

@@ -56,6 +56,7 @@ type Config struct {
 	P2P     P2P
 	Lndhub  Lndhub
 	Syncing Syncing
+	Debug   Debug
 }
 
 // BindFlags configures the given FlagSet with the existing values from the given Config
@@ -71,6 +72,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	c.P2P.BindFlags(fs)
 	c.Lndhub.BindFlags(fs)
 	c.Syncing.BindFlags(fs)
+	c.Debug.BindFlags(fs)
 }
 
 // Default creates a new default config.
@@ -82,6 +84,7 @@ func Default() Config {
 		P2P:     P2P{}.Default(),
 		Lndhub:  Lndhub{}.Default(),
 		Syncing: Syncing{}.Default(),
+		Debug:   Debug{}.Default(),
 	}
 }
 
@@ -180,6 +183,8 @@ type Syncing struct {
 	Interval        time.Duration
 	TimeoutPerPeer  time.Duration
 	RefreshInterval time.Duration
+	MinWorkers      int
+	MaxWorkers      int
 	NoPull          bool
 	NoDiscovery     bool
 	AllowPush       bool
@@ -191,6 +196,8 @@ func (c Syncing) Default() Syncing {
 		Interval:        time.Minute,
 		TimeoutPerPeer:  time.Minute * 5,
 		RefreshInterval: time.Second * 50,
+		MinWorkers:      8,
+		MaxWorkers:      16,
 	}
 }
 
@@ -199,9 +206,11 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.WarmupDuration, "syncing.warmup-duration", c.WarmupDuration, "Time to wait before the first sync loop iteration")
 	fs.DurationVar(&c.Interval, "syncing.interval", c.Interval, "Periodic interval at which sync loop is triggered")
 	fs.DurationVar(&c.TimeoutPerPeer, "syncing.timeout-per-peer", c.TimeoutPerPeer, "Maximum duration for syncing with a single peer")
-	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of peers to sync is refreshed from the database")
+	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of subscriptions is refreshed")
+	fs.IntVar(&c.MinWorkers, "syncing.min-workers", c.MinWorkers, "Minimum number of workers for syncing")
+	fs.IntVar(&c.MaxWorkers, "syncing.max-workers", c.MaxWorkers, "Maximum number of workers for syncing")
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content")
-	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling")
+	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling.")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")
 
 	// Deprecated flags. Still defined here to avoid errors if these flags are passed.
@@ -287,7 +296,7 @@ func (p2p *P2P) BindFlags(fs *flag.FlagSet) {
 	})
 	fs.Var(newAddrsFlag(p2p.ListenAddrs, &p2p.ListenAddrs), "p2p.listen-addrs", "Addresses to be listen at (comma separated multiaddresses format)")
 	fs.Var(newAddrsFlag(p2p.AnnounceAddrs, &p2p.AnnounceAddrs), "p2p.announce-addrs", "Multiaddrs this node will announce as being reachable at (comma separated)")
-	fs.StringVar(&p2p.DelegatedDHTURL, "p2p.delegated-dht", p2p.DelegatedDHTURL, "URL of the remote DHT delegated server. In not provided, then a local dht client is created.")
+	fs.StringVar(&p2p.DelegatedDHTURL, "p2p.delegated-dht", p2p.DelegatedDHTURL, "URL of the remote DHT delegated server (if not provided, then a local dht client is created)")
 	fs.BoolVar(&p2p.ForceReachabilityPublic, "p2p.force-reachability-public", p2p.ForceReachabilityPublic, "Force the node into thinking it's publicly reachable")
 	fs.BoolVar(&p2p.NoPrivateIps, "p2p.no-private-ips", p2p.NoPrivateIps, "Avoid announcing private IP addresses (ignored when using -p2p.announce-addrs)")
 	fs.BoolVar(&p2p.NoMetrics, "p2p.no-metrics", p2p.NoMetrics, "Disable Prometheus metrics collection")
@@ -308,4 +317,19 @@ func (p2p P2P) IsBootstrap(p peer.ID) bool {
 		}
 	}
 	return false
+}
+
+// Debug configuration.
+type Debug struct {
+	DBReindexProfileDir string
+}
+
+// Default debug configuration.
+func (d Debug) Default() Debug {
+	return Debug{}
+}
+
+// BindFlags binds the debug configuration flags.
+func (d *Debug) BindFlags(fs *flag.FlagSet) {
+	fs.StringVar(&d.DBReindexProfileDir, "debug.db-reindex-profile-dir", d.DBReindexProfileDir, "Directory to write profiling data for the initial database reindexing process (this flag will force reindexing)")
 }
