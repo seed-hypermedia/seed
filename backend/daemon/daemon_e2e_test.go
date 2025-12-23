@@ -1301,6 +1301,16 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Now Alice creates an agent capability for bob's key.
+	_, err = bob.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Delegate:       aliceIdentity.Account.PublicKey.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Impersonation capability for Bob",
+	})
+	require.NoError(t, err)
+
 	aliceToyota, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        aliceIdentity.Account.PublicKey.String(),
 		Path:           "/cars/toyota",
@@ -1588,6 +1598,13 @@ func TestPushing(t *testing.T) {
 	})
 	require.Error(t, err, "Alice must not have Bob's comment on honda")
 
+	// Alice claims Bob as alias.
+	_, err = alice.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "main",
+		AliasAccount:   bobIdentity.Account.PublicKey.String(),
+	})
+	require.NoError(t, err)
+
 	pushDocuments(t, bob, alice, "hm://"+aliceHondaUpdated.Account+aliceHondaUpdated.Path)
 
 	aliceGotBobsComment, err := alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
@@ -1673,6 +1690,16 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err, "Bob must have Alice's updated home document")
 	require.Equal(t, aliceHomeUpdated.Content, bobGotAliceHomeUpdated.Content)
+	/*
+	   // Verify Bob has Alice as alias.
+
+	   	aliceAccount, err := bob.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+	   		Id: aliceIdentity.Account.PublicKey.String(),
+	   	})
+
+	   require.NoError(t, err)
+	   require.Equal(t, aliceIdentity.Account.PublicKey.String(), aliceAccount.AliasAccount, "bob must have alice as alias")
+	*/
 }
 
 func TestBug_BrokenFormattingAnnotations(t *testing.T) {
