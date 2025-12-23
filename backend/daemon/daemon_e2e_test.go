@@ -1610,6 +1610,69 @@ func TestPushing(t *testing.T) {
 
 		require.Equal(t, int64(randomFileSize), n, "file received by Alice must be the same size as Bob created it")
 	}
+
+	aliceHomeUpdated, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		BaseVersion:    aliceHome.Version,
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "Bye world",
+					Link: link,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, aliceHome.Version, aliceHomeUpdated.Version)
+
+	aliceComment, err := alice.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: aliceHondaUpdated.Account,
+		TargetPath:    aliceHondaUpdated.Path,
+		TargetVersion: aliceHondaUpdated.Version,
+
+		Content: []*documents.BlockNode{
+			{
+				Block: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "I'm Alice commenting on my own Honda doc",
+				},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	_, err = bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: aliceComment.Id,
+	})
+	require.Error(t, err, "Bob must not have Alice's comment on honda")
+
+	oldAliceHome, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHome.Account,
+		Path:    aliceHome.Path,
+	})
+	require.NoError(t, err, "Bob must have Alice's old home document")
+	require.NotEqual(t, aliceHomeUpdated.Version, oldAliceHome.Version, "Bob must have old version of Alice's home document")
+	pushDocuments(t, alice, bob, "hm://"+aliceHomeUpdated.Account+aliceHomeUpdated.Path)
+
+	bobGotComment, err := bob.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{
+		Id: aliceComment.Id,
+	})
+	require.NoError(t, err, "Bob should have gotten Alice's comment after the push")
+	require.Equal(t, aliceComment.Content, bobGotComment.Content)
+
+	bobGotAliceHomeUpdated, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHomeUpdated.Account,
+		Path:    aliceHomeUpdated.Path,
+	})
+	require.NoError(t, err, "Bob must have Alice's updated home document")
+	require.Equal(t, aliceHomeUpdated.Content, bobGotAliceHomeUpdated.Content)
 }
 
 func TestBug_BrokenFormattingAnnotations(t *testing.T) {
