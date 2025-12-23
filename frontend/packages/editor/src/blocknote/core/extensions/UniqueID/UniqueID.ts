@@ -128,7 +128,6 @@ const UniqueID = Extension.create({
       new Plugin({
         key: new PluginKey('uniqueID'),
         appendTransaction: (transactions, oldState, newState) => {
-          // console.log("appendTransaction");
           const docChanges =
             transactions.some((transaction) => transaction.docChanged) &&
             !oldState.doc.eq(newState.doc)
@@ -177,10 +176,26 @@ const UniqueID = Extension.create({
                   ? void 0
                   : _a.attrs[attributeName]
               if (id === null) {
-                tr.setNodeMarkup(pos, undefined, {
-                  ...node.attrs,
-                  [attributeName]: generateID(),
-                })
+                const currentNode = tr.doc.nodeAt(pos)
+                if (currentNode) {
+                  try {
+                    tr.setNodeMarkup(pos, currentNode.type, {
+                      ...node.attrs,
+                      [attributeName]: generateID(),
+                    })
+                    console.log('🆔 [UniqueID] setNodeMarkup successful')
+                  } catch (error) {
+                    console.error('🆔 [UniqueID] setNodeMarkup FAILED:', error)
+                    console.error('Node details:', {
+                      pos,
+                      currentNode: currentNode.toString(),
+                      type: currentNode.type.name,
+                      content: currentNode.content.toString(),
+                      attrs: currentNode.attrs,
+                    })
+                    throw error
+                  }
+                }
                 return
               }
               // check if the node doesn't exist in the old state

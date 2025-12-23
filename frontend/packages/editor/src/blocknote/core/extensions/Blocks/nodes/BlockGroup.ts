@@ -225,6 +225,18 @@ export const BlockGroup = Node.create<{
       new Plugin({
         props: {
           transformPasted: (slice, view) => {
+            const {state} = view
+            const {selection} = state
+            const isSelectionInText =
+              selection.$from.parent.isTextblock &&
+              selection.$from.parent.type.spec.group === 'blockContent' &&
+              selection.$from.parent.content.content.length > 0
+
+            // Let default PM paste handling if pasting in a node with text content
+            if (isSelectionInText) {
+              return slice
+            }
+
             const schema = view.state.schema
             let normalizedContent = normalizeFragment(slice.content, schema)
 
@@ -248,7 +260,9 @@ export const BlockGroup = Node.create<{
                 ? 0
                 : slice.openEnd
 
-            return new Slice(normalizedContent, openStart, openEnd)
+            const finalSlice = new Slice(normalizedContent, openStart, openEnd)
+
+            return finalSlice
           },
         },
       }),
@@ -328,22 +342,21 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
 
       // Unwrap when the group has a blockContainer child with a single blockGroup child
       // This is invalid structure and happens when copy pasting a nested blockGroup without a parent.
-      if (
-        groupNode.attrs?.listType === 'Group' && // outer is the dumb wrapper
-        groupContent.childCount === 1
-      ) {
-        const onlyChild = groupContent.firstChild
+      if (groupContent.childCount === 1) {
+        const firstChild = groupContent.firstChild
 
         if (
-          onlyChild &&
-          onlyChild.type?.name === 'blockContainer' &&
-          onlyChild.childCount === 1 &&
-          onlyChild.firstChild &&
-          onlyChild.firstChild.type?.name === 'blockGroup'
+          firstChild &&
+          firstChild.type?.name === 'blockContainer' &&
+          firstChild.firstChild &&
+          firstChild.firstChild.type?.name === 'paragraph' &&
+          firstChild.firstChild.content.content.length == 0 &&
+          firstChild.lastChild &&
+          firstChild.lastChild.type?.name === 'blockGroup'
         ) {
-          const innerGroup = onlyChild.firstChild
+          const innerGroup = firstChild.lastChild
 
-          // ✅ Treat outer "Group" as a wrapper and adopt the inner group instead
+          // Make the inner group the root group
           groupNode = innerGroup
           groupContent = normalizeFragment(innerGroup.content, schema)
         }
@@ -431,6 +444,17 @@ function normalizeBlockContainer(node: any, schema?: any) {
       children.push(child)
     }
   })
+
+  // Add an empty paragraph if the blockGroup is the only child (invalid structure)
+  if (
+    children.length === 1 &&
+    children[0].type.name === 'blockGroup' &&
+    schema
+  ) {
+    children.unshift(
+      schema.nodes.paragraph.createAndFill() ?? schema.nodes.paragraph.create(),
+    )
+  }
 
   return node.type.create(node.attrs, children)
 }
