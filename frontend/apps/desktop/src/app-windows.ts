@@ -796,3 +796,144 @@ function createFindView(win: BrowserWindow) {
     )
   }
 }
+
+let loadingWindow: BrowserWindow | null = null
+
+export function createLoadingWindow(): BrowserWindow {
+  if (!app.isReady()) {
+    throw new Error('Cannot create BrowserWindow before app is ready')
+  }
+
+  // If loading window already exists, return it
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    return loadingWindow
+  }
+
+  // Get primary display to center the window
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const {width: screenWidth, height: screenHeight} = primaryDisplay.workAreaSize
+
+  // Discord-style loading window: small, centered, frameless
+  const windowWidth = 400
+  const windowHeight = 480
+
+  loadingWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: Math.floor((screenWidth - windowWidth) / 2),
+    y: Math.floor((screenHeight - windowHeight) / 2),
+    show: true, // Show immediately for testing
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: true, // Allow closing for testing
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    backgroundColor: '#1e1e1e',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-loading.js'),
+      disableDialogs: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  })
+
+  // Setup IPC handlers for loading window
+  loadingWindow.webContents.ipc.on('initWindow', (e) => {
+    e.returnValue = {
+      daemonState: getDaemonState(),
+      forceLoadingWindow:
+        typeof __FORCE_LOADING_WINDOW__ !== 'undefined' &&
+        __FORCE_LOADING_WINDOW__ === 'true',
+    }
+  })
+
+  // Note: forceActiveState IPC handler is in main.ts
+
+  // Subscribe to daemon state changes and broadcast to loading window
+  const releaseDaemonListener = subscribeDaemonState((goDaemonState) => {
+    if (loadingWindow && !loadingWindow.isDestroyed()) {
+      loadingWindow.webContents.send('goDaemonState', goDaemonState)
+    }
+  })
+
+  // Handle windowIsReady IPC call
+  loadingWindow.webContents.ipc.on('windowIsReady', () => {
+    if (loadingWindow && !loadingWindow.isDestroyed()) {
+      loadingWindow.show()
+    }
+  })
+
+  // Cleanup daemon listener when window is closed
+  loadingWindow.on('closed', () => {
+    releaseDaemonListener()
+  })
+
+  // Enable console logging from loading window
+  loadingWindow.webContents.on('console-message', (e, level, message) => {
+    info(`[LOADING WINDOW]: ${message}`)
+  })
+
+  // Load the loading window renderer
+  // Debug: log what constants we have
+  info(
+    `LOADING_WINDOW_VITE_DEV_SERVER_URL: ${
+      typeof LOADING_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
+        ? LOADING_WINDOW_VITE_DEV_SERVER_URL
+        : 'undefined'
+    }`,
+  )
+  info(
+    `LOADING_WINDOW_VITE_NAME: ${
+      typeof LOADING_WINDOW_VITE_NAME !== 'undefined'
+        ? LOADING_WINDOW_VITE_NAME
+        : 'undefined'
+    }`,
+  )
+  info(
+    `MAIN_WINDOW_VITE_DEV_SERVER_URL: ${
+      typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
+        ? MAIN_WINDOW_VITE_DEV_SERVER_URL
+        : 'undefined'
+    }`,
+  )
+
+  // In development mode, Electron Forge might not start a separate dev server for loading_window
+  // So we load loading.html directly from the source directory
+  if (
+    typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' &&
+    MAIN_WINDOW_VITE_DEV_SERVER_URL
+  ) {
+    // Development mode - load loading.html directly
+    const loadingHtmlPath = path.join(__dirname, '../../loading.html')
+    info(`Development: Loading from file: ${loadingHtmlPath}`)
+    loadingWindow.loadFile(loadingHtmlPath)
+  } else {
+    // Production mode - load from built files
+    const prodPath = path.join(
+      __dirname,
+      `../renderer/${
+        typeof LOADING_WINDOW_VITE_NAME !== 'undefined'
+          ? LOADING_WINDOW_VITE_NAME
+          : 'loading_window'
+      }/index.html`,
+    )
+    info(`Production: Loading from: ${prodPath}`)
+    loadingWindow.loadFile(prodPath)
+  }
+
+  info('Loading window created and visible')
+
+  return loadingWindow
+}
+
+export function closeLoadingWindow(): void {
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    info('Closing loading window')
+    loadingWindow.close()
+    loadingWindow = null
+  }
+}

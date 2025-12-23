@@ -24,6 +24,9 @@ export default defineConfig(({command, mode}) => {
   return {
     define: {
       __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN),
+      __FORCE_LOADING_WINDOW__: JSON.stringify(
+        process.env.VITE_FORCE_LOADING_WINDOW,
+      ),
 
       // Electron Forge environment variables for main process
       MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(
@@ -35,6 +38,12 @@ export default defineConfig(({command, mode}) => {
       ),
       FIND_IN_PAGE_VITE_NAME: JSON.stringify(
         process.env.FIND_IN_PAGE_VITE_NAME,
+      ),
+      LOADING_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(
+        process.env.LOADING_WINDOW_VITE_DEV_SERVER_URL,
+      ),
+      LOADING_WINDOW_VITE_NAME: JSON.stringify(
+        process.env.LOADING_WINDOW_VITE_NAME,
       ),
     },
     publicDir: 'assets',
