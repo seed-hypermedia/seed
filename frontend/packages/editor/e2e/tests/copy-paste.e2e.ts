@@ -92,6 +92,54 @@ test.describe('Copy and Paste', () => {
       expect(blocks[1].content[0].text).toBe('Second paragraph')
       expect(blocks[2].content[0].text).toBe('Third paragraph')
     })
+
+    test('Should paste plain text content inline', async ({
+      editorHelpers,
+      page,
+      context,
+    }) => {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+      await editorHelpers.focusEditor()
+
+      // Create a single paragraph block
+      await editorHelpers.typeText('Hello ')
+
+      await editorHelpers.setClipboardText('World')
+      await editorHelpers.paste()
+      await page.waitForTimeout(200)
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks.length).toEqual(1)
+      expect(blocks[0].content[0].text).toBe('Hello World')
+    })
+
+    test('Should paste multi-paragraph content inline: first paragraph merges at cursor, rest become new blocks', async ({
+      editorHelpers,
+      page,
+      context,
+    }) => {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+      await editorHelpers.focusEditor()
+
+      // Create a single paragraph block
+      await editorHelpers.typeText('HelloWorld')
+
+      // Move cursor between Hello and World.
+      for (let i = 0; i < 'World'.length; i++) {
+        await editorHelpers.pressKey('ArrowLeft')
+      }
+
+      // Put multi-paragraph text onto clipboard.
+      await editorHelpers.setClipboardText('AAA\n\nBBB\n\nCCC')
+      await editorHelpers.paste()
+      await page.waitForTimeout(200)
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks.length).toBeGreaterThanOrEqual(3)
+
+      // First block should have merged "AAA" at the cursor position
+      expect(blocks[0].content?.[0]?.text).toBe('HelloAAA')
+    })
   })
 
   // ===========================================================================
@@ -418,6 +466,57 @@ test.describe('Copy and Paste', () => {
         expect(blockquoteBlock.children[0].content[0].text).toContain(
           'quoted text',
         )
+      })
+
+      test('Should copy and paste a nested list created in editor', async ({
+        editorHelpers,
+        page,
+      }) => {
+        await editorHelpers.focusEditor()
+
+        // Create a list:
+        // Parent
+        // - Parent 1
+        //   - Child 1
+        //   - Child 2
+        // - Parent 2
+        await editorHelpers.typeText('Parent')
+        await editorHelpers.pressKey('Enter')
+        await page.waitForTimeout(100)
+        await editorHelpers.typeText('* ')
+        await page.waitForTimeout(100)
+        await editorHelpers.typeText('Parent 1')
+        await editorHelpers.pressKey('Enter')
+
+        // Indent to create nested list under Parent 1
+        await editorHelpers.pressKey('Tab')
+        await editorHelpers.typeText('Child 1')
+        await editorHelpers.pressKey('Enter')
+        await editorHelpers.typeText('Child 2')
+        await editorHelpers.pressKey('Enter')
+
+        // Unindent back to parent list level
+        await editorHelpers.pressKey('Shift+Tab')
+        await editorHelpers.typeText('Parent 2')
+        await page.waitForTimeout(150)
+
+        // Copy the nested list
+        await editorHelpers.selectNestedList('Parent 1', 'Unordered')
+        await page.waitForTimeout(100)
+        await editorHelpers.copy()
+        await page.waitForTimeout(100)
+
+        await editorHelpers.moveCursorToEnd()
+        await editorHelpers.paste()
+        await page.waitForTimeout(250)
+
+        // Check that the nested list items are duplicated
+        const text = await editorHelpers.getEditorText()
+        for (const item of ['Child 1', 'Child 2']) {
+          const count = (text.match(new RegExp(item, 'g')) || []).length
+          expect(count).toBeGreaterThanOrEqual(2)
+        }
+        // TODO: Check that the pasted list is pasted at the correct level and position
       })
 
       // test('Should paste plain text list-like content', async ({

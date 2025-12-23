@@ -30,6 +30,18 @@ export type EditorTestHelpers = {
   getSelectedText: () => Promise<string>
   /** Select all text */
   selectAll: () => Promise<void>
+  /** Select range between elements */
+  selectRangeBetweenElements: (
+    startEl: Locator,
+    endEl: Locator,
+  ) => Promise<void>
+  /** Select nested list under item */
+  selectNestedList: (
+    itemText: string,
+    listType: 'Unordered' | 'Ordered' | 'Blockquote',
+  ) => Promise<void>
+  /** Select text by dragging */
+  dragSelectText: (fromText: string, toText: string) => Promise<void>
   /** Open slash menu by typing '/' */
   openSlashMenu: () => Promise<void>
   /** Click on a slash menu item by name */
@@ -42,6 +54,8 @@ export type EditorTestHelpers = {
   clickToolbarButton: (identifier: string) => Promise<void>
   /** Create a text selection by dragging */
   selectText: (startOffset: number, endOffset: number) => Promise<void>
+  /** Move cursor to the end of the document */
+  moveCursorToEnd: () => Promise<void>
   /** Set clipboard with plain text content */
   setClipboardText: (text: string) => Promise<void>
   /** Set clipboard with HTML content (also sets plain text fallback) */
@@ -148,6 +162,101 @@ export const test = base.extend<{
         await page.keyboard.press('ControlOrMeta+A')
       },
 
+      async selectRangeBetweenElements(startEl: Locator, endEl: Locator) {
+        const startHandle = await startEl.elementHandle()
+        const endHandle = await endEl.elementHandle()
+        if (!startHandle || !endHandle)
+          throw new Error('Missing element handle')
+
+        await page.evaluate(
+          ([start, end]) => {
+            if (!start || !end) {
+              throw new Error('Missing start or end element')
+            }
+            const sel = window.getSelection()
+            if (!sel) return
+            sel.removeAllRanges()
+
+            const range = document.createRange()
+            range.setStart(start, 0)
+            range.setEnd(end, end.childNodes.length)
+
+            sel.addRange(range)
+          },
+          [startHandle, endHandle],
+        )
+      },
+
+      async selectNestedList(
+        parentText: string,
+        listType: 'Unordered' | 'Ordered' | 'Blockquote' = 'Unordered',
+      ) {
+        const contentArea = this.getContentArea()
+
+        // Find the blockContainer that contains the parent list item text
+        const parentItem = contentArea
+          .locator('[data-node-type="blockContainer"]', {hasText: parentText})
+          .first()
+
+        // The nested list under that item is the child blockGroup inside that blockContainer.
+        const nestedGroup = parentItem
+          .locator(
+            `[data-node-type="blockGroup"][data-list-type="${listType}"], ${
+              listType === 'Unordered' ? 'ul' : 'ol'
+            }`,
+          )
+          .last()
+
+        await nestedGroup.waitFor({state: 'visible'})
+
+        const handle = await nestedGroup.elementHandle()
+        if (!handle) throw new Error('Nested list group element not found')
+        await page.evaluate((groupEl) => {
+          const bnEditor = (window as any).TEST_EDITOR?.editor
+          if (!bnEditor) throw new Error('window.TEST_EDITOR.editor not found')
+
+          const tiptap = (bnEditor as any)._tiptapEditor
+          if (!tiptap?.view) throw new Error('tiptap editor/view not found')
+
+          const view = tiptap.view
+
+          let from = view.posAtDOM(groupEl as any, 0)
+          let to = view.posAtDOM(
+            groupEl as any,
+            (groupEl as any).childNodes.length,
+          )
+
+          // Swap from and to if reversed
+          if (from > to) [from, to] = [to, from]
+
+          // Set selection
+          tiptap.commands.setTextSelection({from, to})
+          view.focus()
+        }, handle)
+      },
+
+      async dragSelectText(fromText: string, toText: string) {
+        const area = this.getContentArea()
+
+        const from = area.locator(':text("' + fromText + '")').first()
+        const to = area.locator(':text("' + toText + '")').first()
+
+        const fromBox = await from.boundingBox()
+        const toBox = await to.boundingBox()
+        if (!fromBox || !toBox) throw new Error('Could not get bounding boxes')
+
+        await page.mouse.move(
+          fromBox.x + fromBox.width / 2,
+          fromBox.y + fromBox.height / 2,
+        )
+        await page.mouse.down()
+        await page.mouse.move(
+          toBox.x + toBox.width / 2,
+          toBox.y + toBox.height / 2,
+        )
+        await page.mouse.up()
+      },
+
       async openSlashMenu() {
         await this.typeText('/')
         await page.waitForSelector(
@@ -217,12 +326,27 @@ export const test = base.extend<{
         await button.click()
       },
 
-      async selectText(startOffset: number, endOffset: number) {
+      async selectText() {
         const contentArea = this.getContentArea()
         const box = await contentArea.boundingBox()
         if (!box) throw new Error('Could not get content area bounding box')
 
         await contentArea.click({clickCount: 3})
+      },
+
+      async moveCursorToEnd() {
+        await this.focusEditor()
+        await page.evaluate(() => {
+          const bnEditor = (window as any).TEST_EDITOR?.editor
+          if (!bnEditor) throw new Error('window.TEST_EDITOR.editor not found')
+
+          const tiptap = (bnEditor as any)._tiptapEditor
+          if (!tiptap?.state) throw new Error('tiptap editor not found')
+
+          const endPos = tiptap.state.doc.content.size
+          tiptap.commands.setTextSelection(endPos)
+          tiptap.view?.focus()
+        })
       },
 
       async setClipboardText(text: string) {
