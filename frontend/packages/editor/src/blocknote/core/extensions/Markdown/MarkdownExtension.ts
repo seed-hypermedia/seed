@@ -30,6 +30,21 @@ function containsMarkdownSymbols(pastedText: string) {
   return lines.some((line) => markdownUniqueSymbols.test(line))
 }
 
+function checkMarkdownSymbols(text: string) {
+  if (!text) return false
+
+  // Block markdown checks
+  const blockMd = /(^|\n)\s*(#{1,6}\s+|>\s+|```|(\d+)\.\s+|[-+*]\s+)/m
+  if (blockMd.test(text)) return true
+
+  // Inline markdown checks
+  const inlineMd =
+    /(\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_|`[^`\n]+?`|\[[^\]]+?\]\([^)]+?\)|!\[[^\]]*?\]\([^)]+?\))/m
+  if (inlineMd.test(text)) return true
+
+  return false
+}
+
 // // Function to insert a group, if it is the only node being pasted.
 // function replaceSelectedBlock(group: Node, editor: Editor) {
 //   const {state, view} = editor
@@ -161,28 +176,30 @@ export const createMarkdownExtension = (bnEditor: BlockNoteEditor) => {
               ) {
                 return false
               }
+
               const pastedText = event.clipboardData!.getData('text/plain')
               const pastedHtml = event.clipboardData!.getData('text/html')
-              const hasList =
-                pastedHtml.includes('<ul') || pastedHtml.includes('<ol')
 
               const {state} = view
               const {selection} = state
 
-              // If pasted HTML has list, pass to other paste handlers.
-              if (hasList) {
-                return false
-              }
+              // Return if pasting inline
+              const isInlineTextPaste =
+                selection.$from.parent.isTextblock &&
+                selection.$from.parent.type.spec.group === 'blockContent' &&
+                selection.$from.parent.content.content.length > 0
+              if (isInlineTextPaste) return false
 
-              const isMarkdown = pastedHtml
-                ? containsMarkdownSymbols(pastedText)
-                : pastedText
-                ? true
-                : false
+              const isRichHtml =
+                /<(ul|ol|table|pre|code|h1|h2|h3|h4|h5|h6|blockquote|img)\b/i.test(
+                  pastedHtml,
+                )
 
-              if (!isMarkdown) {
-                return false
-              }
+              // Prefer HTML handling when there are rich html tags
+              if (isRichHtml) return false
+
+              const isMarkdown = checkMarkdownSymbols(pastedText)
+              if (!isMarkdown) return false
 
               MarkdownToBlocks(pastedText, bnEditor).then((organizedBlocks) => {
                 const blockInfo = getBlockInfoFromSelection(state)
