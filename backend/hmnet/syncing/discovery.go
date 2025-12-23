@@ -8,7 +8,6 @@ import (
 	"seed/backend/core"
 	docspb "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet/netutil"
-	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
 	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
@@ -22,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multicodec"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -116,9 +116,18 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}: {},
 	}
 
-	store, err := s.loadStore(ctxLocalPeers, dkeys)
-	if err != nil {
-		return "", fmt.Errorf("failed to create RBSR store: %w", err)
+	store := newAuthorizedStore()
+	{
+		ctx := ctxLocalPeers
+		if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+			// Client-side RBSR: include all local blobs (nil = no filter).
+			return loadRBSRStore(conn, dkeys, store)
+		}); err != nil {
+			return "", fmt.Errorf("failed to load RBSR store: %w", err)
+		}
+	}
+	if err := store.Seal(); err != nil {
+		return "", fmt.Errorf("failed to seal RBSR store: %w", err)
 	}
 
 	if len(allPeers) != 0 {
@@ -181,23 +190,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	return "", fmt.Errorf("found some DHT providers but could not get document from them %s", c.String())
 }
 
-// loadStore creates and populates an RBSR store for the given discovery keys.
-func (s *Service) loadStore(ctx context.Context, dkeys map[DiscoveryKey]struct{}) (rbsr.Store, error) {
-	store := rbsr.NewSliceStore()
-
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return loadRBSRStore(conn, dkeys, store)
-	}); err != nil {
-		return nil, err
-	}
-
-	if err := store.Seal(); err != nil {
-		return nil, err
-	}
-
-	return store, nil
-}
-
 // DiscoveryKey is used to identify resources to discover.
 type DiscoveryKey struct {
 	// IRI is the identifier of the resource.
@@ -210,16 +202,70 @@ type DiscoveryKey struct {
 	Recursive bool
 }
 
-func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store rbsr.Store) error {
-	cids, err := GetRelatedMaterial(conn, dkeys, false)
-	if err != nil {
+// loadRBSRStore loads blobs into an RBSR store for the given discovery keys.
+func loadRBSRStore(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, store *authorizedStore) (err error) {
+	if err := collectBlobs(conn, dkeys, false); err != nil {
 		return err
 	}
-	for _, c := range cids {
-		if err := store.Insert(c.Ts, unsafeutil.BytesFromString(c.CID.KeyString())); err != nil {
-			return err
+
+	const q = `SELECT
+			COALESCE(sb.ts, 0),
+			b.codec,
+			b.multihash,
+			(
+				SELECT JSON_GROUP_ARRAY(space)
+				FROM blob_visibility
+				WHERE id = b.id
+				ORDER BY space
+			)
+		FROM rbsr_blobs rb
+		CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
+		LEFT JOIN structural_blobs sb ON sb.id = b.id
+		WHERE b.size >= 0
+		ORDER BY sb.ts, b.multihash;`
+
+	lookup := blob.NewLookupCache(conn)
+
+	rows, discard, check := sqlitex.Query(conn, q).All()
+	defer discard(&err)
+	var i int
+	for row := range rows {
+		{
+			inc := sqlite.NewIncrementor(0)
+			var (
+				ts             = row.ColumnInt64(inc())
+				codec          = row.ColumnInt64(inc())
+				hash           = row.ColumnBytesUnsafe(inc())
+				visibilityJSON = row.ColumnTextUnsafe(inc())
+			)
+
+			c := cid.NewCidV1(uint64(codec), hash)
+			if err := store.Insert(ts, unsafeutil.BytesFromString(c.KeyString())); err != nil {
+				return fmt.Errorf("failed to insert blob %s into RBSR store: %w", c, err)
+			}
+
+			for _, v := range gjson.Parse(visibilityJSON).ForEach {
+				vv := v.Int()
+				if vv == 0 {
+					// If space is 0 it means the blob is public, so don't care whether it's private for any other space.
+					break
+				}
+
+				space, err := lookup.PublicKey(vv)
+				if err != nil {
+					return err
+				}
+
+				store.SetItemPrivateVisibility(i, space)
+			}
 		}
+		i++
 	}
+
+	if err := check(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -230,19 +276,81 @@ type CIDWithTS struct {
 }
 
 // GetRelatedMaterial gets all the related material CIDs for the given discovery keys.
-func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (cids []CIDWithTS, err error) {
+// If authorizedSpaces is nil, all blobs are included (public and private).
+// If authorizedSpaces is non-nil, only:
+//   - public blobs (blob_visibility.space IS NULL), and
+//   - private blobs whose space owner is in authorizedSpaces
+//
+// are included.
+func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool, authorizedSpaces []core.Principal) (cids []CIDWithTS, err error) {
+	if err := collectBlobs(conn, dkeys, includeLinksCitationsAccounts); err != nil {
+		return nil, err
+	}
+
+	if err := ensureTempTable(conn, "rbsr_authorized_spaces"); err != nil {
+		return nil, err
+	}
+
+	for _, space := range authorizedSpaces {
+		const q = `
+			INSERT OR IGNORE INTO rbsr_authorized_spaces
+			SELECT id FROM public_keys WHERE principal = :space;`
+
+		if err := sqlitex.Exec(conn, q, nil, []byte(space)); err != nil {
+			return nil, err
+		}
+	}
+
+	// Load blobs.
+	{
+		const q = `SELECT
+				COALESCE(sb.ts, 0),
+				b.codec,
+				b.multihash
+			FROM (
+				-- Filter rbsr_blobs according to visibility rules.
+				SELECT b.id FROM rbsr_blobs b
+				JOIN blob_visibility v ON v.id = b.id
+				LEFT JOIN rbsr_authorized_spaces a ON a.id = v.space
+				WHERE v.space = 0 OR a.id IS NOT NULL
+			) rb
+			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
+			LEFT JOIN structural_blobs sb ON sb.id = rb.id
+			WHERE b.size >= 0
+			ORDER BY sb.ts, b.multihash;`
+
+		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
+			inc := sqlite.NewIncrementor(0)
+			var (
+				ts    = row.ColumnInt64(inc())
+				codec = row.ColumnInt64(inc())
+				hash  = row.ColumnBytesUnsafe(inc())
+			)
+			c := cid.NewCidV1(uint64(codec), hash)
+			cids = append(cids, CIDWithTS{CID: c, Ts: ts})
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return cids, nil
+}
+
+func collectBlobs(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeLinksCitationsAccounts bool) (err error) {
 	// List of data to sync here https://seedteamtalks.hyper.media/discussions/things-to-sync-when-pushing-to-a-server?v=bafy2bzacebddt2wpn4vxfqc7zxqvxbq32tyjne23eirpn62vvqo2ce72mjf3g&l
 	if err := ensureTempTable(conn, "rbsr_iris"); err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := ensureTempTable(conn, "rbsr_blobs"); err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := fillTables(conn, dkeys, includeLinksCitationsAccounts); err != nil {
-		return nil, err
+		return err
 	}
+
 	if includeLinksCitationsAccounts {
 		var linkIRIs = make(map[DiscoveryKey]struct{})
 		// Fill Links.
@@ -269,7 +377,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				linkIRIs[dKey] = struct{}{}
 				return nil
 			}); err != nil {
-				return nil, err
+				return err
 			}
 		}
 
@@ -306,7 +414,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				linkIRIs[dKey] = struct{}{}
 				return nil
 			}); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		// Fill Comment Links.
@@ -319,11 +427,11 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 				AND type GLOB 'comment*';`
 
 			if err := sqlitex.Exec(conn, q, nil); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if err := fillTables(conn, linkIRIs, true); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -332,7 +440,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 	for {
 		blobCountBefore, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if blobCountBefore == 0 {
@@ -352,12 +460,12 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 			AND sb.extra_attrs->>'role' = 'AGENT';`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
-			return nil, err
+			return err
 		}
 
 		blobCountAfter, err := sqlitex.QueryOne[int](conn, "SELECT count() FROM rbsr_blobs;")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if blobCountAfter == blobCountBefore {
@@ -365,35 +473,7 @@ func GetRelatedMaterial(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, incl
 		}
 	}
 
-	// Load blobs.
-	{
-		const q = `SELECT
-				sb.ts,
-				b.codec,
-				b.multihash
-			FROM rbsr_blobs rb
-			CROSS JOIN public_blobs pb ON pb.id = rb.id
-			CROSS JOIN blobs b INDEXED BY blobs_metadata ON b.id = rb.id
-			LEFT JOIN structural_blobs sb ON sb.id = rb.id
-			WHERE b.size >= 0
-			ORDER BY sb.ts, b.multihash;`
-
-		if err := sqlitex.Exec(conn, q, func(row *sqlite.Stmt) error {
-			inc := sqlite.NewIncrementor(0)
-			var (
-				ts    = row.ColumnInt64(inc())
-				codec = row.ColumnInt64(inc())
-				hash  = row.ColumnBytesUnsafe(inc())
-			)
-			c := cid.NewCidV1(uint64(codec), hash)
-			cids = append(cids, CIDWithTS{CID: c, Ts: ts})
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	return cids, nil
+	return nil
 }
 
 func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccounts bool) error {

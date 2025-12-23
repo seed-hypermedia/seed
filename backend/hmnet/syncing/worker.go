@@ -8,7 +8,6 @@ import (
 	"seed/backend/config"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	"seed/backend/hmnet/netutil"
-	"seed/backend/hmnet/syncing/rbsr"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +28,7 @@ type worker struct {
 	log        *zap.Logger
 	clientFunc netDialFunc
 	host       host.Host
-	indexer    Blockstore
+	index      Index
 	bswap      bitswap
 	db         *sqlitex.Pool
 	sema       chan struct{}
@@ -44,7 +43,7 @@ func newWorker(
 	log *zap.Logger,
 	clientFunc netDialFunc,
 	host host.Host,
-	indexer Blockstore,
+	index Index,
 	bswap bitswap,
 	db *sqlitex.Pool,
 	semaphore chan struct{},
@@ -59,7 +58,7 @@ func newWorker(
 		log:        log,
 		clientFunc: clientFunc,
 		host:       host,
-		indexer:    indexer,
+		index:      index,
 		bswap:      bswap,
 		db:         db,
 		sema:       semaphore,
@@ -219,8 +218,9 @@ func (sw *worker) sync(ctx context.Context) {
 		})
 	}
 
-	store := rbsr.NewSliceStore()
+	store := newAuthorizedStore()
 	if err := sw.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		// Worker is client-side pulling from peer: include all local blobs (nil = no filter).
 		return loadRBSRStore(conn, dkeys, store)
 	}); err != nil {
 		sw.log.Debug("Failed to create RBSR store", zap.Error(err))
@@ -232,7 +232,7 @@ func (sw *worker) sync(ctx context.Context) {
 		return
 	}
 
-	if err := syncEntities(ctx, sw.pid, c, sw.indexer, sess, sw.log, eids, store, &DiscoveryProgress{}); err != nil {
+	if err := syncEntities(ctx, sw.pid, c, sw.index, sess, sw.log, eids, store, &DiscoveryProgress{}); err != nil {
 		sw.log.Debug("Failed to smart sync", zap.Error(err))
 	}
 }

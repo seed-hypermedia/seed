@@ -58,10 +58,6 @@ type Server struct {
 
 // NewServer creates a new Server.
 func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager) *Server {
-	if n == nil {
-		panic("BUG: p2p node is required")
-	}
-
 	return &Server{
 		store:     store,
 		startTime: time.Now(),
