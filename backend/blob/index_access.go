@@ -35,8 +35,8 @@ func (idx *Index) isAuthenticated(peerID peer.ID, account core.Principal) bool {
 }
 
 // ResolveSiteURL resolves a site URL to peer.ID using the cache.
-func (idx *Index) ResolveSiteURL(ctx context.Context, siteURL string) (peer.ID, error) {
-	return idx.sitePeerResolver.getPeerID(ctx, siteURL)
+func (idx *Index) ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
+	return idx.sitePeerResolver.getAddrInfo(ctx, siteURL)
 }
 
 // CanPeerAccessCID checks if a peer can access a specific CID.

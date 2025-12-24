@@ -130,17 +130,28 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", fmt.Errorf("failed to seal RBSR store: %w", err)
 	}
 
+	// Compute auth info once for all peers. This determines which siteURL servers
+	// we should authenticate with based on local siteURL and capability info.
+	eidsMap := make(map[string]bool)
+	eidsMap[string(entityID)] = recursive
+	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
+
 	if len(allPeers) != 0 {
 		s.log.Debug("Discovering via connected local peers first", zap.Error(err))
-		eidsMap := make(map[string]bool)
-		eidsMap[string(entityID)] = recursive
 		for _, pid := range allPeers {
 			// TODO(juligasa): look into the providers store who has each eid
 			// instead of pasting all peers in all documents.
 			subsMap[pid] = eidsMap
 		}
 
-		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog)
+		// Include siteUrl peers into the map of all the peers to sync.
+		for pid := range auth.peerKeys {
+			if _, ok := subsMap[pid]; !ok {
+				subsMap[pid] = eidsMap
+			}
+		}
+
+		res := s.syncWithManyPeers(ctxLocalPeers, subsMap, store, prog, auth)
 		if res.NumSyncOK > 0 {
 			doc, err := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 				Iri: iri,
@@ -167,7 +178,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", nil
 	}
 
-	eidsMap := make(map[string]bool)
+	eidsMap = make(map[string]bool)
 	eidsMap[string(entityID)] = recursive
 	subsMap = make(subscriptionMap)
 	for p := range peers {
@@ -177,7 +188,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		subsMap[p.ID] = eidsMap
 	}
 
-	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog)
+	res := s.syncWithManyPeers(ctxDHT, subsMap, store, prog, auth)
 	if res.NumSyncOK > 0 {
 		doc, err := s.resources.GetResource(ctxDHT, &docspb.GetResourceRequest{
 			Iri: iri,

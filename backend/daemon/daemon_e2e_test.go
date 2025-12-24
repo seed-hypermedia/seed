@@ -2275,7 +2275,6 @@ func TestCommentDiscovery(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Bob discovers the comment.
-	// TODO: use require.Eventually instead of manual loop.
 	require.Eventually(t, func() bool {
 		ok := false
 		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
@@ -2715,30 +2714,10 @@ func TestPrivateDocumentsSync(t *testing.T) {
 		_ = doc
 	}
 
-	// 3. Bob authenticates with the gateway, revealing his account.
-	{
-		gatewayPeerID := gateway.Storage.Device().PeerID()
-		bobPeerID := bob.Storage.Device().PeerID()
-
-		// Create the authentication token.
-		now := time.Now().Round(blob.ClockPrecision)
-		cpb, err := blob.NewEphemeralCapability(bobPeerID, bobKey.Principal(), gatewayPeerID, now, nil)
-		require.NoError(t, err)
-
-		err = blob.Sign(bobKey, cpb, &cpb.Sig)
-		require.NoError(t, err)
-
-		// Call Authenticate RPC on the gateway.
-		client, err := bob.Net.Client(ctx, gatewayPeerID)
-		require.NoError(t, err)
-
-		_, err = client.Authenticate(ctx, &p2p.AuthenticateRequest{
-			Account:   []byte(bobKey.Principal()),
-			Timestamp: now.UnixMilli(),
-			Signature: cpb.Sig,
-		})
-		require.NoError(t, err)
-	}
+	// 3. Bob first pulls Alice's home document (public). This gives Bob:
+	//    - The siteURL metadata (so Bob knows the gateway is Alice's siteURL server).
+	//    - The capability blob (so Bob knows he has access to Alice's space).
+	pullDocument(t, bob, aliceKey.String(), "", "")
 
 	// 4. Bob uses DiscoverEntity to pull the private document from the gateway.
 	pullDocument(t, bob, aliceSecret.Account, aliceSecret.Path, aliceSecret.Version)
@@ -2753,7 +2732,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 		require.Equal(t, aliceSecret.Version, bobGotDoc.Version, "Bob must have Alice's private document")
 	}
 
-	// 5. Bob creates a private document and the gateway should pull it from Bob.
+	// 4. Bob creates a private document and the gateway should pull it from Bob.
 	// First, create Bob's home document with siteUrl pointing to the gateway.
 	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
 		Account:        bobKey.String(),

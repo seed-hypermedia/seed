@@ -124,6 +124,9 @@ type Index interface {
 	Put(context.Context, blocks.Block) error
 	PutMany(context.Context, []blocks.Block) error
 	GetAuthorizedSpacesForPeer(ctx context.Context, peerID peer.ID, requestedResources []blob.IRI) ([]core.Principal, error)
+	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
+	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
+	GetAuthorizedSpaces(ctx context.Context, accounts []core.Principal) ([]core.Principal, error)
 }
 
 type protocolChecker struct {
@@ -140,7 +143,7 @@ type Service struct {
 	bitswap    bitswap
 	rbsrClient netDialFunc
 	resources  ResourceAPI
-	p2pClient  func(context.Context, peer.ID) (p2p.P2PClient, error)
+	p2pClient  func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
 	host       host.Host
 	pc         protocolChecker
 	mu         sync.Mutex // Ensures only one sync loop is running at a time.
@@ -148,6 +151,17 @@ type Service struct {
 	wg         sync.WaitGroup
 	workers    map[peer.ID]*worker
 	semaphore  chan struct{}
+	keyStore   core.KeyStore
+}
+
+// authInfo holds pre-computed authentication information for syncing.
+// It maps siteURL peer IDs to the keypairs that should authenticate with them.
+type authInfo struct {
+	// peerKeys maps peer IDs to keypairs that should authenticate with that peer.
+	// A keypair is included only if the peer is a siteURL server for a space
+	// that the keypair has access to.
+	peerKeys  map[peer.ID][]*core.KeyPair
+	addrInfos map[peer.ID]peer.AddrInfo
 }
 
 const peerRoutingConcurrency = 3 // how many concurrent requests for peer routing.
@@ -156,14 +170,14 @@ const peerRoutingConcurrency = 3 // how many concurrent requests for peer routin
 type P2PNode interface {
 	Bitswap() *ipfs.Bitswap
 	SyncingClient(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.SyncingClient, error)
-	Client(context.Context, peer.ID) (p2p.P2PClient, error)
+	Client(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
 	Libp2p() *ipfs.Libp2p
 	CheckHyperMediaProtocolVersion(ctx context.Context, pid peer.ID, desiredVersion string, protos ...protocol.ID) (err error)
 	ProtocolVersion() string
 }
 
 // NewService creates a new syncing service. Users should call Start() to start the periodic syncing.
-func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer Index, net P2PNode, sstore SubscriptionStore) *Service {
+func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer Index, net P2PNode, sstore SubscriptionStore, keyStore core.KeyStore) *Service {
 	svc := &Service{
 		cfg:        cfg,
 		log:        log,
@@ -176,6 +190,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		workers:    make(map[peer.ID]*worker),
 		semaphore:  make(chan struct{}, peerRoutingConcurrency),
 		sstore:     sstore,
+		keyStore:   keyStore,
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -286,7 +301,7 @@ type SyncResult struct {
 }
 
 // syncWithManyPeers syncs with many peers in parallel.
-func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *DiscoveryProgress) (res SyncResult) {
+func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap, store *authorizedStore, prog *DiscoveryProgress, auth *authInfo) (res SyncResult) {
 	var i int
 	var wg sync.WaitGroup
 	wg.Add(len(subsMap))
@@ -311,7 +326,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 
 			res.Peers[i] = pid
 			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog); xerr != nil {
+			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth); xerr != nil {
 				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
 				err = errors.Join(err, fmt.Errorf("failed to sync objects: %w", xerr))
 			}
@@ -324,7 +339,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	return res
 }
 
-func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *DiscoveryProgress) error {
+func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string]bool, store *authorizedStore, prog *DiscoveryProgress, auth *authInfo) error {
 	// Can't sync with self.
 	if s.host.Network().LocalPeer() == pid {
 		s.log.Debug("Sync with self attempted")
@@ -336,9 +351,21 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 		ctx, cancel = context.WithTimeout(ctx, s.cfg.TimeoutPerPeer)
 		defer cancel()
 	}
+
+	// Auto-authenticate if this peer is a siteURL server for a space we have access to.
+	// We only authenticate with keys that have access to spaces where this peer is the siteURL server.
+	if auth != nil {
+		if keys, ok := auth.peerKeys[pid]; ok {
+			for _, kp := range keys {
+				if err := s.authenticateWithPeer(ctx, auth.addrInfos[pid], kp); err != nil {
+					s.log.Debug("Auto-authentication failed", zap.String("account", kp.Principal().String()), zap.Error(err))
+				}
+			}
+		}
+	}
+
 	c, err := s.rbsrClient(ctx, pid)
 	if err != nil {
-		s.log.Debug("Could not get syncing client", zap.Error(err))
 		return err
 	}
 
@@ -349,7 +376,6 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 	authorizedSpaces, err := s.index.GetAuthorizedSpacesForPeer(ctx, pid, requestedIRIs)
 	if err != nil {
-		s.log.Debug("Could not get authorized spaces for peer", zap.Error(err))
 		return err
 	}
 	filteredStore := store.WithFilter(authorizedSpaces)
@@ -497,4 +523,120 @@ func syncEntities(
 	}
 
 	return nil
+}
+
+// computeAuthInfo pre-computes authentication information for syncing.
+// For each space being synced:
+// 1. Check if we have the space's siteURL locally.
+// 2. Resolve the siteURL to a peer ID.
+// 3. Check if any local key has access to that space.
+// 4. If so, map the siteURL peer to the keypair.
+func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]bool) *authInfo {
+	info := &authInfo{
+		peerKeys:  make(map[peer.ID][]*core.KeyPair),
+		addrInfos: make(map[peer.ID]peer.AddrInfo),
+	}
+
+	if s.keyStore == nil {
+		return info
+	}
+
+	// Get all local keys.
+	localKeys, err := s.keyStore.ListKeys(ctx)
+	if err != nil || len(localKeys) == 0 {
+		return info
+	}
+
+	// Get full keypairs for all local keys.
+	localKeyPairs := make(map[string]*core.KeyPair)
+	for _, namedKey := range localKeys {
+		kp, err := s.keyStore.GetKey(ctx, namedKey.Name)
+		if err != nil {
+			continue
+		}
+		localKeyPairs[namedKey.Name] = kp
+	}
+
+	if len(localKeyPairs) == 0 {
+		return info
+	}
+
+	// Collect unique spaces from entities being synced.
+	spaces := make(map[string]core.Principal)
+	for eid := range eids {
+		iri := blob.IRI(eid)
+		space, _, err := iri.SpacePath()
+		if err != nil {
+			continue
+		}
+		spaces[space.String()] = space
+	}
+
+	if len(spaces) == 0 {
+		return info
+	}
+
+	// For each space, check siteURL and find keys with access.
+	for _, space := range spaces {
+		// Get siteURL for this space from local database.
+		siteURL, err := s.index.GetSiteURL(ctx, space)
+		if err != nil || siteURL == "" {
+			// No siteURL known locally, skip.
+			continue
+		}
+
+		// Resolve siteURL to peer ID.
+		addrInfo, err := s.index.ResolveSiteURL(ctx, siteURL)
+		if err != nil {
+			continue
+		}
+
+		info.addrInfos[addrInfo.ID] = addrInfo
+
+		// Check which local keys have access to this space.
+		for _, kp := range localKeyPairs {
+			authorizedSpaces, err := s.index.GetAuthorizedSpaces(ctx, []core.Principal{kp.Principal()})
+			if err != nil {
+				continue
+			}
+
+			for _, authSpace := range authorizedSpaces {
+				if authSpace.Equal(space) {
+					// This key has access to the space. Add to peerKeys.
+					info.peerKeys[addrInfo.ID] = append(info.peerKeys[addrInfo.ID], kp)
+					break
+				}
+			}
+		}
+	}
+
+	return info
+}
+
+// authenticateWithPeer authenticates with a remote peer using the given keypair.
+func (s *Service) authenticateWithPeer(ctx context.Context, pinfo peer.AddrInfo, kp *core.KeyPair) error {
+	client, err := s.p2pClient(ctx, pinfo.ID, pinfo.Addrs...)
+	if err != nil {
+		return err
+	}
+
+	localPeerID := s.host.ID()
+	now := time.Now().Round(blob.ClockPrecision)
+
+	// Create ephemeral capability for authentication.
+	cpb, err := blob.NewEphemeralCapability(localPeerID, kp.Principal(), pinfo.ID, now, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := blob.Sign(kp, cpb, &cpb.Sig); err != nil {
+		return err
+	}
+
+	_, err = client.Authenticate(ctx, &p2p.AuthenticateRequest{
+		Account:   []byte(kp.Principal()),
+		Timestamp: now.UnixMilli(),
+		Signature: cpb.Sig,
+	})
+	return err
 }

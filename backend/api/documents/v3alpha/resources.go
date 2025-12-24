@@ -94,11 +94,11 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		}
 		// Check if the target peer matches the siteURL server.
 		// We need to resolve siteURL to peer ID via HTTP.
-		resolvedPeerID, err := srv.idx.ResolveSiteURL(ctx, siteURL)
+		resolvedInfo, err := srv.idx.ResolveSiteURL(ctx, siteURL)
 		if err != nil {
 			continue
 		}
-		if resolvedPeerID == info.ID {
+		if resolvedInfo.ID == info.ID {
 			authorizedSpaces = append(authorizedSpaces, space)
 		}
 	}
