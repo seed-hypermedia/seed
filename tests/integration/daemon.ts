@@ -6,6 +6,9 @@
 import {spawn, ChildProcess} from 'child_process'
 import * as readline from 'node:readline'
 import path from 'path'
+import {fileURLToPath} from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export type DaemonConfig = {
   httpPort: number
