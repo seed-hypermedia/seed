@@ -175,6 +175,7 @@ export function HMFormattingToolbar<
   return (
     <>
       <div
+        data-testid="formatting-toolbar"
         className="border-border bg-background z-50 w-fit rounded-md border p-1 shadow-md"
         onPointerDown={(e) => {
           e.preventDefault()
@@ -196,7 +197,10 @@ export function HMFormattingToolbar<
             <MobileLinkToolbarButton editor={props.editor} />
           ) : (
             <div className="relative">
-              <HMLinkToolbarButton editor={props.editor} />
+              <HMLinkToolbarButton
+                editor={props.editor}
+                data-testid="link-button"
+              />
             </div>
           )}
 
@@ -215,6 +219,7 @@ export function HMFormattingToolbar<
             </Button>
           ) : (
             <FormatDropdown
+              testId="group-type-dropdown"
               value={currentGroupType}
               onChange={(listType) => {
                 if (listType !== currentGroupType) {
@@ -253,6 +258,7 @@ export function HMFormattingToolbar<
             </Button>
           ) : (
             <FormatDropdown
+              testId="block-type-dropdown"
               value={currentBlockType}
               onChange={(blockType) => {
                 if (blockType !== currentBlockType) {
@@ -326,6 +332,7 @@ function ToggleStyleButton<
   return (
     <Tooltip content={name}>
       <Button
+        data-testid={`${toggleStyle}-button`}
         type="button"
         size="icon"
         variant="ghost"
@@ -351,15 +358,17 @@ function FormatDropdown({
   value,
   onChange,
   options,
+  testId,
 }: {
   value: string
   onChange: (val: string) => void
   options: {label: string; value: string}[]
+  testId: string
 }) {
   return (
     <div className="flex items-center">
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
+        <SelectTrigger data-testid={testId}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

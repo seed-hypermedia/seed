@@ -154,8 +154,65 @@ test.describe('Selection Behavior', () => {
 })
 
 test.describe('Formatting Toolbar', () => {
+  test.describe('Text formatting via the formatting toolbar', () => {
+    test('Formatting toolbar should show when text is select and hide when selection is collapsed', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await editorHelpers.focusEditor()
+      await editorHelpers.typeText('Hello World')
+
+      // Select all
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(100)
+
+      // Check that the formatting toolbar is visible
+      const formattingToolbar = page.getByTestId('formatting-toolbar')
+      await expect(formattingToolbar).toBeVisible()
+
+      // Collapse selection by clicking in the editor
+      await editorHelpers.getContentArea().click({position: {x: 5, y: 5}})
+      await page.waitForTimeout(100)
+
+      // Check that the formatting toolbar is hidden
+      await expect(formattingToolbar).not.toBeVisible()
+    })
+
+    test('Should toggle bold formatting on and off with toolbar button', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await editorHelpers.focusEditor()
+      await editorHelpers.typeText('Bold text')
+
+      // Apply bold formatting with toolbar button
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(100)
+      await expect(page.getByTestId('bold-button')).toBeVisible()
+      await page.getByTestId('bold-button').click()
+      await editorHelpers.getContentArea().click({position: {x: 5, y: 5}})
+      await page.waitForTimeout(100)
+
+      // Verify bold mark is applied
+      const hasBoldAfterApply = await editorHelpers.hasMarkType('bold')
+      expect(hasBoldAfterApply).toBe(true)
+
+      // Remove bold formatting with toolbar button
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(100)
+
+      await expect(page.getByTestId('bold-button')).toBeVisible()
+      await page.getByTestId('bold-button').click()
+      await page.waitForTimeout(100)
+
+      // Verify bold mark is removed
+      const hasBoldAfterRemove = await editorHelpers.hasMarkType('bold')
+      expect(hasBoldAfterRemove).toBe(false)
+    })
+  })
+
   test.describe('Text Formatting via Keyboard', () => {
-    test('Should apply bold formatting with keyboard shortcut', async ({
+    test('Should toggle bold formatting on and off with keyboard shortcut', async ({
       editorHelpers,
       page,
     }) => {
@@ -167,16 +224,26 @@ test.describe('Formatting Toolbar', () => {
       await editorHelpers.selectAll()
       await page.waitForTimeout(100)
 
-      // Apply bold with keyboard shortcut
+      // Apply bold formatting with keyboard shortcut
       await editorHelpers.pressKey('ControlOrMeta+B')
       await page.waitForTimeout(100)
 
-      // Verify bold mark is applied
-      const hasBold = await editorHelpers.hasMarkType('bold')
-      expect(hasBold).toBe(true)
+      // Verify bold is applied
+      const hasBoldAfterApply = await editorHelpers.hasMarkType('bold')
+      expect(hasBoldAfterApply).toBe(true)
+
+      // Remove box formatting with keyboard shortcut
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(100)
+      await editorHelpers.pressKey('ControlOrMeta+B')
+      await page.waitForTimeout(100)
+
+      // Verify bold is removed
+      const hasBoldAfterRemove = await editorHelpers.hasMarkType('bold')
+      expect(hasBoldAfterRemove).toBe(false)
     })
 
-    test('Should apply italic formatting with keyboard shortcut', async ({
+    test('Should toggle italic formatting on and off with keyboard shortcut', async ({
       editorHelpers,
       page,
     }) => {
@@ -193,45 +260,88 @@ test.describe('Formatting Toolbar', () => {
       await page.waitForTimeout(100)
 
       // Verify italic mark is applied
-      const hasItalic = await editorHelpers.hasMarkType('italic')
-      expect(hasItalic).toBe(true)
-    })
+      const hasItalicAfterApply = await editorHelpers.hasMarkType('italic')
+      expect(hasItalicAfterApply).toBe(true)
 
-    test('Should toggle formatting on and off', async ({
+      // Remove italic formatting with keyboard shortcut
+      await editorHelpers.selectAll()
+      await page.waitForTimeout(100)
+      await editorHelpers.pressKey('ControlOrMeta+I')
+      await page.waitForTimeout(100)
+
+      // Verify italic is removed
+      const hasItalicAfterRemove = await editorHelpers.hasMarkType('italic')
+      expect(hasItalicAfterRemove).toBe(false)
+    })
+  })
+
+  test.describe('Formatting toolbar dropdown tests', () => {
+    test('Should switch block type with dropdown', async ({
       editorHelpers,
       page,
     }) => {
       await editorHelpers.focusEditor()
-      await editorHelpers.typeText('Toggle test')
-      await page.waitForTimeout(100)
+      await editorHelpers.typeText('Hello World')
 
       // Select all
       await editorHelpers.selectAll()
       await page.waitForTimeout(100)
+      await expect(page.getByTestId('formatting-toolbar')).toBeVisible()
 
-      // Apply bold
-      await editorHelpers.pressKey('ControlOrMeta+B')
+      // Switch block type with dropdown
+      await page.getByTestId('block-type-dropdown').click()
+      await page.waitForTimeout(100)
+      // Click option by visible label
+      await page.getByRole('option', {name: 'Heading'}).click()
       await page.waitForTimeout(100)
 
-      // Verify bold is applied
-      const hasBoldAfterApply = await editorHelpers.hasMarkType('bold')
-      expect(hasBoldAfterApply).toBe(true)
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].type).toBe('heading')
+      expect(blocks[0].content[0].text).toBe('Hello World')
+    })
 
-      // Re-select all (selection may have been lost)
-      await editorHelpers.selectAll()
+    test('Should switch group type with dropdown', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await editorHelpers.focusEditor()
+      await editorHelpers.typeText('Parent')
+      await editorHelpers.pressKey('Enter')
+      await editorHelpers.typeText('Child 1')
+      await editorHelpers.pressKey('Enter')
+      await editorHelpers.typeText('Child 2')
+      await editorHelpers.pressKey('Enter')
+      await editorHelpers.typeText('Sibling')
       await page.waitForTimeout(100)
 
-      // Remove bold (toggle off)
-      await editorHelpers.pressKey('ControlOrMeta+B')
+      // Select the text between Parent and Sibling
+      await editorHelpers.dragSelectText('Parent', 'Sibling')
       await page.waitForTimeout(100)
 
-      // The text should no longer be bold
-      const hasBoldAfterRemove = await editorHelpers.hasMarkType('bold')
-      expect(hasBoldAfterRemove).toBe(false)
+      // Check that the correct text is selected
+      const selectedText = await editorHelpers.getSelectedText()
+      expect(selectedText).toContain('Child 1')
+      expect(selectedText).toContain('Child 2')
+
+      await expect(page.getByTestId('formatting-toolbar')).toBeVisible()
+
+      // Set group type with dropdown
+      await page.getByTestId('group-type-dropdown').click()
+      await page.waitForTimeout(200)
+
+      // Click option by visible label
+      await page.getByRole('option', {name: 'Bullets'}).click()
+      await page.waitForTimeout(200)
+
+      // Check that the list type is set correctly
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].props.childrenType).toBe('Unordered')
+      const listItems = blocks[0].children
+      expect(listItems[0].content[0].text).toBe('Child 1')
+      expect(listItems[1].content[0].text).toBe('Child 2')
     })
   })
 })
-
 test.describe('Slash Menu', () => {
   test('Should open slash menu when typing /', async ({
     editorHelpers,

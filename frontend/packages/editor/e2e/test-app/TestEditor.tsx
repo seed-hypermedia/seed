@@ -1,10 +1,12 @@
 import '@/blocknote/core/style.css'
 import '@/editor.css'
+import {HMFormattingToolbar} from '@shm/editor/hm-formatting-toolbar'
 import {writeableStateStream} from '@shm/shared'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {useEffect, useState} from 'react'
 import {
   BlockNoteView,
+  FormattingToolbarPositioner,
   SlashMenuPositioner,
   useBlockNote,
 } from '../../src/blocknote'
@@ -80,6 +82,10 @@ export function TestEditor() {
         <div data-testid="editor-container">
           <BlockNoteView editor={editor} theme="light">
             <SlashMenuPositioner editor={editor} />
+            <FormattingToolbarPositioner
+              editor={editor}
+              formattingToolbar={HMFormattingToolbar}
+            />
           </BlockNoteView>
         </div>
       </div>

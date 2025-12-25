@@ -53,7 +53,7 @@ export type EditorTestHelpers = {
   /** Click a toolbar button by aria-label or data-testid */
   clickToolbarButton: (identifier: string) => Promise<void>
   /** Create a text selection by dragging */
-  selectText: (startOffset: number, endOffset: number) => Promise<void>
+  selectText: () => Promise<void>
   /** Move cursor to the end of the document */
   moveCursorToEnd: () => Promise<void>
   /** Set clipboard with plain text content */
@@ -238,22 +238,25 @@ export const test = base.extend<{
       async dragSelectText(fromText: string, toText: string) {
         const area = this.getContentArea()
 
-        const from = area.locator(':text("' + fromText + '")').first()
-        const to = area.locator(':text("' + toText + '")').first()
+        const from = area.locator(`:text("${fromText}")`).first()
+        const to = area.locator(`:text("${toText}")`).first()
 
         const fromBox = await from.boundingBox()
         const toBox = await to.boundingBox()
         if (!fromBox || !toBox) throw new Error('Could not get bounding boxes')
 
-        await page.mouse.move(
-          fromBox.x + fromBox.width / 2,
-          fromBox.y + fromBox.height / 2,
-        )
+        const startX = fromBox.x + Math.min(20, fromBox.width / 2)
+        const endX = toBox.x + Math.min(20, toBox.width / 2)
+
+        // Start slightly below the from box, so anchor is in the next block
+        const startY = fromBox.y + fromBox.height + 6
+
+        // End slightly above the to box, so head is in the previous block from the "to" block
+        const endY = toBox.y - toBox.height / 2
+
+        await page.mouse.move(startX, startY)
         await page.mouse.down()
-        await page.mouse.move(
-          toBox.x + toBox.width / 2,
-          toBox.y + toBox.height / 2,
-        )
+        await page.mouse.move(endX, endY)
         await page.mouse.up()
       },
 
