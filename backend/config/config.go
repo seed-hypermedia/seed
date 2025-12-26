@@ -180,6 +180,8 @@ type Syncing struct {
 	Interval        time.Duration
 	TimeoutPerPeer  time.Duration
 	RefreshInterval time.Duration
+	MinWorkers      int
+	MaxWorkers      int
 	NoPull          bool
 	NoDiscovery     bool
 	AllowPush       bool
@@ -191,6 +193,8 @@ func (c Syncing) Default() Syncing {
 		Interval:        time.Minute,
 		TimeoutPerPeer:  time.Minute * 5,
 		RefreshInterval: time.Second * 50,
+		MinWorkers:      8,
+		MaxWorkers:      16,
 	}
 }
 
@@ -199,7 +203,9 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.WarmupDuration, "syncing.warmup-duration", c.WarmupDuration, "Time to wait before the first sync loop iteration")
 	fs.DurationVar(&c.Interval, "syncing.interval", c.Interval, "Periodic interval at which sync loop is triggered")
 	fs.DurationVar(&c.TimeoutPerPeer, "syncing.timeout-per-peer", c.TimeoutPerPeer, "Maximum duration for syncing with a single peer")
-	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of peers to sync is refreshed from the database")
+	fs.DurationVar(&c.RefreshInterval, "syncing.refresh-interval", c.RefreshInterval, "Periodic interval at which list of subscriptions is refreshed")
+	fs.IntVar(&c.MinWorkers, "syncing.min-workers", c.MinWorkers, "Minimum number of workers for syncing")
+	fs.IntVar(&c.MaxWorkers, "syncing.max-workers", c.MaxWorkers, "Maximum number of workers for syncing")
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content")
 	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")

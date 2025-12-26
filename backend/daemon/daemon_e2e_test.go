@@ -26,6 +26,7 @@ import (
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitedbg"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1109,7 +1110,7 @@ func TestRelatedMaterials(t *testing.T) {
 			IRI:       blob.IRI("hm://" + aliceHome.Account + aliceHome.Path),
 			Recursive: true,
 		}: {},
-	}, true)
+	}, true, nil)
 	require.NoError(t, err)
 
 	if blobCount != int64(len(allBlobs)) {
@@ -2274,7 +2275,6 @@ func TestCommentDiscovery(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Bob discovers the comment.
-	// TODO: use require.Eventually instead of manual loop.
 	require.Eventually(t, func() bool {
 		ok := false
 		res, err := bob.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
@@ -2598,6 +2598,224 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 	require.True(t, foundPublic, "Alice must see the public document in her document list")
 }
 
+func TestPrivateDocumentsSync(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	aliceKey := coretest.NewTester("alice").Account
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+	bobKey := coretest.NewTester("bob").Account
+	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
+	gatewayKey := coretest.NewTester("carol").Account
+
+	var gatewayURL string
+	{
+		port := gateway.HTTPListener.Addr().(*net.TCPAddr).Port
+		ip := getLocalIP(t)
+		gatewayURL = "http://" + ip + ":" + strconv.Itoa(port)
+	}
+
+	// Create Alice's home document with siteUrl pointing to the gateway.
+	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home"},
+			}},
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "siteUrl", Value: gatewayURL},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a home document.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a private document for Alice.
+	aliceSecret, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceKey.String(),
+		Path:           "/secret",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is a private document that Bob should not be able to access.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Push Alice's private document to the gateway.
+	pushDocuments(t, alice, gateway, "hm://"+aliceSecret.Account+aliceSecret.Path)
+
+	// Verify gateway can see the private document.
+	{
+		resp, err := gateway.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, aliceSecret.Version, resp.Version, "gateway must receive the same version")
+	}
+
+	// 1. Alice creates a WRITER capability for Bob's account for her entire space.
+	// The capability must be for the root path (empty string) to grant access to all private documents.
+	capability, err := alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobKey.String(),
+		Account:        aliceKey.String(),
+		Path:           "", // Root path grants access to entire space
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, capability)
+
+	// Push the home document to sync the capability to the gateway.
+	// The root-path capability is stored at the home document's IRI.
+	pushDocuments(t, alice, gateway, "hm://"+aliceKey.String())
+
+	// 2. Bob connects to the gateway and syncs. Bob should NOT see the private document yet.
+	require.NoError(t, bob.Net.ForceConnect(ctx, gateway.Net.AddrInfo()))
+
+	// Wait a bit for connection to establish.
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to discover the private document without authentication - should not succeed.
+	// We don't actually start a discovery here because it would create a task that
+	// runs in the background and might interfere with the authenticated discovery later.
+	{
+		doc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.Error(t, err, "Bob must not be able to get the private document without authentication")
+		_ = doc
+	}
+
+	// 3. Bob first pulls Alice's home document (public). This gives Bob:
+	//    - The siteURL metadata (so Bob knows the gateway is Alice's siteURL server).
+	//    - The capability blob (so Bob knows he has access to Alice's space).
+	pullDocument(t, bob, aliceKey.String(), "", "")
+
+	// 4. Bob uses DiscoverEntity to pull the private document from the gateway.
+	pullDocument(t, bob, aliceSecret.Account, aliceSecret.Path, aliceSecret.Version)
+
+	// Verify Bob now has Alice's private document.
+	{
+		bobGotDoc, err := bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: aliceSecret.Account,
+			Path:    aliceSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, aliceSecret.Version, bobGotDoc.Version, "Bob must have Alice's private document")
+	}
+
+	// 4. Bob creates a private document and the gateway should pull it from Bob.
+	// First, create Bob's home document with siteUrl pointing to the gateway.
+	bobHome, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Home"},
+			}},
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "siteUrl", Value: gatewayURL},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Bob creates a private document.
+	bobSecret, err := bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobKey.String(),
+		Path:           "/bob-secret",
+		SigningKeyName: "main",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob's Secret Document"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id:   "b1",
+					Type: "paragraph",
+					Text: "This is Bob's private document.",
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Push Bob's home document to the gateway first so it can resolve siteUrl.
+	pushDocuments(t, bob, gateway, "hm://"+bobHome.Account)
+
+	// The gateway should be able to pull the private document from Bob by space ID since Bob is authenticated.
+	// Gateway authenticates with Bob's peer.
+	{
+		bobPeerID := bob.Storage.Device().PeerID()
+		gatewayPeerID := gateway.Storage.Device().PeerID()
+
+		// Create the authentication token for gateway to Bob.
+		now := time.Now().Round(blob.ClockPrecision)
+		cpb, err := blob.NewEphemeralCapability(gatewayPeerID, gatewayKey.Principal(), bobPeerID, now, nil)
+		require.NoError(t, err)
+
+		err = blob.Sign(gatewayKey, cpb, &cpb.Sig)
+		require.NoError(t, err)
+
+		// Gateway calls Authenticate RPC on Bob.
+		client, err := gateway.Net.Client(ctx, bobPeerID)
+		require.NoError(t, err)
+
+		_, err = client.Authenticate(ctx, &p2p.AuthenticateRequest{
+			Account:   []byte(gatewayKey.Principal()),
+			Timestamp: now.UnixMilli(),
+			Signature: cpb.Sig,
+		})
+		require.NoError(t, err)
+	}
+
+	// Gateway discovers Bob's private document.
+	pullDocument(t, gateway, bobSecret.Account, bobSecret.Path, bobSecret.Version)
+
+	// Verify gateway has Bob's private document.
+	{
+		gatewayGotDoc, err := gateway.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+			Account: bobSecret.Account,
+			Path:    bobSecret.Path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, bobSecret.Version, gatewayGotDoc.Version, "Gateway must have Bob's private document")
+	}
+}
+
 func getLocalIP(t *testing.T) string {
 	addrs, err := net.InterfaceAddrs()
 	require.NoError(t, err)
@@ -2636,5 +2854,21 @@ func pushDocuments(t *testing.T, src, dst *App, resources ...string) {
 		case prog := <-stream.C:
 			t.Log(prog)
 		}
+	}
+}
+
+func pullDocument(t *testing.T, app *App, account, path, wantVersion string) {
+	t.Helper()
+	ctx := t.Context()
+
+	var state entities.DiscoveryTaskState
+	for state != entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED {
+		resp, err := app.RPC.Entities.DiscoverEntity(ctx, &entities.DiscoverEntityRequest{
+			Account: account,
+			Path:    path,
+		})
+		require.NoError(t, err)
+		state = resp.State
+		time.Sleep(100 * time.Millisecond)
 	}
 }

@@ -291,7 +291,7 @@ func initSyncing(
 	indexer *blob.Index,
 	node *hmnet.Node,
 	sstore syncing.SubscriptionStore,
-	LogLevel string,
+	logLevel string,
 ) (*syncing.Service, error) {
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -301,12 +301,12 @@ func initSyncing(
 		return nil
 	})
 
-	svc := syncing.NewService(cfg, logging.New("seed/syncing", LogLevel), db, indexer, node, sstore)
+	svc := syncing.NewService(cfg, logging.New("seed/syncing", logLevel), db, indexer, node, sstore, node.KeyStore())
 	if cfg.NoPull {
 		close(done)
 	} else {
 		g.Go(func() error {
-			err := svc.Start(ctx)
+			err := svc.Run(ctx)
 			close(done)
 			return err
 		})

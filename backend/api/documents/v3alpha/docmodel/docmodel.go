@@ -33,7 +33,7 @@ import (
 // Document is a mutable document.
 type Document struct {
 	crdt      *docCRDT
-	actors    map[unique.Handle[string]]core.ActorID
+	actors    map[unique.Handle[core.PrincipalUnsafeString]]core.ActorID
 	opsToCids map[[2]uint64]cid.Cid
 
 	// Below goes the data for the ongoing dirty mutation.
@@ -90,7 +90,7 @@ func New(id blob.IRI, clock *cclock.Clock) (*Document, error) {
 func newDoc(crdt *docCRDT) (*Document, error) {
 	dm := &Document{
 		crdt:          crdt,
-		actors:        make(map[unique.Handle[string]]core.ActorID),
+		actors:        make(map[unique.Handle[core.PrincipalUnsafeString]]core.ActorID),
 		opsToCids:     make(map[[2]uint64]cid.Cid),
 		createdBlocks: make(map[string]struct{}),
 		deletedBlocks: make(map[string]struct{}),

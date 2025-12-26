@@ -20,18 +20,14 @@ import (
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"seed/backend/util/sqlite/sqlitex"
-
+	"github.com/ipfs/boxo/bitswap"
 	"github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
-	manet "github.com/multiformats/go-multiaddr/net"
-	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/libp2p/go-libp2p"
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -42,7 +38,10 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
@@ -108,7 +107,6 @@ type Node struct {
 	libp2pEvents        event.Subscription
 	currentReachability atomic.Value    // type of network.Reachability
 	ctx                 context.Context // will be set after calling Start()
-	authManager         *authManager
 }
 
 // New creates a new P2P Node. The users must call Start() before using the node, and can use Ready() to wait
@@ -135,7 +133,12 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 	}
 	clean.Add(closeHost)
 
-	bitswap, err := ipfs.NewBitswap(host, host.Routing, index.PublicBlockstore())
+	bitswap, err := ipfs.NewBitswap(
+		host,
+		host.Routing,
+		index,
+		bitswap.WithPeerBlockRequestFilter(index.CanPeerAccessCID),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start bitswap: %w", err)
 	}
@@ -166,9 +169,8 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 				rpcServerMetrics.StreamServerInterceptor(),
 			),
 		),
-		clean:       clean,
-		ready:       make(chan struct{}),
-		authManager: newAuthManager(),
+		clean: clean,
+		ready: make(chan struct{}),
 	}
 	n.currentReachability.Store(network.ReachabilityUnknown)
 	n.libp2pEvents, err = host.EventBus().Subscribe([]interface{}{
@@ -215,7 +217,8 @@ func (n *Node) Bitswap() *ipfs.Bitswap {
 }
 
 // Client dials a remote peer if necessary and returns the RPC client handle.
-func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
+func (n *Node) Client(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.P2PClient, error) {
+	n.p2p.Peerstore().AddAddrs(pid, addrs, 5*time.Minute)
 	if err := n.Connect(ctx, n.p2p.Peerstore().PeerInfo(pid)); err != nil {
 		return nil, err
 	}
@@ -225,10 +228,8 @@ func (n *Node) Client(ctx context.Context, pid peer.ID) (p2p.P2PClient, error) {
 
 // SyncingClient opens a connection with a remote node for syncing.
 func (n *Node) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiaddr.Multiaddr) (p2p.SyncingClient, error) {
+	n.p2p.Peerstore().AddAddrs(pid, addrs, 5*time.Minute)
 	addrinfo := n.p2p.Peerstore().PeerInfo(pid)
-	if len(addrs) > 0 {
-		addrinfo.Addrs = append(addrinfo.Addrs, addrs...)
-	}
 
 	if err := n.Connect(ctx, addrinfo); err != nil {
 		return nil, err
@@ -238,6 +239,7 @@ func (n *Node) SyncingClient(ctx context.Context, pid peer.ID, addrs ...multiadd
 	if err != nil {
 		return nil, err
 	}
+
 	return p2p.NewSyncingClient(conn), nil
 }
 
@@ -257,6 +259,9 @@ func (n *Node) GetAccountByKeyName(ctx context.Context, keyName string) (core.Pr
 
 // Libp2p returns the underlying libp2p host.
 func (n *Node) Libp2p() *ipfs.Libp2p { return n.p2p }
+
+// KeyStore returns the key store used by this node.
+func (n *Node) KeyStore() core.KeyStore { return n.keys }
 
 // Start the node. It will block while node is running. To stop gracefully
 // cancel the provided context and wait for Start to return.
