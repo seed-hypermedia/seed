@@ -17,4 +17,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ]
 
+// 3. Enable package exports support for ESM packages like multiformats
+config.resolver.unstable_enablePackageExports = true
+
 module.exports = config
