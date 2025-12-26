@@ -6,10 +6,10 @@
   "scripts": {
     "start": "expo start",
     "start:web": "expo start --web",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "jest",
+    "test": "NODE_ENV=test jest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

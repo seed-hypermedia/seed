@@ -21,6 +21,10 @@ This app follows [Expo's official monorepo guide](https://docs.expo.dev/guides/m
 - Maps `react-native` to `react-native-web` for web-compatible testing
 - Custom `transformIgnorePatterns` to handle Expo packages
 
+### Root Dependencies
+
+The root `package.json` must include `expo` as a dependency. This is required because `babel-preset-expo` is hoisted to the root `node_modules` and needs to resolve `expo/config`. Without this, Metro bundling will fail with "Cannot find module 'expo/config'".
+
 ### React Version Compatibility
 
 The root monorepo uses React 18.2.0 via resolutions. Expo 52 prefers React 18.3.1. This is a known tradeoff in monorepos - we keep 18.2.0 for compatibility with other workspace apps.
@@ -36,7 +40,32 @@ yarn mobile:web
 
 # Run tests
 yarn mobile:test
+
+# Generate native iOS/Android projects (prebuild)
+cd frontend/apps/mobile && npx expo prebuild
+
+# Run on iOS simulator (requires prebuild + pod install)
+cd frontend/apps/mobile && npx expo run:ios
+
+# Run on Android emulator (requires prebuild)
+cd frontend/apps/mobile && npx expo run:android
 ```
+
+### Prebuild (Native Code Generation)
+
+The app uses Expo's **managed workflow** by default (no native code checked in). To generate native projects:
+
+```bash
+cd frontend/apps/mobile
+npx expo prebuild        # generates ios/ and android/
+npx expo prebuild --clean  # regenerates from scratch
+```
+
+After prebuild:
+- **iOS**: Run `cd ios && pod install` then open `Seed.xcworkspace` in Xcode
+- **Android**: Open `android/` folder in Android Studio
+
+The `.gitignore` excludes `ios/` and `android/` by default. To switch to "bare workflow" (native code checked in), remove those lines from `.gitignore`.
 
 ### Development Notes
 
