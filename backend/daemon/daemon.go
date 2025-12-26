@@ -306,7 +306,7 @@ func initSyncing(
 		close(done)
 	} else {
 		g.Go(func() error {
-			err := svc.Start(ctx)
+			err := svc.Run(ctx)
 			close(done)
 			return err
 		})

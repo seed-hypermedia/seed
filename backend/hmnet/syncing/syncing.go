@@ -4,23 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/core"
 	activity_proto "seed/backend/genproto/activity/v1alpha"
 	docspb "seed/backend/genproto/documents/v3alpha"
 	p2p "seed/backend/genproto/p2p/v1alpha"
-	"seed/backend/hmnet/netutil"
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/ipfs"
-	"seed/backend/util/dqb"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/boxo/exchange"
@@ -28,12 +25,12 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 // Metrics. This is exported as a temporary measure,
@@ -102,12 +99,6 @@ type bitswap interface {
 	FindProvidersAsync(context.Context, cid.Cid, int) <-chan peer.AddrInfo
 }
 
-// Storage is a subset of the larger storage interface required by the syncing service.
-type Storage interface {
-	DB() *sqlitex.Pool
-	// Service manages syncing of Seed objects among peers.
-}
-
 // SubscriptionStore an interface implementing necessary methods to get subscriptions.
 type SubscriptionStore interface {
 	ListSubscriptions(context.Context, *activity_proto.ListSubscriptionsRequest) (*activity_proto.ListSubscriptionsResponse, error)
@@ -146,12 +137,10 @@ type Service struct {
 	p2pClient  func(context.Context, peer.ID, ...multiaddr.Multiaddr) (p2p.P2PClient, error)
 	host       host.Host
 	pc         protocolChecker
-	mu         sync.Mutex // Ensures only one sync loop is running at a time.
 	sstore     SubscriptionStore
-	wg         sync.WaitGroup
-	workers    map[peer.ID]*worker
-	semaphore  chan struct{}
 	keyStore   core.KeyStore
+
+	scheduler *scheduler
 }
 
 // authInfo holds pre-computed authentication information for syncing.
@@ -187,8 +176,6 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		rbsrClient: net.SyncingClient,
 		p2pClient:  net.Client,
 		host:       net.Libp2p().Host,
-		workers:    make(map[peer.ID]*worker),
-		semaphore:  make(chan struct{}, peerRoutingConcurrency),
 		sstore:     sstore,
 		keyStore:   keyStore,
 	}
@@ -196,6 +183,12 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		checker: net.CheckHyperMediaProtocolVersion,
 		version: net.ProtocolVersion(),
 	}
+
+	if cfg.MinWorkers == 0 || cfg.MaxWorkers == 0 {
+		panic("BUG: invalid config for syncing service")
+	}
+
+	svc.scheduler = newScheduler(svc, cfg.MinWorkers, cfg.MaxWorkers)
 
 	return svc
 }
@@ -205,91 +198,106 @@ func (s *Service) SetDocGetter(docGetter ResourceAPI) {
 	s.resources = docGetter
 }
 
-// Start the syncing service which will periodically refresh the list of peers
-// to sync with from the database, and schedule the worker loop for each peer,
-// creating new workers for newly added peers, and stopping workers for removed peers.
-func (s *Service) Start(ctx context.Context) (err error) {
+// Run the syncing service which will periodically refresh subscriptions
+// and ensure discovery tasks are running for each.
+func (s *Service) Run(ctx context.Context) error {
 	s.log.Debug("SyncingServiceStarted")
-	defer func() {
-		s.log.Debug("SyncingServiceFinished", zap.Error(err))
-	}()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		cancel()
-		s.wg.Wait()
-	}()
+	g, ctx := errgroup.WithContext(ctx)
 
-	t := time.NewTimer(s.cfg.WarmupDuration)
-	defer t.Stop()
+	g.Go(func() error {
+		return s.scheduler.run(ctx)
+	})
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.C:
-			if err := s.refreshWorkers(ctx); err != nil {
-				return err
+	g.Go(func() error {
+		t := time.NewTimer(s.cfg.WarmupDuration)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-t.C:
+				if err := s.refreshSubscriptionTasks(ctx); err != nil {
+					return err
+				}
+
+				t.Reset(s.cfg.RefreshInterval)
 			}
-
-			t.Reset(s.cfg.RefreshInterval)
 		}
-	}
+	})
+
+	err := g.Wait()
+	s.log.Debug("SyncingServiceFinished", zap.Error(err))
+	return err
 }
 
-var qListPeersWithPid = dqb.Str(`
-	SELECT
-		addresses,
-		pid
-	FROM peers;
-`)
+// refreshSubscriptionTasks ensures a discovery task is running for each active subscription.
+// It also removes subscriptions that are no longer active.
+func (s *Service) refreshSubscriptionTasks(ctx context.Context) error {
+	ret, err := s.sstore.ListSubscriptions(ctx, &activity_proto.ListSubscriptionsRequest{
+		PageSize: math.MaxInt32,
+	})
+	if err != nil {
+		s.log.Warn("Failed to list subscriptions", zap.Error(err))
+		return nil
+	}
 
-func (s *Service) refreshWorkers(ctx context.Context) error {
-	peers := make(map[peer.ID]struct{}, int(float64(len(s.workers))*1.9)) // arbitrary multiplier to avoid map resizing.
+	s.log.Debug("Refreshing subscription tasks", zap.Int("count", len(ret.Subscriptions)))
 
-	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qListPeersWithPid(), func(stmt *sqlite.Stmt) error {
-			addresStr := stmt.ColumnText(0)
-			pid := stmt.ColumnText(1)
-			addrList := strings.Split(addresStr, ",")
-			info, err := netutil.AddrInfoFromStrings(addrList...)
-			if err != nil {
-				s.log.Warn("Can't periodically sync with peer because it has malformed addresses", zap.String("PID", pid), zap.Error(err))
-				return nil
+	// Build a set of active subscription keys.
+	activeKeys := make(map[discoveryTaskKey]struct{}, len(ret.Subscriptions))
+	for _, sub := range ret.Subscriptions {
+		iri := blob.IRI("hm://" + sub.Account + sub.Path)
+		key := discoveryTaskKey{
+			iri:       iri,
+			recursive: sub.Recursive,
+		}
+		activeKeys[key] = struct{}{}
+	}
+
+	// Get current tasks from scheduler and remove inactive subscriptions.
+	s.scheduler.mu.Lock()
+	for key, task := range s.scheduler.tasks {
+		if task.subscription {
+			if _, ok := activeKeys[key]; !ok {
+				s.scheduler.removeSubscription(key.iri, key.version, key.recursive)
 			}
-			s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-			peers[info.ID] = struct{}{}
-			return nil
-		})
-	}); err != nil {
-		return err
-	}
-
-	var workersDiff int
-
-	// Starting workers for newly added peers.
-	for pid := range peers {
-		if _, ok := s.workers[pid]; !ok {
-			w := newWorker(s.cfg, pid, s.log, s.rbsrClient, s.host, s.index, s.bitswap, s.db, s.semaphore, s.sstore)
-			s.wg.Add(1)
-			go w.start(ctx, &s.wg, s.cfg.Interval)
-			workersDiff++
-			s.workers[pid] = w
 		}
 	}
+	s.scheduler.mu.Unlock()
 
-	// Stop workers for removed peers.
-	for _, w := range s.workers {
-		if _, ok := peers[w.pid]; !ok {
-			w.stop()
-			workersDiff--
-			delete(s.workers, w.pid)
-		}
+	// Ensure tasks for active subscriptions.
+	for _, sub := range ret.Subscriptions {
+		iri := blob.IRI("hm://" + sub.Account + sub.Path)
+		s.scheduler.enqueue(iri, "", sub.Recursive, true)
 	}
-
-	mWorkers.Add(float64(workersDiff))
 
 	return nil
+}
+
+// GetOrCreateEphemeralTask returns an existing task or creates a new ephemeral one.
+// If a subscription task already exists, it wakes it up and returns its info.
+func (s *Service) GetOrCreateEphemeralTask(iri blob.IRI, version blob.Version, recursive bool) DiscoveryTaskInfo {
+	task := s.scheduler.markOnDemandCall(iri, version, recursive)
+
+	// Read ephemeral fields under task.mu.
+	task.mu.Lock()
+	defer task.mu.Unlock()
+
+	// Read scheduler fields under s.scheduler.mu.
+	s.scheduler.mu.Lock()
+	lastRunTime := task.lastRunTime
+	s.scheduler.mu.Unlock()
+
+	return DiscoveryTaskInfo{
+		State:          task.ephemeral.state,
+		Progress:       task.ephemeral.progress,
+		Result:         task.ephemeral.result,
+		LastResultTime: lastRunTime,
+		LastErr:        task.ephemeral.lastErr,
+		CallCount:      task.ephemeral.callCount,
+	}
 }
 
 // SyncResult is a summary of one Sync loop iteration.
@@ -382,10 +390,10 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 
 	bswap := s.bitswap.NewSession(ctx)
 
-	return syncEntities(ctx, pid, c, s.index, bswap, s.log, eids, filteredStore, prog)
+	return syncResources(ctx, pid, c, s.index, bswap, s.log, eids, filteredStore, prog)
 }
 
-func syncEntities(
+func syncResources(
 	ctx context.Context,
 	pid peer.ID,
 	c p2p.SyncingClient,

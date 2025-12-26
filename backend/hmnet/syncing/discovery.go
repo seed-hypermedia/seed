@@ -10,6 +10,7 @@ import (
 	"seed/backend/hmnet/netutil"
 	"seed/backend/ipfs"
 	"seed/backend/util/colx"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/unsafeutil"
@@ -665,3 +666,10 @@ func ensureTempTable(conn *sqlite.Conn, name string) error {
 
 	return sqlitex.Exec(conn, "CREATE TEMP TABLE "+name+" (id INTEGER PRIMARY KEY);", nil)
 }
+
+var qListPeersWithPid = dqb.Str(`
+	SELECT
+		addresses,
+		pid
+	FROM peers;
+`)
