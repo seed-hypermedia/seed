@@ -1,0 +1,21 @@
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native builds
+ios/
+android/
+
+# Dependencies (managed by root)
+node_modules/
+
+# Env files
+.env*.local
+
+# Editor
+*.swp
+*.swo
+
+# OS
+.DS_Store
