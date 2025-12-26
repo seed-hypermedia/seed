@@ -246,12 +246,12 @@ func (s *Service) refreshSubscriptionTasks(ctx context.Context) error {
 	s.log.Debug("Refreshing subscription tasks", zap.Int("count", len(ret.Subscriptions)))
 
 	// Build a set of active subscription keys.
-	activeKeys := make(map[discoveryTaskKey]struct{}, len(ret.Subscriptions))
+	activeKeys := make(map[DiscoveryKey]struct{}, len(ret.Subscriptions))
 	for _, sub := range ret.Subscriptions {
 		iri := blob.IRI("hm://" + sub.Account + sub.Path)
-		key := discoveryTaskKey{
-			iri:       iri,
-			recursive: sub.Recursive,
+		key := DiscoveryKey{
+			IRI:       iri,
+			Recursive: sub.Recursive,
 		}
 		activeKeys[key] = struct{}{}
 	}
@@ -261,7 +261,7 @@ func (s *Service) refreshSubscriptionTasks(ctx context.Context) error {
 	for key, task := range s.scheduler.tasks {
 		if task.subscription {
 			if _, ok := activeKeys[key]; !ok {
-				s.scheduler.removeSubscription(key.iri, key.version, key.recursive)
+				s.scheduler.removeSubscriptionUnsafe(key)
 			}
 		}
 	}
@@ -280,24 +280,7 @@ func (s *Service) refreshSubscriptionTasks(ctx context.Context) error {
 // If a subscription task already exists, it wakes it up and returns its info.
 func (s *Service) GetOrCreateEphemeralTask(iri blob.IRI, version blob.Version, recursive bool) DiscoveryTaskInfo {
 	task := s.scheduler.markOnDemandCall(iri, version, recursive)
-
-	// Read ephemeral fields under task.mu.
-	task.mu.Lock()
-	defer task.mu.Unlock()
-
-	// Read scheduler fields under s.scheduler.mu.
-	s.scheduler.mu.Lock()
-	lastRunTime := task.lastRunTime
-	s.scheduler.mu.Unlock()
-
-	return DiscoveryTaskInfo{
-		State:          task.ephemeral.state,
-		Progress:       task.ephemeral.progress,
-		Result:         task.ephemeral.result,
-		LastResultTime: lastRunTime,
-		LastErr:        task.ephemeral.lastErr,
-		CallCount:      task.ephemeral.callCount,
-	}
+	return task.GetInfo()
 }
 
 // SyncResult is a summary of one Sync loop iteration.

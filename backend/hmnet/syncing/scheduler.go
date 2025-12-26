@@ -38,43 +38,61 @@ type DiscoveryTaskInfo struct {
 	CallCount      int
 }
 
-// discoveryTaskKey identifies a unique discovery task.
-type discoveryTaskKey struct {
-	iri       blob.IRI
-	version   blob.Version
-	recursive bool
-}
-
 // taskState holds the state for a single discovery task.
 type taskState struct {
-	sched *scheduler // Reference to the owning scheduler.
-	key   discoveryTaskKey
+	key DiscoveryKey
 
-	subscription bool // True = periodic subscription, never evicts even when onDemand callers stop.
-	onDemand     bool // True = higher priority, behaves like ephemeral until callers stop.
+	// Scheduling fields (protected by scheduler.mu).
+	heapIndex    int
+	nextRunTime  time.Time
+	onDemand     bool
+	subscription bool
 
-	nextRunTime time.Time
-	lastRunTime time.Time
-	running     bool // True if currently being processed by a worker.
-	heapIndex   int  // Index in the heap, for Fix/Remove. -1 if not in heap.
-
-	// mu protects the ephemeral fields below.
-	mu sync.Mutex
-
-	// Ephemeral-related state (for on-demand discovery from API).
-	ephemeral struct {
-		lastCallTime time.Time          // Last time an on-demand API call was made.
-		callCount    int                // Number of API calls.
-		progress     *DiscoveryProgress // Current progress.
-		result       blob.Version       // Last result.
-		lastErr      error              // Last error.
-		state        TaskState          // Current state (idle/in-progress/completed).
-	}
+	// Result fields (protected by mu).
+	mu           sync.Mutex
+	info         DiscoveryTaskInfo
+	lastCallTime time.Time
 }
 
-// newDiscoveryProgress creates a new progress tracker.
-func newDiscoveryProgress() *DiscoveryProgress {
-	return &DiscoveryProgress{}
+// GetInfo returns current task info for API callers.
+func (t *taskState) GetInfo() DiscoveryTaskInfo {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.info
+}
+
+// MarkInProgress sets state to in-progress and creates a new progress tracker.
+func (t *taskState) MarkInProgress() *DiscoveryProgress {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.info.State = TaskStateInProgress
+	t.info.Progress = &DiscoveryProgress{}
+	return t.info.Progress
+}
+
+// Complete updates result, error, and marks state as completed.
+func (t *taskState) Complete(result blob.Version, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.info.State = TaskStateCompleted
+	t.info.Result = result
+	t.info.LastErr = err
+	t.info.LastResultTime = time.Now()
+}
+
+// RecordCall updates on-demand call tracking.
+func (t *taskState) RecordCall() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lastCallTime = time.Now()
+	t.info.CallCount++
+}
+
+// isOnDemandActive returns true if an on-demand caller is actively polling.
+func (t *taskState) isOnDemandActive() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return time.Since(t.lastCallTime) <= ephemeralLastCallTTL
 }
 
 // scheduler manages discovery tasks with a bounded worker pool.
@@ -82,7 +100,7 @@ type scheduler struct {
 	svc *Service
 
 	mu    sync.Mutex
-	tasks map[discoveryTaskKey]*taskState
+	tasks map[DiscoveryKey]*taskState
 	queue *heap.Heap[*taskState]
 	wake  chan struct{} // Signal to wake scheduler loop.
 
@@ -103,7 +121,7 @@ func newScheduler(svc *Service, minWorkers, maxWorkers int) *scheduler {
 
 	s := &scheduler{
 		svc:        svc,
-		tasks:      make(map[discoveryTaskKey]*taskState),
+		tasks:      make(map[DiscoveryKey]*taskState),
 		wake:       make(chan struct{}, 1),
 		workerChan: make(chan *taskState, minWorkers), // Buffer for persistent workers.
 		minWorkers: minWorkers,
@@ -178,38 +196,28 @@ func (s *scheduler) worker(ctx context.Context) {
 }
 
 // executeTask runs the discovery for a task and updates its state.
+// Task must already be marked as InProgress before calling this.
 func (s *scheduler) executeTask(ctx context.Context, task *taskState) {
-	prog := newDiscoveryProgress()
-
 	task.mu.Lock()
-	task.ephemeral.progress = prog
-	task.ephemeral.state = TaskStateInProgress
+	prog := task.info.Progress
 	task.mu.Unlock()
 
 	result, err := s.svc.DiscoverObjectWithProgress(
 		ctx,
-		task.key.iri,
-		task.key.version,
-		task.key.recursive,
+		task.key.IRI,
+		task.key.Version,
+		task.key.Recursive,
 		prog,
 	)
 
-	now := time.Now()
-
-	// Update ephemeral fields under task.mu.
-	task.mu.Lock()
-	task.ephemeral.result = result
-	task.ephemeral.lastErr = err
-	task.ephemeral.state = TaskStateCompleted
-	isOnDemandActive := time.Since(task.ephemeral.lastCallTime) <= ephemeralLastCallTTL
-	task.mu.Unlock()
+	task.Complete(result, err)
+	isOnDemandActive := task.isOnDemandActive()
 
 	// Update scheduler fields under s.mu.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	task.lastRunTime = now
-	task.running = false
+	now := time.Now()
 
 	// Schedule next run based on task type and state.
 	if isOnDemandActive {
@@ -235,12 +243,20 @@ func (s *scheduler) enqueue(iri blob.IRI, version blob.Version, recursive, subsc
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := discoveryTaskKey{iri: iri, version: version, recursive: recursive}
+	key := DiscoveryKey{IRI: iri, Version: version, Recursive: recursive}
 
 	task, exists := s.tasks[key]
 	if exists {
-		if subscription {
+		if subscription && !task.subscription {
 			task.subscription = true
+			task.nextRunTime = time.Now()
+
+			if task.heapIndex >= 0 {
+				s.queue.Fix(task.heapIndex)
+			} else {
+				s.enqueueUnsafe(task)
+			}
+			s.wakeScheduler()
 		}
 		return task
 	}
@@ -248,14 +264,12 @@ func (s *scheduler) enqueue(iri blob.IRI, version blob.Version, recursive, subsc
 	// Create new task.
 	now := time.Now()
 	task = &taskState{
-		sched:        s,
 		key:          key,
 		subscription: subscription,
-		nextRunTime:  now, // Run immediately.
+		nextRunTime:  now,
 		heapIndex:    -1,
+		lastCallTime: now,
 	}
-	task.ephemeral.lastCallTime = now
-	task.ephemeral.state = TaskStateIdle
 	s.tasks[key] = task
 
 	s.enqueueUnsafe(task)
@@ -270,35 +284,29 @@ func (s *scheduler) markOnDemandCall(iri blob.IRI, version blob.Version, recursi
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	key := discoveryTaskKey{iri: iri, version: version, recursive: recursive}
+	key := DiscoveryKey{IRI: iri, Version: version, Recursive: recursive}
 
 	task, exists := s.tasks[key]
 	if !exists {
 		// Create new ephemeral task.
 		now := time.Now()
 		task = &taskState{
-			sched:       s,
-			key:         key,
-			onDemand:    true,
-			nextRunTime: now,
-			heapIndex:   -1,
+			key:          key,
+			onDemand:     true,
+			nextRunTime:  now,
+			heapIndex:    -1,
+			lastCallTime: now,
 		}
-		task.ephemeral.lastCallTime = now
-		task.ephemeral.state = TaskStateIdle
 		s.tasks[key] = task
 		s.enqueueUnsafe(task)
 		s.wakeScheduler()
 	} else {
 		// Update existing task's ephemeral fields.
-		task.mu.Lock()
-		task.ephemeral.lastCallTime = time.Now()
-		task.ephemeral.callCount++
-		task.mu.Unlock()
-
+		task.RecordCall()
 		task.onDemand = true
 
 		// If not running and not in queue, re-enqueue with priority.
-		if !task.running && task.heapIndex == -1 {
+		if task.info.State != TaskStateInProgress && task.heapIndex == -1 {
 			task.nextRunTime = time.Now()
 			s.enqueueUnsafe(task)
 			s.wakeScheduler()
@@ -311,12 +319,8 @@ func (s *scheduler) markOnDemandCall(iri blob.IRI, version blob.Version, recursi
 	return task
 }
 
-// removeSubscription removes a subscription, allowing the task to evict if not on-demand.
-func (s *scheduler) removeSubscription(iri blob.IRI, version blob.Version, recursive bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	key := discoveryTaskKey{iri: iri, version: version, recursive: recursive}
+// removeSubscriptionUnsafe removes a subscription. Caller must hold s.mu.
+func (s *scheduler) removeSubscriptionUnsafe(key DiscoveryKey) {
 	task, exists := s.tasks[key]
 	if !exists {
 		return
@@ -325,7 +329,7 @@ func (s *scheduler) removeSubscription(iri blob.IRI, version blob.Version, recur
 	task.subscription = false
 
 	// If no active on-demand callers and not running, remove immediately.
-	if !s.isOnDemandActive(task) && !task.running {
+	if !task.isOnDemandActive() && task.info.State != TaskStateInProgress {
 		if task.heapIndex >= 0 {
 			s.queue.Remove(task.heapIndex)
 		}
@@ -347,18 +351,33 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) {
 	now := time.Now()
 	for s.queue.Len() > 0 {
 		task := s.queue.Peek()
-		if task.running || task.nextRunTime.After(now) {
+
+		// Check if task is already running or not ready yet.
+		task.mu.Lock()
+		isRunning := task.info.State == TaskStateInProgress
+		task.mu.Unlock()
+		if isRunning {
+			// Task is already running (e.g. triggered by on-demand or subscription update).
+			// Remove from queue to avoid head-of-line blocking.
+			// It will be re-enqueued when the current execution finishes.
+			s.queue.Pop()
+			task.heapIndex = -1
+			continue
+		}
+
+		if task.nextRunTime.After(now) {
 			break
 		}
 
 		s.queue.Pop()
 		task.heapIndex = -1
-		task.running = true
+
+		// Mark as in-progress before sending to worker.
+		prog := task.MarkInProgress()
 
 		// Try to send to persistent workers first.
 		select {
 		case s.workerChan <- task:
-			// Sent to persistent worker.
 			continue
 		default:
 			// For on-demand tasks, try to spawn a burst worker.
@@ -366,44 +385,38 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) {
 				select {
 				case s.burstSem <- struct{}{}:
 					s.wg.Go(func() {
-						s.burstWorker(ctx, task)
+						s.burstWorker(ctx, task, prog)
 					})
 					continue
 				default:
-					// Couldn't dispatch, put back in queue and stop.
-					task.running = false
-					s.enqueueUnsafe(task)
-					return
 				}
 			}
+			// Couldn't dispatch, reset state and put back in queue.
+			task.mu.Lock()
+			task.info.State = TaskStateIdle
+			task.mu.Unlock()
+			s.enqueueUnsafe(task)
+			return
 		}
 	}
 }
 
 // burstWorker is a temporary worker for on-demand tasks.
-func (s *scheduler) burstWorker(ctx context.Context, task *taskState) {
-	defer func() { <-s.burstSem }() // Release semaphore slot.
-
+func (s *scheduler) burstWorker(ctx context.Context, task *taskState, _ *DiscoveryProgress) {
+	defer func() { <-s.burstSem }()
 	s.executeTask(ctx, task)
 }
 
 // evictStaleTasks removes ephemeral tasks that haven't been called recently. Caller must hold s.mu.
 func (s *scheduler) evictStaleTasks() {
 	for key, task := range s.tasks {
-		if task.subscription || task.running {
+		if task.subscription || task.info.State == TaskStateInProgress {
 			continue
 		}
-		if !s.isOnDemandActive(task) && task.heapIndex == -1 {
+		if !task.isOnDemandActive() && task.heapIndex == -1 {
 			delete(s.tasks, key)
 		}
 	}
-}
-
-// isOnDemandActive returns true if an on-demand caller is actively polling.
-func (s *scheduler) isOnDemandActive(task *taskState) bool {
-	task.mu.Lock()
-	defer task.mu.Unlock()
-	return time.Since(task.ephemeral.lastCallTime) <= ephemeralLastCallTTL
 }
 
 // nextWakeTime returns when the scheduler should next wake. Caller must hold s.mu.
