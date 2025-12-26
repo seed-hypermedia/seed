@@ -89,6 +89,9 @@ func (h *Heap[T]) less(i, j int) bool {
 }
 
 func (h *Heap[T]) swap(i, j int) {
+	if h.OnSwap != nil {
+		h.OnSwap(h.data, i, j)
+	}
 	h.data[i], h.data[j] = h.data[j], h.data[i]
 }
 
