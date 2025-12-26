@@ -107,7 +107,7 @@ func TestRemove0(t *testing.T) {
 
 	for h.Len() > 0 {
 		i := h.Len() - 1
-		x := h.Remove(i).(int)
+		x := h.Remove(i)
 		if x != i {
 			t.Errorf("Remove(%d) got %d; want %d", i, x, i)
 		}
@@ -123,7 +123,7 @@ func TestRemove1(t *testing.T) {
 	h.verify(t, 0)
 
 	for i := 0; h.Len() > 0; i++ {
-		x := h.Remove(0).(int)
+		x := h.Remove(0)
 		if x != i {
 			t.Errorf("Remove(0) got %d; want %d", x, i)
 		}
@@ -142,7 +142,7 @@ func TestRemove2(t *testing.T) {
 
 	m := make(map[int]bool)
 	for h.Len() > 0 {
-		m[h.Remove((h.Len()-1)/2).(int)] = true
+		m[h.Remove((h.Len()-1)/2)] = true
 		h.verify(t, 0)
 	}
 

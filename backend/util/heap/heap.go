@@ -60,7 +60,7 @@ func (h *Heap[T]) pop() T {
 
 // Remove removes and returns the element at index i from the heap.
 // The complexity is O(log n) where n = h.Len().
-func (h *Heap[T]) Remove(i int) any {
+func (h *Heap[T]) Remove(i int) T {
 	n := h.Len() - 1
 	if n != i {
 		h.swap(i, n)
@@ -121,5 +121,4 @@ func (h *Heap[T]) down(i0, n int) bool {
 		i = j
 	}
 	return i > i0
-
 }
