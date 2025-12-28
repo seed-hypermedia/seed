@@ -5,6 +5,7 @@
 FROM node:20-alpine AS builder
 
 RUN apk add git
+RUN npm install -g pnpm@9.15.0
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY . .
@@ -17,8 +18,8 @@ RUN rm -rf ./frontend/apps/perf-web
 RUN rm -rf ./frontend/apps/performance-dashboard
 RUN rm -rf ./frontend/apps/explore
 RUN rm -rf ./frontend/apps/web
-RUN yarn install
-RUN yarn notify:build
+RUN pnpm install --frozen-lockfile
+RUN pnpm notify:build
 
 FROM node:20-alpine AS production
 

@@ -77,31 +77,31 @@ def main():
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
         run("node scripts/cleanup-desktop.js")
-        run("plz build //:yarn")
+        run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
-        return run("yarn desktop", args=args)
+        return run("pnpm desktop", args=args)
 
     @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
     def run_desktop_mainnet(args):
         run("node scripts/cleanup-desktop.js")
-        run("plz build //:yarn")
+        run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
             run("plz build //backend:seed-daemon")
 
         del os.environ["SEED_P2P_TESTNET_NAME"]
 
-        return run("yarn desktop", args=args)
+        return run("pnpm desktop", args=args)
 
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
         run("node scripts/cleanup-desktop.js")
         run("./scripts/cleanup-frontend.sh")
-        run("yarn install")
-        run("plz build //backend:seed-daemon //:yarn")
+        run("pnpm install")
+        run("plz build //backend:seed-daemon //:pnpm")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
@@ -110,32 +110,32 @@ def main():
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
         # os.environ["VITE_SEED_HOST_URL"] = "https://host.seed.hyper.media"
 
-        run("yarn format:write")
-        run("yarn typecheck")
-        run("yarn test")
+        run("pnpm format:write")
+        run("pnpm typecheck")
+        run("pnpm test")
 
         run(
-            "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media yarn desktop:make"
+            "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media pnpm desktop:make"
         )
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
         run("node scripts/cleanup-desktop.js")
-        run("plz build //backend:seed-daemon //:yarn")
+        run("plz build //backend:seed-daemon //:pnpm")
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
             os.environ[testnet_var] = "dev"
 
-        return run("yarn desktop:test", args=args)
+        return run("pnpm desktop:test", args=args)
 
     @cmd(cmds, "run-web", "Run Web app for development.")
     def run_web(args):
         run("./scripts/cleanup-web.sh")
-        run("yarn install")
-        run("plz build //:yarn")
+        run("pnpm install")
+        run("plz build //:pnpm")
         return run(
-            "yarn web",
+            "pnpm web",
             args=args,
         )
 
@@ -143,17 +143,17 @@ def main():
     def build_web(args):
         run("./scripts/cleanup-frontend.sh")
         run("./scripts/cleanup-web.sh")
-        run("yarn install")
-        run("plz build //:yarn")
+        run("pnpm install")
+        run("plz build //:pnpm")
         return run(
-            "yarn web:prod",
+            "pnpm web:prod",
             args=args,
         )
 
     @cmd(cmds, "frontend-validate", "Formats, Validates")
     def frontend_validate(args):
         run("node scripts/cleanup-desktop.js")
-        run("yarn validate")
+        run("pnpm validate")
 
     @cmd(
         cmds,
@@ -181,8 +181,8 @@ def main():
         "Create a new Release. this will create a new tag and push it to the remote repository",
     )
     def release(args):
-        # run("yarn validate")
-        # run("yarn test")
+        # run("pnpm validate")
+        # run("pnpm test")
         run("node scripts/tag.mjs")
 
     if len(sys.argv) == 1:
