@@ -86,6 +86,9 @@ const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
 // @ts-ignore
 global.electronTRPC = {}
 
+// Track startup phase to prevent premature quit when loading window closes
+let isStartingUp = true
+
 Sentry.init({
   debug: false,
   release: VERSION,
@@ -194,15 +197,17 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
           logger.error('[MAIN]: Error checking initial daemon state:', err)
         })
     }
-    // Second 'ready' event: daemon became ACTIVE, close loading window
+    // Second 'ready' event: daemon became ACTIVE, unsubscribe but keep loading window open
+    // Loading window will be closed when main windows are about to open
     else if (
       state.t === 'ready' &&
       daemonIsPolling &&
       loadingWindowShown &&
       !forceLoadingWindow
     ) {
-      closeLoadingWindow()
-      logger.info('[MAIN]: Daemon is ACTIVE, loading window closed')
+      logger.info(
+        '[MAIN]: Daemon is ACTIVE, keeping loading window until main window opens',
+      )
       if (unsubscribe) {
         unsubscribe()
         unsubscribe = null
@@ -311,6 +316,11 @@ app.whenReady().then(async () => {
       grpcClient.daemon.listKeys({}).then(async (response) => {
         const onboardingState = getOnboardingState()
         setInitialAccountIdCount(response.keys.length)
+
+        // Close loading window right before opening main windows
+        closeLoadingWindow()
+        logger.debug('[MAIN]: Loading window closed, opening main windows')
+
         if (
           response.keys.length === 0 &&
           !onboardingState.hasCompletedOnboarding &&
@@ -318,9 +328,13 @@ app.whenReady().then(async () => {
         ) {
           deleteWindowsState().then(() => {
             trpc.createAppWindow({routes: [defaultRoute]})
+            isStartingUp = false
+            logger.debug('[MAIN]: Startup complete, main window created')
           })
         } else {
           await openInitialWindows()
+          isStartingUp = false
+          logger.debug('[MAIN]: Startup complete, initial windows opened')
         }
       })
 
@@ -350,6 +364,11 @@ app.on('activate', () => {
 app.on('window-all-closed', () => {
   logger.debug('[MAIN]: window-all-closed')
   globalShortcut.unregisterAll()
+  // Don't quit during startup (loading window closing before main window opens)
+  if (isStartingUp) {
+    logger.debug('[MAIN]: Ignoring window-all-closed during startup')
+    return
+  }
   if (process.platform !== 'darwin') {
     logger.debug('[MAIN]: will quit the app')
     app.quit()
@@ -437,9 +456,11 @@ function initializeIpcHandlers() {
           ) {
             deleteWindowsState().then(() => {
               trpc.createAppWindow({routes: [defaultRoute]})
+              isStartingUp = false
             })
           } else {
             await openInitialWindows()
+            isStartingUp = false
           }
         })
 
