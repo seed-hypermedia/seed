@@ -120,7 +120,7 @@ jobs:
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
-          yarn desktop:make --arch=${{ matrix.config.arch }}
+          pnpm desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           DEBUG: electron-*
@@ -148,7 +148,7 @@ jobs:
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         run: |
-          yarn desktop:make --arch=${{ matrix.config.arch }}
+          pnpm desktop:make --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           DEBUG: electron-*
