@@ -201,54 +201,22 @@ function PanelContent({children}: {children: ReactNode}) {
   const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
-    // Check if editor is focused with selection - if so, trigger bold instead of sidebar toggle
+    // Skip if editor is focused - toggle_bold handler will handle it
     const activeElement = document.activeElement
     const isEditorFocused =
       activeElement &&
       (activeElement.classList.contains('ProseMirror') ||
         activeElement.closest('.ProseMirror'))
 
-    if (isEditorFocused) {
-      const selection = window.getSelection()
-      // If there's a text selection, try to toggle bold in the editor
-      if (selection && !selection.isCollapsed) {
-        try {
-          // Access ProseMirror view through the pmViewDesc property
-          const pmElement = activeElement.classList.contains('ProseMirror')
-            ? activeElement
-            : activeElement.closest('.ProseMirror')
+    console.log(
+      '[toggle_sidebar] activeElement:',
+      activeElement?.tagName,
+      activeElement?.className,
+    )
+    console.log('[toggle_sidebar] isEditorFocused:', isEditorFocused)
 
-          if (pmElement) {
-            // Get the ProseMirror EditorView from the DOM node
-            const editorView = (pmElement as any).pmViewDesc?.view
+    if (isEditorFocused) return
 
-            if (editorView && editorView.state && editorView.dispatch) {
-              const {state} = editorView
-              const boldMark = state.schema.marks.bold
-
-              if (boldMark) {
-                const {from, to} = state.selection
-                const hasBold = state.doc.rangeHasMark(from, to, boldMark)
-
-                const tr = hasBold
-                  ? state.tr.removeMark(from, to, boldMark)
-                  : state.tr.addMark(from, to, boldMark.create())
-
-                editorView.dispatch(tr)
-                return
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Failed to toggle bold:', e)
-        }
-
-        // If we can't toggle bold, at least prevent sidebar toggle
-        return
-      }
-    }
-
-    // Otherwise, toggle the sidebar
     ctx.onToggleMenuLock()
   })
 

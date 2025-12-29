@@ -421,6 +421,19 @@ export function useCommentEditor(
       window.removeEventListener('keydown', handleSelectAll)
     }
   }, [])
+
+  // Handle Cmd+B for bold when editor is focused
+  useEffect(() => {
+    function handleToggleBold() {
+      if (editor?.isFocused()) {
+        editor.toggleStyles({bold: true})
+      }
+    }
+    window.addEventListener('editor-toggle-bold', handleToggleBold)
+    return () =>
+      window.removeEventListener('editor-toggle-bold', handleToggleBold)
+  }, [editor])
+
   const writeRecentSigner = useMutation({
     mutationFn: (signingKeyName: string) =>
       client.recentSigners.writeRecentSigner.mutate(signingKeyName),
