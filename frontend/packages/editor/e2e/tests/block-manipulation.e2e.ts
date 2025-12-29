@@ -1,5 +1,8 @@
 import {expect, test} from './fixtures'
 
+// Opt out of clipboard permissions for block manipulation tests
+test.use({clipboardPermissions: false})
+
 test.describe('Block Manipulation', () => {
   test.describe('Block Insertion', () => {
     test('Should start with content after fixture initialization', async ({
@@ -15,7 +18,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('First paragraph')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Second paragraph')
@@ -34,7 +36,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Heading')
       // await page.waitForTimeout(200)
@@ -47,7 +48,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Code Block')
       // await page.waitForTimeout(200)
@@ -60,7 +60,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('/head')
       // await page.waitForTimeout(300)
 
@@ -83,7 +82,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('First line')
 
       const initialBlocks = await editorHelpers.getBlocks()
@@ -108,7 +106,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('First')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Second')
@@ -135,7 +132,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Select all and delete
@@ -155,7 +151,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('My Paragraph')
       // await page.waitForTimeout(50)
 
@@ -176,7 +171,6 @@ test.describe('Block Manipulation', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('My content')
       // await page.waitForTimeout(50)
 

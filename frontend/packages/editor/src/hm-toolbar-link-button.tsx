@@ -25,6 +25,7 @@ import {
 
 export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
   editor: BlockNoteEditor<BSchema>
+  testId: string
 }) => {
   const [url, setUrl] = useState<string>(
     props.editor.getSelectedLinkUrl() || '',
@@ -91,6 +92,7 @@ export const HMLinkToolbarButton = <BSchema extends BlockSchema>(props: {
       <PopoverTrigger asChild>
         <span>
           <Button
+            data-testid={props.testId}
             size="icon"
             variant="ghost"
             className={cn(
@@ -285,6 +287,7 @@ function LinkSearchInput({
       {/* Search Input Header */}
       <div className="flex items-center gap-2 border-b p-2">
         <Input
+          data-testid="link-search-input"
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
           placeholder="Search documents or enter a URL"

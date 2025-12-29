@@ -379,6 +379,7 @@ export function SearchResultItem({
       {...props}
       variant="ghost"
       {...selectProps}
+      data-testid={`search-result-${item.title}`}
       className={cn(
         'hover:bg-brand-12 active:bg-brand-11 @container flex h-auto w-full items-start gap-3 rounded-none py-2', // added gap-3
         selected && 'bg-brand-12',

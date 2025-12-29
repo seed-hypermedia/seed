@@ -52,8 +52,8 @@ export type EditorTestHelpers = {
   waitForFormattingToolbar: () => Promise<Locator>
   /** Click a toolbar button by aria-label or data-testid */
   clickToolbarButton: (identifier: string) => Promise<void>
-  /** Create a text selection by dragging */
-  selectText: () => Promise<void>
+  /** Put cursor inside an element with provided text */
+  selectText: (text: string, el?: string) => Promise<void>
   /** Move cursor to the end of the document */
   moveCursorToEnd: () => Promise<void>
   /** Set clipboard with plain text content */
@@ -76,8 +76,21 @@ export type EditorTestHelpers = {
 
 export const test = base.extend<{
   editorHelpers: EditorTestHelpers
+  editorFixture: string
+  clipboardPermissions: boolean
 }>({
-  editorHelpers: async ({page}, use) => {
+  editorFixture: ['empty', {option: true}],
+
+  clipboardPermissions: [true, {option: true}],
+
+  editorHelpers: async (
+    {page, context, editorFixture, clipboardPermissions},
+    use,
+  ) => {
+    // Grant clipboard permissions by default
+    if (clipboardPermissions) {
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    }
     const helpers: EditorTestHelpers = {
       async waitForEditorReady() {
         await page.waitForSelector('[data-testid="editor-harness"]')
@@ -329,12 +342,39 @@ export const test = base.extend<{
         await button.click()
       },
 
-      async selectText() {
+      async selectText(text: string, el: string = 'p') {
         const contentArea = this.getContentArea()
-        const box = await contentArea.boundingBox()
-        if (!box) throw new Error('Could not get content area bounding box')
+        const element = contentArea.locator(`${el}:has-text("${text}")`).first()
+        await element.click()
 
-        await contentArea.click({clickCount: 3})
+        const handle = await element.elementHandle()
+        if (!handle) throw new Error('No element handle')
+
+        await page.evaluate(
+          ({el, word, occurrence}) => {
+            const textNode = Array.from(el.childNodes).find(
+              (n) => n.nodeType === Node.TEXT_NODE,
+            ) as Text | undefined
+            if (!textNode || !textNode.nodeValue)
+              throw new Error('Paragraph has no text node')
+
+            const txt = textNode.nodeValue
+            const idx =
+              occurrence === 'last' ? txt.lastIndexOf(word) : txt.indexOf(word)
+
+            if (idx === -1)
+              throw new Error(`Word "${word}" not found in paragraph: "${txt}"`)
+
+            const range = document.createRange()
+            range.setStart(textNode, idx)
+            range.setEnd(textNode, idx + word.length)
+
+            const sel = window.getSelection()
+            sel?.removeAllRanges()
+            sel?.addRange(range)
+          },
+          {el: handle, word: text, occurrence: 'first'},
+        )
       },
 
       async moveCursorToEnd() {
@@ -455,8 +495,9 @@ export const test = base.extend<{
     }
 
     // Navigate to the test app before each test
-    await page.goto('/')
+    await page.goto(`/?fixture=${encodeURIComponent(editorFixture)}`)
     await helpers.waitForEditorReady()
+    await helpers.focusEditor()
 
     await use(helpers)
   },

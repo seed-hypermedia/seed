@@ -23,7 +23,6 @@ test.describe('Copy and Paste', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Select all and copy
@@ -47,9 +46,7 @@ test.describe('Copy and Paste', () => {
     test('Should copy and paste multi-line plain text within editor', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Line 1')
       await editorHelpers.pressKey('Shift+Enter')
       await editorHelpers.typeText('Line 2')
@@ -77,11 +74,7 @@ test.describe('Copy and Paste', () => {
     test('Should copy and paste multi-line plain text as three paragraph blocks', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardText(plainTextContent.multiParagraph)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -96,11 +89,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste plain text content inline', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       // Create a single paragraph block
       await editorHelpers.typeText('Hello ')
 
@@ -116,11 +105,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste multi-paragraph content inline: first paragraph merges at cursor, rest become new blocks', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       // Create a single paragraph block
       await editorHelpers.typeText('HelloWorld')
 
@@ -146,14 +131,7 @@ test.describe('Copy and Paste', () => {
   // HTML CONTENT
   // ===========================================================================
   test.describe('HTML Content (External)', () => {
-    test('Should paste one HTML paragraph', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste one HTML paragraph', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML('<p>Simple test</p>')
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -165,11 +143,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste multiple HTML paragraphs as separate blocks', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardHTML(htmlContent.multiParagraphHTML)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -184,12 +158,8 @@ test.describe('Copy and Paste', () => {
     // test('Should paste HTML with bold formatting', async ({
     //   editorHelpers,
     //   page,
-    //   context,
     // }) => {
-    //   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    //   await editorHelpers.focusEditor()
-
-    //   await editorHelpers.setClipboardHTML(htmlContent.boldText)
+    //       //   await editorHelpers.setClipboardHTML(htmlContent.boldText)
     //   await editorHelpers.paste()
     //   await page.waitForTimeout(50)
 
@@ -206,12 +176,8 @@ test.describe('Copy and Paste', () => {
     // test('Should paste HTML with italic formatting', async ({
     //   editorHelpers,
     //   page,
-    //   context,
     // }) => {
-    //   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    //   await editorHelpers.focusEditor()
-
-    //   await editorHelpers.setClipboardHTML(htmlContent.italicText)
+    //       //   await editorHelpers.setClipboardHTML(htmlContent.italicText)
     //   await editorHelpers.paste()
     //   await page.waitForTimeout(50)
 
@@ -228,11 +194,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste HTML with mixed formatting', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       // htmlContent.mixedFormatting has strong, emphasis, and underlined words
       await editorHelpers.setClipboardHTML(htmlContent.mixedFormatting)
       await editorHelpers.paste()
@@ -256,14 +218,7 @@ test.describe('Copy and Paste', () => {
       expect(underlineMarks[0].text).toBe('underlined')
     })
 
-    test('Should paste HTML with links', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste HTML with links', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.simpleLink)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -283,14 +238,7 @@ test.describe('Copy and Paste', () => {
       expect(linkMarks[0].text).toBe('Example Site')
     })
 
-    test('Should paste HTML headings', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste HTML headings', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.heading1)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -312,12 +260,9 @@ test.describe('Copy and Paste', () => {
     // test('Should paste complex HTML document', async ({
     //   editorHelpers,
     //   page,
-    //   context,
-    // }) => {
-    //   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-    //   await editorHelpers.focusEditor()
 
-    //   await editorHelpers.setClipboardHTML(htmlContent.complexDocument)
+    // }) => {
+    //       //   await editorHelpers.setClipboardHTML(htmlContent.complexDocument)
     //   await editorHelpers.paste()
     //   await page.waitForTimeout(50)
 
@@ -337,8 +282,6 @@ test.describe('Copy and Paste', () => {
         editorHelpers,
         page,
       }) => {
-        await editorHelpers.focusEditor()
-
         // Create a paragraph with a list
         await editorHelpers.typeText('Parent')
         await editorHelpers.pressKey('Enter')
@@ -378,11 +321,7 @@ test.describe('Copy and Paste', () => {
       test('Should paste HTML unordered list', async ({
         editorHelpers,
         page,
-        context,
       }) => {
-        await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-        await editorHelpers.focusEditor()
-
         await editorHelpers.setClipboardHTML(htmlContent.unorderedList)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
@@ -397,14 +336,7 @@ test.describe('Copy and Paste', () => {
         expect(listBlock.children[2].content[0].text).toBe('Item 3')
       })
 
-      test('Should paste HTML ordered list', async ({
-        editorHelpers,
-        page,
-        context,
-      }) => {
-        await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-        await editorHelpers.focusEditor()
-
+      test('Should paste HTML ordered list', async ({editorHelpers, page}) => {
         await editorHelpers.setClipboardHTML(htmlContent.orderedList)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
@@ -419,14 +351,7 @@ test.describe('Copy and Paste', () => {
         expect(listBlock.children[2].content[0].text).toBe('Item 3')
       })
 
-      test('Should paste HTML nested list', async ({
-        editorHelpers,
-        page,
-        context,
-      }) => {
-        await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-        await editorHelpers.focusEditor()
-
+      test('Should paste HTML nested list', async ({editorHelpers, page}) => {
         await editorHelpers.setClipboardHTML(htmlContent.nestedList)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
@@ -447,14 +372,7 @@ test.describe('Copy and Paste', () => {
         expect(listBlock.children[1].content[0].text).toBe('Another parent')
       })
 
-      test('Should paste HTML blockquote', async ({
-        editorHelpers,
-        page,
-        context,
-      }) => {
-        await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-        await editorHelpers.focusEditor()
-
+      test('Should paste HTML blockquote', async ({editorHelpers, page}) => {
         await editorHelpers.setClipboardHTML(htmlContent.blockquote)
         await editorHelpers.paste()
         await page.waitForTimeout(50)
@@ -472,8 +390,6 @@ test.describe('Copy and Paste', () => {
         editorHelpers,
         page,
       }) => {
-        await editorHelpers.focusEditor()
-
         // Create a list:
         // Parent
         // - Parent 1
@@ -524,10 +440,7 @@ test.describe('Copy and Paste', () => {
       //   page,
       //   context,
       // }) => {
-      //   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      //   await editorHelpers.focusEditor()
-
-      //   await editorHelpers.setClipboardText(plainTextContent.listLike)
+      //         //         //   await editorHelpers.setClipboardText(plainTextContent.listLike)
       //   await editorHelpers.paste()
       //   await page.waitForTimeout(200)
 
@@ -543,14 +456,7 @@ test.describe('Copy and Paste', () => {
   // MARKDOWN CONTENT
   // ===========================================================================
   test.describe('Markdown Content', () => {
-    test('Should paste markdown heading', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste markdown heading', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(markdownContent.heading)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -563,11 +469,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste markdown with formatting', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardText(markdownContent.mixed)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -578,14 +480,7 @@ test.describe('Copy and Paste', () => {
       expect(hasItalic).toBe(true)
     })
 
-    test('Should paste markdown list', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste markdown list', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardText(markdownContent.unorderedList)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -602,11 +497,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste complex markdown document', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardText(markdownContent.complexDocument)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -635,14 +526,7 @@ test.describe('Copy and Paste', () => {
   // CODE
   // ===========================================================================
   test.describe('Code Content', () => {
-    test('Should paste HTML inline code', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste HTML inline code', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.inlineCode)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -655,14 +539,7 @@ test.describe('Copy and Paste', () => {
       expect(codeMarks[0].text).toBe('console.log()')
     })
 
-    test('Should paste HTML code block', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste HTML code block', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.codeBlock)
       await editorHelpers.paste()
       await page.waitForTimeout(50)
@@ -686,7 +563,6 @@ test.describe('Copy and Paste', () => {
       page,
     }) => {
       // Note: This test fails without timeout. Needs time to process the cut operation
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Cut this text')
       await page.waitForTimeout(100)
 
@@ -703,7 +579,6 @@ test.describe('Copy and Paste', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Cut and paste me')
       await page.waitForTimeout(50)
 
@@ -729,11 +604,7 @@ test.describe('Copy and Paste', () => {
     test.skip('should paste Seed embed block (Card view)', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardHTML(seedBlockHTML.embedCard)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -747,11 +618,7 @@ test.describe('Copy and Paste', () => {
     test.skip('should paste Seed embed block (Content view)', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardHTML(seedBlockHTML.embedContent)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -760,14 +627,7 @@ test.describe('Copy and Paste', () => {
       expect(blocks.length).toBeGreaterThan(0)
     })
 
-    test('Should paste an image block', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste an image block', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(seedBlockHTML.image)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -788,11 +648,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste content from Google Docs', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardHTML(htmlContent.googleDocs.formattedText)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -805,10 +661,7 @@ test.describe('Copy and Paste', () => {
     test('Should paste list from Google Docs', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Parent for list')
       await editorHelpers.pressKey('Enter')
 
@@ -840,11 +693,7 @@ test.describe('Copy and Paste', () => {
     test.skip('Should paste content from Notion', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
       await editorHelpers.setClipboardHTML(htmlContent.notion.formattedText)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -855,14 +704,7 @@ test.describe('Copy and Paste', () => {
       expect(text).toContain('italic')
     })
 
-    test('Should paste content from ChatGPT', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
-
+    test('Should paste content from ChatGPT', async ({editorHelpers, page}) => {
       await editorHelpers.setClipboardHTML(htmlContent.chatGpt.formattedText)
       await editorHelpers.paste()
       await page.waitForTimeout(200)
@@ -880,10 +722,7 @@ test.describe('Copy and Paste', () => {
     test('Should replace selected text when pasting', async ({
       editorHelpers,
       page,
-      context,
     }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Original text')
       await page.waitForTimeout(50)
 
@@ -897,13 +736,7 @@ test.describe('Copy and Paste', () => {
       expect(text).not.toContain('Original')
     })
 
-    test('Should handle empty clipboard', async ({
-      editorHelpers,
-      page,
-      context,
-    }) => {
-      await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-      await editorHelpers.focusEditor()
+    test('Should handle empty clipboard', async ({editorHelpers, page}) => {
       await editorHelpers.typeText('Some text')
 
       // Set empty clipboard

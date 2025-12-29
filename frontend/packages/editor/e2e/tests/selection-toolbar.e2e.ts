@@ -1,5 +1,8 @@
 import {expect, test} from './fixtures'
 
+// Opt out of clipboard permissions
+test.use({clipboardPermissions: false})
+
 test.describe('Selection Behavior', () => {
   test.describe('Text Selection', () => {
     // test('Should select text with keyboard shortcuts', async ({
@@ -21,7 +24,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello')
 
       // Move to start
@@ -41,7 +43,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Double-click on the first word
@@ -58,7 +59,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Triple-click to select line
@@ -76,7 +76,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('First block')
       await editorHelpers.pressKey('Enter')
       await page.waitForTimeout(100)
@@ -94,7 +93,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('First')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Second')
@@ -116,7 +114,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('ABC')
 
       // Cursor is at end: ABC|
@@ -134,7 +131,6 @@ test.describe('Selection Behavior', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello')
 
       // Click at the end of the editor content area
@@ -159,7 +155,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Select all
@@ -182,7 +177,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Bold text')
 
       // Apply bold formatting with toolbar button
@@ -216,7 +210,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Bold text')
       await page.waitForTimeout(100)
 
@@ -247,7 +240,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Italic text')
       await page.waitForTimeout(100)
 
@@ -280,7 +272,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Hello World')
 
       // Select all
@@ -304,7 +295,6 @@ test.describe('Formatting Toolbar', () => {
       editorHelpers,
       page,
     }) => {
-      await editorHelpers.focusEditor()
       await editorHelpers.typeText('Parent')
       await editorHelpers.pressKey('Enter')
       await editorHelpers.typeText('Child 1')
@@ -341,13 +331,41 @@ test.describe('Formatting Toolbar', () => {
       expect(listItems[1].content[0].text).toBe('Child 2')
     })
   })
+
+  test("Should add a link with a link button's search input", async ({
+    editorHelpers,
+    page,
+  }) => {
+    await editorHelpers.typeText('Hello Link')
+    await page.waitForTimeout(100)
+    await editorHelpers.selectText('Link')
+    await page.waitForTimeout(100)
+    const selectedText = await editorHelpers.getSelectedText()
+    expect(selectedText).toBe('Link')
+    await page.waitForTimeout(100)
+    await expect(page.getByTestId('link-button')).toBeVisible()
+    await page.getByTestId('link-button').click()
+    await page.waitForTimeout(100)
+    await expect(page.getByTestId('link-search-input')).toBeVisible()
+    await page.getByTestId('link-search-input').focus()
+    await editorHelpers.typeText('test')
+    await expect(page.getByTestId('search-result-Test HM Doc')).toBeVisible()
+    await page.getByTestId('search-result-Test HM Doc').click()
+    await page.waitForTimeout(100)
+    await expect(page.getByTestId('link-search-input')).not.toBeVisible()
+    const blocks = await editorHelpers.getBlocks()
+    expect(blocks[0].content[1].content[0].text).toBe('Link')
+    expect(blocks[0].content[1].type).toBe('link')
+    expect(blocks[0].content[1].href).toContain(
+      'hm://bafy-doc-uid/Root/Notes/Test HM Doc',
+    )
+  })
 })
 test.describe('Slash Menu', () => {
   test('Should open slash menu when typing /', async ({
     editorHelpers,
     page,
   }) => {
-    await editorHelpers.focusEditor()
     await editorHelpers.typeText('/')
 
     // Wait for slash menu - Mantine Menu component
@@ -356,7 +374,6 @@ test.describe('Slash Menu', () => {
   })
 
   test('Should close slash menu on Escape', async ({editorHelpers, page}) => {
-    await editorHelpers.focusEditor()
     await editorHelpers.openSlashMenu()
 
     // Press Escape
@@ -372,7 +389,6 @@ test.describe('Slash Menu', () => {
     editorHelpers,
     page,
   }) => {
-    await editorHelpers.focusEditor()
     await editorHelpers.openSlashMenu()
 
     // Navigate down
@@ -385,7 +401,6 @@ test.describe('Slash Menu', () => {
   })
 
   test('Should select item with Enter', async ({editorHelpers, page}) => {
-    await editorHelpers.focusEditor()
     await editorHelpers.openSlashMenu()
 
     // Press Enter to select first item (Heading)
@@ -399,5 +414,122 @@ test.describe('Slash Menu', () => {
     // Block type should change to heading
     const blocks = await editorHelpers.getBlocks()
     expect(blocks[0].type).toBe('heading')
+  })
+})
+
+test.describe('Link Toolbar', () => {
+  // Select the text with a link mark and wait for the link preview to be visible
+  async function selectLinkAndExpectPreview(editorHelpers: any, page: any) {
+    const contentArea = editorHelpers.getContentArea()
+    await contentArea.locator(`span:has-text("Link")`).first().click()
+    await page.waitForTimeout(50)
+    await expect(page.getByTestId('hm-link-preview')).toBeVisible()
+    await expect(page.getByTestId('hm-link-preview-edit-button')).toBeVisible()
+  }
+
+  // Open the link form with the edit button in link preview
+  async function openEditForm(page: any) {
+    await page.getByTestId('hm-link-preview-edit-button').click()
+    await page.waitForTimeout(50)
+    await expect(page.getByTestId('hm-link-form')).toBeVisible()
+  }
+
+  test.describe('External link', () => {
+    test.use({editorFixture: 'withExternalLink'})
+
+    test.beforeEach(async ({editorHelpers, page}) => {
+      await selectLinkAndExpectPreview(editorHelpers, page)
+    })
+
+    test('Should open the link preview form', async ({page}) => {
+      await openEditForm(page)
+    })
+
+    test('Should edit the link text in the link preview form', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await openEditForm(page)
+
+      await expect(page.getByTestId('link-text-input')).toBeVisible()
+      await page.getByTestId('link-text-input').fill('New Link')
+      await page.waitForTimeout(100)
+      await page.getByTestId('link-text-input').blur()
+
+      const text = await editorHelpers.getEditorText()
+      expect(text).toBe('Hello New Link')
+    })
+
+    test('Should edit the link url in the link preview form', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await openEditForm(page)
+
+      await expect(page.getByTestId('link-search-input')).toBeVisible()
+      await page
+        .getByTestId('link-search-input')
+        .fill('https://www.secondexample.com')
+
+      await expect(page.getByTestId('link-resource-type')).toHaveText(
+        'Web Address',
+      )
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].content[1].content[0].text).toBe('Link')
+      expect(blocks[0].content[1].type).toBe('link')
+      expect(blocks[0].content[1].href).toContain(
+        'https://www.secondexample.com',
+      )
+    })
+
+    test('Change the link url with the search input', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await openEditForm(page)
+
+      await expect(page.getByTestId('link-search-input')).toBeVisible()
+      await page.getByTestId('link-search-input').clear()
+      await page.getByTestId('link-search-input').focus()
+
+      await editorHelpers.typeText('test')
+      await expect(page.getByTestId('search-result-Test HM Doc')).toBeVisible()
+      await page.getByTestId('search-result-Test HM Doc').click()
+
+      await expect(page.getByTestId('link-search-input')).not.toBeVisible()
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].content[1].content[0].text).toBe('Link')
+      expect(blocks[0].content[1].type).toBe('link')
+      expect(blocks[0].content[1].href).toContain(
+        'hm://seed.test/doc/test-hm-doc',
+      )
+    })
+  })
+
+  test.describe('HM link', () => {
+    test.use({editorFixture: 'withHmLink'})
+
+    test.beforeEach(async ({editorHelpers, page}) => {
+      await selectLinkAndExpectPreview(editorHelpers, page)
+    })
+
+    test('Should show Seed Resource type for hm link', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await openEditForm(page)
+
+      await expect(page.getByTestId('link-resource-type')).toHaveText(
+        'Seed Resource',
+      )
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].content[1].type).toBe('link')
+      expect(blocks[0].content[1].href).toContain(
+        'hm://bafy-doc-uid/Root/Notes/Test HM Doc',
+      )
+    })
   })
 })

@@ -96,6 +96,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
           <TextCursorInput size={16} />
           <Input
+            data-testid="link-text-input"
             className="flex-1"
             placeholder={`${props.type} text`}
             id="link-text"
@@ -224,7 +225,11 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         </div>
       )}
 
-      <SizableText size="sm" className="text-primary">
+      <SizableText
+        size="sm"
+        className="text-primary"
+        data-testid="link-resource-type"
+      >
         {!!props.isHmLink ? `Seed Resource` : 'Web Address'}
       </SizableText>
 
@@ -423,6 +428,7 @@ const SearchInput = ({
   return (
     <>
       <Input
+        data-testid="link-search-input"
         ref={inputRef}
         className="flex-1"
         onFocus={() => {

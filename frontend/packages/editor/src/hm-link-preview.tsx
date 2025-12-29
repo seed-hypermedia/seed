@@ -128,6 +128,7 @@ export function HypermediaLinkPreview(
 
   return (
     <div
+      data-testid="hm-link-preview"
       onMouseEnter={() => {
         props.editor.hyperlinkToolbar.stopHideTimer()
         props.setHovered?.(true)
@@ -139,7 +140,7 @@ export function HypermediaLinkPreview(
       className="link-preview-toolbar bg-muted flex max-h-[60vh] w-[320px] overflow-auto rounded-md p-2 shadow-lg"
     >
       {isEditing ? (
-        <div className="flex flex-1 flex-col gap-2">
+        <div data-testid="hm-link-form" className="flex flex-1 flex-col gap-2">
           {/* <SizableText fontWeight="700">{`${
             props.type.charAt(0).toUpperCase() + props.type.slice(1)
           } settings`}</SizableText> */}
@@ -172,6 +173,7 @@ export function HypermediaLinkPreview(
       ) : (
         <div className="flex w-full items-center justify-between gap-2 px-1">
           <div
+            data-testid="hm-link-preview-open-button"
             className="flex flex-1 cursor-pointer overflow-hidden rounded-lg px-2 py-1.5 hover:bg-black/5 hover:opacity-80 active:bg-black/5 active:opacity-80 dark:hover:bg-white/10 dark:active:bg-white/10"
             onClick={() => props.openUrl(props.url)}
             {...highlight(unpackedRef)}
@@ -179,11 +181,13 @@ export function HypermediaLinkPreview(
             <SizableText
               size="lg"
               className="text-link hover:text-link-hover flex-1 truncate"
+              data-testid="hm-link-preview-url"
             >
               {!!unpackedRef ? document?.metadata.name ?? props.url : props.url}
             </SizableText>
           </div>
           <Button
+            data-testid="hm-link-preview-edit-button"
             className="hover:bg-black/5 hover:opacity-80 dark:hover:bg-white/10"
             onClick={() => setIsEditing(true)}
           >

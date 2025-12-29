@@ -197,10 +197,7 @@ export function HMFormattingToolbar<
             <MobileLinkToolbarButton editor={props.editor} />
           ) : (
             <div className="relative">
-              <HMLinkToolbarButton
-                editor={props.editor}
-                data-testid="link-button"
-              />
+              <HMLinkToolbarButton editor={props.editor} testId="link-button" />
             </div>
           )}
 
