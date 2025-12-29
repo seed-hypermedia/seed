@@ -90,7 +90,7 @@
     "build.directoryFilters": ["-", "-plz-out", "+backend", "+proto", "+build"]
   },
   "go.lintTool": "golangci-lint",
-  "prettier.configPath": "frontend/.prettierrc",
+  "prettier.configPath": "frontend/.prettierrc.mjs",
   "prettier.resolveGlobalModules": true,
   "prettier.prettierPath": "./node_modules/prettier",
   "prettier.documentSelectors": ["**/*.{ts,tsx,js,jsx,json,css,scss,md}"],

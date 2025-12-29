@@ -4,16 +4,16 @@ import {
   HMMetadata,
   HMMetadataPayload,
   UnpackedHypermediaId,
-} from '@shm/shared'
-import {Container} from '@shm/ui/container'
-import {DocumentDate} from '@shm/ui/document-date'
-import {DonateButton} from '@shm/ui/donate-button'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Home} from '@shm/ui/icons'
-import {Separator} from '@shm/ui/separator'
-import {SizableText} from '@shm/ui/text'
-import {useMemo} from 'react'
-import {getHref} from './href'
+} from "@shm/shared";
+import { Container } from "@shm/ui/container";
+import { DocumentDate } from "@shm/ui/document-date";
+import { DonateButton } from "@shm/ui/donate-button";
+import { HMIcon } from "@shm/ui/hm-icon";
+import { Home } from "@shm/ui/icons";
+import { Separator } from "@shm/ui/separator";
+import { SizableText } from "@shm/ui/text";
+import { useMemo } from "react";
+import { getHref } from "./href";
 
 export function PageHeader({
   docMetadata,
@@ -23,16 +23,16 @@ export function PageHeader({
   breadcrumbs = [],
   originHomeId,
 }: {
-  docMetadata: HMMetadata | null
-  docId: UnpackedHypermediaId | null
-  authors: HMMetadataPayload[]
-  updateTime: HMDocument['updateTime'] | null
-  breadcrumbs: HMMetadataPayload[]
-  originHomeId: UnpackedHypermediaId | null
+  docMetadata: HMMetadata | null;
+  docId: UnpackedHypermediaId | null;
+  authors: HMMetadataPayload[];
+  updateTime: HMDocument["updateTime"] | null;
+  breadcrumbs: HMMetadataPayload[];
+  originHomeId: UnpackedHypermediaId | null;
 }) {
-  const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
-  const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
-  const isHomeDoc = !docId?.path?.length
+  const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata]);
+  const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata]);
+  const isHomeDoc = !docId?.path?.length;
   return (
     <div id="page-header">
       <Container className="dark:bg-background bg-white">
@@ -72,15 +72,15 @@ export function PageHeader({
                     index !== authors.length - 1 ? (
                       index === authors.length - 2 ? (
                         <SizableText key={`${a}-and`} size="xs" weight="bold">
-                          {' & '}
+                          {" & "}
                         </SizableText>
                       ) : (
                         <SizableText size="xs" key={`${a}-comma`} weight="bold">
-                          {', '}
+                          {", "}
                         </SizableText>
                       )
                     ) : null,
-                  ]
+                  ];
                 })}
               </div>
             ) : null}
@@ -98,7 +98,7 @@ export function PageHeader({
         </div>
       </Container>
     </div>
-  )
+  );
 }
 
 function Breadcrumbs({
@@ -106,10 +106,10 @@ function Breadcrumbs({
   originHomeId,
 }: {
   breadcrumbs: Array<{
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }>
-  originHomeId: UnpackedHypermediaId | null
+    id: UnpackedHypermediaId;
+    metadata: HMMetadata;
+  }>;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   // const displayBreadcrumbs = breadcrumbs.filter((breadcrumb) => {
   //   if (
@@ -124,7 +124,7 @@ function Breadcrumbs({
   //   return true;
   // });
 
-  const [first, ...rest] = breadcrumbs
+  const [first, ...rest] = breadcrumbs;
 
   return (
     <div className="flex flex-1 items-center gap-2">
@@ -164,8 +164,8 @@ function Breadcrumbs({
               {crumb.metadata?.name}
             </a>
           </SizableText>,
-        ]
+        ];
       })}
     </div>
-  )
+  );
 }

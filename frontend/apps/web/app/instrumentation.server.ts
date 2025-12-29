@@ -6,32 +6,32 @@
  * a hierarchical summary when the request completes.
  */
 
-import {AsyncLocalStorage} from 'async_hooks'
+import { AsyncLocalStorage } from "async_hooks";
 
 // Read env var at runtime, not from bundled constants
 // (constants.ts is bundled at build time and won't see runtime env changes)
 function isInstrumentationEnabled(): boolean {
-  return process.env.SEED_INSTRUMENTATION === 'dev'
+  return process.env.SEED_INSTRUMENTATION === "dev";
 }
 
 // AsyncLocalStorage to pass context across async boundaries (loader -> SSR)
-const instrumentationStorage = new AsyncLocalStorage<InstrumentationContext>()
+const instrumentationStorage = new AsyncLocalStorage<InstrumentationContext>();
 
 export type InstrumentationSpan = {
-  name: string
-  start: number
-  end?: number
-  children: InstrumentationSpan[]
-  parent?: InstrumentationSpan
-}
+  name: string;
+  start: number;
+  end?: number;
+  children: InstrumentationSpan[];
+  parent?: InstrumentationSpan;
+};
 
 export type InstrumentationContext = {
-  enabled: boolean
-  requestPath: string
-  requestMethod: string
-  root: InstrumentationSpan
-  current: InstrumentationSpan
-}
+  enabled: boolean;
+  requestPath: string;
+  requestMethod: string;
+  root: InstrumentationSpan;
+  current: InstrumentationSpan;
+};
 
 /**
  * Create a new instrumentation context for a request.
@@ -39,20 +39,20 @@ export type InstrumentationContext = {
  */
 export function createInstrumentationContext(
   requestPath: string,
-  requestMethod: string = 'GET',
+  requestMethod: string = "GET"
 ): InstrumentationContext {
   const root: InstrumentationSpan = {
-    name: 'request',
+    name: "request",
     start: performance.now(),
     children: [],
-  }
+  };
   return {
     enabled: isInstrumentationEnabled(),
     requestPath,
     requestMethod,
     root,
     current: root,
-  }
+  };
 }
 
 /**
@@ -60,27 +60,27 @@ export function createInstrumentationContext(
  * Updates ctx.current to the new span.
  */
 export function startSpan(ctx: InstrumentationContext, name: string): void {
-  if (!ctx.enabled) return
+  if (!ctx.enabled) return;
 
   const span: InstrumentationSpan = {
     name,
     start: performance.now(),
     children: [],
     parent: ctx.current,
-  }
-  ctx.current.children.push(span)
-  ctx.current = span
+  };
+  ctx.current.children.push(span);
+  ctx.current = span;
 }
 
 /**
  * End the current span and move back to parent.
  */
 export function endSpan(ctx: InstrumentationContext): void {
-  if (!ctx.enabled) return
+  if (!ctx.enabled) return;
 
-  ctx.current.end = performance.now()
+  ctx.current.end = performance.now();
   if (ctx.current.parent) {
-    ctx.current = ctx.current.parent
+    ctx.current = ctx.current.parent;
   }
 }
 
@@ -95,34 +95,34 @@ export function endSpan(ctx: InstrumentationContext): void {
 export async function instrument<T>(
   ctx: InstrumentationContext,
   name: string,
-  fn: () => Promise<T>,
+  fn: () => Promise<T>
 ): Promise<T> {
   if (!ctx.enabled) {
-    return fn()
+    return fn();
   }
 
   // Capture parent at call time to handle parallel operations correctly
-  const parent = ctx.current
+  const parent = ctx.current;
   const span: InstrumentationSpan = {
     name,
     start: performance.now(),
     children: [],
     parent,
-  }
-  parent.children.push(span)
+  };
+  parent.children.push(span);
 
   // Defer setting current until after synchronous phase completes
   // This allows Promise.all map callbacks to all capture the same parent
-  await Promise.resolve()
+  await Promise.resolve();
 
   // Set as current for any nested instrumentation within fn()
-  ctx.current = span
+  ctx.current = span;
   try {
-    return await fn()
+    return await fn();
   } finally {
-    span.end = performance.now()
+    span.end = performance.now();
     // Restore to parent (not prevCurrent, since parallel siblings may have changed it)
-    ctx.current = parent
+    ctx.current = parent;
   }
 }
 
@@ -132,17 +132,17 @@ export async function instrument<T>(
 export function instrumentSync<T>(
   ctx: InstrumentationContext,
   name: string,
-  fn: () => T,
+  fn: () => T
 ): T {
   if (!ctx.enabled) {
-    return fn()
+    return fn();
   }
 
-  startSpan(ctx, name)
+  startSpan(ctx, name);
   try {
-    return fn()
+    return fn();
   } finally {
-    endSpan(ctx)
+    endSpan(ctx);
   }
 }
 
@@ -150,54 +150,54 @@ export function instrumentSync<T>(
  * Print the instrumentation summary to console.
  */
 export function printInstrumentationSummary(ctx: InstrumentationContext): void {
-  if (!ctx.enabled) return
+  if (!ctx.enabled) return;
 
   // End root span if not already ended
   if (!ctx.root.end) {
-    ctx.root.end = performance.now()
+    ctx.root.end = performance.now();
   }
 
-  const totalMs = ctx.root.end - ctx.root.start
+  const totalMs = ctx.root.end - ctx.root.start;
 
-  console.log('')
-  console.log(`[INSTRUMENTATION] ${ctx.requestMethod} ${ctx.requestPath}`)
-  console.log('═══════════════════════════════════════════════════════════')
-  console.log(`Total: ${totalMs.toFixed(1)}ms`)
-  console.log('')
+  console.log("");
+  console.log(`[INSTRUMENTATION] ${ctx.requestMethod} ${ctx.requestPath}`);
+  console.log("═══════════════════════════════════════════════════════════");
+  console.log(`Total: ${totalMs.toFixed(1)}ms`);
+  console.log("");
 
   // Print span tree
-  printSpanTree(ctx.root.children, totalMs, '')
+  printSpanTree(ctx.root.children, totalMs, "");
 
-  console.log('═══════════════════════════════════════════════════════════')
-  console.log('')
+  console.log("═══════════════════════════════════════════════════════════");
+  console.log("");
 }
 
 function printSpanTree(
   spans: InstrumentationSpan[],
   totalMs: number,
-  indent: string,
+  indent: string
 ): void {
   spans.forEach((span, index) => {
-    const isLast = index === spans.length - 1
-    const duration = (span.end || performance.now()) - span.start
-    const percent = ((duration / totalMs) * 100).toFixed(1)
+    const isLast = index === spans.length - 1;
+    const duration = (span.end || performance.now()) - span.start;
+    const percent = ((duration / totalMs) * 100).toFixed(1);
 
     // Tree characters
-    const prefix = indent + (isLast ? '└─ ' : '├─ ')
-    const childIndent = indent + (isLast ? '   ' : '│  ')
+    const prefix = indent + (isLast ? "└─ " : "├─ ");
+    const childIndent = indent + (isLast ? "   " : "│  ");
 
     // Format: name + padding + duration + percent
-    const namePart = `${prefix}${span.name}`
-    const statsPart = `${duration.toFixed(1)}ms (${percent}%)`
-    const padding = Math.max(1, 50 - namePart.length - statsPart.length)
+    const namePart = `${prefix}${span.name}`;
+    const statsPart = `${duration.toFixed(1)}ms (${percent}%)`;
+    const padding = Math.max(1, 50 - namePart.length - statsPart.length);
 
-    console.log(`${namePart}${' '.repeat(padding)}${statsPart}`)
+    console.log(`${namePart}${" ".repeat(padding)}${statsPart}`);
 
     // Recursively print children
     if (span.children.length > 0) {
-      printSpanTree(span.children, totalMs, childIndent)
+      printSpanTree(span.children, totalMs, childIndent);
     }
-  })
+  });
 }
 
 /**
@@ -207,35 +207,35 @@ function printSpanTree(
 export async function instrumentParallel<T>(
   ctx: InstrumentationContext,
   name: string,
-  fns: Array<{name: string; fn: () => Promise<T>}>,
+  fns: Array<{ name: string; fn: () => Promise<T> }>
 ): Promise<T[]> {
   if (!ctx.enabled) {
-    return Promise.all(fns.map((f) => f.fn()))
+    return Promise.all(fns.map((f) => f.fn()));
   }
 
-  startSpan(ctx, name)
+  startSpan(ctx, name);
   try {
     // Create child spans for each parallel operation
-    const promises = fns.map(async ({name: opName, fn}) => {
+    const promises = fns.map(async ({ name: opName, fn }) => {
       const span: InstrumentationSpan = {
         name: opName,
         start: performance.now(),
         children: [],
         parent: ctx.current,
-      }
-      ctx.current.children.push(span)
+      };
+      ctx.current.children.push(span);
       try {
-        const result = await fn()
-        span.end = performance.now()
-        return result
+        const result = await fn();
+        span.end = performance.now();
+        return result;
       } catch (e) {
-        span.end = performance.now()
-        throw e
+        span.end = performance.now();
+        throw e;
       }
-    })
-    return await Promise.all(promises)
+    });
+    return await Promise.all(promises);
   } finally {
-    endSpan(ctx)
+    endSpan(ctx);
   }
 }
 
@@ -245,9 +245,9 @@ export async function instrumentParallel<T>(
  */
 export function runWithInstrumentation<T>(
   ctx: InstrumentationContext,
-  fn: () => T,
+  fn: () => T
 ): T {
-  return instrumentationStorage.run(ctx, fn)
+  return instrumentationStorage.run(ctx, fn);
 }
 
 /**
@@ -257,7 +257,7 @@ export function runWithInstrumentation<T>(
 export function getInstrumentationContext():
   | InstrumentationContext
   | undefined {
-  return instrumentationStorage.getStore()
+  return instrumentationStorage.getStore();
 }
 
 /**
@@ -266,30 +266,30 @@ export function getInstrumentationContext():
  */
 export function setRequestInstrumentationContext(
   requestUrl: string,
-  ctx: InstrumentationContext,
+  ctx: InstrumentationContext
 ): void {
-  if (!isInstrumentationEnabled()) return
-  requestContextMap.set(requestUrl, ctx)
+  if (!isInstrumentationEnabled()) return;
+  requestContextMap.set(requestUrl, ctx);
 }
 
 /**
  * Get context for SSR phase.
  */
 export function getRequestInstrumentationContext(
-  requestUrl: string,
+  requestUrl: string
 ): InstrumentationContext | undefined {
-  return requestContextMap.get(requestUrl)
+  return requestContextMap.get(requestUrl);
 }
 
 /**
  * Clean up context after request completes.
  */
 export function clearRequestInstrumentationContext(requestUrl: string): void {
-  requestContextMap.delete(requestUrl)
+  requestContextMap.delete(requestUrl);
 }
 
 // Map to store contexts by request URL (simple approach for SSR phase)
-const requestContextMap = new Map<string, InstrumentationContext>()
+const requestContextMap = new Map<string, InstrumentationContext>();
 
 // Export the runtime check function
-export {isInstrumentationEnabled as ENABLE_WEB_INSTRUMENTATION}
+export { isInstrumentationEnabled as ENABLE_WEB_INSTRUMENTATION };

@@ -1,7 +1,7 @@
-import {SignedComment} from '@/api'
-import {grpcClient} from '@/client.server'
-import {decode as cborDecode} from '@ipld/dag-cbor'
-import {ActionFunction, json} from '@remix-run/node'
+import { SignedComment } from "@/api";
+import { grpcClient } from "@/client.server";
+import { decode as cborDecode } from "@ipld/dag-cbor";
+import { ActionFunction, json } from "@remix-run/node";
 import {
   entityQueryPathToHmIdPath,
   HMBlockNodeSchema,
@@ -11,9 +11,9 @@ import {
   HMTimestampSchema,
   UnpackedHypermediaId,
   unpackHmId,
-} from '@shm/shared'
-import {base58btc} from 'multiformats/bases/base58'
-import {z} from 'zod'
+} from "@shm/shared";
+import { base58btc } from "multiformats/bases/base58";
+import { z } from "zod";
 
 const createCommentSchema = z
   .object({
@@ -25,79 +25,79 @@ const createCommentSchema = z
       signature: z.string(),
     }),
   })
-  .strict()
+  .strict();
 
-export type CreateCommentPayload = z.infer<typeof createCommentSchema>
+export type CreateCommentPayload = z.infer<typeof createCommentSchema>;
 
 const hmUnsignedCommentSchema = z.object({
   content: z.array(HMBlockNodeSchema),
   createTime: HMTimestampSchema,
-})
+});
 
-export type HMUnsignedComment = z.infer<typeof hmUnsignedCommentSchema>
+export type HMUnsignedComment = z.infer<typeof hmUnsignedCommentSchema>;
 
 export type CommentPayload = {
-  comment: Uint8Array
-  blobs: {cid: string; data: Uint8Array}[]
-  commentingOriginUrl?: string | undefined
-}
+  comment: Uint8Array;
+  blobs: { cid: string; data: Uint8Array }[];
+  commentingOriginUrl?: string | undefined;
+};
 
 export type CommentResponsePayload = {
-  dependencies: UnpackedHypermediaId[]
-  commentId: string
-  targetId: UnpackedHypermediaId
-  comment: HMComment
-  message: string
-}
+  dependencies: UnpackedHypermediaId[];
+  commentId: string;
+  targetId: UnpackedHypermediaId;
+  comment: HMComment;
+  message: string;
+};
 
-export const action: ActionFunction = async ({request}) => {
-  if (request.method !== 'POST') {
-    return json({message: 'Method not allowed'}, {status: 405})
+export const action: ActionFunction = async ({ request }) => {
+  if (request.method !== "POST") {
+    return json({ message: "Method not allowed" }, { status: 405 });
   }
-  if (request.headers.get('Content-Type') !== 'application/cbor') {
+  if (request.headers.get("Content-Type") !== "application/cbor") {
     return json(
-      {message: 'Content-Type must be application/cbor'},
-      {status: 400},
-    )
+      { message: "Content-Type must be application/cbor" },
+      { status: 400 }
+    );
   }
-  const cborData = await request.arrayBuffer()
-  const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload
-  await grpcClient.daemon.storeBlobs({blobs: commentPayload.blobs})
+  const cborData = await request.arrayBuffer();
+  const commentPayload = cborDecode(new Uint8Array(cborData)) as CommentPayload;
+  await grpcClient.daemon.storeBlobs({ blobs: commentPayload.blobs });
   const resultComment = await grpcClient.daemon.storeBlobs({
     blobs: [
       {
         data: commentPayload.comment,
       },
     ],
-  })
+  });
   const comment = cborDecode(
-    new Uint8Array(commentPayload.comment),
-  ) as SignedComment
-  const signerUid = base58btc.encode(comment.signer)
-  const resultCommentId = resultComment.cids[0]
+    new Uint8Array(commentPayload.comment)
+  ) as SignedComment;
+  const signerUid = base58btc.encode(comment.signer);
+  const resultCommentId = resultComment.cids[0];
   if (!resultCommentId) {
-    return json({message: 'Failed to store comment'}, {status: 500})
+    return json({ message: "Failed to store comment" }, { status: 500 });
   }
-  const targetUid = base58btc.encode(comment.space)
+  const targetUid = base58btc.encode(comment.space);
   const targetId = hmId(targetUid, {
     path: entityQueryPathToHmIdPath(comment.path),
-  })
+  });
   const dependencies: UnpackedHypermediaId[] = [
     hmId(signerUid, {}),
     ...extractReferenceMaterials(comment.body), // warning! this does not include references of references, so there may be incomplete content syncronized but lets not worry about that for now!
-  ]
+  ];
   const commentResult = await grpcClient.comments.getComment({
     id: resultCommentId,
-  })
+  });
   return json({
-    message: 'Success',
+    message: "Success",
     dependencies,
     commentId: resultCommentId,
     // @ts-expect-error
     comment: commentResult.toJson(),
     targetId,
-  } satisfies CommentResponsePayload)
-}
+  } satisfies CommentResponsePayload);
+};
 
 /**
  * Extracts reference materials (links and embeds) from a publishable block.
@@ -106,26 +106,26 @@ export const action: ActionFunction = async ({request}) => {
  * @returns An array of HMIds
  */
 function extractReferenceMaterials(body: HMPublishableBlock[]) {
-  const references: UnpackedHypermediaId[] = []
+  const references: UnpackedHypermediaId[] = [];
 
   function reviewBlock(block: HMPublishableBlock) {
     // skip over query blocks because comments don't support them yet.
     // if (block.type === 'Query') {
     //   return
     // }
-    if (block.type === 'Embed' && block.link) {
-      const id = unpackHmId(block.link)
-      if (id) references.push(id)
+    if (block.type === "Embed" && block.link) {
+      const id = unpackHmId(block.link);
+      if (id) references.push(id);
     }
-    if (block.type === 'Paragraph' || block.type === 'Heading') {
+    if (block.type === "Paragraph" || block.type === "Heading") {
       block.annotations.forEach((annotation) => {
-        if (annotation.type === 'Link') {
-          const id = unpackHmId(annotation.link)
-          if (id) references.push(id)
+        if (annotation.type === "Link") {
+          const id = unpackHmId(annotation.link);
+          if (id) references.push(id);
         }
-      })
+      });
     }
   }
-  body.forEach(reviewBlock)
-  return references
+  body.forEach(reviewBlock);
+  return references;
 }

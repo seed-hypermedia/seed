@@ -7,232 +7,232 @@ import {
   writeConfig,
   writeCustomDomainConfig,
   type ServiceConfig,
-} from '@/site-config.server'
-import {ActionFunction, json} from '@remix-run/node'
-import {randomBytes} from 'crypto'
-import {z} from 'zod'
+} from "@/site-config.server";
+import { ActionFunction, json } from "@remix-run/node";
+import { randomBytes } from "crypto";
+import { z } from "zod";
 
 const AdminActionCreateService = z
   .object({
-    type: z.literal('create-service'),
+    type: z.literal("create-service"),
     name: z.string(),
   })
-  .strict()
+  .strict();
 
 const AdminActionRemoveService = z
   .object({
-    type: z.literal('remove-service'),
+    type: z.literal("remove-service"),
     name: z.string(),
   })
-  .strict()
+  .strict();
 
 const AdminActionCreateCustomDomain = z
   .object({
-    type: z.literal('create-custom-domain'),
+    type: z.literal("create-custom-domain"),
     hostname: z.string(),
     service: z.string(),
   })
-  .strict()
+  .strict();
 
 const AdminActionRemoveCustomDomain = z
   .object({
-    type: z.literal('remove-custom-domain'),
+    type: z.literal("remove-custom-domain"),
     hostname: z.string(),
   })
-  .strict()
+  .strict();
 
 const AdminActionGetConfig = z
   .object({
-    type: z.literal('get-config'),
+    type: z.literal("get-config"),
   })
-  .strict()
+  .strict();
 
 const AdminActionConfigureService = z
   .object({
-    type: z.literal('configure-service'),
+    type: z.literal("configure-service"),
     name: z.string(),
     config: siteConfigSchema,
   })
-  .strict()
+  .strict();
 
-const AdminActionSchema = z.discriminatedUnion('type', [
+const AdminActionSchema = z.discriminatedUnion("type", [
   AdminActionCreateService,
   AdminActionRemoveService,
   AdminActionCreateCustomDomain,
   AdminActionRemoveCustomDomain,
   AdminActionGetConfig,
   AdminActionConfigureService,
-])
+]);
 
 const AdminActionRequest = z
   .object({
     adminSecret: z.string(),
     adminAction: AdminActionSchema,
   })
-  .strict()
+  .strict();
 
 type AdminResult = {
-  status: number
+  status: number;
   data: {
-    message?: string
-    secret?: string
-    setupUrl?: string
-    [key: string]: any
-  }
-}
+    message?: string;
+    secret?: string;
+    setupUrl?: string;
+    [key: string]: any;
+  };
+};
 
 async function handleCreateService(
   action: z.infer<typeof AdminActionCreateService>,
-  serviceConfig: ServiceConfig,
+  serviceConfig: ServiceConfig
 ): Promise<AdminResult> {
   if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(action.name)) {
     return {
       status: 400,
-      data: {message: 'Invalid service name'},
-    }
+      data: { message: "Invalid service name" },
+    };
   }
   if (serviceConfig.namedServices[action.name]) {
     return {
       status: 400,
-      data: {message: 'Service name already taken'},
-    }
+      data: { message: "Service name already taken" },
+    };
   }
-  const secret = randomBytes(10).toString('hex').slice(0, 10)
+  const secret = randomBytes(10).toString("hex").slice(0, 10);
   await writeConfig(`${action.name}.${serviceConfig.rootHostname}`, {
     availableRegistrationSecret: secret,
-  })
+  });
   return {
     status: 200,
     data: {
-      message: 'Success',
+      message: "Success",
       secret,
       setupUrl: `https://${action.name}.${serviceConfig.rootHostname}/hm/register?secret=${secret}`,
     },
-  }
+  };
 }
 
 async function handleRmService(
-  action: z.infer<typeof AdminActionRemoveService>,
+  action: z.infer<typeof AdminActionRemoveService>
 ): Promise<AdminResult> {
-  await rmService(action.name)
+  await rmService(action.name);
   return {
     status: 200,
-    data: {message: 'Success'},
-  }
+    data: { message: "Success" },
+  };
 }
 
 async function handleCreateCustomDomain(
   action: z.infer<typeof AdminActionCreateCustomDomain>,
-  serviceConfig: ServiceConfig,
+  serviceConfig: ServiceConfig
 ): Promise<AdminResult> {
   if (!serviceConfig.namedServices[action.service]) {
     return {
       status: 400,
-      data: {message: 'Service not found'},
-    }
+      data: { message: "Service not found" },
+    };
   }
-  await writeCustomDomainConfig(action.hostname, action.service)
+  await writeCustomDomainConfig(action.hostname, action.service);
   return {
     status: 200,
-    data: {message: 'Success'},
-  }
+    data: { message: "Success" },
+  };
 }
 
 async function handleRmCustomDomain(
-  action: z.infer<typeof AdminActionRemoveCustomDomain>,
+  action: z.infer<typeof AdminActionRemoveCustomDomain>
 ): Promise<AdminResult> {
-  await rmCustomDomain(action.hostname)
+  await rmCustomDomain(action.hostname);
   return {
     status: 200,
-    data: {message: 'Success'},
-  }
+    data: { message: "Success" },
+  };
 }
 
 async function handleGetConfig(
   action: z.infer<typeof AdminActionGetConfig>,
-  serviceConfig: ServiceConfig,
+  serviceConfig: ServiceConfig
 ): Promise<AdminResult> {
   return {
     status: 200,
     data: serviceConfig,
-  }
+  };
 }
 
 async function handleConfigureService(
   action: z.infer<typeof AdminActionConfigureService>,
-  serviceConfig: ServiceConfig,
+  serviceConfig: ServiceConfig
 ): Promise<AdminResult> {
   await writeConfig(
     action.name
       ? `${action.name}.${serviceConfig.rootHostname}`
       : serviceConfig.rootHostname,
-    action.config,
-  )
+    action.config
+  );
   return {
     status: 200,
-    data: {message: 'Success'},
-  }
+    data: { message: "Success" },
+  };
 }
 
-export const action: ActionFunction = async ({request}) => {
-  if (request.method !== 'POST') {
-    return json({message: 'Method not allowed'}, {status: 405})
+export const action: ActionFunction = async ({ request }) => {
+  if (request.method !== "POST") {
+    return json({ message: "Method not allowed" }, { status: 405 });
   }
 
   try {
-    const data = await request.json()
+    const data = await request.json();
 
-    const parseResult = AdminActionRequest.safeParse(data)
+    const parseResult = AdminActionRequest.safeParse(data);
     if (!parseResult.success) {
       return json(
-        {message: 'Invalid request', errors: parseResult.error.errors},
-        {status: 400},
-      )
+        { message: "Invalid request", errors: parseResult.error.errors },
+        { status: 400 }
+      );
     }
-    const payload = parseResult.data
+    const payload = parseResult.data;
 
     if (payload.adminSecret !== adminSecret || !adminSecret) {
-      return json({message: 'Invalid admin secret'}, {status: 401})
+      return json({ message: "Invalid admin secret" }, { status: 401 });
     }
 
-    const serviceConfig = await getServiceConfig()
+    const serviceConfig = await getServiceConfig();
     if (!serviceConfig) {
-      return json({message: 'Service config not found'}, {status: 404})
+      return json({ message: "Service config not found" }, { status: 404 });
     }
 
-    const action = payload.adminAction
+    const action = payload.adminAction;
     let result: AdminResult = {
       status: 500,
-      data: {message: 'Unhandled action type'},
-    }
+      data: { message: "Unhandled action type" },
+    };
 
     switch (action.type) {
-      case 'create-service':
-        result = await handleCreateService(action, serviceConfig)
-        break
-      case 'remove-service':
-        result = await handleRmService(action)
-        break
-      case 'create-custom-domain':
-        result = await handleCreateCustomDomain(action, serviceConfig)
-        break
-      case 'remove-custom-domain':
-        result = await handleRmCustomDomain(action)
-        break
-      case 'get-config':
-        result = await handleGetConfig(action, serviceConfig)
-        break
-      case 'configure-service':
-        result = await handleConfigureService(action, serviceConfig)
-        break
+      case "create-service":
+        result = await handleCreateService(action, serviceConfig);
+        break;
+      case "remove-service":
+        result = await handleRmService(action);
+        break;
+      case "create-custom-domain":
+        result = await handleCreateCustomDomain(action, serviceConfig);
+        break;
+      case "remove-custom-domain":
+        result = await handleRmCustomDomain(action);
+        break;
+      case "get-config":
+        result = await handleGetConfig(action, serviceConfig);
+        break;
+      case "configure-service":
+        result = await handleConfigureService(action, serviceConfig);
+        break;
     }
 
-    return json(result.data, {status: result.status})
+    return json(result.data, { status: result.status });
   } catch (error) {
-    console.error('Admin action error:', error)
+    console.error("Admin action error:", error);
     return json(
-      {message: error instanceof Error ? error.message : 'Unknown error'},
-      {status: 500},
-    )
+      { message: error instanceof Error ? error.message : "Unknown error" },
+      { status: 500 }
+    );
   }
-}
+};

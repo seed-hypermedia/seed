@@ -1,41 +1,41 @@
-import {useCreateAccount, useLocalKeyPair} from '@/auth'
-import {ClientOnly} from '@/client-lazy'
-import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
-import {PageFooter} from '@/page-footer'
+import { useCreateAccount, useLocalKeyPair } from "@/auth";
+import { ClientOnly } from "@/client-lazy";
+import { loadSiteHeaderData, SiteHeaderPayload } from "@/loaders";
+import { defaultSiteIcon } from "@/meta";
+import { PageFooter } from "@/page-footer";
 import {
   getOptimizedImageUrl,
   NavigationLoadingContent,
   WebSiteProvider,
-} from '@/providers'
-import {parseRequest} from '@/request'
-import {WebSiteHeader} from '@/web-site-header'
-import {unwrap} from '@/wrapping'
-import {wrapJSON} from '@/wrapping.server'
-import * as cbor from '@ipld/dag-cbor'
-import {decode as cborDecode} from '@ipld/dag-cbor'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
-import {MetaDescriptor, useLoaderData} from '@remix-run/react'
+} from "@/providers";
+import { parseRequest } from "@/request";
+import { WebSiteHeader } from "@/web-site-header";
+import { unwrap } from "@/wrapping";
+import { wrapJSON } from "@/wrapping.server";
+import * as cbor from "@ipld/dag-cbor";
+import { decode as cborDecode } from "@ipld/dag-cbor";
+import { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { MetaDescriptor, useLoaderData } from "@remix-run/react";
 import {
   DeviceLinkSessionSchema,
   useRouteLink,
   useUniversalAppContext,
-} from '@shm/shared'
+} from "@shm/shared";
 import {
   DeviceLinkSession,
   HMMetadata,
   UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
-import {useAccount} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Close} from '@shm/ui/icons'
-import {Spinner} from '@shm/ui/spinner'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {Scanner, type IDetectedBarcode} from '@yudiel/react-qr-scanner'
+} from "@shm/shared/hm-types";
+import { useAccount } from "@shm/shared/models/entity";
+import { queryKeys } from "@shm/shared/models/query-keys";
+import { Button } from "@shm/ui/button";
+import { Input } from "@shm/ui/components/input";
+import { extractIpfsUrlCid } from "@shm/ui/get-file-url";
+import { HMIcon } from "@shm/ui/hm-icon";
+import { Close } from "@shm/ui/icons";
+import { Spinner } from "@shm/ui/spinner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Scanner, type IDetectedBarcode } from "@yudiel/react-qr-scanner";
 import {
   ArrowRight,
   Check,
@@ -43,52 +43,52 @@ import {
   Link as LinkIcon,
   Monitor,
   Smartphone,
-} from 'lucide-react'
-import {base58btc} from 'multiformats/bases/base58'
+} from "lucide-react";
+import { base58btc } from "multiformats/bases/base58";
 import {
   useCallback,
   useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
-} from 'react'
-import {postCBOR} from '../api'
-import {LocalWebIdentity} from '../auth'
-import {linkDevice, LinkingEvent, LinkingResult} from '../device-linking'
-import type {DelegateDevicePayload} from './hm.api.delegate-device'
+} from "react";
+import { postCBOR } from "../api";
+import { LocalWebIdentity } from "../auth";
+import { linkDevice, LinkingEvent, LinkingResult } from "../device-linking";
+import type { DelegateDevicePayload } from "./hm.api.delegate-device";
 
-type DeviceLinkPagePayload = SiteHeaderPayload
+type DeviceLinkPagePayload = SiteHeaderPayload;
 
-export const meta: MetaFunction = ({data}) => {
-  const {homeMetadata} = unwrap<DeviceLinkPagePayload>(data)
-  const meta: MetaDescriptor[] = []
+export const meta: MetaFunction = ({ data }) => {
+  const { homeMetadata } = unwrap<DeviceLinkPagePayload>(data);
+  const meta: MetaDescriptor[] = [];
   const homeIcon = homeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S')
-    : null
+    ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), "S")
+    : null;
   meta.push({
-    tagName: 'link',
-    rel: 'icon',
+    tagName: "link",
+    rel: "icon",
     href: homeIcon || defaultSiteIcon,
-    type: 'image/png',
-  })
+    type: "image/png",
+  });
   meta.push({
-    title: 'Link Seed Hypermedia Device',
-  })
-  return meta
-}
+    title: "Link Seed Hypermedia Device",
+  });
+  return meta;
+};
 
-export const loader = async ({request}: LoaderFunctionArgs) => {
-  const parsedRequest = parseRequest(request)
-  const headerData = await loadSiteHeaderData(parsedRequest)
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const parsedRequest = parseRequest(request);
+  const headerData = await loadSiteHeaderData(parsedRequest);
 
-  return wrapJSON(headerData satisfies DeviceLinkPagePayload)
-}
+  return wrapJSON(headerData satisfies DeviceLinkPagePayload);
+};
 
 export default function DeviceLinkPage() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} =
-    unwrap<DeviceLinkPagePayload>(useLoaderData())
+  const { originHomeId, siteHost, origin, homeMetadata, dehydratedState } =
+    unwrap<DeviceLinkPagePayload>(useLoaderData());
   if (!originHomeId) {
-    return <h2>Invalid origin home id</h2>
+    return <h2>Invalid origin home id</h2>;
   }
   return (
     <WebSiteProvider
@@ -113,30 +113,30 @@ export default function DeviceLinkPage() {
         <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>
-  )
+  );
 }
 
 export function HMDeviceLink() {
-  const [hash, setHash] = useURLHash()
-  const keyPair = useLocalKeyPair()
-  const myAccount = useAccount(keyPair?.id)
-  const needKey = !keyPair
+  const [hash, setHash] = useURLHash();
+  const keyPair = useLocalKeyPair();
+  const myAccount = useAccount(keyPair?.id);
+  const needKey = !keyPair;
 
   // Parse session from hash if present
-  const {session, parseError} = useMemo(() => {
+  const { session, parseError } = useMemo(() => {
     if (!hash) {
-      return {session: null, parseError: false}
+      return { session: null, parseError: false };
     }
     try {
       const parsed = DeviceLinkSessionSchema.parse(
-        cborDecode(base58btc.decode(hash)),
-      )
-      return {session: parsed, parseError: false}
+        cborDecode(base58btc.decode(hash))
+      );
+      return { session: parsed, parseError: false };
     } catch (e) {
-      console.error('Failed to parse device link session from hash:', e)
-      return {session: null, parseError: true}
+      console.error("Failed to parse device link session from hash:", e);
+      return { session: null, parseError: true };
     }
-  }, [hash])
+  }, [hash]);
 
   // TODO(burdiyan): this is not the most robust way to check if the key is linked.
   // We ask the server for the profile info of the current key ID, and if it returns a profile with a different ID,
@@ -145,8 +145,8 @@ export function HMDeviceLink() {
     keyPair &&
       myAccount &&
       myAccount.data &&
-      keyPair.id !== myAccount.data.id.uid,
-  )
+      keyPair.id !== myAccount.data.id.uid
+  );
 
   return (
     <div className="bg-card text-card-foreground my-auto w-full max-w-2xl space-y-4 rounded-xl p-8 shadow">
@@ -157,7 +157,7 @@ export function HMDeviceLink() {
           <Spinner />
         </div>
       ) : parseError ? (
-        <InvalidTokenView onBack={() => setHash('')} />
+        <InvalidTokenView onBack={() => setHash("")} />
       ) : isAlreadyLinked ? (
         <CompletionView accountInfo={myAccount.data} />
       ) : session ? (
@@ -166,13 +166,13 @@ export function HMDeviceLink() {
         <LinkingInstructionsView accountInfo={myAccount.data} />
       )}
     </div>
-  )
+  );
 }
 
 /**
  * View shown when the token in the URL hash is invalid.
  */
-function InvalidTokenView({onBack}: {onBack: () => void}) {
+function InvalidTokenView({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-4 text-center">
@@ -189,7 +189,7 @@ function InvalidTokenView({onBack}: {onBack: () => void}) {
         Try Again
       </Button>
     </div>
-  )
+  );
 }
 
 /**
@@ -197,7 +197,7 @@ function InvalidTokenView({onBack}: {onBack: () => void}) {
  * but doesn't have a key pair yet. Here they'll be able to create one.
  */
 function KeyPairRequiredView() {
-  const createAccount = useCreateAccount()
+  const createAccount = useCreateAccount();
 
   return (
     <>
@@ -217,13 +217,13 @@ function KeyPairRequiredView() {
         {createAccount.content}
       </div>
     </>
-  )
+  );
 }
 
 function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent,
-  )
+    navigator.userAgent
+  );
 }
 
 /**
@@ -234,22 +234,22 @@ function LinkingInstructionsView({
 }: {
   // This type definition is a bit ugly, because useAccount doesn't seem to return a named type.
   // And in this component we don't care about falsy values.
-  accountInfo: Exclude<ReturnType<typeof useAccount>['data'], null | undefined>
+  accountInfo: Exclude<ReturnType<typeof useAccount>["data"], null | undefined>;
 }) {
-  const [showCamera, setShowCamera] = useState(false)
-  const [showDesktopAppLinking, setShowDesktopAppLinking] = useState(false)
-  const isMobile = isMobileDevice()
+  const [showCamera, setShowCamera] = useState(false);
+  const [showDesktopAppLinking, setShowDesktopAppLinking] = useState(false);
+  const isMobile = isMobileDevice();
 
-  const desktopAppDeepLink = `hm://device-link?origin=${window.location.origin}`
+  const desktopAppDeepLink = `hm://device-link?origin=${window.location.origin}`;
 
   if (showCamera) {
-    return <QRCodeScanner onClose={() => setShowCamera(false)} />
+    return <QRCodeScanner onClose={() => setShowCamera(false)} />;
   }
 
   if (showDesktopAppLinking) {
     return (
       <DesktopAppLinkingView onBack={() => setShowDesktopAppLinking(false)} />
-    )
+    );
   }
 
   return (
@@ -274,14 +274,14 @@ function LinkingInstructionsView({
       <div className="flex flex-col gap-4">
         <p>
           You need a computer with the Seed desktop app installed. You can
-          download the app from{' '}
+          download the app from{" "}
           <a
             href="https://seed.hyper.media"
             target="_blank"
             className="text-primary underline-offset-4 hover:underline"
           >
             seed.hyper.media
-          </a>{' '}
+          </a>{" "}
           if you don't have it.
         </p>
 
@@ -311,7 +311,7 @@ function LinkingInstructionsView({
         <div className="flex flex-col gap-3">
           <p className="font-medium">
             {isMobile
-              ? 'Follow these steps:'
+              ? "Follow these steps:"
               : "If you're on a different device, follow these steps:"}
           </p>
           <ol className="list-decimal space-y-2 pl-5">
@@ -337,14 +337,14 @@ function LinkingInstructionsView({
         <CopyPasteSessionCard />
       </div>
     </div>
-  )
+  );
 }
 
 /**
  * This view is displayed when the user clicks the Open Desktop App button
  * to clean up the page and only show the relevant form.
  */
-function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
+function DesktopAppLinkingView({ onBack }: { onBack: () => void }) {
   // This effect handles the browser's back button behavior,
   // to drive the user to the linking instructions view,
   // instead of navigating to the previous page.
@@ -352,22 +352,22 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
   // so this is just a quick workaround.
   useEffect(() => {
     // Push a dummy state to history when this screen mounts.
-    window.history.pushState({custom: true}, '')
+    window.history.pushState({ custom: true }, "");
 
     const handlePopState = (event: any) => {
       if (event.state && event.state.custom) {
         // User pressed the browser back button.
         // Calling the same back handler.
-        onBack()
+        onBack();
       }
-    }
+    };
 
-    window.addEventListener('popstate', handlePopState)
+    window.addEventListener("popstate", handlePopState);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState)
-    }
-  }, [onBack])
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [onBack]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -402,10 +402,10 @@ function DesktopAppLinkingView({onBack}: {onBack: () => void}) {
 
       <CopyPasteSessionCard hideDescription={true} />
     </div>
-  )
+  );
 }
 
-function ScanQRCodeCard({onClick}: {onClick: () => void}) {
+function ScanQRCodeCard({ onClick }: { onClick: () => void }) {
   return (
     <div className="border-sidebar-border flex items-start gap-3 rounded-lg border p-4">
       <Smartphone className="text-muted-foreground mt-1 h-6 w-6" />
@@ -422,16 +422,16 @@ function ScanQRCodeCard({onClick}: {onClick: () => void}) {
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function CopyPasteSessionCard({
   hideDescription = false,
 }: {
-  hideDescription?: boolean
+  hideDescription?: boolean;
 }) {
-  const [token, setToken] = useState('')
-  const [hash, setHash] = useURLHash()
+  const [token, setToken] = useState("");
+  const [hash, setHash] = useURLHash();
 
   return (
     <div className="border-sidebar-border flex items-start gap-3 rounded-lg border p-4">
@@ -450,8 +450,8 @@ function CopyPasteSessionCard({
         <form
           className="flex"
           onSubmit={(e) => {
-            e.preventDefault()
-            setHash(token.trim())
+            e.preventDefault();
+            setHash(token.trim());
           }}
         >
           <Input
@@ -472,7 +472,7 @@ function CopyPasteSessionCard({
         </form>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -480,19 +480,19 @@ function CopyPasteSessionCard({
  * The upstream library seems to have a bug which doesn't respect the children components when finder overlay is enabled.
  * It also handles the parsing of QR codes and updating the URL hash.
  */
-function QRCodeScanner({onClose}: {onClose: () => void}) {
-  const [_, setHash] = useURLHash()
+function QRCodeScanner({ onClose }: { onClose: () => void }) {
+  const [_, setHash] = useURLHash();
 
   function parseQRCode(data: IDetectedBarcode[]) {
     if (data.length > 0 && data[0]?.rawValue) {
-      const scannedToken = data[0].rawValue
-      setHash(scannedToken)
+      const scannedToken = data[0].rawValue;
+      setHash(scannedToken);
     }
   }
 
   return (
     <Scanner
-      components={{torch: false, finder: false}}
+      components={{ torch: false, finder: false }}
       sound={false}
       onScan={parseQRCode}
     >
@@ -509,34 +509,34 @@ function QRCodeScanner({onClose}: {onClose: () => void}) {
         {/* Overlay with the viewfinder frame. */}
         <div
           style={{
-            position: 'relative',
-            width: '70%',
-            aspectRatio: '1 / 1',
-            border: '3px dashed rgba(230, 68, 68, 0.9)',
-            borderRadius: '0.5rem',
+            position: "relative",
+            width: "70%",
+            aspectRatio: "1 / 1",
+            border: "3px dashed rgba(230, 68, 68, 0.9)",
+            borderRadius: "0.5rem",
           }}
         ></div>
       </div>
     </Scanner>
-  )
+  );
 }
 
-function DeviceLinkStatus({currentState}: {currentState: LinkingState}) {
-  if (currentState.state === 'error') {
-    return <p>Libp2p Error: {currentState.error}</p>
+function DeviceLinkStatus({ currentState }: { currentState: LinkingState }) {
+  if (currentState.state === "error") {
+    return <p>Libp2p Error: {currentState.error}</p>;
   }
 
-  if (currentState.state === 'event') {
-    const event = currentState.event
+  if (currentState.state === "event") {
+    const event = currentState.event;
     switch (event.type) {
-      case 'dialing':
-        return <p>Dialing {event.addr}...</p>
-      case 'dial-ok':
-        return <p>Dialed {event.addr} successfully</p>
+      case "dialing":
+        return <p>Dialing {event.addr}...</p>;
+      case "dial-ok":
+        return <p>Dialed {event.addr} successfully</p>;
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -546,22 +546,22 @@ function ConfirmationView({
   keyPair,
   session,
 }: {
-  keyPair: LocalWebIdentity
-  session: DeviceLinkSession
+  keyPair: LocalWebIdentity;
+  session: DeviceLinkSession;
 }) {
-  const [completion, setCompletion] = useState<Completion | null>(null)
-  const [hash, setHash] = useURLHash()
+  const [completion, setCompletion] = useState<Completion | null>(null);
+  const [hash, setHash] = useURLHash();
 
-  const browserAccount = useAccount(keyPair.id)
-  const desktopAccount = useAccount(session.accountId)
+  const browserAccount = useAccount(keyPair.id);
+  const desktopAccount = useAccount(session.accountId);
 
   // Always call useAccount unconditionally, even if completion is null.
-  const completionAccount = useAccount(completion?.appAccountId || null)
+  const completionAccount = useAccount(completion?.appAccountId || null);
 
-  const linkDevice = useLinkDevice(keyPair)
+  const linkDevice = useLinkDevice(keyPair);
 
   if (completion && completionAccount.data) {
-    return <CompletionView accountInfo={completionAccount.data} />
+    return <CompletionView accountInfo={completionAccount.data} />;
   }
 
   if (!browserAccount.data || !desktopAccount.data) {
@@ -569,7 +569,7 @@ function ConfirmationView({
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
-    )
+    );
   }
 
   return (
@@ -597,8 +597,8 @@ function ConfirmationView({
               setCompletion({
                 browserAccountId: result.browserAccountId,
                 appAccountId: result.appAccountId,
-              })
-            })
+              });
+            });
           }}
           disabled={linkDevice.mutation.isPending}
           variant="default"
@@ -607,12 +607,12 @@ function ConfirmationView({
           Confirm
           <Check
             className="absolute ml-1 h-4 w-4"
-            style={{left: 'calc(50% + 2rem)'}}
+            style={{ left: "calc(50% + 2rem)" }}
           />
         </Button>
         <Button
           variant="outline"
-          onClick={() => setHash('')}
+          onClick={() => setHash("")}
           disabled={linkDevice.mutation.isPending}
           className="w-full"
         >
@@ -620,7 +620,7 @@ function ConfirmationView({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -629,7 +629,7 @@ function ConfirmationView({
 function CompletionView({
   accountInfo,
 }: {
-  accountInfo: Exclude<ReturnType<typeof useAccount>['data'], null | undefined>
+  accountInfo: Exclude<ReturnType<typeof useAccount>["data"], null | undefined>;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -652,7 +652,7 @@ function CompletionView({
         />
         <div className="text-center">
           <p className="font-semibold">
-            {accountInfo.metadata?.name || 'Unknown Account'}
+            {accountInfo.metadata?.name || "Unknown Account"}
           </p>
           <p className="text-muted-foreground truncate text-xs">
             {accountInfo.id.uid}
@@ -665,18 +665,18 @@ function CompletionView({
       </p>
       <GoHomeButton />
     </div>
-  )
+  );
 }
 
 function ProfileCard({
   title,
   account,
 }: {
-  title: string
+  title: string;
   account: {
-    id: UnpackedHypermediaId
-    metadata?: HMMetadata | null
-  }
+    id: UnpackedHypermediaId;
+    metadata?: HMMetadata | null;
+  };
 }) {
   return (
     <div className="bg-muted min-w-0 flex-1 rounded-lg border p-4">
@@ -692,7 +692,7 @@ function ProfileCard({
         />
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">
-            {account.metadata?.name || 'Unnamed Profile'}
+            {account.metadata?.name || "Unnamed Profile"}
           </div>
           <div className="text-muted-foreground truncate font-mono text-sm">
             {account.id.uid}
@@ -700,49 +700,52 @@ function ProfileCard({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function GoHomeButton() {
-  const {originHomeId} = useUniversalAppContext()
+  const { originHomeId } = useUniversalAppContext();
   const routeLink = useRouteLink(
     originHomeId
       ? {
-          key: 'document',
-          id: {...originHomeId, latest: true},
+          key: "document",
+          id: { ...originHomeId, latest: true },
         }
-      : null,
-  )
+      : null
+  );
   if (!originHomeId) {
-    return null
+    return null;
   }
   return (
     <Button {...routeLink} size="sm" variant="default">
       Go Home
       <ArrowRight className="size-4" />
     </Button>
-  )
+  );
 }
 
 async function storeDeviceDelegation(payload: DelegateDevicePayload) {
-  const result = await postCBOR('/hm/api/delegate-device', cbor.encode(payload))
-  console.log('delegateDevice result', result)
+  const result = await postCBOR(
+    "/hm/api/delegate-device",
+    cbor.encode(payload)
+  );
+  console.log("delegateDevice result", result);
 }
 
 type LinkingState =
-  | {state: 'idle'}
+  | { state: "idle" }
   | {
-      state: 'result'
-      result: LinkingResult
+      state: "result";
+      result: LinkingResult;
     }
   | {
-      state: 'event'
-      event: LinkingEvent
+      state: "event";
+      event: LinkingEvent;
     }
   | {
-      state: 'error'
-      error: string
-    }
+      state: "error";
+      error: string;
+    };
 
 /**
  * Hook to trigger the device syncing logic via libp2p.
@@ -750,9 +753,9 @@ type LinkingState =
  */
 function useLinkDevice(localIdentity: LocalWebIdentity) {
   const [linkingState, setLinkingState] = useState<LinkingState>({
-    state: 'idle',
-  })
-  const queryClient = useQueryClient()
+    state: "idle",
+  });
+  const queryClient = useQueryClient();
   return {
     state: linkingState,
     mutation: useMutation({
@@ -762,79 +765,79 @@ function useLinkDevice(localIdentity: LocalWebIdentity) {
           localIdentity,
           (e: LinkingEvent) => {
             setLinkingState({
-              state: 'event',
+              state: "event",
               event: e,
-            })
-          },
-        )
+            });
+          }
+        );
         setLinkingState({
-          state: 'result',
+          state: "result",
           result: result,
-        })
+        });
 
-        console.log('Device linking successful')
-        console.log('App capability:', result.appToBrowserCap)
-        console.log('Browser capability:', result.browserToAppCap)
-        console.log('Profile alias:', result.profileAlias)
+        console.log("Device linking successful");
+        console.log("App capability:", result.appToBrowserCap);
+        console.log("Browser capability:", result.browserToAppCap);
+        console.log("Profile alias:", result.profileAlias);
 
         await storeDeviceDelegation({
           profileAlias: result.profileAlias.raw,
           browserToAppCap: result.browserToAppCap.raw,
           appToBrowserCap: result.appToBrowserCap.raw,
-        })
-        return result
+        });
+        return result;
       },
       onError: (error) => {
         setLinkingState({
-          state: 'error',
+          state: "error",
           error: (error as Error).message,
-        })
+        });
       },
       onSuccess: (data) => {
         queryClient.invalidateQueries({
           queryKey: [queryKeys.ACCOUNT],
-        })
+        });
       },
     }),
-  }
+  };
 }
 
 type Completion = {
-  browserAccountId: string
-  appAccountId: string
-}
+  browserAccountId: string;
+  appAccountId: string;
+};
 
 /**
  * This hook works like useState but also syncs the value into the URL hash.
  */
 function useURLHash() {
   const subscribe = useCallback((callback: () => void) => {
-    window.addEventListener('hashchange', callback)
-    return () => window.removeEventListener('hashchange', callback)
-  }, [])
+    window.addEventListener("hashchange", callback);
+    return () => window.removeEventListener("hashchange", callback);
+  }, []);
 
-  const getSnapshot = () => window.location.hash.slice(1)
+  const getSnapshot = () => window.location.hash.slice(1);
 
-  const getServerSnapshot = () => ''
+  const getServerSnapshot = () => "";
 
-  const hash = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const hash = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const setHash = useCallback((value: string) => {
-    if (value === '' || value === '#') {
+    if (value === "" || value === "#") {
       history.replaceState(
         null,
-        '',
-        window.location.pathname + window.location.search,
-      )
+        "",
+        window.location.pathname + window.location.search
+      );
       // Firing the event manually to trigger the re-render,
       // because replacing the state does not trigger the event.
       // We don't simply set the value, because setting an empty string
       // into window.location.hash leaves a trailing # in the browser's address bar which is ugly.
-      window.dispatchEvent(new HashChangeEvent('hashchange'))
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
     } else {
-      window.location.hash = value
+      window.location.hash = value;
     }
-  }, [])
+  }, []);
 
-  return [hash, setHash] as const
+  return [hash, setHash] as const;
 }

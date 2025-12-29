@@ -11,7 +11,9 @@
     "baseUrl": ".",
     "paths": {
       "@shm/ui/*": ["../ui/src/*"],
+      "@shm/ui": ["../ui/src/index"],
       "@shm/shared/*": ["../shared/src/*"],
+      "@shm/shared": ["../shared/src/index"],
       "@shm/editor/*": ["./src/*"],
       "@/*": ["./src/*"],
       "@": ["./src/index"]

@@ -1,29 +1,29 @@
-import {zodResolver} from '@hookform/resolvers/zod'
-import {encode as cborEncode} from '@ipld/dag-cbor'
+import { zodResolver } from "@hookform/resolvers/zod";
+import { encode as cborEncode } from "@ipld/dag-cbor";
 import {
   hmId,
   hostnameStripProtocol,
   queryKeys,
   useUniversalAppContext,
-} from '@shm/shared'
-import {HMDocument, HMDocumentOperation} from '@shm/shared/hm-types'
-import {useAccount, useResource} from '@shm/shared/models/entity'
-import {useTx, useTxString} from '@shm/shared/translation'
-import {Button} from '@shm/ui/button'
-import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {Field} from '@shm/ui/form-fields'
-import {FormInput} from '@shm/ui/form-input'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Spinner} from '@shm/ui/spinner'
-import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {useMutation, useQueryClient} from '@tanstack/react-query'
-import {LogOut, Monitor, Smartphone} from 'lucide-react'
-import {BlockView} from 'multiformats'
-import {base58btc} from 'multiformats/bases/base58'
-import {CID} from 'multiformats/cid'
-import {useEffect, useState, useSyncExternalStore} from 'react'
+} from "@shm/shared";
+import { HMDocument, HMDocumentOperation } from "@shm/shared/hm-types";
+import { useAccount, useResource } from "@shm/shared/models/entity";
+import { useTx, useTxString } from "@shm/shared/translation";
+import { Button } from "@shm/ui/button";
+import { DialogDescription, DialogTitle } from "@shm/ui/components/dialog";
+import { Field } from "@shm/ui/form-fields";
+import { FormInput } from "@shm/ui/form-input";
+import { getDaemonFileUrl } from "@shm/ui/get-file-url";
+import { Spinner } from "@shm/ui/spinner";
+import { SizableText } from "@shm/ui/text";
+import { toast } from "@shm/ui/toast";
+import { useAppDialog } from "@shm/ui/universal-dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { LogOut, Monitor, Smartphone } from "lucide-react";
+import { BlockView } from "multiformats";
+import { base58btc } from "multiformats/bases/base58";
+import { CID } from "multiformats/cid";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   Control,
   FieldValues,
@@ -31,8 +31,8 @@ import {
   SubmitHandler,
   useController,
   useForm,
-} from 'react-hook-form'
-import {z} from 'zod'
+} from "react-hook-form";
+import { z } from "zod";
 import {
   blockReference,
   createDocumentGenesisChange,
@@ -42,113 +42,113 @@ import {
   getChangesDepth,
   postCBOR,
   rawCodec,
-} from './api'
-import {preparePublicKey} from './auth-utils'
-import {createDefaultAccountName} from './default-account-name'
+} from "./api";
+import { preparePublicKey } from "./auth-utils";
+import { createDefaultAccountName } from "./default-account-name";
 import {
   deleteLocalKeys,
   getStoredLocalKeys,
   setHasPromptedEmailNotifications,
   writeLocalKeys,
-} from './local-db'
-import type {CreateAccountPayload} from './routes/hm.api.create-account'
-import type {UpdateDocumentPayload} from './routes/hm.api.document-update'
+} from "./local-db";
+import type { CreateAccountPayload } from "./routes/hm.api.create-account";
+import type { UpdateDocumentPayload } from "./routes/hm.api.document-update";
 
-let AccountWithImage: boolean = false
+let AccountWithImage: boolean = false;
 
 export type LocalWebIdentity = CryptoKeyPair & {
-  id: string
-}
-let keyPair: LocalWebIdentity | null = null
-const keyPairHandlers = new Set<() => void>()
+  id: string;
+};
+let keyPair: LocalWebIdentity | null = null;
+const keyPairHandlers = new Set<() => void>();
 
 const keyPairStore = {
   get: () => keyPair,
   set: (kp: LocalWebIdentity | null) => {
-    keyPair = kp
-    keyPairHandlers.forEach((callback) => callback())
+    keyPair = kp;
+    keyPairHandlers.forEach((callback) => callback());
   },
-}
+};
 
 function updateKeyPair() {
   getStoredLocalKeys()
     .then(async (kp) => {
-      if (!kp) return null
-      const id = await preparePublicKey(kp.publicKey)
+      if (!kp) return null;
+      const id = await preparePublicKey(kp.publicKey);
       const webIdentity: LocalWebIdentity = {
         ...kp,
         id: base58btc.encode(id),
-      }
-      return webIdentity
+      };
+      return webIdentity;
     })
     .then((newKeyPair) => {
       if ((!newKeyPair && keyPair) || newKeyPair?.id !== keyPair?.id) {
-        keyPairStore.set(newKeyPair)
+        keyPairStore.set(newKeyPair);
       }
-    })
+    });
 }
 
 export function logout() {
   Promise.all([deleteLocalKeys(), setHasPromptedEmailNotifications(false)])
     .then(() => {
-      keyPairStore.set(null)
-      console.log('Logged out')
+      keyPairStore.set(null);
+      console.log("Logged out");
     })
     .catch((e) => {
-      console.error('Failed to log out', e)
-    })
+      console.error("Failed to log out", e);
+    });
 }
 
 export function useLocalKeyPair() {
   return useSyncExternalStore(
     (callback: () => void) => {
-      keyPairHandlers.add(callback)
+      keyPairHandlers.add(callback);
       return () => {
-        keyPairHandlers.delete(callback)
-      }
+        keyPairHandlers.delete(callback);
+      };
     },
     () => keyPair,
-    () => null,
-  )
+    () => null
+  );
 }
 
 export async function createAccount({
   name,
   icon,
 }: {
-  name: string
-  icon: string | Blob | null
+  name: string;
+  icon: string | Blob | null;
 }): Promise<LocalWebIdentity> {
-  if (typeof icon === 'string') {
-    throw new Error('Must provide an image or null for account creation')
+  if (typeof icon === "string") {
+    throw new Error("Must provide an image or null for account creation");
   }
-  const existingKeyPair = await getStoredLocalKeys()
+  const existingKeyPair = await getStoredLocalKeys();
   if (existingKeyPair) {
-    const id = await preparePublicKey(existingKeyPair.publicKey)
+    const id = await preparePublicKey(existingKeyPair.publicKey);
     return {
       ...existingKeyPair,
       id: base58btc.encode(id),
-    }
+    };
   }
-  const keyPair = await generateAndStoreKeyPair()
+  const keyPair = await generateAndStoreKeyPair();
   const genesisChange = await createDocumentGenesisChange({
     keyPair,
-  })
-  const genesisChangeBlock = await encodeBlock(genesisChange)
+  });
+  const genesisChangeBlock = await encodeBlock(genesisChange);
   const iconBlock = icon
     ? await encodeBlock(await icon.arrayBuffer(), rawCodec)
-    : null
+    : null;
   const operations: HMDocumentOperation[] = [
     {
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: name}],
+      type: "SetAttributes",
+      attrs: [{ key: ["name"], value: name }],
     },
-  ]
+  ];
   if (iconBlock) {
     operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
-    })
+      type: "SetAttributes",
+      attrs: [{ key: ["icon"], value: iconBlock.cid.toString() }],
+    });
   }
   const changeHome = await createHomeDocumentChange({
     keyPair,
@@ -156,15 +156,15 @@ export async function createAccount({
     operations,
     deps: [genesisChangeBlock.cid],
     depth: 1,
-  })
-  const changeHomeBlock = await encodeBlock(changeHome)
+  });
+  const changeHomeBlock = await encodeBlock(changeHome);
   const ref = await createRef({
     keyPair,
     genesisCid: genesisChangeBlock.cid,
     head: changeHomeBlock.cid,
     generation: 1,
-  })
-  const refBlock = await encodeBlock(ref)
+  });
+  const refBlock = await encodeBlock(ref);
 
   const createAccountPayload: CreateAccountPayload = {
     genesis: {
@@ -182,17 +182,17 @@ export async function createAccount({
           cid: iconBlock.cid.toString(),
         }
       : null,
-  }
-  const createAccountData = cborEncode(createAccountPayload)
-  await postCBOR('/hm/api/create-account', createAccountData)
+  };
+  const createAccountData = cborEncode(createAccountPayload);
+  await postCBOR("/hm/api/create-account", createAccountData);
   keyPairStore.set({
     ...keyPair,
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  })
+  });
   return {
     ...keyPair,
     id: base58btc.encode(await preparePublicKey(keyPair.publicKey)),
-  }
+  };
 }
 
 /**
@@ -202,54 +202,54 @@ export async function createAccount({
 export async function generateAndStoreKeyPair() {
   const keyPair = await crypto.subtle.generateKey(
     {
-      name: 'ECDSA',
-      namedCurve: 'P-256',
+      name: "ECDSA",
+      namedCurve: "P-256",
     },
     false, // non-extractable
-    ['sign', 'verify'],
-  )
-  await writeLocalKeys(keyPair)
-  return keyPair
+    ["sign", "verify"]
+  );
+  await writeLocalKeys(keyPair);
+  return keyPair;
 }
 
 export const siteMetaSchema = z.object({
   name: z.string(),
   icon: z.string().or(z.instanceof(Blob)).nullable(),
-})
-export type SiteMetaFields = z.infer<typeof siteMetaSchema>
+});
+export type SiteMetaFields = z.infer<typeof siteMetaSchema>;
 
 export async function updateProfile({
   keyPair,
   document,
   updates,
 }: {
-  keyPair: CryptoKeyPair
-  document: HMDocument
-  updates: SiteMetaFields
+  keyPair: CryptoKeyPair;
+  document: HMDocument;
+  updates: SiteMetaFields;
 }) {
-  const depsStrs = document.version.split('.')
-  const deps = depsStrs.map((cidStr) => CID.parse(cidStr))
-  const genesisStr = document.genesis
-  const genesisChangeCid = genesisStr ? CID.parse(genesisStr) : null
+  const depsStrs = document.version.split(".");
+  const deps = depsStrs.map((cidStr) => CID.parse(cidStr));
+  const genesisStr = document.genesis;
+  const genesisChangeCid = genesisStr ? CID.parse(genesisStr) : null;
   if (!genesisChangeCid) {
-    throw new Error('No genesis found on document')
+    throw new Error("No genesis found on document");
   }
-  const lastDepth = await getChangesDepth(depsStrs)
-  const operations: HMDocumentOperation[] = []
+  const lastDepth = await getChangesDepth(depsStrs);
+  const operations: HMDocumentOperation[] = [];
   if (updates.name && updates.name !== document.metadata.name) {
     operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['name'], value: updates.name}],
-    })
+      type: "SetAttributes",
+      attrs: [{ key: ["name"], value: updates.name }],
+    });
   }
-  let iconBlock: BlockView<unknown, number, 18, 1> | null = null
-  if (updates.icon && typeof updates.icon !== 'string') {
+  let iconBlock: BlockView<unknown, number, 18, 1> | null = null;
+  if (updates.icon && typeof updates.icon !== "string") {
     // we are uploading a new icon
-    iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec)
+    iconBlock = await encodeBlock(await updates.icon.arrayBuffer(), rawCodec);
     operations.push({
-      type: 'SetAttributes',
-      attrs: [{key: ['icon'], value: iconBlock.cid.toString()}],
-    })
+      type: "SetAttributes",
+      attrs: [{ key: ["icon"], value: iconBlock.cid.toString() }],
+    });
   }
   const changePayload = await createHomeDocumentChange({
     keyPair,
@@ -257,128 +257,132 @@ export async function updateProfile({
     genesisChangeCid,
     deps,
     depth: lastDepth + 1,
-  })
-  const changeBlock = await encodeBlock(changePayload)
+  });
+  const changeBlock = await encodeBlock(changePayload);
   const refPayload = await createRef({
     keyPair,
     space: base58btc.decode(document.account),
     genesisCid: genesisChangeCid,
     head: changeBlock.cid,
     generation: lastDepth + 1,
-  })
-  const refBlock = await encodeBlock(refPayload)
+  });
+  const refBlock = await encodeBlock(refPayload);
   const updatePayload: UpdateDocumentPayload = {
     icon: iconBlock ? blockReference(iconBlock) : null,
     change: blockReference(changeBlock),
     ref: blockReference(refBlock),
-  }
-  const updateData = cborEncode(updatePayload)
-  await postCBOR('/hm/api/document-update', updateData)
+  };
+  const updateData = cborEncode(updatePayload);
+  await postCBOR("/hm/api/document-update", updateData);
 }
 
-export function useCreateAccount(options?: {onClose?: () => void}) {
-  const userKeyPair = useLocalKeyPair()
-  const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
+export function useCreateAccount(options?: { onClose?: () => void }) {
+  const userKeyPair = useLocalKeyPair();
+  const isMobileKeyboardOpen = useIsMobileKeyboardOpen();
 
   const createAccountDialog = useAppDialog(CreateAccountDialog, {
     onClose: options?.onClose,
     className: [
-      'w-full sm:max-w-xl',
-      'max-sm:w-[calc(100%-1.5rem)]',
-      'max-sm:translate-y-0',
+      "w-full sm:max-w-xl",
+      "max-sm:w-[calc(100%-1.5rem)]",
+      "max-sm:translate-y-0",
       isMobileKeyboardOpen
-        ? 'max-sm:top-[1.5vh] max-sm:max-h-[55vh]'
-        : 'max-sm:top-[4vh] max-sm:max-h-[85vh]',
-    ].join(' '),
+        ? "max-sm:top-[1.5vh] max-sm:max-h-[55vh]"
+        : "max-sm:top-[4vh] max-sm:max-h-[85vh]",
+    ].join(" "),
     contentClassName: [
-      'max-sm:scroll-py-4',
+      "max-sm:scroll-py-4",
       isMobileKeyboardOpen
-        ? 'max-sm:gap-3 max-sm:p-4'
-        : 'max-sm:gap-4 max-sm:p-5',
-    ].join(' '),
-  })
+        ? "max-sm:gap-3 max-sm:p-4"
+        : "max-sm:gap-4 max-sm:p-5",
+    ].join(" "),
+  });
   return {
     canCreateAccount: !userKeyPair,
     createAccount: () => createAccountDialog.open({}),
     content: createAccountDialog.content,
     createDefaultAccount: async () => {
-      return await createAccount({name: createDefaultAccountName(), icon: null})
+      return await createAccount({
+        name: createDefaultAccountName(),
+        icon: null,
+      });
     },
     userKeyPair,
-  }
+  };
 }
 
 function useIsMobileKeyboardOpen() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === "undefined") return;
 
     const handleResize = () => {
-      const layoutViewportHeight = window.innerHeight
+      const layoutViewportHeight = window.innerHeight;
       const visualViewportHeight =
-        window.visualViewport?.height ?? layoutViewportHeight
-      setIsOpen(layoutViewportHeight - visualViewportHeight > 150)
-    }
+        window.visualViewport?.height ?? layoutViewportHeight;
+      setIsOpen(layoutViewportHeight - visualViewportHeight > 150);
+    };
 
-    const visualViewport = window.visualViewport
-    visualViewport?.addEventListener('resize', handleResize)
-    window.addEventListener('resize', handleResize)
-    window.addEventListener('orientationchange', handleResize)
-    handleResize()
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener("resize", handleResize);
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    handleResize();
 
     return () => {
-      visualViewport?.removeEventListener('resize', handleResize)
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('orientationchange', handleResize)
-    }
-  }, [])
+      visualViewport?.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, []);
 
-  return isOpen
+  return isOpen;
 }
 
 function CreateAccountDialog({
   input,
   onClose,
 }: {
-  input: {}
-  onClose: () => void
+  input: {};
+  onClose: () => void;
 }) {
-  const {origin} = useUniversalAppContext()
-  const isMobileKeyboardOpen = useIsMobileKeyboardOpen()
+  const { origin } = useUniversalAppContext();
+  const isMobileKeyboardOpen = useIsMobileKeyboardOpen();
   const onSubmit: SubmitHandler<SiteMetaFields> = (data) => {
-    createAccount({name: data.name, icon: data.icon}).then(() => onClose())
-  }
-  const tx = useTxString()
-  const siteName = hostnameStripProtocol(origin)
+    createAccount({ name: data.name, icon: data.icon }).then(() => onClose());
+  };
+  const tx = useTxString();
+  const siteName = hostnameStripProtocol(origin);
   return (
     <>
       <DialogTitle className="max-sm:text-base">
         {tx(
-          'create_account_title',
-          ({siteName}: {siteName: string}) => `Create Account on ${siteName}`,
-          {siteName},
+          "create_account_title",
+          ({ siteName }: { siteName: string }) =>
+            `Create Account on ${siteName}`,
+          { siteName }
         )}
       </DialogTitle>
       <DialogDescription className="max-sm:text-sm">
         {tx(
-          'create_account_description',
-          'Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later.',
+          "create_account_description",
+          "Hypermedia accounts use public key cryptography. The private key for your account will be securely stored in this browser, and no one else has access to it. The identity will be accessible only on this domain, but you can link it to other domains and devices later."
         )}
       </DialogDescription>
       <EditProfileForm
         onSubmit={(values) => {
-          onClose()
-          onSubmit(values)
+          onClose();
+          onSubmit(values);
         }}
         submitLabel={tx(
-          'create_account_submit',
-          ({siteName}: {siteName: string}) => `Create ${siteName} Account`,
-          {siteName},
+          "create_account_submit",
+          ({ siteName }: { siteName: string }) => `Create ${siteName} Account`,
+          { siteName }
         )}
       />
     </>
-  )
+  );
 }
 
 function EditProfileForm({
@@ -386,38 +390,38 @@ function EditProfileForm({
   defaultValues,
   submitLabel,
 }: {
-  onSubmit: (data: SiteMetaFields) => void
-  defaultValues?: SiteMetaFields
-  submitLabel?: string
+  onSubmit: (data: SiteMetaFields) => void;
+  defaultValues?: SiteMetaFields;
+  submitLabel?: string;
 }) {
-  const tx = useTxString()
+  const tx = useTxString();
   const form = useForm<SiteMetaFields>({
     resolver: zodResolver(siteMetaSchema),
     defaultValues: defaultValues || {
       name: createDefaultAccountName(),
       icon: null,
     },
-  })
+  });
   useEffect(() => {
     setTimeout(() => {
-      form.setFocus('name', {shouldSelect: true})
-    }, 300) // wait for animation
-  }, [form.setFocus])
+      form.setFocus("name", { shouldSelect: true });
+    }, 300); // wait for animation
+  }, [form.setFocus]);
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <div className="flex flex-col gap-2">
-        <Field id="name" label={tx('Account Name')}>
+        <Field id="name" label={tx("Account Name")}>
           <FormInput
             control={form.control}
             name="name"
-            placeholder={tx('My New Public Name')}
+            placeholder={tx("My New Public Name")}
           />
         </Field>
-        <Field id="icon" label={tx('Profile Icon')}>
+        <Field id="icon" label={tx("Profile Icon")}>
           <ImageField
             control={form.control}
             name="icon"
-            label={tx('Profile Icon')}
+            label={tx("Profile Icon")}
           />
         </Field>
         <div className="flex justify-center">
@@ -425,33 +429,33 @@ function EditProfileForm({
             type="submit"
             variant="default"
             className={`plausible-event-name=finish-create-account plausible-event-image=${
-              AccountWithImage || 'false'
+              AccountWithImage || "false"
             }`}
           >
-            {submitLabel || tx('Save')}
+            {submitLabel || tx("Save")}
           </Button>
         </div>
       </div>
     </form>
-  )
+  );
 }
 
 async function optimizeImage(file: File): Promise<Blob> {
-  const response = await fetch('/hm/api/site-image', {
-    method: 'POST',
+  const response = await fetch("/hm/api/site-image", {
+    method: "POST",
     body: await file.arrayBuffer(),
-  })
-  const signature = response.headers.get('signature')
+  });
+  const signature = response.headers.get("signature");
   if (!signature) {
-    throw new Error('No signature found')
+    throw new Error("No signature found");
   }
-  if (signature !== 'SIG-TODO') {
+  if (signature !== "SIG-TODO") {
     // todo: real signature checking.. not here but at re-upload time
-    throw new Error('Invalid signature')
+    throw new Error("Invalid signature");
   }
-  const contentType = response.headers.get('content-type') || 'image/png'
-  const responseBlob = await response.blob()
-  return new Blob([responseBlob], {type: contentType})
+  const contentType = response.headers.get("content-type") || "image/png";
+  const responseBlob = await response.blob();
+  return new Blob([responseBlob], { type: contentType });
 }
 
 function ImageField<Fields extends FieldValues>({
@@ -459,29 +463,29 @@ function ImageField<Fields extends FieldValues>({
   name,
   label,
 }: {
-  control: Control<Fields>
-  name: Path<Fields>
-  label: string
+  control: Control<Fields>;
+  name: Path<Fields>;
+  label: string;
 }) {
-  const c = useController({control, name})
-  const tx = useTxString()
+  const c = useController({ control, name });
+  const tx = useTxString();
   const currentImgURL = c.field.value
-    ? typeof c.field.value === 'string'
+    ? typeof c.field.value === "string"
       ? getDaemonFileUrl(c.field.value)
       : URL.createObjectURL(c.field.value)
-    : null
+    : null;
   return (
     <div className="group relative flex h-[128px] w-[128px] cursor-pointer overflow-hidden rounded-sm border-2 border-dashed border-neutral-300 hover:border-neutral-400 max-sm:h-16 max-sm:w-16 dark:border-neutral-600 dark:hover:border-neutral-500">
       <input
         type="file"
         accept="image/*"
         onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (!file) return
-          AccountWithImage = true
+          const file = event.target.files?.[0];
+          if (!file) return;
+          AccountWithImage = true;
           optimizeImage(file).then((blob) => {
-            c.field.onChange(blob)
-          })
+            c.field.onChange(blob);
+          });
         }}
         className="absolute inset-0 z-10 cursor-pointer opacity-0"
       />
@@ -491,7 +495,7 @@ function ImageField<Fields extends FieldValues>({
             size="xs"
             className="text-center text-neutral-600 dark:text-neutral-400"
           >
-            {tx('add', ({what}: {what: string}) => `Add ${what}`, {
+            {tx("add", ({ what }: { what: string }) => `Add ${what}`, {
               what: label,
             })}
           </SizableText>
@@ -512,128 +516,128 @@ function ImageField<Fields extends FieldValues>({
         </div>
       )}
     </div>
-  )
+  );
 }
 
-function LogoutDialog({onClose}: {onClose: () => void}) {
-  const keyPair = useLocalKeyPair()
-  const account = useAccount(keyPair?.id)
-  const tx = useTx()
-  if (!keyPair) return <DialogTitle>No session found</DialogTitle>
+function LogoutDialog({ onClose }: { onClose: () => void }) {
+  const keyPair = useLocalKeyPair();
+  const account = useAccount(keyPair?.id);
+  const tx = useTx();
+  if (!keyPair) return <DialogTitle>No session found</DialogTitle>;
   if (account.isLoading)
     return (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
-    )
-  const isAccountAliased = account.data?.id.uid !== keyPair.id
+    );
+  const isAccountAliased = account.data?.id.uid !== keyPair.id;
   return (
     <>
-      <DialogTitle>{tx('Really Logout?')}</DialogTitle>
+      <DialogTitle>{tx("Really Logout?")}</DialogTitle>
       <DialogDescription>
         {isAccountAliased
           ? tx(
-              'logout_account_saved',
-              'This account will remain accessible on other devices.',
+              "logout_account_saved",
+              "This account will remain accessible on other devices."
             )
           : tx(
-              'logout_account_not_saved',
-              'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
+              "logout_account_not_saved",
+              "This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later."
             )}
       </DialogDescription>
       <Button
         variant="destructive"
         onClick={() => {
-          logout()
-          onClose()
+          logout();
+          onClose();
         }}
       >
-        {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
+        {isAccountAliased ? tx("Log out") : tx("Log out Forever")}
       </Button>
     </>
-  )
+  );
 }
 
 export function EditProfileDialog({
   onClose,
   input,
 }: {
-  onClose: () => void
-  input: {accountUid: string}
+  onClose: () => void;
+  input: { accountUid: string };
 }) {
-  const keyPair = useLocalKeyPair()
-  const id = hmId(input.accountUid)
-  const tx = useTx()
-  const account = useAccount(input.accountUid)
-  const accountDocument = useResource(account?.data?.id)
+  const keyPair = useLocalKeyPair();
+  const id = hmId(input.accountUid);
+  const tx = useTx();
+  const account = useAccount(input.accountUid);
+  const accountDocument = useResource(account?.data?.id);
   const document =
-    accountDocument?.data?.type === 'document'
+    accountDocument?.data?.type === "document"
       ? accountDocument.data.document
-      : undefined
-  const queryClient = useQueryClient()
+      : undefined;
+  const queryClient = useQueryClient();
   const update = useMutation({
     mutationFn: (updates: SiteMetaFields) => {
       if (!keyPair) {
-        throw new Error('No key pair found')
+        throw new Error("No key pair found");
       }
       if (!document) {
-        throw new Error('No document found')
+        throw new Error("No document found");
       }
       return updateProfile({
         keyPair,
         document: document,
         updates,
-      })
+      });
     },
     onSuccess: () => {
       // invalidate the activity and discussion for all documents because they may be affected by the profile change
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-      })
+      });
       queryClient.invalidateQueries({
         queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-      })
+      });
       queryClient.invalidateQueries({
         queryKey: [queryKeys.ENTITY, id.id],
-      })
+      });
       queryClient.invalidateQueries({
         queryKey: [queryKeys.RESOLVED_ENTITY, id.id],
-      })
+      });
       queryClient.invalidateQueries({
         queryKey: [queryKeys.ACCOUNT],
-      })
+      });
     },
-  })
+  });
   return (
     <>
-      <DialogTitle>{tx('Edit Profile')}</DialogTitle>
+      <DialogTitle>{tx("Edit Profile")}</DialogTitle>
       {account.isInitialLoading ? (
         <Spinner />
       ) : (
         <EditProfileForm
           defaultValues={{
-            name: account.data?.metadata?.name || '?',
+            name: account.data?.metadata?.name || "?",
             icon: account.data?.metadata?.icon || null,
           }}
           onSubmit={(newValues) => {
-            update.mutateAsync(newValues).then(() => onClose())
+            update.mutateAsync(newValues).then(() => onClose());
           }}
         />
       )}
     </>
-  )
+  );
 }
 
 export function LinkKeysDialog() {
-  const tx = useTx()
+  const tx = useTx();
 
   return (
     <>
-      <DialogTitle>{tx('Link Keys')}</DialogTitle>
+      <DialogTitle>{tx("Link Keys")}</DialogTitle>
       <DialogDescription>
         <div className="flex flex-col gap-1">
           {tx(
-            'link_keys_explainer',
+            "link_keys_explainer",
             () => {
               return (
                 <>
@@ -647,50 +651,50 @@ export function LinkKeysDialog() {
                     signing key to your account using one of the options below.
                   </p>
                 </>
-              )
+              );
             },
-            {},
+            {}
           )}
         </div>
       </DialogDescription>
       <div className="flex flex-wrap gap-2">
         <Button variant="default" asChild>
           <a href="/hm/device-link" target="_blank">
-            <Monitor /> {tx('Link with Desktop App')}
+            <Monitor /> {tx("Link with Desktop App")}
           </a>
         </Button>
         <Button variant="default" disabled>
-          <Smartphone /> {tx('Link with Mobile App (Soon)')}
+          <Smartphone /> {tx("Link with Mobile App (Soon)")}
         </Button>
       </div>
     </>
-  )
+  );
 }
 
 export function LogoutButton() {
-  const userKeyPair = useLocalKeyPair()
-  const logoutDialog = useAppDialog(LogoutDialog)
-  const tx = useTxString()
-  if (!userKeyPair) return null
+  const userKeyPair = useLocalKeyPair();
+  const logoutDialog = useAppDialog(LogoutDialog);
+  const tx = useTxString();
+  if (!userKeyPair) return null;
   return (
     <>
       <Button variant="outline" onClick={() => logoutDialog.open({})}>
         <LogOut className="size-4" />
-        {tx('Logout')}
+        {tx("Logout")}
       </Button>
       {logoutDialog.content}
     </>
-  )
+  );
 }
 
-export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
-  const userKeyPair = useLocalKeyPair()
-  const logoutDialog = useAppDialog(LogoutDialog)
-  const editProfileDialog = useAppDialog(EditProfileDialog)
-  const linkKeysDialog = useAppDialog(LinkKeysDialog)
+export function AccountFooterActions(props: { hideDeviceLinkToast?: boolean }) {
+  const userKeyPair = useLocalKeyPair();
+  const logoutDialog = useAppDialog(LogoutDialog);
+  const editProfileDialog = useAppDialog(EditProfileDialog);
+  const linkKeysDialog = useAppDialog(LinkKeysDialog);
 
-  const tx = useTx()
-  const myAccount = useAccount(userKeyPair?.id)
+  const tx = useTx();
+  const myAccount = useAccount(userKeyPair?.id);
 
   // TODO(burdiyan): this is not a very robust solution to check whether we need to link keys.
   // For now we request the account info from the backend, which would follow identity redirects to return the final account,
@@ -698,55 +702,55 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   const needsKeyLinking =
     !props.hideDeviceLinkToast &&
     userKeyPair &&
-    myAccount?.data?.id?.uid === userKeyPair?.id
+    myAccount?.data?.id?.uid === userKeyPair?.id;
 
   useEffect(() => {
     if (!needsKeyLinking) {
-      linkKeysDialog.close()
-      return
+      linkKeysDialog.close();
+      return;
     }
 
     const t = toast.warning(
       <div className="flex items-center">
         <SizableText className="p-1">
           {tx(
-            'stay_logged_in',
-            'Link your identity key to stay logged in! You can dismiss this message and do it later.',
+            "stay_logged_in",
+            "Link your identity key to stay logged in! You can dismiss this message and do it later."
           )}
         </SizableText>
         <Button
           size="xs"
           variant="brand"
           onClick={() => {
-            linkKeysDialog.open({})
+            linkKeysDialog.open({});
           }}
         >
-          {tx('Link Keys')}
+          {tx("Link Keys")}
         </Button>
       </div>,
       {
         duration: Infinity,
         dismissible: true,
         closeButton: true,
-      },
-    )
+      }
+    );
 
     return () => {
-      toast.dismiss(t)
-    }
-  }, [needsKeyLinking, tx])
+      toast.dismiss(t);
+    };
+  }, [needsKeyLinking, tx]);
 
-  if (!userKeyPair) return null
+  if (!userKeyPair) return null;
   return (
     <div className="flex max-w-full flex-wrap justify-end gap-2">
       {logoutDialog.content}
       {editProfileDialog.content}
       {linkKeysDialog.content}
     </div>
-  )
+  );
 }
 
-if (typeof window !== 'undefined') {
-  updateKeyPair()
-  setInterval(updateKeyPair, 200)
+if (typeof window !== "undefined") {
+  updateKeyPair();
+  setInterval(updateKeyPair, 200);
 }

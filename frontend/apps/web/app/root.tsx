@@ -1,4 +1,4 @@
-import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
+import { json, LinksFunction, LoaderFunctionArgs } from "@remix-run/node";
 import {
   isRouteErrorResponse,
   Links,
@@ -8,8 +8,8 @@ import {
   ScrollRestoration,
   useRouteLoaderData,
   useRouteError,
-} from '@remix-run/react'
-import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
+} from "@remix-run/react";
+import { captureRemixErrorBoundaryError, withSentry } from "@sentry/remix";
 import {
   ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
@@ -18,74 +18,74 @@ import {
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
-} from '@shm/shared/constants'
-import {SizableText} from '@shm/ui/text'
-import sonnerStyles from 'sonner/dist/styles.css?url'
-import {Providers} from './providers'
-import slashMenuStyles from './slash-menu.css?url'
-import globalStyles from './styles.css?url'
-import localTailwindStyles from './tailwind.css?url'
+} from "@shm/shared/constants";
+import { SizableText } from "@shm/ui/text";
+import sonnerStyles from "sonner/dist/styles.css?url";
+import { Providers } from "./providers";
+import slashMenuStyles from "./slash-menu.css?url";
+import globalStyles from "./styles.css?url";
+import localTailwindStyles from "./tailwind.css?url";
 
 export const links: LinksFunction = () => {
   return [
-    {rel: 'stylesheet', href: globalStyles},
-    {rel: 'stylesheet', href: localTailwindStyles},
-    {rel: 'stylesheet', href: sonnerStyles},
-    {rel: 'stylesheet', href: slashMenuStyles},
-  ]
-}
+    { rel: "stylesheet", href: globalStyles },
+    { rel: "stylesheet", href: localTailwindStyles },
+    { rel: "stylesheet", href: sonnerStyles },
+    { rel: "stylesheet", href: slashMenuStyles },
+  ];
+};
 
 // enable statistics when SEED_ENABLE_STATISTICS is "true" or "1" at build-time
 
 function getBaseDomain(host: string) {
-  if (!host || host === 'localhost' || /^[0-9.]+$/.test(host)) return host
-  const parts = host.split('.')
-  if (parts.length <= 2) return host
+  if (!host || host === "localhost" || /^[0-9.]+$/.test(host)) return host;
+  const parts = host.split(".");
+  if (parts.length <= 2) return host;
 
   const twoLevel = new Set([
-    'co.uk',
-    'org.uk',
-    'gov.uk',
-    'ac.uk',
-    'net.uk',
-    'sch.uk',
-  ])
-  const lastTwo = parts.slice(-2).join('.')
+    "co.uk",
+    "org.uk",
+    "gov.uk",
+    "ac.uk",
+    "net.uk",
+    "sch.uk",
+  ]);
+  const lastTwo = parts.slice(-2).join(".");
   if (twoLevel.has(lastTwo) && parts.length >= 3) {
-    return parts.slice(-3).join('.')
+    return parts.slice(-3).join(".");
   }
-  return lastTwo
+  return lastTwo;
 }
 
-export async function loader({request}: LoaderFunctionArgs) {
-  const url = new URL(request.url)
-  const runtimeDomain = getBaseDomain(url.hostname)
+export async function loader({ request }: LoaderFunctionArgs) {
+  const url = new URL(request.url);
+  const runtimeDomain = getBaseDomain(url.hostname);
 
   // Gate everything on the server so no client env access is needed
-  const isProd = process.env.NODE_ENV === 'production'
+  const isProd = process.env.NODE_ENV === "production";
 
   const enableStats =
-    process.env.SEED_ENABLE_STATISTICS === 'true' ||
-    process.env.SEED_ENABLE_STATISTICS === '1'
+    process.env.SEED_ENABLE_STATISTICS === "true" ||
+    process.env.SEED_ENABLE_STATISTICS === "1";
 
-  const domain = process.env.MONITORING_DOMAIN || runtimeDomain
+  const domain = process.env.MONITORING_DOMAIN || runtimeDomain;
 
   // Get siteHost for window.ENV injection
-  const siteHost = url.hostname
+  const siteHost = url.hostname;
 
-  const result = {isProd, enableStats, domain, siteHost}
+  const result = { isProd, enableStats, domain, siteHost };
 
-  return json(result)
+  return json(result);
 }
 
-export function Layout({children}: {children: React.ReactNode}) {
-  const data = useRouteLoaderData<typeof loader>('root')
+export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData<typeof loader>("root");
   const {
     isProd = false,
     enableStats = false,
-    domain = '',
-    siteHost = '',
-  } = data || {}
+    domain = "",
+    siteHost = "",
+  } = data || {};
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -132,20 +132,20 @@ export function Layout({children}: {children: React.ReactNode}) {
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
 
 export function ErrorBoundary({}: {}) {
-  const error = useRouteError()
+  const error = useRouteError();
 
-  let errorMessage = 'Unknown Error'
+  let errorMessage = "Unknown Error";
   if (isRouteErrorResponse(error)) {
-    errorMessage = error.data.message
+    errorMessage = error.data.message;
   } else if (error instanceof Error) {
-    errorMessage = error.message
+    errorMessage = error.message;
   }
 
-  captureRemixErrorBoundaryError(error)
+  captureRemixErrorBoundaryError(error);
 
   return (
     <html>
@@ -180,11 +180,11 @@ export function ErrorBoundary({}: {}) {
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
 
 // Sentry HOC is safe here - withSentry returns a component, doesn't invoke hooks
 // The wrapped component will be used by Remix for routing
 export default withSentry(function App() {
-  return <Outlet />
-})
+  return <Outlet />;
+});

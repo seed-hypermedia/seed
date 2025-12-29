@@ -31,51 +31,51 @@ async function prefetchResourceData(
   docId: UnpackedHypermediaId,
   document: HMDocument,
   prefetchCtx: PrefetchContext,
-  ctx?: InstrumentationContext,
+  ctx?: InstrumentationContext
 ): Promise<void> {
-  const client = serverUniversalClient
-  const homeId = hmId(docId.uid, {latest: true})
+  const client = serverUniversalClient;
+  const homeId = hmId(docId.uid, { latest: true });
 
   // Wave 1: Core navigation data (parallel)
   await Promise.allSettled([
     prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId)),
     prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
     prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, homeId, 'Children'),
+      queryDirectory(client, homeId, "Children")
     ),
     prefetchCtx.queryClient.prefetchQuery(
-      queryDirectory(client, docId, 'Children'),
+      queryDirectory(client, docId, "Children")
     ),
     prefetchCtx.queryClient.prefetchQuery(
-      queryInteractionSummary(client, docId),
+      queryInteractionSummary(client, docId)
     ),
-  ])
+  ]);
 
   // Wave 2: Content dependencies (parallel)
-  const queryBlocks = extractQueryBlocks(document.content)
-  const refs = extractRefs(document.content)
+  const queryBlocks = extractQueryBlocks(document.content);
+  const refs = extractRefs(document.content);
 
   await Promise.allSettled([
     // Query block directories
     ...queryBlocks.map((block) => {
-      const include = block.attributes.query.includes[0]
-      if (!include) return Promise.resolve()
+      const include = block.attributes.query.includes[0];
+      if (!include) return Promise.resolve();
       const targetId = hmId(include.space, {
         path: entityQueryPathToHmIdPath(include.path),
-      })
+      });
       return prefetchCtx.queryClient.prefetchQuery(
-        queryDirectory(client, targetId, include.mode),
-      )
+        queryDirectory(client, targetId, include.mode)
+      );
     }),
     // Embedded document content
     ...refs.map((ref) =>
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, ref.refId)),
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, ref.refId))
     ),
     // Author accounts
     ...document.authors.map((uid) =>
-      prefetchCtx.queryClient.prefetchQuery(queryAccount(client, uid)),
+      prefetchCtx.queryClient.prefetchQuery(queryAccount(client, uid))
     ),
-  ])
+  ]);
 }
 ```
 
@@ -86,56 +86,56 @@ Add these helper functions:
 ```typescript
 function getHomeDocumentFromCache(
   prefetchCtx: PrefetchContext,
-  homeId: UnpackedHypermediaId,
+  homeId: UnpackedHypermediaId
 ): HMDocument | null {
-  const client = serverUniversalClient
+  const client = serverUniversalClient;
   const resource = prefetchCtx.queryClient.getQueryData(
-    queryResource(client, homeId).queryKey,
-  ) as HMResource | null
-  return resource?.type === 'document' ? resource.document : null
+    queryResource(client, homeId).queryKey
+  ) as HMResource | null;
+  return resource?.type === "document" ? resource.document : null;
 }
 
 function buildBreadcrumbsFromCache(
   prefetchCtx: PrefetchContext,
   docId: UnpackedHypermediaId,
-  document: HMDocument,
+  document: HMDocument
 ): HMMetadataPayload[] {
-  const client = serverUniversalClient
-  const homeId = hmId(docId.uid, {latest: true})
+  const client = serverUniversalClient;
+  const homeId = hmId(docId.uid, { latest: true });
 
   // Get all descendants to find parent metadata
   const allDocs = prefetchCtx.queryClient.getQueryData(
-    queryDirectory(client, homeId, 'Children').queryKey,
-  ) as HMDocumentInfo[] | null
+    queryDirectory(client, homeId, "Children").queryKey
+  ) as HMDocumentInfo[] | null;
 
-  const crumbPaths = getParentPaths(docId.path).slice(0, -1)
+  const crumbPaths = getParentPaths(docId.path).slice(0, -1);
   const breadcrumbs = crumbPaths.map((crumbPath) => {
-    const id = hmId(docId.uid, {path: crumbPath})
-    const dirEntry = allDocs?.find((d) => d.id.id === id.id)
+    const id = hmId(docId.uid, { path: crumbPath });
+    const dirEntry = allDocs?.find((d) => d.id.id === id.id);
     return {
       id,
       metadata: dirEntry?.metadata || {},
-    }
-  })
+    };
+  });
 
   // Add current document
-  breadcrumbs.push({id: docId, metadata: document.metadata})
-  return breadcrumbs
+  breadcrumbs.push({ id: docId, metadata: document.metadata });
+  return breadcrumbs;
 }
 
 function buildAccountsMetadataFromCache(
   prefetchCtx: PrefetchContext,
-  authorUids: string[],
+  authorUids: string[]
 ): HMAccountsMetadata {
-  const client = serverUniversalClient
+  const client = serverUniversalClient;
   return Object.fromEntries(
     authorUids.map((uid) => {
       const account = prefetchCtx.queryClient.getQueryData(
-        queryAccount(client, uid).queryKey,
-      ) as HMMetadataPayload | null
-      return [uid, account || {id: hmId(uid), metadata: {}}]
-    }),
-  )
+        queryAccount(client, uid).queryKey
+      ) as HMMetadataPayload | null;
+      return [uid, account || { id: hmId(uid), metadata: {} }];
+    })
+  );
 }
 ```
 
@@ -148,38 +148,38 @@ async function loadResourcePayload(
   docId: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   payload: {
-    document: HMDocument
-    latestDocument?: HMDocument | null
-    comment?: HMComment
+    document: HMDocument;
+    latestDocument?: HMDocument | null;
+    comment?: HMComment;
   },
-  ctx?: InstrumentationContext,
+  ctx?: InstrumentationContext
 ): Promise<WebResourcePayload> {
-  const {document, latestDocument, comment} = payload
-  const prefetchCtx = createPrefetchContext()
-  const homeId = hmId(docId.uid, {latest: true})
+  const { document, latestDocument, comment } = payload;
+  const prefetchCtx = createPrefetchContext();
+  const homeId = hmId(docId.uid, { latest: true });
 
   // Prefetch all data for React Query hydration
-  await prefetchResourceData(docId, document, prefetchCtx, ctx)
+  await prefetchResourceData(docId, document, prefetchCtx, ctx);
 
   // Extract data from cache for SSR response
-  const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
-  const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document)
+  const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId);
+  const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document);
   const accountsMetadata = buildAccountsMetadataFromCache(
     prefetchCtx,
-    document.authors,
-  )
+    document.authors
+  );
 
   return {
     document,
     comment,
     accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: {...docId, version: document.version},
+    id: { ...docId, version: document.version },
     breadcrumbs,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),
     ...getOriginRequestData(parsedRequest),
-  }
+  };
 }
 ```
 
@@ -191,7 +191,7 @@ Add `entityQueryPathToHmIdPath` to the imports from `@shm/shared`:
 import {
   // ... existing imports ...
   entityQueryPathToHmIdPath,
-} from '@shm/shared'
+} from "@shm/shared";
 ```
 
 ### Step 5: Remove dead code
@@ -212,14 +212,14 @@ The new implementation should still support instrumentation. Wrap prefetch
 calls:
 
 ```typescript
-await instrument(ctx, 'prefetchWave1', () =>
+await instrument(ctx, "prefetchWave1", () =>
   Promise.allSettled([
     instrument(ctx, `prefetchResource(${packHmId(docId)})`, () =>
-      prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId)),
+      prefetchCtx.queryClient.prefetchQuery(queryResource(client, docId))
     ),
     // ... etc
-  ]),
-)
+  ])
+);
 ```
 
 ## Testing Strategy

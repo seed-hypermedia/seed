@@ -1,59 +1,59 @@
-import downloadBg from '@/assets/download-bg.png'
-import {useFullRender} from '@/cache-policy'
-import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
-import {defaultPageMeta} from '@/meta'
-import {PageFooter} from '@/page-footer'
-import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
-import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config.server'
-import {WebSiteHeader} from '@/web-site-header'
-import {unwrap} from '@/wrapping'
-import {useLoaderData} from '@remix-run/react'
-import {hmId} from '@shm/shared'
-import {Button} from '@shm/ui/button'
-import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
-import {SizableText} from '@shm/ui/text'
-import {useEffect, useState} from 'react'
-import {z} from 'zod'
-import {Container} from '../ui/container'
+import downloadBg from "@/assets/download-bg.png";
+import { useFullRender } from "@/cache-policy";
+import { loadSiteResource, SiteDocumentPayload } from "@/loaders";
+import { defaultPageMeta } from "@/meta";
+import { PageFooter } from "@/page-footer";
+import { NavigationLoadingContent, WebSiteProvider } from "@/providers";
+import { parseRequest } from "@/request";
+import { getConfig } from "@/site-config.server";
+import { WebSiteHeader } from "@/web-site-header";
+import { unwrap } from "@/wrapping";
+import { useLoaderData } from "@remix-run/react";
+import { hmId } from "@shm/shared";
+import { Button } from "@shm/ui/button";
+import { Download, Linux, Macos, Win32 } from "@shm/ui/icons";
+import { SizableText } from "@shm/ui/text";
+import { useEffect, useState } from "react";
+import { z } from "zod";
+import { Container } from "../ui/container";
 
 async function isArm64(): Promise<boolean | null> {
   // this check only works on chrome, not safari. So we need to handle null and offer both dl buttons
 
   // @ts-expect-error
   const values = await navigator.userAgentData?.getHighEntropyValues([
-    'architecture',
-  ])
-  if (!values) return null
-  return values.architecture === 'arm'
+    "architecture",
+  ]);
+  if (!values) return null;
+  return values.architecture === "arm";
 }
 
-function getOS(): undefined | 'mac' | 'windows' | 'linux' {
-  const platform = navigator?.platform?.toLowerCase()
-  if (!platform) return undefined
-  if (platform.includes('mac')) return 'mac'
-  if (platform.includes('win')) return 'windows'
-  if (platform.includes('linux')) return 'linux'
+function getOS(): undefined | "mac" | "windows" | "linux" {
+  const platform = navigator?.platform?.toLowerCase();
+  if (!platform) return undefined;
+  if (platform.includes("mac")) return "mac";
+  if (platform.includes("win")) return "windows";
+  if (platform.includes("linux")) return "linux";
 
-  return undefined
+  return undefined;
 }
 
 async function getPlatform() {
   return {
     os: getOS(),
     isArm64: await isArm64(),
-  }
+  };
 }
 
 const RELEASES_JSON_URL =
-  'https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json'
+  "https://seedreleases.s3.eu-west-2.amazonaws.com/prod/latest.json";
 
 const assetSchema = z.object({
   download_url: z.string().optional(),
   zip_url: z.string().optional(),
   nupkg_url: z.string().optional(),
   release_url: z.string().optional(),
-})
+});
 
 const releaseSchema = z.object({
   name: z.string(),
@@ -74,39 +74,39 @@ const releaseSchema = z.object({
       flatpak: assetSchema.optional(),
     }),
   }),
-})
+});
 
 async function loadUpstreamRelease() {
-  const response = await fetch(RELEASES_JSON_URL)
-  const data = await response.json()
-  return releaseSchema.parse(data)
+  const response = await fetch(RELEASES_JSON_URL);
+  const data = await response.json();
+  return releaseSchema.parse(data);
 }
 
-export const loader = async ({request}: {request: Request}) => {
-  const parsedRequest = parseRequest(request)
-  if (!useFullRender(parsedRequest)) return null
-  const {hostname} = parsedRequest
-  const serviceConfig = await getConfig(hostname)
-  if (!serviceConfig) throw new Error(`No config defined for ${hostname}`)
-  const {registeredAccountUid} = serviceConfig
+export const loader = async ({ request }: { request: Request }) => {
+  const parsedRequest = parseRequest(request);
+  if (!useFullRender(parsedRequest)) return null;
+  const { hostname } = parsedRequest;
+  const serviceConfig = await getConfig(hostname);
+  if (!serviceConfig) throw new Error(`No config defined for ${hostname}`);
+  const { registeredAccountUid } = serviceConfig;
   if (!registeredAccountUid)
-    throw new Error(`No registered account uid defined for ${hostname}`)
-  const stableRelease = await loadUpstreamRelease()
+    throw new Error(`No registered account uid defined for ${hostname}`);
+  const stableRelease = await loadUpstreamRelease();
   return await loadSiteResource(
     parsedRequest,
-    hmId(registeredAccountUid, {path: [], latest: true}),
+    hmId(registeredAccountUid, { path: [], latest: true }),
     {
       stableRelease,
-    },
-  )
-}
+    }
+  );
+};
 
-export const meta = defaultPageMeta('Download Seed Hypermedia')
+export const meta = defaultPageMeta("Download Seed Hypermedia");
 
 export default function DownloadPage() {
   const data = unwrap<
-    SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}
-  >(useLoaderData())
+    SiteDocumentPayload & { stableRelease: z.infer<typeof releaseSchema> }
+  >(useLoaderData());
   const {
     stableRelease,
     originHomeId,
@@ -115,24 +115,24 @@ export default function DownloadPage() {
     id,
     document,
     origin,
-  } = data
+  } = data;
   //   const os = getOS();
   const [platform, setPlatform] = useState<
     Awaited<ReturnType<typeof getPlatform>> | undefined
-  >(undefined)
+  >(undefined);
   useEffect(() => {
-    getPlatform().then(setPlatform)
-  }, [])
-  const suggestedButtons: React.ReactNode[] = []
-  if (platform?.os === 'mac') {
+    getPlatform().then(setPlatform);
+  }, []);
+  const suggestedButtons: React.ReactNode[] = [];
+  if (platform?.os === "mac") {
     if (platform.isArm64 || platform.isArm64 == null) {
       suggestedButtons.push(
         <ReleaseEntry
           large
           label="Download Seed for Mac (Apple Silicon)"
           asset={stableRelease.assets?.macos?.arm64}
-        />,
-      )
+        />
+      );
     }
     if (!platform.isArm64) {
       suggestedButtons.push(
@@ -140,18 +140,18 @@ export default function DownloadPage() {
           large
           label="Download Seed for Mac (Intel)"
           asset={stableRelease.assets?.macos?.x64}
-        />,
-      )
+        />
+      );
     }
-  } else if (platform?.os === 'windows') {
+  } else if (platform?.os === "windows") {
     suggestedButtons.push(
       <ReleaseEntry
         large
         label="Download Seed for Windows x64"
         asset={stableRelease.assets?.win32?.x64}
-      />,
-    )
-  } else if (platform?.os === 'linux') {
+      />
+    );
+  } else if (platform?.os === "linux") {
     suggestedButtons.push(
       <ReleaseEntry
         large
@@ -172,8 +172,8 @@ export default function DownloadPage() {
         large
         label="Download Seed for Linux (Flatpak)"
         asset={stableRelease.assets?.linux?.flatpak}
-      />,
-    )
+      />
+    );
   }
   return (
     <WebSiteProvider
@@ -183,7 +183,7 @@ export default function DownloadPage() {
     >
       <div
         className="bg-cover bg-top"
-        style={{backgroundImage: `url(${downloadBg})`}}
+        style={{ backgroundImage: `url(${downloadBg})` }}
       >
         <WebSiteHeader
           homeMetadata={homeMetadata}
@@ -241,7 +241,7 @@ export default function DownloadPage() {
         <PageFooter hideDeviceLinkToast={true} />
       </div>
     </WebSiteProvider>
-  )
+  );
 }
 
 function PlatformItem({
@@ -249,16 +249,16 @@ function PlatformItem({
   icon: Icon,
   assets,
 }: {
-  label: string
-  icon: any
-  assets: Record<string, z.infer<typeof assetSchema> | {} | undefined>
+  label: string;
+  icon: any;
+  assets: Record<string, z.infer<typeof assetSchema> | {} | undefined>;
 }) {
   const assetArray = Object.entries(assets)
-    .filter(([_, asset]) => asset && 'download_url' in asset)
+    .filter(([_, asset]) => asset && "download_url" in asset)
     .map(([key, asset]) => ({
       label: key,
       url: (asset as z.infer<typeof assetSchema>).download_url,
-    }))
+    }));
 
   return (
     <div className="border-border flex w-full flex-col items-center gap-3 rounded-md border bg-white p-4 shadow-xl sm:w-auto sm:min-w-3xs dark:bg-black">
@@ -274,21 +274,21 @@ function PlatformItem({
                 key={asset.label}
                 variant="link"
                 className={`plausible-event-name=download plausible-event-os=${asset.url
-                  .split('.')
+                  .split(".")
                   .pop()}`}
                 size="sm"
                 asChild
               >
-                <a href={asset.url} style={{textDecoration: 'none'}}>
+                <a href={asset.url} style={{ textDecoration: "none" }}>
                   <Download className="size-3" />
                   {asset.label}
                 </a>
               </Button>
-            ),
+            )
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function ReleaseEntry({
@@ -296,26 +296,26 @@ function ReleaseEntry({
   asset,
   large,
 }: {
-  label: string
-  asset?: z.infer<typeof assetSchema>
-  large?: boolean
+  label: string;
+  asset?: z.infer<typeof assetSchema>;
+  large?: boolean;
 }) {
-  if (!asset) return null
-  if (!asset.download_url) return null
+  if (!asset) return null;
+  if (!asset.download_url) return null;
   return (
     <Button
       asChild
       variant="default"
       className={`plausible-event-name=download p-8 plausible-event-os=${asset.download_url
-        .split('.')
+        .split(".")
         .pop()} self-center rounded-md`}
-      style={{textDecoration: 'none'}}
-      size={large ? 'lg' : 'default'}
+      style={{ textDecoration: "none" }}
+      size={large ? "lg" : "default"}
     >
       <a href={asset.download_url}>
-        <Download className={large ? 'size-6' : 'size-4'} />{' '}
+        <Download className={large ? "size-6" : "size-4"} />{" "}
         <span className="text-xl">{label}</span>
       </a>
     </Button>
-  )
+  );
 }

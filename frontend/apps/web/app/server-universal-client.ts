@@ -5,19 +5,19 @@
  * during server-side rendering to prefetch data into React Query cache.
  */
 
-import {UniversalClient} from '@shm/shared'
-import {APIRouter} from '@shm/shared/api'
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
-import type {HMRequest} from '@shm/shared/hm-types'
-import {grpcClient} from './client.server'
+import { UniversalClient } from "@shm/shared";
+import { APIRouter } from "@shm/shared/api";
+import { DAEMON_HTTP_URL } from "@shm/shared/constants";
+import type { HMRequest } from "@shm/shared/hm-types";
+import { grpcClient } from "./client.server";
 
 // queryDaemon for handlers that need direct HTTP access (e.g., GetCID)
 async function queryDaemon<T>(pathAndQuery: string): Promise<T> {
-  const response = await fetch(`${DAEMON_HTTP_URL}${pathAndQuery}`)
+  const response = await fetch(`${DAEMON_HTTP_URL}${pathAndQuery}`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${pathAndQuery}: ${response.statusText}`)
+    throw new Error(`Failed to fetch ${pathAndQuery}: ${response.statusText}`);
   }
-  return (await response.json()) as T
+  return (await response.json()) as T;
 }
 
 /**
@@ -26,15 +26,15 @@ async function queryDaemon<T>(pathAndQuery: string): Promise<T> {
  */
 export async function serverRequest<K extends keyof typeof APIRouter>(
   key: K,
-  input: Parameters<(typeof APIRouter)[K]['getData']>[1],
-): Promise<Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>> {
-  const apiDefinition = APIRouter[key]
+  input: Parameters<(typeof APIRouter)[K]["getData"]>[1]
+): Promise<Awaited<ReturnType<(typeof APIRouter)[K]["getData"]>>> {
+  const apiDefinition = APIRouter[key];
   const result = await apiDefinition.getData(
     grpcClient,
     input as never,
-    queryDaemon,
-  )
-  return result as Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
+    queryDaemon
+  );
+  return result as Awaited<ReturnType<(typeof APIRouter)[K]["getData"]>>;
 }
 
 /**
@@ -43,7 +43,7 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
  */
 export const serverUniversalClient: UniversalClient = {
   request: serverRequest as <Request extends HMRequest>(
-    key: Request['key'],
-    input: Request['input'],
-  ) => Promise<Request['output']>,
-}
+    key: Request["key"],
+    input: Request["input"]
+  ) => Promise<Request["output"]>,
+};

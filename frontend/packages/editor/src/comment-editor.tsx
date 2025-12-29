@@ -3,7 +3,7 @@ import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock
 import {HMBlockNode, HMMetadata} from '@shm/shared/hm-types'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {queryClient} from '@shm/shared/models/query-client'
-import {useAccount} from '@shm/shared/src/models/entity'
+import {useAccount} from '@shm/shared/models/entity'
 import {useTx} from '@shm/shared/translation'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'

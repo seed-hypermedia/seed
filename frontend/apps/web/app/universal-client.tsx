@@ -1,14 +1,14 @@
-import type {UnpackedHypermediaId} from '@shm/shared'
-import {createWebUniversalClient} from '@shm/shared'
-import WebCommenting from './commenting'
-import {deleteRecent, getRecents} from './local-db-recents'
-import {queryAPI} from './models'
+import type { UnpackedHypermediaId } from "@shm/shared";
+import { createWebUniversalClient } from "@shm/shared";
+import WebCommenting from "./commenting";
+import { deleteRecent, getRecents } from "./local-db-recents";
+import { queryAPI } from "./models";
 
 export const webUniversalClient = createWebUniversalClient({
   queryAPI,
-  CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
-    return <WebCommenting docId={docId} />
+  CommentEditor: ({ docId }: { docId: UnpackedHypermediaId }) => {
+    return <WebCommenting docId={docId} />;
   },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,
-})
+});

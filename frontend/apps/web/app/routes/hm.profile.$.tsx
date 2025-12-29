@@ -1,65 +1,65 @@
-import {MyAccountBubble} from '@/account-bubble'
+import { MyAccountBubble } from "@/account-bubble";
 import {
   EditProfileDialog,
   LinkKeysDialog,
   LogoutButton,
   useLocalKeyPair,
-} from '@/auth'
-import {loadProfilePageData, ProfilePagePayload} from '@/loaders'
-import {defaultPageMeta, defaultSiteIcon} from '@/meta'
-import {PageFooter} from '@/page-footer'
+} from "@/auth";
+import { loadProfilePageData, ProfilePagePayload } from "@/loaders";
+import { defaultPageMeta, defaultSiteIcon } from "@/meta";
+import { PageFooter } from "@/page-footer";
 import {
   getOptimizedImageUrl,
   NavigationLoadingContent,
   WebSiteProvider,
-} from '@/providers'
-import {parseRequest} from '@/request'
-import {WebSiteHeader} from '@/web-site-header'
-import {unwrap} from '@/wrapping'
-import {wrapJSON} from '@/wrapping.server'
-import {LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
-import {MetaDescriptor, useLoaderData} from '@remix-run/react'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useAccount} from '@shm/shared/models/entity'
-import {Button} from '@shm/ui/button'
-import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {HMProfilePage} from '@shm/ui/profile-page'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {cn} from '@shm/ui/utils'
-import {KeySquare} from 'lucide-react'
+} from "@/providers";
+import { parseRequest } from "@/request";
+import { WebSiteHeader } from "@/web-site-header";
+import { unwrap } from "@/wrapping";
+import { wrapJSON } from "@/wrapping.server";
+import { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { MetaDescriptor, useLoaderData } from "@remix-run/react";
+import { UnpackedHypermediaId } from "@shm/shared/hm-types";
+import { useAccount } from "@shm/shared/models/entity";
+import { Button } from "@shm/ui/button";
+import { extractIpfsUrlCid } from "@shm/ui/get-file-url";
+import { HMProfilePage } from "@shm/ui/profile-page";
+import { useAppDialog } from "@shm/ui/universal-dialog";
+import { cn } from "@shm/ui/utils";
+import { KeySquare } from "lucide-react";
 
-const defaultProfileMeta = defaultPageMeta('Profile')
+const defaultProfileMeta = defaultPageMeta("Profile");
 
-export const meta: MetaFunction = ({data}) => {
-  const payload = unwrap<ProfilePagePayload>(data)
-  if (!payload) return defaultProfileMeta()
+export const meta: MetaFunction = ({ data }) => {
+  const payload = unwrap<ProfilePagePayload>(data);
+  if (!payload) return defaultProfileMeta();
 
-  const meta: MetaDescriptor[] = []
+  const meta: MetaDescriptor[] = [];
   // Use origin site's home icon for favicon
   const homeIcon = payload.homeMetadata?.icon
-    ? getOptimizedImageUrl(extractIpfsUrlCid(payload.homeMetadata.icon), 'S')
-    : null
+    ? getOptimizedImageUrl(extractIpfsUrlCid(payload.homeMetadata.icon), "S")
+    : null;
   meta.push({
-    tagName: 'link',
-    rel: 'icon',
+    tagName: "link",
+    rel: "icon",
     href: homeIcon || defaultSiteIcon,
-    type: 'image/png',
-  })
+    type: "image/png",
+  });
   meta.push({
-    title: payload.profileName || 'Profile',
-  })
-  return meta
-}
+    title: payload.profileName || "Profile",
+  });
+  return meta;
+};
 
-export const loader = async ({request}: LoaderFunctionArgs) => {
-  const parsedRequest = parseRequest(request)
-  const uid = parsedRequest.pathParts[2]
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const parsedRequest = parseRequest(request);
+  const uid = parsedRequest.pathParts[2];
   if (!uid) {
-    throw new Response('Profile ID required', {status: 400})
+    throw new Response("Profile ID required", { status: 400 });
   }
-  const data = await loadProfilePageData(parsedRequest, uid)
-  return wrapJSON(data)
-}
+  const data = await loadProfilePageData(parsedRequest, uid);
+  return wrapJSON(data);
+};
 
 function ProfilePageContent({
   homeMetadata,
@@ -68,16 +68,16 @@ function ProfilePageContent({
   profileId,
   currentAccount,
 }: {
-  homeMetadata: ProfilePagePayload['homeMetadata']
-  originHomeId: UnpackedHypermediaId
-  origin: string
-  profileId: UnpackedHypermediaId
-  currentAccount?: string
+  homeMetadata: ProfilePagePayload["homeMetadata"];
+  originHomeId: UnpackedHypermediaId;
+  origin: string;
+  profileId: UnpackedHypermediaId;
+  currentAccount?: string;
 }) {
-  const editProfileDialog = useAppDialog(EditProfileDialog)
-  const account = useAccount(profileId.uid)
-  const isCurrentAccount = currentAccount === profileId.uid
-  const linkKeysDialog = useAppDialog(LinkKeysDialog)
+  const editProfileDialog = useAppDialog(EditProfileDialog);
+  const account = useAccount(profileId.uid);
+  const isCurrentAccount = currentAccount === profileId.uid;
+  const linkKeysDialog = useAppDialog(LinkKeysDialog);
   return (
     <>
       <div className="flex min-h-screen flex-1 flex-col items-center">
@@ -97,7 +97,7 @@ function ProfilePageContent({
                 hasSite: account.data?.hasSite,
               }}
               onEditProfile={() =>
-                editProfileDialog.open({accountUid: profileId.uid})
+                editProfileDialog.open({ accountUid: profileId.uid })
               }
               currentAccount={currentAccount}
               headerButtons={
@@ -123,15 +123,15 @@ function ProfilePageContent({
         {editProfileDialog.content}
       </div>
     </>
-  )
+  );
 }
 export default function ProfilePage() {
-  const {originHomeId, origin, homeMetadata, profileId, dehydratedState} =
-    unwrap<ProfilePagePayload>(useLoaderData())
-  const userKeyPair = useLocalKeyPair()
+  const { originHomeId, origin, homeMetadata, profileId, dehydratedState } =
+    unwrap<ProfilePagePayload>(useLoaderData());
+  const userKeyPair = useLocalKeyPair();
 
   if (!originHomeId) {
-    return <h2>Invalid origin home id</h2>
+    return <h2>Invalid origin home id</h2>;
   }
   return (
     <WebSiteProvider
@@ -147,7 +147,7 @@ export default function ProfilePage() {
         currentAccount={userKeyPair?.id}
       />
     </WebSiteProvider>
-  )
+  );
 }
 
 const PageContainer = ({
@@ -155,7 +155,7 @@ const PageContainer = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col items-center gap-5 rounded-sm p-4', className)}
+    className={cn("flex flex-col items-center gap-5 rounded-sm p-4", className)}
     {...props}
   />
-)
+);

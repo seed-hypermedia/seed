@@ -1,17 +1,17 @@
-import {vitePlugin as remix} from '@remix-run/dev'
+import { vitePlugin as remix } from "@remix-run/dev";
 // @ts-ignore
-import tailwindcss from '@tailwindcss/vite'
-import {sentryVitePlugin} from '@sentry/vite-plugin'
+import tailwindcss from "@tailwindcss/vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 
-import * as path from 'path'
-import {defineConfig} from 'vite'
-import commonjs from 'vite-plugin-commonjs'
-import tsconfigPaths from 'vite-tsconfig-paths'
+import * as path from "path";
+import { defineConfig } from "vite";
+import commonjs from "vite-plugin-commonjs";
+import tsconfigPaths from "vite-tsconfig-paths";
 
 // @ts-ignore
-import {envOnlyMacros} from 'vite-env-only'
+import { envOnlyMacros } from "vite-env-only";
 
-export default defineConfig(({isSsrBuild}) => {
+export default defineConfig(({ isSsrBuild }) => {
   return {
     server: {
       port: 3000,
@@ -28,14 +28,14 @@ export default defineConfig(({isSsrBuild}) => {
     // ssr: {
     //   noExternal: ["react-tweet"],
     // },
-    build: {minify: false, sourcemap: true},
+    build: { minify: false, sourcemap: true },
     ssr: {
-      noExternal: ['react-icons', '@shm/editor'],
+      noExternal: ["react-icons", "@shm/editor"],
     },
     define: isSsrBuild
       ? {}
       : {
-          'process.env': {
+          "process.env": {
             NODE_ENV: process.env.NODE_ENV,
             NODE_DEBUG: process.env.NODE_DEBUG,
             SEED_ENABLE_STATISTICS: process.env.SEED_ENABLE_STATISTICS,
@@ -44,14 +44,14 @@ export default defineConfig(({isSsrBuild}) => {
         },
     optimizeDeps: {
       exclude:
-        process.env.NODE_ENV === 'production'
+        process.env.NODE_ENV === "production"
           ? []
           : [
-              'expo-linear-gradient',
-              'react-icons',
-              '@shm/editor',
-              '@shm/shared',
-              '@remix-run/react',
+              "expo-linear-gradient",
+              "react-icons",
+              "@shm/editor",
+              "@shm/shared",
+              "@remix-run/react",
             ],
     },
     plugins: [
@@ -68,8 +68,8 @@ export default defineConfig(({isSsrBuild}) => {
       tsconfigPaths(),
       commonjs({
         filter(id) {
-          if (id.includes('node_modules/@react-native/normalize-color')) {
-            return true
+          if (id.includes("node_modules/@react-native/normalize-color")) {
+            return true;
           }
         },
       }),
@@ -86,31 +86,31 @@ export default defineConfig(({isSsrBuild}) => {
       // },
       tailwindcss(),
       // Add Sentry plugin for production builds
-      process.env.NODE_ENV === 'production' &&
+      process.env.NODE_ENV === "production" &&
         process.env.SENTRY_AUTH_TOKEN &&
         sentryVitePlugin({
           authToken: process.env.SENTRY_AUTH_TOKEN,
-          org: 'mintter',
-          project: 'seed-site',
+          org: "mintter",
+          project: "seed-site",
           telemetry: false,
         }),
     ].filter(Boolean),
     resolve: {
       dedupe: [
-        '@shm/shared',
-        '@shm/shared/*',
-        '@shm/editor',
-        '@shm/editor/*',
-        '@shm/ui',
-        '@shm/ui/*',
-        'react',
-        'react-dom',
+        "@shm/shared",
+        "@shm/shared/*",
+        "@shm/editor",
+        "@shm/editor/*",
+        "@shm/ui",
+        "@shm/ui/*",
+        "react",
+        "react-dom",
       ],
       alias: {
-        '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
-        '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
-        '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
+        "@shm/shared": path.resolve(__dirname, "../../packages/shared/src"),
+        "@shm/editor": path.resolve(__dirname, "../../packages/editor/src"),
+        "@shm/ui": path.resolve(__dirname, "../../packages/ui/src"),
       },
     },
-  }
-})
+  };
+});

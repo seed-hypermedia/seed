@@ -1,26 +1,28 @@
-import {hmId} from '@shm/shared'
-import {supportedLanguages} from '@shm/shared/language-packs'
-import {useAccount} from '@shm/shared/models/entity'
-import {Container} from '@shm/ui/container'
-import {useDocumentLayout} from '@shm/ui/layout'
-import {Separator} from '@shm/ui/separator'
-import {Spinner} from '@shm/ui/spinner'
-import {Text} from '@shm/ui/text'
-import {cn} from '@shm/ui/utils'
-import {Suspense, lazy} from 'react'
-import {MyAccountBubble} from './account-bubble'
-import {useLocalKeyPair} from './auth'
-import WebCommenting from './commenting'
-import type {SiteDocumentPayload} from './loaders'
-import {NavigationLoadingContent, WebSiteProvider} from './providers'
-import {WebSiteHeader} from './web-site-header'
+import { hmId } from "@shm/shared";
+import { supportedLanguages } from "@shm/shared/language-packs";
+import { useAccount } from "@shm/shared/models/entity";
+import { Container } from "@shm/ui/container";
+import { useDocumentLayout } from "@shm/ui/layout";
+import { Separator } from "@shm/ui/separator";
+import { Spinner } from "@shm/ui/spinner";
+import { Text } from "@shm/ui/text";
+import { cn } from "@shm/ui/utils";
+import { Suspense, lazy } from "react";
+import { MyAccountBubble } from "./account-bubble";
+import { useLocalKeyPair } from "./auth";
+import WebCommenting from "./commenting";
+import type { SiteDocumentPayload } from "./loaders";
+import { NavigationLoadingContent, WebSiteProvider } from "./providers";
+import { WebSiteHeader } from "./web-site-header";
 
-const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
+const Feed = lazy(() =>
+  import("@shm/ui/feed").then((m) => ({ default: m.Feed }))
+);
 
 export function FeedPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & { prefersLanguages?: string[] }
 ) {
-  const {siteHost, origin, prefersLanguages, dehydratedState} = props
+  const { siteHost, origin, prefersLanguages, dehydratedState } = props;
 
   return (
     <WebSiteProvider
@@ -32,17 +34,24 @@ export function FeedPage(
     >
       <InnerFeedPage {...props} />
     </WebSiteProvider>
-  )
+  );
 }
 
 function InnerFeedPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & { prefersLanguages?: string[] }
 ) {
-  const {homeMetadata, id, siteHost, originHomeId, origin, isLatest, document} =
-    props
+  const {
+    homeMetadata,
+    id,
+    siteHost,
+    originHomeId,
+    origin,
+    isLatest,
+    document,
+  } = props;
 
-  const keyPair = useLocalKeyPair()
-  const currentAccount = useAccount(keyPair?.id || undefined)
+  const keyPair = useLocalKeyPair();
+  const currentAccount = useAccount(keyPair?.id || undefined);
 
   const {
     showSidebars,
@@ -53,7 +62,7 @@ function InnerFeedPage(
   } = useDocumentLayout({
     contentWidth: undefined,
     showSidebars: false,
-  })
+  });
 
   return (
     <Suspense
@@ -84,13 +93,13 @@ function InnerFeedPage(
                 {...wrapperProps}
                 className={cn(
                   wrapperProps.className,
-                  'flex pt-[var(--site-header-h)] sm:pt-0',
+                  "flex pt-[var(--site-header-h)] sm:pt-0"
                 )}
               >
                 {showSidebars ? (
                   <div
                     {...sidebarProps}
-                    className={`${sidebarProps.className || ''} flex flex-col`}
+                    className={`${sidebarProps.className || ""} flex flex-col`}
                   />
                 ) : null}
                 <Container
@@ -98,7 +107,7 @@ function InnerFeedPage(
                   {...mainContentProps}
                   className={cn(
                     mainContentProps.className,
-                    'base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0',
+                    "base-doc-container relative mt-5 gap-4 sm:mr-10 sm:ml-0"
                   )}
                 >
                   <Text weight="bold" size="3xl">
@@ -124,7 +133,7 @@ function InnerFeedPage(
                 {showSidebars ? (
                   <div
                     {...sidebarProps}
-                    className={`${sidebarProps.className || ''} flex flex-col`}
+                    className={`${sidebarProps.className || ""} flex flex-col`}
                   />
                 ) : null}
               </div>
@@ -134,5 +143,5 @@ function InnerFeedPage(
         </NavigationLoadingContent>
       </div>
     </Suspense>
-  )
+  );
 }
