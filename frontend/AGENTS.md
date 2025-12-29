@@ -4,7 +4,7 @@
 
 - `./dev run-desktop` boots the desktop client against the default local stack; add `SEED_P2P_TESTNET_NAME=""` to point at mainnet peers.
 - `./dev run-site` serves the read-only web portal; `./dev build-desktop` and `./dev build-site` produce distributable bundles.
-- `yarn test` runs Vitest suites across workspaces; use `yarn desktop:test` or `yarn web:test` to focus on desktop or web packages.
+- `pnpm test` runs Vitest suites across workspaces; use `pnpm desktop:test` or `pnpm web:test` to focus on desktop or web packages.
 
 ## Coding Style & Naming Conventions
 
@@ -13,10 +13,10 @@
 
 ## When Editing TypeScript code
 
-- Always run the type check with `yarn typecheck`.
-- Before you are done, make sure formatting is correct with `yarn format:write`.
+- Always run the type check with `pnpm typecheck`.
+- Before you are done, make sure formatting is correct with `pnpm format:write`.
 
 ## Testing Guidelines
 
-- Unit and integration coverage is expected for new behavior; augment Vitest specs or add Playwright flows via `yarn desktop:test`.
+- Unit and integration coverage is expected for new behavior; augment Vitest specs or add Playwright flows via `pnpm desktop:test`.
 - Snapshot or fixture updates should include a short note in the PR describing the scenario they capture.

@@ -71,7 +71,7 @@ function insertExpectError(filePath, lineNumber) {
 
 function runWorkspaceTypecheck(wsName) {
   try {
-    const out = execSync(`yarn workspace ${wsName} typecheck`, {
+    const out = execSync(`pnpm --filter ${wsName} typecheck`, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });

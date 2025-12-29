@@ -7,25 +7,25 @@ Browse the data on the Hypermedia network
 ### Prerequisites
 
 - Node.js (v16+)
-- Yarn
+- pnpm
 
 ### Setup
 
 1. Install dependencies:
 
    ```bash
-   yarn install
+   pnpm install
    ```
 
 2. Start the development server:
 
    ```bash
-   yarn dev
+   pnpm dev
    ```
 
 3. Build for production:
    ```bash
-   yarn build
+   pnpm build
    ```
 
 ## Environment Variables
@@ -44,15 +44,15 @@ The app includes a settings panel accessible via the gear icon in the lower left
 
 ```
 cd frontend/apps/explore
-yarn
-yarn dev
+pnpm install
+pnpm dev
 ```
 
 ## Deploy
 
 ```
 cd frontend/apps/explore
-yarn
-yarn build
+pnpm install
+pnpm build
 # the build is in frontend/apps/explore/dist
 ```

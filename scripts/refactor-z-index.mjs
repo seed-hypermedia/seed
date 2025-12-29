@@ -163,7 +163,7 @@ function main() {
   console.log("   - Dropdowns should appear above content (z-50)");
   console.log("   - Tooltips and hover states (z-40)");
   console.log("   - Fixed navigation elements (z-40)");
-  console.log("3. Run tests: yarn web:test run");
+  console.log("3. Run tests: pnpm web:test run");
   console.log("4. Check mobile navigation functionality");
   console.log("5. Verify editor toolbars and menus work properly");
 

@@ -3,7 +3,7 @@
 To run the dev site service:
 
 ```
-yarn dev
+pnpm dev
 ```
 
 To run the site daemon:

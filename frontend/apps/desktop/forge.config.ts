@@ -131,7 +131,7 @@ const config: ForgeConfig = {
     appBundleId: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
-    // packageManager: 'yarn',
+    // packageManager: 'pnpm',
     extraResource: [daemonBinaryPath],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {

@@ -22,7 +22,7 @@
 git clone <repo>
 
 cd mintter
-yarn install
+pnpm install
 
 # desktop app: for local development
 ./dev run-desktop
@@ -42,7 +42,7 @@ yarn install
 
 ## Introduction
 
-The Seed Frontend architecture is based on a [yarn](https://yarnpkg.com) workspace. All the frontend code can be found inside the [`./frontend`](../../frontend) folder.
+The Seed Frontend architecture is based on a [pnpm](https://pnpm.io) workspace. All the frontend code can be found inside the [`./frontend`](../../frontend) folder.
 
 - all the apps packages are inside the [`apps`](../../frontend/apps) folder.
 - all the scoped packages that are reused inside each app are in the [`packages`](../../frontend/packages) folder.
@@ -58,7 +58,7 @@ Now let's describe each package and what it does
 6. [`packages/eslint-config-custom`](../../frontend/packages/eslint-config-custom): the base eslint config for all the frontend code
 7. [`packages/prettier-config`](../../frontend/packages/prettier-config): the base formatting config for all the frontend code.
 
-After you [setup the project](./dev-setup) on your local machine, you should have `yarn` available, so no need to install it globally.
+After you [setup the project](./dev-setup) on your local machine, you should have `pnpm` available, so no need to install it globally.
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ Please make sure that after you enter the repo root path, you see something simi
 
 [![dev setup showcase](https://img.youtube.com/vi/l5smHCf1AYA/0.jpg)](https://www.youtube.com/watch?v=l5smHCf1AYA)
 
-After this is correct, you should run `yarn install` (or `yarn`) to start the dev setup. [Mise](https://mise.jdx.dev) is helping us installing all the necessary tools and setup we need to run every script and app inside the repo. Don't worry of having the exact version of yarn or any other tool, mise got us covered!
+After this is correct, you should run `pnpm install` to start the dev setup. [Mise](https://mise.jdx.dev) is helping us installing all the necessary tools and setup we need to run every script and app inside the repo. Don't worry of having the exact version of pnpm or any other tool, mise got us covered!
 
 ## ./dev scripts
 

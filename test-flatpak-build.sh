@@ -43,7 +43,7 @@ echo "🔍 Validating Electron Forge configuration..."
 cd frontend/apps/desktop
 
 # Check if the package is installed
-if ! yarn list @electron-forge/maker-flatpak &> /dev/null; then
+if ! pnpm list @electron-forge/maker-flatpak &> /dev/null; then
     echo "❌ @electron-forge/maker-flatpak not found"
     exit 1
 fi
@@ -52,7 +52,7 @@ echo "✅ @electron-forge/maker-flatpak is installed"
 
 # Test TypeScript compilation
 echo "🔧 Testing TypeScript compilation..."
-yarn typecheck
+pnpm typecheck
 if [ $? -ne 0 ]; then
     echo "❌ TypeScript compilation failed"
     exit 1
@@ -78,7 +78,7 @@ console.log('   Finish args:', (flatpakMaker.config?.options?.finishArgs || []).
 
 echo ""
 echo "🎯 Next Steps:"
-echo "1. To test a full Flatpak build: yarn make --platform=linux"
+echo "1. To test a full Flatpak build: pnpm make --platform=linux"
 echo "2. To test daemon functionality, build and install the Flatpak"
 echo "3. Run the app and check logs for Flatpak detection"
 echo ""

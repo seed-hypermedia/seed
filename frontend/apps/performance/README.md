@@ -73,7 +73,7 @@ This framework is designed to be used in both development and CI environments to
 cd frontend/apps/performance
 
 # Install dependencies
-yarn install
+pnpm install
 ```
 
 ## Running Performance Tests
@@ -84,10 +84,10 @@ To run all performance tests with default settings:
 
 ```bash
 # From the project root
-yarn performance
+pnpm performance
 
 # OR from the performance directory
-yarn test
+pnpm test
 ```
 
 ### Advanced Options
@@ -96,38 +96,38 @@ The performance testing tool provides several command-line options:
 
 ```bash
 # Run specific scenarios
-yarn test --scenarios app-startup,dashboard-view,navigation-performance
+pnpm test --scenarios app-startup,dashboard-view,navigation-performance
 
 # Generate HTML dashboard
-yarn test:dashboard
+pnpm test:dashboard
 # OR
-yarn test --dashboard
+pnpm test --dashboard
 
 # Check performance against budgets
-yarn test --budget
+pnpm test --budget
 
 # Use a custom budget file
-yarn test --budget --budget-file ./custom-budgets.json
+pnpm test --budget --budget-file ./custom-budgets.json
 
 # Enable Chrome DevTools tracing
-yarn test --trace
+pnpm test --trace
 
 # Run Lighthouse audits
-yarn test --lighthouse --url http://localhost:9222
+pnpm test --lighthouse --url http://localhost:9222
 
 # Check adherence to performance best practices
-yarn test --best-practices
+pnpm test --best-practices
 
 # Specify output directory
-yarn test --output ./custom-results
+pnpm test --output ./custom-results
 
 # Fail CI if budget violations are found
-yarn test --budget --fail-on-budget-error
+pnpm test --budget --fail-on-budget-error
 
 # Run in CI mode
-yarn test:ci
+pnpm test:ci
 # OR
-yarn test --ci --dashboard --upload
+pnpm test --ci --dashboard --upload
 ```
 
 ## Available Scenarios
@@ -149,13 +149,13 @@ You can compare performance results between different runs to identify regressio
 
 ```bash
 # Compare current results with a baseline
-yarn test:performance-compare \
+pnpm test:performance-compare \
   --baseline ./baseline-metrics/perf-metrics-latest.json \
   --current ./current-metrics/perf-metrics-latest.json \
   --output ./comparison-report.html
 
 # Set a custom threshold for significant changes (default: 5%)
-yarn test:performance-compare --threshold 3
+pnpm test:performance-compare --threshold 3
 ```
 
 ## Performance Metrics
@@ -245,10 +245,10 @@ The project includes a modern visualization dashboard built with Vite, React, an
 cd ../performance-dashboard
 
 # Install dependencies
-yarn
+pnpm install
 
 # Start the development server
-yarn dev
+pnpm dev
 ```
 
 #### Building the Dashboard
@@ -256,7 +256,7 @@ yarn dev
 ```bash
 # Build the dashboard for production
 cd ../performance-dashboard
-yarn build
+pnpm build
 ```
 
 The built dashboard will be available in the `performance-dashboard/dist` directory and can be served by any static file server.
@@ -316,7 +316,7 @@ frontend/apps/
 For more detailed output while running tests:
 
 ```bash
-DEBUG=electron:*,playwright:* yarn test
+DEBUG=electron:*,playwright:* pnpm test
 ```
 
 ## Contributing
@@ -338,7 +338,7 @@ The simplest way to run Lighthouse audits is to let the framework automatically 
 
 ```bash
 # Run Lighthouse with automatic app launching
-yarn test --lighthouse
+pnpm test --lighthouse
 
 # Or use the helper script
 ./frontend/apps/performance/run-lighthouse.sh
@@ -358,7 +358,7 @@ Alternatively, if you need more control or want to test a specific URL:
    ```bash
    # Terminal 1: Start dev server
    cd your-electron-app-root
-   yarn dev   # or npm run dev
+   pnpm dev   # or npm run dev
    ```
 
 2. **Verify the URL** works in a browser (e.g., http://localhost:5173 for Vite)
@@ -367,7 +367,7 @@ Alternatively, if you need more control or want to test a specific URL:
    ```bash
    # Terminal 2: Run Lighthouse audit
    cd frontend/apps/performance
-   yarn test --lighthouse --url http://localhost:5173
+   pnpm test --lighthouse --url http://localhost:5173
    ```
 
 ### Common Issues
@@ -385,13 +385,13 @@ This error occurs when:
    ```bash
    # Start your development server in a separate terminal
    cd your-electron-app
-   yarn dev   # or npm run dev
+   pnpm dev   # or npm run dev
    ```
 
 2. **Incorrect URL**: Verify the URL in a regular browser first to see if it loads properly
    ```bash
    # In another terminal, run Lighthouse with the correct URL
-   yarn test --lighthouse --url http://localhost:5173
+   pnpm test --lighthouse --url http://localhost:5173
    ```
 
 3. **Port conflict**: Check if something else is using the specified port
@@ -423,7 +423,7 @@ For reliable Lighthouse audits with Electron apps:
    ```bash
    # Terminal 1: Start dev server
    cd your-electron-app-root
-   yarn dev   # or npm run dev
+   pnpm dev   # or npm run dev
    ```
 
 2. **Verify the URL** works in a browser (e.g., http://localhost:5173 for Vite)
@@ -432,7 +432,7 @@ For reliable Lighthouse audits with Electron apps:
    ```bash
    # Terminal 2: Run Lighthouse audit
    cd frontend/apps/performance
-   yarn test --lighthouse --url http://localhost:5173
+   pnpm test --lighthouse --url http://localhost:5173
    ```
 
 If you continue to have issues, try running Lighthouse directly against your app without the Chrome debugging port:

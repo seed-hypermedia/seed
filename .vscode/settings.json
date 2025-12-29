@@ -30,7 +30,7 @@
   "search.exclude": {
     ".bazel/**": true,
     "plz-out/**": true,
-    "**/.yarn": true,
+    "**/.pnpm": true,
     "**/.pnp.*": true,
     ".git/**": true,
     "**/node_modules/**": true,

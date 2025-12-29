@@ -145,7 +145,7 @@ try {
 
     // Generate index files for web performance results
     console.log("Generating index files for web performance results...");
-    execSync("yarn generate-index", {
+    execSync("pnpm generate-index", {
       cwd: path.resolve(__dirname, "../perf-web"),
       stdio: "inherit",
     });

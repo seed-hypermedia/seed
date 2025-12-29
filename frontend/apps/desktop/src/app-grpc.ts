@@ -36,7 +36,7 @@ const loggingInterceptor: Interceptor = (next) => async (req) => {
     let error = e
 
     if (e.message.match('stream.getReader is not a function')) {
-      error = new Error('RPC broken, try running yarn and ./dev gen')
+      error = new Error('RPC broken, try running pnpm install and ./dev gen')
     } else {
       log.error(`🚨 ${req.method.name} error`, {message: req.message, error})
     }

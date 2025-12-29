@@ -60,9 +60,9 @@
 
 **Test Scripts:**
 ```bash
-yarn desktop:test       # Full: build + E2E
-yarn desktop:test:only  # E2E only
-yarn desktop:test:unit  # Unit tests
+pnpm desktop:test       # Full: build + E2E
+pnpm desktop:test:only  # E2E only
+pnpm desktop:test:unit  # Unit tests
 ```
 
 **Issues:** E2E tests exist but DON'T run in CI
@@ -83,8 +83,8 @@ yarn desktop:test:unit  # Unit tests
 
 **Test Scripts:**
 ```bash
-yarn web:test   # Run all tests
-yarn web:test:w # Watch mode
+pnpm web:test   # Run all tests
+pnpm web:test:w # Watch mode
 ```
 
 **Issues:** Only 3 test files total, no E2E coverage for critical user flows
@@ -102,8 +102,8 @@ yarn web:test:w # Watch mode
 
 **Test Scripts:**
 ```bash
-yarn test   # Run tests
-yarn test:w # Watch mode
+pnpm test   # Run tests
+pnpm test:w # Watch mode
 ```
 
 **Issues:** Only 2 test files, no integration or E2E tests
@@ -129,7 +129,7 @@ yarn test:w # Watch mode
 
 **Test Scripts:**
 ```bash
-yarn shared:test # Run tests
+pnpm shared:test # Run tests
 ```
 
 **Issues:** None - good coverage for core utilities
@@ -148,10 +148,10 @@ yarn shared:test # Run tests
 
 **Test Scripts:**
 ```bash
-yarn test:e2e          # Run E2E tests
-yarn test:e2e:ui       # UI mode
-yarn test:e2e:headed   # Headed browser
-yarn test:e2e:debug    # Debug mode
+pnpm test:e2e          # Run E2E tests
+pnpm test:e2e:ui       # UI mode
+pnpm test:e2e:headed   # Headed browser
+pnpm test:e2e:debug    # Debug mode
 ```
 
 **Issues:** Comprehensive E2E tests exist but DON'T run in CI
@@ -187,7 +187,7 @@ We analyzed 4 GitHub Actions workflows:
 #### All 4 Workflows Run:
 ```yaml
 - name: Run tests
-  run: yarn test  # = yarn web:test && yarn shared:test && yarn desktop:test:unit
+  run: pnpm test  # = pnpm web:test && pnpm shared:test && pnpm desktop:test:unit
 ```
 
 **This includes:**
@@ -203,7 +203,7 @@ We analyzed 4 GitHub Actions workflows:
   run: go test ./backend/...
 
 - name: Run integration tests
-  run: cd tests && yarn test
+  run: cd tests && pnpm test
 ```
 
 **This includes:**
@@ -217,13 +217,13 @@ We analyzed 4 GitHub Actions workflows:
 
 1. **Desktop E2E Tests** ❌
    - **Files exist:** 4 E2E test files in `frontend/apps/desktop/tests/`
-   - **Command:** `yarn desktop:test:only`
+   - **Command:** `pnpm desktop:test:only`
    - **Impact:** Onboarding flows, home page navigation untested in CI
-   - **Why missing:** Desktop workflows only run `yarn test` (unit tests)
+   - **Why missing:** Desktop workflows only run `pnpm test` (unit tests)
 
 2. **Editor E2E Tests** ❌
    - **Files exist:** 3 E2E test files with 1,301 lines of tests
-   - **Command:** `yarn workspace @shm/editor test:e2e`
+   - **Command:** `pnpm workspace @shm/editor test:e2e`
    - **Impact:** Copy/paste, text formatting, block manipulation untested in CI
    - **Why missing:** No workflow includes editor E2E tests
 
@@ -253,10 +253,10 @@ frontend-tests:
   steps:
     # ... existing steps ...
     - name: Install Playwright browsers
-      run: yarn workspace @shm/desktop playwright install chromium
+      run: pnpm workspace @shm/desktop playwright install chromium
 
     - name: Run Desktop E2E Tests
-      run: yarn desktop:test:only
+      run: pnpm desktop:test:only
 ```
 
 ---
@@ -278,10 +278,10 @@ frontend-tests:
   steps:
     # ... existing steps ...
     - name: Install Playwright browsers for editor
-      run: yarn workspace @shm/editor playwright install chromium
+      run: pnpm workspace @shm/editor playwright install chromium
 
     - name: Run Editor E2E Tests
-      run: yarn workspace @shm/editor test:e2e
+      run: pnpm workspace @shm/editor test:e2e
 ```
 
 ---
@@ -300,7 +300,7 @@ frontend-tests:
 
 **Step 1: Add dependencies**
 ```bash
-yarn workspace @shm/ui add -D @testing-library/react @testing-library/jest-dom @testing-library/user-event vitest
+pnpm workspace @shm/ui add -D @testing-library/react @testing-library/jest-dom @testing-library/user-event vitest
 ```
 
 **Step 2: Create vitest config**
@@ -401,10 +401,10 @@ test('includes user name', () => {
 ```yaml
 # In .github/workflows/dev-desktop.yml and release-desktop.yml
 - name: Install Playwright browsers
-  run: yarn workspace @shm/desktop playwright install chromium
+  run: pnpm workspace @shm/desktop playwright install chromium
 
 - name: Run Desktop E2E Tests
-  run: yarn desktop:test:only
+  run: pnpm desktop:test:only
 ```
 
 ---
@@ -417,10 +417,10 @@ test('includes user name', () => {
 ```yaml
 # In .github/workflows/dev-docker-images.yml and release-docker-images.yml
 - name: Install Playwright browsers for editor
-  run: yarn workspace @shm/editor playwright install chromium
+  run: pnpm workspace @shm/editor playwright install chromium
 
 - name: Run Editor E2E Tests
-  run: yarn workspace @shm/editor test:e2e
+  run: pnpm workspace @shm/editor test:e2e
 ```
 
 ---
@@ -433,7 +433,7 @@ test('includes user name', () => {
 
 1. **Add dependencies:**
 ```bash
-yarn workspace @shm/ui add -D @testing-library/react @testing-library/jest-dom @testing-library/user-event vitest jsdom
+pnpm workspace @shm/ui add -D @testing-library/react @testing-library/jest-dom @testing-library/user-event vitest jsdom
 ```
 
 2. **Create vitest config:**
@@ -520,7 +520,7 @@ describe('Button', () => {
 **Setup:**
 ```bash
 cd frontend/apps/web
-yarn add -D @playwright/test
+pnpm add -D @playwright/test
 npx playwright init
 ```
 
@@ -532,7 +532,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   webServer: {
-    command: 'yarn start',
+    command: 'pnpm start',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
   },
@@ -657,7 +657,7 @@ export default defineConfig({
 **Add to CI:**
 ```yaml
 - name: Generate coverage report
-  run: yarn test --coverage
+  run: pnpm test --coverage
 
 - name: Upload coverage to Codecov
   uses: codecov/codecov-action@v3
@@ -707,33 +707,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: yarn install
+        run: pnpm install
 
       - name: Run unit tests
         if: matrix.test-suite == 'unit'
-        run: yarn test
+        run: pnpm test
 
       - name: Run integration tests
         if: matrix.test-suite == 'integration'
-        run: cd tests && yarn test
+        run: cd tests && pnpm test
 
       - name: Setup and run desktop E2E tests
         if: matrix.test-suite == 'e2e-desktop'
         run: |
-          yarn workspace @shm/desktop playwright install chromium
-          yarn desktop:test:only
+          pnpm workspace @shm/desktop playwright install chromium
+          pnpm desktop:test:only
 
       - name: Setup and run editor E2E tests
         if: matrix.test-suite == 'e2e-editor'
         run: |
-          yarn workspace @shm/editor playwright install chromium
-          yarn workspace @shm/editor test:e2e
+          pnpm workspace @shm/editor playwright install chromium
+          pnpm workspace @shm/editor test:e2e
 
       - name: Setup and run web E2E tests
         if: matrix.test-suite == 'e2e-web'
         run: |
-          yarn workspace @shm/web playwright install chromium
-          yarn workspace @shm/web test:e2e
+          pnpm workspace @shm/web playwright install chromium
+          pnpm workspace @shm/web test:e2e
 ```
 
 **Benefits:**
@@ -861,29 +861,29 @@ jobs:
         include:
           # Unit tests: fastest, run first
           - suite: unit-tests
-            command: yarn test
+            command: pnpm test
             needs-browsers: false
 
           # Integration tests
           - suite: integration-tests
-            command: cd tests && yarn test
+            command: cd tests && pnpm test
             needs-browsers: true
 
           # Desktop E2E tests
           - suite: desktop-e2e
-            command: yarn desktop:test:only
+            command: pnpm desktop:test:only
             needs-browsers: true
             browser-package: "@shm/desktop"
 
           # Editor E2E tests
           - suite: editor-e2e
-            command: yarn workspace @shm/editor test:e2e
+            command: pnpm workspace @shm/editor test:e2e
             needs-browsers: true
             browser-package: "@shm/editor"
 
           # Web E2E tests (when implemented)
           - suite: web-e2e
-            command: yarn workspace @shm/web test:e2e
+            command: pnpm workspace @shm/web test:e2e
             needs-browsers: true
             browser-package: "@shm/web"
 
@@ -894,15 +894,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: yarn install
+        run: pnpm install
 
       - name: Install Playwright browsers
         if: matrix.needs-browsers
         run: |
           if [ "${{ matrix.browser-package }}" != "" ]; then
-            yarn workspace ${{ matrix.browser-package }} playwright install chromium --with-deps
+            pnpm workspace ${{ matrix.browser-package }} playwright install chromium --with-deps
           else
-            cd tests && yarn test:install-browsers
+            cd tests && pnpm test:install-browsers
           fi
 
       - name: Run ${{ matrix.suite }}
@@ -938,17 +938,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: yarn install
-      - run: yarn test  # All unit tests together
+      - run: pnpm install
+      - run: pnpm test  # All unit tests together
 
   # Job 2: Integration tests
   integration-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: yarn install
-      - run: cd tests && yarn test:install-browsers
-      - run: cd tests && yarn test
+      - run: pnpm install
+      - run: cd tests && pnpm test:install-browsers
+      - run: cd tests && pnpm test
 
   # Job 3: All E2E tests in parallel
   e2e-tests:
@@ -958,15 +958,15 @@ jobs:
         suite: [desktop, editor]
     steps:
       - uses: actions/checkout@v4
-      - run: yarn install
+      - run: pnpm install
       - name: Install browsers
-        run: yarn workspace @shm/${{ matrix.suite }} playwright install chromium
+        run: pnpm workspace @shm/${{ matrix.suite }} playwright install chromium
       - name: Run E2E tests
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
-            yarn desktop:test:only
+            pnpm desktop:test:only
           else
-            yarn workspace @shm/${{ matrix.suite }} test:e2e
+            pnpm workspace @shm/${{ matrix.suite }} test:e2e
           fi
 ```
 
@@ -989,24 +989,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: yarn install
+      - run: pnpm install
 
       # Unit tests (Vitest already runs in parallel)
-      - run: yarn test
+      - run: pnpm test
 
       # Integration tests
-      - run: cd tests && yarn test:install-browsers
-      - run: cd tests && yarn test
+      - run: cd tests && pnpm test:install-browsers
+      - run: cd tests && pnpm test
 
       # Desktop E2E (enable parallel workers)
-      - run: yarn workspace @shm/desktop playwright install chromium
-      - run: yarn desktop:test:only
+      - run: pnpm workspace @shm/desktop playwright install chromium
+      - run: pnpm desktop:test:only
         env:
           PLAYWRIGHT_WORKERS: 4  # Enable parallel execution
 
       # Editor E2E (already parallel locally)
-      - run: yarn workspace @shm/editor playwright install chromium
-      - run: yarn workspace @shm/editor test:e2e
+      - run: pnpm workspace @shm/editor playwright install chromium
+      - run: pnpm workspace @shm/editor test:e2e
         env:
           PLAYWRIGHT_WORKERS: 4
 ```
@@ -1058,9 +1058,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: yarn install
+        run: pnpm install
       - name: Run unit tests
-        run: yarn test
+        run: pnpm test
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -1074,11 +1074,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: yarn install
+        run: pnpm install
       - name: Install Playwright browsers
-        run: cd tests && yarn test:install-browsers
+        run: cd tests && pnpm test:install-browsers
       - name: Run integration tests
-        run: cd tests && yarn test
+        run: cd tests && pnpm test
 
   e2e-tests:
     name: E2E Tests - ${{ matrix.suite }}
@@ -1090,15 +1090,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: yarn install
+        run: pnpm install
       - name: Install Playwright browsers
-        run: yarn workspace @shm/${{ matrix.suite }} playwright install chromium --with-deps
+        run: pnpm workspace @shm/${{ matrix.suite }} playwright install chromium --with-deps
       - name: Run E2E tests
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
-            yarn desktop:test:only
+            pnpm desktop:test:only
           else
-            yarn workspace @shm/${{ matrix.suite }} test:e2e
+            pnpm workspace @shm/${{ matrix.suite }} test:e2e
           fi
       - name: Upload test results
         if: failure()
@@ -1279,28 +1279,28 @@ After deployment, monitor:
 
 ```bash
 # Run all unit tests
-yarn test
+pnpm test
 
 # Run specific workspace tests
-yarn web:test
-yarn shared:test
-yarn workspace @shm/notify test
-yarn desktop:test:unit
+pnpm web:test
+pnpm shared:test
+pnpm workspace @shm/notify test
+pnpm desktop:test:unit
 
 # Run E2E tests
-yarn desktop:test        # Build + E2E
-yarn desktop:test:only   # E2E only
-yarn workspace @shm/editor test:e2e
+pnpm desktop:test        # Build + E2E
+pnpm desktop:test:only   # E2E only
+pnpm workspace @shm/editor test:e2e
 
 # Run integration tests
-cd tests && yarn test
+cd tests && pnpm test
 
 # Run with coverage
-yarn test --coverage
+pnpm test --coverage
 
 # Run in watch mode
-yarn web:test:w
-yarn desktop:test:unit:watch
+pnpm web:test:w
+pnpm desktop:test:unit:watch
 ```
 
 ---
@@ -1333,7 +1333,7 @@ yarn desktop:test:unit:watch
 ### E. Questions & Answers
 
 **Q: Why aren't desktop E2E tests running in CI?**
-A: The workflows only run `yarn test` which includes unit tests. Desktop E2E requires `yarn desktop:test:only` which isn't called.
+A: The workflows only run `pnpm test` which includes unit tests. Desktop E2E requires `pnpm desktop:test:only` which isn't called.
 
 **Q: Will parallelization make tests flaky?**
 A: Possibly. E2E tests can be flaky when run in parallel. Mitigation: use retries, isolate test data, ensure proper test cleanup.

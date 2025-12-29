@@ -6,8 +6,8 @@ This app uses Playwright for E2E testing.
 
 ```bash
 cd <REPO>
-yarn desktop:package
-yarn desktop:e2e
+pnpm desktop:package
+pnpm desktop:e2e
 ```
 
 ## Create new E2E tests

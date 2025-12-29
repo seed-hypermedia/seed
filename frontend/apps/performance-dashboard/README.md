@@ -23,34 +23,34 @@ This dashboard provides a visual interface to explore performance test results f
 ### Prerequisites
 
 - Node.js 18 or higher
-- Yarn package manager
+- pnpm package manager
 
 ### Installation
 
 ```bash
 # Install dependencies
-yarn
+pnpm install
 ```
 
 ### Development Server
 
 ```bash
 # Start the development server
-yarn dev
+pnpm dev
 ```
 
 ### Building for Production
 
 ```bash
 # Build the dashboard for production
-yarn build
+pnpm build
 ```
 
 ### Serving the Production Build
 
 ```bash
 # Serve the production build locally
-yarn serve
+pnpm serve
 ```
 
 ## Project Structure
@@ -130,18 +130,18 @@ The dashboard automatically updates when new performance test results are availa
 1. For Electron performance:
    ```bash
    cd ../performance
-   yarn test
+   pnpm test
    ```
 
 2. For Web performance:
    ```bash
    cd ../perf-web
-   yarn test web    # Test web app
-   yarn test landing # Test landing page
+   pnpm test web    # Test web app
+   pnpm test landing # Test landing page
    ```
 
 3. Copy results to the dashboard:
    ```bash
    cd ../performance-dashboard
-   yarn copy-results
+   pnpm copy-results
    ```
