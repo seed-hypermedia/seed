@@ -125,7 +125,7 @@ jobs:
       - name: Build, package & make (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
-          pnpm desktop:publish --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           DEBUG: electron-*,electron-installer-flatpak*,@malept/flatpak-bundler
@@ -174,7 +174,7 @@ jobs:
         run: |
           # Clear any existing out directory to force a clean build
           if (Test-Path "frontend/apps/desktop/out") { Remove-Item -Recurse -Force "frontend/apps/desktop/out" }
-          pnpm desktop:publish --arch=${{ matrix.config.arch }}
+          yarn desktop:publish --arch=${{ matrix.config.arch }}
         env:
           timeout-minutes: 10
           DEBUG: electron-*

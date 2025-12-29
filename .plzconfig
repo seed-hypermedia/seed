@@ -23,4 +23,4 @@ DirClean = true
 [buildconfig]
 go-tool = //build/tools:go
 md5sum-tool = //build/tools:md5sum
-pnpm-tool = //build/tools:pnpm
+yarn-tool = //build/tools:yarn

@@ -58,35 +58,30 @@ jobs:
           echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
 
       # Build and test performance before Docker build
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: "yarn"
 
       - name: Install Dependencies
-        run: pnpm install
+        run: yarn install
 
       - name: Build Web App
-        run: pnpm web:prod
+        run: yarn web:prod
 
       - name: Build Notify App
-        run: pnpm notify:build
+        run: yarn notify:build
 
       - name: Start Web Server
         run: |
-          pnpm web:start &
+          yarn web:start &
           sleep 5 # Wait for server to start
 
       - name: Run Performance Tests
         run: |
           cd frontend/apps/perf-web
-          pnpm start --url http://localhost:3000 --app web
+          yarn start --url http://localhost:3000 --app web
 
       # Checkout the repository to the GitHub Actions runner
       - name: Set up Docker Buildx

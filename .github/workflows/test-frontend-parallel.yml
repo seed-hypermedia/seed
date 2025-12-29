@@ -28,28 +28,23 @@ jobs:
       - name: Check for new TypeScript directives
         run: node scripts/check-ts-directives.mjs
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
       - name: Install dependencies
-        run: pnpm install
+        run: yarn install
 
       - name: Validate Code Formatting
-        run: pnpm format:check
+        run: yarn format:check
 
       - name: Run typecheck
-        run: pnpm typecheck
+        run: yarn typecheck
 
       - name: Run Web Unit tests
-        run: pnpm --filter @shm/web test
+        run: yarn workspace @shm/web test
 
       - name: Run Shared Unit Tests
-        run: pnpm --filter @shm/shared test
+        run: yarn workspace @shm/shared test
 
       - name: Run Desktop Unit Tests
-        run: pnpm --filter @shm/desktop test:unit
+        run: yarn workspace @shm/desktop test:unit
 
   # Job 2: Integration tests (only for docker workflows)
   integration-tests:
@@ -58,31 +53,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: "yarn"
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.25.4"
       - name: Install dependencies
-        run: pnpm install
+        run: yarn install
       - name: Build daemon binary
         run: |
           mkdir -p plz-out/bin/backend
           go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
       - name: Build web app
-        run: pnpm web:prod
+        run: yarn web:prod
       - name: Install Playwright browsers
-        run: cd tests && pnpm test:install-browsers
+        run: cd tests && yarn test:install-browsers
       - name: Run integration tests
-        run: cd tests && pnpm test
+        run: cd tests && yarn test
 
   # Job 3: E2E tests (desktop and editor in parallel)
   e2e-tests:
@@ -96,36 +87,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: "yarn"
 
       - name: Install dependencies
-        run: pnpm install
+        run: yarn install
 
       - name: Install Playwright browsers
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
             echo 'SKIP DESKTOP E2E FOR NOW.'
-            # pnpm --filter @shm/desktop playwright install chromium --with-deps
+            # yarn workspace @shm/desktop playwright install chromium --with-deps
           else
-            pnpm --filter @shm/editor playwright install chromium --with-deps
+            yarn workspace @shm/editor playwright install chromium --with-deps
           fi
 
       - name: Run E2E tests
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
             echo 'SKIP DESKTOP E2E FOR NOW.'
-            # pnpm desktop:test
+            # yarn desktop:test
           else
-            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' pnpm --filter @shm/editor test:e2e
+            xvfb-run --auto-servernum --server-args='-screen 0, 1920x1080x24' yarn workspace @shm/editor test:e2e
           fi
 
       - name: Upload test results

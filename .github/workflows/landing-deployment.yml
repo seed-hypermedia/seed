@@ -31,33 +31,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
-
+          cache: "yarn"
       - name: Install Frontend Dependencies
+        env:
+          YARN_ENABLE_IMMUTABLE_INSTALLS: false
         run: |
-          pnpm install
+          yarn
 
       - name: Build
-        run: pnpm landing:build
+        run: yarn landing:build
 
       - name: Start Landing Preview
         run: |
-          pnpm landing:preview &
+          yarn landing:preview &
           sleep 5 # Wait for server to start
 
       - name: Run Performance Tests
         run: |
           cd frontend/apps/perf-web
-          pnpm start --url http://localhost:4173 --app landing
+          yarn start --url http://localhost:4173 --app landing
 
       - name: Setup SSH key and SCP
         run: |

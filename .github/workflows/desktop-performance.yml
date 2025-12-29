@@ -54,16 +54,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
       - name: Install dependencies
-        run: pnpm install
+        run: yarn install
       - name: Validate Code Formatting
-        run: pnpm format:check
+        run: yarn format:check
       - name: Run tests
-        run: pnpm test
+        run: yarn test
   performance-tests:
     name: Run Desktop Performance Tests
     runs-on: ubuntu-latest
@@ -94,7 +90,7 @@ jobs:
 
       - name: Build, package & make (Unix)
         run: |
-          pnpm desktop:make --arch=x64
+          yarn desktop:make --arch=x64
         env:
           timeout-minutes: 10
           DEBUG: electron-*
@@ -144,7 +140,7 @@ jobs:
 
           # Run performance tests with all features enabled and debug output
           ELECTRON_ENABLE_LOGGING=true DEBUG=electron-*,playwright* xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
-            bash -c "cd frontend/apps/desktop && pnpm test:performance:full"
+            bash -c "cd frontend/apps/desktop && yarn test:performance:full"
         env:
           NODE_ENV: production
           DISPLAY: ":99.0"
@@ -201,7 +197,7 @@ jobs:
           aws s3 ls s3://${{ env.S3_BUCKET_NAME }}/main/ --recursive | sort -r | head -n 1 | awk '{print $4}' | xargs -I{} aws s3 cp s3://${{ env.S3_BUCKET_NAME }}/{} baseline-metrics/
 
           # Generate comparison report
-          cd frontend/apps/desktop && pnpm test:performance-compare \
+          cd frontend/apps/desktop && yarn test:performance-compare \
             --baseline baseline-metrics \
             --current electron-perf-data \
             --output electron-perf-data/comparison-report.html \

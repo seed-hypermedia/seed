@@ -9,18 +9,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Building and Type Checking
 ```bash
 # Build shared package types first (required for type checking)
-pnpm --filter @shm/shared build:types
+yarn workspace @shm/shared build:types
 
 # Run type checking across all workspaces
-pnpm typecheck
+yarn typecheck
 
 # Format code
-pnpm format:check
-pnpm format:write
+yarn format:check
+yarn format:write
 
 # Security audit
-pnpm security:check       # Check production dependencies for vulnerabilities
-pnpm security:check:dev   # Check development dependencies for vulnerabilities
+yarn security:check       # Check production dependencies for vulnerabilities
+yarn security:check:dev   # Check development dependencies for vulnerabilities
 ```
 
 ### Running Applications
@@ -33,56 +33,56 @@ pnpm security:check:dev   # Check development dependencies for vulnerabilities
 # Run desktop app on production network
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 
-# Alternative using pnpm
-pnpm desktop
+# Alternative using yarn
+yarn desktop
 ```
 
 **Web App:**
 ```bash
 # Run web app in development mode
-pnpm web
+yarn web
 
 # Build web app for production
-pnpm web:prod
+yarn web:prod
 
 # Run web app with standalone backend
-pnpm web:dev:standalone
+yarn web:dev:standalone
 ```
 
 ### Testing
 ```bash
 # Run all tests
-pnpm test
+yarn test
 
 # Run web app tests
-pnpm web:test
-pnpm web:test run <testFileName>  # Run specific test file
+yarn web:test
+yarn web:test run <testFileName>  # Run specific test file
 
-# Run shared package tests
-pnpm --filter @shm/shared test run
+# Run shared package tests  
+yarn workspace @shm/shared test run
 
 # Run desktop app tests
-pnpm desktop:test       # Build the Electron app and Full E2E test suite
-pnpm desktop:test:only  # E2E tests only
+yarn desktop:test       # Build the Electron app and Full E2E test suite
+yarn desktop:test:only  # E2E tests only
 ```
 
 ### Single Test Execution
 ```bash
 # For web tests
-pnpm web:test run <testFileName>
+yarn web:test run <testFileName>
 
 # For shared package tests
-pnpm --filter @shm/shared test run <testFileName>
+yarn workspace @shm/shared test run <testFileName>
 ```
 
 ## Architecture Overview
 
 ### Project Structure
-The codebase follows a monorepo structure using pnpm workspaces:
+The codebase follows a monorepo structure using Yarn workspaces:
 
 - **`frontend/apps/`**: Application codebases
   - `desktop/`: Electron-based desktop application
-  - `web/`: Remix-based web application
+  - `web/`: Remix-based web application  
   - `explore/`, `landing/`, `performance/`: Supporting applications
 
 - **`frontend/packages/`**: Shared packages
@@ -114,12 +114,12 @@ The codebase follows a monorepo structure using pnpm workspaces:
 ### Development Tools
 - **`./dev`**: Main development CLI tool for running common tasks
 - Mise and Direnv for environment management
-- pnpm for package management
+- Yarn 3 for package management
 - Vite for frontend bundling
 
 ## Important Notes
 
-- Always run `pnpm --filter @shm/shared build:types` before type checking to ensure types are built
+- Always run `yarn workspace @shm/shared build:types` before type checking to ensure types are built
 - Tests should be run automatically when modifying code with existing test files
 - The desktop app uses Electron Forge for building and packaging
 - Web app uses Remix with server-side rendering
