@@ -3,6 +3,7 @@ def pnpm_install(
         srcs = [
             "package.json",
             "pnpm-lock.yaml",
+            "node_modules/.modules.yaml",
         ],
         deps = [],
         labels = [],
@@ -33,7 +34,7 @@ HOME=$(eval echo ~$(whoami))
 TMPDIR="/tmp"
 cd $WORKSPACE
 $TOOLS_PNPM install --frozen-lockfile
-echo "installed" > $OUT
+ln -s $WORKSPACE/node_modules/.modules.yaml $OUT
 """,
         tools = {
             "pnpm": [CONFIG.PNPM_TOOL],
