@@ -89,7 +89,7 @@ export function SidebarFooter({
     )
   }
   return (
-    <div className="dark:bg-background border-border bg-background mb-2 flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
+    <div className="dark:bg-background border-border bg-background mb-px flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger
           className="flex w-full min-w-0 items-center justify-start gap-2 rounded-md bg-transparent px-1 py-1 pr-3"

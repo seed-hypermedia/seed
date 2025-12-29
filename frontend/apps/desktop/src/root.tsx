@@ -41,7 +41,7 @@ import {
   onQueryCacheError,
   onQueryInvalidation,
 } from '@shm/shared/models/query-client'
-import {labelOfQueryKey, queryKeys} from '@shm/shared/models/query-keys'
+import {labelOfQueryKey} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
@@ -486,6 +486,9 @@ function MainApp({}: {}) {
               </NavigationContainer>
 
               <Toaster />
+
+              {/* Dev tool: floating button to test loading window */}
+              {/* {!IS_PROD_DESKTOP && <LoadingWindowTestButton />} */}
             </ErrorBoundary>
           </Suspense>
         </AppContextProvider>
@@ -537,6 +540,64 @@ function SpinnerWithText(props: {message: string; delay?: number}) {
       >
         {message}
       </SizableText>
+    </div>
+  )
+}
+
+function LoadingWindowTestButton() {
+  const handleOpen = () => {
+    ipc.send?.('open_loading_window', null)
+  }
+
+  const handleClose = () => {
+    ipc.send?.('close_loading_window', null)
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '1rem',
+        right: '1rem',
+        display: 'flex',
+        gap: '0.5rem',
+        zIndex: 9999,
+      }}
+    >
+      <button
+        onClick={handleOpen}
+        style={{
+          padding: '0.75rem 1rem',
+          backgroundColor: '#3b82f6',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+        }}
+      >
+        Open Loading
+      </button>
+      <button
+        onClick={handleClose}
+        style={{
+          padding: '0.75rem 1rem',
+          backgroundColor: '#ef4444',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '0.875rem',
+          fontWeight: '600',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+        }}
+      >
+        Close Loading
+      </button>
     </div>
   )
 }
