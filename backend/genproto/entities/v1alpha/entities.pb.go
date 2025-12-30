@@ -260,8 +260,6 @@ type DiscoverEntityResponse struct {
 	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	// The state of the discovery task.
 	State DiscoveryTaskState `protobuf:"varint,2,opt,name=state,proto3,enum=com.seed.entities.v1alpha.DiscoveryTaskState" json:"state,omitempty"`
-	// The number of times we've called the discovery process for this entity and version so far.
-	CallCount int32 `protobuf:"varint,3,opt,name=call_count,json=callCount,proto3" json:"call_count,omitempty"`
 	// The timestamp of the last result we've found.
 	// It can be empty if the discovery is still in progress.
 	LastResultTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_result_time,json=lastResultTime,proto3" json:"last_result_time,omitempty"`
@@ -319,13 +317,6 @@ func (x *DiscoverEntityResponse) GetState() DiscoveryTaskState {
 		return x.State
 	}
 	return DiscoveryTaskState_DISCOVERY_TASK_STARTED
-}
-
-func (x *DiscoverEntityResponse) GetCallCount() int32 {
-	if x != nil {
-		return x.CallCount
-	}
-	return 0
 }
 
 func (x *DiscoverEntityResponse) GetLastResultTime() *timestamppb.Timestamp {
@@ -1637,17 +1628,15 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x1c\n" +
-	"\trecursive\x18\x04 \x01(\bR\trecursive\"\x8f\x03\n" +
+	"\trecursive\x18\x04 \x01(\bR\trecursive\"\xf6\x02\n" +
 	"\x16DiscoverEntityResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12C\n" +
-	"\x05state\x18\x02 \x01(\x0e2-.com.seed.entities.v1alpha.DiscoveryTaskStateR\x05state\x12\x1d\n" +
-	"\n" +
-	"call_count\x18\x03 \x01(\x05R\tcallCount\x12D\n" +
+	"\x05state\x18\x02 \x01(\x0e2-.com.seed.entities.v1alpha.DiscoveryTaskStateR\x05state\x12D\n" +
 	"\x10last_result_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastResultTime\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\x05 \x01(\tR\tlastError\x12H\n" +
 	"\x12result_expire_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x10resultExpireTime\x12H\n" +
-	"\bprogress\x18\a \x01(\v2,.com.seed.entities.v1alpha.DiscoveryProgressR\bprogress\"\xf8\x01\n" +
+	"\bprogress\x18\a \x01(\v2,.com.seed.entities.v1alpha.DiscoveryProgressR\bprogressJ\x04\b\x03\x10\x04\"\xf8\x01\n" +
 	"\x11DiscoveryProgress\x12\x1f\n" +
 	"\vpeers_found\x18\x01 \x01(\x05R\n" +
 	"peersFound\x12&\n" +

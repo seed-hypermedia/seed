@@ -6,16 +6,25 @@ import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {
+  HMMetadata,
+  HMResourceVisibility,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
-import {Tooltip} from '@shm/ui/tooltip'
 import {
   ChevronDown,
   ChevronRight,
@@ -24,6 +33,7 @@ import {
   FilePlus2,
   Home,
   Library,
+  Lock,
 } from 'lucide-react'
 import React, {memo} from 'react'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -93,19 +103,29 @@ export function MainAppSidebar() {
 
 function CreateDocumentButton() {
   const createDraft = useCreateDraft()
+  const createPrivateDraft = useCreateDraft({visibility: 'PRIVATE'})
   const myAccountIds = useMyAccountIds()
   if (!myAccountIds.data?.length) return null
   return (
-    <Tooltip content="Create Document" side="bottom">
-      <Button
-        variant="default"
-        onClick={() => createDraft()}
-        className="mb-5 w-full justify-center"
-      >
-        <FilePlus2 color="currentColor" size={16} />{' '}
-        <span className="truncate">Create Document</span>
-      </Button>
-    </Tooltip>
+    <DropdownMenu>
+      <DropdownMenuTrigger className="mb-5 w-full">
+        <Button variant="default" className="w-full justify-center">
+          <FilePlus2 color="currentColor" size={16} />{' '}
+          <span className="truncate">Create Document</span>
+          <ChevronDown size={14} className="ml-1 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onClick={() => createDraft()}>
+          <FilePlus2 size={16} />
+          Public Document
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => createPrivateDraft()}>
+          <Lock size={16} />
+          Private Document
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 function SidebarSection({
@@ -170,6 +190,7 @@ function FavoritesSection() {
             id={id}
             metadata={metadata}
             active={route.key === 'document' && route.id.id === id.id}
+            visibility={document?.visibility}
           />
         )
       })}
@@ -181,10 +202,12 @@ function FavoriteListItem({
   id,
   metadata,
   active,
+  visibility,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
   active: boolean
+  visibility?: HMResourceVisibility
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
@@ -196,6 +219,7 @@ function FavoriteListItem({
       icon={
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
       }
+      accessory={visibility === 'PRIVATE' ? <Lock size={12} /> : null}
       {...linkProps}
     />
   )

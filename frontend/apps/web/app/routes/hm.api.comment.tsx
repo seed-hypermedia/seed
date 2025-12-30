@@ -94,7 +94,10 @@ export const action: ActionFunction = async ({request}) => {
     dependencies,
     commentId: resultCommentId,
     // @ts-expect-error
-    comment: commentResult.toJson(),
+    comment: commentResult.toJson({
+      emitDefaultValues: true,
+      enumAsInteger: false,
+    }),
     targetId,
   } satisfies CommentResponsePayload)
 }

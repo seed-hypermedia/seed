@@ -131,8 +131,8 @@ type docCRDT struct {
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
 	clock        *cclock.Clock
-	actorsIntern map[string]string
-	vectorClock  map[string]time.Time
+	actorsIntern map[core.PrincipalUnsafeString]core.PrincipalUnsafeString
+	vectorClock  map[core.PrincipalUnsafeString]time.Time
 }
 
 func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
@@ -144,8 +144,8 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		stateMetadata: btree.New[[]string, *mvReg[any]](8, slices.Compare),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
-		actorsIntern:  make(map[string]string),
-		vectorClock:   make(map[string]time.Time),
+		actorsIntern:  make(map[core.PrincipalUnsafeString]core.PrincipalUnsafeString),
+		vectorClock:   make(map[core.PrincipalUnsafeString]time.Time),
 	}
 	e.clock = clock
 	return e
@@ -310,7 +310,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		}
 	}
 
-	var actor string
+	var actor core.PrincipalUnsafeString
 	{
 		au := ch.Signer.UnsafeString()
 		a, ok := e.actorsIntern[au]

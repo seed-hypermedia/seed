@@ -73,6 +73,7 @@ export function SmallListItem({
   isDraft,
   multiline = false,
   docId,
+  accessory,
   ...props
 }: ButtonProps & {
   active?: boolean
@@ -88,6 +89,7 @@ export function SmallListItem({
   isDraft?: boolean
   multiline?: boolean
   docId?: string
+  accessory?: ReactNode
 }) {
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
   const highlighter = useHighlighter()
@@ -121,21 +123,24 @@ export function SmallListItem({
         ) : null}
         {children}
 
-        <SizableText
-          size="sm"
-          className={cn(
-            `flex-1 ${
-              multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
-            } mobile-menu-item-label w-full text-left select-none`.trim(),
-            bold && 'font-bold',
-          )}
-          style={{
-            color: typeof color === 'string' ? color : undefined,
-          }}
-        >
-          {title}
-        </SizableText>
-        {isDraft ? <DraftBadge /> : null}
+        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
+          <SizableText
+            size="sm"
+            className={cn(
+              `${
+                multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
+              } mobile-menu-item-label text-left select-none`.trim(),
+              bold && 'font-bold',
+            )}
+            style={{
+              color: typeof color === 'string' ? color : undefined,
+            }}
+          >
+            {title}
+          </SizableText>
+          {isDraft ? <DraftBadge /> : null}
+          {accessory}
+        </div>
       </div>
       {isCollapsed != null ? (
         <Button

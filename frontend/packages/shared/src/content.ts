@@ -89,7 +89,9 @@ export function clipContentBlocks(
   return output
 }
 
-export function getDocumentTitle(document?: HMDocument | null) {
+export function getDocumentTitle(
+  document?: Pick<HMDocument, 'metadata' | 'path'> | null,
+) {
   if (!document) {
     return 'Error: document not found'
   }

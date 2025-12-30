@@ -5,9 +5,9 @@
  * They accept a UniversalClient instance, enabling use in both SSR and client contexts.
  */
 
-import type {UniversalClient} from '../universal-client'
 import type {
   HMAccountRequest,
+  HMDocumentInfo,
   HMInteractionSummaryOutput,
   HMInteractionSummaryRequest,
   HMListCapabilitiesOutput,
@@ -23,8 +23,9 @@ import type {
   HMResource,
   HMResourceRequest,
   UnpackedHypermediaId,
-  HMDocumentInfo,
 } from '../hm-types'
+import {HMQueryResultSchema, HMResourceSchema} from '../hm-types'
+import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'
 import {queryKeys} from './query-keys'
 
@@ -40,7 +41,8 @@ export function queryResource(
     queryKey: [queryKeys.ENTITY, id?.id, version] as const,
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      return await client.request<HMResourceRequest>('Resource', id)
+      const res = await client.request<HMResourceRequest>('Resource', id)
+      return HMResourceSchema.parse(res)
     },
     enabled: !!id,
   }
@@ -75,7 +77,7 @@ export function queryDirectory(
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, mode] as const,
     queryFn: async (): Promise<HMDocumentInfo[]> => {
       if (!id) return []
-      const results = await client.request<HMQueryRequest>('Query', {
+      const result = await client.request<HMQueryRequest>('Query', {
         includes: [
           {
             space: id.uid,
@@ -84,7 +86,8 @@ export function queryDirectory(
           },
         ],
       })
-      return results?.results || []
+      if (!result) return []
+      return HMQueryResultSchema.parse(result).results
     },
     enabled: !!id,
   }

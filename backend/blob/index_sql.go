@@ -205,7 +205,6 @@ func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (
 
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetBytes(":blobsMultihash", blobsMultihash)
-		stmt.SetBool(":publicOnly", publicOnly)
 	}
 
 	onStep := func(i int, stmt *sqlite.Stmt) error {
@@ -218,7 +217,15 @@ func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (
 		return nil
 	}
 
-	err := sqlitegen.ExecStmt(conn, qBlobsGetSize(), before, onStep)
+	if publicOnly {
+		err := sqlitegen.ExecStmt(conn, qBlobsGetSizePublic(), before, onStep)
+		if err != nil {
+			err = fmt.Errorf("failed query: BlobsGetSizePublic: %w", err)
+		}
+		return out, err
+	}
+
+	err := sqlitegen.ExecStmt(conn, qBlobsGetSizeAll(), before, onStep)
 	if err != nil {
 		err = fmt.Errorf("failed query: BlobsGetSize: %w", err)
 	}
@@ -226,15 +233,21 @@ func dbBlobsGetSize(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (
 	return out, err
 }
 
-var qBlobsGetSize = dqb.Str(`
+var qBlobsGetSizePublic = dqb.Str(`
 	SELECT
 		blobs.id,
-		blobs.size,
-		public_blobs.id IS NOT NULL AS is_public
+		blobs.size
 	FROM blobs INDEXED BY blobs_metadata_by_hash
-	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
+	JOIN public_blobs ON blobs.id = public_blobs.id
 	WHERE blobs.multihash = :blobsMultihash
-	AND is_public >= :publicOnly
+`)
+
+var qBlobsGetSizeAll = dqb.Str(`
+	SELECT
+		blobs.id,
+		blobs.size
+	FROM blobs INDEXED BY blobs_metadata_by_hash
+	WHERE blobs.multihash = :blobsMultihash
 `)
 
 func dbBlobsGetGenesis(conn *sqlite.Conn, id int64) (genesis int64, err error) {

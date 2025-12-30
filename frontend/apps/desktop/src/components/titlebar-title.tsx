@@ -6,7 +6,6 @@ import {
 import {useDraft} from '@/models/accounts'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {useDirectoryWithDrafts, useResources} from '@shm/shared/models/entity'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {NewSubDocumentButton} from '@/pages/document'
@@ -20,7 +19,12 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {
+  useAccount,
+  useDirectoryWithDrafts,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {ContactRoute, DraftRoute, ProfileRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -709,6 +713,7 @@ function PathItemCard({
                     id={item.id}
                     draftId={item.draftId}
                     isPublished={item.isPublished}
+                    visibility={item.visibility}
                   />
                 )
               })}
@@ -824,10 +829,14 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     return undefined
   }, [draft.data, route.editUid, route.editPath])
 
+  // For private drafts, we only show the account root since the path is a random nanoid.
+  const isPrivate =
+    route.visibility === 'PRIVATE' || draft.data?.visibility === 'PRIVATE'
+
   if (locationId)
     return (
       <BreadcrumbTitle
-        entityId={locationId}
+        entityId={isPrivate ? hmId(locationId.uid) : locationId}
         hideControls
         draftName={draft.data?.metadata?.name || 'New Draft'}
         draft

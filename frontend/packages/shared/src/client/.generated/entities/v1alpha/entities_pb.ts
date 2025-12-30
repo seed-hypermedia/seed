@@ -219,13 +219,6 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
   state = DiscoveryTaskState.DISCOVERY_TASK_STARTED;
 
   /**
-   * The number of times we've called the discovery process for this entity and version so far.
-   *
-   * @generated from field: int32 call_count = 3;
-   */
-  callCount = 0;
-
-  /**
    * The timestamp of the last result we've found.
    * It can be empty if the discovery is still in progress.
    *
@@ -266,7 +259,6 @@ export class DiscoverEntityResponse extends Message<DiscoverEntityResponse> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "version", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "state", kind: "enum", T: proto3.getEnumType(DiscoveryTaskState) },
-    { no: 3, name: "call_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "last_result_time", kind: "message", T: Timestamp },
     { no: 5, name: "last_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "result_expire_time", kind: "message", T: Timestamp },

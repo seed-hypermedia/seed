@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -41,7 +40,9 @@ import (
 
 // Discoverer is an interface for discovering objects.
 type Discoverer interface {
-	DiscoverObjectWithProgress(ctx context.Context, i blob.IRI, v blob.Version, recursive bool, prog *syncing.DiscoveryProgress) (blob.Version, error)
+	// TouchHotTask returns or creates a discovery task for the given parameters.
+	// The task is ephemeral (evicts when not called) unless a subscription exists for the same IRI.
+	TouchHotTask(iri blob.IRI, version blob.Version, recursive bool) syncing.TaskInfo
 }
 
 // Server implements Entities API.
@@ -50,17 +51,13 @@ type Server struct {
 
 	db   *sqlitex.Pool
 	disc Discoverer
-
-	mu             sync.Mutex
-	discoveryTasks map[discoveryTaskKey]*discoveryTask
 }
 
 // NewServer creates a new entities server.
 func NewServer(db *sqlitex.Pool, disc Discoverer) *Server {
 	return &Server{
-		db:             db,
-		disc:           disc,
-		discoveryTasks: make(map[discoveryTaskKey]*discoveryTask),
+		db:   db,
+		disc: disc,
 	}
 }
 
@@ -103,67 +100,44 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 
 	v := blob.Version(in.Version)
 
-	dkey := discoveryTaskKey{
-		IRI:       iri,
-		Version:   v,
-		Recursive: in.Recursive,
-	}
-
-	now := time.Now()
-
-	var task *discoveryTask
-	api.mu.Lock()
-	task = api.discoveryTasks[dkey]
-	if task == nil {
-		task = &discoveryTask{
-			key:          dkey,
-			createTime:   now,
-			callCount:    1,
-			lastCallTime: now,
-			state:        entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED,
-			prog:         &syncing.DiscoveryProgress{},
-		}
-		api.discoveryTasks[dkey] = task
-		api.mu.Unlock()
-
-		task.mu.Lock()
-		go task.start(api)
-		defer task.mu.Unlock()
-
-		return &entities.DiscoverEntityResponse{
-			State:     task.state,
-			CallCount: int32(task.callCount),
-			Progress:  progressToProto(task.prog),
-		}, nil
-	}
-	api.mu.Unlock()
-
-	task.mu.Lock()
-	defer task.mu.Unlock()
-
-	task.callCount++
-	task.lastCallTime = now
+	// Delegate to syncing service for task management.
+	info := api.disc.TouchHotTask(iri, v, in.Recursive)
 
 	resp := &entities.DiscoverEntityResponse{
-		Version:   task.lastResult.String(),
-		State:     task.state,
-		CallCount: int32(task.callCount),
-		Progress:  progressToProto(task.prog),
+		Version:  info.Result.String(),
+		State:    stateToProto(info.State),
+		Progress: progressToProto(info.Progress),
 	}
 
-	if task.lastErr != nil {
-		resp.LastError = task.lastErr.Error()
+	if info.LastErr != nil {
+		resp.LastError = info.LastErr.Error()
 	}
 
-	if !task.lastResultTime.IsZero() {
-		resp.LastResultTime = timestamppb.New(task.lastResultTime)
-		resp.ResultExpireTime = timestamppb.New(task.lastResultTime.Add(lastResultTTL))
+	if !info.LastResultTime.IsZero() {
+		resp.LastResultTime = timestamppb.New(info.LastResultTime)
+		resp.ResultExpireTime = timestamppb.New(info.LastResultTime.Add(lastResultTTL))
 	}
 
 	return resp, nil
 }
 
-func progressToProto(prog *syncing.DiscoveryProgress) *entities.DiscoveryProgress {
+func stateToProto(state syncing.TaskState) entities.DiscoveryTaskState {
+	switch state {
+	case syncing.TaskStateIdle:
+		return entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED
+	case syncing.TaskStateInProgress:
+		return entities.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
+	case syncing.TaskStateCompleted:
+		return entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED
+	default:
+		return entities.DiscoveryTaskState_DISCOVERY_TASK_STARTED
+	}
+}
+
+func progressToProto(prog *syncing.Progress) *entities.DiscoveryProgress {
+	if prog == nil {
+		return &entities.DiscoveryProgress{}
+	}
 	return &entities.DiscoveryProgress{
 		PeersFound:      prog.PeersFound.Load(),
 		PeersSyncedOk:   prog.PeersSyncedOK.Load(),
@@ -171,64 +145,6 @@ func progressToProto(prog *syncing.DiscoveryProgress) *entities.DiscoveryProgres
 		BlobsDiscovered: prog.BlobsDiscovered.Load(),
 		BlobsDownloaded: prog.BlobsDownloaded.Load(),
 		BlobsFailed:     prog.BlobsFailed.Load(),
-	}
-}
-
-type discoveryTaskKey struct {
-	IRI       blob.IRI
-	Version   blob.Version
-	Recursive bool
-}
-
-type discoveryTask struct {
-	mu sync.Mutex
-
-	key            discoveryTaskKey
-	createTime     time.Time
-	callCount      int
-	lastCallTime   time.Time
-	lastResultTime time.Time
-	lastResult     blob.Version
-	lastErr        error
-
-	state entities.DiscoveryTaskState
-	prog  *syncing.DiscoveryProgress
-}
-
-func (task *discoveryTask) start(api *Server) {
-	for {
-		task.mu.Lock()
-		task.state = entities.DiscoveryTaskState_DISCOVERY_TASK_IN_PROGRESS
-		task.prog = &syncing.DiscoveryProgress{}
-		task.mu.Unlock()
-
-		res, err := api.disc.DiscoverObjectWithProgress(context.Background(), task.key.IRI, task.key.Version, task.key.Recursive, task.prog)
-		now := time.Now()
-		task.mu.Lock()
-		task.lastResultTime = now
-		task.lastResult = res
-		task.lastErr = err
-		task.state = entities.DiscoveryTaskState_DISCOVERY_TASK_COMPLETED
-		task.mu.Unlock()
-
-		time.Sleep(lastResultTTL)
-
-		// If the frontend keeps periodically calling discovery,
-		// we want to keep this loop running.
-		task.mu.Lock()
-		if time.Since(task.lastCallTime) <= taskTTL {
-			task.mu.Unlock()
-			continue
-		}
-
-		// If the frontend stops calling discovery periodically,
-		// we want to stop this loop and remove the task from the map,
-		// to avoid the map growing boundlessly.
-		api.mu.Lock()
-		delete(api.discoveryTasks, task.key)
-		task.mu.Unlock()
-		api.mu.Unlock()
-		return
 	}
 }
 

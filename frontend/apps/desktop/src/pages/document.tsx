@@ -22,7 +22,6 @@ import {
 } from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
@@ -47,6 +46,7 @@ import {
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -660,7 +660,7 @@ function DocPageHeader({
       const contact = authorContacts[a]
       const resource = authorResources[index]
       const isDiscovering = resource?.isDiscovering
-      // Use resource data if available, fall back to contacts
+      // Use resource data if available, fall back to contacts.
       const metadata =
         resource?.data?.type === 'document'
           ? resource.data.document?.metadata
@@ -678,6 +678,7 @@ function DocPageHeader({
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
       documentTools={documentTools}
+      visibility={document.visibility}
     />
   )
 }

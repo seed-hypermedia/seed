@@ -6,16 +6,19 @@ import (
 	"encoding/hex"
 	"fmt"
 	"seed/backend/blob"
+	"seed/backend/core"
 	p2p "seed/backend/genproto/p2p/v1alpha"
 	"seed/backend/hmnet/syncing/rbsr"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/ipfs/boxo/blockstore"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	rpcpeer "google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	"seed/backend/util/colx"
@@ -28,16 +31,16 @@ import (
 // Server is the RPC handler for the syncing service.
 type Server struct {
 	db      *sqlitex.Pool
-	blobs   blockstore.Blockstore
+	index   *blob.Index
 	bitswap bitswap
 }
 
 // NewServer creates a new RPC handler instance.
 // It has to be further registered with the actual [grpc.Server].
-func NewServer(db *sqlitex.Pool, bs blockstore.Blockstore, bswap bitswap) *Server {
+func NewServer(db *sqlitex.Pool, index *blob.Index, bswap bitswap) *Server {
 	return &Server{
 		db:      db,
-		blobs:   bs,
+		index:   index,
 		bitswap: bswap,
 	}
 }
@@ -136,56 +139,45 @@ func (s *Server) AnnounceBlobs(in *p2p.AnnounceBlobsRequest, stream grpc.ServerS
 		return fmt.Errorf("failed to initiate bitswap session: %w", err)
 	}
 
-	// We don't want to wait forever for bitswap to fetch all the blobs,
-	// so if we haven't downloaded all of them yet, but we stopped receiving new data
-	// for longer than idle timeout — we'll stop waiting.
-	const idleTimeout = 40 * time.Second
-	idle := time.NewTimer(idleTimeout)
-	defer idle.Stop()
+	download := func() error {
+		const idleTimeout = 40 * time.Second
+		t := time.NewTimer(idleTimeout)
+		defer t.Stop()
 
-Loop:
-	for {
-		select {
-		case blk, ok := <-ch:
-			if !ok {
-				break Loop
-			}
+		for {
+			select {
+			case blk, ok := <-ch:
+				if !ok {
+					return nil
+				}
 
-			idle.Reset(idleTimeout)
-			downloaded[wantsIdx[blk.Cid()]] = blk
-			prog.BlobsProcessed++
-			if err := stream.Send(prog); err != nil {
-				return err
+				t.Reset(idleTimeout)
+				downloaded[wantsIdx[blk.Cid()]] = blk
+				prog.BlobsProcessed++
+				if err := stream.Send(prog); err != nil {
+					return err
+				}
+			case <-t.C:
+				// Account for failures and stop waiting.
+				prog.BlobsFailed = int32(len(wants)) - prog.BlobsProcessed //nolint:gosec
+				prog.BlobsProcessed = int32(len(wants))                    //nolint:gosec
+				return stream.Send(prog)
 			}
-		case <-idle.C:
-			// Account for failures and stop waiting.
-			prog.BlobsFailed = int32(len(wants)) - prog.BlobsProcessed //nolint:gosec
-			prog.BlobsProcessed = int32(len(wants))                    //nolint:gosec
-			if err := stream.Send(prog); err != nil {
-				return err
-			}
-			break Loop
 		}
 	}
 
-	// Compact the downloaded blobs to remove any nils (the failed blobs).
-	{
-		var n int
-		for _, x := range downloaded {
-			if x == nil {
-				continue
-			}
-			downloaded[n] = x
-			n++
-		}
-		downloaded = downloaded[:n]
+	if err := download(); err != nil {
+		return fmt.Errorf("failed to download blobs: %w", err)
 	}
+
+	// Remove nils — i.e. blobs we couldn't download.
+	downloaded = slices.DeleteFunc(downloaded, func(x blocks.Block) bool { return x == nil })
 
 	if len(downloaded) == 0 {
 		return nil
 	}
 
-	if err := s.blobs.PutMany(ctx, downloaded); err != nil {
+	if err := s.index.PutMany(ctx, downloaded); err != nil {
 		return fmt.Errorf("failed to put blobs: %w", err)
 	}
 
@@ -223,15 +215,28 @@ func (s *Server) ReconcileBlobs(ctx context.Context, in *p2p.ReconcileBlobsReque
 }
 
 func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Store, error) {
-	store := rbsr.NewSliceStore()
+	store := newAuthorizedStore()
 
 	dkeys := make(colx.HashSet[DiscoveryKey], len(filters))
+	requestedIRIs := make([]blob.IRI, 0, len(filters))
 	for _, f := range filters {
 		f.Resource = strings.TrimSuffix(f.Resource, "/")
+		iri := blob.IRI(f.Resource)
 		dkeys.Put(DiscoveryKey{
-			IRI:       blob.IRI(f.Resource),
+			IRI:       iri,
 			Recursive: f.Recursive,
 		})
+		requestedIRIs = append(requestedIRIs, iri)
+	}
+
+	// Get authorized spaces for the calling peer.
+	pid, err := getRemoteID(ctx)
+	var authorizedSpaces []core.Principal
+	if err == nil {
+		authorizedSpaces, err = s.index.GetAuthorizedSpacesForPeer(ctx, pid, requestedIRIs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -240,5 +245,26 @@ func (s *Server) loadStore(ctx context.Context, filters []*p2p.Filter) (rbsr.Sto
 		return nil, err
 	}
 
-	return store, store.Seal()
+	if err := store.Seal(); err != nil {
+		return nil, err
+	}
+
+	store = store.WithFilter(authorizedSpaces)
+
+	return store, nil
+}
+
+// getRemoteID extracts the remote peer ID from the gRPC context.
+func getRemoteID(ctx context.Context) (peer.ID, error) {
+	info, ok := rpcpeer.FromContext(ctx)
+	if !ok {
+		return "", fmt.Errorf("no peer info in context")
+	}
+
+	pid, err := peer.Decode(info.Addr.String())
+	if err != nil {
+		return "", err
+	}
+
+	return pid, nil
 }

@@ -7,8 +7,6 @@ import {
 import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {useQuery} from '@tanstack/react-query'
 import {pathNameify} from '@/utils/path'
 import {
   createSiteUrl,
@@ -26,6 +24,7 @@ import {
   useResource,
   useResources,
 } from '@shm/shared/models/entity'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -43,6 +42,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
+import {useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo, useState} from 'react'
 
 export function LocationPicker({
@@ -64,7 +64,7 @@ export function LocationPicker({
   const newUrlPath = location?.path?.at(-1) || ''
 
   function handleSetLocation(location: UnpackedHypermediaId) {
-    // make sure the account can write to this location. if not, change the account to the account who can.
+    // Make sure the account can write to this location.
     // @ts-ignore
     const allAcctsWithWrite = writableDocuments.filter((d) => {
       if (isIdParentOfOrEqual(d.entity.id, location)) return true
@@ -100,6 +100,7 @@ export function LocationPicker({
   }, [!newDestinationAlreadyDocument])
   const parentId = useParentId(location)
   const {data: directory} = useDirectory(parentId, {mode: 'Children'})
+
   return (
     <div className="my-4 flex flex-col gap-3">
       {location ? (

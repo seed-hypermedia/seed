@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"regexp"
 	"seed/backend/blob"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
@@ -21,9 +22,19 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+// HmRe is the regular expression to parse IRIS with versions and latest flag.
+var HmRe = regexp.MustCompile(
+	`^hm://` +
+		`(?P<account>[A-Za-z0-9]+)` + // account (required)
+		`(?P<path>/[^?#]+)?` + // path (optional, starts with /)
+		`(?:\?v=(?P<version>[A-Za-z0-9-_@/]+))?` + // version (optional)
+		`(?P<latest>&l)?$`, // latest flag (optional)
 )
 
 // PushResourcesToPeer implements the corresponding gRPC method.
@@ -31,41 +42,31 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	ctx := stream.Context()
 
 	dkeys := make(map[syncing.DiscoveryKey]struct{}, len(req.Resources))
+	spaces := make(map[core.PrincipalUnsafeString]struct{})
 	for _, res := range req.Resources {
-		m := syncing.HmRe.FindStringSubmatch(res)
-		if m == nil {
-			return fmt.Errorf("invalid resource format: %s", res)
+		u, err := url.Parse(res)
+		if err != nil {
+			return fmt.Errorf("failed to parse resource URL: %w", err)
 		}
-		result := map[string]string{}
-		for i, name := range syncing.HmRe.SubexpNames() {
-			if i == 0 || name == "" {
-				continue
-			}
-			result[name] = m[i]
-		}
-		if _, ok := result["account"]; !ok || result["account"] == "" {
-			return fmt.Errorf("resource missing account: %s", res)
-		}
-		if _, ok := result["path"]; !ok {
-			result["path"] = ""
-		}
-		resource := "hm://" + result["account"] + result["path"]
-		dkeys[syncing.DiscoveryKey{IRI: blob.IRI(resource), Recursive: req.Recursive}] = struct{}{}
-	}
 
-	var cids []syncing.CIDWithTS
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
-		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true)
-		return err
-	}); err != nil {
-		return err
-	}
+		if u.Scheme != "hm" {
+			return fmt.Errorf("unsupported resource scheme: %s", u.Scheme)
+		}
 
-	request := &p2p.AnnounceBlobsRequest{
-		Cids: make([]string, len(cids)),
-	}
-	for i, c := range cids {
-		request.Cids[i] = c.CID.String()
+		space, err := core.DecodePrincipal(u.Host)
+		if err != nil {
+			return fmt.Errorf("failed to decode principal: %w", err)
+		}
+
+		path := u.Path
+
+		iri, err := blob.NewIRI(space, path)
+		if err != nil {
+			return fmt.Errorf("failed to create IRI: %w", err)
+		}
+
+		dkeys[syncing.DiscoveryKey{IRI: iri}] = struct{}{}
+		spaces[space.UnsafeString()] = struct{}{}
 	}
 
 	// We want to support connecting to plain peer IDs, so we need to convert it into multiaddr.
@@ -81,10 +82,61 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 		return fmt.Errorf("failed to parse multiaddr: %w", err)
 	}
 
-	syncClient, err := srv.sync.SyncingClient(ctx, info.ID, info.Addrs...)
+	// Determine which spaces' private blobs we can share with the target peer.
+	// We only include private blobs for spaces where the target peer is the siteURL server.
+	// For other spaces, only public blobs are included.
+	var authorizedSpaces []core.Principal
+	for x := range spaces {
+		space := x.Unwrap()
+		siteURL, err := srv.idx.GetSiteURL(ctx, space)
+		if err != nil || siteURL == "" {
+			continue
+		}
+		// Check if the target peer matches the siteURL server.
+		// We need to resolve siteURL to peer ID via HTTP.
+		resolvedInfo, err := srv.idx.ResolveSiteURL(ctx, siteURL)
+		if err != nil {
+			continue
+		}
+		if resolvedInfo.ID == info.ID {
+			authorizedSpaces = append(authorizedSpaces, space)
+		}
+	}
+
+	// Get related material with proper authorization.
+	// If authorizedSpaces is empty, only public blobs are included.
+	// If authorizedSpaces has entries, those spaces' private blobs are also included.
+	var cids []syncing.CIDWithTS
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) (err error) {
+		cids, err = syncing.GetRelatedMaterial(conn, dkeys, true, authorizedSpaces)
+		return err
+	}); err != nil {
+		return err
+	}
+
+	// Convert CIDs to cid.Cid slice for allowlist.
+	cidList := make([]cid.Cid, len(cids))
+	for i, c := range cids {
+		cidList[i] = c.CID
+	}
+
+	requestID := gonanoid.Must(16)
+	// Allowlist the blobs for this peer during the push operation.
+	srv.idx.AddAllowlist(info.ID, requestID, cidList)
+	defer srv.idx.RemoveAllowlist(info.ID, requestID)
+
+	request := &p2p.AnnounceBlobsRequest{
+		Cids: make([]string, len(cids)),
+	}
+	for i, c := range cids {
+		request.Cids[i] = c.CID.String()
+	}
+
+	syncClient, err := srv.p2p.SyncingClient(ctx, info.ID, info.Addrs...)
 	if err != nil {
 		return fmt.Errorf("could not get p2p client: %w", err)
 	}
+
 	streamRx, err := syncClient.AnnounceBlobs(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to start AnnounceBlobs RPC: %w", err)
@@ -126,8 +178,9 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse account '%s': %v", u.Host, err)
 	}
 
-	versionRaw := blob.Version(u.Query().Get("v"))
-	if versionRaw != "" && u.Query().Has("l") {
+	uq := u.Query()
+	versionRaw := blob.Version(uq.Get("v"))
+	if versionRaw != "" && uq.Has("l") {
 		// When `l` query parameter is present we want the latest version,
 		// and at least the one specified by `v`. But currently we don't have a way
 		// to express that in the backend, so we simply get the latest version we know about.

@@ -8,7 +8,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation} from '@tanstack/react-query'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -27,6 +26,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMutation} from '@tanstack/react-query'
 import {
   HTMLAttributes,
   PropsWithChildren,
@@ -169,6 +169,17 @@ export default function PublishDraftButton() {
     if (editId && signingAccountId) {
       handlePublish(editId, signingAccountId)
     } else {
+      const isPrivate =
+        draftRoute?.visibility === 'PRIVATE' ||
+        draft.data.visibility === 'PRIVATE'
+      const locationId = draftLocationId(draft.data)
+
+      // For private documents, skip the dialog and publish directly with the nanoid path.
+      if (isPrivate && locationId && signingAccountId) {
+        handlePublish(locationId, signingAccountId)
+        return
+      }
+
       firstPublishDialog.open({
         newDefaultName: pathNameify(
           draft.data.metadata.name || 'Untitled Document',
@@ -176,7 +187,7 @@ export default function PublishDraftButton() {
         onSelectDestination: (location, account) => {
           handlePublish(location, account)
         },
-        defaultLocation: draftLocationId(draft.data),
+        defaultLocation: locationId,
         defaultAccount: signingAccountId,
       })
     }

@@ -3,6 +3,7 @@ import {
   HMDocument,
   HMMetadata,
   HMResourceFetchResult,
+  HMResourceVisibility,
   SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
@@ -16,7 +17,7 @@ import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
 import {useResponsiveItems} from './use-responsive-items'
 
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {HistoryIcon} from 'lucide-react'
+import {HistoryIcon, Lock} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -321,6 +322,7 @@ function NavItems({
                 indented={0}
                 draftId={doc.draftId}
                 isPublished={doc.isPublished}
+                visibility={doc.visibility}
               />
             )
           })
@@ -361,6 +363,7 @@ function OverflowMenuItem({
     draftId?: string | null
     metadata: HMMetadata
     webUrl?: string
+    visibility?: HMResourceVisibility
   }
 }) {
   const linkProps = useRouteLink(
@@ -371,7 +374,14 @@ function OverflowMenuItem({
       : item.webUrl || '',
   )
   return (
-    <DropdownMenuItem {...linkProps}>{item.metadata.name}</DropdownMenuItem>
+    <DropdownMenuItem {...linkProps}>
+      <div className="flex w-full items-center justify-between gap-2">
+        <span>{getMetadataName(item.metadata)}</span>
+        {item.visibility === 'PRIVATE' ? (
+          <Lock size={12} className="text-muted-foreground" />
+        ) : null}
+      </div>
+    </DropdownMenuItem>
   )
 }
 
@@ -381,12 +391,14 @@ function HeaderLinkItem({
   active,
   draftId,
   webUrl,
+  visibility,
 }: {
   id?: UnpackedHypermediaId
   draftId?: string | null
   metadata: HMMetadata
   active: boolean
   webUrl?: string | undefined
+  visibility?: HMResourceVisibility
 }) {
   const highlighter = useHighlighter()
   const linkProps = useRouteLink(
@@ -415,6 +427,9 @@ function HeaderLinkItem({
       >
         {getMetadataName(metadata)}
       </a>
+      {visibility === 'PRIVATE' ? (
+        <Lock size={12} className="text-muted-foreground" />
+      ) : null}
       {draftId ? <DraftBadge /> : null}
     </div>
   )
@@ -527,6 +542,7 @@ export function SiteHeaderMenu({
                 metadata={item.metadata}
                 draftId={item.draftId}
                 active={true}
+                visibility={item.visibility}
               />
             </div>
           )
@@ -551,6 +567,7 @@ export function SiteHeaderMenu({
               !!item.id?.path &&
               docId.path.join('/').startsWith(item.id.path.join('/'))
             }
+            visibility={item.visibility}
           />
         )
       })}

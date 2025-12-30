@@ -38,16 +38,26 @@ CREATE TABLE blobs (
 CREATE INDEX blobs_metadata ON blobs (id, multihash, codec, size, insert_time);
 CREATE INDEX blobs_metadata_by_hash ON blobs (multihash, codec, size, insert_time);
 
--- When a blob is public it's stored in this table.
--- Privacy of each blob is determined during indexing,
--- so technically all blobs are private, at least until they are indexed.
--- We track public blobs instead of private blobs, because the same blob can be both public and private,
--- e.g. a Change blob that is part of both public document's history and private document's history.
--- We need a quick way to check if a blob is public in block exchange protocols like BitSwap, and as soon as
--- a blob is public at least once, we consider it public — hence it's easier to track public blobs as opposed to private ones.
-CREATE TABLE public_blobs (
-    id INTEGER PRIMARY KEY REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL
+-- Tracks the visibility of blobs per space.
+-- For public blobs space is 0.
+-- Same blob can be public and bound to a space, or even multiple spaces at the same time.
+-- Space should be a foreign key to public_keys table,
+-- but because it's optional and is part of the primary key on the WITHOUT ROWID table
+-- it's impossible to make it work, because SQLite implicitly converts primary key components to NOT NULL columns,
+-- so we can't express optionals, without doing some other hacks.
+CREATE TABLE blob_visibility (
+    id INTEGER REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    space INTEGER NOT NULL,
+    PRIMARY KEY (id, space)
 ) WITHOUT ROWID;
+
+-- Index for efficient lookup of blobs by space.
+CREATE INDEX blob_visibility_by_space ON blob_visibility (space, id);
+
+-- Public blobs view for backwards compatibility.
+-- When a blob has space = NULL, it's public.
+CREATE VIEW public_blobs AS
+SELECT id FROM blob_visibility WHERE space = 0;
 
 -- Stores the blob links patterns by which the visibility of blobs should propagate.
 -- When we insert a blob, we first check if any parent according to these patters is public,
@@ -61,9 +71,15 @@ CREATE TABLE blob_visibility_rules (
 
 -- The actual visibility rules for blob visibility propagation.
 INSERT INTO blob_visibility_rules VALUES
+-- Changes inherit visibility from the changes they depend on.
 ('Change', 'change/dep', 'Change'),
+-- Refs propagate their visibility to the head Changes they point to.
 ('Ref', 'ref/head', 'Change'),
+-- Any blob that has a link of a any type to a DagPB blob propagates its visibility downstream.
+-- DagPB blobs can be linked in Changes, Profiles, and other DagPB blobs.
 ('*', '*', 'DagPB'),
+-- Any blob that has a link of any type to a Raw blob propagates its visibility downstream.
+-- Raw blobs can be linked in Changes, Profiles, and DagPB blobs.
 ('*', '*', 'Raw');
 
 -- Stores some relevant attributes for structural blobs,

@@ -42,6 +42,20 @@ const (
 	C_BlobLinksWithTypesTargetType = "blob_links_with_types.target_type"
 )
 
+// Table blob_visibility.
+const (
+	BlobVisibility      sqlitegen.Table  = "blob_visibility"
+	BlobVisibilityID    sqlitegen.Column = "blob_visibility.id"
+	BlobVisibilitySpace sqlitegen.Column = "blob_visibility.space"
+)
+
+// Table blob_visibility. Plain strings.
+const (
+	T_BlobVisibility      = "blob_visibility"
+	C_BlobVisibilityID    = "blob_visibility.id"
+	C_BlobVisibilitySpace = "blob_visibility.space"
+)
+
 // Table blob_visibility_rules.
 const (
 	BlobVisibilityRules           sqlitegen.Table  = "blob_visibility_rules"
@@ -497,6 +511,8 @@ var Schema = sqlitegen.Schema{
 		BlobLinksWithTypesSourceType:            {Table: BlobLinksWithTypes, SQLType: ""},
 		BlobLinksWithTypesTarget:                {Table: BlobLinksWithTypes, SQLType: "INTEGER"},
 		BlobLinksWithTypesTargetType:            {Table: BlobLinksWithTypes, SQLType: ""},
+		BlobVisibilityID:                        {Table: BlobVisibility, SQLType: "INTEGER"},
+		BlobVisibilitySpace:                     {Table: BlobVisibility, SQLType: "INTEGER"},
 		BlobVisibilityRulesLinkType:             {Table: BlobVisibilityRules, SQLType: "TEXT"},
 		BlobVisibilityRulesSourceType:           {Table: BlobVisibilityRules, SQLType: "TEXT"},
 		BlobVisibilityRulesTargetType:           {Table: BlobVisibilityRules, SQLType: "TEXT"},

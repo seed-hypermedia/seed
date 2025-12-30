@@ -618,6 +618,24 @@ export const HMDraftContentSchema = z.object({
   navigation: z.array(HMNavigationItemSchema).optional(),
 })
 
+export type HMResourceVisibility = 'PUBLIC' | 'PRIVATE'
+
+const visibilityMap: Record<string | number, HMResourceVisibility> = {
+  0: 'PUBLIC',
+  1: 'PUBLIC',
+  2: 'PRIVATE',
+  RESOURCE_VISIBILITY_UNSPECIFIED: 'PUBLIC',
+  RESOURCE_VISIBILITY_PUBLIC: 'PUBLIC',
+  RESOURCE_VISIBILITY_PRIVATE: 'PRIVATE',
+  UNSPECIFIED: 'PUBLIC',
+  PUBLIC: 'PUBLIC',
+  PRIVATE: 'PRIVATE',
+}
+
+export const HMResourceVisibilitySchema = z
+  .union([z.string(), z.number()])
+  .transform((val): HMResourceVisibility => visibilityMap[val] ?? 'PUBLIC')
+
 export type HMDraftContent = z.infer<typeof HMDraftContentSchema>
 
 export type HMDraft = HMDraftContent & HMListedDraft
@@ -636,6 +654,7 @@ export const HMCommentSchema = z.object({
   content: z.array(HMBlockNodeSchema),
   createTime: HMTimestampSchema,
   updateTime: HMTimestampSchema,
+  visibility: HMResourceVisibilitySchema,
 })
 
 export type HMComment = z.infer<typeof HMCommentSchema>
@@ -731,6 +750,7 @@ export const HMDocumentInfoSchema = z.object({
   generationInfo: HMGenerationInfoSchema,
   redirectInfo: HMRedirectInfoSchema.optional(),
   metadata: HMDocumentMetadataSchema,
+  visibility: HMResourceVisibilitySchema,
 })
 export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>
 
@@ -759,6 +779,7 @@ export const HMDraftMetaSchema = z.object({
   editUid: z.string().optional(),
   editPath: z.array(z.string()).optional(),
   metadata: HMDocumentMetadataSchema,
+  visibility: HMResourceVisibilitySchema,
 })
 
 export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
@@ -1044,7 +1065,7 @@ export const HMBlockLinkSchema = z.object({
   text: z.string(),
 })
 
-export const HMBlockSchema = z.discriminatedUnion('type', [
+export const HMBlockKnownSchema = z.discriminatedUnion('type', [
   HMBlockParagraphSchema,
   HMBlockHeadingSchema,
   HMBlockCodeSchema,
@@ -1061,6 +1082,21 @@ export const HMBlockSchema = z.discriminatedUnion('type', [
   HMBlockLinkSchema,
 ])
 
+export const HMBlockUnknownSchema = z
+  .object({
+    type: z.string(),
+    ...blockBaseProperties,
+  })
+  .passthrough()
+
+export const HMBlockSchema = z.union([HMBlockKnownSchema, HMBlockUnknownSchema])
+
+export const knownBlockTypes = new Set(HMBlockKnownSchema.optionsMap.keys())
+
+export function isKnownBlockType(btype: string): boolean {
+  return knownBlockTypes.has(btype)
+}
+
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
 export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
 export type HMBlockCode = z.infer<typeof HMBlockCodeSchema>
@@ -1072,7 +1108,7 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
-export type HMBlock = z.infer<typeof HMBlockSchema>
+export type HMBlock = z.infer<typeof HMBlockKnownSchema>
 export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 
 export const HMDocumentSchema = z.object({
@@ -1086,6 +1122,7 @@ export const HMDocumentSchema = z.object({
   metadata: HMDocumentMetadataSchema,
   detachedBlocks: z.record(z.string(), HMBlockNodeSchema).optional(),
   genesis: z.string(),
+  visibility: HMResourceVisibilitySchema,
 })
 // .strict() // avoid errors when the backend sends extra fields (most recently "header" and "footer")
 export type HMDocument = z.infer<typeof HMDocumentSchema>

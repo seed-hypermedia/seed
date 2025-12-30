@@ -8,6 +8,8 @@ import (
 )
 
 // Map is a B-Tree map data structure.
+// It's not thread-safe even for reading because of the persistent hints.
+// Any concurrent access should either synchronize or clone the map (which is cheap).
 type Map[K, V any] struct {
 	hint btree.PathHint
 	tr   *btree.BTreeG[Node[K, V]]

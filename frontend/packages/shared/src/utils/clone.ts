@@ -110,7 +110,9 @@ export async function cloneSiteFromTemplate({
         account: templateId,
         path: document.path,
       })
-      const doc = HMDocumentSchema.parse(documentEntity.toJson())
+      const doc = HMDocumentSchema.parse(
+        documentEntity.toJson({emitDefaultValues: true, enumAsInteger: false}),
+      )
       console.log(`[Clone] Document ${document.path} parsed successfully`)
 
       const blocksMap = createBlocksMap(doc.content, '')
