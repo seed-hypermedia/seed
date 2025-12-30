@@ -74,10 +74,11 @@ NESTED BLOCKS
   margin-top: 0;
   margin-bottom: 0;
   padding: 0;
+  padding-inline-start: 1em;
 }
 
 .blockGroup[data-list-type='Unordered'] {
-  margin-left: 1em;
+  margin-left: 0;
   list-style-type: disc;
 }
 
@@ -90,7 +91,7 @@ NESTED BLOCKS
 }
 
 .blockGroup[data-list-type='Ordered'] {
-  margin-left: 1em;
+  margin-left: 0;
   list-style-type: decimal;
 }
 
@@ -370,6 +371,38 @@ NESTED BLOCKS
   > .blockContent[data-content-type='numberedListItem']::before {
   margin-right: 1.2em;
   content: var(--index) '.';
+}
+
+/* Safari only fix. Safari handles list items display differently than other browsers when there's 
+  padding on the content. The padding pushes text down while markers stay at top */
+@supports (-webkit-hyphens: none) and (not (overflow: -webkit-marquee)) and
+  (not (-ms-ime-align: auto)) {
+  .blockGroup[data-list-type='Unordered']
+    > .blockOuter
+    > .block
+    > .blockContent,
+  .blockGroup[data-list-type='Ordered'] > .blockOuter > .block > .blockContent {
+    display: flex !important;
+    align-items: flex-start !important;
+  }
+
+  .blockGroup[data-list-type='Unordered']
+    > .blockOuter
+    > .block
+    > .blockContent
+    .inlineContent {
+    margin-top: 3px !important;
+    margin-left: -0.5em !important;
+  }
+
+  .blockGroup[data-list-type='Ordered']
+    > .blockOuter
+    > .block
+    > .blockContent
+    .inlineContent {
+    margin-top: 3px !important;
+    margin-left: -1em !important;
+  }
 }
 
 /* Unordered */
