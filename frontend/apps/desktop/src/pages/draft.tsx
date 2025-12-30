@@ -38,6 +38,7 @@ import {
   HMMetadata,
   HMNavigationItem,
   HMResourceFetchResult,
+  HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
@@ -53,6 +54,7 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
+import {PrivateBadge} from '@shm/ui/private-badge'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -565,6 +567,7 @@ function DocumentEditor({
                       // disabled={!state.matches('ready')}
                       showCover={showCover}
                       setShowCover={setShowCover}
+                      visibility={route.visibility || data?.visibility}
                     />
                   ) : null}
                   <Container
@@ -805,12 +808,14 @@ function DraftMetadataEditor({
   disabled = false,
   showCover = false,
   setShowCover,
+  visibility,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
   showCover?: boolean
   setShowCover?: (show: boolean) => void
+  visibility?: HMResourceVisibility
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -897,6 +902,7 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
+          {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
             id="draft-name-input"

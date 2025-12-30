@@ -88,7 +88,9 @@ export async function discoverMedia(
     pageSize: BIG_INT,
   })
   comments.comments.forEach((c) => {
-    const comment = HMCommentSchema.parse(c.toJson())
+    const comment = HMCommentSchema.parse(
+      c.toJson({emitDefaultValues: true, enumAsInteger: false}),
+    )
     extractIpfsCids(comment.content)
   })
   await Promise.all(

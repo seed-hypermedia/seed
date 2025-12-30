@@ -25,7 +25,10 @@ export class AnnotationSet {
         ends: [],
       })
 
-      annotation.attributes = annotation.attributes?.toJson() as any
+      annotation.attributes = annotation.attributes?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as any
 
       if (type == 'Link' || type == 'Embed') {
         annotation.link = (attributes as any)!.link

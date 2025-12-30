@@ -12,7 +12,7 @@ import {
 function parseComment(rawComment: any): HMComment | null {
   const commentJson =
     typeof rawComment.toJson === 'function'
-      ? rawComment.toJson({emitDefaultValues: true})
+      ? rawComment.toJson({emitDefaultValues: true, enumAsInteger: false})
       : rawComment
 
   const parsed = HMCommentSchema.safeParse(commentJson)

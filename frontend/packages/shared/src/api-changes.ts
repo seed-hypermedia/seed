@@ -27,7 +27,9 @@ export const ListChanges: HMRequestImplementation<HMListChangesRequest> = {
     })
 
     return {
-      changes: result.changes.map((c) => c.toJson() as any),
+      changes: result.changes.map(
+        (c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any,
+      ),
       latestVersion: latestDoc.version,
     }
   },

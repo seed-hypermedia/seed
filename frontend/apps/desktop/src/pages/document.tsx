@@ -705,7 +705,7 @@ function DocPageHeader({
       const contact = authorContacts[a]
       const resource = authorResources[index]
       const isDiscovering = resource?.isDiscovering
-      // Use resource data if available, fall back to contacts
+      // Use resource data if available, fall back to contacts.
       const metadata =
         resource?.data?.type === 'document'
           ? resource.data.document?.metadata
@@ -722,6 +722,8 @@ function DocPageHeader({
       authors={authorMetadata}
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
+      documentTools={documentTools}
+      visibility={document.visibility}
     />
   )
 }

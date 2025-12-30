@@ -3,6 +3,7 @@ import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMDocument,
   HMDocumentMetadataSchema,
+  HMResourceVisibilitySchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
@@ -861,9 +862,9 @@ async function fetchEntityTitle(
     title = getDocumentTitle({
       ...doc,
       metadata: HMDocumentMetadataSchema.parse(
-        doc.metadata?.toJson({emitDefaultValues: true}),
+        doc.metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}),
       ),
-    } as HMDocument)
+    })
   }
   return {
     title,

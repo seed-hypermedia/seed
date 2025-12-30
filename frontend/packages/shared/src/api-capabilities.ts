@@ -17,7 +17,10 @@ export const ListCapabilities: HMRequestImplementation<HMListCapabilitiesRequest
       })
 
       return {
-        capabilities: result.capabilities.map((c) => c.toJson() as any),
+        capabilities: result.capabilities.map(
+          (c) =>
+            c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any,
+        ),
       }
     },
   }

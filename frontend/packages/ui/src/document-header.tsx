@@ -4,6 +4,7 @@ import {
   HMDocument,
   HMMetadata,
   HMMetadataPayload,
+  HMResourceVisibility,
   UnpackedHypermediaId,
   useRouteLink,
 } from '@shm/shared'
@@ -13,6 +14,7 @@ import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
+import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 
@@ -27,6 +29,8 @@ export function DocumentHeader({
   updateTime = null,
   breadcrumbs,
   siteUrl,
+  documentTools,
+  visibility,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -37,11 +41,16 @@ export function DocumentHeader({
     metadata: HMMetadata
   }>
   siteUrl?: string
+  // TODO: add proper types to this component.
+
+  documentTools?: any
+  visibility?: HMResourceVisibility
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
   const highlighter = useHighlighter()
+  const isPrivate = visibility === 'PRIVATE'
 
   return (
     <Container
@@ -70,6 +79,7 @@ export function DocumentHeader({
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <Breadcrumbs breadcrumbs={breadcrumbs} />
         ) : null}
+        {isPrivate && <PrivateBadge />}
         <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
           {docMetadata?.name}
         </SizableText>
@@ -133,6 +143,7 @@ export function DocumentHeader({
                 />
               ) : null}
             </div>
+            {documentTools}
           </div>
         </div>
       </div>

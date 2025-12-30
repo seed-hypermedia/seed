@@ -131,7 +131,7 @@ async function blockToText(
       // attributes is a Protobuf Struct, need to convert to JSON
       const buttonAttrs = (block as any).attributes
       const attrs = buttonAttrs?.toJson
-        ? buttonAttrs.toJson({emitDefaultValues: true})
+        ? buttonAttrs.toJson({emitDefaultValues: true, enumAsInteger: false})
         : buttonAttrs
       return attrs?.name || (block as any).text || ''
 

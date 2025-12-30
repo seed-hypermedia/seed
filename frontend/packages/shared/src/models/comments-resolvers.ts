@@ -23,7 +23,7 @@ import {documentMetadataParseAdjustments} from './entity'
 function parseComment(rawComment: any): HMComment | null {
   const commentJson =
     typeof rawComment.toJson === 'function'
-      ? rawComment.toJson({emitDefaultValues: true})
+      ? rawComment.toJson({emitDefaultValues: true, enumAsInteger: false})
       : rawComment
 
   const parsed = HMCommentSchema.safeParse(commentJson)
@@ -65,7 +65,10 @@ async function loadDocumentMetadata(
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.latest ? undefined : id.version || undefined,
     })
-    const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
+    const metadataJSON = rawDoc.metadata?.toJson({
+      emitDefaultValues: true,
+      enumAsInteger: false,
+    })
     documentMetadataParseAdjustments(metadataJSON)
     const parsed = HMDocumentMetadataSchema.safeParse(metadataJSON)
     if (!parsed.success) {

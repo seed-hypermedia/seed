@@ -67,7 +67,10 @@ export async function getMetadata(
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.latest ? undefined : id.version || undefined,
     })
-    const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
+    const metadataJSON = rawDoc.metadata?.toJson({
+      emitDefaultValues: true,
+      enumAsInteger: false,
+    })
     documentMetadataParseAdjustments(metadataJSON)
     return {
       id,
@@ -95,7 +98,11 @@ export async function getAccount(
     if (serverAccount.aliasAccount) {
       return await getAccount(serverAccount.aliasAccount)
     }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
+    const serverMetadata =
+      grpcAccount.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
       id: hmId(accountUid),
@@ -112,7 +119,9 @@ export async function getComment(id: string): Promise<HMComment | null> {
     const rawDoc = await grpcClient.comments.getComment({
       id,
     })
-    return HMCommentSchema.parse(rawDoc.toJson())
+    return HMCommentSchema.parse(
+      rawDoc.toJson({emitDefaultValues: true, enumAsInteger: false}),
+    )
   } catch (error: any) {
     // Handle ConnectError for NotFound comments gracefully
     if (error?.code === 'not_found' || error?.message?.includes('not found')) {

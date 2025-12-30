@@ -283,7 +283,10 @@ export const loader = async ({request}: {request: Request}) => {
       return {
         id: hmId(space, {path: crumbPath}),
         metadata: HMDocumentMetadataSchema.parse(
-          document.metadata?.toJson({emitDefaultValues: true}) || {},
+          document.metadata?.toJson({
+            emitDefaultValues: true,
+            enumAsInteger: false,
+          }) || {},
         ),
       }
     }),

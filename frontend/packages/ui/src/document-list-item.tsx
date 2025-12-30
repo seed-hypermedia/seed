@@ -17,6 +17,7 @@ import {Button} from './button'
 import {FacePile} from './face-pile'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
+import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -52,6 +53,8 @@ export function DocumentListItem({
   const id = item.id
 
   const metadata = item.metadata
+  const visibility = 'visibility' in item ? item.visibility : undefined
+  const isPrivate = visibility === 'PRIVATE'
   const itemActivitySummary =
     activitySummary !== undefined
       ? activitySummary
@@ -79,7 +82,7 @@ export function DocumentListItem({
   const linkProps = useRouteLink({key: 'document', id})
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    // Stop propagation to prevent parent handlers (like EmbedWrapper) from firing
+    // Stop propagation to prevent parent handlers (like EmbedWrapper) from firing.
     e.stopPropagation()
 
     if (onClick) {
@@ -109,13 +112,14 @@ export function DocumentListItem({
             <DocumentListItemBreadcrumbs breadcrumbs={itemBreadcrumbs} />
           )}
           <div className="flex flex-1 items-center gap-3">
-            <div className="items-center-justify-start flex flex-1 overflow-hidden">
+            <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
               <SizableText
-                className={cn('flex-1 truncate text-left font-sans')}
+                className={cn('truncate text-left font-sans')}
                 weight={computedIsRead ? undefined : 'bold'}
               >
                 {getMetadataName(metadata)}
               </SizableText>
+              {isPrivate && <PrivateBadge size="sm" />}
             </div>
             {interactionSummary && interactionSummary.comments > 0 && (
               <DocumentListItemCommentCount

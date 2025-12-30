@@ -33,6 +33,7 @@ export function useAccountList() {
           hmMetadataJsonCorrection(
             account.metadata?.toJson({
               emitDefaultValues: true,
+              enumAsInteger: false,
             }),
           ),
         ),

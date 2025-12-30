@@ -1,5 +1,4 @@
 import {hmIdPathToEntityQueryPath} from '@shm/shared'
-import {queryKeys} from '@shm/shared/models/query-keys'
 import {
   HMDocumentMetadataSchema,
   HMDraft,
@@ -9,7 +8,9 @@ import {
   HMListedDraftSchema,
   HMMetadata,
   HMNavigationItemSchema,
+  HMResourceVisibilitySchema,
 } from '@shm/shared/hm-types'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -74,8 +75,14 @@ export async function initDrafts() {
     const lastPathTerm = draftHmId?.path?.at(-1)
     const isNewChild = !!lastPathTerm && lastPathTerm.startsWith('_')
     const newDraftId = nanoid(10)
-    const {metadata, previousId, lastUpdateTime, members, ...restDraft} =
-      draftData
+    const {
+      metadata,
+      previousId,
+      lastUpdateTime,
+      members,
+      visibility,
+      ...restDraft
+    } = draftData
 
     let deps: string[] = []
     let editPath: string[] | undefined = undefined
@@ -118,6 +125,7 @@ export async function initDrafts() {
       editPath,
       metadata: metadata || {},
       lastUpdateTime: lastUpdateTime || Date.now(),
+      visibility: visibility || 'PUBLIC',
     }
     const newDraft = {
       ...restDraft,
@@ -272,6 +280,7 @@ export const draftsApi = t.router({
         signingAccount: z.string().optional(),
         deps: z.array(z.string().min(1)).default([]),
         navigation: z.array(HMNavigationItemSchema).optional(),
+        visibility: HMResourceVisibilitySchema,
       }),
     )
     .mutation(async ({input}) => {
@@ -292,6 +301,7 @@ export const draftsApi = t.router({
           editPath: input.editPath,
           metadata: input.metadata,
           lastUpdateTime: Date.now(),
+          visibility: input.visibility,
         },
       ]
       await saveDraftIndex()

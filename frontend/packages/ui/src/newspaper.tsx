@@ -11,6 +11,7 @@ import {HTMLAttributes, useMemo} from 'react'
 import {FacePile} from './face-pile'
 import {useImageUrl} from './get-file-url'
 import {useHighlighter} from './highlight-context'
+import {PrivateBadge} from './private-badge'
 import {SizableText} from './text'
 import {cn} from './utils'
 
@@ -47,6 +48,8 @@ export function DocumentCard({
     ? getDocumentImage(entity?.document)
     : undefined
 
+  const isPrivate = entity?.document?.visibility === 'PRIVATE'
+
   const sharedProps = {
     ...highlighter(docId),
     className: cn(
@@ -74,14 +77,17 @@ export function DocumentCard({
         )}
         <div className={cn('flex min-h-0 flex-1 flex-col justify-between')}>
           <div className="p-4">
-            <p
-              className={cn(
-                'text-foreground block w-full font-sans leading-tight! font-bold',
-                banner ? 'text-2xl' : 'text-lg',
-              )}
-            >
-              {entity?.document?.metadata?.name}
-            </p>
+            <div className="flex items-center gap-2">
+              <p
+                className={cn(
+                  'text-foreground block font-sans leading-tight! font-bold',
+                  banner ? 'text-2xl' : 'text-lg',
+                )}
+              >
+                {entity?.document?.metadata?.name}
+              </p>
+              {isPrivate && <PrivateBadge size="sm" />}
+            </div>
             <p
               className={cn(
                 'text-muted-foreground mt-2 line-clamp-3 font-sans',

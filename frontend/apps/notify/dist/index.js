@@ -133,7 +133,7 @@ function setNotifierLastProcessedBlobCid(cid) {
 function getAllEmails() {
   const stmt = db.prepare(`
     SELECT emails.*
-    FROM emails 
+    FROM emails
   `)
   const emails = stmt.all()
   return emails.map((email) => {
@@ -48275,7 +48275,10 @@ async function getMetadata(id) {
       path: hmIdPathToEntityQueryPath(id.path),
       version: id.latest ? void 0 : id.version || void 0,
     })
-    const metadataJSON = rawDoc.metadata?.toJson({emitDefaultValues: true})
+    const metadataJSON = rawDoc.metadata?.toJson({
+      emitDefaultValues: true,
+      enumAsInteger: false,
+    })
     documentMetadataParseAdjustments(metadataJSON)
     return {
       id,
@@ -48294,7 +48297,11 @@ async function getAccount(accountUid, {discover} = {}) {
     if (serverAccount.aliasAccount) {
       return await getAccount(serverAccount.aliasAccount)
     }
-    const serverMetadata = grpcAccount.metadata?.toJson() || {}
+    const serverMetadata =
+      grpcAccount.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) || {}
     const metadata = HMDocumentMetadataSchema.parse(serverMetadata)
     return {
       id: hmId(accountUid),
@@ -48310,7 +48317,9 @@ async function getComment(id) {
     const rawDoc = await grpcClient.comments.getComment({
       id,
     })
-    return HMCommentSchema.parse(rawDoc.toJson())
+    return HMCommentSchema.parse(
+      rawDoc.toJson({emitDefaultValues: true, enumAsInteger: false}),
+    )
   } catch (error) {
     if (error?.code === 'not_found' || error?.message?.includes('not found')) {
       console.warn(`Comment ${id} not found, treating as acceptable warning`)

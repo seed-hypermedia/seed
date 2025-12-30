@@ -6,6 +6,7 @@ import {
   HMListedDraft,
   HMMetadata,
   HMResourceFetchResult,
+  HMResourceVisibility,
   NavRoute,
   NodeOutline,
   UnpackedHypermediaId,
@@ -18,6 +19,7 @@ import {ButtonProps} from './button'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {SmallCollapsableListItem, SmallListItem} from './list-item'
+import {PrivateBadge} from './private-badge'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
@@ -31,6 +33,7 @@ export function DocumentSmallListItem({
   onClick,
   draftId,
   isPublished,
+  visibility,
 }: {
   metadata?: HMMetadata
   id?: UnpackedHypermediaId
@@ -40,6 +43,7 @@ export function DocumentSmallListItem({
   onClick?: ButtonProps['onClick']
   draftId?: string | null | undefined
   isPublished?: boolean
+  visibility?: HMResourceVisibility
 }) {
   const route: NavRoute | undefined = draftId
     ? {key: 'draft', id: draftId, accessory: {key: 'options'}}
@@ -52,9 +56,13 @@ export function DocumentSmallListItem({
   const linkProps = useRouteLink(route, {onClick: onClick})
   const color = isPublished === false ? '$color11' : undefined
   const highlight = useHighlighter()
+  const isPrivate = visibility === 'PRIVATE'
   const icon = id ? (
     <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
   ) : null
+
+  const privateBadge = isPrivate ? <PrivateBadge size="sm" /> : null
+
   if (items)
     return (
       <SmallCollapsableListItem
@@ -72,9 +80,9 @@ export function DocumentSmallListItem({
           linkProps.onClick?.(e)
         }}
         isDraft={!!draftId}
+        accessory={privateBadge}
       >
         {items}
-        {/* {draftId ? <DraftBadge /> : null} */}
       </SmallCollapsableListItem>
     )
   return (
@@ -89,6 +97,7 @@ export function DocumentSmallListItem({
       indented={indented}
       active={active}
       isDraft={!!draftId}
+      accessory={privateBadge}
       {...linkProps}
     />
   )
@@ -102,6 +111,7 @@ export type DocNavigationItem = {
   webUrl?: string
   draftId?: string | null | undefined
   sortTime?: Date
+  visibility?: HMResourceVisibility
 }
 
 export function getSiteNavDirectory({
@@ -149,6 +159,7 @@ export function getSiteNavDirectory({
             draftsArray.find((d) => d.editId?.id === id.id)?.id
           : undefined,
         isPublished: true,
+        visibility: item.visibility,
       }
     }) ?? []
   unpublishedDraftItems

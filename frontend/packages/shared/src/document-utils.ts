@@ -181,7 +181,10 @@ function sanitizeBlockNodes(
 }
 
 export function prepareHMDocument(apiDoc: Document): HMDocument {
-  let docJSON = apiDoc.toJson() as any
+  let docJSON = apiDoc.toJson({
+    emitDefaultValues: true,
+    enumAsInteger: false,
+  }) as any
   documentMetadataParseAdjustments(docJSON.metadata)
   docJSON = sanitizeDocumentStructure(docJSON)
   try {
@@ -200,7 +203,10 @@ export function prepareHMDocument(apiDoc: Document): HMDocument {
 }
 
 export function prepareHMComment(apiComment: Comment): HMComment {
-  const commentJSON = apiComment.toJson() as any
+  const commentJSON = apiComment.toJson({
+    emitDefaultValues: true,
+    enumAsInteger: false,
+  }) as any
   documentMetadataParseAdjustments(commentJSON.metadata)
   try {
     const comment = HMCommentSchema.parse(commentJSON)
