@@ -14,7 +14,9 @@ export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {
       pageSize: BIG_INT,
     })
     return {
-      citations: result.mentions.map((m) => m.toJson() as any),
+      citations: result.mentions.map(
+        (m) => m.toJson({emitDefaultValues: true, enumAsInteger: false}) as any,
+      ),
     }
   },
 }

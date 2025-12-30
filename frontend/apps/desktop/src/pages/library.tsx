@@ -36,6 +36,7 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {FacePile} from '@shm/ui/face-pile'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {PrivateBadge} from '@shm/ui/private-badge'
 import {SizableText} from '@shm/ui/text'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
@@ -541,6 +542,7 @@ export function LibraryDocumentItem({
             >
               {getMetadataName(metadata)}
             </SizableText>
+            {item.visibility === 'PRIVATE' && <PrivateBadge />}
           </div>
           {item.activitySummary && (
             <LibraryEntryCommentCount activitySummary={item.activitySummary} />
@@ -630,5 +632,4 @@ function LibraryEntryAuthors({
 }) {
   const {authors} = item
   return <FacePile accounts={authors} accountsMetadata={accountsMetadata} />
-  // return <XStack>{authors.map((author) => <LinkIcon id={author.id} metadata={author.metadata} size={16} />)}</XStack>
 }

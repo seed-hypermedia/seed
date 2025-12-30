@@ -20,7 +20,10 @@ export const ListAccounts: HMRequestImplementation<HMListAccountsRequest> = {
 
     rootDocs.documents.forEach((doc) => {
       const id = hmId(doc.account)
-      const rawMetadata = doc.metadata?.toJson()
+      const rawMetadata = doc.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      })
       const metadataParsed = HMDocumentMetadataSchema.safeParse(rawMetadata)
 
       if (metadataParsed.success) {

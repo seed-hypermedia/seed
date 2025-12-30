@@ -198,6 +198,7 @@ export async function listEventsImpl(
 
   let res = response.toJson({
     emitDefaultValues: true,
+    enumAsInteger: false,
   }) as unknown as HMListEventsResponse
 
   return res
@@ -258,9 +259,10 @@ export async function loadCommentEvent(
 
     const target: HMContactItem = {
       id: targetId,
-      metadata: targetDoc.metadata?.toJson({emitDefaultValues: true}) as
-        | HMMetadata
-        | undefined,
+      metadata: targetDoc.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as HMMetadata | undefined,
     }
 
     return {
@@ -331,8 +333,12 @@ export async function loadCapabilityEvent(
       currentAccount,
     )
     const role = HMRoleSchema.parse(
-      // @ts-expect-error ugh, we want role as a string but it's an enum
-      grpcCapability.toJson({emitDefaultValues: true}).role.toLowerCase(),
+      (
+        grpcCapability.toJson({
+          emitDefaultValues: true,
+          enumAsInteger: false,
+        }) as any
+      ).role.toLowerCase(),
     )
 
     if (role === 'none' || role === 'agent') {
@@ -365,8 +371,10 @@ export async function loadCapabilityEvent(
       target: {
         id: null,
         metadata:
-          (target.metadata?.toJson({emitDefaultValues: true}) as HMMetadata) ||
-          null,
+          (target.metadata?.toJson({
+            emitDefaultValues: true,
+            enumAsInteger: false,
+          }) as HMMetadata) || null,
       },
       time: event.eventTime!,
       delegates: delegate ? [delegate] : [],
@@ -583,9 +591,10 @@ export async function loadCitationEvent(
 
     const source: HMContactItem = {
       id: sourceId,
-      metadata: sourceDocument?.metadata?.toJson({emitDefaultValues: true}) as
-        | HMMetadata
-        | undefined,
+      metadata: sourceDocument?.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as HMMetadata | undefined,
     }
 
     // Fetch target document metadata
@@ -605,9 +614,10 @@ export async function loadCitationEvent(
 
     const target: HMContactItem = {
       id: targetId,
-      metadata: targetDocument?.metadata?.toJson({emitDefaultValues: true}) as
-        | HMMetadata
-        | undefined,
+      metadata: targetDocument?.metadata?.toJson({
+        emitDefaultValues: true,
+        enumAsInteger: false,
+      }) as HMMetadata | undefined,
     }
 
     // Generate unique event ID

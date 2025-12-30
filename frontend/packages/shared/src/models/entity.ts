@@ -63,7 +63,8 @@ export function documentMetadataParseAdjustments(metadata: any) {
 export function prepareHMDocumentMetadata(
   metadata: Struct | undefined,
 ): HMMetadata {
-  const docMeta = metadata?.toJson() || {}
+  const docMeta =
+    metadata?.toJson({emitDefaultValues: true, enumAsInteger: false}) || {}
   documentMetadataParseAdjustments(docMeta)
   return HMDocumentMetadataSchema.parse(docMeta)
 }

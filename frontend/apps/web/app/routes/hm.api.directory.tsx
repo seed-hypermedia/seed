@@ -53,7 +53,10 @@ export const loader = async ({
         const authorAccount = {
           ...toPlainMessage(res),
           metadata: HMDocumentMetadataSchema.parse(
-            res.metadata?.toJson({emitDefaultValues: true}),
+            res.metadata?.toJson({
+              emitDefaultValues: true,
+              enumAsInteger: false,
+            }),
           ),
         }
         return {id: hmId(authorUid), metadata: authorAccount.metadata}

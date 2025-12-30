@@ -5,7 +5,6 @@ import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {useDraft} from '@/models/accounts'
 import {useSelectedAccountContacts} from '@/models/contacts'
@@ -14,7 +13,7 @@ import {draftMachine} from '@/models/draft-machine'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {useMutation} from '@tanstack/react-query'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -35,6 +34,7 @@ import {
   HMMetadata,
   HMNavigationItem,
   HMResourceFetchResult,
+  HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
@@ -47,11 +47,13 @@ import {Container, panelContainerStyles} from '@shm/ui/container'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
+import {PrivateBadge} from '@shm/ui/private-badge'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
+import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
@@ -558,6 +560,7 @@ function DocumentEditor({
                       // disabled={!state.matches('ready')}
                       showCover={showCover}
                       setShowCover={setShowCover}
+                      visibility={route.visibility || data?.visibility}
                     />
                   ) : null}
                   <Container
@@ -798,12 +801,14 @@ function DraftMetadataEditor({
   disabled = false,
   showCover = false,
   setShowCover,
+  visibility,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
   disabled?: boolean
   showCover?: boolean
   setShowCover?: (show: boolean) => void
+  visibility?: HMResourceVisibility
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -890,6 +895,7 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
+          {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
             id="draft-name-input"

@@ -62,6 +62,7 @@ export function DirectoryPanel({
               id={item.id}
               draftId={item.draftId}
               isPublished={item.isPublished}
+              visibility={item.visibility}
             />
           )
         })}

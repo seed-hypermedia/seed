@@ -48,6 +48,7 @@
       .message {
         font-size: 16px;
         text-align: center;
+        white-space: pre-line;
       }
     </style>
   </head>
@@ -104,8 +105,7 @@
           } else if (state.t === 'ready') {
             messageEl.textContent = 'Almost ready...'
           } else if (state.t === 'migrating') {
-            messageEl.textContent =
-              'Migrating ' + state.completed + '/' + state.total
+            messageEl.textContent = `Reindexing the database: ${state.completed} / ${state.total}.\nDo not close this window!`
           } else {
             messageEl.textContent = 'Starting Seed...'
           }

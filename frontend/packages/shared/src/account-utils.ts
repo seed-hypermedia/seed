@@ -51,9 +51,10 @@ export async function resolveAccount(
   }
 
   // Get the account's metadata
-  const metadata = grpcAccount.metadata?.toJson({emitDefaultValues: true}) as
-    | HMMetadata
-    | undefined
+  const metadata = grpcAccount.metadata?.toJson({
+    emitDefaultValues: true,
+    enumAsInteger: false,
+  }) as HMMetadata | undefined
 
   // Check if current user has a contact for this account
   const contactsResponse = currentAccount

@@ -6,7 +6,7 @@ import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {getSlashMenuItems} from '@/slash-menu-items'
 import {client} from '@/trpc'
-import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
+import {PartialMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
@@ -17,6 +17,10 @@ import {
   HMAnnotation,
   useUniversalClient,
 } from '@shm/shared'
+import {
+  CreateDocumentChangeRequest,
+  ResourceVisibility,
+} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -34,6 +38,7 @@ import {
   HMNavigationItem,
   HMResourceFetchResult,
   HMResourceRequest,
+  HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
@@ -269,15 +274,28 @@ export function usePublishResource(
               invalidateQueries([queryKeys.RECENT_SIGNERS])
             })
 
+            const req: PartialMessage<CreateDocumentChangeRequest> = {
+              signingKeyName: accountId,
+              account: destinationId.uid,
+              baseVersion: draft.deps?.join('.') || '',
+              path: hmIdPathToEntityQueryPath(destinationId.path || []),
+              changes: allChanges,
+              capability: capabilityId,
+            }
+
+            // We only care to set the visibility if it's private.
+            if (draft.visibility === 'PRIVATE') {
+              req.visibility = ResourceVisibility.PRIVATE
+            }
+
+            // We must only specify the visibility if this is a first publish.
+            // For subsequent publishes we set it to unspecified, to let the server decide.
+            if (draft.deps?.length > 0) {
+              req.visibility = ResourceVisibility.UNSPECIFIED
+            }
+
             const publishedDoc =
-              await grpcClient.documents.createDocumentChange({
-                signingKeyName: accountId,
-                account: destinationId.uid,
-                baseVersion: draft.deps?.join('.') || '',
-                path: hmIdPathToEntityQueryPath(destinationId.path || []),
-                changes: allChanges,
-                capability: capabilityId,
-              })
+              await grpcClient.documents.createDocumentChange(req)
             const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
             return resultDoc
           } else {
@@ -617,6 +635,12 @@ export function useDraftEditor() {
         locationPath,
         editUid,
         editPath,
+        visibility:
+          (route.visibility || data?.visibility) === 'PRIVATE'
+            ? ResourceVisibility.PRIVATE
+            : (route.visibility || data?.visibility) === 'PUBLIC'
+            ? ResourceVisibility.PUBLIC
+            : ResourceVisibility.UNSPECIFIED,
       })
 
       return newDraft
@@ -1162,7 +1186,10 @@ export function useAccountDocuments(id?: UnpackedHypermediaId) {
       const documents = result.documents.map((response) => ({
         ...toPlainMessage(response),
         metadata: HMDocumentMetadataSchema.parse(
-          response.metadata?.toJson({emitDefaultValues: true}),
+          response.metadata?.toJson({
+            emitDefaultValues: true,
+            enumAsInteger: false,
+          }),
         ),
       }))
       return {
@@ -1250,17 +1277,34 @@ export function useCreateDraft(
     editUid?: HMDraftMeta['editUid']
     editPath?: HMDraftMeta['editPath']
     deps?: HMDraftContent['deps']
+    visibility?: HMResourceVisibility
   } = {},
 ) {
   const navigate = useNavigate('push')
+  const selectedAccountId = useSelectedAccountId()
+
   return () => {
     const id = nanoid(10)
-    navigate({
-      key: 'draft',
-      id,
-      accessory: {key: 'options'},
-      ...draftParams,
-    })
+
+    if (draftParams.visibility === 'PRIVATE' && selectedAccountId) {
+      // Private documents: random nanoid path at root level, unchangeable.
+      const privatePath = nanoid(21)
+      navigate({
+        key: 'draft',
+        id,
+        accessory: {key: 'options'},
+        locationUid: selectedAccountId,
+        locationPath: [privatePath],
+        visibility: 'PRIVATE',
+      })
+    } else {
+      navigate({
+        key: 'draft',
+        id,
+        accessory: {key: 'options'},
+        ...draftParams,
+      })
+    }
   }
 }
 

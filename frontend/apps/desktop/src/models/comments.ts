@@ -172,7 +172,10 @@ export function useAllDiscussions(
         pageSize: BIG_INT,
       })
       return res.comments.map((c) => {
-        const json = c.toJson({emitDefaultValues: true}) as any
+        const json = c.toJson({
+          emitDefaultValues: true,
+          enumAsInteger: false,
+        }) as any
         return {
           ...json,
           content:
@@ -288,7 +291,9 @@ export function useCommentEditor(
     )
 
     // Convert to HMBlockNode format for checking
-    const blockNodes = blocks.map((b) => b.toJson()) as HMBlockNode[]
+    const blockNodes = blocks.map((b) =>
+      b.toJson({emitDefaultValues: true, enumAsInteger: false}),
+    ) as HMBlockNode[]
 
     // Check if content is empty
     const hasContent = blockNodes.some(hasBlockContent)

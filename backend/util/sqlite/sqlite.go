@@ -521,7 +521,7 @@ func (conn *Conn) trackTransaction(query string) {
 			if d >= conn.busyTimeout {
 				log.Warn("SlowQuery",
 					"duration", d.String(),
-					"stacktrace", debug.Stack(),
+					"stacktrace", string(debug.Stack()),
 				)
 			}
 		}

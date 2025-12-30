@@ -1,5 +1,9 @@
 import {z} from 'zod'
-import {BlockRangeSchema, unpackedHmIdSchema} from './hm-types'
+import {
+  BlockRangeSchema,
+  HMResourceVisibilitySchema,
+  unpackedHmIdSchema,
+} from './hm-types'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -121,6 +125,7 @@ export const draftRouteSchema = z.object({
   deps: z.array(z.string()).optional(),
   accessory: documentAccessorySchema.nullable().optional(),
   isWelcomeDraft: z.boolean().optional(),
+  visibility: HMResourceVisibilitySchema.optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 

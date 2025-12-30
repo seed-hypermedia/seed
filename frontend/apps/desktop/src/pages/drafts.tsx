@@ -3,9 +3,6 @@ import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useCreateDraft, useDraftList} from '@/models/documents'
 import {client} from '@/trpc'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {invalidateQueries} from '@shm/shared/models/query-client'
-import {useMutation, useQuery} from '@tanstack/react-query'
 import {useNavigate} from '@/utils/useNavigate'
 import {
   formattedDateMedium,
@@ -18,9 +15,13 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
+import {PrivateBadge} from '@shm/ui/private-badge'
 import {SizableText} from '@shm/ui/text'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {FileText, MessageSquare, Trash} from 'lucide-react'
 import React, {useMemo} from 'react'
 
@@ -220,6 +221,11 @@ function DocumentDraftItem({
           >
             {getMetadataName(metadata)}
           </SizableText>
+          {item.visibility === 'PRIVATE' && (
+            <div className="mt-1">
+              <PrivateBadge />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-2">
