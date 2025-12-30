@@ -51,10 +51,13 @@ CREATE TABLE blob_visibility (
     PRIMARY KEY (id, space)
 ) WITHOUT ROWID;
 
+-- Index for efficient lookup of blobs by space.
+CREATE INDEX blob_visibility_by_space ON blob_visibility (space, id);
+
 -- Public blobs view for backwards compatibility.
 -- When a blob has space = NULL, it's public.
 CREATE VIEW public_blobs AS
-SELECT DISTINCT id FROM blob_visibility WHERE space = 0;
+SELECT id FROM blob_visibility WHERE space = 0;
 
 -- Stores the blob links patterns by which the visibility of blobs should propagate.
 -- When we insert a blob, we first check if any parent according to these patters is public,

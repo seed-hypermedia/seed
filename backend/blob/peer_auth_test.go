@@ -28,7 +28,7 @@ func TestAuthenticateValidToken(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Prepare authentication request: Alice authenticates to Bob with her account key.
@@ -66,7 +66,7 @@ func TestAuthenticateInvalidSignature(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Create token with invalid signature.
@@ -100,7 +100,7 @@ func TestAuthenticateExpiredToken(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Create a token with an old timestamp (more than authTokenTimeout in the past).
@@ -135,7 +135,7 @@ func TestAuthenticateFutureToken(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Create a token with a future timestamp (more than authTokenTimeout in the future).
@@ -170,7 +170,7 @@ func TestClearPeerOnDisconnect(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Authenticate Alice.
@@ -214,7 +214,7 @@ func TestAuthenticateWrongAudience(t *testing.T) {
 	defer db.Close()
 	require.NoError(t, storage.InitSQLiteSchema(db))
 
-	idx, err := OpenIndex(ctx, db, zap.NewNop(), nil)
+	idx, err := OpenIndex(ctx, db, zap.NewNop())
 	require.NoError(t, err)
 
 	// Alice signs a token intended for Carol (audience = Carol's peer ID).
@@ -254,7 +254,7 @@ func TestCanPeerAccessSpace_DirectAuthentication(t *testing.T) {
 	require.NoError(t, storage.InitSQLiteSchema(bobDB))
 
 	// Create blob index for Bob.
-	bobIndex, err := OpenIndex(ctx, bobDB, zap.NewNop(), nil)
+	bobIndex, err := OpenIndex(ctx, bobDB, zap.NewNop())
 	require.NoError(t, err)
 
 	// Alice authenticates with her account.

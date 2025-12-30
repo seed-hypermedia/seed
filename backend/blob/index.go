@@ -8,7 +8,6 @@ import (
 	"iter"
 	"net/url"
 	"seed/backend/core"
-	taskmanager "seed/backend/daemon/taskmanager"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/ipfs"
 	"seed/backend/util/dqb"
@@ -17,6 +16,7 @@ import (
 	"seed/backend/util/unsafeutil"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -93,14 +93,13 @@ func (iri IRI) Breadcrumbs() []IRI {
 	return out
 }
 
+// Index is an indexed blob store.
 type Index struct {
 	bs  *blockStore
 	db  *sqlitex.Pool
 	log *zap.Logger
 
 	mu sync.Mutex // protects from concurrent reindexing
-
-	taskMgr *taskmanager.TaskManager
 
 	// Peer access control fields.
 	peerAuth         *peerAuthStore
@@ -110,35 +109,35 @@ type Index struct {
 	// Maps peer ID -> request ID -> set of CIDs.
 	allowlistMu      sync.RWMutex
 	allowlistEntries map[peer.ID]map[string]map[cid.Cid]struct{}
+
+	reindexing struct {
+		blobsTotal   atomic.Int64
+		blobsIndexed atomic.Int64
+		state        atomic.Int32
+	}
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
-func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, error) {
-	idx := newIndex(db, log, taskMgr)
+func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, error) {
+	idx := newIndex(db, log)
 	if err := idx.MaybeReindex(ctx); err != nil {
 		return nil, err
 	}
 	return idx, nil
 }
 
-// OpenIndexAsync creates the index and starts reindexing the data if necessary in a separate goroutine.
-func OpenIndexAsync(ctx context.Context, db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) (*Index, chan error) {
-	idx := newIndex(db, log, taskMgr)
-	initComplete := make(chan error, 1)
-	go func() {
-		initComplete <- idx.MaybeReindex(ctx)
-		close(initComplete)
-	}()
-	return idx, initComplete
+// OpenIndexPendingReindex creates the index without running the initial reindexing.
+// Callers are responsible for calling [Index.MaybeReindex] before using it.
+func OpenIndexPendingReindex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) *Index {
+	return newIndex(db, log)
 }
 
-func newIndex(db *sqlitex.Pool, log *zap.Logger, taskMgr *taskmanager.TaskManager) *Index {
+func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	idx := &Index{
 		bs:               newBlockstore(db),
 		db:               db,
 		log:              log,
-		taskMgr:          taskMgr,
 		peerAuth:         newPeerAuthStore(),
 		sitePeerResolver: newSitePeerResolver(500, 5*time.Minute),
 		allowlistEntries: make(map[peer.ID]map[string]map[cid.Cid]struct{}),
