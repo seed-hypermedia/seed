@@ -210,7 +210,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockParse = HMBlockSchema.safeParse(block)
 
   if (blockParse.success) {
-    return blockParse.data
+    return blockParse.data as HMBlock
   }
 
   // TypeScript can't narrow the type here, so we need to assert it

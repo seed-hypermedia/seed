@@ -1065,30 +1065,37 @@ export const HMBlockLinkSchema = z.object({
   text: z.string(),
 })
 
-export const HMBlockSchema = z.union([
-  z.discriminatedUnion('type', [
-    HMBlockParagraphSchema,
-    HMBlockHeadingSchema,
-    HMBlockCodeSchema,
-    HMBlockMathSchema,
-    HMBlockImageSchema,
-    HMBlockVideoSchema,
-    HMBlockFileSchema,
-    HMBlockButtonSchema,
-    HMBlockEmbedSchema,
-    HMBlockWebEmbedSchema,
-    HMBlockNostrSchema,
-    HMBlockQuerySchema,
-    HMBlockGroupSchema,
-    HMBlockLinkSchema,
-  ]),
-  // Catch all definition for unknown block types to prevent blowing up the whole app.
-  z
-    .object({
-      type: z.string(),
-    })
-    .passthrough(),
+export const HMBlockKnownSchema = z.discriminatedUnion('type', [
+  HMBlockParagraphSchema,
+  HMBlockHeadingSchema,
+  HMBlockCodeSchema,
+  HMBlockMathSchema,
+  HMBlockImageSchema,
+  HMBlockVideoSchema,
+  HMBlockFileSchema,
+  HMBlockButtonSchema,
+  HMBlockEmbedSchema,
+  HMBlockWebEmbedSchema,
+  HMBlockNostrSchema,
+  HMBlockQuerySchema,
+  HMBlockGroupSchema,
+  HMBlockLinkSchema,
 ])
+
+export const HMBlockUnknownSchema = z
+  .object({
+    type: z.string(),
+    ...blockBaseProperties,
+  })
+  .passthrough()
+
+export const HMBlockSchema = z.union([HMBlockKnownSchema, HMBlockUnknownSchema])
+
+export const knownBlockTypes = new Set(HMBlockKnownSchema.optionsMap.keys())
+
+export function isKnownBlockType(btype: string): boolean {
+  return knownBlockTypes.has(btype)
+}
 
 export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
 export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
@@ -1101,7 +1108,7 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
-export type HMBlock = z.infer<typeof HMBlockSchema>
+export type HMBlock = z.infer<typeof HMBlockKnownSchema>
 export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 
 export const HMDocumentSchema = z.object({
