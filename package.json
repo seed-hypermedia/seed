@@ -64,6 +64,13 @@
     "typescript": "5.8.3"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@ipshipyard/node-datachannel",
+      "@sentry/cli",
+      "better-sqlite3",
+      "esbuild",
+      "sharp"
+    ],
     "overrides": {
       "react": "18.2.0",
       "react-dom": "18.2.0",
