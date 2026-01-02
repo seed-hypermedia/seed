@@ -690,7 +690,7 @@ export function useDraftEditor() {
             key: 'draft',
             id,
             deps: route.deps || undefined,
-            accessory: {key: 'options'},
+            accessory: null,
           })
           return {}
         },

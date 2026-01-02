@@ -597,8 +597,8 @@ function InnerDocumentPage(
                     ref={media.gtSm ? mainScrollRef : null}
                   >
                     <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
+                      {documentTools}
                       <DocumentCover cover={document.metadata.cover} />
-                      {isHomeDoc ? documentTools : null}
                       <div
                         {...wrapperProps}
                         className={cn('flex flex-1', wrapperProps.className)}
@@ -662,7 +662,6 @@ function InnerDocumentPage(
                                     }
                                   : activityDisabledToast
                               }
-                              documentTools={documentTools}
                             />
                           )}
                           <div className="pr-3">
@@ -769,7 +768,6 @@ function InnerDocumentPage(
                     minSize={media.gtSm ? 20 : 100}
                     className="border-sidebar-border flex h-full flex-1 flex-col border-l"
                   >
-                    {documentTools}
                     <div className="dark:bg-background border-border border-b bg-white p-3">
                       <div className="flex items-center">
                         {activePanel?.type === 'discussions' &&
@@ -853,16 +851,8 @@ function InnerDocumentPage(
                 )}
               >
                 {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
-                <div className="relative flex items-center p-3">
-                  <Button
-                    size="icon"
-                    onClick={() => setMobilePanelOpen(false)}
-                    className="flex-0 shrink-0 grow-0"
-                  >
-                    <Close className="size-4" />
-                  </Button>
-                </div>
-                <div className="border-border flex items-center border-b px-5 py-2 text-left">
+
+                <div className="border-border flex items-center border-b px-3 py-2 text-left">
                   {activePanel?.type === 'discussions' &&
                   activePanel.comment ? (
                     <Button
@@ -880,7 +870,19 @@ function InnerDocumentPage(
                       <ChevronLeft className="size-4" />
                     </Button>
                   ) : null}
-                  <Text weight="semibold">{panelTitle}</Text>
+                  <Text weight="semibold" className="flex-1">
+                    {panelTitle}
+                  </Text>
+                  <Button
+                    size="icon"
+                    onClick={() => {
+                      setMobilePanelOpen(false)
+                      setDocumentPanel(null)
+                    }}
+                    className="flex-0 shrink-0 grow-0"
+                  >
+                    <Close className="size-4" />
+                  </Button>
                 </div>
 
                 <div className="flex flex-1 flex-col overflow-hidden">

@@ -14,6 +14,7 @@ export function DocumentTools({
   commentsCount = 0,
   collabsCount = 0,
   directoryCount = 0,
+  draftActions,
 }: {
   activePanel?: 'activity' | 'discussions' | 'collaborators' | 'directory'
   onCommentsClick?: () => void
@@ -23,6 +24,7 @@ export function DocumentTools({
   commentsCount?: number
   collabsCount?: number
   directoryCount?: number
+  draftActions?: React.ReactNode
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -52,10 +54,10 @@ export function DocumentTools({
   }, [onFeedClick, onCommentsClick, onCollabsClick, onDirectoryClick])
 
   return (
-    <div className="border-border border-b">
+    <div className="border-border flex w-full border-b">
       <div
         ref={containerRef}
-        className="mx-auto flex max-w-3xl items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
+        className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2"
       >
         {/* Hidden measurement container with labels always visible */}
         <div
@@ -153,6 +155,11 @@ export function DocumentTools({
           />
         ) : null}
       </div>
+      {draftActions ? (
+        <div className="flex items-center gap-2 p-1 md:gap-4 md:p-2">
+          {draftActions}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -176,7 +183,7 @@ function ButtonTool({
   let btn = (
     <Button
       onClick={onClick}
-      className="flex-1"
+      className="flex-1 rounded-full"
       variant={active ? 'accent' : 'ghost'}
     >
       <Icon className="size-4" />

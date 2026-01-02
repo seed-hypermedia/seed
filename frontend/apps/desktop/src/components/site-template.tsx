@@ -78,7 +78,7 @@ export function SiteTemplate({
           typeof (route as DocumentRoute).id.version === 'string'
             ? [(route as DocumentRoute).id.version]
             : [],
-        accessory: {key: 'options'},
+        accessory: null,
       })
       return
     }

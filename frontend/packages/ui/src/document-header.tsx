@@ -27,7 +27,6 @@ export function DocumentHeader({
   updateTime = null,
   breadcrumbs,
   siteUrl,
-  documentTools,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -38,8 +37,6 @@ export function DocumentHeader({
     metadata: HMMetadata
   }>
   siteUrl?: string
-  // TODO: add proper types to this component
-  documentTools?: any
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -81,7 +78,7 @@ export function DocumentHeader({
             {docMetadata?.summary}
           </span>
         ) : null}
-        <div className="flex flex-col gap-2">
+        <div className="border-border flex flex-col gap-2 border-b">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="flex flex-1 flex-wrap items-center gap-3">
@@ -138,7 +135,6 @@ export function DocumentHeader({
             </div>
           </div>
         </div>
-        <div className="border-border border-t">{documentTools}</div>
       </div>
     </Container>
   )

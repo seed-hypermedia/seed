@@ -8,7 +8,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation} from '@tanstack/react-query'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -27,6 +26,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMutation} from '@tanstack/react-query'
 import {
   HTMLAttributes,
   PropsWithChildren,
@@ -192,12 +192,7 @@ export default function PublishDraftButton() {
             : 'Publish Document...'
         }
       >
-        <Button
-          size="sm"
-          className="px-2"
-          onClick={handlePublishPress}
-          variant="outline"
-        >
+        <Button size="sm" className="px-2" onClick={handlePublishPress}>
           {signingAccount ? (
             <HMIcon
               id={signingAccount.id}

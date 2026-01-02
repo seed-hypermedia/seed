@@ -1,39 +1,18 @@
-import {useAllDocumentCapabilities} from '@/models/access-control'
-import {useChildrenActivity} from '@/models/library'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavigate} from '@/utils/useNavigate'
 import {DocAccessoryOption} from '@shm/shared'
-import {useResource} from '@shm/shared/models/entity'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
-  useRouteDocId,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@shm/ui/components/dropdown-menu'
 import {panelContainerStyles} from '@shm/ui/container'
 import {FeedFilters} from '@shm/ui/feed-filters'
 import {Text} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
-import {
-  ChevronDown,
-  ChevronLeft,
-  Folder,
-  HistoryIcon,
-  MessageSquare,
-  Pencil,
-  Users,
-} from 'lucide-react'
+import {ChevronLeft, X} from 'lucide-react'
 import {useEffect, useLayoutEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -49,10 +28,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   children,
   accessory,
   accessoryKey,
-  accessoryOptions,
-  onAccessorySelect,
-  mainPanelRef,
-  isNewDraft = false,
 }: {
   children: React.ReactNode
   accessory: React.ReactNode | null
@@ -62,7 +37,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   mainPanelRef?: React.RefObject<HTMLDivElement>
   isNewDraft?: boolean
 }) {
-  const docId = useRouteDocId()
   const panelsRef = useRef<ImperativePanelGroupHandle>(null)
   const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -132,21 +106,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     }),
     [state?.sidebarLocked, state?.accessoryWidth],
   )
-
-  const resource = useResource(docId, {subscribed: true})
-
-  const isDocument = resource.data?.type == 'document'
-  const allDocumentCapabilities = useAllDocumentCapabilities(docId)
-  const interactionSummary = useInteractionSummary(docId)
-  const collaboratorCount =
-    allDocumentCapabilities.data?.filter((c) => c.role !== 'agent')?.length ||
-    undefined
-
-  const childrenActivity = useChildrenActivity(docId, {
-    enabled: isDocument,
-  })
-  const directoryCount = childrenActivity.data?.length || undefined
-  const discussionsCount = interactionSummary.data?.comments
 
   useEffect(() => {
     const panelGroup = panelsRef.current
@@ -252,17 +211,7 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
               'dark:bg-background flex flex-col bg-white',
             )}
           >
-            <AccessoryTabs
-              options={accessoryOptions}
-              accessoryKey={accessoryKey}
-              onAccessorySelect={onAccessorySelect}
-              tabNumbers={{
-                collaborators: collaboratorCount,
-                directory: directoryCount,
-                discussions: discussionsCount || 0,
-              }}
-            />
-            <div className="border-border border-b px-5 py-3">
+            <div className="border-border border-b px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 {shouldShowBackButton && (
                   <Tooltip content={txString('Back to All discussions')}>
@@ -279,6 +228,19 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
                 <Text weight="semibold" size="lg" className="flex-1">
                   {accessoryTitle}
                 </Text>
+                <Button
+                  size="icon"
+                  onClick={() => {
+                    if ('accessory' in route && route.accessory) {
+                      replace({
+                        ...route!,
+                        accessory: null,
+                      })
+                    }
+                  }}
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
               {accessoryKey == 'activity' ? (
                 <FeedFilters
@@ -315,137 +277,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           </div>
         </Panel>
       </PanelGroup>
-    </div>
-  )
-}
-
-const iconNames = {
-  collaborators: Users,
-  directory: Folder,
-  activity: HistoryIcon,
-  discussions: MessageSquare,
-  options: Pencil,
-  contacts: Users,
-} as const
-
-// Stable width estimator function
-const getAccessoryItemWidth = () => 60
-
-function AccessoryTabs({
-  options,
-  accessoryKey,
-  onAccessorySelect,
-  tabNumbers,
-}: {
-  accessoryKey: DocAccessoryOption['key'] | undefined
-  options: DocAccessoryOption[]
-  onAccessorySelect: (key: DocAccessoryOption['key'] | undefined) => void
-  tabNumbers?: Partial<Record<DocAccessoryOption['key'], number>>
-}) {
-  const paddingWidth = 16 // p-2 on both sides
-  const dropdownButtonWidth = 36 // size-sm button width
-  const gapWidth = 20 // gap-1 between items
-  const reservedWidth = paddingWidth + dropdownButtonWidth + gapWidth
-
-  const {containerRef, itemRefs, visibleItems, overflowItems} =
-    useResponsiveItems({
-      items: options,
-      activeKey: accessoryKey,
-      getItemWidth: getAccessoryItemWidth,
-      reservedWidth,
-      gapWidth,
-    })
-
-  return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="flex items-center justify-center gap-1 p-2 px-3"
-      >
-        {/* Hidden measurement container */}
-        <div className="pointer-events-none absolute flex items-center gap-1 opacity-0">
-          {options?.map((option) => {
-            const isActive = accessoryKey === option.key
-            const Icon = iconNames[option.key]
-            return (
-              <div
-                key={`measure-${option.key}`}
-                ref={(el) => {
-                  if (el) {
-                    itemRefs.current.set(option.key, el)
-                  } else {
-                    itemRefs.current.delete(option.key)
-                  }
-                }}
-              >
-                <Button size="sm" variant={isActive ? 'brand-12' : 'ghost'}>
-                  {Icon ? <Icon className="size-4" /> : null}
-                  {tabNumbers?.[option.key]
-                    ? String(tabNumbers[option.key])
-                    : null}
-                </Button>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Visible options */}
-        {visibleItems.map((option) => {
-          const isActive = accessoryKey === option.key
-          const Icon = iconNames[option.key]
-          return (
-            <Tooltip content={option.label} key={option.key} side="bottom">
-              <span>
-                <Button
-                  size="sm"
-                  variant={isActive ? 'brand-12' : 'ghost'}
-                  onClick={() => {
-                    onAccessorySelect(!isActive ? option.key : undefined)
-                  }}
-                >
-                  {Icon ? <Icon className="size-4" /> : null}
-                  {tabNumbers?.[option.key]
-                    ? String(tabNumbers[option.key])
-                    : null}
-                </Button>
-              </span>
-            </Tooltip>
-          )
-        })}
-
-        {/* Overflow dropdown */}
-        {overflowItems.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger>
-              <Button size="sm" variant="ghost" className="rounded-full">
-                <ChevronDown className="size-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="w-50">
-              {overflowItems.map((option) => {
-                const isActive = accessoryKey === option.key
-                const Icon = iconNames[option.key]
-                return (
-                  <DropdownMenuItem
-                    key={option.key}
-                    onClick={() => {
-                      onAccessorySelect(!isActive ? option.key : undefined)
-                    }}
-                  >
-                    {Icon ? <Icon className="size-4" /> : null}
-                    {option.label}
-                    {tabNumbers?.[option.key] ? (
-                      <DropdownMenuShortcut>
-                        {String(tabNumbers[option.key])}
-                      </DropdownMenuShortcut>
-                    ) : null}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
     </div>
   )
 }

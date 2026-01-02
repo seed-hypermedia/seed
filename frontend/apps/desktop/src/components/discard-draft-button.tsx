@@ -16,8 +16,8 @@ export default function DiscardDraftButton() {
       {deleteDialog.content}
       <Tooltip content="Discard Draft">
         <Button
-          size="icon"
-          variant="destructive"
+          size="sm"
+          variant="ghost"
           onClick={() => {
             if (draftId) {
               deleteDialog.open({
@@ -31,7 +31,7 @@ export default function DiscardDraftButton() {
             }
           }}
         >
-          <Trash className="size-3" />
+          <Trash className="text-destructive size-4" />
         </Button>
       </Tooltip>
     </>
