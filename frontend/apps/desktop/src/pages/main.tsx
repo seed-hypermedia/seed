@@ -57,6 +57,7 @@ var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
+var Preview = lazy(() => import('./preview'))
 
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
@@ -300,6 +301,11 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Profile,
         Fallback: BaseLoading,
+      }
+    case 'preview':
+      return {
+        PageComponent: Preview,
+        Fallback: DocumentPlaceholder,
       }
     default:
       return {

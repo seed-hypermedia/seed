@@ -61,7 +61,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {PanelRight} from 'lucide-react'
+import {Eye, PanelRight} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -1097,6 +1097,20 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   return (
     <div className="flex items-center gap-1">
       <PublishDraftButton key="publish-draft" />
+      <Tooltip content="Preview Document">
+        <Button
+          onClick={() => {
+            client.createAppWindow.mutate({
+              routes: [{key: 'preview', draftId: route.id}],
+              sidebarLocked: false,
+              sidebarWidth: 0,
+              accessoryWidth: 0,
+            })
+          }}
+        >
+          <Eye className="size-4" />
+        </Button>
+      </Tooltip>
       <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button

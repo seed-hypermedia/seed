@@ -124,6 +124,12 @@ export const draftRouteSchema = z.object({
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
+export const previewRouteSchema = z.object({
+  key: z.literal('preview'),
+  draftId: z.string(),
+})
+export type PreviewRoute = z.infer<typeof previewRouteSchema>
+
 export const favoritesSchema = z.object({
   key: z.literal('favorites'),
 })
@@ -166,6 +172,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
+  previewRouteSchema,
   exploreRouteSchema,
   favoritesSchema,
   draftsSchema,
