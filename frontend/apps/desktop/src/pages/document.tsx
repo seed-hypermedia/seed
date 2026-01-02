@@ -722,7 +722,6 @@ function DocPageHeader({
       authors={authorMetadata}
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
-      documentTools={documentTools}
     />
   )
 }
