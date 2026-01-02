@@ -6,11 +6,11 @@
  * using shared query objects from @shm/shared.
  */
 
-import {dehydrate, QueryClient} from '@tanstack/react-query'
+import { dehydrate, QueryClient } from "@tanstack/react-query";
 
 export type PrefetchContext = {
-  queryClient: QueryClient
-}
+  queryClient: QueryClient;
+};
 
 /**
  * Create a new prefetch context for a request.
@@ -26,12 +26,12 @@ export function createPrefetchContext(): PrefetchContext {
         },
       },
     }),
-  }
+  };
 }
 
 /**
  * Dehydrate the QueryClient state for transfer to the client.
  */
 export function dehydratePrefetchContext(ctx: PrefetchContext) {
-  return dehydrate(ctx.queryClient)
+  return dehydrate(ctx.queryClient);
 }

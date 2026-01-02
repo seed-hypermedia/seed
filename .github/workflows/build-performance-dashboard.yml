@@ -83,11 +83,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "yarn"
+          cache: "pnpm"
 
       - name: Download performance results
         uses: actions/download-artifact@v4
@@ -97,17 +102,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          yarn install
+          pnpm install
           cd frontend/apps/performance-dashboard
-          yarn install
+          pnpm install
 
       - name: Build performance dashboard
         run: |
           cd frontend/apps/performance-dashboard
           # Copy results from performance tests directory to dashboard public folder
-          yarn copy-results
+          pnpm copy-results
           # Build the dashboard
-          yarn build
+          pnpm build
           # Verify performance results were copied to dist
           if [ ! -d "dist/performance-results" ]; then
             echo "Warning: Performance results not found in dist folder. Copying them now."

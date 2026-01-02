@@ -1,6 +1,6 @@
-import {useCreateAccount} from '@/auth'
-import {useLocation, useNavigate} from '@remix-run/react'
-import avatarPlaceholder from '@shm/editor/assets/avatar.png'
+import { useCreateAccount } from "@/auth";
+import { useLocation, useNavigate } from "@remix-run/react";
+import avatarPlaceholder from "@shm/editor/assets/avatar.png";
 import {
   BlockRange,
   HMBlockNode,
@@ -15,38 +15,38 @@ import {
   unpackHmId,
   useRouteLink,
   useUniversalAppContext,
-} from '@shm/shared'
+} from "@shm/shared";
 import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
-import {supportedLanguages} from '@shm/shared/language-packs'
-import {useAccount, useResources} from '@shm/shared/models/entity'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import '@shm/shared/styles/document.css'
-import {useTx, useTxString} from '@shm/shared/translation'
-import {UIAvatar} from '@shm/ui/avatar'
-import {BlocksContent, BlocksContentProvider} from '@shm/ui/blocks-content'
-import {Button, ButtonLink} from '@shm/ui/button'
-import {DocumentCover} from '@shm/ui/document-cover'
-import {DocumentHeader} from '@shm/ui/document-header'
-import {DocumentTools} from '@shm/ui/document-tools'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Close} from '@shm/ui/icons'
-import {useDocumentLayout} from '@shm/ui/layout'
+} from "@shm/shared/comments-service-provider";
+import { supportedLanguages } from "@shm/shared/language-packs";
+import { useAccount, useResources } from "@shm/shared/models/entity";
+import { useInteractionSummary } from "@shm/shared/models/interaction-summary";
+import "@shm/shared/styles/document.css";
+import { useTx, useTxString } from "@shm/shared/translation";
+import { UIAvatar } from "@shm/ui/avatar";
+import { BlocksContent, BlocksContentProvider } from "@shm/ui/blocks-content";
+import { Button, ButtonLink } from "@shm/ui/button";
+import { DocumentCover } from "@shm/ui/document-cover";
+import { DocumentHeader } from "@shm/ui/document-header";
+import { DocumentTools } from "@shm/ui/document-tools";
+import { HMIcon } from "@shm/ui/hm-icon";
+import { Close } from "@shm/ui/icons";
+import { useDocumentLayout } from "@shm/ui/layout";
 import {
   DocNavigationWrapper,
   DocumentOutline,
   useNodesOutline,
-} from '@shm/ui/navigation'
-import {useAutoHideSiteHeader} from '@shm/ui/site-header'
-import {Spinner} from '@shm/ui/spinner'
-import {Text} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useMedia} from '@shm/ui/use-media'
-import {cn} from '@shm/ui/utils'
-import {ChevronLeft, HistoryIcon, MessageSquare} from 'lucide-react'
+} from "@shm/ui/navigation";
+import { useAutoHideSiteHeader } from "@shm/ui/site-header";
+import { Spinner } from "@shm/ui/spinner";
+import { Text } from "@shm/ui/text";
+import { toast } from "@shm/ui/toast";
+import { Tooltip } from "@shm/ui/tooltip";
+import { useMedia } from "@shm/ui/use-media";
+import { cn } from "@shm/ui/utils";
+import { ChevronLeft, HistoryIcon, MessageSquare } from "lucide-react";
 import {
   Suspense,
   lazy,
@@ -55,60 +55,65 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react'
-import {ErrorBoundary, FallbackProps} from 'react-error-boundary'
+} from "react";
+import { ErrorBoundary, FallbackProps } from "react-error-boundary";
 import {
   ImperativePanelHandle,
   Panel,
   PanelGroup,
   PanelResizeHandle,
-} from 'react-resizable-panels'
-import {MyAccountBubble} from './account-bubble'
-import {useLocalKeyPair} from './auth'
-import WebCommenting from './commenting'
-import type {SiteDocumentPayload} from './loaders'
-import {addRecent} from './local-db-recents'
-import {NotFoundPage} from './not-found'
-import {PageFooter} from './page-footer'
-import {NavigationLoadingContent, WebSiteProvider} from './providers'
-import {useScrollRestoration} from './use-scroll-restoration'
-import {WebSiteHeader} from './web-site-header'
+} from "react-resizable-panels";
+import { MyAccountBubble } from "./account-bubble";
+import { useLocalKeyPair } from "./auth";
+import WebCommenting from "./commenting";
+import type { SiteDocumentPayload } from "./loaders";
+import { addRecent } from "./local-db-recents";
+import { NotFoundPage } from "./not-found";
+import { PageFooter } from "./page-footer";
+import { NavigationLoadingContent, WebSiteProvider } from "./providers";
+import { useScrollRestoration } from "./use-scroll-restoration";
+import { WebSiteHeader } from "./web-site-header";
 
 // Lazy load components for better initial page load performance
 const FeedFilters = lazy(() =>
-  import('@shm/ui/feed-filters').then((m) => ({default: m.FeedFilters})),
-)
+  import("@shm/ui/feed-filters").then((m) => ({ default: m.FeedFilters }))
+);
 const WebDiscussionsPanel = lazy(() =>
-  import('./discussions-panel').then((m) => ({default: m.WebDiscussionsPanel})),
-)
-const Feed = lazy(() => import('@shm/ui/feed').then((m) => ({default: m.Feed})))
+  import("./discussions-panel").then((m) => ({
+    default: m.WebDiscussionsPanel,
+  }))
+);
+const Feed = lazy(() =>
+  import("@shm/ui/feed").then((m) => ({ default: m.Feed }))
+);
 const DirectoryPanel = lazy(() =>
-  import('@shm/ui/directory-panel').then((m) => ({default: m.DirectoryPanel})),
-)
+  import("@shm/ui/directory-panel").then((m) => ({ default: m.DirectoryPanel }))
+);
 
 // export const links = () => [{rel: 'stylesheet', href: blocksContentStyles}]
 
 type WebAccessory =
   | {
-      type: 'activity'
-      filterEventType?: string[]
+      type: "activity";
+      filterEventType?: string[];
     }
   | {
-      type: 'discussions'
-      blockId?: string | null
-      blockRange?: BlockRange | null
-      blockRef?: string | null
-      comment?: HMComment
+      type: "discussions";
+      blockId?: string | null;
+      blockRange?: BlockRange | null;
+      blockRef?: string | null;
+      comment?: HMComment;
     }
   | {
-      type: 'directory'
-    }
-const DEFAULT_MAIN_PANEL_SIZE = 65
+      type: "directory";
+    };
+const DEFAULT_MAIN_PANEL_SIZE = 65;
 
 export function DocumentPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & { prefersLanguages?: string[] }
 ) {
-  const {siteHost, origin, prefersLanguages, document, dehydratedState} = props
+  const { siteHost, origin, prefersLanguages, document, dehydratedState } =
+    props;
   return (
     <WebSiteProvider
       origin={origin}
@@ -123,19 +128,19 @@ export function DocumentPage(
         <NotFoundPage {...props} />
       )}
     </WebSiteProvider>
-  )
+  );
 }
 
 function InnerDocumentPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & { prefersLanguages?: string[] }
 ) {
-  const mainPanelRef = useRef<ImperativePanelHandle>(null)
-  const media = useMedia()
-  const [editorAutoFocus, setEditorAutoFocus] = useState(false)
-  let panel: any = null
-  let panelTitle: string = ''
+  const mainPanelRef = useRef<ImperativePanelHandle>(null);
+  const media = useMedia();
+  const [editorAutoFocus, setEditorAutoFocus] = useState(false);
+  let panel: any = null;
+  let panelTitle: string = "";
 
-  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(null)
+  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(null);
 
   const {
     document,
@@ -147,97 +152,97 @@ function InnerDocumentPage(
     origin,
     comment,
     isLatest,
-  } = props
+  } = props;
 
   // Persist feed filters in localStorage per document
   const [savedFeedFilters, setSavedFeedFilters] = useState({
     filterEventType: [] as string[],
-  })
+  });
 
   // Use localStorage after component mounts (client-side only)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(
-          `activity-panel-feed-filters-${id.id}`,
-        )
+          `activity-panel-feed-filters-${id.id}`
+        );
         if (stored) {
-          setSavedFeedFilters(JSON.parse(stored))
+          setSavedFeedFilters(JSON.parse(stored));
         }
       } catch (e) {
-        console.error('Failed to load feed filters from localStorage:', e)
+        console.error("Failed to load feed filters from localStorage:", e);
       }
     }
-  }, [id.id])
+  }, [id.id]);
 
   // Save to localStorage when filters change
   const updateSavedFilters = useCallback(
-    (filters: {filterEventType: string[]}) => {
-      setSavedFeedFilters(filters)
-      if (typeof window !== 'undefined') {
+    (filters: { filterEventType: string[] }) => {
+      setSavedFeedFilters(filters);
+      if (typeof window !== "undefined") {
         try {
           localStorage.setItem(
             `activity-panel-feed-filters-${id.id}`,
-            JSON.stringify(filters),
-          )
+            JSON.stringify(filters)
+          );
         } catch (e) {
-          console.error('Failed to save feed filters to localStorage:', e)
+          console.error("Failed to save feed filters to localStorage:", e);
         }
       }
     },
-    [id.id],
-  )
+    [id.id]
+  );
 
-  const mainScrollRef = useScrollRestoration('main-document-scroll', true)
+  const mainScrollRef = useScrollRestoration("main-document-scroll", true);
   // const activityScrollRef = useScrollRestoration(`activity-${id.id}`)
 
-  const keyPair = useLocalKeyPair()
-  const currentAccount = useAccount(keyPair?.id || undefined)
+  const keyPair = useLocalKeyPair();
+  const currentAccount = useAccount(keyPair?.id || undefined);
 
-  const {hideSiteHeaderClassName, hideMobileBarClassName} =
-    useAutoHideSiteHeader(media.gtSm ? mainScrollRef : undefined)
-
-  useEffect(() => {
-    if (!id) return
-    addRecent(id.id, document?.metadata?.name || '')
-  }, [id, document?.metadata?.name])
+  const { hideSiteHeaderClassName, hideMobileBarClassName } =
+    useAutoHideSiteHeader(media.gtSm ? mainScrollRef : undefined);
 
   useEffect(() => {
-    if (!media.gtSm || !panel) return
+    if (!id) return;
+    addRecent(id.id, document?.metadata?.name || "");
+  }, [id, document?.metadata?.name]);
 
-    const mainPanel = mainPanelRef.current
-    if (!mainPanel) return
+  useEffect(() => {
+    if (!media.gtSm || !panel) return;
 
-    mainPanel.resize(DEFAULT_MAIN_PANEL_SIZE)
-    mainPanel.expand()
-  }, [panel, media.gtSm])
+    const mainPanel = mainPanelRef.current;
+    if (!mainPanel) return;
 
-  const isHomeDoc = !id?.path?.length
+    mainPanel.resize(DEFAULT_MAIN_PANEL_SIZE);
+    mainPanel.expand();
+  }, [panel, media.gtSm]);
+
+  const isHomeDoc = !id?.path?.length;
   const isShowOutline =
-    (typeof document.metadata?.showOutline == 'undefined' ||
+    (typeof document.metadata?.showOutline == "undefined" ||
       document.metadata?.showOutline) &&
-    !isHomeDoc
-  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc
+    !isHomeDoc;
+  const showSidebarOutlineDirectory = isShowOutline && !isHomeDoc;
 
-  const location = useLocation()
-  const replace = useNavigate()
-  const tx = useTxString()
+  const location = useLocation();
+  const replace = useNavigate();
+  const tx = useTxString();
 
-  const {blockRef, blockRange} = useMemo(() => {
-    const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/)
+  const { blockRef, blockRange } = useMemo(() => {
+    const match = location.hash.match(/^(.+?)(?:\[(\d+):(\d+)\])?$/);
     // @ts-expect-error
-    let blockRef = match ? match[1].substring(1) : undefined
-    if (blockRef?.endsWith('+')) {
+    let blockRef = match ? match[1].substring(1) : undefined;
+    if (blockRef?.endsWith("+")) {
       // TODO: Do something for expanded ref?
-      blockRef = blockRef.slice(0, -1)
+      blockRef = blockRef.slice(0, -1);
     }
     const blockRange =
       match && match[2] && match[3]
-        ? {start: parseInt(match[2]), end: parseInt(match[3])}
-        : undefined
+        ? { start: parseInt(match[2]), end: parseInt(match[3]) }
+        : undefined;
 
-    return {blockRef, blockRange}
-  }, [location.hash])
+    return { blockRef, blockRange };
+  }, [location.hash]);
 
   // if the server is providing a comment, use it as default, but allow local state to override
   // On mobile, activePanel can be set independently
@@ -246,12 +251,12 @@ function InnerDocumentPage(
     _activePanel ||
     (comment
       ? {
-          type: 'discussions',
+          type: "discussions",
           comment,
           blockRef,
           blockRange,
         }
-      : null)
+      : null);
 
   // TODO: Re-enable scroll restoration for activity panel
   // Reset scroll when filter changes for activity panel (design decision 2B)
@@ -268,55 +273,55 @@ function InnerDocumentPage(
 
   function setDocumentPanel(panel: WebAccessory | null) {
     // If switching to activity, include saved filters
-    if (panel?.type == 'activity') {
-      panel = {...panel, filterEventType: savedFeedFilters.filterEventType}
+    if (panel?.type == "activity") {
+      panel = { ...panel, filterEventType: savedFeedFilters.filterEventType };
     }
-    setActivePanel(panel)
-    setMobilePanelOpen(!!panel)
+    setActivePanel(panel);
+    setMobilePanelOpen(!!panel);
 
     // Update URL to reflect panel state
     // If closing discussions panel (going to activity or null), navigate back to document URL
-    if (panel?.type == 'activity' || panel === null) {
+    if (panel?.type == "activity" || panel === null) {
       const route: NavRoute = {
-        key: 'document',
+        key: "document",
         id,
-      }
+      };
       const href = routeToHref(route, {
         hmUrlHref: context.hmUrlHref,
         originHomeId: context.originHomeId,
-      })
+      });
       if (href) {
-        replace(href, {replace: true})
+        replace(href, { replace: true });
       }
     }
   }
 
   function setCommentPanel(comment: HMComment) {
-    const [commentUid, commentTsid] = comment.id.split('/')
+    const [commentUid, commentTsid] = comment.id.split("/");
     const route = {
-      key: 'document',
+      key: "document",
       id: {
         uid: commentUid,
         path: [commentTsid],
       },
-    } as NavRoute
+    } as NavRoute;
     const href = routeToHref(route, {
       hmUrlHref: context.hmUrlHref,
       originHomeId: context.originHomeId,
-    })
-    if (!href) return
+    });
+    if (!href) return;
     replace(href, {
       replace: true,
-    })
+    });
     setActivePanel({
-      type: 'discussions',
+      type: "discussions",
       comment: comment,
-    })
-    setMobilePanelOpen(true)
+    });
+    setMobilePanelOpen(true);
   }
 
   // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
-  const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)
+  const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment);
 
   // Sync activePanel with URL changes (e.g., from Feed navigation)
   useEffect(() => {
@@ -324,50 +329,50 @@ function InnerDocumentPage(
       // If URL has a comment and it's different from current activePanel, update it
       if (
         !_activePanel ||
-        _activePanel.type !== 'discussions' ||
-        (_activePanel.type === 'discussions' &&
+        _activePanel.type !== "discussions" ||
+        (_activePanel.type === "discussions" &&
           _activePanel.comment?.id !== comment.id)
       ) {
-        setActivePanel({type: 'discussions', comment, blockRef, blockRange})
-        setMobilePanelOpen(true)
+        setActivePanel({ type: "discussions", comment, blockRef, blockRange });
+        setMobilePanelOpen(true);
       }
     } else if (
-      _activePanel?.type === 'discussions' &&
+      _activePanel?.type === "discussions" &&
       _activePanel.comment &&
       !comment
     ) {
       // If URL no longer has a comment but activePanel does, clear it to activity
-      setActivePanel({type: 'activity', ...savedFeedFilters})
+      setActivePanel({ type: "activity", ...savedFeedFilters });
     }
-  }, [comment?.id, blockRef, blockRange])
+  }, [comment?.id, blockRef, blockRange]);
 
-  const context = useUniversalAppContext()
+  const context = useUniversalAppContext();
   const onActivateBlock = useCallback(
     (blockId: string) => {
       // Scroll to block smoothly
-      const targetElement = window.document.getElementById(blockId)
+      const targetElement = window.document.getElementById(blockId);
       if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'start'})
+        targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
       // Build URL for the block reference
       const route = {
-        key: 'document',
-        id: {...id, blockRef: blockId},
-      } as NavRoute
+        key: "document",
+        id: { ...id, blockRef: blockId },
+      } as NavRoute;
       const href = routeToHref(route, {
         hmUrlHref: context.hmUrlHref,
         originHomeId: context.originHomeId,
-      })
-      if (!href) return
+      });
+      if (!href) return;
 
       replace(href, {
         replace: true,
         preventScrollReset: true,
-      })
+      });
     },
-    [id, context.hmUrlHref, context.originHomeId, replace],
-  )
+    [id, context.hmUrlHref, context.originHomeId, replace]
+  );
 
   const {
     showSidebars,
@@ -379,64 +384,64 @@ function InnerDocumentPage(
   } = useDocumentLayout({
     contentWidth: document?.metadata?.contentWidth,
     showSidebars: showSidebarOutlineDirectory,
-  })
+  });
 
-  const activityEnabled = document?.metadata?.showActivity !== false
+  const activityEnabled = document?.metadata?.showActivity !== false;
   const interactionSummary = useInteractionSummary(id, {
     enabled: activityEnabled,
-  })
+  });
 
   const onBlockCitationClick = useCallback((blockId?: string | null) => {
-    setDocumentPanel({type: 'discussions', blockId: blockId})
-  }, [])
+    setDocumentPanel({ type: "discussions", blockId: blockId });
+  }, []);
 
   const onBlockCommentClick = useCallback(
     (
       blockId?: string | null,
       range?: BlockRange | undefined,
-      startCommentingNow?: boolean,
+      startCommentingNow?: boolean
     ) => {
-      setDocumentPanel({type: 'discussions', blockId: blockId || undefined})
+      setDocumentPanel({ type: "discussions", blockId: blockId || undefined });
       if (!media.gtSm) {
-        setMobilePanelOpen(true)
+        setMobilePanelOpen(true);
       }
     },
-    [media.gtSm],
-  )
+    [media.gtSm]
+  );
 
   const onReplyCountClick = useCallback((comment: HMComment) => {
-    setCommentPanel(comment)
-  }, [])
+    setCommentPanel(comment);
+  }, []);
 
   const onReplyClick = useCallback((comment: HMComment) => {
-    const targetId = isRouteEqualToCommentTarget({id, comment})
+    const targetId = isRouteEqualToCommentTarget({ id, comment });
 
     if (!targetId) {
-      setEditorAutoFocus(true)
-      setCommentPanel(comment)
+      setEditorAutoFocus(true);
+      setCommentPanel(comment);
       if (!media.gtSm) {
-        setMobilePanelOpen(true)
+        setMobilePanelOpen(true);
       }
     } else {
       const route = {
-        key: 'document',
+        key: "document",
         id: targetId,
         accessory: {
-          key: 'discussions',
+          key: "discussions",
           openComment: comment.id,
         },
-      } as NavRoute
-      const href = routeToHref(route, context)
+      } as NavRoute;
+      const href = routeToHref(route, context);
       if (href) {
-        replace(href)
+        replace(href);
       }
     }
-  }, [])
+  }, []);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const commentEditor =
-    activePanel?.type === 'discussions' ? (
+    activePanel?.type === "discussions" ? (
       <WebCommenting
         autoFocus={editorAutoFocus}
         docId={id}
@@ -447,14 +452,14 @@ function InnerDocumentPage(
         }
         quotingBlockId={activePanel.blockId || undefined}
       />
-    ) : activePanel?.type === 'activity' ? (
+    ) : activePanel?.type === "activity" ? (
       <WebCommenting docId={id} />
-    ) : null
+    ) : null;
 
   if (activityEnabled && activePanel) {
-    if (activePanel.type === 'discussions') {
+    if (activePanel.type === "discussions") {
       // Show the discussions panel with focused comment or block
-      panelTitle = tx('Discussions')
+      panelTitle = tx("Discussions");
       panel = (
         <PanelWrapper>
           <WebDiscussionsPanel
@@ -471,8 +476,8 @@ function InnerDocumentPage(
             siteHost={siteHost}
           />
         </PanelWrapper>
-      )
-    } else if (activePanel.type === 'activity') {
+      );
+    } else if (activePanel.type === "activity") {
       // Show the activity feed
       panel = (
         <PanelWrapper>
@@ -483,22 +488,22 @@ function InnerDocumentPage(
             filterEventType={activePanel.filterEventType || []}
           />
         </PanelWrapper>
-      )
-      panelTitle = tx('Document Activity')
+      );
+      panelTitle = tx("Document Activity");
     }
   }
 
-  if (activePanel?.type === 'directory') {
-    panelTitle = tx('Directory')
+  if (activePanel?.type === "directory") {
+    panelTitle = tx("Directory");
     panel = (
       <PanelWrapper>
         <DirectoryPanel docId={id} />
       </PanelWrapper>
-    )
+    );
   }
 
   if (!activePanel) {
-    panel = null
+    panel = null;
   }
 
   if (!document)
@@ -508,7 +513,7 @@ function InnerDocumentPage(
         originHomeId={originHomeId}
         homeMetadata={homeMetadata}
       />
-    )
+    );
 
   const documentTools = (
     <DocumentTools
@@ -516,9 +521,9 @@ function InnerDocumentPage(
       onFeedClick={
         activityEnabled
           ? () => {
-              setDocumentPanel({type: 'activity'})
+              setDocumentPanel({ type: "activity" });
               if (!media.gtSm) {
-                setMobilePanelOpen(true)
+                setMobilePanelOpen(true);
               }
             }
           : activityDisabledToast
@@ -527,25 +532,25 @@ function InnerDocumentPage(
         activityEnabled
           ? () => {
               setDocumentPanel({
-                type: 'discussions',
+                type: "discussions",
                 blockId: undefined,
-              })
+              });
               if (!media.gtSm) {
-                setMobilePanelOpen(true)
+                setMobilePanelOpen(true);
               }
             }
           : commentsDisabledToast
       }
       onDirectoryClick={() => {
-        setDocumentPanel({type: 'directory'})
+        setDocumentPanel({ type: "directory" });
         if (!media.gtSm) {
-          setMobilePanelOpen(true)
+          setMobilePanelOpen(true);
         }
       }}
       commentsCount={interactionSummary.data?.comments}
       directoryCount={interactionSummary.data?.children}
     />
-  )
+  );
   return (
     <Suspense
       fallback={
@@ -560,9 +565,9 @@ function InnerDocumentPage(
       >
         <div
           className={cn(
-            'bg-panel flex w-screen flex-col',
-            media.gtSm && 'h-screen max-h-screen overflow-hidden',
-            !media.gtSm && 'min-h-svh',
+            "bg-panel flex w-screen flex-col",
+            media.gtSm && "h-screen max-h-screen overflow-hidden",
+            !media.gtSm && "min-h-svh"
           )}
         >
           <WebSiteHeader
@@ -591,8 +596,8 @@ function InnerDocumentPage(
                 <div className="relative flex h-full flex-col" ref={elementRef}>
                   <div
                     className={cn(
-                      'flex flex-1 flex-col',
-                      media.gtSm && 'overflow-y-auto',
+                      "flex flex-1 flex-col",
+                      media.gtSm && "overflow-y-auto"
                     )}
                     ref={media.gtSm ? mainScrollRef : null}
                   >
@@ -601,13 +606,13 @@ function InnerDocumentPage(
                       {isHomeDoc ? documentTools : null}
                       <div
                         {...wrapperProps}
-                        className={cn('flex flex-1', wrapperProps.className)}
+                        className={cn("flex flex-1", wrapperProps.className)}
                       >
                         {showSidebars ? (
                           <div
                             className={cn(
                               sidebarProps.className,
-                              'hide-scrollbar overflow-y-scroll pb-6',
+                              "hide-scrollbar overflow-y-scroll pb-6"
                             )}
                             style={{
                               ...sidebarProps.style,
@@ -631,7 +636,7 @@ function InnerDocumentPage(
                               docMetadata={document.metadata}
                               // @ts-expect-error
                               authors={document.authors.map(
-                                (author) => accountsMetadata[author],
+                                (author) => accountsMetadata[author]
                               )}
                               updateTime={document.updateTime}
                               // @ts-expect-error
@@ -643,11 +648,11 @@ function InnerDocumentPage(
                                 activityEnabled
                                   ? () => {
                                       setDocumentPanel({
-                                        type: 'discussions',
+                                        type: "discussions",
                                         blockId: undefined,
-                                      })
+                                      });
                                       if (!media.gtSm) {
-                                        setMobilePanelOpen(true)
+                                        setMobilePanelOpen(true);
                                       }
                                     }
                                   : commentsDisabledToast
@@ -655,9 +660,9 @@ function InnerDocumentPage(
                               onFeedClick={
                                 activityEnabled
                                   ? () => {
-                                      setDocumentPanel({type: 'activity'})
+                                      setDocumentPanel({ type: "activity" });
                                       if (!media.gtSm) {
-                                        setMobilePanelOpen(true)
+                                        setMobilePanelOpen(true);
                                       }
                                     }
                                   : activityDisabledToast
@@ -684,9 +689,9 @@ function InnerDocumentPage(
                               }
                               onBlockSelect={(blockId, blockRange) => {
                                 const shouldCopy =
-                                  blockRange?.copyToClipboard !== false
+                                  blockRange?.copyToClipboard !== false;
                                 const route = {
-                                  key: 'document',
+                                  key: "document",
                                   id: {
                                     uid: id.uid,
                                     path: id.path,
@@ -694,47 +699,47 @@ function InnerDocumentPage(
                                     blockRef: blockId,
                                     blockRange:
                                       blockRange &&
-                                      'start' in blockRange &&
-                                      'end' in blockRange
+                                      "start" in blockRange &&
+                                      "end" in blockRange
                                         ? {
                                             start: blockRange.start,
                                             end: blockRange.end,
                                           }
                                         : null,
                                   },
-                                } as NavRoute
+                                } as NavRoute;
                                 const href = routeToHref(route, {
                                   hmUrlHref: context.hmUrlHref,
                                   originHomeId: context.originHomeId,
-                                })
+                                });
                                 if (!href) {
-                                  toast.error('Failed to create block link')
-                                  return
+                                  toast.error("Failed to create block link");
+                                  return;
                                 }
                                 if (shouldCopy) {
                                   window.navigator.clipboard.writeText(
-                                    `${siteHost}${href}`,
-                                  )
+                                    `${siteHost}${href}`
+                                  );
                                   toast.success(
-                                    'Block link copied to clipboard',
-                                  )
+                                    "Block link copied to clipboard"
+                                  );
                                 }
                                 // Only navigate if we're not explicitly just copying
                                 if (blockRange?.copyToClipboard !== true) {
                                   // Scroll to block smoothly BEFORE updating URL
                                   const element =
-                                    window.document.getElementById(blockId)
+                                    window.document.getElementById(blockId);
                                   if (element) {
                                     element.scrollIntoView({
-                                      behavior: 'smooth',
-                                      block: 'start',
-                                    })
+                                      behavior: "smooth",
+                                      block: "start",
+                                    });
                                   }
 
                                   navigate(href, {
                                     replace: true,
                                     preventScrollReset: true,
-                                  })
+                                  });
                                 }
                               }}
                               blockCitations={interactionSummary.data?.blocks}
@@ -772,19 +777,19 @@ function InnerDocumentPage(
                     {documentTools}
                     <div className="dark:bg-background border-border border-b bg-white p-3">
                       <div className="flex items-center">
-                        {activePanel?.type === 'discussions' &&
+                        {activePanel?.type === "discussions" &&
                         (activePanel.comment || activePanel.blockId) ? (
-                          <Tooltip content={tx('Back to All discussions')}>
+                          <Tooltip content={tx("Back to All discussions")}>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="mr-2 flex-none"
                               onClick={() => {
                                 setDocumentPanel({
-                                  type: 'discussions',
+                                  type: "discussions",
                                   blockId: undefined,
                                   comment: undefined,
-                                })
+                                });
                               }}
                             >
                               <ChevronLeft className="size-4" />
@@ -794,13 +799,13 @@ function InnerDocumentPage(
                         <Text weight="bold" size="md" className="flex-1">
                           {panelTitle}
                         </Text>
-                        <Tooltip content={tx('Close')}>
+                        <Tooltip content={tx("Close")}>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="flex-none"
                             onClick={() => {
-                              setDocumentPanel(null)
+                              setDocumentPanel(null);
                             }}
                           >
                             <Close className="size-4" />
@@ -808,21 +813,21 @@ function InnerDocumentPage(
                         </Tooltip>
                       </div>
 
-                      {activePanel?.type == 'activity' ? (
+                      {activePanel?.type == "activity" ? (
                         <FeedFilters
                           filterEventType={activePanel?.filterEventType}
                           onFilterChange={({
                             filterEventType,
                           }: {
-                            filterEventType?: string[]
+                            filterEventType?: string[];
                           }) => {
                             setActivePanel({
                               ...activePanel,
                               filterEventType: filterEventType || [],
-                            })
+                            });
                             updateSavedFilters({
                               filterEventType: filterEventType || [],
-                            })
+                            });
                           }}
                         />
                       ) : null}
@@ -838,7 +843,7 @@ function InnerDocumentPage(
             <>
               <MobileInteractionCardCollapsed
                 onClick={() => {
-                  setDocumentPanel({type: 'discussions'})
+                  setDocumentPanel({ type: "discussions" });
                   // setMobilePanelOpen(true)
                 }}
                 commentsCount={interactionSummary.data?.comments || 0}
@@ -848,8 +853,8 @@ function InnerDocumentPage(
 
               <div
                 className={cn(
-                  'bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
-                  isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
+                  "bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden",
+                  isMobilePanelOpen ? "translate-y-0" : "translate-y-full"
                 )}
               >
                 {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
@@ -863,7 +868,7 @@ function InnerDocumentPage(
                   </Button>
                 </div>
                 <div className="border-border flex items-center border-b px-5 py-2 text-left">
-                  {activePanel?.type === 'discussions' &&
+                  {activePanel?.type === "discussions" &&
                   activePanel.comment ? (
                     <Button
                       variant="ghost"
@@ -871,10 +876,10 @@ function InnerDocumentPage(
                       className="mr-2 flex-none"
                       onClick={() => {
                         setDocumentPanel({
-                          type: 'discussions',
+                          type: "discussions",
                           blockId: undefined,
                           comment: undefined,
-                        })
+                        });
                       }}
                     >
                       <ChevronLeft className="size-4" />
@@ -892,15 +897,15 @@ function InnerDocumentPage(
         </div>
       </CommentsProvider>
     </Suspense>
-  )
+  );
 }
 
 function activityDisabledToast() {
-  toast.error('Activity is not enabled for this document')
+  toast.error("Activity is not enabled for this document");
 }
 
 function commentsDisabledToast() {
-  toast.error('Comments are not enabled for this document')
+  toast.error("Comments are not enabled for this document");
 }
 
 function MobileInteractionCardCollapsed({
@@ -909,72 +914,72 @@ function MobileInteractionCardCollapsed({
   id,
   hideMobileBarClassName,
 }: {
-  onClick: () => void
-  commentsCount: number
-  id: UnpackedHypermediaId
-  hideMobileBarClassName?: string
+  onClick: () => void;
+  commentsCount: number;
+  id: UnpackedHypermediaId;
+  hideMobileBarClassName?: string;
 }) {
-  const keyPair = useLocalKeyPair()
+  const keyPair = useLocalKeyPair();
   // Use retry and disable refetchOnWindowFocus to avoid 404 errors while account is being created
   const myAccount = useAccount(keyPair?.id || undefined, {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     refetchOnWindowFocus: false,
-  })
+  });
 
-  const {content: createAccountContent, createAccount} = useCreateAccount({
+  const { content: createAccountContent, createAccount } = useCreateAccount({
     onClose: () => {
       // Add a small delay before refetching to give the backend time to process
       setTimeout(() => {
-        myAccount.refetch()
-      }, 500)
+        myAccount.refetch();
+      }, 500);
     },
-  })
+  });
 
   const handleAvatarClick = useMemo(() => {
     if (!keyPair) {
-      return createAccount
+      return createAccount;
     }
-    return null
-  }, [keyPair, createAccount])
+    return null;
+  }, [keyPair, createAccount]);
 
   const avatarLinkProps = useRouteLink(
     keyPair
       ? {
-          key: 'profile',
+          key: "profile",
           id: hmId(keyPair.id, {
             latest: true,
           }),
         }
-      : null,
-  )
+      : null
+  );
 
   const feedLinkProps = useRouteLink({
-    key: 'feed',
+    key: "feed",
     id: hmId(id.uid),
-  })
+  });
 
   return (
     <>
       <div
         className={cn(
-          'dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2',
-          'transition-all duration-200',
-          hideMobileBarClassName,
+          "dark:bg-background border-sidebar-border fixed right-0 bottom-0 left-0 z-40 flex items-center justify-between rounded-t-md border bg-white p-2",
+          "transition-all duration-200",
+          hideMobileBarClassName
         )}
         style={{
-          boxShadow: '0px -16px 40px 8px rgba(0,0,0,0.1)',
+          boxShadow: "0px -16px 40px 8px rgba(0,0,0,0.1)",
         }}
         onClick={(e) => {
           // Prevent clicks on the container from passing through to elements behind
-          e.stopPropagation()
+          e.stopPropagation();
         }}
       >
         <Button
           variant="ghost"
           className="min-w-20 shrink-0 cursor-pointer"
           {...(handleAvatarClick
-            ? {onClick: handleAvatarClick}
+            ? { onClick: handleAvatarClick }
             : avatarLinkProps)}
         >
           {myAccount.data?.id ? (
@@ -1001,13 +1006,13 @@ function MobileInteractionCardCollapsed({
           variant="ghost"
           className="min-w-20 shrink-0 cursor-pointer"
           onClick={(e) => {
-            e.stopPropagation()
-            onClick()
+            e.stopPropagation();
+            onClick();
           }}
           onMouseEnter={() => {
             // Prefetch discussions panel and feed when user hovers
-            import('./discussions-panel').catch(() => {})
-            import('@shm/ui/feed').catch(() => {})
+            import("./discussions-panel").catch(() => {});
+            import("@shm/ui/feed").catch(() => {});
           }}
         >
           <MessageSquare className="size-4 opacity-50" />
@@ -1018,56 +1023,56 @@ function MobileInteractionCardCollapsed({
       </div>
       {createAccountContent}
     </>
-  )
+  );
 }
 
 function DocumentDiscoveryPage({
   id,
 }: {
-  id: UnpackedHypermediaId
-  homeMetadata: HMMetadata | null
-  originHomeId: UnpackedHypermediaId | null
+  id: UnpackedHypermediaId;
+  homeMetadata: HMMetadata | null;
+  originHomeId: UnpackedHypermediaId | null;
 }) {
   useEffect(() => {
-    fetch('/hm/api/discover', {
-      method: 'post',
-      body: JSON.stringify({uid: id.uid, path: id.path, version: id.version}),
+    fetch("/hm/api/discover", {
+      method: "post",
+      body: JSON.stringify({ uid: id.uid, path: id.path, version: id.version }),
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     }).then(() => {
-      window.location.reload()
-    })
-  }, [id])
-  const tx = useTx()
+      window.location.reload();
+    });
+  }, [id]);
+  const tx = useTx();
   return (
     <div className="flex h-screen w-screen flex-col">
       <div className="flex flex-1 items-start justify-center px-4 py-12">
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <h2 className="text-2xl font-bold">
-            {tx('looking_for_document', 'Looking for a document...')}
+            {tx("looking_for_document", "Looking for a document...")}
           </h2>
 
           <p>
             {tx(
-              'hang_tight_searching',
+              "hang_tight_searching",
               `Hang tight! We're currently searching the network to locate your
             document. This may take a moment as we retrieve the most up-to-date
-            version.`,
+            version.`
             )}
           </p>
           <p>
             {tx(
-              'doc_will_appear',
+              "doc_will_appear",
               `If the document is available, it will appear shortly. Thank you for
-            your patience!`,
+            your patience!`
             )}
           </p>
         </div>
       </div>
       <PageFooter id={id} />
     </div>
-  )
+  );
 }
 
 /**
@@ -1075,25 +1080,25 @@ function DocumentDiscoveryPage({
  */
 function extractEmbedIds(
   content: HMBlockNode[],
-  collected: Set<string> = new Set(),
+  collected: Set<string> = new Set()
 ): UnpackedHypermediaId[] {
   for (const node of content) {
-    if (node.block.type === 'Embed' && node.block.link) {
-      const embedId = unpackHmId(node.block.link)
+    if (node.block.type === "Embed" && node.block.link) {
+      const embedId = unpackHmId(node.block.link);
       if (embedId && !collected.has(embedId.id)) {
-        collected.add(embedId.id)
+        collected.add(embedId.id);
       }
     }
     if (node.children) {
-      extractEmbedIds(node.children, collected)
+      extractEmbedIds(node.children, collected);
     }
   }
   return Array.from(collected)
     .map((id) => {
-      const parsed = unpackHmId(`hm://${id}`)
-      return parsed!
+      const parsed = unpackHmId(`hm://${id}`);
+      return parsed!;
     })
-    .filter(Boolean)
+    .filter(Boolean);
 }
 
 /**
@@ -1101,22 +1106,22 @@ function extractEmbedIds(
  * Extracts embed IDs from document content and fetches from React Query cache.
  */
 function useEmbeddedDocumentsForOutline(
-  content: HMBlockNode[] | undefined,
+  content: HMBlockNode[] | undefined
 ): HMResourceFetchResult[] {
-  const embedIds = content ? extractEmbedIds(content) : []
-  const queries = useResources(embedIds)
+  const embedIds = content ? extractEmbedIds(content) : [];
+  const queries = useResources(embedIds);
 
-  const results: HMResourceFetchResult[] = []
+  const results: HMResourceFetchResult[] = [];
   queries.forEach((query, i) => {
-    const embedId = embedIds[i]
-    if (query.data?.type === 'document' && embedId) {
+    const embedId = embedIds[i];
+    if (query.data?.type === "document" && embedId) {
       results.push({
         id: embedId,
         document: query.data.document,
-      })
+      });
     }
-  })
-  return results
+  });
+  return results;
 }
 
 function WebDocumentOutline({
@@ -1125,15 +1130,15 @@ function WebDocumentOutline({
   id,
   onActivateBlock,
 }: {
-  showCollapsed: boolean
-  document: HMDocument | null | undefined
-  id: UnpackedHypermediaId
-  onActivateBlock: (blockId: string) => void
+  showCollapsed: boolean;
+  document: HMDocument | null | undefined;
+  id: UnpackedHypermediaId;
+  onActivateBlock: (blockId: string) => void;
 }) {
   // Get embedded documents from React Query cache (prefetched during SSR)
-  const embeddedDocs = useEmbeddedDocumentsForOutline(document?.content)
-  const outline = useNodesOutline(document, id, embeddedDocs)
-  if (!outline.length) return null
+  const embeddedDocs = useEmbeddedDocumentsForOutline(document?.content);
+  const outline = useNodesOutline(document, id, embeddedDocs);
+  if (!outline.length) return null;
   return (
     <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
       <DocumentOutline
@@ -1143,10 +1148,10 @@ function WebDocumentOutline({
         activeBlockId={id.blockRef}
       />
     </DocNavigationWrapper>
-  )
+  );
 }
 
-function PanelError({error, resetErrorBoundary}: FallbackProps) {
+function PanelError({ error, resetErrorBoundary }: FallbackProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 self-stretch bg-red-100 p-3 align-middle">
       <h3 className="text-xl font-bold text-red-800">Oops, we hit an error!</h3>
@@ -1155,7 +1160,7 @@ function PanelError({error, resetErrorBoundary}: FallbackProps) {
         Retry
       </Button>
     </div>
-  )
+  );
 }
 
 function PanelLoading() {
@@ -1163,13 +1168,13 @@ function PanelLoading() {
     <div className="flex h-full items-center justify-center p-3">
       <Spinner />
     </div>
-  )
+  );
 }
 
-function PanelWrapper({children}: {children: React.ReactNode}) {
+function PanelWrapper({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<PanelLoading />}>
       <ErrorBoundary FallbackComponent={PanelError}>{children}</ErrorBoundary>
     </Suspense>
-  )
+  );
 }

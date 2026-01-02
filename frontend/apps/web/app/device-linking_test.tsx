@@ -1,50 +1,50 @@
-import {StrictMode, useState, FormEvent, useEffect} from 'react'
-import {createRoot} from 'react-dom/client'
-import {linkDevice, LinkingResult, LinkingEvent} from './device-linking'
-import * as cbor from '@ipld/dag-cbor'
-import {base58btc} from 'multiformats/bases/base58'
-import {preparePublicKey} from './auth-utils'
-import type {DeviceLinkSession} from '@shm/shared/hm-types'
+import { StrictMode, useState, FormEvent, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import { linkDevice, LinkingResult, LinkingEvent } from "./device-linking";
+import * as cbor from "@ipld/dag-cbor";
+import { base58btc } from "multiformats/bases/base58";
+import { preparePublicKey } from "./auth-utils";
+import type { DeviceLinkSession } from "@shm/shared/hm-types";
 
 type LinkingState =
   | {
-      state: 'result'
-      result: LinkingResult
+      state: "result";
+      result: LinkingResult;
     }
   | {
-      state: 'event'
-      event: LinkingEvent
+      state: "event";
+      event: LinkingEvent;
     }
   | {
-      state: 'error'
-      error: string
-    }
+      state: "error";
+      error: string;
+    };
 
 const DeviceLinking = () => {
-  const keyPair = useGenerateKey()
-  const [sessionString, setSessionString] = useState('')
-  const parsedSession = useParsedSession(sessionString)
-  const [linkingState, setLinkingState] = useState<LinkingState | null>(null)
+  const keyPair = useGenerateKey();
+  const [sessionString, setSessionString] = useState("");
+  const parsedSession = useParsedSession(sessionString);
+  const [linkingState, setLinkingState] = useState<LinkingState | null>(null);
 
-  if (linkingState && linkingState.state === 'result') {
-    return <LinkSuccess linkResult={linkingState.result} />
+  if (linkingState && linkingState.state === "result") {
+    return <LinkSuccess linkResult={linkingState.result} />;
   }
 
-  const invalidSession = Boolean(sessionString && !parsedSession)
+  const invalidSession = Boolean(sessionString && !parsedSession);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+    e.preventDefault();
 
     linkDevice(parsedSession!, keyPair!.keyPair, (e: LinkingEvent) => {
-      console.log(e)
-      setLinkingState({state: 'event', event: e})
+      console.log(e);
+      setLinkingState({ state: "event", event: e });
     })
       .then((result) => {
-        setLinkingState({state: 'result', result: result})
+        setLinkingState({ state: "result", result: result });
       })
       .catch((err) => {
-        setLinkingState({state: 'error', error: err.message})
-      })
+        setLinkingState({ state: "error", error: err.message });
+      });
   }
 
   return (
@@ -72,28 +72,28 @@ const DeviceLinking = () => {
         {parsedSession && (
           <div>
             <h3>Parsed Session Data</h3>
-            <pre style={{padding: '20px'}}>
+            <pre style={{ padding: "20px" }}>
               {JSON.stringify(parsedSession, null, 2)}
             </pre>
           </div>
         )}
 
         <button type="submit" disabled={invalidSession}>
-          {invalidSession ? 'Invalid session string' : 'Link Device'}
+          {invalidSession ? "Invalid session string" : "Link Device"}
         </button>
       </form>
 
       <section hidden={!linkingState}>
         <h3>Linking State</h3>
-        <pre style={{padding: '20px'}}>
+        <pre style={{ padding: "20px" }}>
           {JSON.stringify(linkingState, null, 2)}
         </pre>
       </section>
     </section>
-  )
-}
+  );
+};
 
-const elem = document.getElementById('root')!
+const elem = document.getElementById("root")!;
 const app = (
   <StrictMode>
     <section>
@@ -101,91 +101,91 @@ const app = (
       <DeviceLinking />
     </section>
   </StrictMode>
-)
+);
 
 if (import.meta.hot) {
   // With hot module reloading, `import.meta.hot.data` is persisted.
-  const root = (import.meta.hot.data.root ??= createRoot(elem))
-  root.render(app)
+  const root = (import.meta.hot.data.root ??= createRoot(elem));
+  root.render(app);
 } else {
   // The hot module reloading API is not available in production.
-  createRoot(elem).render(app)
+  createRoot(elem).render(app);
 }
 
 function useGenerateKey() {
   const [keyPair, setKeyPair] = useState<{
-    keyPair: CryptoKeyPair
-    id: string
-  } | null>(null)
+    keyPair: CryptoKeyPair;
+    id: string;
+  } | null>(null);
 
   useEffect(() => {
     const generateKey = async () => {
       const kp = await window.crypto.subtle.generateKey(
         {
-          name: 'ECDSA',
-          namedCurve: 'P-256',
+          name: "ECDSA",
+          namedCurve: "P-256",
         },
         true,
-        ['sign', 'verify'],
-      )
+        ["sign", "verify"]
+      );
 
-      const id = await preparePublicKey(kp.publicKey)
+      const id = await preparePublicKey(kp.publicKey);
 
       setKeyPair({
         keyPair: kp,
         id: base58btc.encode(id),
-      })
-      console.log('Generated P256 key pair:', kp)
-    }
+      });
+      console.log("Generated P256 key pair:", kp);
+    };
 
-    generateKey()
-  }, [])
+    generateKey();
+  }, []);
 
-  return keyPair
+  return keyPair;
 }
 
 function useParsedSession(sessionString: string) {
-  const [session, setSession] = useState<DeviceLinkSession | undefined>()
+  const [session, setSession] = useState<DeviceLinkSession | undefined>();
 
   useEffect(() => {
     if (!sessionString) {
-      setSession(undefined)
-      return
+      setSession(undefined);
+      return;
     }
 
     try {
-      if (sessionString.startsWith('http')) {
-        const url = new URL(sessionString)
-        sessionString = url.hash.slice(1) // Trim the leading '#'.
+      if (sessionString.startsWith("http")) {
+        const url = new URL(sessionString);
+        sessionString = url.hash.slice(1); // Trim the leading '#'.
       }
 
-      const sessionBytes = base58btc.decode(sessionString)
-      const sessionData = cbor.decode<DeviceLinkSession>(sessionBytes)
-      setSession(sessionData)
+      const sessionBytes = base58btc.decode(sessionString);
+      const sessionData = cbor.decode<DeviceLinkSession>(sessionBytes);
+      setSession(sessionData);
     } catch (error) {
-      console.log(error)
-      setSession(undefined)
-      return
+      console.log(error);
+      setSession(undefined);
+      return;
     }
-  }, [sessionString])
+  }, [sessionString]);
 
-  return session
+  return session;
 }
 
-function LinkSuccess(props: {linkResult: LinkingResult}) {
+function LinkSuccess(props: { linkResult: LinkingResult }) {
   return (
     <section>
       <h3>Device linked successfully!</h3>
-      <pre style={{padding: '20px'}}>
+      <pre style={{ padding: "20px" }}>
         {JSON.stringify(
           {
             browserAccountId: props.linkResult.browserAccountId,
             appAccountId: props.linkResult.appAccountId,
           },
           null,
-          2,
+          2
         )}
       </pre>
     </section>
-  )
+  );
 }

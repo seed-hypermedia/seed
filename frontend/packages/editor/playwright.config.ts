@@ -2,7 +2,7 @@ import {defineConfig, devices} from '@playwright/test'
 
 /**
  * Playwright configuration for the @shm/editor E2E tests.
- * Run tests with: `yarn workspace @shm/editor test:e2e`
+ * Run tests with: `pnpm --filter @shm/editor test:e2e`
  */
 export default defineConfig({
   testDir: './e2e/tests',

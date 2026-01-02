@@ -6,7 +6,7 @@ go = "1.25.4"
 "go:github.com/thought-machine/please/src" = {"version" = "648d330599c4a96e46ec7aa9bca5839119b04a4c", postinstall = "mv $MISE_TOOL_INSTALL_PATH/bin/src $MISE_TOOL_INSTALL_PATH/bin/plz"}
 node = "22.2.0"
 protoc = "24.4"
-yarn = "4.12.0"
+pnpm = "9.15.0"
 
 [settings]
 experimental = true

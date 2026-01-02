@@ -26,14 +26,14 @@ This tool uses Lighthouse to measure performance metrics for both our web applic
 ## Prerequisites
 
 - Node.js 18 or higher
-- Yarn package manager
+- pnpm package manager
 - Chrome/Chromium browser (for Lighthouse)
 
 ## Installation
 
 ```bash
 # Install dependencies
-yarn
+pnpm install
 ```
 
 ## Usage
@@ -43,16 +43,16 @@ yarn
 Test a specific application:
 ```bash
 # Test web app
-yarn test web
+pnpm test web
 
 # Test landing page
-yarn test landing
+pnpm test landing
 ```
 
 Test both applications:
 ```bash
 # Test both web app and landing page
-yarn test all
+pnpm test all
 ```
 
 ### Configuration
@@ -100,12 +100,12 @@ Results can be viewed in the performance dashboard:
 1. Copy results to the dashboard:
    ```bash
    cd ../performance-dashboard
-   yarn copy-results
+   pnpm copy-results
    ```
 
 2. Start the dashboard:
    ```bash
-   yarn dev
+   pnpm dev
    ```
 
 3. Navigate to the Web or Landing sections to view the results
@@ -122,8 +122,8 @@ The tool is integrated into our CI/CD pipelines:
 ```yaml
 - name: Run Performance Tests
   run: |
-    yarn test web      # For web app workflow
-    yarn test landing  # For landing page workflow
+    pnpm test web      # For web app workflow
+    pnpm test landing  # For landing page workflow
 ```
 
 ## Troubleshooting
@@ -154,7 +154,7 @@ The tool is integrated into our CI/CD pipelines:
 
 Run tests with debug output:
 ```bash
-DEBUG=* yarn test web
+DEBUG=* pnpm test web
 ```
 
 ## Contributing

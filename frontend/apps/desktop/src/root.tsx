@@ -99,7 +99,7 @@ const hiddenLogMessages = new Set<string>([
 //   } catch (e) {
 //     let error = e
 //     if (e.message.match('stream.getReader is not a function')) {
-//       error = new Error('RPC broken, try running yarn and ./dev gen')
+//       error = new Error('RPC broken, try running pnpm install and ./dev gen')
 //     }
 //     if (isSensitive) {
 //       logger.error(`🚨 to ${methodFullname} `, 'HIDDEN FROM LOGS', error)

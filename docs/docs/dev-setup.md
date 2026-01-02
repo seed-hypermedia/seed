@@ -83,11 +83,11 @@ go run ./backend/cmd/seed-site -data-dir=~/.mttsite -p2p.port=59000 --http.port=
 
 ### 2. Start the Frontend Web App
 
-In the Seed directory, start by running `yarn`. Then:
+In the Seed directory, start by running `pnpm install`. Then:
 
 ```
 cd frontend/apps/web
-DAEMON_HTTP_URL="http://localhost:57001" yarn dev
+DAEMON_HTTP_URL="http://localhost:57001" pnpm dev
 ```
 
 ## Dev: Run Gateway
@@ -102,7 +102,7 @@ Simultaneously run the Frontend:
 
 ```
 cd frontend/apps/web
-PORT=3300 DAEMON_HTTP_URL="http://localhost:59001" yarn dev
+PORT=3300 DAEMON_HTTP_URL="http://localhost:59001" pnpm dev
 ```
 
 Now your dev gateway is running at `http://localhost:3300`

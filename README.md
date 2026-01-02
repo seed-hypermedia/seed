@@ -56,9 +56,9 @@ SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ## Frontend Testing
 
 ```bash
-yarn test               # test all the packages
-yarn desktop:test       # test desktop app (e2e only now)
-yarn site:test          # test only site code (WIP)
+pnpm test               # test all the packages
+pnpm desktop:test       # test desktop app (e2e only now)
+pnpm site:test          # test only site code (WIP)
 ```
 
 ## Web Build

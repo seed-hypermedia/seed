@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "copy-results": "node copy-results.js",
-    "predev": "yarn copy-results",
+    "predev": "pnpm copy-results",
     "dev": "vite",
-    "prebuild": "yarn copy-results",
-    "postbuild": "yarn copy-results",
+    "prebuild": "pnpm copy-results",
+    "postbuild": "pnpm copy-results",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

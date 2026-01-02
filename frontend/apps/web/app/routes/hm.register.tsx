@@ -1,11 +1,11 @@
-import {defaultPageMeta} from '@/meta'
-import {SizableText} from '@shm/ui/text'
+import { defaultPageMeta } from "@/meta";
+import { SizableText } from "@shm/ui/text";
 
-export const loader = async ({request}: {request: Request}) => {
-  return null
-}
+export const loader = async ({ request }: { request: Request }) => {
+  return null;
+};
 
-export const meta = defaultPageMeta('Site Registration')
+export const meta = defaultPageMeta("Site Registration");
 
 export default function RegisterPage() {
   return (
@@ -46,5 +46,5 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

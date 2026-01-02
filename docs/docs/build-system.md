@@ -62,7 +62,7 @@ The absolute minimum of tools you must have to build our desktop app (use the sa
 
 1. Go toolchain.
 2. NodeJS toolchain.
-3. Yarn.
+3. pnpm.
 4. Probably some of the environment variables defined in `.envrc` file.
 
 Take a look around `.github/workflows` directory (especially `.github/workflows/desktop-release.yml`) to see how we build our app in CI. Try to replicate the exact version of the tools locally.
@@ -74,5 +74,5 @@ To build the desktop app:
    - Make sure `CGO_ENABLED=1` env variable is set.
    - The `llvm-platform-triple` depends on the platform you're on. See the values we use in CI here: https://github.com/MintterHypermedia/mintter/blob/d7582fed90840eae953a191b779ef5285b9c21b1/.github/workflows/desktop-release.yml#L63-L79.
    - On Windows add `.exe` to the output path.
-3. Run `yarn install`.
-4. Run `yarn desktop` to start the Electron's dev workflow.
+3. Run `pnpm install`.
+4. Run `pnpm desktop` to start the Electron's dev workflow.

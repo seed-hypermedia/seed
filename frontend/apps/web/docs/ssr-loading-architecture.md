@@ -96,8 +96,8 @@ fetch occurs.
 
 ```typescript
 // These result in ONE fetch, not two:
-await prefetchQuery(queryResource(client, homeId))
-await prefetchQuery(queryResource(client, homeId)) // returns cached
+await prefetchQuery(queryResource(client, homeId));
+await prefetchQuery(queryResource(client, homeId)); // returns cached
 ```
 
 ## Wave Strategy
@@ -136,7 +136,7 @@ documents:
 
 ```typescript
 // BlockContentQuery in blocks-content.tsx
-const directoryItems = useDirectory(queryIncludeId, {mode})
+const directoryItems = useDirectory(queryIncludeId, { mode });
 // directoryItems contains HMDocumentInfo with:
 // - id, path, version
 // - metadata (name, icon, description)
@@ -155,10 +155,10 @@ Embeds that show document content need the full document:
 
 ```typescript
 // extractRefs() finds all Embed blocks in content
-const refs = extractRefs(document.content)
+const refs = extractRefs(document.content);
 
 // Prefetch each referenced document
-refs.forEach((ref) => prefetchQuery(queryResource(client, ref.refId)))
+refs.forEach((ref) => prefetchQuery(queryResource(client, ref.refId)));
 ```
 
 ## Error Handling

@@ -5,7 +5,7 @@
 - This repo is a Multi-Language repo.
 - We use [mise](https://mise.jdx.dev) to manage project dependencies.
 - We use direnv to load all environment variables needed on the project.
-- For the frontend projects we use Yarn Workspaces.
+- For the frontend projects we use pnpm Workspaces.
 - Currently we have 2 projects: Desktop app and Sites
 - the Desktop app is built entirely on Github actions
 - Sites are built as a Docker container for easy deployment

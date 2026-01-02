@@ -77,9 +77,9 @@ const siteDaemonProcess = spawn(
   }
 );
 
-// HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:61001" PORT=3000 yarn site
+// HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:61001" PORT=3000 pnpm site
 
-const siteProcess = spawn("yarn", ["site"], {
+const siteProcess = spawn("pnpm", ["site"], {
   cwd: cwd(),
   env: {
     ...process.env,
