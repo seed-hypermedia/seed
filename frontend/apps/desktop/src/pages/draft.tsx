@@ -1,20 +1,23 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {triggerCommentDraftFocus} from '@/components/commenting'
 import {CoverImage} from '@/components/cover-image'
+import DiscardDraftButton from '@/components/discard-draft-button'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
+import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
+import {useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useSelectedAccountContacts} from '@/models/contacts'
 import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
+import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
+import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
-import {useMutation} from '@tanstack/react-query'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -42,17 +45,23 @@ import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
+import {DocumentTools} from '@shm/ui/document-tools'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
+import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
+import {PanelRight} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -369,7 +378,6 @@ function DocumentEditor({
 }) {
   const route = useNavRoute()
   const openUrl = useOpenUrl()
-  const replace = useNavigate('replace')
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = useMutation({
     mutationFn: (url: string) => client.webImporting.importWebFile.mutate(url),
@@ -429,8 +437,6 @@ function DocumentEditor({
       }
     })
   }, [id, route.id, editor])
-
-  const contacts = useSelectedAccountContacts()
 
   // // Prepopulate welcome blocks for first draft after onboarding
   // useEffect(() => {
@@ -516,6 +522,7 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="flex flex-1 flex-col overflow-hidden"
         >
+          <DocumentTools draftActions={<DraftActionButtons route={route} />} />
           <ScrollArea onScroll={() => dispatchScroll(true)}>
             <DraftCover
               draftActor={actor}
@@ -1054,4 +1061,58 @@ function applyInputResize(target: HTMLTextAreaElement) {
 
   // Set height to match content with no limit
   target.style.height = target.scrollHeight + 'px'
+}
+
+function DraftActionButtons({route}: {route: DraftRoute}) {
+  const selectedAccount = useSelectedAccount()
+  const replace = useNavigate('replace')
+  const draftId = route.id
+  const draft = useDraft(draftId)
+  const editId = draftEditId(draft.data)
+  const locationId = draftLocationId(draft.data)
+  const editIdWriteCap = useSelectedAccountCapability(
+    editId || locationId,
+    'writer',
+  )
+  if (!selectedAccount?.id) return null
+  if ((editId || locationId) && !editIdWriteCap)
+    return (
+      <div className="flex items-center gap-2">
+        <HMIcon
+          size={18}
+          id={selectedAccount?.id}
+          name={selectedAccount?.document?.metadata?.name}
+          icon={selectedAccount?.document?.metadata?.icon}
+        />
+        <SizableText size="sm">
+          <span className="font-bold">
+            {selectedAccount?.document?.metadata.name}
+          </span>
+          {' - '}
+          Not Allowed to Publish Here
+        </SizableText>
+      </div>
+    )
+
+  return (
+    <div className="flex items-center gap-1">
+      <PublishDraftButton key="publish-draft" />
+      <DiscardDraftButton key="discard-draft" />
+      <Tooltip content="Toggle Draft Options">
+        <Button
+          onClick={() => {
+            replace({
+              ...route,
+              accessory:
+                route.key == 'draft' && route.accessory?.key == 'options'
+                  ? null
+                  : {key: 'options'},
+            })
+          }}
+        >
+          <PanelRight className="size-4" />
+        </Button>
+      </Tooltip>
+    </div>
+  )
 }

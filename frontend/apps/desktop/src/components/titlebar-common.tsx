@@ -5,13 +5,10 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
-import {useAccountDraftList, useCreateDraft} from '@/models/documents'
-import {draftEditId, draftLocationId} from '@/models/drafts'
+import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
-import {useSelectedAccount} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
@@ -20,14 +17,9 @@ import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DocumentRoute, DraftRoute, FeedRoute} from '@shm/shared/routes'
+import {DocumentRoute, FeedRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
-import {
-  displayHostname,
-  hmId,
-  latestId,
-  pathMatches,
-} from '@shm/shared/utils/entity-id-url'
+import {displayHostname, hmId, latestId} from '@shm/shared/utils/entity-id-url'
 import {
   useNavRoute,
   useNavigationDispatch,
@@ -35,19 +27,12 @@ import {
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@shm/ui/components/popover'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {
   ArrowRight,
   Back,
   CloudOff,
   Download,
   Forward,
   Link,
-  Pencil,
   Trash,
   UploadCloud,
 } from '@shm/ui/icons'
@@ -65,16 +50,11 @@ import {
   GitFork,
   Import,
   PanelLeft,
-  PanelRight,
 } from 'lucide-react'
-import {nanoid} from 'nanoid'
-import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
+import {ReactNode, useContext, useRef} from 'react'
 import {BranchDialog} from './branch-dialog'
-import DiscardDraftButton from './discard-draft-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
-import {editPopoverEvents} from './onboarding'
-import PublishDraftButton from './publish-draft-button'
 import {
   usePublishSite,
   useRemoveSiteDialog,
@@ -323,159 +303,12 @@ export function DocOptionsButton({
   )
 }
 
-function useExistingDraft(route: DocumentRoute | FeedRoute) {
-  const drafts = useAccountDraftList(route.id.uid)
-  const existingDraft = drafts.data?.find((d) => {
-    // @ts-expect-error
-    const id = d.editId
-    if (!id) return false
-    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
-  })
-  return existingDraft
-}
-
-function EditDocButton() {
-  const route = useNavRoute()
-
-  if (route.key != 'document' && route.key != 'feed')
-    throw new Error('EditDocButton can only be rendered on document route')
-  const capability = useSelectedAccountCapability(route.id)
-  const navigate = useNavigate()
-
-  const existingDraft = useExistingDraft(route)
-
-  const [popoverVisible, setPopoverVisible] = useState(false)
-
-  useEffect(() => {
-    editPopoverEvents.subscribe((visible) => {
-      setPopoverVisible(visible)
-    })
-  }, [])
-
-  const button = (
-    <Button
-      size="sm"
-      variant={existingDraft ? 'secondary' : 'ghost'}
-      onClick={() => {
-        if (existingDraft) {
-          navigate({
-            key: 'draft',
-            id: existingDraft.id,
-            accessory: {key: 'options'},
-          })
-        } else {
-          navigate({
-            key: 'draft',
-            id: nanoid(10),
-            editUid: route.id.uid,
-            editPath: route.id.path || [],
-            deps: route.id.version ? [route.id.version] : undefined,
-            accessory: {key: 'options'},
-          })
-        }
-      }}
-    >
-      <Pencil className="size-4" />
-      {existingDraft ? 'Resume Editing' : 'Edit'}
-    </Button>
-  )
-  if (!roleCanWrite(capability?.role)) return null
-  if (popoverVisible) {
-    return (
-      <>
-        <div
-          className="fixed top-0 left-0 z-40 flex h-screen w-screen bg-black opacity-50"
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            setPopoverVisible(false)
-          }}
-        />
-        <Popover
-          open={popoverVisible}
-          onOpenChange={(val) => {
-            console.log('== ~ onOpenChange ~ val:', val)
-            setPopoverVisible(val)
-          }}
-        >
-          <PopoverTrigger>{button}</PopoverTrigger>
-          <PopoverContent>
-            <div className="border-border bg-background absolute -top-2 right-9 h-4 w-4 rotate-45 border border-r-transparent border-b-transparent" />
-            <div className="flex flex-col gap-2">
-              <SizableText size="3xl" weight="bold">
-                Start Editing the Content
-              </SizableText>
-              <SizableText>
-                When you press "Edit" you can start customizing the content of
-                the current page
-              </SizableText>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </>
-    )
-  }
-  return (
-    <>
-      <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
-        {button}
-      </Tooltip>
-    </>
-  )
-}
-
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
-  if (route.key === 'draft') {
-    return (
-      <TitlebarSection>
-        <DraftActionButtons route={route} />
-      </TitlebarSection>
-    )
-  } else if (route.key == 'document' || route.key == 'feed') {
+  if (route.key == 'document' || route.key == 'feed') {
     return <DocumentTitlebarButtons route={route} />
   }
   return null
-}
-
-function DraftActionButtons({route}: {route: DraftRoute}) {
-  const selectedAccount = useSelectedAccount()
-  const draftId = route.id
-  const draft = useDraft(draftId)
-  const editId = draftEditId(draft.data)
-  const locationId = draftLocationId(draft.data)
-  const editIdWriteCap = useSelectedAccountCapability(
-    editId || locationId,
-    'writer',
-  )
-  if (!selectedAccount?.id) return null
-  if ((editId || locationId) && !editIdWriteCap)
-    return (
-      <div className="flex items-center gap-2">
-        <HMIcon
-          size={18}
-          id={selectedAccount?.id}
-          name={selectedAccount?.document?.metadata?.name}
-          icon={selectedAccount?.document?.metadata?.icon}
-        />
-        <SizableText size="sm">
-          <span className="font-bold">
-            {selectedAccount?.document?.metadata.name}
-          </span>
-          {' - '}
-          Not Allowed to Publish Here
-        </SizableText>
-        <AccessorySidebarToggle />
-      </div>
-    )
-
-  return (
-    <>
-      <PublishDraftButton key="publish-draft" />
-      <DiscardDraftButton key="discard-draft" />
-      <AccessorySidebarToggle />
-    </>
-  )
 }
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
@@ -516,9 +349,7 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
       ) : null}
       <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
-      {isLatest ? <EditDocButton key="editDoc" /> : null}
       {publishSite.content}
-      <AccessorySidebarToggle />
     </TitlebarSection>
   )
 }
@@ -637,89 +468,6 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute | FeedRoute}) {
       <ArrowRight className="size-4" />
     </Button>
   )
-}
-
-function AccessorySidebarToggle() {
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-  const [currentAccessory, setCurrentAccessory] = useState<
-    DocumentRoute['accessory'] | null | undefined
-  >(() => {
-    if (
-      route.key == 'document' ||
-      route.key == 'draft' ||
-      route.key == 'feed'
-    ) {
-      if (typeof route.accessory == 'undefined' || route.accessory == null) {
-        return {key: 'activity'}
-      } else {
-        return route.accessory
-      }
-    } else {
-      return null
-    }
-  })
-
-  useEffect(() => {
-    if (
-      route.key == 'document' ||
-      route.key == 'draft' ||
-      route.key == 'feed'
-    ) {
-      if (typeof route.accessory == 'undefined' || route.accessory == null) {
-        // setCurrentAccessory({key: 'discussions'})
-      } else {
-        setCurrentAccessory(route.accessory)
-      }
-    }
-  }, [route])
-
-  if (route.key == 'document' || route.key == 'feed') {
-    return (
-      <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
-        <Button
-          size="icon"
-          onClick={() => {
-            if (route.key == 'document') {
-              replace({
-                ...route,
-                accessory: route.accessory ? null : currentAccessory,
-              })
-            } else if (route.key == 'feed') {
-              replace({
-                id: route.id,
-                key: route.key,
-                accessory: route.accessory ? null : currentAccessory,
-              })
-            }
-          }}
-        >
-          <PanelRight className="size-4" />
-        </Button>
-      </Tooltip>
-    )
-  } else if (route.key == 'draft') {
-    return (
-      <Tooltip content={route.accessory ? 'Hide Panel' : 'Show Panel'}>
-        <Button
-          size="icon"
-          onClick={() => {
-            replace({
-              ...route,
-              accessory: route.accessory
-                ? null
-                : {
-                    key: 'options',
-                  },
-            })
-          }}
-        >
-          <PanelRight className="size-4" />
-        </Button>
-      </Tooltip>
-    )
-  }
-  return null
 }
 
 export function TitlebarTitle() {

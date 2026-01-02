@@ -5,6 +5,7 @@ import {DocNavigation} from '@/components/doc-navigation'
 import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
+import {editPopoverEvents} from '@/components/onboarding'
 import {useTemplateDialog} from '@/components/site-template'
 import {
   roleCanWrite,
@@ -14,6 +15,7 @@ import {
 import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
+  useAccountDraftList,
   useCreateDraft,
   useDocumentEmbeds,
   useDocumentRead,
@@ -22,7 +24,6 @@ import {
 } from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
@@ -32,6 +33,7 @@ import '@shm/editor/editor.css'
 import {
   AccessoryOptions,
   DocumentRoute,
+  FeedRoute,
   HMDocument,
   HMResource,
   HMResourceFetchResult,
@@ -40,6 +42,7 @@ import {
   commentIdToHmId,
   getCommentTargetId,
   hmId,
+  pathMatches,
 } from '@shm/shared'
 import {
   CommentsProvider,
@@ -47,6 +50,7 @@ import {
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -56,6 +60,11 @@ import {
 } from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentCover} from '@shm/ui/document-cover'
@@ -72,8 +81,16 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
-import {FilePlus} from 'lucide-react'
-import React, {ReactNode, useCallback, useEffect, useMemo, useRef} from 'react'
+import {FilePlus, Pencil} from 'lucide-react'
+import {nanoid} from 'nanoid'
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 export default function DocumentPage() {
   const route = useNavRoute()
@@ -392,13 +409,30 @@ function _MainDocumentPage({
 
   const interactionSummary = useInteractionSummary(docId)
 
-  const onCommentsClick = useCallback(() => {
-    replace({...route, accessory: {key: 'discussions'}} as DocumentRoute)
-  }, [])
+  function onCommentsClick() {
+    replace({
+      ...route,
+      accessory: {
+        key:
+          'accessory' in route && route.accessory?.key == 'discussions'
+            ? undefined
+            : 'discussions',
+      },
+    } as DocumentRoute)
+  }
 
-  const onFeedClick = useCallback(() => {
-    replace({...route, accessory: {key: 'activity'}} as DocumentRoute)
-  }, [])
+  function onFeedClick() {
+    console.log('Toggling activity panel', route)
+    replace({
+      ...route,
+      accessory: {
+        key:
+          'accessory' in route && route.accessory?.key == 'activity'
+            ? undefined
+            : 'activity',
+      },
+    } as DocumentRoute)
+  }
 
   if (route.key != 'document' && route.key != 'feed') return null
 
@@ -454,11 +488,25 @@ function _MainDocumentPage({
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
       onDirectoryClick={() => {
-        replace({...route, accessory: {key: 'directory'}} as DocumentRoute)
+        replace({
+          ...route,
+          accessory: {
+            key: route.accessory?.key == 'directory' ? undefined : 'directory',
+          },
+        } as DocumentRoute)
       }}
       onCollabsClick={() => {
-        replace({...route, accessory: {key: 'collaborators'}} as DocumentRoute)
+        replace({
+          ...route,
+          accessory: {
+            key:
+              route.accessory?.key == 'collaborators'
+                ? undefined
+                : 'collaborators',
+          },
+        } as DocumentRoute)
       }}
+      draftActions={<EditDocButton />}
     />
   )
 
@@ -483,9 +531,10 @@ function _MainDocumentPage({
             onFeedClick={onFeedClick}
           />
         </div> */}
+        {documentTools}
         <ScrollArea>
           <DocumentCover cover={document?.metadata.cover} />
-          {isHomeDoc ? documentTools : null}
+
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
             {showSidebars ? (
               <div
@@ -514,11 +563,7 @@ function _MainDocumentPage({
               )}
             >
               {isHomeDoc ? null : (
-                <DocPageHeader
-                  docId={id}
-                  document={document}
-                  documentTools={documentTools}
-                />
+                <DocPageHeader docId={id} document={document} />
               )}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                 {resource.data?.type === 'document' ? (
@@ -896,4 +941,104 @@ function DocPageContent({
       {reference?.content}
     </>
   )
+}
+
+function EditDocButton() {
+  const route = useNavRoute()
+  if (route.key != 'document' && route.key != 'feed')
+    throw new Error('EditDocButton can only be rendered on document route')
+  const capability = useSelectedAccountCapability(route.id)
+  const navigate = useNavigate()
+
+  const existingDraft = useExistingDraft(route)
+
+  const [popoverVisible, setPopoverVisible] = useState(false)
+
+  useEffect(() => {
+    editPopoverEvents.subscribe((visible) => {
+      setPopoverVisible(visible)
+    })
+  }, [])
+
+  const button = (
+    <Button
+      size="sm"
+      variant={existingDraft ? 'secondary' : 'ghost'}
+      onClick={() => {
+        if (existingDraft) {
+          navigate({
+            key: 'draft',
+            id: existingDraft.id,
+            accessory: null,
+          })
+        } else {
+          navigate({
+            key: 'draft',
+            id: nanoid(10),
+            editUid: route.id.uid,
+            editPath: route.id.path || [],
+            deps: route.id.version ? [route.id.version] : undefined,
+            accessory: null,
+          })
+        }
+      }}
+    >
+      <Pencil className="size-4" />
+      {existingDraft ? 'Resume Editing' : 'Edit'}
+    </Button>
+  )
+  if (!roleCanWrite(capability?.role)) return null
+  if (popoverVisible) {
+    return (
+      <>
+        <div
+          className="fixed top-0 left-0 z-40 flex h-screen w-screen bg-black opacity-50"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            setPopoverVisible(false)
+          }}
+        />
+        <Popover
+          open={popoverVisible}
+          onOpenChange={(val) => {
+            console.log('== ~ onOpenChange ~ val:', val)
+            setPopoverVisible(val)
+          }}
+        >
+          <PopoverTrigger>{button}</PopoverTrigger>
+          <PopoverContent>
+            <div className="border-border bg-background absolute -top-2 right-9 h-4 w-4 rotate-45 border border-r-transparent border-b-transparent" />
+            <div className="flex flex-col gap-2">
+              <SizableText size="3xl" weight="bold">
+                Start Editing the Content
+              </SizableText>
+              <SizableText>
+                When you press "Edit" you can start customizing the content of
+                the current page
+              </SizableText>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </>
+    )
+  }
+  return (
+    <>
+      <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
+        {button}
+      </Tooltip>
+    </>
+  )
+}
+
+function useExistingDraft(route: DocumentRoute | FeedRoute) {
+  const drafts = useAccountDraftList(route.id.uid)
+  const existingDraft = drafts.data?.find((d) => {
+    // @ts-expect-error
+    const id = d.editId
+    if (!id) return false
+    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
+  })
+  return existingDraft
 }
