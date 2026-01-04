@@ -1,3 +1,4 @@
+import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Folder, MessageSquare, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
@@ -183,7 +184,9 @@ function ButtonTool({
   let btn = (
     <Button
       onClick={onClick}
-      className="flex-1 rounded-full"
+      className={`flex-1 rounded-full ${
+        IS_DESKTOP ? '' : 'plausible-event-name=Comment-Box-Click'
+      }`}
       variant={active ? 'accent' : 'ghost'}
     >
       <Icon className="size-4" />
