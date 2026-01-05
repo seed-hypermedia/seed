@@ -230,16 +230,23 @@ function FavoriteListItem({
 
 function SubscriptionsSection() {
   const subscriptions = useListSubscriptions()
-  const subscriptionIds = subscriptions.data?.map((sub) => sub.id) || []
+  const myAccountIds = useMyAccountIds()
+  // filter out subscriptions to own accounts (auto-subscribed on creation)
+  const filteredSubs =
+    subscriptions.data?.filter(
+      (sub) =>
+        !myAccountIds.data?.includes(sub.id.uid) || sub.id.path?.length,
+    ) || []
+  const subscriptionIds = filteredSubs.map((sub) => sub.id)
   const subscriptionEntities = useResources(subscriptionIds)
   const contacts = useSelectedAccountContacts()
   const route = useNavRoute()
 
-  if (!subscriptions.data?.length) return null
+  if (!filteredSubs.length) return null
 
   return (
     <SidebarSection title="Subscriptions">
-      {subscriptions.data?.map((sub, index) => {
+      {filteredSubs.map((sub, index) => {
         const entity = subscriptionEntities[index]
         if (!entity?.data) return null
         // @ts-expect-error TODO: fix this
