@@ -40,8 +40,13 @@ async function getDocument(id: UnpackedHypermediaId) {
   return resource.document
 }
 
-let currentNotifProcessing: Promise<void> | undefined = undefined
-let currentBatchNotifProcessing: Promise<void> | undefined = undefined
+// Track if notification processing is actually running (survives timeout)
+let isNotifProcessingActive = false
+let isBatchNotifProcessingActive = false
+
+// Abort controllers for cancelling ongoing work
+let currentNotifAbortController: AbortController | null = null
+let currentBatchAbortController: AbortController | null = null
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -94,72 +99,95 @@ async function flushErrorBatch() {
   }
 }
 
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  timeoutMessage: string,
-): Promise<T> {
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
-  })
-  return Promise.race([promise, timeoutPromise])
-}
-
 export async function initEmailNotifier() {
   console.log('Init Email Notifier')
 
-  currentNotifProcessing = handleEmailNotifications()
-  await currentNotifProcessing
-  currentNotifProcessing.finally(() => {
-    currentNotifProcessing = undefined
-  })
+  // Initial run
+  try {
+    isNotifProcessingActive = true
+    currentNotifAbortController = new AbortController()
+    await handleEmailNotifications(currentNotifAbortController.signal)
+  } catch (err) {
+    // Ignore initial errors
+  } finally {
+    isNotifProcessingActive = false
+    currentNotifAbortController = null
+  }
 
   setInterval(() => {
-    if (currentNotifProcessing) {
-      reportError('Email notifications already processing. Skipping round.')
+    // Use the active flag, not the promise - this survives timeouts
+    if (isNotifProcessingActive) {
+      console.log('Email notifications still processing. Skipping round.')
       return
     }
-    const timeoutMs = 60_000 // 60 seconds max
-    currentNotifProcessing = withTimeout(
-      handleEmailNotifications(),
-      timeoutMs,
-      `Email notification processing timed out after ${timeoutMs}ms`,
-    )
 
-    currentNotifProcessing
-      .then(() => {
-        // console.log('Email notifications handled')
-      })
+    const timeoutMs = 60_000 // 60 seconds max
+    isNotifProcessingActive = true
+    currentNotifAbortController = new AbortController()
+    const signal = currentNotifAbortController.signal
+
+    const processingPromise = handleEmailNotifications(signal)
+
+    // Set up timeout to abort the work
+    const timeoutId = setTimeout(() => {
+      currentNotifAbortController?.abort()
+      reportError(
+        `Email notification processing timed out after ${timeoutMs}ms`,
+      )
+    }, timeoutMs)
+
+    // Wait for the actual promise to settle (not just the timeout race)
+    processingPromise
       .catch((err: Error) => {
-        reportError('Error handling email notifications: ' + err.message)
+        // Don't report abort errors - they're expected after timeout
+        if (err.message !== 'Event loading aborted') {
+          reportError('Error handling email notifications: ' + err.message)
+        }
       })
       .finally(() => {
-        currentNotifProcessing = undefined
+        clearTimeout(timeoutId)
+        isNotifProcessingActive = false
+        currentNotifAbortController = null
       })
   }, 1000 * handleImmediateEmailNotificationsIntervalSeconds)
 
   setInterval(() => {
-    if (currentBatchNotifProcessing) return
+    if (isBatchNotifProcessingActive) return
+
     const timeoutMs = 120_000 // 120 seconds max for batch processing
-    currentBatchNotifProcessing = withTimeout(
-      handleBatchNotifications(),
-      timeoutMs,
-      `Batch notification processing timed out after ${timeoutMs}ms`,
-    )
-    currentBatchNotifProcessing
-      .then(() => {
-        // console.log('Batch email notifications handled')
-      })
+    isBatchNotifProcessingActive = true
+    currentBatchAbortController = new AbortController()
+    const signal = currentBatchAbortController.signal
+
+    const processingPromise = handleBatchNotifications(signal)
+
+    // Set up timeout to abort the work
+    const timeoutId = setTimeout(() => {
+      currentBatchAbortController?.abort()
+      reportError(
+        `Batch notification processing timed out after ${timeoutMs}ms`,
+      )
+    }, timeoutMs)
+
+    // Wait for the actual promise to settle (not just the timeout race)
+    processingPromise
       .catch((err: Error) => {
-        reportError('Error handling batch email notifications: ' + err.message)
+        // Don't report abort errors - they're expected after timeout
+        if (err.message !== 'Event loading aborted') {
+          reportError(
+            'Error handling batch email notifications: ' + err.message,
+          )
+        }
       })
       .finally(() => {
-        currentBatchNotifProcessing = undefined
+        clearTimeout(timeoutId)
+        isBatchNotifProcessingActive = false
+        currentBatchAbortController = null
       })
   }, 30_000)
 }
 
-async function handleBatchNotifications() {
+async function handleBatchNotifications(signal?: AbortSignal) {
   const lastSendTime = getBatchNotifierLastSendTime()
   const lastProcessedEventId = getBatchNotifierLastProcessedEventId()
   const lastEventId = await getLastEventId()
@@ -188,7 +216,7 @@ async function handleBatchNotifications() {
     lastSendTime.getTime() + emailBatchNotifIntervalHours * 60 * 60 * 1000
   if (nextSendTime < nowTime) {
     try {
-      await sendBatchNotifications(lastProcessedEventId)
+      await sendBatchNotifications(lastProcessedEventId, signal)
     } catch (error: any) {
       reportError('Error sending batch notifications: ' + error.message)
     } finally {
@@ -206,10 +234,15 @@ async function handleBatchNotifications() {
   }
 }
 
-async function handleEmailNotifications() {
+async function handleEmailNotifications(signal?: AbortSignal) {
+  const startTime = Date.now()
   const lastProcessedEventId = getNotifierLastProcessedEventId()
   if (lastProcessedEventId) {
-    await handleImmediateNotificationsAfterEventId(lastProcessedEventId)
+    await handleImmediateNotificationsAfterEventId(lastProcessedEventId, signal)
+    const elapsed = Date.now() - startTime
+    if (elapsed > 10_000) {
+      console.warn(`handleEmailNotifications took ${elapsed}ms`)
+    }
   } else {
     reportError(
       'No last processed event ID found. Resetting last processed event ID',
@@ -230,12 +263,22 @@ async function getLastEventId(): Promise<string | undefined> {
   return lastEventId
 }
 
-async function sendBatchNotifications(lastProcessedEventId: string) {
+async function sendBatchNotifications(
+  lastProcessedEventId: string,
+  signal?: AbortSignal,
+) {
   console.log('Sending batch notifications', lastProcessedEventId)
-  const eventsToProcess = await loadEventsAfterEventId(lastProcessedEventId)
-  console.log('Batch notifications events to process:', eventsToProcess.length)
-  if (eventsToProcess.length === 0) return
-  await handleEmailNotifs(eventsToProcess, notifReasonsBatch)
+  const {events, foundCursor, aborted} = await loadEventsAfterEventId(
+    lastProcessedEventId,
+    signal,
+  )
+  console.log('Batch notifications events to process:', events.length)
+  if (!foundCursor && !aborted) {
+    // Cursor not found and not aborted - something is wrong with the feed
+    console.warn('Batch: cursor not found in feed, processing available events')
+  }
+  if (events.length === 0) return
+  await handleEmailNotifs(events, notifReasonsBatch)
 }
 
 async function resetNotifierLastProcessedEventId() {
@@ -247,17 +290,48 @@ async function resetNotifierLastProcessedEventId() {
 
 async function handleImmediateNotificationsAfterEventId(
   lastProcessedEventId: string,
+  signal?: AbortSignal,
 ) {
-  const eventsToProcess = await loadEventsAfterEventId(lastProcessedEventId)
-  if (eventsToProcess.length === 0) return
+  const startTime = Date.now()
+
+  const {events, foundCursor, aborted} = await loadEventsAfterEventId(
+    lastProcessedEventId,
+    signal,
+  )
+
+  const loadTime = Date.now() - startTime
+  if (loadTime > 5000) {
+    console.warn(
+      `loadEventsAfterEventId took ${loadTime}ms for ${events.length} events`,
+    )
+  }
+
+  if (!foundCursor && !aborted && events.length > 0) {
+    // Cursor not found but we have events - something is wrong
+    // Still process events but log warning
+    console.warn(
+      'Immediate: cursor not found in feed, processing available events',
+    )
+  }
+
+  if (events.length === 0) return
+
+  const processStartTime = Date.now()
   try {
-    await handleEmailNotifs(eventsToProcess, notifReasonsImmediate)
+    await handleEmailNotifs(events, notifReasonsImmediate)
   } catch (error: any) {
     reportError('Error handling immediate notifications: ' + error.message)
   } finally {
     // even if there is an error, we still want to mark the events as processed.
     // so that we don't attempt to process the same events again.
-    markEventsAsProcessed(eventsToProcess)
+    markEventsAsProcessed(events)
+
+    const processTime = Date.now() - processStartTime
+    if (processTime > 5000) {
+      console.warn(
+        `handleEmailNotifs took ${processTime}ms for ${events.length} events`,
+      )
+    }
   }
 }
 
@@ -309,6 +383,8 @@ async function handleEmailNotifs(
   }
 
   for (const event of events) {
+    const eventStartTime = Date.now()
+    const eventId = getEventId(event)
     try {
       await evaluateEventForNotifications(
         event,
@@ -317,6 +393,12 @@ async function handleEmailNotifs(
       )
     } catch (error: any) {
       reportError('Error evaluating event for notifications: ' + error.message)
+    }
+    const eventTime = Date.now() - eventStartTime
+    if (eventTime > 5000) {
+      reportError(
+        `Slow event processing: ${eventId} took ${eventTime}ms (threshold: 5000ms)`,
+      )
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
@@ -379,7 +461,14 @@ async function evaluateEventForNotifications(
   if (event.data.case === 'newBlob') {
     const blob = event.data.value
     if (blob.blobType === 'Ref') {
+      const refStartTime = Date.now()
       const refEvent = await loadRefEvent(event)
+      const refTime = Date.now() - refStartTime
+      if (refTime > 5000) {
+        reportError(
+          `Slow loadRefEvent: ${blob.cid} took ${refTime}ms (threshold: 5000ms)`,
+        )
+      }
       await evaluateDocUpdateForNotifications(
         refEvent,
         allSubscriptions,
@@ -387,7 +476,14 @@ async function evaluateEventForNotifications(
       )
     }
     if (blob.blobType === 'Comment') {
+      const commentStartTime = Date.now()
       const serverComment = await grpcClient.comments.getComment({id: blob.cid})
+      const commentTime = Date.now() - commentStartTime
+      if (commentTime > 5000) {
+        reportError(
+          `Slow getComment: ${blob.cid} took ${commentTime}ms (threshold: 5000ms)`,
+        )
+      }
       const rawComment = toPlainMessage(serverComment)
       const comment = HMCommentSchema.parse(rawComment)
       await evaluateNewCommentForNotifications(
@@ -442,7 +538,14 @@ async function evaluateNewCommentForNotifications(
     notif: Notification,
   ) => Promise<void>,
 ) {
+  const parentStartTime = Date.now()
   const parentComments = await getParentComments(comment)
+  const parentTime = Date.now() - parentStartTime
+  if (parentTime > 5000) {
+    reportError(
+      `Slow getParentComments: ${comment.id} took ${parentTime}ms for ${parentComments.length} parents (threshold: 5000ms)`,
+    )
+  }
   let commentAuthorMeta = null
   let targetMeta = null
 
@@ -613,23 +716,112 @@ function markEventsAsProcessed(events: PlainMessage<Event>[]) {
   setNotifierLastProcessedEventId(lastProcessedEventId)
 }
 
-async function loadEventsAfterEventId(lastProcessedEventId: string) {
-  const eventsAfterEventId = []
-  let currentPageToken: string | undefined
+// Maximum pages to fetch when looking for lastProcessedEventId
+// This prevents infinite loops if the event ID is no longer in the feed
+const MAX_EVENT_PAGES = 100
+const EVENT_PAGE_SIZE = 20
 
-  while (true) {
-    const {events, nextPageToken} = await grpcClient.activityFeed.listEvents({
-      pageToken: currentPageToken,
-      pageSize: 2,
-    })
+// Timeout for individual gRPC calls to prevent hanging
+const GRPC_CALL_TIMEOUT_MS = 10_000
+
+async function withGrpcTimeout<T>(
+  promise: Promise<T>,
+  operationName: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `${operationName} timed out after ${GRPC_CALL_TIMEOUT_MS}ms`,
+          ),
+        ),
+      GRPC_CALL_TIMEOUT_MS,
+    )
+  })
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    clearTimeout(timeoutId!)
+  }
+}
+
+type LoadEventsResult = {
+  events: PlainMessage<Event>[]
+  foundCursor: boolean
+  aborted: boolean
+}
+
+async function loadEventsAfterEventId(
+  lastProcessedEventId: string,
+  signal?: AbortSignal,
+): Promise<LoadEventsResult> {
+  const startTime = Date.now()
+  const eventsAfterEventId: PlainMessage<Event>[] = []
+  let currentPageToken: string | undefined
+  let pageCount = 0
+
+  while (pageCount < MAX_EVENT_PAGES) {
+    // Check if we've been aborted - return what we have instead of throwing
+    if (signal?.aborted) {
+      const totalTime = Date.now() - startTime
+      console.warn(
+        `loadEventsAfterEventId aborted after ${pageCount} pages, ${totalTime}ms. ` +
+          `Returning ${eventsAfterEventId.length} events collected so far.`,
+      )
+      return {events: eventsAfterEventId, foundCursor: false, aborted: true}
+    }
+
+    pageCount++
+    const pageStartTime = Date.now()
+
+    let events: PlainMessage<Event>[]
+    let nextPageToken: string | undefined
+    try {
+      const response = await withGrpcTimeout(
+        grpcClient.activityFeed.listEvents({
+          pageToken: currentPageToken,
+          pageSize: EVENT_PAGE_SIZE,
+        }),
+        `listEvents page ${pageCount}`,
+      )
+      events = response.events.map((e) => toPlainMessage(e))
+      nextPageToken = response.nextPageToken
+    } catch (error: any) {
+      const totalTime = Date.now() - startTime
+      reportError(
+        `loadEventsAfterEventId failed on page ${pageCount} after ${totalTime}ms: ${error.message}. ` +
+          `Returning ${eventsAfterEventId.length} events collected so far.`,
+      )
+      // Return what we have instead of throwing
+      return {events: eventsAfterEventId, foundCursor: false, aborted: false}
+    }
+
+    const pageTime = Date.now() - pageStartTime
+    if (pageTime > 5000) {
+      reportError(
+        `Slow gRPC call: listEvents page ${pageCount} took ${pageTime}ms (threshold: 5000ms)`,
+      )
+    } else if (pageTime > 1000) {
+      console.warn(
+        `loadEventsAfterEventId page ${pageCount} took ${pageTime}ms (${events.length} events)`,
+      )
+    }
 
     for (const event of events) {
       const eventId = getEventId(event)
       if (eventId) {
         if (eventId === lastProcessedEventId) {
-          return eventsAfterEventId
+          const totalTime = Date.now() - startTime
+          if (totalTime > 5000) {
+            console.log(
+              `loadEventsAfterEventId found target after ${pageCount} pages, ${eventsAfterEventId.length} events, ${totalTime}ms`,
+            )
+          }
+          return {events: eventsAfterEventId, foundCursor: true, aborted: false}
         }
-        eventsAfterEventId.push(toPlainMessage(event))
+        eventsAfterEventId.push(event)
       }
     }
 
@@ -637,7 +829,23 @@ async function loadEventsAfterEventId(lastProcessedEventId: string) {
     currentPageToken = nextPageToken
   }
 
-  return eventsAfterEventId
+  const totalTime = Date.now() - startTime
+
+  if (pageCount >= MAX_EVENT_PAGES) {
+    reportError(
+      `loadEventsAfterEventId hit max pages (${MAX_EVENT_PAGES}) after ${totalTime}ms. ` +
+        `lastProcessedEventId "${lastProcessedEventId}" not found. ` +
+        `Collected ${eventsAfterEventId.length} newer events.`,
+    )
+  } else if (eventsAfterEventId.length > 0) {
+    reportError(
+      `loadEventsAfterEventId exhausted feed after ${pageCount} pages, ${totalTime}ms. ` +
+        `lastProcessedEventId "${lastProcessedEventId}" not found in feed. ` +
+        `Collected ${eventsAfterEventId.length} events.`,
+    )
+  }
+
+  return {events: eventsAfterEventId, foundCursor: false, aborted: false}
 }
 
 async function loadRefEvent(event: PlainMessage<Event>) {
