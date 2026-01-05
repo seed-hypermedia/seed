@@ -58,7 +58,7 @@ export function DocumentTools({
     <div className="border-border flex w-full border-b">
       <div
         ref={containerRef}
-        className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2"
+        className="flex flex-1 items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
       >
         {/* Hidden measurement container with labels always visible */}
         <div
