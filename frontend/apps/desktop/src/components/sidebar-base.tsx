@@ -177,7 +177,7 @@ export function GenericSidebarContainer({
           {footer ? (
             <div
               className={cn(
-                'flex w-full items-end',
+                'w-full items-end',
                 // isLocked ? '':'pb-2 pr-1',
               )}
             >

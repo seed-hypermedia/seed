@@ -122,28 +122,28 @@ export default function Main({className}: {className?: string}) {
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
       <SidebarContextProvider>
-        <ErrorBoundary
-          key={routeKey}
-          FallbackComponent={AppErrorPage}
-          onReset={() => {
-            window.location.reload()
-          }}
-        >
-          {titlebar}
+        {titlebar}
 
-          <PanelContent>
-            {sidebar}
-            <Panel id="page" order={2} className="pl-1">
+        <PanelContent>
+          {sidebar}
+          <Panel id="page" order={2} className="pl-1">
+            <ErrorBoundary
+              key={routeKey}
+              FallbackComponent={AppErrorPage}
+              onReset={() => {
+                window.location.reload()
+              }}
+            >
               <PageComponent />
-            </Panel>
-          </PanelContent>
+            </ErrorBoundary>
+          </Panel>
+        </PanelContent>
 
-          <Footer />
-          <AutoUpdater />
-          <ConfirmConnectionDialog />
-          <DeviceLinkHandler />
-          <HypermediaHighlight />
-        </ErrorBoundary>
+        <Footer />
+        <AutoUpdater />
+        <ConfirmConnectionDialog />
+        <DeviceLinkHandler />
+        <HypermediaHighlight />
       </SidebarContextProvider>
     </div>
   )
