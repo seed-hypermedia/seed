@@ -534,7 +534,7 @@ function _MainDocumentPage({
         {isHomeDoc ? (
           documentTools
         ) : (
-          <div className="absolute top-4 right-4 z-10">
+          <div className="bg-background absolute top-4 right-4 z-10 rounded-md shadow-md dark:bg-black">
             <EditDocButton />
           </div>
         )}
