@@ -516,7 +516,7 @@ function InnerDocumentPage(
       onFeedClick={
         activityEnabled
           ? () => {
-              setDocumentPanel({type: 'activity'})
+              setDocumentPanel( activePanel?.type == 'activity' ? null : {type: 'activity'})
               if (!media.gtSm) {
                 setMobilePanelOpen(true)
               }
@@ -526,7 +526,7 @@ function InnerDocumentPage(
       onCommentsClick={
         activityEnabled
           ? () => {
-              setDocumentPanel({
+              setDocumentPanel(activePanel?.type == 'discussions' ? null : {
                 type: 'discussions',
                 blockId: undefined,
               })
@@ -537,7 +537,7 @@ function InnerDocumentPage(
           : commentsDisabledToast
       }
       onDirectoryClick={() => {
-        setDocumentPanel({type: 'directory'})
+        setDocumentPanel(activePanel?.type == 'directory' ? null : {type: 'directory'})
         if (!media.gtSm) {
           setMobilePanelOpen(true)
         }
@@ -597,7 +597,7 @@ function InnerDocumentPage(
                     ref={media.gtSm ? mainScrollRef : null}
                   >
                     <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
-                      {documentTools}
+                      {isHomeDoc ? documentTools : null}
                       <DocumentCover cover={document.metadata.cover} />
                       <div
                         {...wrapperProps}
@@ -662,6 +662,7 @@ function InnerDocumentPage(
                                     }
                                   : activityDisabledToast
                               }
+                              documentTools={documentTools}
                             />
                           )}
                           <div className="pr-3">
