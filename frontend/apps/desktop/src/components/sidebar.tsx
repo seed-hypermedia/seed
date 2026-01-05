@@ -13,6 +13,8 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useResources} from '@shm/shared/models/entity'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -40,6 +42,8 @@ import {
 import React, {memo} from 'react'
 import {GenericSidebarContainer} from './sidebar-base'
 import {SidebarFooter} from './sidebar-footer'
+import {UIAvatar} from '@shm/ui/avatar'
+import {useImageUrl} from '@shm/ui/get-file-url'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -50,54 +54,45 @@ export function MainAppSidebar() {
   const highlighter = useHighlighter()
   return (
     <GenericSidebarContainer
-      footer={({isVisible}) => <SidebarFooter isSidebarVisible={isVisible} />}
+      footer={({isVisible}) => (
+        <div>
+          <div className="border-border flex w-full flex-col gap-2 border-t py-4">
+            <SmallListItem
+              active={route.key == 'library'}
+              onClick={() => {
+                navigate({key: 'library'})
+              }}
+              title="Library"
+              bold
+              icon={<Library className="size-4" />}
+              rightHover={[]}
+            />
+            <SmallListItem
+              active={route.key == 'contacts'}
+              onClick={() => {
+                navigate({key: 'contacts'})
+              }}
+              icon={<Contact className="size-4" />}
+              title="Contacts"
+              bold
+            />
+            <SmallListItem
+              active={route.key == 'drafts'}
+              onClick={() => {
+                navigate({key: 'drafts'})
+              }}
+              icon={<File className="size-4" />}
+              title="Drafts"
+              bold
+            />
+          </div>
+          <SidebarFooter isSidebarVisible={isVisible} />
+        </div>
+      )}
     >
       <CreateDocumentButton />
-      <SmallListItem
-        active={
-          (route.key == 'document' || route.key == 'feed') &&
-          route.id.uid == selectedAccountId &&
-          route.id.path?.length == 0
-        }
-        onClick={() => {
-          navigate({
-            key: 'document',
-            id: hmId(selectedAccountId),
-          })
-        }}
-        bold
-        title="Home"
-        icon={<Home className="size-4" />}
-        {...highlighter(hmId(selectedAccountId))}
-      />
-      <SmallListItem
-        active={route.key == 'library'}
-        onClick={() => {
-          navigate({key: 'library'})
-        }}
-        title="Library"
-        bold
-        icon={<Library className="size-4" />}
-        rightHover={[]}
-      />
-      <SmallListItem
-        active={route.key == 'contacts'}
-        onClick={() => {
-          navigate({key: 'contacts'})
-        }}
-        icon={<Contact className="size-4" />}
-        title="Contacts"
-        bold
-      />
-      <SmallListItem
-        active={route.key == 'drafts'}
-        onClick={() => {
-          navigate({key: 'drafts'})
-        }}
-        icon={<File className="size-4" />}
-        title="Drafts"
-        bold
-      />
+      <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
+
       <SubscriptionsSection />
       <FavoritesSection />
     </GenericSidebarContainer>
@@ -143,29 +138,31 @@ function SidebarSection({
   const [collapsed, setCollapsed] = React.useState(false)
   let Icon = collapsed ? ChevronRight : ChevronDown
   return (
-    <div className="mt-4 flex flex-col">
+    <div className="mt-4 flex flex-col gap-2">
       <div className="flex items-center justify-between px-2">
         <div
-          className="group/header flex cursor-pointer items-center justify-center gap-1"
+          className="group/header hover:bg-border flex w-full cursor-pointer items-center justify-center gap-1"
           onClick={() => {
             setCollapsed(!collapsed)
           }}
         >
-          <SizableText
-            weight="bold"
-            size="xs"
-            color="muted"
-            className="group-hover/header:text-foreground capitalize select-none"
-          >
-            {title}
-          </SizableText>
-          <div className="flex h-5 w-4 items-center justify-center">
-            <Icon size={12} color="$color11" />
+          <div className="flex w-full items-center rounded-lg px-2">
+            <SizableText
+              weight="bold"
+              size="xs"
+              color="muted"
+              className="group-hover/header:text-foreground flex-1 capitalize select-none"
+            >
+              {title}
+            </SizableText>
+            <div className="flex h-5 w-4 items-center justify-center">
+              <Icon size={14} />
+            </div>
           </div>
         </div>
         <div className="flex">{accessory}</div>
       </div>
-      {collapsed ? null : children}
+      {collapsed ? null : <div className="">{children}</div>}
     </div>
   )
 }
@@ -174,7 +171,6 @@ function FavoritesSection() {
   const favorites = useFavorites()
   const contacts = useSelectedAccountContacts()
   const favoriteEntities = useResources(favorites || [])
-  const navigate = useNavigate()
   const route = useNavRoute()
   if (!favoriteEntities.length) return null
   return (
@@ -234,8 +230,7 @@ function SubscriptionsSection() {
   // filter out subscriptions to own accounts (auto-subscribed on creation)
   const filteredSubs =
     subscriptions.data?.filter(
-      (sub) =>
-        !myAccountIds.data?.includes(sub.id.uid) || sub.id.path?.length,
+      (sub) => !myAccountIds.data?.includes(sub.id.uid) || sub.id.path?.length,
     ) || []
   const subscriptionIds = filteredSubs.map((sub) => sub.id)
   const subscriptionEntities = useResources(subscriptionIds)
@@ -289,10 +284,49 @@ function SubscriptionListItem({
       active={active}
       title={metadata?.name || 'Untitled'}
       icon={
-        // @ts-expect-error
-        <Icon size={20} className="text-brand-5" />
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
       }
       {...linkProps}
     />
+  )
+}
+
+function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
+  const resource = useResource(
+    selectedAccountId ? hmId(selectedAccountId) : undefined,
+  )
+
+  const navigate = useNavigate()
+  if (!resource.data?.document) return null
+  const imageUrl = useImageUrl()
+  return (
+    <SidebarSection title="My Site">
+      <div
+        className="border-border hover:bg-sidebar-accent my-2 flex cursor-pointer items-center gap-2 rounded-lg border p-2"
+        onClick={
+          selectedAccountId
+            ? () => {
+                navigate({key: 'document', id: hmId(selectedAccountId!)})
+              }
+            : undefined
+        }
+      >
+        <UIAvatar
+          id={selectedAccountId}
+          label={resource.data?.document.metadata.name}
+          size={40}
+          url={
+            resource.data?.type == 'document' &&
+            resource.data.document.metadata.icon
+              ? imageUrl(resource.data.document.metadata.icon)
+              : ''
+          }
+          className="shrink-0"
+        />
+        <span className="truncate text-sm font-bold select-none">
+          {resource.data?.document.metadata.name}
+        </span>
+      </div>
+    </SidebarSection>
   )
 }
