@@ -716,7 +716,10 @@ export function CommentEditor({
                     editor._tiptapEditor.commands.focus()
                   }, 100)
                 }}
-                className="text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent"
+                className={cn(
+                  'text-muted-foreground m-0 h-auto min-h-8 w-full flex-1 items-center justify-start border-0 text-left text-base hover:bg-transparent focus:bg-transparent',
+                  'plausible-event-name=Comment+Box+Click',
+                )}
                 variant="ghost"
                 size="sm"
               >

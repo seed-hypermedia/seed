@@ -185,7 +185,7 @@ function ButtonTool({
     <Button
       onClick={onClick}
       className={`flex-1 rounded-full ${
-        IS_DESKTOP ? '' : 'plausible-event-name=Comment+Box+Click'
+        IS_DESKTOP ? '' : 'plausible-event-name=Open+Document+Comments'
       }`}
       variant={active ? 'accent' : 'ghost'}
     >

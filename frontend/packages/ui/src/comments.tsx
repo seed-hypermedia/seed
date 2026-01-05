@@ -796,7 +796,10 @@ export function Comment({
               <Button
                 variant="ghost"
                 size="xs"
-                className="text-muted-foreground hover:text-muted-foreground active:text-muted-foreground"
+                className={cn(
+                  'text-muted-foreground hover:text-muted-foreground active:text-muted-foreground',
+                  'plausible-event-name=Reply+Click',
+                )}
                 onClick={() => {
                   if (commentsContext.onReplyClick) {
                     commentsContext.onReplyClick(comment)
