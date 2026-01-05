@@ -2,6 +2,7 @@ import {useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
+import {useListSubscriptions} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useRouteLink} from '@shm/shared'
@@ -23,6 +24,7 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {Subscribe, SubscribeSpace} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -96,6 +98,7 @@ export function MainAppSidebar() {
         title="Drafts"
         bold
       />
+      <SubscriptionsSection />
       <FavoritesSection />
     </GenericSidebarContainer>
   )
@@ -220,6 +223,68 @@ function FavoriteListItem({
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
       }
       accessory={visibility === 'PRIVATE' ? <Lock size={12} /> : null}
+      {...linkProps}
+    />
+  )
+}
+
+function SubscriptionsSection() {
+  const subscriptions = useListSubscriptions()
+  const subscriptionIds = subscriptions.data?.map((sub) => sub.id) || []
+  const subscriptionEntities = useResources(subscriptionIds)
+  const contacts = useSelectedAccountContacts()
+  const route = useNavRoute()
+
+  if (!subscriptions.data?.length) return null
+
+  return (
+    <SidebarSection title="Subscriptions">
+      {subscriptions.data?.map((sub, index) => {
+        const entity = subscriptionEntities[index]
+        if (!entity?.data) return null
+        // @ts-expect-error TODO: fix this
+        const {id, document} = entity.data
+        const metadata = id.path?.length
+          ? document?.metadata
+          : getContactMetadata(id.uid, document?.metadata, contacts.data)
+        if (!metadata) return null
+        return (
+          <SubscriptionListItem
+            key={id.id}
+            id={id}
+            metadata={metadata}
+            recursive={sub.recursive}
+            active={route.key === 'document' && route.id.id === id.id}
+          />
+        )
+      })}
+    </SidebarSection>
+  )
+}
+
+function SubscriptionListItem({
+  id,
+  metadata,
+  recursive,
+  active,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata
+  recursive: boolean
+  active: boolean
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  const Icon = recursive ? SubscribeSpace : Subscribe
+  return (
+    <SmallListItem
+      key={id.id}
+      docId={id.id}
+      active={active}
+      title={metadata?.name || 'Untitled'}
+      icon={
+        // @ts-expect-error
+        <Icon size={20} className="text-brand-5" />
+      }
       {...linkProps}
     />
   )
