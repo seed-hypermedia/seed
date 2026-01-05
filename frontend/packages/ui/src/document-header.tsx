@@ -142,7 +142,6 @@ export function DocumentHeader({
                 />
               ) : null}
             </div>
-            
           </div>
         </div>
       </div>

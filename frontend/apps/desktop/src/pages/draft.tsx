@@ -510,7 +510,9 @@ function DocumentEditor({
           } as DocumentRoute)
         }
       }}
-      draftActions={isHomeDoc ? <DraftActionButtons route={route} /> : undefined}
+      draftActions={
+        isHomeDoc ? <DraftActionButtons route={route} /> : undefined
+      }
     />
   ) : null
 
@@ -552,7 +554,13 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="flex flex-1 flex-col overflow-hidden"
         >
-          {isHomeDoc ? documentTools : <DocumentTools draftActions={<DraftActionButtons route={route} />} />}
+          {isHomeDoc ? (
+            documentTools
+          ) : (
+            <DocumentTools
+              draftActions={<DraftActionButtons route={route} />}
+            />
+          )}
           <ScrollArea onScroll={() => dispatchScroll(true)}>
             <DraftCover
               draftActor={actor}

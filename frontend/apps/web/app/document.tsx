@@ -516,7 +516,9 @@ function InnerDocumentPage(
       onFeedClick={
         activityEnabled
           ? () => {
-              setDocumentPanel( activePanel?.type == 'activity' ? null : {type: 'activity'})
+              setDocumentPanel(
+                activePanel?.type == 'activity' ? null : {type: 'activity'},
+              )
               if (!media.gtSm) {
                 setMobilePanelOpen(true)
               }
@@ -526,10 +528,14 @@ function InnerDocumentPage(
       onCommentsClick={
         activityEnabled
           ? () => {
-              setDocumentPanel(activePanel?.type == 'discussions' ? null : {
-                type: 'discussions',
-                blockId: undefined,
-              })
+              setDocumentPanel(
+                activePanel?.type == 'discussions'
+                  ? null
+                  : {
+                      type: 'discussions',
+                      blockId: undefined,
+                    },
+              )
               if (!media.gtSm) {
                 setMobilePanelOpen(true)
               }
@@ -537,7 +543,9 @@ function InnerDocumentPage(
           : commentsDisabledToast
       }
       onDirectoryClick={() => {
-        setDocumentPanel(activePanel?.type == 'directory' ? null : {type: 'directory'})
+        setDocumentPanel(
+          activePanel?.type == 'directory' ? null : {type: 'directory'},
+        )
         if (!media.gtSm) {
           setMobilePanelOpen(true)
         }
