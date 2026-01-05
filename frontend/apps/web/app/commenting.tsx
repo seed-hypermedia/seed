@@ -279,7 +279,7 @@ export default function WebCommenting({
                   disabled={isSubmitting}
                   className={cn(
                     buttonVariants({size: 'icon', variant: 'ghost'}),
-                    'plausible-event-name=start-create-account flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
+                    'plausible-event-name=Publish+Comment flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
                     isSubmitting && 'cursor-not-allowed opacity-50',
                   )}
                   onClick={() => handleSubmit(getContent, reset)}
