@@ -779,7 +779,7 @@ export const HMDraftMetaSchema = z.object({
   editUid: z.string().optional(),
   editPath: z.array(z.string()).optional(),
   metadata: HMDocumentMetadataSchema,
-  visibility: HMResourceVisibilitySchema,
+  visibility: HMResourceVisibilitySchema.optional().default('PUBLIC'),
 })
 
 export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
