@@ -1,4 +1,4 @@
-import {useSelectedAccountContacts} from '@/models/contacts'
+import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
@@ -12,11 +12,10 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useResources} from '@shm/shared/models/entity'
-import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -24,9 +23,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
+import {useImageUrl} from '@shm/ui/get-file-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Subscribe, SubscribeSpace} from '@shm/ui/icons'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -35,15 +34,12 @@ import {
   Contact,
   File,
   FilePlus2,
-  Home,
   Library,
   Lock,
 } from 'lucide-react'
 import React, {memo} from 'react'
 import {GenericSidebarContainer} from './sidebar-base'
 import {SidebarFooter} from './sidebar-footer'
-import {UIAvatar} from '@shm/ui/avatar'
-import {useImageUrl} from '@shm/ui/get-file-url'
 
 export const AppSidebar = memo(MainAppSidebar)
 
@@ -227,21 +223,36 @@ function FavoriteListItem({
 function SubscriptionsSection() {
   const subscriptions = useListSubscriptions()
   const myAccountIds = useMyAccountIds()
+  // accountList is already sorted by activity from backend (default sort)
+  const accountList = useContactList()
   // filter out subscriptions to own accounts (auto-subscribed on creation)
   const filteredSubs =
     subscriptions.data?.filter(
       (sub) => !myAccountIds.data?.includes(sub.id.uid) || sub.id.path?.length,
     ) || []
-  const subscriptionIds = filteredSubs.map((sub) => sub.id)
+  // sort by activity using the backend's account order (already sorted by activity desc)
+  const sortedSubs = [...filteredSubs].sort((a, b) => {
+    const accounts = accountList.data?.accounts || []
+    const indexA = accounts.findIndex((acc) => acc.id === a.id.uid)
+    const indexB = accounts.findIndex((acc) => acc.id === b.id.uid)
+    // items not found in accounts list go to end
+    if (indexA === -1 && indexB === -1) return 0
+    if (indexA === -1) return 1
+    if (indexB === -1) return -1
+    return indexA - indexB
+  })
+  const subscriptionIds = sortedSubs.map((sub) => sub.id)
   const subscriptionEntities = useResources(subscriptionIds)
   const contacts = useSelectedAccountContacts()
   const route = useNavRoute()
 
-  if (!filteredSubs.length) return null
+  if (!sortedSubs.length) return null
+
+  const accounts = accountList.data?.accounts || []
 
   return (
     <SidebarSection title="Subscriptions">
-      {filteredSubs.map((sub, index) => {
+      {sortedSubs.map((sub, index) => {
         const entity = subscriptionEntities[index]
         if (!entity?.data) return null
         // @ts-expect-error TODO: fix this
@@ -250,13 +261,15 @@ function SubscriptionsSection() {
           ? document?.metadata
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
+        const account = accounts.find((acc) => acc.id === id.uid)
+        const isUnread = account?.activitySummary?.isUnread ?? false
         return (
           <SubscriptionListItem
             key={id.id}
             id={id}
             metadata={metadata}
-            recursive={sub.recursive}
             active={route.key === 'document' && route.id.id === id.id}
+            isUnread={isUnread}
           />
         )
       })}
@@ -267,21 +280,21 @@ function SubscriptionsSection() {
 function SubscriptionListItem({
   id,
   metadata,
-  recursive,
   active,
+  isUnread,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
-  recursive: boolean
   active: boolean
+  isUnread: boolean
 }) {
   const linkProps = useRouteLink({key: 'document', id})
-  const Icon = recursive ? SubscribeSpace : Subscribe
   return (
     <SmallListItem
       key={id.id}
       docId={id.id}
       active={active}
+      bold={isUnread}
       title={metadata?.name || 'Untitled'}
       icon={
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
@@ -295,10 +308,12 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const resource = useResource(
     selectedAccountId ? hmId(selectedAccountId) : undefined,
   )
-
-  const navigate = useNavigate()
-  if (!resource.data?.document) return null
   const imageUrl = useImageUrl()
+  const navigate = useNavigate()
+
+  if (resource.data?.type !== 'document' || !resource.data.document) return null
+
+  const {document} = resource.data
   return (
     <SidebarSection title="My Site">
       <div
@@ -313,18 +328,13 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
       >
         <UIAvatar
           id={selectedAccountId}
-          label={resource.data?.document.metadata.name}
+          label={document.metadata.name}
           size={40}
-          url={
-            resource.data?.type == 'document' &&
-            resource.data.document.metadata.icon
-              ? imageUrl(resource.data.document.metadata.icon)
-              : ''
-          }
+          url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
           className="shrink-0"
         />
         <span className="truncate text-sm font-bold select-none">
-          {resource.data?.document.metadata.name}
+          {document.metadata.name}
         </span>
       </div>
     </SidebarSection>
