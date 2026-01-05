@@ -222,13 +222,13 @@ function FavoriteListItem({
 
 function SubscriptionsSection() {
   const subscriptions = useListSubscriptions()
-  const myAccountIds = useMyAccountIds()
+  const selectedAccountId = useSelectedAccountId()
   // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
-  // filter out subscriptions to own accounts (auto-subscribed on creation)
+  // filter out subscription to current selected account (auto-subscribed on creation)
   const filteredSubs =
     subscriptions.data?.filter(
-      (sub) => !myAccountIds.data?.includes(sub.id.uid) || sub.id.path?.length,
+      (sub) => sub.id.uid !== selectedAccountId || sub.id.path?.length,
     ) || []
   // sort by activity using the backend's account order (already sorted by activity desc)
   const sortedSubs = [...filteredSubs].sort((a, b) => {
