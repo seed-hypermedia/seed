@@ -8,7 +8,10 @@ import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {useSelectedAccountCapability} from '@/models/access-control'
+import {
+  useAllDocumentCapabilities,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
@@ -42,7 +45,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
-import {DraftRoute} from '@shm/shared/routes'
+import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -69,6 +72,8 @@ import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
 import './draft-page.css'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {useChildrenActivity} from '@/models/library'
 
 export default function DraftPage() {
   const route = useNavRoute()
@@ -379,6 +384,7 @@ function DocumentEditor({
   isHomeDoc: boolean
 }) {
   const route = useNavRoute()
+  const navigate = useNavigate()
   const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = useMutation({
@@ -422,6 +428,92 @@ function DocumentEditor({
     showSidebars: showOutline && !isHomeDoc,
   })
 
+  const interactionSummary = useInteractionSummary(id)
+  const editId = useMemo(() => {
+    if (route.editUid) {
+      return hmId(route.editUid, {path: route.editPath})
+    }
+    return undefined
+  }, [route.editUid, route.editPath])
+
+  function onCommentsClick() {
+    if (editId) {
+      navigate({
+        key: 'document',
+        id: editId,
+        accessory: {
+          key:
+            'accessory' in route && route.accessory?.key == 'discussions'
+              ? undefined
+              : 'discussions',
+        },
+      } as DocumentRoute)
+    }
+  }
+
+  function onFeedClick() {
+    if (editId) {
+      navigate({
+        key: 'document',
+        id: editId,
+        accessory: {
+          key:
+            'accessory' in route && route.accessory?.key == 'activity'
+              ? undefined
+              : 'activity',
+        },
+      } as DocumentRoute)
+    }
+  }
+
+  const {data: collaborators} = useAllDocumentCapabilities(id)
+  const directory = useChildrenActivity(id)
+  console.log('== EDIT ID IN DOC EDITOR', editId)
+
+  const documentTools = editId ? (
+    <DocumentTools
+      activePanel={
+        route.accessory &&
+        route.accessory.key != 'options' &&
+        route.accessory.key != 'contacts'
+          ? route.accessory.key
+          : undefined
+      }
+      commentsCount={interactionSummary.data?.comments || 0}
+      onCommentsClick={onCommentsClick}
+      onFeedClick={onFeedClick}
+      collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
+      directoryCount={directory.data?.length}
+      onDirectoryClick={() => {
+        if (editId) {
+          navigate({
+            key: 'document',
+            id: editId,
+            accessory: {
+              key:
+                route.accessory?.key == 'directory' ? undefined : 'directory',
+            },
+          } as DocumentRoute)
+        }
+      }}
+      onCollabsClick={() => {
+        if (editId) {
+          navigate({
+            key: 'document',
+            id: editId,
+            accessory: {
+              key:
+                route.accessory?.key == 'collaborators'
+                  ? undefined
+                  : 'collaborators',
+            },
+          } as DocumentRoute)
+        }
+      }}
+      draftActions={isHomeDoc ? <DraftActionButtons route={route} /> : undefined}
+    />
+  ) : null
+
   useEffect(() => {
     let val = !!cover
     if (val != showCover) {
@@ -440,74 +532,10 @@ function DocumentEditor({
     })
   }, [id, route.id, editor])
 
-  // // Prepopulate welcome blocks for first draft after onboarding
-  // useEffect(() => {
-  //   if (!route.isWelcomeDraft || !editor) return
-
-  //   const topLevelBlocks = editor.topLevelBlocks
-
-  //   // Check if draft is truly empty (all blocks have no content)
-  //   const isEmpty = topLevelBlocks.every(
-  //     (block) =>
-  //       !block.content ||
-  //       block.content.length === 0 ||
-  //       (block.content.length === 1 &&
-  //         block.content[0].type === 'text' &&
-  //         (!block.content[0].text || block.content[0].text.trim() === '')),
-  //   )
-
-  //   if (!isEmpty) return
-
-  //   const welcomeBlocks = [
-  //     {
-  //       id: generateBlockId(),
-  //       type: 'heading',
-  //       props: {level: 1},
-  //       content: [{type: 'text', text: 'Welcome to Seed! 👋', styles: {}}],
-  //       children: [],
-  //     },
-  //     {
-  //       id: generateBlockId(),
-  //       type: 'paragraph',
-  //       props: {},
-  //       content: [
-  //         {
-  //           type: 'text',
-  //           text: '[Placeholder: Tutorial content will go here - getting started tips, key features, etc.]',
-  //           styles: {},
-  //         },
-  //       ],
-  //       children: [],
-  //     },
-  //   ]
-
-  //   // Replace all top-level blocks with welcome blocks
-  //   // @ts-ignore - replaceBlocks may have type issues
-  //   editor.replaceBlocks(topLevelBlocks, welcomeBlocks)
-  // }, [route.isWelcomeDraft, editor])
-
-  // function handleWelcomePopoverClose() {
-  //   // Remove isWelcomeDraft flag from route
-  //   if (route.key !== 'draft') return
-  //   const {isWelcomeDraft, ...routeWithoutFlag} = route
-  //   replace(routeWithoutFlag as DraftRoute)
-
-  //   // Focus the editor after closing the popover
-  //   if (editor) {
-  //     // Use setTimeout to ensure the popover is removed before focusing
-  //     setTimeout(() => {
-  //       editor._tiptapEditor.commands.focus('end', {scrollIntoView: true})
-  //     }, 100)
-  //   }
-  // }
-
   // @ts-expect-error
   if (state.matches('editing'))
     return (
       <>
-        {/* {route.isWelcomeDraft && (
-          <WelcomePopover onClose={handleWelcomePopoverClose} />
-        )} */}
         <div
           onDragStart={() => {
             setIsDragging(true)
@@ -524,7 +552,7 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="flex flex-1 flex-col overflow-hidden"
         >
-          <DocumentTools draftActions={<DraftActionButtons route={route} />} />
+          {isHomeDoc ? documentTools : <DocumentTools draftActions={<DraftActionButtons route={route} />} />}
           <ScrollArea onScroll={() => dispatchScroll(true)}>
             <DraftCover
               draftActor={actor}
@@ -568,6 +596,7 @@ function DocumentEditor({
                       showCover={showCover}
                       setShowCover={setShowCover}
                       visibility={route.visibility || data?.visibility}
+                      documentTools={documentTools}
                     />
                   ) : null}
                   <Container
@@ -809,6 +838,7 @@ function DraftMetadataEditor({
   showCover = false,
   setShowCover,
   visibility,
+  documentTools,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
@@ -816,6 +846,7 @@ function DraftMetadataEditor({
   showCover?: boolean
   setShowCover?: (show: boolean) => void
   visibility?: HMResourceVisibility
+  documentTools?: React.ReactNode
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -969,9 +1000,9 @@ function DraftMetadataEditor({
             }}
             placeholder="Document Summary"
           />
-          {}
           <Separator />
         </div>
+        {documentTools}
       </Container>
     </div>
   )

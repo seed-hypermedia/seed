@@ -42,7 +42,6 @@ export function DocumentHeader({
   }>
   siteUrl?: string
   // TODO: add proper types to this component.
-
   documentTools?: any
   visibility?: HMResourceVisibility
 }) {
@@ -88,7 +87,7 @@ export function DocumentHeader({
             {docMetadata?.summary}
           </span>
         ) : null}
-        <div className="border-border flex flex-col gap-2 border-b">
+        <div className="border-border flex flex-col gap-2 border-b pb-4">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="flex flex-1 flex-wrap items-center gap-3">
@@ -143,10 +142,11 @@ export function DocumentHeader({
                 />
               ) : null}
             </div>
-            {documentTools}
+            
           </div>
         </div>
       </div>
+      {documentTools}
     </Container>
   )
 }

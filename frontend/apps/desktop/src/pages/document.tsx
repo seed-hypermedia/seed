@@ -506,7 +506,7 @@ function _MainDocumentPage({
           },
         } as DocumentRoute)
       }}
-      draftActions={<EditDocButton />}
+      draftActions={isHomeDoc ? <EditDocButton /> : undefined}
     />
   )
 
@@ -531,8 +531,12 @@ function _MainDocumentPage({
             onFeedClick={onFeedClick}
           />
         </div> */}
-        {documentTools}
+        {isHomeDoc ? documentTools : (
+          <div className="absolute top-4 right-4 z-10"><EditDocButton /></div>
+        )}
+        
         <ScrollArea>
+          
           <DocumentCover cover={document?.metadata.cover} />
 
           <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
@@ -563,7 +567,7 @@ function _MainDocumentPage({
               )}
             >
               {isHomeDoc ? null : (
-                <DocPageHeader docId={id} document={document} />
+                <DocPageHeader docId={id} document={document} documentTools={documentTools} />
               )}
               <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                 {resource.data?.type === 'document' ? (
