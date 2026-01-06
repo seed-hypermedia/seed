@@ -1,4 +1,5 @@
 import {client} from '@/trpc'
+import {invalidateQueries} from '@shm/shared'
 import {SEED_HOST_URL} from '@shm/shared/constants'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -135,21 +136,21 @@ export function useHostSession({
   const setHostState = useMutation({
     mutationFn: (state: Parameters<typeof client.host.set.mutate>[0]) =>
       client.host.set.mutate(state),
-  })
-  const login = useMutation({
-    mutationFn: async (email: string) => {
-      const respJson = await hostAPI('auth/start', 'POST', {email})
-      const response = SignInResponseSchema.parse(respJson)
-      if (response.status === 'login-email-sent') {
-        setHostState.mutate({
-          email: response.email,
-          sessionToken: null,
-          pendingSessionToken: response.token,
-        })
-      }
-      return respJson
+    onSuccess: () => {
+      invalidateQueries([queryKeys.HOST_STATE])
     },
   })
+  async function login(email: string) {
+    const respJson = await hostAPI('auth/start', 'POST', {email})
+    const response = SignInResponseSchema.parse(respJson)
+    if (response.status === 'login-email-sent') {
+      setHostState.mutate({
+        email: response.email,
+        sessionToken: null,
+        pendingSessionToken: response.token,
+      })
+    }
+  }
   const absorbedSession = useQuery({
     queryKey: [queryKeys.HOST_ABSORB_SESSION, hostState?.pendingSessionToken],
     queryFn: async () => {
@@ -273,7 +274,7 @@ export function useHostSession({
     email: hostState?.email,
     pendingDomains: hostState?.pendingDomains,
     loggedIn: !!hostState?.sessionToken,
-    login: login.mutate,
+    login,
     isSendingEmail: login.isLoading,
     error: login.error,
     isPendingEmailValidation:

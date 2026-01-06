@@ -615,6 +615,7 @@ function versionToInt(version: string): number | null {
 }
 
 function isAppVersionEqualOrAbove(version: string) {
+  if (VERSION === '0.0.0') return true // for local dev
   if (VERSION === '0.0.0.local-dev') return true // for local dev
   if (VERSION.match('0.0.0.local')) return true // for local builds
   const expectedVersionInt = versionToInt(version)
@@ -636,58 +637,20 @@ function SeedHostIntro({
   infoError?: unknown
   infoIsLoading: boolean
 }) {
-  // Debug logging - initial state
-  console.log('🔍 SeedHostIntro Debug:', {
-    infoIsLoading,
-    hasInfo: !!info,
-    infoError:
-      infoError instanceof Error ? infoError.message : String(infoError),
-    info: info
-      ? {
-          serviceErrorMessage: info.serviceErrorMessage,
-          minimumAppVersion: info.minimumAppVersion,
-          // Log other relevant info properties without logging sensitive data
-          hasPricing: !!info.pricing,
-          hostDomain: info.hostDomain,
-        }
-      : null,
-  })
-
   let content = infoIsLoading ? (
     <div className="flex items-center justify-center">
       <Spinner />
     </div>
   ) : null
-
-  console.log(
-    '📊 After initial assignment - content is:',
-    content ? 'SPINNER' : 'NULL',
-  )
-
   const isInvalidVersion =
     info?.minimumAppVersion && !isAppVersionEqualOrAbove(info.minimumAppVersion)
 
-  console.log('🔍 Version check:', {
-    minimumAppVersion: info?.minimumAppVersion,
-    isInvalidVersion,
-    currentVersion:
-      typeof VERSION !== 'undefined' ? VERSION : 'VERSION_UNDEFINED',
-  })
-
   if (info && !info.serviceErrorMessage && !isInvalidVersion) {
-    console.log('✅ Setting content to SeedHostInfo - conditions met')
     content = <SeedHostInfo info={info} onSubmit={onSubmit} />
   } else if (infoError || info?.serviceErrorMessage || isInvalidVersion) {
     const invalidVersionMessage = isInvalidVersion
       ? 'The service has been updated. You must update to the latest version of the app.'
       : null
-    console.log('❌ Setting content to error message:', {
-      hasInfoError: !!infoError,
-      infoErrorMessage:
-        infoError instanceof Error ? infoError.message : String(infoError),
-      serviceErrorMessage: info?.serviceErrorMessage,
-      invalidVersionMessage,
-    })
     content = (
       <SizableText className="text-destructive">
         {(infoError instanceof Error ? infoError.message : String(infoError)) ||
@@ -696,19 +659,6 @@ function SeedHostIntro({
       </SizableText>
     )
   } else {
-    console.log(
-      '⚠️  No conditions met - content remains null. Conditions check:',
-      {
-        hasInfo: !!info,
-        hasServiceError: !!info?.serviceErrorMessage,
-        isInvalidVersion,
-        hasInfoError: !!infoError,
-        infoIsLoading,
-      },
-    )
-
-    // 🔧 FIX: Add fallback content when no conditions are met
-    console.log('🔧 Setting fallback content - no info available')
     content = (
       <div className="flex flex-col items-center gap-4 p-8">
         <SizableText className="text-muted-foreground text-center">
@@ -723,12 +673,6 @@ function SeedHostIntro({
       </div>
     )
   }
-
-  console.log(
-    '🎯 Final content state:',
-    content ? content.type?.name || 'COMPONENT' : 'NULL',
-  )
-
   return (
     <SeedHostContainer backButton={<BackButton onPress={onBack} />}>
       {content}
