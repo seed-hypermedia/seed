@@ -165,7 +165,7 @@ export type ImportWebFileResult =
   | {
       // Web result
       displaySrc: string
-      fileBinary: Uint8Array
+      fileBinary?: Uint8Array
       type: string
       size: number
     }
@@ -174,9 +174,17 @@ export type ImportWebFileFunction = (
   url: string,
 ) => Promise<ImportWebFileResult>
 
-export type HandleFileAttachmentFunction = (
-  file: File,
-) => Promise<{displaySrc: string; fileBinary: Uint8Array}>
+export type HandleFileAttachmentFunction = (file: File) => Promise<{
+  displaySrc: string
+  fileBinary?: Uint8Array
+  mediaRef?: {
+    draftId: string
+    mediaId: string
+    name: string
+    mime: string
+    size: number
+  }
+}>
 
 const blockNoteTipTapOptions = {
   enableInputRules: true,

@@ -78,6 +78,25 @@ export default function WebCommenting({
     removeDraft,
   } = useCommentDraftPersistence(docId.id, replyCommentId, quotingBlockId)
 
+  // Generate a stable draftId for IndexedDB media storage
+  const draftId = useMemo(() => {
+    const parts = ['comment-draft', docId.id]
+    if (replyCommentId) parts.push(`reply-${replyCommentId}`)
+    if (quotingBlockId) parts.push(`quote-${quotingBlockId}`)
+    return parts.join('-')
+  }, [docId.id, replyCommentId, quotingBlockId])
+
+  // Cleanup old draft media on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('./draft-media-db')
+        .then(({cleanupOldDraftMedia}) => cleanupOldDraftMedia())
+        .catch((err) =>
+          console.error('Failed to cleanup old draft media:', err),
+        )
+    }
+  }, [])
+
   const postComment = useMutation({
     mutationFn: async (commentPayload: {
       comment: Uint8Array
@@ -214,6 +233,18 @@ export default function WebCommenting({
         )
         reset()
         removeDraft() // Remove draft after successful submission
+        // Clean up associated media from IndexedDB after successful publish
+        if (typeof window !== 'undefined') {
+          import('./draft-media-db')
+            .then(({deleteAllDraftMediaForDraft, revokeHMBlockObjectURLs}) => {
+              // Revoke object URLs before cleanup to free memory
+              if (draft) revokeHMBlockObjectURLs(draft)
+              return deleteAllDraftMediaForDraft(draftId)
+            })
+            .catch((err) =>
+              console.error('Failed to cleanup draft media:', err),
+            )
+        }
         onDiscardDraft?.()
         await promptEmailNotifications()
       } finally {
@@ -245,8 +276,18 @@ export default function WebCommenting({
 
   const handleDiscardDraft = useCallback(() => {
     removeDraft()
+    // Clean up associated media from IndexedDB
+    if (typeof window !== 'undefined') {
+      import('./draft-media-db')
+        .then(({deleteAllDraftMediaForDraft, revokeHMBlockObjectURLs}) => {
+          // Revoke object URLs before cleanup to free memory
+          if (draft) revokeHMBlockObjectURLs(draft)
+          return deleteAllDraftMediaForDraft(draftId)
+        })
+        .catch((err) => console.error('Failed to cleanup draft media:', err))
+    }
     onDiscardDraft?.()
-  }, [removeDraft, onDiscardDraft])
+  }, [removeDraft, onDiscardDraft, draftId, draft])
 
   const publishButtonEventClass = userKeyPair
     ? 'plausible-event-name=Publish+Comment'
@@ -268,7 +309,18 @@ export default function WebCommenting({
           onAvatarPress={onAvatarPress}
           onDiscardDraft={handleDiscardDraft}
           importWebFile={importWebFile}
-          handleFileAttachment={handleFileAttachment}
+          handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
+          getDraftMediaBlob={async (draftId, mediaId) => {
+            if (typeof window === 'undefined') return null
+            try {
+              const {getDraftMedia} = await import('./draft-media-db')
+              const mediaData = await getDraftMedia(draftId, mediaId)
+              return mediaData?.blob || null
+            } catch (error) {
+              console.error('Failed to get draft media blob:', error)
+              return null
+            }
+          }}
           submitButton={({getContent, reset}) => {
             return (
               <Tooltip
@@ -403,16 +455,103 @@ async function prepareComment(
   return result
 }
 
-async function handleFileAttachment(file: Blob) {
+// UUID v4 with safe fallback for browsers without crypto.randomUUID (Safari < 15.4)
+function generateUUID(): string {
+  // Native UUID
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID()
+  }
+
+  // Fallback to crypto.getRandomValues
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.getRandomValues === 'function'
+  ) {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+
+    // RFC4122 v4 bits
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80
+
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(
+      '',
+    )
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
+      12,
+      16,
+    )}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+
+  // Last resort fallback. Not cryptographically strong, but avoids hard failure
+  return `fallback-${Date.now().toString(16)}-${Math.random()
+    .toString(16)
+    .slice(2)}`
+}
+
+async function handleFileAttachment(
+  file: Blob,
+  draftId?: string,
+): Promise<{
+  displaySrc: string
+  fileBinary?: Uint8Array
+  mediaRef?: {
+    draftId: string
+    mediaId: string
+    name: string
+    mime: string
+    size: number
+  }
+}> {
   const fileBuffer = await file.arrayBuffer()
   const fileBinary = new Uint8Array(fileBuffer)
+
+  // If draftId provided and we're in browser, use IndexedDB
+  if (draftId && typeof window !== 'undefined') {
+    try {
+      const {putDraftMedia} = await import('./draft-media-db')
+      const mediaId = generateUUID()
+      const name = (file as File).name || `media-${Date.now()}`
+      const mime = file.type || 'application/octet-stream'
+      const size = file.size
+
+      await putDraftMedia(draftId, mediaId, file, {name, mime, size})
+
+      return {
+        displaySrc: URL.createObjectURL(file),
+        mediaRef: {
+          draftId,
+          mediaId,
+          name,
+          mime,
+          size,
+        },
+      }
+    } catch (error) {
+      console.error(
+        'Failed to store in IndexedDB, falling back to binary:',
+        error,
+      )
+      // Fall through to legacy behavior
+    }
+  }
+
+  // Legacy behavior: store as binary in the block
   return {
     displaySrc: URL.createObjectURL(file),
     fileBinary,
   }
 }
 
-async function importWebFile(url: string) {
+const importWebFile: (url: string) => Promise<{
+  displaySrc: string
+  fileBinary?: Uint8Array
+  type: string
+  size: number
+}> = async (url: string) => {
   try {
     const res = await fetch(url, {method: 'GET', mode: 'cors'})
 
@@ -424,11 +563,11 @@ async function importWebFile(url: string) {
       res.headers.get('content-type') || 'application/octet-stream'
     const blob = await res.blob()
 
-    const {displaySrc, fileBinary} = await handleFileAttachment(blob)
+    const result = await handleFileAttachment(blob)
 
     return {
-      displaySrc,
-      fileBinary,
+      displaySrc: result.displaySrc,
+      fileBinary: result.fileBinary,
       type: contentType,
       size: blob.size,
     }

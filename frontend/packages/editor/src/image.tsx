@@ -1,4 +1,4 @@
-import {getDaemonFileUrl, useFileUrl} from '@shm/ui/get-file-url'
+import {useFileUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
@@ -23,6 +23,9 @@ export const ImageBlock = createReactBlockSpec({
     },
     displaySrc: {
       default: '',
+    },
+    mediaRef: {
+      default: '', // object with {draftId, mediaId, name, mime, size}
     },
     alt: {
       default: '',
@@ -184,45 +187,97 @@ const display = ({
 
   useEffect(() => {
     // @ts-ignore
-    if (!block.props.displaySrc && !block.props.url.startsWith('ipfs://')) {
-      const url = block.props.url
-      // @ts-ignore
-      if (url && isValidUrl(url) && editor.importWebFile) {
-        timeoutPromise(editor.importWebFile(url), 5000, {
-          reason: 'Error fetching the image.',
+    const url = block.props.url
+    // Skip if this is a draft media (has mediaRef), a binary URL or an IPFS URL
+    // @ts-ignore
+    if (
+      block.props.displaySrc ||
+      block.props.mediaRef ||
+      (url && url.startsWith('ipfs://'))
+    ) {
+      return
+    }
+    // Also skip invalid blob URLs from old drafts
+    if (url && url.startsWith('blob:')) {
+      return
+    }
+    // @ts-ignore
+    if (url && isValidUrl(url) && editor.importWebFile) {
+      timeoutPromise(editor.importWebFile(url), 5000, {
+        reason: 'Error fetching the image.',
+      })
+        .then((imageData) => {
+          // Desktop result
+          if ('cid' in imageData) {
+            if (!imageData.type.includes('image')) {
+              return
+            }
+            assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
+          }
+          // Web result
+          else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
+            if (!imageData.type.includes('image')) {
+              return
+            }
+            assign({
+              props: {
+                fileBinary: imageData.fileBinary,
+                displaySrc: imageData.displaySrc,
+              },
+            } as MediaType)
+          }
         })
-          .then((imageData) => {
-            // Desktop result
-            if ('cid' in imageData) {
-              if (!imageData.type.includes('image')) {
-                return
-              }
-              assign({props: {url: `ipfs://${imageData.cid}`}} as MediaType)
-            }
-            // Web result
-            else if ('displaySrc' in imageData && 'fileBinary' in imageData) {
-              if (!imageData.type.includes('image')) {
-                return
-              }
-              assign({
-                props: {
-                  fileBinary: imageData.fileBinary,
-                  displaySrc: imageData.displaySrc,
-                },
-              } as MediaType)
-            }
-          })
-          .catch((e) => {
-            console.error('Could not fetch image from URL:', e)
-          })
+        .catch((e) => {
+          console.error('Could not fetch image from URL:', e)
+        })
+    }
+  }, [
+    editor.importWebFile,
+    block.props.displaySrc,
+    block.props.mediaRef,
+    block.props.url,
+  ])
+  // Determine image source:
+  // 1. Use displaySrc if available
+  // 2. Otherwise use url if it's an IPFS URL
+  // 3. Skip invalid blob URLs from old drafts
+  const imageSrc = (() => {
+    // @ts-ignore
+    const displaySrc = block.props.displaySrc
+    // @ts-ignore
+    const url = block.props.url
+    // @ts-ignore
+    let mediaRef = block.props.mediaRef
+
+    // Parse mediaRef from JSON string if needed
+    if (mediaRef && typeof mediaRef === 'string') {
+      try {
+        mediaRef = JSON.parse(mediaRef)
+      } catch (e) {
+        console.error('Failed to parse mediaRef in image display:', e)
+        mediaRef = ''
       }
     }
-  }, [editor.importWebFile])
-  const imageSrc =
-    block.props.displaySrc ||
-    (block.props.url
-      ? getFileUrl(block.props.url)
-      : getDaemonFileUrl(block.props.url))
+
+    if (displaySrc) {
+      return displaySrc
+    }
+    if (url) {
+      // Skip invalid blob URLs from old drafts
+      if (url.startsWith('blob:')) {
+        console.warn('Skipping invalid blob URL from old draft:', url)
+        return ''
+      }
+      // Handle IPFS URLs
+      if (url.startsWith('ipfs://')) {
+        return getFileUrl(url)
+      }
+      // Handle other URLs
+      return url
+    }
+    console.warn('No valid image source found for block:', block.id)
+    return ''
+  })()
   // Min image width in px.
   const minWidth = 64
   // Max image height in px.

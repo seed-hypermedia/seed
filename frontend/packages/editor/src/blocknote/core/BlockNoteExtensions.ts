@@ -3,20 +3,6 @@ import {HMBlockSchema} from '../../schema'
 
 import {BlockNoteEditor} from './BlockNoteEditor'
 
-import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
-import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
-import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
-import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
-import blockStyles from './extensions/Blocks/nodes/Block.module.css'
-import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
-import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
-import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
-import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
-import {UniqueID} from './extensions/UniqueID/UniqueID'
-import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
-import {createInlineEmbedNode} from '../../mentions-plugin'
-import {debugPlugin} from '../../prosemirror-debugger'
-import Link from '../../tiptap-extension-link'
 import {Bold} from '@tiptap/extension-bold'
 import {Code} from '@tiptap/extension-code'
 import {Dropcursor} from '@tiptap/extension-dropcursor'
@@ -28,6 +14,20 @@ import {Strike} from '@tiptap/extension-strike'
 import {Text} from '@tiptap/extension-text'
 import {Underline} from '@tiptap/extension-underline'
 import * as Y from 'yjs'
+import {LocalMediaPastePlugin} from '../../handle-local-media-paste-plugin'
+import {createInlineEmbedNode} from '../../mentions-plugin'
+import {debugPlugin} from '../../prosemirror-debugger'
+import Link from '../../tiptap-extension-link'
+import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
+import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
+import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
+import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
+import blockStyles from './extensions/Blocks/nodes/Block.module.css'
+import {KeyboardShortcutsExtension} from './extensions/KeyboardShortcuts/KeyboardShortcutsExtension'
+import {createMarkdownExtension} from './extensions/Markdown/MarkdownExtension'
+import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
+import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
+import {UniqueID} from './extensions/UniqueID/UniqueID'
 
 /**
  * Get all the Tiptap extensions BlockNote is configured with by default
@@ -97,7 +97,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     // BackgroundColorMark,
     // BackgroundColorExtension,
     // TextAlignmentExtension,
-    LocalMediaPastePlugin,
+    LocalMediaPastePlugin.configure({
+      editor: opts.editor,
+    }),
     // nodes
     Doc,
     BlockGroup.configure({

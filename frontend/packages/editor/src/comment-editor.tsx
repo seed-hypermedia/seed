@@ -50,13 +50,20 @@ export function useCommentEditor(
   onMobileSlashTrigger?: () => void,
   importWebFile?: (url: string) => Promise<{
     displaySrc: string
-    fileBinary: Uint8Array
+    fileBinary?: Uint8Array
     type: string
     size: number
   }>,
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
-    fileBinary: Uint8Array
+    fileBinary?: Uint8Array
+    mediaRef?: {
+      draftId: string
+      mediaId: string
+      name: string
+      mime: string
+      size: number
+    }
   }>,
 ) {
   const {onMentionsQuery} = useInlineMentions(perspectiveAccountUid)
@@ -237,6 +244,7 @@ export function CommentEditor({
   onAvatarPress,
   importWebFile,
   handleFileAttachment,
+  getDraftMediaBlob,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -271,14 +279,22 @@ export function CommentEditor({
   onAvatarPress?: () => void
   importWebFile?: (url: string) => Promise<{
     displaySrc: string
-    fileBinary: Uint8Array
+    fileBinary?: Uint8Array
     type: string
     size: number
   }>
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
-    fileBinary: Uint8Array
+    fileBinary?: Uint8Array
+    mediaRef?: {
+      draftId: string
+      mediaId: string
+      name: string
+      mime: string
+      size: number
+    }
   }>
+  getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
 }) {
   const [submitTrigger, setSubmitTrigger] = useState(0)
   const submitCallbackRef = useRef<(() => void) | null>(null)
@@ -326,7 +342,7 @@ export function CommentEditor({
     editor.removeBlocks(editor.topLevelBlocks)
   }
 
-  // Initialize editor with draft content
+  // Initialize editor with draft content and rehydrate media
   useEffect(() => {
     if (
       initialBlocks &&
@@ -335,18 +351,113 @@ export function CommentEditor({
       editor
     ) {
       isInitializedRef.current = true
-      try {
-        const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
-          childrenType: 'Group',
-        })
-        editor.removeBlocks(editor.topLevelBlocks)
-        // @ts-expect-error - EditorBlock type mismatch with BlockNote
-        editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
-      } catch (error) {
-        console.error('Failed to initialize editor with draft content:', error)
+
+      const initializeWithRehydration = async () => {
+        try {
+          const editorBlocks = hmBlocksToEditorContent(initialBlocks, {
+            childrenType: 'Group',
+          })
+
+          // Rehydrate media blocks from IndexedDB
+          if (getDraftMediaBlob) {
+            const rehydrateEditorBlocks = async (
+              blocks: any[],
+            ): Promise<void> => {
+              for (const block of blocks) {
+                if (
+                  (block.type === 'image' ||
+                    block.type === 'video' ||
+                    block.type === 'file') &&
+                  block.props?.mediaRef
+                ) {
+                  // Parse mediaRef from JSON string
+                  let mediaRef
+                  try {
+                    mediaRef =
+                      typeof block.props.mediaRef === 'string'
+                        ? JSON.parse(block.props.mediaRef)
+                        : block.props.mediaRef
+                  } catch (e) {
+                    console.error('Failed to parse mediaRef:', e)
+                    continue
+                  }
+
+                  const {draftId, mediaId} = mediaRef
+                  try {
+                    const blob = await getDraftMediaBlob(draftId, mediaId)
+                    if (blob) {
+                      // Clear any old url and set a new blob url
+                      delete block.props.url
+                      block.props.displaySrc = URL.createObjectURL(blob)
+                    } else {
+                      console.warn(
+                        `Media blob not found in IndexedDB for rehydration: ${draftId}/${mediaId}`,
+                      )
+                    }
+                  } catch (error) {
+                    console.error(
+                      `Failed to rehydrate media ${mediaId}:`,
+                      error,
+                    )
+                  }
+                }
+
+                // Process children recursively
+                if (block.children && block.children.length > 0) {
+                  await rehydrateEditorBlocks(block.children)
+                }
+              }
+            }
+
+            await rehydrateEditorBlocks(editorBlocks)
+          }
+
+          editor.removeBlocks(editor.topLevelBlocks)
+          // @ts-expect-error - EditorBlock type mismatch with BlockNote
+          editor.replaceBlocks(editor.topLevelBlocks, editorBlocks)
+        } catch (error) {
+          console.error(
+            'Failed to initialize editor with draft content:',
+            error,
+          )
+        }
+      }
+
+      initializeWithRehydration()
+    }
+  }, [initialBlocks, editor, getDraftMediaBlob])
+
+  // Cleanup object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Revoke any blob URLs in the editor blocks on unmount
+      if (editor && typeof window !== 'undefined') {
+        try {
+          const blocks = editor.topLevelBlocks
+          const revokeFromBlock = (block: any) => {
+            if (
+              block.props?.displaySrc &&
+              typeof block.props.displaySrc === 'string' &&
+              block.props.displaySrc.startsWith('blob:')
+            ) {
+              try {
+                URL.revokeObjectURL(block.props.displaySrc)
+              } catch (error) {
+                // URL might already be revoked
+              }
+            }
+            if (block.children && Array.isArray(block.children)) {
+              block.children.forEach(revokeFromBlock)
+            }
+          }
+          blocks.forEach(revokeFromBlock)
+        } catch (error) {
+          // Editor might be in invalid state during unmount
+          console.debug('Failed to revoke URLs on unmount:', error)
+        }
       }
     }
-  }, [initialBlocks, editor])
+  }, [editor])
 
   // Notify parent of content changes
   useEffect(() => {
@@ -401,19 +512,78 @@ export function CommentEditor({
   ) => {
     // @ts-expect-error
     const editorBlocks: EditorBlock[] = editor.topLevelBlocks
+
+    // Collect blocks with fileBinary or mediaRef
     const blocksWithAttachments = crawlEditorBlocks(
       editorBlocks,
       // @ts-expect-error
-      (block) => !!block.props?.fileBinary,
+      (block) => !!block.props?.fileBinary || !!block.props?.mediaRef,
     )
-    const {blobs, resultCIDs} = await prepareAttachments(
+
+    // Prepare binaries for upload
+    // TODO: decide if this should be removed
+    const binariesToUpload: Uint8Array[] = []
+    const blockToIndexMap = new Map<any, number>()
+
+    for (const block of blocksWithAttachments) {
       // @ts-expect-error
-      blocksWithAttachments.map((block) => block.props.fileBinary),
-    )
-    blocksWithAttachments.forEach((block, i) => {
+      if (block.props?.fileBinary) {
+        blockToIndexMap.set(block, binariesToUpload.length)
+        // @ts-expect-error
+        binariesToUpload.push(block.props.fileBinary)
+      }
       // @ts-expect-error
-      block.props.url = `ipfs://${resultCIDs[i]}`
+      else if (block.props?.mediaRef && getDraftMediaBlob) {
+        // Parse mediaRef from JSON string
+        let mediaRef
+        try {
+          mediaRef =
+            // @ts-expect-error - mediaRef exists on media blocks
+            typeof block.props.mediaRef === 'string'
+              ? // @ts-expect-error
+                JSON.parse(block.props.mediaRef)
+              : // @ts-expect-error
+                block.props.mediaRef
+        } catch (e) {
+          console.error('Failed to parse mediaRef:', e)
+          continue
+        }
+
+        const {draftId, mediaId} = mediaRef
+        try {
+          const blob = await getDraftMediaBlob(draftId, mediaId)
+          if (blob) {
+            const arrayBuffer = await blob.arrayBuffer()
+            const binary = new Uint8Array(arrayBuffer)
+            blockToIndexMap.set(block, binariesToUpload.length)
+            binariesToUpload.push(binary)
+          } else {
+            console.warn(`Media not found: ${draftId}/${mediaId}`)
+          }
+        } catch (error) {
+          console.error('Failed to load media:', error)
+        }
+      }
+    }
+
+    const {blobs, resultCIDs} = await prepareAttachments(binariesToUpload)
+
+    // Update blocks with IPFS URLs
+    blocksWithAttachments.forEach((block) => {
+      const index = blockToIndexMap.get(block)
+      if (index !== undefined) {
+        // @ts-expect-error
+        block.props.url = `ipfs://${resultCIDs[index]}`
+        // Clean up temporary properties
+        // @ts-expect-error
+        delete block.props.fileBinary
+        // @ts-expect-error
+        delete block.props.mediaRef
+        // @ts-expect-error
+        delete block.props.displaySrc
+      }
     })
+
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)
     return {
       blockNodes: blocks.map((b) => b.toJson()) as HMBlockNode[],
@@ -448,6 +618,7 @@ export function CommentEditor({
             props: {
               displaySrc: props.displaySrc,
               fileBinary: props.fileBinary,
+              mediaRef: props.mediaRef,
               name: props.name,
             },
           }
@@ -458,6 +629,7 @@ export function CommentEditor({
             props: {
               displaySrc: props.displaySrc,
               fileBinary: props.fileBinary,
+              mediaRef: props.mediaRef,
               name: props.name,
             },
           }
@@ -467,6 +639,7 @@ export function CommentEditor({
             type: 'file',
             props: {
               fileBinary: props.fileBinary,
+              mediaRef: props.mediaRef,
               name: props.name,
               size: props.size,
             },
@@ -581,6 +754,7 @@ export function CommentEditor({
                       props: {
                         displaySrc: props.displaySrc,
                         fileBinary: props.fileBinary,
+                        mediaRef: props.mediaRef,
                         name: props.name,
                       },
                     }
@@ -591,6 +765,7 @@ export function CommentEditor({
                       props: {
                         displaySrc: props.displaySrc,
                         fileBinary: props.fileBinary,
+                        mediaRef: props.mediaRef,
                         name: props.name,
                       },
                     }
@@ -600,6 +775,7 @@ export function CommentEditor({
                       type: 'file',
                       props: {
                         fileBinary: props.fileBinary,
+                        mediaRef: props.mediaRef,
                         name: props.name,
                         size: props.size,
                       },

@@ -1,5 +1,3 @@
-import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
-import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
 import {HMBlockChildrenTypeSchema} from '@shm/shared'
@@ -10,6 +8,8 @@ import {toast} from '@shm/ui/toast'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
 import {EditorView} from '@tiptap/pm/view'
+import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
+import type {BlockIdentifier} from './blocknote/core/extensions/Blocks/api/blockTypes'
 
 export function youtubeParser(url: string) {
   var regExp =
@@ -175,7 +175,14 @@ type FileType = {
     displaySrc: string
     name: string
     size: string
-    fileBinary: Uint8Array
+    fileBinary?: Uint8Array
+    mediaRef?: {
+      draftId: string
+      mediaId: string
+      name: string
+      mime: string
+      size: number
+    }
   }
   children: []
   content: []
@@ -184,9 +191,17 @@ type FileType = {
 
 export async function handleDragMedia(
   file: File,
-  handleFileAttachment?: (
-    file: File,
-  ) => Promise<{displaySrc: string; fileBinary: Uint8Array}>,
+  handleFileAttachment?: (file: File) => Promise<{
+    displaySrc: string
+    fileBinary?: Uint8Array
+    mediaRef?: {
+      draftId: string
+      mediaId: string
+      name: string
+      mime: string
+      size: number
+    }
+  }>,
 ) {
   if (file.size > 62914560) {
     toast.error(`The size of ${file.name} exceeds 60 MB.`)
@@ -194,21 +209,16 @@ export async function handleDragMedia(
   }
 
   if (handleFileAttachment) {
-    const {displaySrc, fileBinary} = await handleFileAttachment(file)
-    console.log('displaySrc', displaySrc, fileBinary)
+    const result = await handleFileAttachment(file)
 
-    const {name, size} = file
-
-    console.log({
-      fileBinary,
-      displaySrc,
-      name,
-      size: size.toString(),
-    })
+    // Use metadata from mediaRef if available, otherwise fall back to file object
+    const name = result.mediaRef?.name || file.name
+    const size = result.mediaRef?.size || file.size
 
     return {
-      displaySrc: displaySrc,
-      fileBinary: fileBinary,
+      displaySrc: result.displaySrc,
+      fileBinary: result.fileBinary,
+      mediaRef: result.mediaRef,
       name: name,
       size: size.toString(),
     } as FileType['props']

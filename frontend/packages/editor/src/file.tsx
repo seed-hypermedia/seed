@@ -22,6 +22,9 @@ export const FileBlock = createReactBlockSpec({
     fileBinary: {
       default: '',
     },
+    mediaRef: {
+      default: '', // object with {draftId, mediaId, name, mime, size}
+    },
     name: {
       default: '',
     },

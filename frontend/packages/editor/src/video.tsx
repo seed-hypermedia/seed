@@ -42,6 +42,9 @@ export const VideoBlock = createReactBlockSpec({
     displaySrc: {
       default: '',
     },
+    mediaRef: {
+      default: '', // object with {draftId, mediaId, name, mime, size}
+    },
     src: {
       default: '',
     },
@@ -161,11 +164,27 @@ const display = ({
   assign,
 }: DisplayComponentProps) => {
   const getFileUrl = useFileUrl()
-  const videoSrc =
-    block.props.displaySrc ||
-    (block.props.url
-      ? getFileUrl(block.props.url)
-      : getDaemonFileUrl(block.props.url))
+
+  // Determine video source
+  const videoSrc = (() => {
+    // @ts-ignore
+    const displaySrc = block.props.displaySrc
+    // @ts-ignore
+    const url = block.props.url
+
+    if (displaySrc) {
+      return displaySrc
+    }
+    if (url) {
+      // Skip invalid blob URLs from old drafts
+      if (url.startsWith('blob:')) {
+        console.warn('Skipping invalid blob URL from old draft:', url)
+        return ''
+      }
+      return getFileUrl(url) || getDaemonFileUrl(url)
+    }
+    return ''
+  })()
 
   // Min video width in px.
   const minWidth = 256

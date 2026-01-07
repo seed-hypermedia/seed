@@ -50,9 +50,20 @@ export interface EditorCodeBlock extends EditorBaseBlock {
   }
 }
 
+export interface DraftMediaRef {
+  draftId: string
+  mediaId: string
+  name: string
+  mime: string
+  size: number
+}
+
 export interface MediaBlockProps extends EditorBlockProps {
   url?: string
   src?: string
+  displaySrc?: string
+  fileBinary?: Uint8Array | number[]
+  mediaRef?: DraftMediaRef
   name?: string
   width?: string
   defaultOpen?: string
