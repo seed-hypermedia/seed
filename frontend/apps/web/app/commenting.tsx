@@ -248,6 +248,10 @@ export default function WebCommenting({
     onDiscardDraft?.()
   }, [removeDraft, onDiscardDraft])
 
+  const publishButtonEventClass = userKeyPair
+    ? 'plausible-event-name=Publish+Comment'
+    : 'plausible-event-name=start-create-account'
+
   // Don't render until draft is loaded
   if (isDraftLoading) {
     return <div className="w-full">Loading...</div>
@@ -279,7 +283,8 @@ export default function WebCommenting({
                   disabled={isSubmitting}
                   className={cn(
                     buttonVariants({size: 'icon', variant: 'ghost'}),
-                    'plausible-event-name=Publish+Comment flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
+                    publishButtonEventClass,
+                    'flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
                     isSubmitting && 'cursor-not-allowed opacity-50',
                   )}
                   onClick={() => handleSubmit(getContent, reset)}
