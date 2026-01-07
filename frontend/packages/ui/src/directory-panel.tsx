@@ -20,7 +20,7 @@ export function DirectoryPanel({
   const scrollRef = useScrollRestoration({
     scrollId: `directory-${docId.id}`,
     getStorageKey: () => getRouteKey(route),
-    debug: true,
+    debug: false,
   })
   const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
     mode: 'Children',

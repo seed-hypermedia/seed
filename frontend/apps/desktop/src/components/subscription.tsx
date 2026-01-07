@@ -58,7 +58,7 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
               : ''
           }
         >
-          <PopoverTrigger>
+          <PopoverTrigger asChild>
             <Button size="xs" variant={isSubscribed ? 'outline' : 'brand'}>
               {subscription.subscription == 'space' ? (
                 // @ts-expect-error

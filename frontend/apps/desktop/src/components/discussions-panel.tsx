@@ -30,7 +30,7 @@ function _DiscussionsPanel(props: {
   const scrollRef = useScrollRestoration({
     scrollId: `discussions-${docId.id}`,
     getStorageKey: () => getRouteKey(route),
-    debug: true,
+    debug: false,
   })
   const selectedAccount = useSelectedAccount()
   const homeDoc = useResource(hmId(docId.uid))

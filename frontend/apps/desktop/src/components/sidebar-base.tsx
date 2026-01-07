@@ -45,12 +45,12 @@ export function GenericSidebarContainer({
     const isInitialMount =
       prevIsLocked.current === undefined && isLocked === true
 
-    console.log('[250px constraint] Effect running:', {
-      prevIsLocked: prevIsLocked.current,
-      currentIsLocked: isLocked,
-      isOpening,
-      isInitialMount,
-    })
+    // console.log('[250px constraint] Effect running:', {
+    //   prevIsLocked: prevIsLocked.current,
+    //   currentIsLocked: isLocked,
+    //   isOpening,
+    //   isInitialMount,
+    // })
 
     const panel = ref.current
     if (!panel) return
@@ -64,12 +64,12 @@ export function GenericSidebarContainer({
           const storedPercent = sidebarWidth || 15
           const pixelValue = (storedPercent / 100) * containerWidth
 
-          console.log('[250px constraint] Width calculation:', {
-            windowWidth: containerWidth,
-            storedPercent,
-            pixelValue,
-            needsAdjustment: pixelValue < 250,
-          })
+          // console.log('[250px constraint] Width calculation:', {
+          //   windowWidth: containerWidth,
+          //   storedPercent,
+          //   pixelValue,
+          //   needsAdjustment: pixelValue < 250,
+          // })
 
           // If the stored percentage would result in less than 250px, adjust it
           if (pixelValue < 250) {

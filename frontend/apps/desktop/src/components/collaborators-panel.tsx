@@ -38,7 +38,7 @@ export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const scrollRef = useScrollRestoration({
     scrollId: `collaborators-${docId.id}`,
     getStorageKey: () => getRouteKey(route),
-    debug: true,
+    debug: false,
   })
   return (
     <AccessoryContent scrollRef={scrollRef}>

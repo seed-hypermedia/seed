@@ -195,7 +195,7 @@ export function HeaderSearch({
           popoverState.onOpenChange(open)
         }}
       >
-        <PopoverTrigger>
+        <PopoverTrigger asChild>
           <Button variant="ghost" size="icon">
             <Search className="size-4" />
           </Button>

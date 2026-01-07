@@ -163,7 +163,7 @@ function DocumentListItemBreadcrumbs({
       {displayCrumbs.map((breadcrumb, idx) => (
         <>
           <Button
-            key={breadcrumb.name}
+            key={breadcrumb.path}
             variant="link"
             className="px-0 text-[10px]"
             size="xs"

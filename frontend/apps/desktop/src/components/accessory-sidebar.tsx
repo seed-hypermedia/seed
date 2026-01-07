@@ -126,11 +126,11 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
     const isOpening =
       prevAccessoryKey.current === undefined && accessoryKey !== undefined
 
-    console.log('[480px constraint] Effect running:', {
-      prevAccessoryKey: prevAccessoryKey.current,
-      currentAccessoryKey: accessoryKey,
-      isOpening,
-    })
+    // console.log('[480px constraint] Effect running:', {
+    //   prevAccessoryKey: prevAccessoryKey.current,
+    //   currentAccessoryKey: accessoryKey,
+    //   isOpening,
+    // })
 
     if (isOpening) {
       const container = containerRef.current
@@ -146,11 +146,11 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           const storedPercent = state?.accessoryWidth || 20
           const pixelValue = (storedPercent / 100) * containerWidth
 
-          console.log('[480px constraint] Width calculation:', {
-            storedPercent,
-            pixelValue,
-            needsAdjustment: pixelValue < 480,
-          })
+          // console.log('[480px constraint] Width calculation:', {
+          //   storedPercent,
+          //   pixelValue,
+          //   needsAdjustment: pixelValue < 480,
+          // })
 
           // If the stored percentage would result in less than 480px, adjust it
           if (pixelValue < 480) {

@@ -45,12 +45,12 @@ export function useDocumentAccessory({
   const activityScrollRef = useScrollRestoration({
     scrollId: docId ? `activity-${docId.id}` : 'activity-no-doc',
     getStorageKey: () => getRouteKey(route),
-    debug: true,
+    debug: false,
   })
   const contactsScrollRef = useScrollRestoration({
     scrollId: docId ? `contacts-${docId.id}` : 'contacts-no-doc',
     getStorageKey: () => getRouteKey(route),
-    debug: true,
+    debug: false,
   })
 
   // Reset scroll when filter changes for activity panel (design decision 2B)

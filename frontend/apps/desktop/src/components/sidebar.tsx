@@ -102,7 +102,7 @@ function CreateDocumentButton() {
   if (!myAccountIds.data?.length) return null
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="mb-5 w-full">
+      <DropdownMenuTrigger asChild className="mb-5 w-full">
         <Button variant="default" className="w-full justify-center">
           <FilePlus2 color="currentColor" size={16} />{' '}
           <span className="truncate">Create Document</span>

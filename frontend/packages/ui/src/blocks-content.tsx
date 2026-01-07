@@ -888,13 +888,15 @@ export function BlockNodeContent({
                 closeDelay={500}
                 open={isHighlight || undefined}
               >
-                <HoverCardTrigger>
-                  <BlockContent
-                    block={blockWithHighlights}
-                    depth={depth}
-                    parentBlockId={parentBlockId}
-                    // {...interactiveProps}
-                  />
+                <HoverCardTrigger asChild>
+                  <div>
+                    <BlockContent
+                      block={blockWithHighlights}
+                      depth={depth}
+                      parentBlockId={parentBlockId}
+                      // {...interactiveProps}
+                    />
+                  </div>
                 </HoverCardTrigger>
                 <HoverCardContent
                   side="top"

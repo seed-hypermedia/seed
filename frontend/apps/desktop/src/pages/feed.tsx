@@ -283,7 +283,7 @@ function _FeedContent({
   const scrollRef = useScrollRestoration({
     scrollId: `feed-scroll:${id.id}`,
     getStorageKey: () => getRouteKey(feedRoute),
-    debug: true,
+    debug: false,
   })
 
   if (resource.isInitialLoading) return null
