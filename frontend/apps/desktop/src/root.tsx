@@ -344,6 +344,7 @@ function MainApp({}: {}) {
     })
   })
 
+  // Initialize the sync service when daemon is ready
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
   }

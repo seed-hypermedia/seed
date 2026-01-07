@@ -169,8 +169,12 @@ export function useResource(
   const {isDiscovering: discoveryInProgress} = useDiscoveryState(id?.id)
 
   // Determine if we should show discovering UI
+  // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
+  // The isFetching check covers the gap between discovery completion and data arrival
   const isDiscovering =
-    !!subscribed && result.data?.type === 'not-found' && !!discoveryInProgress
+    !!subscribed &&
+    result.data?.type === 'not-found' &&
+    (!!discoveryInProgress || result.isFetching)
 
   // Redirect handling
   const redirectTarget =
@@ -312,8 +316,11 @@ export function useResources(
   // Combine query results with discovery state
   return queryResults.map((result, index) => {
     const discoveryInProgress = discoveryStates[index]
+    // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
     const isDiscovering =
-      !!subscribed && result.data?.type === 'not-found' && !!discoveryInProgress
+      !!subscribed &&
+      result.data?.type === 'not-found' &&
+      (!!discoveryInProgress || result.isFetching)
     return {
       ...result,
       isDiscovering,
