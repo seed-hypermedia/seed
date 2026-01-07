@@ -140,17 +140,19 @@ export function useHostSession({
       invalidateQueries([queryKeys.HOST_STATE])
     },
   })
-  async function login(email: string) {
-    const respJson = await hostAPI('auth/start', 'POST', {email})
-    const response = SignInResponseSchema.parse(respJson)
-    if (response.status === 'login-email-sent') {
-      setHostState.mutate({
-        email: response.email,
-        sessionToken: null,
-        pendingSessionToken: response.token,
-      })
-    }
-  }
+  const login = useMutation({
+    mutationFn: async (email: string) => {
+      const respJson = await hostAPI('auth/start', 'POST', {email})
+      const response = SignInResponseSchema.parse(respJson)
+      if (response.status === 'login-email-sent') {
+        setHostState.mutate({
+          email: response.email,
+          sessionToken: null,
+          pendingSessionToken: response.token,
+        })
+      }
+    },
+  })
   const absorbedSession = useQuery({
     queryKey: [queryKeys.HOST_ABSORB_SESSION, hostState?.pendingSessionToken],
     queryFn: async () => {
@@ -274,7 +276,7 @@ export function useHostSession({
     email: hostState?.email,
     pendingDomains: hostState?.pendingDomains,
     loggedIn: !!hostState?.sessionToken,
-    login,
+    login: login.mutate,
     isSendingEmail: login.isLoading,
     error: login.error,
     isPendingEmailValidation:
