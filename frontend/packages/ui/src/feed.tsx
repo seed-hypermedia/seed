@@ -1,4 +1,5 @@
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
+import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {
   HMBlockNode,
   HMTimestamp,
@@ -23,7 +24,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
-import {memo, useEffect, useRef} from 'react'
+import {memo, useEffect, useMemo, useRef} from 'react'
 import {toast} from 'sonner'
 import {AccessoryContent} from './accessories'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
@@ -125,6 +126,20 @@ export function Feed({
 
   // Flatten all pages into a single array of events
   const allEvents = data?.pages.flatMap((page) => page.events) || []
+
+  // Extract unique author IDs from events and subscribe to them for discovery
+  const authorIds = useMemo(() => {
+    const ids = new Set<string>()
+    allEvents.forEach((event) => {
+      if (event.author?.id?.uid) {
+        ids.add(event.author.id.uid)
+      }
+    })
+    return Array.from(ids)
+  }, [allEvents])
+
+  // Subscribe to author accounts for discovery (desktop only, no-op on web)
+  useHackyAuthorsSubscriptions(authorIds)
 
   const isSingleResource =
     filterResource && !filterResource.endsWith('*') ? true : false

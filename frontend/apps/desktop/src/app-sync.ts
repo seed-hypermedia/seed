@@ -71,6 +71,9 @@ type SyncState = {
       stream: StateStream<DiscoveryState | null>
     }
   >
+
+  // Track last known versions to avoid unnecessary invalidations
+  lastKnownVersions: Map<string, string>
 }
 
 const state: SyncState = {
@@ -83,6 +86,7 @@ const state: SyncState = {
   subscriptionCounts: new Map(),
   recursiveSubscriptions: new Set(),
   discoveryStreams: new Map(),
+  lastKnownVersions: new Map(),
 }
 
 // Aggregated discovery state
@@ -377,22 +381,43 @@ async function runDiscovery(sub: ResourceSubscription) {
     },
   )
 
-  // After discovery completes, invalidate relevant queries
-  // Note: We can't check cache in main process, so always invalidate
-  // The activity polling will handle subsequent updates more efficiently
-  appInvalidateQueries([queryKeys.ENTITY, id.id])
-  appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
-  appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+  // Only invalidate if the version has actually changed
+  const newVersion = result?.version
+  const lastKnownVersion = state.lastKnownVersions.get(id.id)
 
-  // For recursive subscriptions, also invalidate directory queries
-  if (recursive) {
-    appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
-    getParentPaths(id.path).forEach((parentPath) => {
-      const parentId = hmId(id.uid, {path: parentPath})
-      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
-    })
-    const rootId = hmId(id.uid)
-    appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
+  const shouldInvalidate = newVersion && newVersion !== lastKnownVersion
+  console.log(
+    `[Discovery] ${id.id}: newVersion=${newVersion}, lastKnown=${lastKnownVersion}, shouldInvalidate=${shouldInvalidate}`,
+  )
+
+  if (shouldInvalidate) {
+    // Update tracked version
+    state.lastKnownVersions.set(id.id, newVersion)
+
+    console.log(`[Discovery] Invalidating queries for ${id.id}`)
+    // Invalidate relevant queries since data changed
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+
+    // Invalidate activity feed when an account (root document) is discovered
+    // The feed contains pre-resolved account metadata, so when an account is discovered
+    // the feed needs to refetch to show the proper account name/icon
+    const isAccountDiscovery = !id.path?.length
+    if (isAccountDiscovery) {
+      appInvalidateQueries([queryKeys.ACTIVITY_FEED])
+    }
+
+    // For recursive subscriptions, also invalidate directory queries
+    if (recursive) {
+      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
+      getParentPaths(id.path).forEach((parentPath) => {
+        const parentId = hmId(id.uid, {path: parentPath})
+        appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+      })
+      const rootId = hmId(id.uid)
+      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
+    }
   }
 
   return result
@@ -474,6 +499,8 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     if (recursive) {
       state.recursiveSubscriptions.delete(key)
     }
+    // Clean up tracked version
+    state.lastKnownVersions.delete(id.id)
   }
 
   return {unsubscribe, discoveryTimer, isCovered}

@@ -63,6 +63,7 @@ Central state object holding:
 - `subscriptionCounts`: Reference counting for subscriptions
 - `recursiveSubscriptions`: Set of recursive subscription keys
 - `discoveryStreams`: Map of discovery state streams per entity
+- `lastKnownVersions`: Map of entity ID to last discovered version (for deduplication)
 
 ### 2. Activity Polling
 
@@ -103,8 +104,27 @@ Exposes the sync service to renderer processes:
 1. Discovery loop calls `grpcClient.entities.discoverEntity()`
 2. Progress updates are written to discovery state stream
 3. Renderer subscribes to discovery state via tRPC
-4. On completion, relevant queries are invalidated
-5. Loop repeats after 3 second interval
+4. On completion, version is compared against `lastKnownVersions`
+5. **Only if version changed**: relevant queries are invalidated
+6. Loop repeats after 3 second interval
+
+### Version Tracking Optimization
+
+The sync service tracks the last known version for each subscribed entity in `state.lastKnownVersions`. This prevents unnecessary query invalidations when discovery completes but no new data has arrived:
+
+```typescript
+// Only invalidate if version actually changed
+const newVersion = result?.version
+const lastKnownVersion = state.lastKnownVersions.get(id.id)
+
+if (newVersion && newVersion !== lastKnownVersion) {
+  state.lastKnownVersions.set(id.id, newVersion)
+  appInvalidateQueries([queryKeys.ENTITY, id.id])
+  // ... other invalidations
+}
+```
+
+This optimization significantly reduces unnecessary refetches when the app is idle.
 
 ## File Locations
 

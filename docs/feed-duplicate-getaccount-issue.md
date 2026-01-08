@@ -1,5 +1,11 @@
 # Feed Page Duplicate Resource Requests Issue
 
+## Status: ✅ IMPLEMENTED
+
+The fix has been implemented and typecheck passes. See Implementation Notes below.
+
+---
+
 ## Problem Statement
 
 When scrolling the feed page, duplicate gRPC requests are made for the same resources. This affects not just accounts, but also documents and comments.
@@ -17,8 +23,6 @@ Example from logs (same account ID repeated):
 The issue is in **server-side event resolution** (`api-activity.ts` and `activity-service.ts`). When `ListEvents` is called, each event is resolved independently via `Promise.allSettled()`, with no deduplication of resource fetches.
 
 ### All Duplicate Request Types
-
-Analyzing `activity-service.ts`, here are ALL the gRPC calls that can be duplicated:
 
 | Resource Type | gRPC Call | Where Used |
 |--------------|-----------|------------|
@@ -44,246 +48,88 @@ Analyzing `activity-service.ts`, here are ALL the gRPC calls that can be duplica
 **Scenario 4: Comments on same document**
 - 8 comments on same doc → 8 `getDocument()` calls for target
 
-### Current Code Structure
+## Solution: Request-Scoped Resource Cache
 
-```typescript
-// api-activity.ts:59-74
-export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
-  async getData(grpcClient: GRPCClient, input) {
-    const response = await listEventsImpl(grpcClient, input)
+The fix uses a **request-scoped cache** that stores Promises (not resolved values) to deduplicate gRPC calls. When two events reference the same resource concurrently, they share the same in-flight Promise, ensuring only one gRPC call is made.
 
-    // Each event resolved independently - NO deduplication
-    const resolvedEvents = await Promise.allSettled(
-      response.events.map((event) =>
-        resolveEvent(grpcClient, event, input.currentAccount),
-      ),
-    )
-    // ...
-  },
-}
-```
+### Race Condition Handling
 
-Each loader function (e.g., `loadCommentEvent`) makes its own calls:
-```typescript
-// activity-service.ts:207-286 (loadCommentEvent)
-const comment = await grpcClient.comments.getComment({id: event.newBlob.cid})
-const author = await resolveAccount(grpcClient, comment.author, currentAccount)
-const replyingComment = comment.replyParent
-  ? await grpcClient.comments.getComment({id: comment.replyParent})
-  : null
-const replyParentAuthor = replyingComment?.author
-  ? await resolveAccount(grpcClient, replyingComment.author, currentAccount)
-  : null
-const targetDoc = await grpcClient.documents.getDocument({...})
-const replyCountResponse = await grpcClient.comments.getCommentReplyCount({...})
-```
+The Promise-based cache handles race conditions correctly:
 
-## Race Condition Analysis
-
-The original Option A proposal stored **Promises** in the cache:
-
-```typescript
-const accountCache = new Map<string, Promise<HMContactItem>>()
-
-const getOrResolveAccount = (accountId: string) => {
-  if (!accountCache.has(accountId)) {
-    accountCache.set(
-      accountId,
-      resolveAccount(grpcClient, accountId, input.currentAccount)
-    )
-  }
-  return accountCache.get(accountId)!
-}
-```
-
-**This handles race conditions correctly.** When two events reference the same account concurrently:
-
-1. Event A calls `getOrResolveAccount("xyz")`
+1. Event A calls `cache.getAccount("xyz")`
 2. Cache miss → stores `Promise<resolve("xyz")>` in map
-3. Event B calls `getOrResolveAccount("xyz")` (before A's promise resolves)
+3. Event B calls `cache.getAccount("xyz")` (before A's promise resolves)
 4. Cache hit → returns same Promise
 5. Both events await the same Promise
 6. Only ONE gRPC call is made
 
-This is the standard "promise memoization" pattern that handles concurrent access correctly.
+---
 
-## Recommended Solution: Request-Scoped Resource Cache
+## Implementation Notes
 
-Create a unified cache for all resource types within a single `ListEvents` request:
+### Files Modified
 
-```typescript
-// New file: frontend/packages/shared/src/request-cache.ts
+1. **NEW: `frontend/packages/shared/src/request-cache.ts`**
+   - `RequestCache` type with methods for each resource type
+   - `createRequestCache(grpcClient)` factory function
+   - `resolveAccountWithCache()` - cache-aware account resolver (replaces direct `resolveAccount` calls)
 
-export type RequestCache = {
-  getAccount: (uid: string, currentAccount?: string) => Promise<HMContactItem>
-  getDocument: (params: {account: string, path?: string, version?: string}) => Promise<Document>
-  getComment: (id: string) => Promise<Comment>
-  getCommentReplyCount: (id: string) => Promise<number>
-  getContacts: (accountUid: string) => Promise<Contact[]>
-}
+2. **`frontend/packages/shared/src/api-activity.ts`**
+   - Creates `RequestCache` at start of `ListEvents.getData()`
+   - Passes cache to `resolveEvent()` and all loader functions
 
-export function createRequestCache(grpcClient: GRPCClient): RequestCache {
-  // Store Promises to handle concurrent access
-  const accounts = new Map<string, Promise<HMContactItem>>()
-  const documents = new Map<string, Promise<Document>>()
-  const comments = new Map<string, Promise<Comment>>()
-  const replyCounts = new Map<string, Promise<number>>()
-  const contacts = new Map<string, Promise<Contact[]>>()
+3. **`frontend/packages/shared/src/models/activity-service.ts`**
+   - All `load*` functions now accept `cache: RequestCache` parameter
+   - All gRPC calls replaced with cache methods:
+     - `grpcClient.comments.getComment()` → `cache.getComment()`
+     - `grpcClient.documents.getDocument()` → `cache.getDocument()`
+     - `resolveAccount()` → `cache.getAccount()`
+     - `grpcClient.comments.getCommentReplyCount()` → `cache.getCommentReplyCount()`
 
-  return {
-    getAccount(uid: string, currentAccount?: string) {
-      // Key includes currentAccount because contact name may differ
-      const key = `${uid}:${currentAccount || ''}`
-      if (!accounts.has(key)) {
-        accounts.set(key, resolveAccount(grpcClient, uid, currentAccount))
-      }
-      return accounts.get(key)!
-    },
+4. **`frontend/packages/shared/src/account-utils.ts`** - NOT MODIFIED
+   - Account resolution logic moved into `request-cache.ts` as `resolveAccountWithCache()`
+   - Original `resolveAccount()` still exists for other uses outside ListEvents
 
-    getDocument(params) {
-      const key = `${params.account}:${params.path || ''}:${params.version || ''}`
-      if (!documents.has(key)) {
-        documents.set(key, grpcClient.documents.getDocument(params))
-      }
-      return documents.get(key)!
-    },
+### Cache Key Strategy
 
-    getComment(id: string) {
-      if (!comments.has(id)) {
-        comments.set(id, grpcClient.comments.getComment({id}))
-      }
-      return comments.get(id)!
-    },
+| Resource | Cache Key | Rationale |
+|----------|-----------|-----------|
+| Account | `${uid}:${currentAccount}` | Contact name may differ based on currentAccount's contacts |
+| Document | `${account}:${path}:${version}` | Same doc at different versions are different resources |
+| Comment | `${id}` | Comment ID is unique |
+| Reply Count | `${id}` | Reply count is per-comment |
+| Contacts | `${accountUid}` | One contacts list per account |
 
-    getCommentReplyCount(id: string) {
-      if (!replyCounts.has(id)) {
-        replyCounts.set(id,
-          grpcClient.comments.getCommentReplyCount({id})
-            .then(r => Number(r.replyCount))
-        )
-      }
-      return replyCounts.get(id)!
-    },
-
-    getContacts(accountUid: string) {
-      if (!contacts.has(accountUid)) {
-        contacts.set(accountUid,
-          grpcClient.documents.listContacts({
-            filter: {case: 'account', value: accountUid}
-          }).then(r => r.contacts)
-        )
-      }
-      return contacts.get(accountUid)!
-    }
-  }
-}
-```
-
-### Updated ListEvents Implementation
-
-```typescript
-// api-activity.ts
-export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
-  async getData(grpcClient: GRPCClient, input) {
-    const response = await listEventsImpl(grpcClient, input)
-
-    // Create request-scoped cache
-    const cache = createRequestCache(grpcClient)
-
-    const resolvedEvents = await Promise.allSettled(
-      response.events.map((event) =>
-        resolveEvent(grpcClient, event, input.currentAccount, cache),
-      ),
-    )
-    // ...
-  },
-}
-```
-
-### Updated Event Loaders
-
-Each loader function receives the cache and uses it:
-
-```typescript
-export async function loadCommentEvent(
-  grpcClient: GRPCClient,
-  event: HMActivityEvent,
-  currentAccount?: string,
-  cache?: RequestCache,  // Optional for backwards compat
-): Promise<LoadedCommentEvent | null> {
-  // ...
-  const comment = cache
-    ? await cache.getComment(event.newBlob.cid)
-    : await grpcClient.comments.getComment({id: event.newBlob.cid})
-
-  const author = cache
-    ? await cache.getAccount(comment.author, currentAccount)
-    : await resolveAccount(grpcClient, comment.author, currentAccount)
-
-  // ... etc
-}
-```
-
-## Alternative: Refactor resolveAccount to Accept Cache
-
-The `resolveAccount` function in `account-utils.ts` also calls `listContacts()`. It should accept a cache parameter:
-
-```typescript
-export async function resolveAccount(
-  grpcClient: GRPCClient,
-  accountId: string,
-  currentAccount?: string,
-  cache?: RequestCache,
-  maxDepth: number = 10,
-): Promise<HMContactItem> {
-  // Use cache.getContacts() instead of direct call
-  const contactsResponse = currentAccount && cache
-    ? await cache.getContacts(currentAccount)
-    : currentAccount
-    ? await grpcClient.documents.listContacts({...})
-    : null
-  // ...
-}
-```
-
-## Impact Analysis
+### Expected Impact
 
 For a typical feed page with 20 events:
 
-**Before (worst case):**
+**Before:**
 - 20+ GetAccount calls (authors)
 - 20+ ListContacts calls
 - 10+ GetDocument calls (targets)
 - 5+ GetComment calls (reply parents)
 - 20+ GetCommentReplyCount calls
 
-**After (with cache):**
+**After:**
 - ~3-5 GetAccount calls (unique authors)
-- 1 ListContacts call
+- 1 ListContacts call (per currentAccount)
 - ~2-3 GetDocument calls (unique targets)
 - ~2 GetComment calls (unique reply parents)
-- ~15 GetCommentReplyCount calls (unique comments)
+- ~15 GetCommentReplyCount calls (unique comments - these are less likely to be duplicated)
 
-## Files to Modify
+### Edge Cases Handled
 
-1. **New file**: `frontend/packages/shared/src/request-cache.ts` - Cache implementation
-2. `frontend/packages/shared/src/api-activity.ts` - Create cache, pass to resolvers
-3. `frontend/packages/shared/src/models/activity-service.ts` - Update all load* functions
-4. `frontend/packages/shared/src/account-utils.ts` - Accept cache in resolveAccount
+1. **Error propagation**: If a cached promise rejects, all awaiters get the error. This is correct - if account X fails to load, all events needing X should fail.
 
-## Edge Cases
+2. **Alias resolution**: The cache handles recursive alias resolution by calling `cache.getAccount()` for the alias target.
 
-1. **Error handling**: If a cached promise rejects, all awaiters get the error. This is correct behavior - if account X fails to load, all events needing X should fail.
+3. **Partial failures**: `Promise.allSettled` in `api-activity.ts` handles individual event failures gracefully.
 
-2. **Cache key collisions**: Document cache key must include account + path + version. Two events may reference same doc at different versions.
+### Testing Checklist
 
-3. **Partial failures**: `Promise.allSettled` already handles individual event failures gracefully.
-
-## Summary
-
-The fix requires:
-1. Creating a request-scoped cache that stores Promises (not resolved values)
-2. Passing this cache through the event resolution chain
-3. Using the cache for all resource fetches
-
-The Promise-based caching naturally handles race conditions - concurrent requests for the same resource share the same in-flight Promise.
+- [ ] Verify feed page loads correctly
+- [ ] Verify scroll/pagination works
+- [ ] Check console for duplicate GetAccount requests (should be eliminated)
+- [ ] Check console for duplicate GetDocument requests (should be reduced)
+- [ ] Verify error cases still work (invalid accounts, etc.)
