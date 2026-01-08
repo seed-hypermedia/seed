@@ -156,9 +156,9 @@ SELECT
   ts,
   type
   from fts_index
-  WHERE type IN ('title', 'document', 'meta')
+  WHERE genesis_blob = :genesisBlobID
   AND ts >= :Ts
-  AND genesis_blob = :genesisBlobID
+  AND type IN ('title', 'document', 'meta')
   AND rowid != :rowID
   ORDER BY ts ASC
 `)
@@ -287,13 +287,14 @@ LIMIT :limit
 `)
 
 var qIsDeletedComment = dqb.Str(`
-	SELECT
-	ifnull(extra_attrs->>'deleted' = 1, 0) AS is_deleted
-	FROM structural_blobs
-	WHERE type = 'Comment'
-	AND (extra_attrs->>'tsid' || :authorID = :tsID || :authorID)
-	ORDER BY id DESC
-	LIMIT 1;
+    SELECT
+        CASE WHEN extra_attrs->>'deleted' = '1' THEN 1 ELSE 0 END AS is_deleted
+    FROM structural_blobs
+    WHERE type = 'Comment'
+      AND author = :author_id
+      AND extra_attrs->>'tsid' = :tsid
+    ORDER BY ts DESC
+    LIMIT 1;
 `)
 
 var qGetMetadata = dqb.Str(`
@@ -358,7 +359,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	//start := time.Now()
 	//defer func() {
 	//	fmt.Println("SearchEntities duration:", time.Since(start))
-	//s}()
+	//}()
 	searchResults := []searchResult{}
 	type value struct {
 		Value string `json:"v"`
@@ -425,7 +426,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
 	//before := time.Now()
-	fmt.Println(ftsStr, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, loggedAccountID, iriGlob, resultsLmit)
+	//fmt.Println("BeforeFTS Elapsed time:", time.Since(start))
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, qGetFTS(), func(stmt *sqlite.Stmt) error {
 			var res searchResult
@@ -552,6 +553,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 	//elapsed := after.Sub(before)
 	//fmt.Printf("qGetFTS took %.3f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entities.Entity{}
+	//fmt.Println("BeforeParents Elapsed time:", time.Since(start))
 	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
 		parents := make(map[string]interface{})
 		breadcrum := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
@@ -584,9 +586,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		}
 		return parentTitles, nil
 	}
-	//totalGetParentsTime := time.Duration(0)
 	totalLatestBlockTime := time.Duration(0)
-	timesCalled := 0
+	timesCalled, timesCalled2 := 0, 0
 	iter := 0
 	//prevIter := 0
 	genesisBlobIDs := make([]string, 0, len(searchResults))
@@ -596,7 +597,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 
 	var movedResources []MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-
+	//fmt.Println("BeforeMovedBlocks Elapsed time:", time.Since(start))
 	err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
@@ -636,12 +637,20 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 			}
 		}
 	}
+	//fmt.Println("BeforeUnrelated Elapsed time:", time.Since(start))
+	startParents := time.Now()
+	totalGetParentsTime := time.Duration(0)
+	totalDeletedTime := time.Duration(0)
+	totalCommentsTime := time.Duration(0)
+	totalNonCommentsTime := time.Duration(0)
 	for _, match := range bodyMatches {
-		//startParents := time.Now()
+		totalGetParentsTime += time.Since(startParents)
+		startParents = time.Now()
 		var parentTitles []string
 		var err error
 		if searchResults[match.Index].isDeleted {
 			// Skip deleted resources
+			totalDeletedTime += time.Since(startParents)
 			continue
 		}
 		if searchResults[match.Index].contentType != "contact" {
@@ -649,7 +658,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 				return nil, err
 			}
 		}
-		//totalGetParentsTime += time.Since(startParents)
 
 		offsets := make([]int64, len(match.MatchedIndexes))
 		for j, off := range match.MatchedIndexes {
@@ -732,18 +740,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 					id += "[" + strconv.FormatInt(offsets[0], 10) + ":" + strconv.FormatInt(offsets[len(offsets)-1]+1, 10) + "]"
 				}
 			}
+			totalNonCommentsTime += time.Since(startParents)
 		} else if searchResults[match.Index].contentType == "comment" {
 			var isDeleted bool
+			timesCalled2++
 			err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				return sqlitex.ExecTransient(conn, qIsDeletedComment(), func(stmt *sqlite.Stmt) error {
 					isDeleted = stmt.ColumnInt(0) == 1
 					return nil
-				}, strconv.FormatInt(searchResults[match.Index].commentKey.authorID, 10), searchResults[match.Index].commentKey.tsid)
+				}, searchResults[match.Index].commentKey.authorID, searchResults[match.Index].commentKey.tsid)
 			})
 			if err != nil {
 				//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 				return nil, err
 			}
+			totalCommentsTime += time.Since(startParents)
 			if isDeleted {
 				// If the comment is deleted, we don't return it
 				continue
@@ -764,8 +775,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entities.SearchEntiti
 		})
 	}
 	//after = time.Now()
-
+	//fmt.Println("BeforeSortingElapsed time:", time.Since(start))
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
+	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
+	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
+	//fmt.Printf("totalCommentsTime took %.3f s and called %d times\n", totalCommentsTime.Seconds(), timesCalled2)
+
 	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 
 	sort.Slice(matchingEntities, func(i, j int) bool {
