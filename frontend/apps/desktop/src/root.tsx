@@ -344,6 +344,7 @@ function MainApp({}: {}) {
     })
   })
 
+  // Initialize the sync service when daemon is ready
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
   }
@@ -353,6 +354,7 @@ function MainApp({}: {}) {
       onData: (value: unknown) => {
         const queryKey = value as QueryKey
         if (!queryKey) return
+        console.log('[Invalidation] Received:', queryKey)
         // All queries now use queryKeys constants, so we can just invalidate directly
         queryClient.invalidateQueries({queryKey})
       },

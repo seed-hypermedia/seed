@@ -36,6 +36,7 @@ import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
 import {appSettingsApi} from './app-settings'
 import {sitesApi} from './app-sites'
+import {syncApi} from './app-sync'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
 import {welcomingApi} from './app-welcoming'
@@ -215,6 +216,7 @@ export const router = t.router({
   diagnosis: diagnosisApi,
   welcoming: welcomingApi,
   webImporting: webImportingApi,
+  sync: syncApi,
   web: t.router({
     queryMeta: t.procedure.input(z.string()).query(async ({input}) => {
       const res = await fetch(input)

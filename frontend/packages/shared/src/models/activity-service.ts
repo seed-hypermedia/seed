@@ -1,4 +1,3 @@
-import {resolveAccount} from '../account-utils'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
 import {GRPCClient} from '../grpc-client'
@@ -12,6 +11,7 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '../hm-types'
+import {RequestCache} from '../request-cache'
 import {
   entityQueryPathToHmIdPath,
   hmId,
@@ -205,9 +205,10 @@ export async function listEventsImpl(
 }
 
 export async function loadCommentEvent(
-  grpcClient: GRPCClient,
+  _grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedCommentEvent | null> {
   if ('newMention' in event) {
     console.error('Event: missing newBlob for comment event:', event)
@@ -220,35 +221,25 @@ export async function loadCommentEvent(
   }
 
   try {
-    const comment = await grpcClient.comments.getComment({
-      id: event.newBlob.cid,
-    })
+    const comment = await cache.getComment(event.newBlob.cid)
 
-    const author = await resolveAccount(
-      grpcClient,
-      comment.author,
-      currentAccount,
-    )
+    const author = await cache.getAccount(comment.author, currentAccount)
 
     const replyingComment = comment.replyParent
-      ? await grpcClient.comments.getComment({
-          id: comment.replyParent,
-        })
+      ? await cache.getComment(comment.replyParent)
       : null
 
     const replyParentAuthor = replyingComment?.author
-      ? await resolveAccount(grpcClient, replyingComment.author, currentAccount)
+      ? await cache.getAccount(replyingComment.author, currentAccount)
       : null
 
-    const targetDoc = await grpcClient.documents.getDocument({
+    const targetDoc = await cache.getDocument({
       account: comment.targetAccount,
       version: comment.targetVersion,
       path: comment.targetPath,
     })
 
-    const replyCountResponse = await grpcClient.comments.getCommentReplyCount({
-      id: comment.id,
-    })
+    const replyCount = await cache.getCommentReplyCount(comment.id)
 
     const targetId = hmId(comment.targetAccount, {
       path: comment.targetPath
@@ -277,7 +268,7 @@ export async function loadCommentEvent(
       comment: comment ? prepareHMComment(comment) : null,
       commentId: unpackHmId(`hm://${comment.id}`)!,
       target,
-      replyCount: Number(replyCountResponse.replyCount),
+      replyCount,
     }
   } catch (error) {
     console.error('Event: catch error:', event, error)
@@ -288,7 +279,8 @@ export async function loadCommentEvent(
 export async function loadCapabilityEvent(
   grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedCapabilityEvent | null> {
   if ('newMention' in event) {
     console.error('Event: missing newBlob for capability event:', event)
@@ -301,11 +293,7 @@ export async function loadCapabilityEvent(
   }
 
   try {
-    const author = await resolveAccount(
-      grpcClient,
-      event.newBlob.author,
-      currentAccount,
-    )
+    const author = await cache.getAccount(event.newBlob.author, currentAccount)
 
     const capId = unpackHmId(event.newBlob.resource)
 
@@ -322,13 +310,12 @@ export async function loadCapabilityEvent(
       id: event.newBlob.cid,
     })
 
-    const target = await grpcClient.documents.getDocument({
+    const target = await cache.getDocument({
       account: grpcCapability.account,
       path: grpcCapability.path,
     })
 
-    const delegate = await resolveAccount(
-      grpcClient,
+    const delegate = await cache.getAccount(
       grpcCapability.delegate,
       currentAccount,
     )
@@ -390,7 +377,8 @@ export async function loadCapabilityEvent(
 export async function loadContactEvent(
   grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedContactEvent | null> {
   if ('newMention' in event) {
     console.error('Event: missing newBlob for contact event:', event)
@@ -424,13 +412,9 @@ export async function loadContactEvent(
       id: contactId,
     })
 
-    const subject = await resolveAccount(grpcClient, grpcContact.subject)
+    const subject = await cache.getAccount(grpcContact.subject)
 
-    const author = await resolveAccount(
-      grpcClient,
-      event.newBlob.author,
-      currentAccount,
-    )
+    const author = await cache.getAccount(event.newBlob.author, currentAccount)
 
     // Construct contact item
     const contactUnpackedId = unpackHmId(`hm://${contactId}`)
@@ -457,9 +441,10 @@ export async function loadContactEvent(
 }
 
 export async function loadRefEvent(
-  grpcClient: GRPCClient,
+  _grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedRefEvent | null> {
   if ('newMention' in event) {
     console.error('Event: missing newBlob for ref event:', event)
@@ -472,15 +457,11 @@ export async function loadRefEvent(
   }
 
   try {
-    const author = await resolveAccount(
-      grpcClient,
-      event.account,
-      currentAccount,
-    )
+    const author = await cache.getAccount(event.account, currentAccount)
 
     const docId = unpackHmId(event.newBlob.resource)
 
-    const grpcDocument = await grpcClient.documents.getDocument({
+    const grpcDocument = await cache.getDocument({
       account: docId?.uid,
       path: docId?.path?.length ? `/${docId?.path?.join('/')}` : '',
       version: docId?.version || undefined,
@@ -507,9 +488,10 @@ export async function loadRefEvent(
 }
 
 export async function loadCitationEvent(
-  grpcClient: GRPCClient,
+  _grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedCitationEvent | null> {
   if ('newBlob' in event) {
     console.error('Event: not a citation event (invalid blobType):', event)
@@ -572,12 +554,12 @@ export async function loadCitationEvent(
 
     // Resolve author
     const authorUid = event.newMention.sourceBlob?.author || event.account
-    const author = await resolveAccount(grpcClient, authorUid, currentAccount)
+    const author = await cache.getAccount(authorUid, currentAccount)
 
     // Fetch source document metadata
     let sourceDocument
     try {
-      sourceDocument = await grpcClient.documents.getDocument({
+      sourceDocument = await cache.getDocument({
         account: sourceUnpacked.uid,
         path: sourceUnpacked.path?.length
           ? `/${sourceUnpacked.path.join('/')}`
@@ -600,7 +582,7 @@ export async function loadCitationEvent(
     // Fetch target document metadata
     let targetDocument
     try {
-      targetDocument = await grpcClient.documents.getDocument({
+      targetDocument = await cache.getDocument({
         account: targetUnpacked.uid,
         path: targetUnpacked.path?.length
           ? `/${targetUnpacked.path.join('/')}`
@@ -632,16 +614,10 @@ export async function loadCitationEvent(
       try {
         const commentCid = event.newMention.sourceBlob?.cid
         if (commentCid) {
-          const grpcComment = await grpcClient.comments.getComment({
-            id: commentCid,
-          })
+          const grpcComment = await cache.getComment(commentCid)
           comment = prepareHMComment(grpcComment)
 
-          const replyCountResponse =
-            await grpcClient.comments.getCommentReplyCount({
-              id: commentCid,
-            })
-          replyCount = Number(replyCountResponse.replyCount)
+          replyCount = await cache.getCommentReplyCount(commentCid)
         }
       } catch (error) {
         console.error('Event: Failed to load comment for citation:', error)

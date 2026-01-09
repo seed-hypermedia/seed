@@ -12,11 +12,13 @@ import {
   LoadedEvent,
   loadRefEvent,
 } from './models/activity-service'
+import {createRequestCache, RequestCache} from './request-cache'
 
 async function resolveEvent(
   grpcClient: GRPCClient,
   event: HMActivityEvent,
-  currentAccount?: string,
+  currentAccount: string | undefined,
+  cache: RequestCache,
 ): Promise<LoadedEvent | null> {
   try {
     const eventType = getEventType(event)
@@ -28,13 +30,13 @@ async function resolveEvent(
 
     switch (eventType) {
       case 'comment':
-        return loadCommentEvent(grpcClient, event, currentAccount)
+        return loadCommentEvent(grpcClient, event, currentAccount, cache)
       case 'ref':
-        return loadRefEvent(grpcClient, event, currentAccount)
+        return loadRefEvent(grpcClient, event, currentAccount, cache)
       case 'capability':
-        return loadCapabilityEvent(grpcClient, event, currentAccount)
+        return loadCapabilityEvent(grpcClient, event, currentAccount, cache)
       case 'contact':
-        return loadContactEvent(grpcClient, event, currentAccount)
+        return loadContactEvent(grpcClient, event, currentAccount, cache)
       case 'citation':
       case 'comment/target':
       case 'comment/embed':
@@ -42,7 +44,7 @@ async function resolveEvent(
       case 'doc/embed':
       case 'doc/link':
       case 'doc/button':
-        return loadCitationEvent(grpcClient, event, currentAccount)
+        return loadCitationEvent(grpcClient, event, currentAccount, cache)
       case 'dagpb':
       case 'profile':
         return null
@@ -61,10 +63,15 @@ export const ListEvents: HMRequestImplementation<HMListEventsRequest> = {
     // Get raw events from gRPC
     const response = await listEventsImpl(grpcClient, input)
 
+    // Create request-scoped cache to deduplicate resource fetches
+    // This ensures that if multiple events reference the same account/document/comment,
+    // only one gRPC call is made for each unique resource
+    const cache = createRequestCache(grpcClient)
+
     // Resolve all events server-side
     const resolvedEvents = await Promise.allSettled(
       response.events.map((event) =>
-        resolveEvent(grpcClient, event, input.currentAccount),
+        resolveEvent(grpcClient, event, input.currentAccount, cache),
       ),
     )
 
