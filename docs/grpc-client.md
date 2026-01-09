@@ -1,10 +1,13 @@
 # gRPC Client Architecture
 
-The Seed Hypermedia frontend communicates with the Go backend daemon via gRPC using Connect-RPC. This document covers the client setup, available services, and usage patterns.
+The Seed Hypermedia frontend communicates with the Go backend daemon via gRPC
+using Connect-RPC. This document covers the client setup, available services,
+and usage patterns.
 
 ## Overview
 
 The gRPC client:
+
 - Uses Connect-RPC for browser/Node.js compatibility
 - Provides type-safe access to all backend services
 - Is shared between desktop (Electron) and web (Remix) apps
@@ -12,12 +15,12 @@ The gRPC client:
 
 ## Core Files
 
-| File | Purpose |
-|------|---------|
-| `@shm/shared/src/grpc-client.ts` | GRPCClient factory |
-| `@shm/shared/src/client/index.ts` | Service exports |
-| `@shm/shared/src/client/.generated/` | Generated protobuf types |
-| `backend/genproto/` | Protobuf source definitions |
+| File                                 | Purpose                     |
+| ------------------------------------ | --------------------------- |
+| `@shm/shared/src/grpc-client.ts`     | GRPCClient factory          |
+| `@shm/shared/src/client/index.ts`    | Service exports             |
+| `@shm/shared/src/client/.generated/` | Generated protobuf types    |
+| `backend/genproto/`                  | Protobuf source definitions |
 
 ## Client Setup
 
@@ -29,7 +32,7 @@ import {createGRPCClient} from '@shm/shared/grpc-client'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 const transport = createGrpcWebTransport({
-  baseUrl: DAEMON_HTTP_URL,  // e.g., 'http://localhost:56001'
+  baseUrl: DAEMON_HTTP_URL, // e.g., 'http://localhost:56001'
   httpVersion: '1.1',
 })
 
@@ -88,7 +91,7 @@ Document CRUD and querying.
 const doc = await grpcClient.documents.getDocument({
   account: 'z6Mk...',
   path: '/my-doc',
-  version: undefined,  // Latest version
+  version: undefined, // Latest version
 })
 
 // Get account info
@@ -136,7 +139,7 @@ Comment management.
 ```typescript
 // Get a single comment
 const comment = await grpcClient.comments.getComment({
-  id: 'bafyreid...',  // CID
+  id: 'bafyreid...', // CID
 })
 
 // Get reply count
@@ -161,8 +164,8 @@ const results = await grpcClient.entities.searchEntities({
   query: 'search term',
   includeBody: true,
   contextSize: 100,
-  accountUid: 'z6Mk...',  // Optional: limit to account
-  loggedAccountUid: 'z6Mk...',  // Current user perspective
+  accountUid: 'z6Mk...', // Optional: limit to account
+  loggedAccountUid: 'z6Mk...', // Current user perspective
 })
 
 // List entity mentions (citations)
@@ -201,20 +204,6 @@ const peerInfo = await grpcClient.networking.getPeerInfo({})
 // Connect to peer
 await grpcClient.networking.connect({
   addrs: ['/ip4/1.2.3.4/tcp/4001/p2p/QmPeer...'],
-})
-```
-
-### Daemon
-
-Daemon status and control.
-
-```typescript
-// Get daemon info
-const info = await grpcClient.daemon.getInfo({})
-
-// Force sync
-await grpcClient.daemon.forceSync({
-  id: 'hm://z6Mk...',
 })
 ```
 
@@ -328,7 +317,7 @@ Some protobuf fields use BigInt:
 // Page sizes are BigInt
 const response = await grpcClient.comments.listCommentsByAuthor({
   author: uid,
-  pageSize: BigInt(100),  // or use BIG_INT constant
+  pageSize: BigInt(100), // or use BIG_INT constant
 })
 
 // Convert reply count
@@ -473,7 +462,8 @@ Generated files are in `@shm/shared/src/client/.generated/`.
 
 ```typescript
 // Default daemon URL
-export const DAEMON_HTTP_URL = process.env.DAEMON_HTTP_URL || 'http://localhost:56001'
+export const DAEMON_HTTP_URL =
+  process.env.DAEMON_HTTP_URL || 'http://localhost:56001'
 
 // Large page size for "all" queries
 export const BIG_INT = BigInt(999999)

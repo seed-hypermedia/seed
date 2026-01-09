@@ -17,6 +17,7 @@ import {
   useAccount,
   useAccounts,
   useAccountsMetadata,
+  useResources,
 } from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {fullInvalidate, queryKeys} from '@shm/shared/models/query-keys'
@@ -27,7 +28,6 @@ import {
   useQuery,
 } from '@tanstack/react-query'
 import {base58btc} from 'multiformats/bases/base58'
-import {useResources} from '@shm/shared/models/entity'
 import {useDaemonInfo, useMyAccountIds} from './daemon'
 import {useConnectedPeers} from './networking'
 
@@ -280,7 +280,8 @@ export function useConnectPeer(
       console.log('WILL CONNECT TO', addrs)
       await grpcClient.networking.connect({addrs})
       if (opts.syncImmediately) {
-        await grpcClient.daemon.forceSync({})
+        // this fn has been deleted from the daemon API
+        // await grpcClient.daemon.forceSync({})
       }
       return undefined
     },

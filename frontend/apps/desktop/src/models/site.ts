@@ -1,11 +1,13 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
-import {hmId} from '@shm/shared'
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {hmId, packHmId} from '@shm/shared'
 import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
 
 export function useSiteRegistration(accountUid: string) {
@@ -53,7 +55,25 @@ export function useSiteRegistration(accountUid: string) {
           addrs: siteConfig.addrs,
         })
         console.log('doing force sync from this node...')
-        await grpcClient.daemon.forceSync({})
+        const pushProgress = grpcClient.resources.pushResourcesToPeer({
+          addrs: siteConfig.addrs,
+          resources: [packHmId(accountId)],
+        })
+        try {
+          for await (const progress of pushProgress) {
+            console.log(
+              `== publish progress`,
+              JSON.stringify(toPlainMessage(progress)),
+            )
+          }
+          console.log('push progress: done')
+        } catch (error) {
+          // error is not a dealbreaker for this workflow, we still want to move to the next step
+          console.error('Failed pushing resources to site', error)
+          toast.error(
+            'Failed to push resources to the new site. Sync can be attempted again later.',
+          )
+        }
       }
 
       await grpcClient.documents.createDocumentChange({
