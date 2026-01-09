@@ -54,12 +54,12 @@ export const action: ActionFunction = async ({request}) => {
 
     // Send welcome email
     try {
-      const metadata = await requestAPI('Account', payload.accountId)
-      if (metadata.metadata) {
+      const accountResult = await requestAPI('Account', payload.accountId)
+      if (accountResult.type === 'account' && accountResult.metadata) {
         const {getEmail} = await import('@/db')
         const newEmail = getEmail(payload.email)
         if (newEmail && !newEmail.isUnsubscribed) {
-          sendNotificationWelcomeEmail(payload.email, metadata.metadata, {
+          sendNotificationWelcomeEmail(payload.email, accountResult.metadata, {
             adminToken: newEmail.adminToken,
             ...subConfig,
           })

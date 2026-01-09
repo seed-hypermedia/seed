@@ -513,7 +513,11 @@ async function evaluateDocUpdateForNotifications(
 ) {
   for (const sub of allSubscriptions) {
     if (sub.notifyAllMentions && refEvent.newMentions[sub.id]) {
-      const subjectAccountMeta = (await requestAPI('Account', sub.id)).metadata
+      const subjectAccountResult = await requestAPI('Account', sub.id)
+      const subjectAccountMeta =
+        subjectAccountResult.type === 'account'
+          ? subjectAccountResult.metadata
+          : null
       appendNotification(sub, {
         reason: 'mention',
         source: 'document',
@@ -546,11 +550,13 @@ async function evaluateNewCommentForNotifications(
       `Slow getParentComments: ${comment.id} took ${parentTime}ms for ${parentComments.length} parents (threshold: 5000ms)`,
     )
   }
-  let commentAuthorMeta = null
-  let targetMeta = null
+  let commentAuthorMeta: HMMetadata | null = null
+  let targetMeta: HMMetadata | null = null
 
   try {
-    commentAuthorMeta = (await requestAPI('Account', comment.author)).metadata
+    const authorResult = await requestAPI('Account', comment.author)
+    commentAuthorMeta =
+      authorResult.type === 'account' ? authorResult.metadata : null
   } catch (error: any) {
     reportError(
       `Error getting comment author ${comment.author}: ${error.message}`,
@@ -619,8 +625,8 @@ async function evaluateNewCommentForNotifications(
 
   for (const sub of allSubscriptions) {
     if (sub.notifyAllMentions && mentionedUsers.has(sub.id)) {
-      const subjectAccountMeta = await requestAPI('Account', sub.id)
-      if (!subjectAccountMeta) {
+      const subjectAccountResult = await requestAPI('Account', sub.id)
+      if (subjectAccountResult.type !== 'account') {
         throw new Error(`Error getting subject account meta for ${sub.id}`)
       }
       appendNotification(sub, {
@@ -632,7 +638,7 @@ async function evaluateNewCommentForNotifications(
         targetId: targetDocId,
         url: commentUrl,
         subjectAccountId: sub.id,
-        subjectAccountMeta: subjectAccountMeta.metadata,
+        subjectAccountMeta: subjectAccountResult.metadata,
       })
     }
     if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
@@ -904,9 +910,10 @@ async function loadRefEvent(event: PlainMessage<Event>) {
       }
     }
   }
-  const authorMeta = (await requestAPI('Account', blob.author)).metadata
-  if (!authorMeta)
+  const authorResult = await requestAPI('Account', blob.author)
+  if (authorResult.type !== 'account' || !authorResult.metadata)
     throw new Error('Error getting author meta for ' + blob.author)
+  const authorMeta = authorResult.metadata
   return {
     id,
     newMentions,

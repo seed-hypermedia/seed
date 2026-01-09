@@ -24,6 +24,7 @@ import {
 import {
   DeviceLinkSession,
   HMMetadata,
+  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useAccount} from '@shm/shared/models/entity'
@@ -142,10 +143,7 @@ export function HMDeviceLink() {
   // We ask the server for the profile info of the current key ID, and if it returns a profile with a different ID,
   // we assume this key is already linked to this profile. We trust the server to follow the identity redirects.
   const isAlreadyLinked = Boolean(
-    keyPair &&
-      myAccount &&
-      myAccount.data &&
-      keyPair.id !== myAccount.data.id.uid,
+    keyPair && myAccount.data && keyPair.id !== myAccount.data.id.uid,
   )
 
   return (
@@ -232,9 +230,7 @@ function isMobileDevice() {
 function LinkingInstructionsView({
   accountInfo,
 }: {
-  // This type definition is a bit ugly, because useAccount doesn't seem to return a named type.
-  // And in this component we don't care about falsy values.
-  accountInfo: Exclude<ReturnType<typeof useAccount>['data'], null | undefined>
+  accountInfo: HMMetadataPayload
 }) {
   const [showCamera, setShowCamera] = useState(false)
   const [showDesktopAppLinking, setShowDesktopAppLinking] = useState(false)
@@ -626,11 +622,7 @@ function ConfirmationView({
 /**
  * View shown when device is successfully linked.
  */
-function CompletionView({
-  accountInfo,
-}: {
-  accountInfo: Exclude<ReturnType<typeof useAccount>['data'], null | undefined>
-}) {
+function CompletionView({accountInfo}: {accountInfo: HMMetadataPayload}) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col items-center gap-4 text-center">

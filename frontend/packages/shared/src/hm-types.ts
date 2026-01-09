@@ -844,6 +844,23 @@ export const HMMetadataPayloadSchema = z
   .strict()
 export type HMMetadataPayload = z.infer<typeof HMMetadataPayloadSchema>
 
+export const HMAccountPayloadSchema = HMMetadataPayloadSchema.extend({
+  type: z.literal('account'),
+})
+export type HMAccountPayload = z.infer<typeof HMAccountPayloadSchema>
+
+export const HMAccountNotFoundSchema = z.object({
+  type: z.literal('account-not-found'),
+  uid: z.string(),
+})
+export type HMAccountNotFound = z.infer<typeof HMAccountNotFoundSchema>
+
+export const HMAccountResultSchema = z.discriminatedUnion('type', [
+  HMAccountPayloadSchema,
+  HMAccountNotFoundSchema,
+])
+export type HMAccountResult = z.infer<typeof HMAccountResultSchema>
+
 export const HMAccountsMetadataSchema = z.record(
   z.string(), // account uid
   HMMetadataPayloadSchema,
@@ -1380,7 +1397,7 @@ export type HMResourceMetadataRequest = z.infer<
 export const HMAccountRequestSchema = z.object({
   key: z.literal('Account'),
   input: z.string(),
-  output: HMMetadataPayloadSchema,
+  output: HMAccountResultSchema,
 })
 export type HMAccountRequest = z.infer<typeof HMAccountRequestSchema>
 

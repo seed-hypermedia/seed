@@ -565,7 +565,7 @@ export function EditProfileDialog({
   const id = hmId(input.accountUid)
   const tx = useTx()
   const account = useAccount(input.accountUid)
-  const accountDocument = useResource(account?.data?.id)
+  const accountDocument = useResource(account.data?.id)
   const document =
     accountDocument?.data?.type === 'document'
       ? accountDocument.data.document
@@ -698,7 +698,7 @@ export function AccountFooterActions(props: {hideDeviceLinkToast?: boolean}) {
   const needsKeyLinking =
     !props.hideDeviceLinkToast &&
     userKeyPair &&
-    myAccount?.data?.id?.uid === userKeyPair?.id
+    myAccount.data?.id?.uid === userKeyPair?.id
 
   useEffect(() => {
     if (!needsKeyLinking) {

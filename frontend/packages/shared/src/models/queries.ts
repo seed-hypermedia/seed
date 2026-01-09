@@ -50,6 +50,7 @@ export function queryResource(
 
 /**
  * Query options for fetching account metadata.
+ * Returns HMMetadataPayload or null (handles not-found internally).
  */
 export function queryAccount(
   client: UniversalClient,
@@ -59,7 +60,9 @@ export function queryAccount(
     queryKey: [queryKeys.ACCOUNT, uid] as const,
     queryFn: async (): Promise<HMMetadataPayload | null> => {
       if (!uid) return null
-      return await client.request<HMAccountRequest>('Account', uid)
+      const result = await client.request<HMAccountRequest>('Account', uid)
+      if (result.type === 'account-not-found') return null
+      return result
     },
     enabled: !!uid,
   }
