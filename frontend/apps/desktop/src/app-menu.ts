@@ -33,13 +33,6 @@ export function createAppMenu() {
         },
         {type: 'separator'},
         {
-          label: 'Trigger Sync with Peers',
-          accelerator: 'CmdOrCtrl+Option+r',
-          click: () => {
-            dispatchFocusedWindowAppEvent({type: 'trigger_peer_sync'})
-          },
-        },
-        {
           label: 'Reindex the Database',
           click: () => {
             dispatchFocusedWindowAppEvent({type: 'trigger_database_reindex'})

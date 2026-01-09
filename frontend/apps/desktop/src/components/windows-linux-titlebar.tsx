@@ -96,12 +96,6 @@ export function SystemMenu() {
               icon: <Search className="size-4" />,
             },
             {
-              id: 'forcesync',
-              title: 'Trigger sync with Peers',
-              accelerator: 'Opt+Ctrl+R',
-              onSelect: () => triggerFocusedWindow({type: 'trigger_peer_sync'}),
-            },
-            {
               id: 'app-update',
               title: 'Check for Updates',
               onSelect: () => window.autoUpdate?.checkForUpdates(),

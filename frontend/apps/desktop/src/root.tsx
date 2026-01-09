@@ -334,18 +334,6 @@ function MainApp({}: {}) {
     return shouldShowOnboarding
   })
 
-  useListenAppEvent('trigger_peer_sync', () => {
-    grpcClient.daemon
-      .forceSync({})
-      .then(() => {
-        toast.success('Peer Sync Started')
-      })
-      .catch((e) => {
-        console.error('Failed to sync', e)
-        toast.error('Sync failed!')
-      })
-  })
-
   useListenAppEvent('trigger_database_reindex', () => {
     toast.promise(grpcClient.daemon.forceReindex({}), {
       loading: 'Reindexing the database...',

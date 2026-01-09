@@ -4,7 +4,6 @@ import {useIPC} from '../app-context'
 export type AppWindowEvent =
   | {type: 'back'}
   | {type: 'forward'}
-  | {type: 'trigger_peer_sync'}
   | {type: 'trigger_database_reindex'}
   | {type: 'open_launcher'}
   | {type: 'find_in_page'}
