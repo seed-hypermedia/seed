@@ -9,6 +9,7 @@ import (
 	"math"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/core"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet"
@@ -46,6 +47,7 @@ const (
 
 // Server implements Documents API v3.
 type Server struct {
+	cfg  config.Base
 	keys core.KeyStore
 	idx  *blob.Index
 	db   *sqlitex.Pool
@@ -54,8 +56,9 @@ type Server struct {
 }
 
 // NewServer creates a new Documents API v3 server.
-func NewServer(keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
+func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
 	return &Server{
+		cfg:  cfg,
 		keys: keys,
 		idx:  idx,
 		db:   db,
@@ -95,12 +98,16 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
+	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
+		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+
 	return doc.Hydrate(ctx)
 }
 
 // GetDocumentInfo implements Documents API v3.
 func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumentInfoRequest) (*documents.DocumentInfo, error) {
-	return sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
+	info, err := sqlitex.Read(ctx, srv.db, func(conn *sqlite.Conn) (*documents.DocumentInfo, error) {
 		ns, err := core.DecodePrincipal(in.Account)
 		if err != nil {
 			return nil, err
@@ -112,6 +119,15 @@ func (srv *Server) GetDocumentInfo(ctx context.Context, in *documents.GetDocumen
 		}
 		return getDocumentInfo(conn, lookup, iri)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if srv.cfg.PublicOnly && info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+
+	return info, nil
 }
 
 // BatchGetDocumentInfo implements Documents API v3.
@@ -150,6 +166,9 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 			info, err := getDocumentInfo(conn, lookup, iri)
 			if err != nil {
 				return fmt.Errorf("failed to get document info for %s: %w", iri, err)
+			}
+			if srv.cfg.PublicOnly && info.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+				return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
 			}
 			out.Documents[i] = info
 		}
@@ -408,12 +427,18 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
-		count++
 
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
+
+		// Skip private documents when PublicOnly mode is enabled.
+		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			continue
+		}
+
+		count++
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
 		cursor.NameOrPath = item.Metadata.Fields["name"].GetStringValue()
@@ -941,12 +966,18 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
-		count++
 
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
+
+		// Skip private documents when PublicOnly mode is enabled.
+		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			continue
+		}
+
+		count++
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
 		cursor.IRI = "hm://" + item.Account + "/" + item.Path
@@ -1033,12 +1064,18 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			out.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 			break
 		}
-		count++
 
 		item, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
+
+		// Skip private documents when PublicOnly mode is enabled.
+		if srv.cfg.PublicOnly && item.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			continue
+		}
+
+		count++
 
 		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
 		cursor.IRI = "hm://" + item.Account + "/" + item.Path

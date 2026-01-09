@@ -6,6 +6,7 @@ import (
 	"seed/backend/api/apitest"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/core"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
@@ -1210,8 +1211,8 @@ func newTestDocsAPI(t *testing.T, name string) testServer {
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
-	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug"),))
-	srv := NewServer(ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil)
+	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
+	srv := NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil)
 
 	return testServer{Server: srv, me: u}
 }

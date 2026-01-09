@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"seed/backend/blob"
 	"seed/backend/ipfs"
 	"strconv"
 	"strings"
@@ -37,7 +35,7 @@ const (
 // FileManager is the main object to handle ipfs files.
 type FileManager struct {
 	log        *zap.Logger
-	DAGService ipld.DAGService
+	dagService ipld.DAGService
 }
 
 // NewFileManager creates a new fileManager instance.
@@ -52,7 +50,7 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 
 	return &FileManager{
 		log:        log,
-		DAGService: dag,
+		dagService: dag,
 	}
 }
 
@@ -87,16 +85,10 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
 
-	// If the request is not coming from localhost (i.e. it's not from our Electron app),
-	// then we only serve public data, because for now private data is not available on the web.
-	// TODO(burdiyan): think about how we can authenticate private data requests on the web.
-	if !isLocalhost(r) {
-		ctx = blob.WithPublicOnly(ctx)
-	}
-
-	n, err := fm.DAGService.Get(ctx, cid)
+	n, err := fm.dagService.Get(ctx, cid)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.WriteHeader(http.StatusRequestTimeout)
@@ -113,7 +105,7 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	var size int64
 	codec, _ := ipfs.DecodeCID(n.Cid())
 	if codec == multicodec.DagPb {
-		ufsNode, err := unixfile.NewUnixfsFile(ctx, fm.DAGService, n)
+		ufsNode, err := unixfile.NewUnixfsFile(ctx, fm.dagService, n)
 		if err != nil {
 			response = bytes.NewReader(n.RawData())
 			size = int64(len(n.RawData()))
@@ -266,13 +258,5 @@ func (fm *FileManager) UploadFile(w http.ResponseWriter, r *http.Request) {
 // addFile chunks and adds content to the DAGService from a reader. The content
 // is stored as a UnixFS DAG (default for IPFS). It returns the root ipld.Node.
 func (fm *FileManager) addFile(r io.Reader) (ipld.Node, error) {
-	return ipfs.WriteUnixFSFile(fm.DAGService, r)
-}
-
-func isLocalhost(r *http.Request) bool {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return false
-	}
-	return ip == "127.0.0.1" || ip == "::1"
+	return ipfs.WriteUnixFSFile(fm.dagService, r)
 }

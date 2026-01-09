@@ -213,7 +213,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e)
 	}
 
-	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
+	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g, a.Index,
 		fm, a.Net, opts.extraHTTPHandlers...)
 	if err != nil {
 		return nil, err
@@ -362,6 +362,7 @@ func initSyncing(
 }
 
 func initGRPC(
+	cfg config.Base,
 	port int,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
@@ -382,7 +383,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	apis = api.New(repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr)
+	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr)
 	apis.Register(srv)
 
 	for _, extra := range opts.extraServices {

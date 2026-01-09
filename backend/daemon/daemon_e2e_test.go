@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"net/http"
 	"seed/backend/api/apitest"
 	documentsimpl "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
@@ -2663,33 +2662,6 @@ func TestPrivateDocumentAccessControl(t *testing.T) {
 		defer cancel()
 		_, err = bob.Net.Bitswap().GetBlock(ctx, docCID)
 		require.Error(t, err, "Bob must not be able to get private document blobs via Bitswap")
-	}
-
-	// Test HTTP access to the document. Alice should serve the private blob if it's being called on localhost,
-	// but should not serve it if it's being called on a remote IP.
-	addr := alice.HTTPListener.Addr().String()
-	_, port, err := net.SplitHostPort(addr)
-	require.NoError(t, err)
-
-	{
-		url := "http://localhost:" + port + "/ipfs/" + docCID.String()
-		resp, err := http.Get(url) //nolint:gosec
-		require.NoError(t, err)
-		require.Equal(t, 200, resp.StatusCode)
-		if err == nil {
-			require.NoError(t, resp.Body.Close())
-		}
-	}
-
-	{
-		localIP := getLocalIP(t)
-		client := &http.Client{Timeout: 150 * time.Millisecond}
-		url2 := "http://" + localIP + ":" + port + "/ipfs/" + docCID.String()
-		resp, err := client.Get(url2)
-		require.Error(t, err, "request to local IP should fail")
-		if err == nil {
-			require.NoError(t, resp.Body.Close())
-		}
 	}
 
 	// Alice should see both private and public documents when listing her own documents.

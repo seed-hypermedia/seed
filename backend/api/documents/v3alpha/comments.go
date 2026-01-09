@@ -130,6 +130,10 @@ func (srv *Server) BatchGetComments(ctx context.Context, in *documents.BatchGetC
 				return err
 			}
 
+			if srv.cfg.PublicOnly && icmt.Comment.Visibility == blob.VisibilityPrivate {
+				return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
+			}
+
 			pb, err := commentToProto(lookup, icmt.CID, icmt.Comment, icmt.TSID)
 			if err != nil {
 				return err
@@ -164,6 +168,11 @@ func (srv *Server) ListComments(ctx context.Context, in *documents.ListCommentsR
 		comments, discard, check := sqlitex.QueryType(conn, srv.commentDBMapper(), qIterComments(), iri).All()
 		defer discard(&err)
 		for comment := range comments {
+			// Skip private comments when PublicOnly mode is enabled.
+			if srv.cfg.PublicOnly && comment.Comment.Visibility == blob.VisibilityPrivate {
+				continue
+			}
+
 			pb, err := commentToProto(lookup, comment.CID, comment.Comment, comment.TSID)
 			if err != nil {
 				return nil, err
@@ -209,6 +218,11 @@ func (srv *Server) ListCommentsByAuthor(ctx context.Context, in *documents.ListC
 		defer discard(&err)
 
 		for result := range comments {
+			// Skip private comments when PublicOnly mode is enabled.
+			if srv.cfg.PublicOnly && result.Comment.Visibility == blob.VisibilityPrivate {
+				continue
+			}
+
 			if len(resp.Comments) == int(in.PageSize) {
 				resp.NextPageToken = apiutil.EncodePageToken(cursor, nil)
 				break

@@ -8,6 +8,7 @@ import (
 	networking "seed/backend/api/networking/v1alpha"
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
+	"seed/backend/config"
 	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -38,6 +39,7 @@ type Server struct {
 
 // New creates a new API server.
 func New(
+	cfg config.Base,
 	repo *storage.Store,
 	idx *blob.Index,
 	node *hmnet.Node,
@@ -55,7 +57,7 @@ func New(
 		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(db, sync),
-		DocumentsV3: documentsv3.NewServer(repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
+		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
 		Syncing:     sync,
 		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
 		P2PProxy:    proxy,

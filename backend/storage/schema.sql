@@ -55,7 +55,7 @@ CREATE TABLE blob_visibility (
 CREATE INDEX blob_visibility_by_space ON blob_visibility (space, id);
 
 -- Public blobs view for backwards compatibility.
--- When a blob has space = NULL, it's public.
+-- When a blob has space = 0, it's public.
 CREATE VIEW public_blobs AS
 SELECT id FROM blob_visibility WHERE space = 0;
 

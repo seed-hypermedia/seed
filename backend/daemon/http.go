@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"runtime/debug"
+	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/hmnet"
 	"seed/backend/logging"
 	"seed/backend/util/cleanup"
@@ -97,6 +99,7 @@ func setupGRPCWebHandler(r *Router, rpc *grpc.Server) {
 }
 
 func initHTTP(
+	cfg config.Base,
 	port int,
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
@@ -117,7 +120,14 @@ func initHTTP(
 		setupGRPCWebHandler(router, rpc)
 
 		router.Handle("/ipfs/file-upload", http.HandlerFunc(ipfsHandler.UploadFile), 0)
-		router.Handle("/ipfs/{cid}", http.HandlerFunc(ipfsHandler.GetFile), 0)
+		router.Handle("/ipfs/{cid}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// We only want to serve public blobs on the web.
+			// We set this config value in the Dockerfile that we deploy.
+			if cfg.PublicOnly {
+				r = r.WithContext(blob.WithPublicOnly(r.Context()))
+			}
+			ipfsHandler.GetFile(w, r)
+		}), 0)
 
 		router.Handle("/debug/metrics", promhttp.Handler(), RouteNav)
 		router.Handle("/debug/pprof", http.DefaultServeMux, RoutePrefix|RouteNav)

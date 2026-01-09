@@ -16,14 +16,17 @@ import (
 
 // Base configuration.
 type Base struct {
-	DataDir  string
-	LogLevel string
+	DataDir    string
+	LogLevel   string
+	PublicOnly bool
 }
 
+// Default returns the default configuration.
 func (c Base) Default() Base {
 	return Base{
-		DataDir:  "~/.mtt",
-		LogLevel: "info",
+		DataDir:    "~/.mtt",
+		LogLevel:   "info",
+		PublicOnly: false,
 	}
 }
 
@@ -31,6 +34,7 @@ func (c Base) Default() Base {
 func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "Path to a directory where to store node data")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Log verbosity debug | info | warning | error")
+	fs.BoolVar(&c.PublicOnly, "public-only", c.PublicOnly, "Only serve public data in APIs")
 }
 
 // ExpandDataDir is used to expand the home directory in the data directory path.
