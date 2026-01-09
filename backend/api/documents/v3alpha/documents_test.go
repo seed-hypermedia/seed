@@ -1206,15 +1206,74 @@ type testServer struct {
 }
 
 func newTestDocsAPI(t *testing.T, name string) testServer {
+	return newTestDocsAPIWithConfig(t, name, config.Base{})
+}
+
+func newTestDocsAPIWithConfig(t *testing.T, name string, cfg config.Base) testServer {
 	u := coretest.NewTester(name)
 	db := storage.MakeTestMemoryDB(t)
 	ks := core.NewMemoryKeyStore()
 	require.NoError(t, ks.StoreKey(context.Background(), "main", u.Account))
 
 	idx := must.Do2(blob.OpenIndex(context.Background(), db, logging.New("seed/index"+"/"+name, "debug")))
-	srv := NewServer(config.Base{}, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil)
+	srv := NewServer(cfg, ks, idx, db, logging.New("seed/documents"+"/"+name, "debug"), nil)
 
 	return testServer{Server: srv, me: u}
+}
+
+func TestPublicOnlyGetPrivateDocument(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create a single server with PublicOnly=true.
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+
+	// Create a private document.
+	privateDoc, err := alice.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        alice.me.Account.PublicKey.String(),
+		Path:           "/private-doc",
+		Visibility:     documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Secret Document"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE, privateDoc.Visibility)
+
+	// Try to get the document WITH a version - expect PermissionDenied.
+	_, err = alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/private-doc",
+		Version: privateDoc.Version,
+	})
+	require.Error(t, err, "GetDocument for private doc with version should fail when PublicOnly=true")
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Try to get the document WITHOUT a version - expect PermissionDenied.
+	_, err = alice.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    "/private-doc",
+	})
+	require.Error(t, err, "GetDocument for private doc without version should fail when PublicOnly=true")
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
+
+	// Try to get the resource via GetResource with URL - expect PermissionDenied.
+	resourceURL := "hm://" + alice.me.Account.PublicKey.String() + "/private-doc"
+	_, err = alice.GetResource(ctx, &documents.GetResourceRequest{
+		Iri: resourceURL,
+	})
+	require.Error(t, err, "GetResource for private doc should fail when PublicOnly=true")
+	st, ok = status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
 }
 
 func syncStores(ctx context.Context, t *testing.T, dst, src *blob.Index) {

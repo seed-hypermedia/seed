@@ -299,16 +299,13 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		return nil, err
 	}
 
-	out, err := srv.GetDocument(ctx, &documents.GetDocumentRequest{
-		Account: in.Account,
-		Path:    in.Path,
-		Version: docChange.CID.String(),
-	})
+	// Reload the document from the index to get a clean version.
+	doc, err = srv.loadDocument(ctx, ns, in.Path, []cid.Cid{docChange.CID}, false)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "can't load document after creating the change: %v", err)
+		return nil, fmt.Errorf("failed to reload document after creating change: %w", err)
 	}
 
-	return out, nil
+	return doc.Hydrate(ctx)
 }
 
 // ListDirectory implements Documents API v3.

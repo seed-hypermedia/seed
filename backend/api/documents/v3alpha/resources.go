@@ -239,6 +239,10 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, err
 	}
 
+	if srv.cfg.PublicOnly && doc.Visibility() == blob.VisibilityPrivate {
+		return nil, status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
+	}
+
 	docpb, err := doc.Hydrate(ctx)
 	if err != nil {
 		return nil, err
