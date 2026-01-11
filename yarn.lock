@@ -2800,7 +2800,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/template@npm:^7.0.0, @babel/template@npm:^7.12.7, @babel/template@npm:^7.25.0, @babel/template@npm:^7.27.1, @babel/template@npm:^7.27.2, @babel/template@npm:^7.3.3":
+"@babel/template@npm:^7.0.0, @babel/template@npm:^7.12.7, @babel/template@npm:^7.25.0, @babel/template@npm:^7.25.9, @babel/template@npm:^7.27.1, @babel/template@npm:^7.27.2, @babel/template@npm:^7.3.3":
   version: 7.27.2
   resolution: "@babel/template@npm:7.27.2"
   dependencies:
@@ -13467,8 +13467,10 @@ __metadata:
     "@noble/hashes": ^1.3.3
     "@react-navigation/native": ^7.0.0
     "@react-navigation/native-stack": ^7.0.0
+    "@shm/shared": "workspace:*"
     "@types/react": ~18.2.45
     "@types/react-test-renderer": ^19.1.0
+    babel-plugin-transform-import-meta: ^2.3.3
     bip39: ^3.1.0
     buffer: ^6.0.3
     expo: ~52.0.0
@@ -13480,10 +13482,13 @@ __metadata:
     react: 18.2.0
     react-dom: 18.2.0
     react-native: 0.76.6
+    react-native-mmkv: ^4.1.0
+    react-native-nitro-modules: ^0.32.0
     react-native-safe-area-context: ~4.12.0
     react-native-screens: ~4.4.0
     react-native-web: ~0.19.13
     react-test-renderer: 18.2.0
+    superjson: ^2.2.6
     typescript: ~5.3.3
   languageName: unknown
   linkType: soft
@@ -18323,6 +18328,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"babel-plugin-transform-import-meta@npm:^2.3.3":
+  version: 2.3.3
+  resolution: "babel-plugin-transform-import-meta@npm:2.3.3"
+  dependencies:
+    "@babel/template": ^7.25.9
+    tslib: ^2.8.1
+  peerDependencies:
+    "@babel/core": ^7.10.0
+  checksum: 6bf8d18781f89a4bbfc4a8e57dfee190441dfc59c41d900910f3985133054556bcf068c49df1a6f80d456bb2e572e94df2c4515d5c1e3248e902da14c3766ce4
+  languageName: node
+  linkType: hard
+
 "babel-preset-current-node-syntax@npm:^1.0.0":
   version: 1.2.0
   resolution: "babel-preset-current-node-syntax@npm:1.2.0"
@@ -20372,6 +20389,15 @@ __metadata:
   dependencies:
     is-what: ^4.1.8
   checksum: d39f6601c16b7cbd81cdb1c1f40f2bf0f2ca0297601cf7bfbb4ef1d85374a6a89c559502329f5bada36604464df17623e111fe19a9bb0c3f6b1c92fe2cbe972f
+  languageName: node
+  linkType: hard
+
+"copy-anything@npm:^4":
+  version: 4.0.5
+  resolution: "copy-anything@npm:4.0.5"
+  dependencies:
+    is-what: ^5.2.0
+  checksum: e2ccac1a26a119c4a8fd68503c1ba1b2065d75793ef63eb492092d71afaf5ac492802a57572e3d88d9e219a92f8b68acb121b344e3560e9f0f3a99ef973133fe
   languageName: node
   linkType: hard
 
@@ -26900,6 +26926,13 @@ __metadata:
   version: 4.1.16
   resolution: "is-what@npm:4.1.16"
   checksum: baf99e4b9f06003ceb3b2eea4a1e17179524ee3a6310dc44903eb675cfe3c0a17819ab057bb1ae6ba7ca4939ae4bdfcc6a0c4210a8457aff1756abd3607b713c
+  languageName: node
+  linkType: hard
+
+"is-what@npm:^5.2.0":
+  version: 5.5.0
+  resolution: "is-what@npm:5.5.0"
+  checksum: 8416464cf65a2b57512b18437f672e035e24fcda3af7de47a0f5183c2c46f30ce6e57b6ca35d07a81a04d829357a97ef5e5aa45bf963a5c2d7bf869f9ceebc56
   languageName: node
   linkType: hard
 
@@ -35445,6 +35478,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-mmkv@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "react-native-mmkv@npm:4.1.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+    react-native-nitro-modules: "*"
+  checksum: e5da782735eb5dde98d747595e401e1a0fce9e9e8c4f047e6d58ecaf6bcb4d5497ebef1a3963281a7539000a128f3a8c08609e619512263b2dd2b1c7c7fef788
+  languageName: node
+  linkType: hard
+
+"react-native-nitro-modules@npm:^0.32.0":
+  version: 0.32.0
+  resolution: "react-native-nitro-modules@npm:0.32.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: cad3e8fa3aba6a052e9be54a1dda5080eeba320c8f1ccbed663a4de21f4c6b5df6d3732ba703fdb341a81beca8ee7a51fe17da666c07bee67d97347d0bf11887
+  languageName: node
+  linkType: hard
+
 "react-native-reanimated@npm:3.7.0":
   version: 3.7.0
   resolution: "react-native-reanimated@npm:3.7.0"
@@ -38712,6 +38766,15 @@ __metadata:
   dependencies:
     copy-anything: ^3.0.2
   checksum: f5aeb010f24163cb871a4bc402d9164112201c059afc247a75b03131c274aea6eec9cf08be9e4a9465fe4961689009a011584528531d52f7cc91c077e07e5c75
+  languageName: node
+  linkType: hard
+
+"superjson@npm:^2.2.6":
+  version: 2.2.6
+  resolution: "superjson@npm:2.2.6"
+  dependencies:
+    copy-anything: ^4
+  checksum: d860577809502d058144d1e5fcd383571b4cf0466cab7d7b6fa1675fff598af53148bacd7b3b0075fba0997ed1f05393bde95b3a3727f7708513396b1d88a8b6
   languageName: node
   linkType: hard
 

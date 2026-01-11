@@ -1,4 +1,8 @@
 export type RootStackParamList = {
+  ServerSelect: undefined
+  Home: {
+    serverUrl: string
+  }
   MnemonicInput: undefined
   Account: {
     mnemonic: string

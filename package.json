@@ -40,6 +40,7 @@
     "mobile": "yarn workspace @shm/mobile start",
     "mobile:web": "yarn workspace @shm/mobile start:web",
     "mobile:test": "yarn workspace @shm/mobile test",
+    "mobile:ios": "yarn workspace @shm/mobile ios",
     "explore": "yarn workspace @shm/explore dev",
     "explore:build": "yarn workspace @shm/explore build",
     "watch": "yarn workspaces foreach -pi run watch",
