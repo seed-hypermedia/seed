@@ -17,6 +17,7 @@ import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine} from '@/models/draft-machine'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {useChildrenActivity} from '@/models/library'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
@@ -45,6 +46,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
@@ -72,8 +74,6 @@ import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ActorRefFrom} from 'xstate'
 import './draft-page.css'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {useChildrenActivity} from '@/models/library'
 
 export default function DraftPage() {
   const route = useNavRoute()
@@ -428,13 +428,23 @@ function DocumentEditor({
     showSidebars: showOutline && !isHomeDoc,
   })
 
-  const interactionSummary = useInteractionSummary(id)
   const editId = useMemo(() => {
     if (route.editUid) {
       return hmId(route.editUid, {path: route.editPath})
     }
+    if (draftQuery.data?.editUid) {
+      return hmId(draftQuery.data.editUid, {path: draftQuery.data.editPath})
+    }
     return undefined
-  }, [route.editUid, route.editPath])
+  }, [
+    route.editUid,
+    route.editPath,
+    draftQuery.data?.editUid,
+    draftQuery.data?.editPath,
+  ])
+
+  // Only fetch interaction summary for existing documents being edited, not new drafts.
+  const interactionSummary = useInteractionSummary(editId)
 
   function onCommentsClick() {
     if (editId) {

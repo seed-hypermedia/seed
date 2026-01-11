@@ -156,6 +156,7 @@ function BreadcrumbTitle({
   draftName,
   replaceLastItem = false,
   draft = false,
+  isNewDraft = false,
   onPublishSite,
 }: {
   entityId: UnpackedHypermediaId
@@ -163,6 +164,7 @@ function BreadcrumbTitle({
   draftName?: string
   replaceLastItem?: boolean
   draft?: boolean
+  isNewDraft?: boolean
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const contacts = useSelectedAccountContacts()
@@ -170,11 +172,13 @@ function BreadcrumbTitle({
   const isLatest =
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
-  const entityIds = useMemo(
-    () =>
-      getParentPaths(entityId.path).map((path) => hmId(entityId.uid, {path})),
-    [entityId],
-  )
+  const entityIds = useMemo(() => {
+    const paths = getParentPaths(entityId.path)
+    // For new drafts, exclude the last path since that document doesn't exist yet.
+    const subscribablePaths =
+      isNewDraft && paths.length > 0 ? paths.slice(0, -1) : paths
+    return subscribablePaths.map((path) => hmId(entityId.uid, {path}))
+  }, [entityId, isNewDraft])
   const entityResults = useResources(entityIds, {subscribed: true})
   const entityContents = entityIds.map((id, i) => {
     const result = entityResults[i]
@@ -840,6 +844,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
         hideControls
         draftName={draft.data?.metadata?.name || 'New Draft'}
         draft
+        isNewDraft={!draft.data?.deps?.length}
       />
     )
 
@@ -851,6 +856,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
         draftName={draft.data?.metadata?.name}
         replaceLastItem={!!draft.data?.metadata?.name}
         draft
+        isNewDraft={!draft.data?.deps?.length}
       />
     )
 
