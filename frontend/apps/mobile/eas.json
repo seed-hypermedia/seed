@@ -8,7 +8,8 @@
       "node": "20.18.0",
       "yarn": "3.6.1",
       "env": {
-        "CI": "1"
+        "CI": "1",
+        "ENTRY_FILE": "index.ts"
       }
     },
     "development": {
