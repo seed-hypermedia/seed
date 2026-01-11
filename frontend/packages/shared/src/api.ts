@@ -1,4 +1,3 @@
-import {HMRequest} from '.'
 import {Account, AccountParams} from './api-account'
 import {Comment} from './api-comment'
 import {AccountContacts} from './api-account-contacts'
@@ -21,6 +20,7 @@ import {Resource, ResourceParams} from './api-resource'
 import {ResourceMetadata, ResourceMetadataParams} from './api-resource-metadata'
 import {Search} from './api-search'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
+import {HMRequest} from './hm-types'
 
 export const APIRouter = {
   Resource,

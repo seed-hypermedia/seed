@@ -7,7 +7,7 @@
 
 import {documentToText} from './document-to-text'
 import {hmId} from './utils/entity-id-url'
-import type {GRPCClient} from '.'
+import type {GRPCClient} from './grpc-client'
 
 /**
  * Example 1: Basic usage

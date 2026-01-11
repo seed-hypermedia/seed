@@ -1,10 +1,11 @@
-import {GRPCClient, packHmId, unpackHmId} from '.'
 import {HMRequestImplementation, HMRequestParams} from './api-types'
+import {GRPCClient} from './grpc-client'
 import {
   HMMetadataPayload,
   HMResourceMetadataRequest,
   UnpackedHypermediaId,
 } from './hm-types'
+import {packHmId, unpackHmId} from './utils'
 
 export const ResourceMetadata: HMRequestImplementation<HMResourceMetadataRequest> =
   {

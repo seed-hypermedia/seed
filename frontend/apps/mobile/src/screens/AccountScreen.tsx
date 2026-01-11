@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Share,
   Platform,
+  Alert,
 } from 'react-native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { RouteProp } from '@react-navigation/native'
 import { deriveKeyPairFromMnemonic } from '../utils/key-derivation'
+import { saveMnemonic } from '../store/secure-storage'
 import type { RootStackParamList } from '../navigation/types'
 
 type Props = {
@@ -19,6 +21,8 @@ type Props = {
 
 export function AccountScreen({ navigation, route }: Props) {
   const { mnemonic } = route.params
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
 
   const keyPair = useMemo(() => {
     return deriveKeyPairFromMnemonic(mnemonic)
@@ -32,6 +36,20 @@ export function AccountScreen({ navigation, route }: Props) {
       })
     } catch (error) {
       console.error('Error sharing:', error)
+    }
+  }
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      await saveMnemonic(mnemonic)
+      setIsSaved(true)
+      Alert.alert('Saved', 'Key saved securely to device')
+    } catch (error) {
+      console.error('Error saving:', error)
+      Alert.alert('Error', 'Failed to save key')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -85,6 +103,16 @@ export function AccountScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.saveButton, isSaved && styles.saveButtonSaved]}
+          onPress={handleSave}
+          disabled={isSaving || isSaved}
+        >
+          <Text style={styles.saveButtonText}>
+            {isSaved ? 'Key Saved' : isSaving ? 'Saving...' : 'Save Key'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
           <Text style={styles.shareButtonText}>Share Account ID</Text>
         </TouchableOpacity>
@@ -178,9 +206,25 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
-  shareButton: {
+  saveButton: {
     height: 50,
     backgroundColor: '#4a9a9a',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  saveButtonSaved: {
+    backgroundColor: '#3a7a7a',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  shareButton: {
+    height: 50,
+    backgroundColor: '#3a5a5a',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -193,13 +237,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     height: 50,
-    backgroundColor: '#3a5a5a',
+    backgroundColor: '#2a4a4a',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   backButtonText: {
-    color: '#fff',
+    color: '#ccc',
     fontSize: 16,
     fontWeight: '600',
   },

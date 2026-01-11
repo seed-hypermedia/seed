@@ -2,6 +2,7 @@
   "expo": {
     "name": "Seed",
     "slug": "seed",
+    "scheme": "seed",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,18 +15,21 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "media.hyper.seed"
+      "bundleIdentifier": "media.hyper.seed.preview"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "media.hyper.seed"
+      "package": "media.hyper.seed.preview"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

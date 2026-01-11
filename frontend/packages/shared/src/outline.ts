@@ -1,11 +1,11 @@
+import {getMetadataName} from './content'
+import {HMInlineContent} from './editor-types'
 import {
-  getMetadataName,
   HMBlockNode,
   HMDraft,
-  HMInlineContent,
   HMResourceFetchResult,
   UnpackedHypermediaId,
-} from '.'
+} from './hm-types'
 import {unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>

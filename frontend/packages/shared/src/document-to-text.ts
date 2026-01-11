@@ -1,4 +1,4 @@
-import {GRPCClient} from '.'
+import {GRPCClient} from './grpc-client'
 import {isSurrogate} from './client/unicode'
 import {HMBlock, HMBlockNode, UnpackedHypermediaId} from './hm-types'
 import {unpackHmId} from './utils/entity-id-url'

@@ -18,7 +18,8 @@ module.exports = function (api) {
     }
   }
 
-  // For Expo/Metro, use babel-preset-expo from the workspace's node_modules
+  // For Expo/Metro, use babel-preset-expo with unstable_transformImportMeta enabled
+  // This transforms import.meta to globalThis.__ExpoImportMetaRegistry for Hermes compatibility
   const expoPreset = path.resolve(
     __dirname,
     'node_modules/expo/node_modules/babel-preset-expo',
@@ -26,13 +27,13 @@ module.exports = function (api) {
   try {
     require.resolve(expoPreset)
     return {
-      presets: [expoPreset],
+      presets: [[expoPreset, {unstable_transformImportMeta: true}]],
       plugins: [importMetaPlugin],
     }
   } catch {
     // Fall back to regular babel-preset-expo
     return {
-      presets: ['babel-preset-expo'],
+      presets: [['babel-preset-expo', {unstable_transformImportMeta: true}]],
       plugins: [importMetaPlugin],
     }
   }
