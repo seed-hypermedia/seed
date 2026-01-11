@@ -33,4 +33,19 @@ config.resolver.extraNodeModules = {
   multiformats: multiformatsPath,
 }
 
+// 5. Redirect expo/AppEntry to our index.ts to fix monorepo resolution
+const originalResolveRequest = config.resolver.resolveRequest
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'expo/AppEntry' || moduleName.endsWith('expo/AppEntry.js')) {
+    return {
+      filePath: path.resolve(projectRoot, 'index.ts'),
+      type: 'sourceFile',
+    }
+  }
+  if (originalResolveRequest) {
+    return originalResolveRequest(context, moduleName, platform)
+  }
+  return context.resolveRequest(context, moduleName, platform)
+}
+
 module.exports = config
