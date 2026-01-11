@@ -6,10 +6,11 @@
   "build": {
     "base": {
       "node": "20.18.0",
-      "yarn": "3.6.1",
+      "yarn": "1.22.22",
       "env": {
         "CI": "1",
-        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false"
       }
     },
     "development": {
