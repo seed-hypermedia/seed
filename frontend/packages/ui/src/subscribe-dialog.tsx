@@ -171,6 +171,7 @@ export function SubscribeDialog({
           onClick={handleSaveEmail}
           disabled={isSaveDisabled || isPending}
           variant="default"
+          className="plausible-event-name=save-email"
         >
           {isPending ? 'Subscribing...' : 'Save Email'}
         </Button>
