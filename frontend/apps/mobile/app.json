@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Seed",
+    "name": "Seed Hypermedia 2026.1",
     "slug": "seed",
     "scheme": "hm",
     "version": "1.0.0",
@@ -15,10 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "media.hyper.seed.preview",
+      "bundleIdentifier": "media.hyper.seed.gamma",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleDisplayName": "Seed Hypermedia Preview"
+        "CFBundleDisplayName": "Seed",
+        "CFBundleName": "Seed Hypermedia Gamma 2026.1"
       }
     },
     "android": {
@@ -26,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "media.hyper.seed.preview"
+      "package": "media.hyper.seed.gamma"
     },
     "web": {
       "favicon": "./assets/favicon.png",
