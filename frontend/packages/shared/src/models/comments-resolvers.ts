@@ -139,8 +139,6 @@ export function createCommentsResolver(client: GRPCClient) {
 
 /**
  * Creates a resolver for loading discussions (comment groups + citations)
- * @param client - gRPC client instance
- * @returns Async function that loads discussions with authors
  */
 export function createDiscussionsResolver(client: GRPCClient) {
   return async (
@@ -152,148 +150,92 @@ export function createDiscussionsResolver(client: GRPCClient) {
     citingDiscussions: HMExternalCommentGroup[]
   }> => {
     const authorAccounts = new Set<string>()
-    let discussions: HMCommentGroup[] = []
-    let citingDiscussions: HMExternalCommentGroup[] = []
+    const addAuthor = (c: HMComment) => {
+      if (c.author?.trim()) authorAccounts.add(c.author)
+    }
 
-    // Fetch direct comments
-    try {
-      const res = await client.comments.listComments({
-        targetAccount: targetId.uid,
-        targetPath: hmIdPathToEntityQueryPath(targetId.path),
-        pageSize: BIG_INT,
-      })
+    // Fetch direct comments and citations in parallel
+    const [directCommentsResult, citationsResult] = await Promise.all([
+      client.comments
+        .listComments({
+          targetAccount: targetId.uid,
+          targetPath: hmIdPathToEntityQueryPath(targetId.path),
+          pageSize: BIG_INT,
+        })
+        .catch(() => null),
+      client.entities
+        .listEntityMentions({id: targetId.id, pageSize: BIG_INT})
+        .catch(() => null),
+    ])
 
-      const allComments: HMComment[] = []
-      res.comments.forEach((c) => {
-        const parsed = parseComment(c)
-        if (parsed) {
-          allComments.push(parsed)
+    // Process direct comments
+    const allComments = directCommentsResult?.comments
+      .map(parseComment)
+      .filter((c): c is HMComment => c !== null) ?? []
+    const discussions = getCommentGroups(allComments, commentId)
+    discussions.forEach((g) => g.comments.forEach(addAuthor))
+
+    // Process citing discussions - group by doc to dedupe listComments calls
+    const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
+    citationsResult?.mentions
+      .filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
+      .forEach((mention) => {
+        const id = unpackHmId(mention.sourceDocument)
+        if (!id) return
+        if (!mentionsByDoc.has(mention.sourceDocument)) {
+          mentionsByDoc.set(mention.sourceDocument, [])
         }
+        mentionsByDoc.get(mention.sourceDocument)!.push({mention, id})
       })
 
-      discussions = getCommentGroups(allComments, commentId)
+    const citingResults = await Promise.all(
+      Array.from(mentionsByDoc.values()).map(async (mentions) => {
+        const docId = mentions[0]!.id
+        const [commentsRes, metadata] = await Promise.all([
+          client.comments
+            .listComments({
+              targetAccount: docId.uid,
+              targetPath: hmIdPathToEntityQueryPath(docId.path),
+              pageSize: BIG_INT,
+            })
+            .catch(() => null),
+          loadDocumentMetadata(client, docId),
+        ])
+        if (!commentsRes) return []
 
-      discussions.forEach((group) => {
-        group.comments.forEach((comment) => {
-          if (comment.author && comment.author.trim() !== '') {
-            authorAccounts.add(comment.author)
+        const comments = commentsRes.comments
+          .map(parseComment)
+          .filter((c): c is HMComment => c !== null)
+
+        return mentions.map(({mention}): HMExternalCommentGroup | null => {
+          const citingCommentId = mention.source.slice(5)
+          const citingComment = comments.find((c) => c.id === citingCommentId)
+          if (!citingComment) return null
+
+          addAuthor(citingComment)
+          const replies = getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
+          replies.forEach(addAuthor)
+
+          return {
+            comments: [citingComment, ...replies],
+            moreCommentsCount: 0,
+            id: mention.source,
+            target: metadata,
+            type: 'externalCommentGroup',
           }
         })
-      })
-    } catch (e) {
-      console.error(`Failed to load discussions for ${targetId.id}:`, e)
-    }
+      }),
+    )
 
-    // Fetch citing discussions
-    try {
-      const citations = await client.entities.listEntityMentions({
-        id: targetId.id,
-        pageSize: BIG_INT,
-      })
+    const citingDiscussions = citingResults
+      .flat()
+      .filter((d): d is HMExternalCommentGroup => d !== null)
 
-      const commentMentions = citations.mentions.filter((m) => {
-        if (m.sourceType != 'Comment') return false
-        if (m.sourceDocument === targetId.id) return false
-        return true
-      })
+    const authors = authorAccounts.size > 0
+      ? await loadAccounts(client, Array.from(authorAccounts)).catch(() => ({}))
+      : {}
 
-      const possibleCitingDiscussions: (HMExternalCommentGroup | null)[] =
-        await Promise.all(
-          commentMentions.map(async (mention) => {
-            try {
-              const citingTargetId = unpackHmId(mention.sourceDocument)
-              if (!citingTargetId) {
-                console.error(
-                  'Failed to unpack citing document ID:',
-                  mention.sourceDocument,
-                )
-                return null
-              }
-
-              const commentsQuery = await client.comments.listComments({
-                targetAccount: citingTargetId.uid,
-                targetPath: hmIdPathToEntityQueryPath(citingTargetId.path),
-                pageSize: BIG_INT,
-              })
-
-              const comments: HMComment[] = []
-              commentsQuery.comments.forEach((c) => {
-                const parsed = parseComment(c)
-                if (parsed) {
-                  comments.push(parsed)
-                }
-              })
-
-              const citingComment = comments.find(
-                (comment) => comment.id === mention.source.slice(5),
-              )
-
-              if (!citingComment) {
-                console.error('Failed to find citing comment:', {
-                  mention,
-                  totalComments: comments.length,
-                })
-                return null
-              }
-
-              if (citingComment.author && citingComment.author.trim() !== '') {
-                authorAccounts.add(citingComment.author)
-              }
-
-              const commentGroups = getCommentGroups(
-                comments,
-                mention.source.slice(5),
-              )
-              const selectedComments = commentGroups[0]?.comments || []
-
-              selectedComments.forEach((comment: HMComment) => {
-                if (comment.author && comment.author.trim() !== '') {
-                  authorAccounts.add(comment.author)
-                }
-              })
-
-              const targetMetadata = await loadDocumentMetadata(
-                client,
-                citingTargetId,
-              )
-
-              return {
-                comments: [citingComment, ...selectedComments],
-                moreCommentsCount: 0,
-                id: mention.source,
-                target: targetMetadata,
-                type: 'externalCommentGroup' as const,
-              }
-            } catch (e) {
-              console.error('Failed to load citing discussion:', e)
-              return null
-            }
-          }),
-        )
-
-      citingDiscussions = possibleCitingDiscussions.filter(
-        (d): d is HMExternalCommentGroup => d !== null,
-      )
-    } catch (e) {
-      console.error(`Failed to load citing discussions for ${targetId.id}:`, e)
-    }
-
-    // Load authors
-    let authors: Record<string, HMMetadataPayload> = {}
-    try {
-      const authorAccountUids = Array.from(authorAccounts)
-      if (authorAccountUids.length > 0) {
-        authors = await loadAccounts(client, authorAccountUids)
-      }
-    } catch (e) {
-      console.error(`Failed to load authors for ${targetId.id}:`, e)
-    }
-
-    return {
-      discussions,
-      authors,
-      citingDiscussions,
-    }
+    return {discussions, authors, citingDiscussions}
   }
 }
 
