@@ -9,8 +9,7 @@
       "yarn": "1.22.22",
       "env": {
         "CI": "1",
-        "EXPO_NO_METRO_WORKSPACE_ROOT": "1",
-        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false"
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
       }
     },
     "development": {

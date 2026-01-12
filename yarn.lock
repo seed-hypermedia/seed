@@ -37992,14 +37992,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"scripts@workspace:frontend/scripts":
-  version: 0.0.0-use.local
-  resolution: "scripts@workspace:frontend/scripts"
-  dependencies:
-    "@types/bun": latest
-  languageName: unknown
-  linkType: soft
-
 "sdp@npm:^3.2.0":
   version: 3.2.1
   resolution: "sdp@npm:3.2.1"
