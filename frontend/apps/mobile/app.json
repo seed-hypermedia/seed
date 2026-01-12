@@ -2,7 +2,7 @@
   "expo": {
     "name": "Seed",
     "slug": "seed",
-    "scheme": "seed",
+    "scheme": "hm",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "media.hyper.seed.preview",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "Seed Hypermedia Preview"
       }
     },
     "android": {
