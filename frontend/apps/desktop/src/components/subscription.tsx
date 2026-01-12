@@ -62,7 +62,6 @@ export function SubscriptionButton({id}: {id: UnpackedHypermediaId}) {
             <Button
               size="xs"
               variant={isSubscribed ? 'outline' : 'brand'}
-              className="plausible-event-name=click-subscribe-button"
             >
               {subscription.subscription == 'space' ? (
                 // @ts-expect-error

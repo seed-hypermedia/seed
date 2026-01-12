@@ -221,7 +221,7 @@ export function SiteHeader({
             <Button
               variant="brand"
               size="sm"
-              className="text-white"
+              className="text-white plausible-event-name=click-subscribe-button"
               onClick={() => setIsSubscribeDialogOpen(true)}
             >
               Subscribe
