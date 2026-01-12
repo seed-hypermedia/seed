@@ -341,6 +341,7 @@ export function idToUrl(
     hostname: hmId.hostname,
     originHomeId: opts?.originHomeId,
     feed: opts?.feed,
+    latest: hmId.latest,
   })
 }
 
