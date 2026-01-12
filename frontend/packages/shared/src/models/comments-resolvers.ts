@@ -169,16 +169,22 @@ export function createDiscussionsResolver(client: GRPCClient) {
     ])
 
     // Process direct comments
-    const allComments = directCommentsResult?.comments
-      .map(parseComment)
-      .filter((c): c is HMComment => c !== null) ?? []
+    const allComments =
+      directCommentsResult?.comments
+        .map(parseComment)
+        .filter((c): c is HMComment => c !== null) ?? []
     const discussions = getCommentGroups(allComments, commentId)
     discussions.forEach((g) => g.comments.forEach(addAuthor))
 
     // Process citing discussions - group by doc to dedupe listComments calls
-    const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
+    const mentionsByDoc = new Map<
+      string,
+      {mention: any; id: UnpackedHypermediaId}[]
+    >()
     citationsResult?.mentions
-      .filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
+      .filter(
+        (m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id,
+      )
       .forEach((mention) => {
         const id = unpackHmId(mention.sourceDocument)
         if (!id) return
@@ -213,7 +219,8 @@ export function createDiscussionsResolver(client: GRPCClient) {
           if (!citingComment) return null
 
           addAuthor(citingComment)
-          const replies = getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
+          const replies =
+            getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
           replies.forEach(addAuthor)
 
           return {
@@ -231,9 +238,12 @@ export function createDiscussionsResolver(client: GRPCClient) {
       .flat()
       .filter((d): d is HMExternalCommentGroup => d !== null)
 
-    const authors = authorAccounts.size > 0
-      ? await loadAccounts(client, Array.from(authorAccounts)).catch(() => ({}))
-      : {}
+    const authors =
+      authorAccounts.size > 0
+        ? await loadAccounts(client, Array.from(authorAccounts)).catch(
+            () => ({}),
+          )
+        : {}
 
     return {discussions, authors, citingDiscussions}
   }
