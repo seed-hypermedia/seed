@@ -67,7 +67,8 @@ export async function loadAccounts(
   results.forEach((result, index) => {
     const uid = uids[index]
     if (result && uid && result.type === 'account') {
-      accounts[uid] = result
+      const {type, ...payload} = result
+      accounts[uid] = payload
     }
   })
   return accounts
