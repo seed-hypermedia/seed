@@ -134,7 +134,7 @@ export function MnemonicInputScreen({ navigation }: Props) {
   const handleGenerateRandom = useCallback(() => {
     // Generate 128 bits (16 bytes) of entropy using expo-crypto
     const entropy = Crypto.getRandomBytes(16)
-    const mnemonic = bip39.entropyToMnemonic(entropy, bip39.wordlists.english)
+    const mnemonic = bip39.entropyToMnemonic(Buffer.from(entropy), bip39.wordlists.english)
     const newWords = mnemonic.split(' ')
     setWords(newWords)
     setError(null)
@@ -162,7 +162,7 @@ export function MnemonicInputScreen({ navigation }: Props) {
               <View key={index} style={styles.wordInputContainer}>
                 <Text style={styles.wordNumber}>{index + 1}</Text>
                 <TextInput
-                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  ref={(ref) => { inputRefs.current[index] = ref }}
                   style={[
                     styles.wordInput,
                     isValid && styles.wordInputValid,

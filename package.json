@@ -38,6 +38,7 @@
     "desktop:devtools": "yarn workspace @shm/desktop devtools",
     "desktop:perf": "yarn workspace @shm/performance test",
     "mobile": "yarn workspace @shm/mobile start",
+    "mobile:prebuild": "yarn workspace @shm/mobile prebuild",
     "mobile:web": "yarn workspace @shm/mobile start:web",
     "mobile:test": "yarn workspace @shm/mobile test",
     "mobile:ios": "yarn workspace @shm/mobile ios",

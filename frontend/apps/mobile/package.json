@@ -9,6 +9,8 @@
   "scripts": {
     "start": "expo start",
     "start:web": "expo start --web",
+    "prebuild": "rm -rf ios android && expo prebuild",
+    "submit": "yarn prebuild && eas build -p ios --submit",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",

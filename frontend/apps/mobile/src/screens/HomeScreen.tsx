@@ -1,9 +1,9 @@
-import React, {useEffect, useState} from 'react'
-import {View, Text, StyleSheet, TouchableOpacity, ActivityIndicator} from 'react-native'
-import {NativeStackNavigationProp} from '@react-navigation/native-stack'
-import type {RootStackParamList} from '../navigation/types'
-import {getCurrentServer} from '../store/server-store'
-import {getUniversalClient} from '../client/universal-client'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import React, { useEffect, useState } from 'react'
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { getUniversalClient } from '../client/universal-client'
+import type { RootStackParamList } from '../navigation/types'
+import { getCurrentServer } from '../store/server-store'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>
@@ -24,6 +24,13 @@ export function HomeScreen({navigation, route}: Props) {
       try {
         const client = getUniversalClient()
         // For now just mark as connected
+        client.request('Resource', {
+          uid: 'z6MkuBbsB1HbSNXLvJCRCrPhimY6g7tzhr4qvcYKPuSZzhno'
+        }).then(resource => {
+          console.log('resource', resource)
+        }).catch(err => {
+          console.error('error', err)
+        })
         // Later we can make an actual API call to verify
         setConnectionStatus('connected')
       } catch (err) {

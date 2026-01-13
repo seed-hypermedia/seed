@@ -10,8 +10,7 @@
 
 import * as bip39 from 'bip39'
 import SLIP10 from '@exodus/slip10'
-// Use direct path for Metro bundler compatibility (package exports not fully supported)
-import {base58btc} from 'multiformats/dist/src/bases/base58.js'
+import {base58btc} from 'multiformats/bases/base58'
 import * as ed25519 from '@noble/ed25519'
 import {sha512} from '@noble/hashes/sha512'
 
