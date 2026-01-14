@@ -88,6 +88,9 @@ global.electronTRPC = {}
 // Track startup phase to prevent premature quit when loading window closes
 let isStartingUp = true
 
+// Store deep link URL from cold start (passed via process.argv)
+let coldStartDeepLinkUrl: string | null = null
+
 Sentry.init({
   debug: false,
   release: VERSION,
@@ -135,6 +138,17 @@ const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   logger.debug('[MAIN]: Another Seed already running. Quitting..')
   app.quit()
+}
+
+// Check process.argv for deep link URL on cold start
+// On macOS/Windows, when app is launched via protocol handler while not running,
+// the URL is passed as an argument
+for (const arg of process.argv) {
+  if (arg.startsWith(`${OS_PROTOCOL_SCHEME}://`)) {
+    coldStartDeepLinkUrl = arg
+    logger.info(`[MAIN]: Cold start deep link detected: ${arg}`)
+    break
+  }
 }
 
 app.on('will-finish-launching', () => {
@@ -329,11 +343,27 @@ app.whenReady().then(async () => {
             trpc.createAppWindow({routes: [defaultRoute]})
             isStartingUp = false
             logger.debug('[MAIN]: Startup complete, main window created')
+            // Process cold start deep link if present
+            if (coldStartDeepLinkUrl) {
+              logger.info(
+                `[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`,
+              )
+              handleUrlOpen(coldStartDeepLinkUrl)
+              coldStartDeepLinkUrl = null
+            }
           })
         } else {
           await openInitialWindows()
           isStartingUp = false
           logger.debug('[MAIN]: Startup complete, initial windows opened')
+          // Process cold start deep link if present
+          if (coldStartDeepLinkUrl) {
+            logger.info(
+              `[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`,
+            )
+            handleUrlOpen(coldStartDeepLinkUrl)
+            coldStartDeepLinkUrl = null
+          }
         }
       })
 
