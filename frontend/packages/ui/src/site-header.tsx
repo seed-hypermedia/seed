@@ -4,6 +4,7 @@ import {
   HMMetadata,
   HMResourceFetchResult,
   HMResourceVisibility,
+  NavRoute,
   SearchResult,
   UnpackedHypermediaId,
   useRouteLink,
@@ -61,6 +62,7 @@ export function SiteHeader({
   isMainFeedVisible = false,
   wrapperClassName,
   notifyServiceHost,
+  routeType,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
@@ -80,6 +82,7 @@ export function SiteHeader({
   isMainFeedVisible: boolean
   wrapperClassName?: string
   notifyServiceHost?: string
+  routeType?: NavRoute['key']
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
@@ -183,7 +186,7 @@ export function SiteHeader({
               metadata={draftMetadata || homeDoc.document?.metadata}
             />
           </div>
-          {isCenterLayout ? (
+          {routeType != 'draft' && isCenterLayout ? (
             <div className="flex items-center gap-2 md:absolute md:right-0">
               {headerSearch}
               {notifyServiceHost && (
@@ -217,7 +220,7 @@ export function SiteHeader({
 
         <div className="flex items-center gap-2">
           {!isCenterLayout && headerSearch}
-          {!isCenterLayout && (
+          {routeType != 'draft' && !isCenterLayout && (
             <Button
               variant="brand"
               size="sm"

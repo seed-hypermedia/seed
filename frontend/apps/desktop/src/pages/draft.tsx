@@ -845,6 +845,7 @@ function DraftAppHeader({
       siteHomeDocument={siteHomeEntity.document}
       isMainFeedVisible={false}
       notifyServiceHost={notifyServiceHost}
+      routeType="draft"
     />
   )
 }
