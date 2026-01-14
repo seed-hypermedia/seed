@@ -28,7 +28,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
           <div
             className="window-drag flex flex-1 items-center gap-2 px-0"
             style={{
-              minWidth: `calc(${sidebarWidth} - 24px)`,
+              minWidth: `calc(${sidebarWidth})`,
             }}
           >
             <NavMenuButton

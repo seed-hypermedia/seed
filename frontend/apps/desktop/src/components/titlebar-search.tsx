@@ -1,23 +1,20 @@
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {Button, buttonVariants} from '@shm/ui/button'
+import {buttonVariants} from '@shm/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
-import {Library, Search} from 'lucide-react'
+import {Search} from 'lucide-react'
 import {usePublishSite} from './publish-site'
 import {SearchInput} from './search-input'
 import {Title} from './titlebar-title'
 
 export function TitlebarTitleSearch() {
-  const route = useNavRoute()
   const navigate = useNavigate()
   const popoverState = usePopoverState()
   const publishSite = usePublishSite()
@@ -37,20 +34,6 @@ export function TitlebarTitleSearch() {
         >
           <Search className="size-4" />
         </PopoverTrigger>
-        <Tooltip content="Open Library">
-          <Button
-            className="no-window-drag"
-            variant={route.key == 'library' ? 'default' : 'ghost'}
-            size="xs"
-            onClick={() => {
-              navigate({
-                key: 'library',
-              })
-            }}
-          >
-            <Library className="size-3" />
-          </Button>
-        </Tooltip>
         <Title onPublishSite={publishSite.open} />
         {publishSite.content}
         <PopoverContent
