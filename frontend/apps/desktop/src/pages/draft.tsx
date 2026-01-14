@@ -56,7 +56,6 @@ import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {HMIcon} from '@shm/ui/hm-icon'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {PrivateBadge} from '@shm/ui/private-badge'
@@ -1134,12 +1133,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   if ((editId || locationId) && !editIdWriteCap)
     return (
       <div className="flex items-center gap-2">
-        <HMIcon
-          size={18}
-          id={selectedAccount?.id}
-          name={selectedAccount?.document?.metadata?.name}
-          icon={selectedAccount?.document?.metadata?.icon}
-        />
         <SizableText size="sm">
           <span className="font-bold">
             {selectedAccount?.document?.metadata.name}
@@ -1152,7 +1145,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
   return (
     <div className="flex items-center gap-1">
-      <PublishDraftButton key="publish-draft" />
       {draft.data ? (
         <Tooltip content="Preview Document">
           <Button
@@ -1169,6 +1161,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
+      <PublishDraftButton key="publish-draft" />
       <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button

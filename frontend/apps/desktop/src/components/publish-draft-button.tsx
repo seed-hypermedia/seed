@@ -19,8 +19,7 @@ import {
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {AlertCircle, Check} from '@shm/ui/icons'
+import {AlertCircle, Check, Share} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -204,14 +203,7 @@ export default function PublishDraftButton() {
         }
       >
         <Button size="sm" className="px-2" onClick={handlePublishPress}>
-          {signingAccount ? (
-            <HMIcon
-              id={signingAccount.id}
-              name={signingAccount.document?.metadata?.name}
-              icon={signingAccount.document?.metadata?.icon}
-              size={18}
-            />
-          ) : null}
+          <Share className="size-4" />
           Publish
         </Button>
       </Tooltip>
