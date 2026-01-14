@@ -41,8 +41,13 @@ export function queryResource(
     queryKey: [queryKeys.ENTITY, id?.id, version] as const,
     queryFn: async (): Promise<HMResource | null> => {
       if (!id) return null
-      const res = await client.request<HMResourceRequest>('Resource', id)
-      return HMResourceSchema.parse(res)
+      try {
+        const res = await client.request<HMResourceRequest>('Resource', id)
+        return HMResourceSchema.parse(res)
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Unknown error'
+        return {type: 'error', id, message}
+      }
     },
     enabled: !!id,
   }

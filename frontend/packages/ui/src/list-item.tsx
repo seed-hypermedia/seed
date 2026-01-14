@@ -63,7 +63,6 @@ export function SmallListItem({
   iconAfter,
   children,
   indented,
-
   bold,
   rightHover,
   color,
@@ -74,6 +73,7 @@ export function SmallListItem({
   multiline = false,
   docId,
   accessory,
+  textClass,
   ...props
 }: ButtonProps & {
   active?: boolean
@@ -90,6 +90,7 @@ export function SmallListItem({
   multiline?: boolean
   docId?: string
   accessory?: ReactNode
+  textClass?: string
 }) {
   const indent = indented ? (typeof indented === 'number' ? indented : 1) : 0
   const highlighter = useHighlighter()
@@ -131,6 +132,7 @@ export function SmallListItem({
                 multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
               } mobile-menu-item-label text-left select-none`.trim(),
               bold && 'font-bold',
+              textClass,
             )}
             style={{
               color: typeof color === 'string' ? color : undefined,

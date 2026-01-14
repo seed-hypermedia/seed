@@ -460,6 +460,16 @@ function _MainDocumentPage({
     )
   }
 
+  // @ts-ignore
+  if (resource.data?.type === 'error') {
+    return (
+      <DocErrorMessage
+        // @ts-ignore
+        message={resource.data.message}
+      />
+    )
+  }
+
   if (loadedCommentResource) {
     return null
   }
@@ -805,6 +815,23 @@ function DocDiscovery() {
       spinner
       message="This document is not on your node yet. Now finding a peer who can provide it."
     />
+  )
+}
+
+function DocErrorMessage({message}: {message: string}) {
+  return (
+    <div className={cn(panelContainerStyles)}>
+      <div className="mx-auto px-8 py-10">
+        <div className="border-destructive bg-destructive/10 flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg">
+          <SizableText size="2xl" weight="bold" className="text-destructive">
+            Error Loading Document
+          </SizableText>
+          <SizableText asChild className="text-destructive">
+            <p>{message}</p>
+          </SizableText>
+        </div>
+      </div>
+    </div>
   )
 }
 const Separator = () => <TSeparator vertical />

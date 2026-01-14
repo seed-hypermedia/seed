@@ -1204,6 +1204,13 @@ export const HMResourceTombstoneSchema = z.object({
 })
 export type HMResourceTombstone = z.infer<typeof HMResourceTombstoneSchema>
 
+export const HMResourceErrorSchema = z.object({
+  type: z.literal('error'),
+  id: unpackedHmIdSchema,
+  message: z.string(),
+})
+export type HMResourceError = z.infer<typeof HMResourceErrorSchema>
+
 export const HMResourceSchema = z.discriminatedUnion('type', [
   HMResourceDocumentSchema,
   HMResourceCommentSchema,
@@ -1211,6 +1218,7 @@ export const HMResourceSchema = z.discriminatedUnion('type', [
   HMResourceRedirectSchema, // what if there is a profile ALIAS? how is that different from a home doc redirect?
   HMResourceNotFoundSchema,
   HMResourceTombstoneSchema,
+  HMResourceErrorSchema,
 ])
 export type HMResource = z.infer<typeof HMResourceSchema>
 

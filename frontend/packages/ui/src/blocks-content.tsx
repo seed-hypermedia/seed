@@ -1640,6 +1640,9 @@ export function BlockEmbedCard({
     }
     return <ErrorBlock message="Could not load embed" />
   }
+  if (doc.data?.type === 'error') {
+    return <ErrorBlock message={doc.data.message} />
+  }
   if (doc.isError || !doc.data || doc.data.type == 'redirect')
     return <ErrorBlock message="Could not load embed" />
 
@@ -1742,6 +1745,9 @@ export function BlockEmbedContent({
   }
   if (resource.data?.type === 'tombstone') {
     return <ErrorBlock message="Resource has been deleted" />
+  }
+  if (resource.data?.type === 'error') {
+    return <ErrorBlock message={resource.data.message} />
   }
   if (resource.isError || (!resource.isLoading && !resource.data)) {
     return <ErrorBlock message="Could not load embed" />
@@ -2244,6 +2250,10 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
         </SizableText>
       </div>
     )
+  }
+
+  if (queryTarget.data?.type === 'error') {
+    return <ErrorBlock message={queryTarget.data.message} />
   }
 
   // Get entity helper function
@@ -2903,6 +2913,14 @@ function InlineEmbed({
     return (
       <InlineEmbedButton entityId={entityId} style={style}>
         <InlineError message="Could not find this content" />
+      </InlineEmbedButton>
+    )
+  }
+
+  if (doc.data?.type === 'error') {
+    return (
+      <InlineEmbedButton entityId={entityId} style={style}>
+        <InlineError message={doc.data.message} />
       </InlineEmbedButton>
     )
   }

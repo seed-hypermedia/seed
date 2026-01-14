@@ -29,6 +29,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {
+  AlertCircle,
   ChevronDown,
   ChevronRight,
   Contact,
@@ -173,6 +174,17 @@ function FavoritesSection() {
     <SidebarSection title="Favorites">
       {favoriteEntities?.map((favorite) => {
         if (!favorite.data) return null
+        if (favorite.data.type === 'error') {
+          return (
+            <ErrorListItem
+              key={favorite.data.id.id}
+              id={favorite.data.id}
+              active={
+                route.key === 'document' && route.id.id === favorite.data.id.id
+              }
+            />
+          )
+        }
         // @ts-expect-error TODO: fix this
         const {id, document} = favorite.data
         const metadata = id.path?.length
@@ -190,6 +202,27 @@ function FavoritesSection() {
         )
       })}
     </SidebarSection>
+  )
+}
+
+function ErrorListItem({
+  id,
+  active,
+}: {
+  id: UnpackedHypermediaId
+  active: boolean
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <SmallListItem
+      key={id.id}
+      docId={id.id}
+      active={active}
+      title="Error"
+      textClass="text-destructive"
+      icon={<AlertCircle className="text-destructive size-5" />}
+      {...linkProps}
+    />
   )
 }
 
@@ -255,6 +288,17 @@ function SubscriptionsSection() {
       {sortedSubs.map((sub, index) => {
         const entity = subscriptionEntities[index]
         if (!entity?.data) return null
+        if (entity.data.type === 'error') {
+          return (
+            <ErrorListItem
+              key={entity.data.id.id}
+              id={entity.data.id}
+              active={
+                route.key === 'document' && route.id.id === entity.data.id.id
+              }
+            />
+          )
+        }
         // @ts-expect-error TODO: fix this
         const {id, document} = entity.data
         const metadata = id.path?.length

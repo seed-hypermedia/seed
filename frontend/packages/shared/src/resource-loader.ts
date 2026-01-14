@@ -3,6 +3,7 @@ import {GRPCClient} from './grpc-client'
 import {
   HMResolvedResource,
   HMResource,
+  HMResourceError,
   HMResourceNotFound,
   HMResourceRedirect,
   HMResourceTombstone,
@@ -64,7 +65,13 @@ export function createResourceFetcher(grpcClient: GRPCClient) {
           id,
         } satisfies HMResourceNotFound
       }
-      throw e
+      // Return error resource for unknown errors
+      const message = e instanceof Error ? e.message : 'Unknown error'
+      return {
+        type: 'error',
+        id,
+        message,
+      } satisfies HMResourceError
     }
   }
   return fetchResource
@@ -87,6 +94,9 @@ export function createResourceResolver(grpcClient: GRPCClient) {
     }
     if (resource.type === 'not-found') {
       throw new HMNotFoundError()
+    }
+    if (resource.type === 'error') {
+      throw new Error(resource.message)
     }
     return resource
   }
