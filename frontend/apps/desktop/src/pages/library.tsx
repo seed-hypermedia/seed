@@ -1,4 +1,3 @@
-import {templates} from '@/app-templates'
 import {MainWrapper} from '@/components/main-wrapper'
 import {CreateAccountBanner} from '@/components/onboarding'
 import {useMarkAsRead} from '@/models/documents'
@@ -50,7 +49,7 @@ import {
   MessageSquare,
   X,
 } from 'lucide-react'
-import {createContext, useContext, useMemo, useState} from 'react'
+import {createContext, useContext, useState} from 'react'
 
 export default function LibraryPage() {
   const route = useNavRoute()
@@ -81,41 +80,7 @@ export default function LibraryPage() {
   })
   const markAsRead = useMarkAsRead()
 
-  // Filter out template items when in subscribed mode
-  const filteredItems = library?.items?.filter((item) => {
-    if (displayMode === 'subscribed') {
-      const templateIds = Object.values(templates)
-      if (item.type === 'site') {
-        return !templateIds.includes(item.id)
-      }
-    }
-    return true
-  })
-
-  const isLibraryEmpty = filteredItems && filteredItems.length === 0
-
-  const [addSiteOpen, setAddSiteOpen] = useState(false)
-  const menu = useMemo(() => {
-    const siteMenuItems =
-      // @ts-expect-error
-      library?.sites?.map((site) => {
-        const id = hmId(site.id)
-        return {
-          key: site.id,
-          label: site.hostname,
-          onPress: () => {
-            replace({
-              key: 'document',
-              id: hmId(site.id),
-            })
-          },
-        }
-      }) || []
-    return {
-      siteMenuItems,
-    }
-    // @ts-expect-error
-  }, [library?.sites, replace])
+  const isLibraryEmpty = library.items && library.items.length === 0
 
   return (
     <div className="flex h-full flex-1">
@@ -218,7 +183,7 @@ export default function LibraryPage() {
               }}
             >
               <div className="flex flex-col gap-1">
-                {filteredItems?.map((item: LibraryItem) => {
+                {library.items?.map((item: LibraryItem) => {
                   if (item.type === 'site') {
                     return (
                       <LibrarySiteItem

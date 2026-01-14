@@ -8,7 +8,6 @@ import {
   useRemoveSiteDialog,
   useSeedHostDialog,
 } from './publish-site'
-import {useTemplateDialog} from './site-template'
 
 // Mock data for testing - create proper UnpackedHypermediaId
 // Using a valid-looking UID that matches the expected format
@@ -25,7 +24,6 @@ export function DebugDialogs() {
   const publishSiteDialog = usePublishSite()
   const seedHostDialog = useSeedHostDialog()
   const removeSiteDialog = useRemoveSiteDialog()
-  const templateDialogContent = useTemplateDialog(MOCK_DOCUMENT_ROUTE)
 
   // Don't show in production unless explicitly enabled
   if (!showDebug) {
@@ -177,7 +175,6 @@ export function DebugDialogs() {
       {publishSiteDialog.content}
       {seedHostDialog.content}
       {removeSiteDialog.content}
-      {templateDialogContent}
     </>
   )
 }

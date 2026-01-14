@@ -79,7 +79,6 @@ import {
   setInitialAccountIdCount,
   setupOnboardingHandlers,
 } from './app-onboarding-store'
-import {templates} from './app-templates'
 
 // Use 'hm' in production for OS protocol registration
 const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
@@ -396,21 +395,10 @@ async function initAccountSubscriptions() {
     return true
   })
 
-  // add templates to keys to subscribe to
-
   for (const key of keysToSubscribeTo) {
     logger.debug('WillInitAccountSubscriptions')
     await grpcClient.subscriptions.subscribe({
       account: key.accountId,
-      recursive: true,
-      path: '',
-    })
-  }
-
-  // subscribe to templates too
-  for (const template of Object.values(templates)) {
-    await grpcClient.subscriptions.subscribe({
-      account: template,
       recursive: true,
       path: '',
     })
