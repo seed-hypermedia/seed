@@ -674,7 +674,7 @@ export function CommentEditor({
 
   useEffect(() => {
     function handleSelectAll(event: KeyboardEvent) {
-      if (event.key == 'a' && event.metaKey) {
+      if (event.key == 'a' && (event.metaKey || event.ctrlKey)) {
         if (editor && editor._tiptapEditor.isFocused) {
           event.preventDefault()
           editor._tiptapEditor.commands.focus()
