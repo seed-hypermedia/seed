@@ -921,7 +921,7 @@ export function createLoadingWindow(): BrowserWindow {
         typeof LOADING_WINDOW_VITE_NAME !== 'undefined'
           ? LOADING_WINDOW_VITE_NAME
           : 'loading_window'
-      }/index.html`,
+      }/loading.html`,
     )
     info(`Production: Loading from: ${prodPath}`)
     loadingWindow.loadFile(prodPath)
