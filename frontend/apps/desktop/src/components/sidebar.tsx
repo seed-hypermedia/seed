@@ -3,7 +3,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
 import {useListSubscriptions} from '@/models/subscription'
-import {useSelectedAccountId} from '@/selected-account'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
@@ -26,6 +26,7 @@ import {
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {SmallListItem} from '@shm/ui/list-item'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -35,10 +36,12 @@ import {
   Contact,
   File,
   FilePlus2,
+  Info,
   Library,
   Lock,
 } from 'lucide-react'
 import React, {memo} from 'react'
+import {usePublishSite} from './publish-site'
 import {GenericSidebarContainer} from './sidebar-base'
 import {SidebarFooter} from './sidebar-footer'
 
@@ -100,27 +103,74 @@ function CreateDocumentButton() {
   const createDraft = useCreateDraft()
   const createPrivateDraft = useCreateDraft({visibility: 'PRIVATE'})
   const myAccountIds = useMyAccountIds()
+  const selectedAccount = useSelectedAccount()
+  const publishSite = usePublishSite()
+
+  const siteUrl =
+    selectedAccount?.type === 'document'
+      ? selectedAccount.document?.metadata?.siteUrl
+      : undefined
+  const hasSiteUrl = Boolean(siteUrl)
+
   if (!myAccountIds.data?.length) return null
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild className="mb-5 w-full">
-        <Button variant="default" className="w-full justify-center">
-          <FilePlus2 color="currentColor" size={16} />{' '}
-          <span className="truncate">Create Document</span>
-          <ChevronDown size={14} className="ml-1 opacity-60" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={() => createDraft()}>
-          <FilePlus2 size={16} />
-          Public Document
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => createPrivateDraft()}>
-          <Lock size={16} />
-          Private Document
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {publishSite.content}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild className="mb-5 w-full">
+          <Button variant="default" className="w-full justify-center">
+            <FilePlus2 color="currentColor" size={16} />{' '}
+            <span className="truncate">Create Document</span>
+            <ChevronDown size={14} className="ml-1 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onClick={() => createDraft()}>
+            <FilePlus2 size={16} />
+            Public Document
+          </DropdownMenuItem>
+          {hasSiteUrl ? (
+            <DropdownMenuItem onClick={() => createPrivateDraft()}>
+              <Lock size={16} />
+              Private Document
+            </DropdownMenuItem>
+          ) : (
+            <HoverCard openDelay={100}>
+              <HoverCardTrigger asChild>
+                <div>
+                  <DropdownMenuItem
+                    className="pointer-events-none opacity-50"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <Lock size={16} />
+                    Private Document
+                    <Info size={14} className="text-muted-foreground ml-auto" />
+                  </DropdownMenuItem>
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent side="right" sideOffset={12} className="w-64">
+                <div className="flex flex-col gap-3">
+                  <SizableText size="sm" className="text-muted-foreground">
+                    To create private documents, you need to configure your web
+                    domain first.
+                  </SizableText>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (selectedAccount?.id) {
+                        publishSite.open({id: selectedAccount.id})
+                      }
+                    }}
+                  >
+                    Set Up Web Domain
+                  </Button>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   )
 }
 function SidebarSection({
