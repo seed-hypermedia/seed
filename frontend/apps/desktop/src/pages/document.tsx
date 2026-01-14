@@ -6,7 +6,6 @@ import {useDocumentAccessory} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {editPopoverEvents} from '@/components/onboarding'
-import {useTemplateDialog} from '@/components/site-template'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
@@ -131,7 +130,6 @@ export default function DocumentPage() {
   }, [immediatePromptNotifs, notifyServiceHost])
 
   const mainPanelRef = useRef<HTMLDivElement>(null)
-  const templateDialogContent = useTemplateDialog(route)
 
   return (
     <CommentsProvider
@@ -201,7 +199,6 @@ export default function DocumentPage() {
         push={push}
         mainPanelRef={mainPanelRef}
         accessoryKey={accessoryKey}
-        templateDialogContent={templateDialogContent}
         notifSettingsDialogContent={notifSettingsDialog.content}
       />
     </CommentsProvider>
@@ -215,7 +212,6 @@ function DocumentPageContent({
   push,
   mainPanelRef,
   accessoryKey,
-  templateDialogContent,
   notifSettingsDialogContent,
 }: {
   docId: UnpackedHypermediaId
@@ -224,7 +220,6 @@ function DocumentPageContent({
   push: any
   mainPanelRef: React.RefObject<HTMLDivElement>
   accessoryKey: string | undefined
-  templateDialogContent: ReactNode
   notifSettingsDialogContent: ReactNode
 }) {
   const deleteComment = useDeleteComment()
@@ -309,7 +304,6 @@ function DocumentPageContent({
           )}
         />
       </AccessoryLayout>
-      {templateDialogContent}
       {notifSettingsDialogContent}
     </div>
   )
