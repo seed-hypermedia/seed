@@ -1153,20 +1153,22 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   return (
     <div className="flex items-center gap-1">
       <PublishDraftButton key="publish-draft" />
-      <Tooltip content="Preview Document">
-        <Button
-          onClick={() => {
-            client.createAppWindow.mutate({
-              routes: [{key: 'preview', draftId: route.id}],
-              sidebarLocked: false,
-              sidebarWidth: 0,
-              accessoryWidth: 0,
-            })
-          }}
-        >
-          <Eye className="size-4" />
-        </Button>
-      </Tooltip>
+      {draft.data ? (
+        <Tooltip content="Preview Document">
+          <Button
+            onClick={() => {
+              client.createAppWindow.mutate({
+                routes: [{key: 'preview', draftId: route.id}],
+                sidebarLocked: false,
+                sidebarWidth: 0,
+                accessoryWidth: 0,
+              })
+            }}
+          >
+            <Eye className="size-4" />
+          </Button>
+        </Tooltip>
+      ) : null}
       <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button
