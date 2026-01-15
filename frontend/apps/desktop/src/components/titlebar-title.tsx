@@ -844,7 +844,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
         hideControls
         draftName={draft.data?.metadata?.name || 'New Draft'}
         draft
-        isNewDraft={!draft.data?.deps?.length}
+        isNewDraft={false}
       />
     )
 
