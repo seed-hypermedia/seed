@@ -315,9 +315,9 @@ NESTED BLOCKS
 
 /* CODE BLOCK ROOT */
 .blockContent[data-content-type='code-block'] {
-  background-color: var(--muted);
+  background-color: rgba(0, 0, 0, 0.05);
   border-radius: 6px;
-  padding: 10px 16px;
+  /* padding: 10px 16px; */
   display: block;
   box-sizing: border-box;
   width: 100%;
