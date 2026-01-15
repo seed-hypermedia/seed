@@ -110,7 +110,7 @@ export function SmallListItem({
       {...(docId ? highlighter(unpackHmId(docId)!) : {})}
       {...props}
     >
-      <div className="flex flex-1 items-start gap-2 overflow-hidden">
+      <div className="flex flex-1 items-center gap-2 overflow-hidden p-1">
         {isValidElement(icon) ? (
           <div className="pt-0.5">{icon}</div>
         ) : icon ? (

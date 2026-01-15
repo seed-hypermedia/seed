@@ -1,3 +1,4 @@
+import {useComments} from '@/models/comments'
 import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
@@ -8,6 +9,9 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
 import {
+  HMAccountsMetadata,
+  HMActivitySummary,
+  HMComment,
   HMMetadata,
   HMResourceVisibility,
   UnpackedHypermediaId,
@@ -15,6 +19,7 @@ import {
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
@@ -209,7 +214,7 @@ function SidebarSection({
         </div>
         <div className="flex">{accessory}</div>
       </div>
-      {collapsed ? null : <div className="">{children}</div>}
+      {collapsed ? null : <div className="flex flex-col gap-1">{children}</div>}
     </div>
   )
 }
@@ -329,9 +334,17 @@ function SubscriptionsSection() {
   const contacts = useSelectedAccountContacts()
   const route = useNavRoute()
 
-  if (!sortedSubs.length) return null
-
   const accounts = accountList.data?.accounts || []
+  const accountsMetadata = accountList.data?.accountsMetadata
+
+  // fetch latest comments for activity summaries
+  const commentIds = accounts
+    .map((acc) => acc.activitySummary?.latestCommentId)
+    .filter((id): id is string => !!id && id.length > 0)
+    .map((id) => hmId(id))
+  const comments = useComments(commentIds)
+
+  if (!sortedSubs.length) return null
 
   return (
     <SidebarSection title="Subscriptions">
@@ -356,7 +369,13 @@ function SubscriptionsSection() {
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
         const account = accounts.find((acc) => acc.id === id.uid)
-        const isUnread = account?.activitySummary?.isUnread ?? false
+        const activitySummary = account?.activitySummary
+        const isUnread = activitySummary?.isUnread ?? false
+        const latestComment = activitySummary?.latestCommentId
+          ? comments.data?.find(
+              (c) => c?.id === activitySummary.latestCommentId,
+            )
+          : undefined
         return (
           <SubscriptionListItem
             key={id.id}
@@ -364,6 +383,9 @@ function SubscriptionsSection() {
             metadata={metadata}
             active={route.key === 'document' && route.id.id === id.id}
             isUnread={isUnread}
+            activitySummary={activitySummary as HMActivitySummary | undefined}
+            latestComment={latestComment}
+            accountsMetadata={accountsMetadata}
           />
         )
       })}
@@ -376,11 +398,17 @@ function SubscriptionListItem({
   metadata,
   active,
   isUnread,
+  activitySummary,
+  latestComment,
+  accountsMetadata,
 }: {
   id: UnpackedHypermediaId
   metadata: HMMetadata
   active: boolean
   isUnread: boolean
+  activitySummary?: HMActivitySummary
+  latestComment?: HMComment
+  accountsMetadata?: HMAccountsMetadata
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   return (
@@ -388,13 +416,28 @@ function SubscriptionListItem({
       key={id.id}
       docId={id.id}
       active={active}
-      bold={isUnread}
-      title={metadata?.name || 'Untitled'}
       icon={
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} />
       }
       {...linkProps}
-    />
+    >
+      <div className="flex w-full flex-1 flex-col overflow-hidden">
+        <SizableText
+          size="sm"
+          className="truncate text-left whitespace-nowrap select-none"
+          weight={isUnread ? 'bold' : undefined}
+        >
+          {metadata?.name || 'Untitled'}
+        </SizableText>
+        {activitySummary && (
+          <LibraryEntryUpdateSummary
+            accountsMetadata={accountsMetadata}
+            latestComment={latestComment}
+            activitySummary={activitySummary}
+          />
+        )}
+      </div>
+    </SmallListItem>
   )
 }
 
