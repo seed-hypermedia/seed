@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/klauspost/compress/zstd"
@@ -88,9 +89,11 @@ func TestCommentCausality(t *testing.T) {
 			db := storage.MakeTestDB(t)
 			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
 			require.NoError(t, err)
+			toPut := make([]blocks.Block, 0, len(test))
 			for _, blob := range test {
-				require.NoError(t, idx.Put(t.Context(), blob))
+				toPut = append(toPut, blob)
 			}
+			require.NoError(t, idx.PutMany(t.Context(), toPut))
 			if countStashedBlobs(t, db) != 0 {
 				t.Fatal("must have no stashed blobs")
 			}

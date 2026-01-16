@@ -67,9 +67,11 @@ func TestRefCausality(t *testing.T) {
 			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
 			require.NoError(t, err)
 
+			toPut := make([]blocks.Block, 0, len(test))
 			for _, blob := range test {
-				require.NoError(t, idx.Put(t.Context(), blob.Blob))
+				toPut = append(toPut, blob.Blob)
 			}
+			require.NoError(t, idx.PutMany(t.Context(), toPut))
 
 			if countStashedBlobs(t, db) != 0 {
 				t.Fatal("must have no stashed blobs")
