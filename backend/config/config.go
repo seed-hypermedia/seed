@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"seed/backend/llm"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -170,18 +172,54 @@ func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "grpc.port", c.Port, "Port for the gRPC server")
 }
 
+type Embedder struct {
+	// PeriodicInterval is the period between each indexing run. Default is 1 minute.
+	PeriodicInterval time.Duration
+	// SleepBetweenPass is the time to sleep between passes when indexing.
+	SleepBetweenPass time.Duration
+	// IndexPassSize is the number of FTS rows to keep in memory per pass. Default is 100.
+	IndexPassSize int
+	// Model is the LLM model to use for embeddings.
+	Model string
+}
+
+type OllamaBackend struct {
+	URL string
+}
+
+type Backend struct {
+	Ollama OllamaBackend
+}
+
 // LLM configuration.
 type LLM struct {
-	Ollama string
+	Backend   Backend
+	Embedding Embedder
 }
 
 func (c LLM) Default() LLM {
-	return LLM{}
+	return LLM{
+		Backend: Backend{
+			Ollama: OllamaBackend{
+				URL: "http://localhost:11434",
+			},
+		},
+		Embedding: Embedder{
+			PeriodicInterval: llm.DefaultEmbeddingRunInterval,
+			SleepBetweenPass: llm.DefaultEmbeddingSleepBetweenPass,
+			IndexPassSize:    llm.DefaultEmbeddingIndexPassSize,
+			Model:            llm.DefaultEmbeddingModel,
+		},
+	}
 }
 
 // BindFlags binds the flags to the given FlagSet.
 func (c *LLM) BindFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.Ollama, "llm.ollama", c.Ollama, "Ollama server address (empty disables LLM)")
+	fs.StringVar(&c.Backend.Ollama.URL, "llm.ollama.url", c.Backend.Ollama.URL, "Ollama base URL")
+	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
+	fs.DurationVar(&c.Embedding.SleepBetweenPass, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPass, "Sleep between embedding passes")
+	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "Rows to index per pass")
+	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use")
 }
 
 // Lndhub related config.

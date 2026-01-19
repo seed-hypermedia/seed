@@ -85,6 +85,8 @@ const (
 	TaskName_TASK_NAME_UNSPECIFIED TaskName = 0
 	// Task for reindexing the database.
 	TaskName_REINDEXING TaskName = 1
+	// Task for generating embeddings.
+	TaskName_EMBEDDING TaskName = 2
 )
 
 // Enum value maps for TaskName.
@@ -92,10 +94,12 @@ var (
 	TaskName_name = map[int32]string{
 		0: "TASK_NAME_UNSPECIFIED",
 		1: "REINDEXING",
+		2: "EMBEDDING",
 	}
 	TaskName_value = map[string]int32{
 		"TASK_NAME_UNSPECIFIED": 0,
 		"REINDEXING":            1,
+		"EMBEDDING":             2,
 	}
 )
 
@@ -1446,11 +1450,12 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +
 	"\n" +
-	"\x06ACTIVE\x10\x03*5\n" +
+	"\x06ACTIVE\x10\x03*D\n" +
 	"\bTaskName\x12\x19\n" +
 	"\x15TASK_NAME_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
-	"REINDEXING\x10\x012\x87\n" +
+	"REINDEXING\x10\x01\x12\r\n" +
+	"\tEMBEDDING\x10\x022\x87\n" +
 	"\n" +
 	"\x06Daemon\x12h\n" +
 	"\vGenMnemonic\x12+.com.seed.daemon.v1alpha.GenMnemonicRequest\x1a,.com.seed.daemon.v1alpha.GenMnemonicResponse\x12]\n" +
