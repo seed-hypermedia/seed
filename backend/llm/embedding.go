@@ -3,6 +3,41 @@ package llm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"sync"
+	"time"
+
+	"seed/backend/daemon/taskmanager"
+	daemonpb "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/util/dqb"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
+
+	"go.uber.org/zap"
+)
+
+const (
+	// DefaultIndexPassSize is the default number of FTS rows to keep in memory per pass.
+	// After each pass, the embedder sleeps for a short time to avoid starving the CPU.
+	// Adjust the sleep duration via WithSleepPerPass.
+	DefaultEmbeddingIndexPassSize = 100
+
+	// DefaultSleepBetweenPass is the default sleep duration after each indexing pass.
+	DefaultEmbeddingSleepBetweenPass = time.Millisecond * 10 // to not starve the CPU.
+
+	// DefaultRunInterval is the default wait time after a run finishes before starting the next one.
+	DefaultEmbeddingRunInterval = 1 * time.Minute
+
+	// DefaultEmbeddingModel is the default model name for embeddings.
+	DefaultEmbeddingModel = "embeddinggemma"
+
+	taskID              = "embedding_indexer"
+	taskDescription     = "Indexing embeddings"
+	embeddingColumnDims = 768
+
+	minRunInterval = 5 * time.Second
 )
 
 type Backend interface {
@@ -11,8 +46,445 @@ type Backend interface {
 	Version(ctx context.Context) (string, error)
 }
 
-var errNotImplemented = errors.New("not implemented")
-
-func IndexEmbeddings(ctx context.Context, backend Backend, inputs []string) error {
-	return errNotImplemented
+type Embedder struct {
+	backend          Backend
+	pool             *sqlitex.Pool
+	logger           *zap.Logger
+	taskMgr          *taskmanager.TaskManager
+	model            string
+	indexPassSize    int
+	interval         time.Duration
+	sleepBetweenPass time.Duration
+	forceLoad        bool
+	dimensions       int
+	contextSize      int
+	modelLoaded      bool
+	initialized      bool
+	mu               sync.Mutex
 }
+
+// EmbedderOption configures the embedder.
+type EmbedderOption func(*Embedder) error
+
+// WithIndexPassSize sets the number of FTS rows to embed per pass. Default is 100.
+// It is not the same as the backend batch size. This controls how many rows are
+// fetched from the database per run. Also, after each pass, the embedder sleeps
+// for a short time to avoid starving the CPU. Set the sleep interval via WithSleepPerPass.
+func WithIndexPassSize(size int) EmbedderOption {
+	return func(embedder *Embedder) error {
+		if size <= 0 {
+			return errors.New("embedder pass size must be positive")
+		}
+		embedder.indexPassSize = size
+		return nil
+	}
+}
+
+// WithSleepPerPass sets the sleep duration after each indexing pass.
+// Default is 10ms.
+func WithSleepPerPass(duration time.Duration) EmbedderOption {
+	return func(embedder *Embedder) error {
+		embedder.sleepBetweenPass = duration
+		return nil
+	}
+}
+
+// WithForceLoad makes LoadModel pull the model when it is missing on the backend.
+func WithForceLoad(force bool) EmbedderOption {
+	return func(embedder *Embedder) error {
+		embedder.forceLoad = force
+		return nil
+	}
+}
+
+// WithInterval sets the default wait time after a run finishes before starting the next one.
+func WithInterval(interval time.Duration) EmbedderOption {
+	return func(embedder *Embedder) error {
+		if interval < minRunInterval {
+			return fmt.Errorf("embedder interval must be at least %s", minRunInterval)
+		}
+		embedder.interval = interval
+		return nil
+	}
+}
+
+// WithModel sets the model name used by the embedder.
+func WithModel(model string) EmbedderOption {
+	return func(embedder *Embedder) error {
+		trimmed := strings.TrimSpace(model)
+		if trimmed == "" {
+			return errors.New("embedder model name is required")
+		}
+		embedder.model = trimmed
+		return nil
+	}
+}
+
+// NewEmbedder creates an embedder.
+func NewEmbedder(
+	pool *sqlitex.Pool,
+	backend Backend,
+	logger *zap.Logger,
+	taskMgr *taskmanager.TaskManager,
+	opts ...EmbedderOption,
+) (*Embedder, error) {
+	if pool == nil {
+		return nil, errors.New("embedder pool is required")
+	}
+	if backend == nil {
+		return nil, errors.New("embedder backend is required")
+	}
+	if logger == nil {
+		return nil, errors.New("embedder logger is required")
+	}
+	if taskMgr == nil {
+		return nil, errors.New("embedder task manager is required")
+	}
+
+	embedder := &Embedder{
+		backend:          backend,
+		pool:             pool,
+		logger:           logger,
+		taskMgr:          taskMgr,
+		indexPassSize:    DefaultEmbeddingIndexPassSize,
+		sleepBetweenPass: DefaultEmbeddingSleepBetweenPass,
+		interval:         DefaultEmbeddingRunInterval,
+	}
+
+	for _, opt := range opts {
+		if err := opt(embedder); err != nil {
+			return nil, err
+		}
+	}
+
+	if strings.TrimSpace(embedder.model) == "" {
+		return nil, errors.New("embedder model name is required")
+	}
+
+	return embedder, nil
+}
+
+// Init starts the indexing loop using the provided interval in the constructor.
+// Calling Init multiple times has no effect.
+func (e *Embedder) Init(ctx context.Context) {
+	e.mu.Lock()
+	if e.initialized {
+		e.mu.Unlock()
+		return
+	}
+	e.initialized = true
+	e.mu.Unlock()
+
+	// Start the indexing loop only once
+	go func() {
+		for {
+			if err := e.runOnce(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				e.logger.Warn("embedding indexing failed", zap.Error(err))
+			}
+
+			if e.interval <= 0 {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(e.interval):
+			}
+		}
+	}()
+}
+
+func (e *Embedder) runOnce(ctx context.Context) error {
+	e.logger.Info("starting embedding indexing run")
+	startTime := time.Now()
+	defer func() {
+		e.logger.Info("embedding indexing run completed", zap.Duration("Elapsed time", time.Since(startTime)))
+	}()
+	if err := e.ensureModel(ctx); err != nil {
+		return err
+	}
+
+	conn, release, err := e.pool.Conn(ctx)
+	if err != nil {
+		return err
+	}
+
+	totalPending, err := countPending(conn)
+	if err != nil {
+		release()
+		return err
+	}
+	release()
+	if e.taskMgr.GlobalState() != daemonpb.State_ACTIVE {
+		return fmt.Errorf("daemon must be fully active to run embedding indexing. Current state: %s", e.taskMgr.GlobalState().String())
+	}
+	if _, err := e.taskMgr.AddTask(taskID, daemonpb.TaskName_EMBEDDING, taskDescription, totalPending); err != nil {
+		if errors.Is(err, taskmanager.ErrTaskExists) {
+			return fmt.Errorf("another embedding indexing task is already running")
+		} else {
+			return err
+		}
+	}
+	defer func() {
+		if _, err := e.taskMgr.DeleteTask(taskID); err != nil && !errors.Is(err, taskmanager.ErrTaskMissing) {
+			e.logger.Warn("failed to delete embedding task", zap.Error(err))
+		}
+	}()
+	var processed int64
+	for {
+		conn, release, err := e.pool.Conn(ctx)
+		if err != nil {
+			return err
+		}
+		textsToEmbed, err := fetchPending(conn, e.indexPassSize)
+		if err != nil {
+			release()
+			return err
+		}
+		release()
+		if len(textsToEmbed) == 0 {
+			break
+		}
+		processed += int64(len(textsToEmbed))
+		embeddings, err := e.embedTexts(ctx, textsToEmbed)
+		if err != nil {
+			return err
+		}
+
+		conn, release, err = e.pool.Conn(ctx)
+		if err != nil {
+			return err
+		}
+		defer release()
+		if err := sqlitex.WithTx(conn, func() error {
+			for _, embedding := range embeddings {
+				if len(embedding.embeddingQuantized) != e.dimensions {
+					return fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding.embeddingQuantized), e.dimensions)
+				}
+				if err := sqlitex.Exec(conn, qEmbeddingsInsert(), nil, embedding.embeddingQuantized, embedding.ftsID); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		_, _ = e.taskMgr.UpdateProgress(taskID, totalPending, processed)
+		time.Sleep(e.sleepBetweenPass)
+	}
+
+	return nil
+}
+
+func (e *Embedder) ensureModel(ctx context.Context) error {
+	e.mu.Lock()
+	if e.modelLoaded {
+		e.mu.Unlock()
+		return nil
+	}
+	e.mu.Unlock()
+
+	dimensions, contextSize, err := e.backend.LoadModel(ctx, e.model, e.forceLoad)
+	if err != nil {
+		return err
+	}
+	if dimensions != embeddingColumnDims {
+		return fmt.Errorf("embedding dimensions mismatch: got %d want %d", dimensions, embeddingColumnDims)
+	}
+	if contextSize <= 0 {
+		return fmt.Errorf("embedding context size invalid: %d", contextSize)
+	}
+
+	e.mu.Lock()
+	e.dimensions = dimensions
+	e.contextSize = contextSize
+	e.modelLoaded = true
+	e.mu.Unlock()
+
+	return nil
+}
+
+func (e *Embedder) maxChunkLength() int {
+	chunkLen := int(math.Floor(float64(e.contextSize) * 0.9))
+	if chunkLen < 1 {
+		return e.contextSize
+	}
+	return chunkLen
+}
+
+type embeddingInput struct {
+	ftsID int64
+	text  string
+}
+
+type embeddingOutput struct {
+	ftsID              int64
+	embedding          []float32
+	embeddingQuantized []int8
+}
+
+func (e *Embedder) embedTexts(ctx context.Context, inputs []embeddingInput) ([]embeddingOutput, error) {
+	chunkedInputs := []embeddingInput{}
+	chunkedTexts := []string{}
+	for _, input := range inputs {
+		chunks := chunkText(input.text, e.maxChunkLength())
+		for _, chunk := range chunks {
+			chunkedTexts = append(chunkedTexts, chunk)
+			chunkedInputs = append(chunkedInputs, embeddingInput{
+				ftsID: input.ftsID,
+				text:  chunk,
+			})
+		}
+	}
+
+	response, err := e.backend.Embed(ctx, chunkedTexts)
+	if err != nil {
+		return nil, err
+	}
+	if len(response) != len(chunkedInputs) {
+		return nil, fmt.Errorf("embedding count mismatch: got %d want %d", len(response), len(chunkedInputs))
+	}
+	outputs := make([]embeddingOutput, len(chunkedInputs))
+	for i, embedding := range response {
+		if len(embedding) != e.dimensions {
+			return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), e.dimensions)
+		}
+		outputs[i] = embeddingOutput{
+			ftsID:              chunkedInputs[i].ftsID,
+			embedding:          embedding,
+			embeddingQuantized: quantizeEmbedding(embedding),
+		}
+	}
+	return outputs, nil
+}
+
+func countPending(conn *sqlite.Conn) (int64, error) {
+	var total int64
+	if err := sqlitex.Exec(conn, qEmbeddingsPendingCount(), func(stmt *sqlite.Stmt) error {
+		total = stmt.ColumnInt64(0)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+func fetchPending(conn *sqlite.Conn, limit int) ([]embeddingInput, error) {
+	rows := make([]embeddingInput, 0, limit)
+
+	if err := sqlitex.Exec(conn, qEmbeddingsPending(), func(stmt *sqlite.Stmt) error {
+		rows = append(rows, embeddingInput{
+			ftsID: stmt.ColumnInt64(0),
+			text:  stmt.ColumnText(1),
+		})
+		return nil
+	}, limit); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+func updateProcessed(remaining map[int64]int, batch []embeddingInput) int {
+	completed := 0
+	for _, item := range batch {
+		remaining[item.ftsID]--
+		if remaining[item.ftsID] == 0 {
+			completed++
+			delete(remaining, item.ftsID)
+		}
+	}
+	return completed
+}
+
+func chunkText(text string, maxLen int) []string {
+	if maxLen <= 0 {
+		return []string{text}
+	}
+
+	runes := []rune(text)
+	if len(runes) <= maxLen {
+		return []string{text}
+	}
+
+	chunks := make([]string, 0, (len(runes)/maxLen)+1)
+	for start := 0; start < len(runes); start += maxLen {
+		end := start + maxLen
+		if end > len(runes) {
+			end = len(runes)
+		}
+		chunks = append(chunks, string(runes[start:end]))
+	}
+
+	return chunks
+}
+func quantizeEmbedding(input []float32) []int8 {
+	// Find max absolute value
+	var maxAbs float32
+	for _, v := range input {
+		abs := v
+		if abs < 0 {
+			abs = -abs
+		}
+		if abs > maxAbs {
+			maxAbs = abs
+		}
+	}
+
+	// Quantize with scaling factor
+	quantized := make([]int8, len(input))
+	scale := float32(127.0)
+	if maxAbs > 0 {
+		scale = 127.0 / maxAbs
+	}
+
+	for i, v := range input {
+		scaled := v * scale
+		scaled = float32(math.Round(float64(scaled)))
+		if scaled > 127 {
+			quantized[i] = 127
+		} else if scaled < -128 {
+			quantized[i] = -128
+		} else {
+			quantized[i] = int8(scaled)
+		}
+	}
+	return quantized
+
+}
+
+var qEmbeddingsPending = dqb.Str(`
+	WITH pending AS (
+		SELECT rowid
+		FROM fts
+		WHERE type IN ('title', 'document', 'comment')
+			AND length(raw_content) > 3
+		EXCEPT
+		SELECT fts_id FROM embeddings
+	)
+	SELECT fts.rowid, fts.raw_content
+	FROM fts
+	JOIN pending ON pending.rowid = fts.rowid
+	ORDER BY fts.rowid
+	LIMIT ?;
+`)
+
+var qEmbeddingsPendingCount = dqb.Str(`
+	WITH pending AS (
+		SELECT rowid
+		FROM fts
+		WHERE type IN ('title', 'document', 'comment')
+			AND length(raw_content) > 3
+		EXCEPT
+		SELECT fts_id FROM embeddings
+	)
+	SELECT COUNT(*) FROM pending;
+`)
+
+var qEmbeddingsInsert = dqb.Str(`
+	INSERT INTO embeddings (embeddinggemma300m, fts_id)
+	VALUES (vec_int8(?), ?);
+`)

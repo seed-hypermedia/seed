@@ -246,6 +246,9 @@ enum TaskName {
 
   // Task for reindexing the database.
   REINDEXING = 1;
+
+  // Task for generating embeddings.
+  EMBEDDING = 2;
 }
 
 // Description of a task that the daemon is performing.

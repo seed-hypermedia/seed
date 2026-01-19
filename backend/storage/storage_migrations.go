@@ -66,7 +66,8 @@ var migrations = []migration{
 	{Version: "2026-01-19.1", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE VIRTUAL TABLE embeddings USING vec0(
-    			embeddinggemma300m int8[768] distance_metric=cosine
+    			embeddinggemma300m int8[768] distance_metric=cosine,
+				fts_id int
 			);
 		`))
 	}},
