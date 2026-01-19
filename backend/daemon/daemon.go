@@ -195,7 +195,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			if _, err := a.taskMgr.DeleteTask(taskID); err != nil {
 				a.log.Warn("failed to delete reindexing task", zap.Error(err))
 			}
-
+			// TODO: initialise embeddings indexing here.
 			return nil
 		})
 	}
