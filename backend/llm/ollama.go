@@ -1,0 +1,273 @@
+package llm
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/ollama/ollama/api"
+	"github.com/ollama/ollama/types/model"
+)
+
+const defaultBatchSize = 32
+
+type OllamaClient struct {
+	baseURL   *url.URL
+	http      *http.Client
+	client    *api.Client
+	batchSize int
+	model     string
+}
+
+type OllamaOption func(*OllamaClient) error
+
+// NewOllamaClient creates a new Ollama client bound to the provided base URL.
+func NewOllamaClient(baseURL string, opts ...OllamaOption) (*OllamaClient, error) {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
+		return nil, errors.New("ollama base URL is required")
+	}
+
+	parsedURL, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("ollama base URL is invalid: %w", err)
+	}
+
+	client := &OllamaClient{
+		baseURL:   parsedURL,
+		http:      &http.Client{Timeout: 30 * time.Second},
+		batchSize: defaultBatchSize,
+	}
+
+	for _, opt := range opts {
+		if err := opt(client); err != nil {
+			return nil, err
+		}
+	}
+
+	if client.batchSize <= 0 {
+		return nil, errors.New("ollama batch size must be positive")
+	}
+
+	client.client = api.NewClient(client.baseURL, client.http)
+
+	return client, nil
+}
+
+// WithHTTPTransport overrides the HTTP client used for Ollama requests.
+func WithHTTPTransport(httpClient *http.Client) OllamaOption {
+	return func(client *OllamaClient) error {
+		if httpClient == nil {
+			return errors.New("ollama http client is required")
+		}
+
+		client.http = httpClient
+		return nil
+	}
+}
+
+func WithBatchSize(size int) OllamaOption {
+	return func(client *OllamaClient) error {
+		client.batchSize = size
+		return nil
+	}
+}
+
+// LoadModel ensures a model is available; when force is true it pulls it.
+// It returns the embedding dimensions and context size from the model metadata.
+func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (int, int, error) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return 0, 0, errors.New("ollama model name is required")
+	}
+
+	showResponse, err := client.client.Show(ctx, &api.ShowRequest{Model: model})
+	if err == nil {
+		dimensions, contextSize, parseErr := parseModelInfo(model, showResponse)
+		if parseErr != nil {
+			return 0, 0, parseErr
+		}
+
+		client.model = model
+		return dimensions, contextSize, nil
+	} else if !force {
+		var statusError api.StatusError
+		if errors.As(err, &statusError) && statusError.StatusCode == http.StatusNotFound {
+			return 0, 0, fmt.Errorf("ollama model not found: %s", model)
+		}
+
+		return 0, 0, err
+	}
+
+	stream := false
+	request := &api.PullRequest{
+		Model:  model,
+		Stream: &stream,
+	}
+
+	if err := client.client.Pull(ctx, request, func(api.ProgressResponse) error {
+		return nil
+	}); err != nil {
+		return 0, 0, err
+	}
+
+	showResponse, err = client.client.Show(ctx, &api.ShowRequest{Model: model})
+	if err != nil {
+		return 0, 0, err
+	}
+
+	dimensions, contextSize, err := parseModelInfo(model, showResponse)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	client.model = model
+	return dimensions, contextSize, nil
+}
+
+// Embed returns embeddings for inputs in batches sized by the client.
+// The model must be loaded via LoadModel before calling Embed.
+func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
+	model := strings.TrimSpace(client.model)
+	if model == "" {
+		return nil, errors.New("ollama model not loaded; call LoadModel first")
+	}
+	if len(inputs) == 0 {
+		return [][]float32{}, nil
+	}
+
+	embeddings := make([][]float32, 0, len(inputs))
+	for start := 0; start < len(inputs); start += client.batchSize {
+		end := start + client.batchSize
+		if end > len(inputs) {
+			end = len(inputs)
+		}
+
+		batch := inputs[start:end]
+		request := &api.EmbedRequest{
+			Model: model,
+			Input: batch,
+		}
+		response, err := client.client.Embed(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(response.Embeddings) != len(batch) {
+			return nil, fmt.Errorf("ollama embeddings count mismatch: got %d want %d", len(response.Embeddings), len(batch))
+		}
+
+		embeddings = append(embeddings, response.Embeddings...)
+	}
+
+	return embeddings, nil
+}
+
+func parseModelInfo(model string, response *api.ShowResponse) (int, int, error) {
+	if response == nil {
+		return 0, 0, fmt.Errorf("ollama model info missing: %s", model)
+	}
+
+	if !hasEmbeddingCapability(response.Capabilities) {
+		return 0, 0, fmt.Errorf("ollama model does not support embeddings: %s", model)
+	}
+
+	dimensions := readIntFromInfo(response.ModelInfo, embeddingDimensionKeys)
+	if dimensions == 0 {
+		dimensions = readIntFromInfo(response.ProjectorInfo, embeddingDimensionKeys)
+	}
+	if dimensions == 0 {
+		return 0, 0, fmt.Errorf("ollama model embedding dimensions missing: %s", model)
+	}
+
+	contextSize := readIntFromInfo(response.ModelInfo, contextSizeKeys)
+	if contextSize == 0 {
+		contextSize = readIntFromInfo(response.ProjectorInfo, contextSizeKeys)
+	}
+	if contextSize == 0 {
+		return 0, 0, fmt.Errorf("ollama model context size missing: %s", model)
+	}
+
+	return dimensions, contextSize, nil
+}
+
+func readIntFromInfo(info map[string]any, keys []string) int {
+	if len(info) == 0 {
+		return 0
+	}
+
+	for infoKey, value := range info {
+		lowerKey := strings.ToLower(infoKey)
+		if !matchesAnyKey(lowerKey, keys) {
+			continue
+		}
+
+		switch typed := value.(type) {
+		case int:
+			return typed
+		case int32:
+			return int(typed)
+		case int64:
+			return int(typed)
+		case float32:
+			return int(typed)
+		case float64:
+			return int(typed)
+		case string:
+			parsed, err := strconv.Atoi(typed)
+			if err == nil {
+				return parsed
+			}
+		}
+	}
+
+	return 0
+}
+
+func matchesAnyKey(infoKey string, keys []string) bool {
+	for _, key := range keys {
+		if strings.Contains(infoKey, key) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasEmbeddingCapability(capabilities []model.Capability) bool {
+	for _, capability := range capabilities {
+		if capability.String() == "embedding" || capability.String() == "embeddings" {
+			return true
+		}
+	}
+
+	return false
+}
+
+var embeddingDimensionKeys = []string{
+	"embedding_length",
+	"embedding_size",
+	"embedding_dim",
+	"embedding_dimension",
+	"n_embd",
+	"hidden_size",
+}
+
+var contextSizeKeys = []string{
+	"context_length",
+	"max_context_length",
+	"max_sequence_length",
+	"context_size",
+	"n_ctx",
+	"n_ctx_train",
+}
+
+// Version returns the Ollama server version string.
+func (client *OllamaClient) Version(ctx context.Context) (string, error) {
+	return client.client.Version(ctx)
+}

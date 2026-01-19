@@ -58,6 +58,7 @@ type Config struct {
 	HTTP    HTTP
 	GRPC    GRPC
 	P2P     P2P
+	LLM     LLM
 	Lndhub  Lndhub
 	Syncing Syncing
 	Debug   Debug
@@ -74,6 +75,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	c.HTTP.BindFlags(fs)
 	c.GRPC.BindFlags(fs)
 	c.P2P.BindFlags(fs)
+	c.LLM.BindFlags(fs)
 	c.Lndhub.BindFlags(fs)
 	c.Syncing.BindFlags(fs)
 	c.Debug.BindFlags(fs)
@@ -86,6 +88,7 @@ func Default() Config {
 		HTTP:    HTTP{}.Default(),
 		GRPC:    GRPC{}.Default(),
 		P2P:     P2P{}.Default(),
+		LLM:     LLM{}.Default(),
 		Lndhub:  Lndhub{}.Default(),
 		Syncing: Syncing{}.Default(),
 		Debug:   Debug{}.Default(),
@@ -165,6 +168,20 @@ func (c GRPC) Default() GRPC {
 // BindFlags binds the flags to the given FlagSet.
 func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "grpc.port", c.Port, "Port for the gRPC server")
+}
+
+// LLM configuration.
+type LLM struct {
+	Ollama string
+}
+
+func (c LLM) Default() LLM {
+	return LLM{}
+}
+
+// BindFlags binds the flags to the given FlagSet.
+func (c *LLM) BindFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.Ollama, "llm.ollama", c.Ollama, "Ollama server address (empty disables LLM)")
 }
 
 // Lndhub related config.
