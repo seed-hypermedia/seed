@@ -63,6 +63,13 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	{Version: "2026-01-19.1", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE VIRTUAL TABLE embeddings USING vec0(
+    			embeddinggemma300m int8[768] distance_metric=cosine
+			);
+		`))
+	}},
 	{Version: "2025-12-30.173837", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			DROP VIEW public_blobs;

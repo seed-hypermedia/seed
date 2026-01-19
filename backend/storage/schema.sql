@@ -344,3 +344,11 @@ CREATE INDEX fts_index_by_block ON fts_index (block_id);
 CREATE INDEX fts_index_by_type ON fts_index (type);
 CREATE INDEX fts_index_by_ts ON fts_index (ts);
 CREATE INDEX fts_index_by_genesis_blob ON fts_index (genesis_blob);
+
+- Stores text content to to a full text search
+-- https://sqlite.org/fts5.html.
+
+-- Sqlite vector extension tables for different embedding models.
+CREATE VIRTUAL TABLE embeddings USING vec0(
+    embeddinggemma300m int8[768] distance_metric=cosine
+);
