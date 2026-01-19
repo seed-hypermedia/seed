@@ -606,10 +606,29 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 					FROM resources r
 					JOIN structural_blobs sb ON sb.resource = r.id
 					WHERE sb.author IN (SELECT author FROM structural_blobs WHERE id IN rbsr_blobs)
-					AND type = 'Ref' AND length(r.iri) = 53 -- hm://<acc>`
+					AND type = 'Ref'
+					AND r.iri GLOB 'hm://*'
+					AND r.iri NOT GLOB 'hm://*/*';`
 
 		if err := sqlitex.Exec(conn, q, nil); err != nil {
 			return err
+		}
+
+		{
+			const q = `INSERT OR IGNORE INTO rbsr_blobs
+					SELECT sb.id
+					FROM structural_blobs sb
+					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
+					WHERE sb.type = 'Profile'
+					AND sb.author IN (
+						SELECT DISTINCT author
+						FROM structural_blobs
+						WHERE id IN rbsr_blobs AND type = 'Comment'
+					);`
+
+			if err := sqlitex.Exec(conn, q, nil); err != nil {
+				return err
+			}
 		}
 		// Fill media files.
 		{

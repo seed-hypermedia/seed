@@ -1779,16 +1779,86 @@ func TestPushing(t *testing.T) {
 	})
 	require.NoError(t, err, "Bob must have Alice's updated home document")
 	require.Equal(t, aliceHomeUpdated.Content, bobGotAliceHomeUpdated.Content)
-	/*
-	   // Verify Bob has Alice as alias.
+}
 
-	   	aliceAccount, err := bob.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
-	   		Id: aliceIdentity.Account.PublicKey.String(),
-	   	})
+func TestPushing_ProfileRedirect(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
 
-	   require.NoError(t, err)
-	   require.Equal(t, aliceIdentity.Account.PublicKey.String(), aliceAccount.AliasAccount, "bob must have alice as alias")
-	*/
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
+
+	aliceIdentity := coretest.NewTester("alice")
+	bobIdentity := coretest.NewTester("bob")
+
+	aliceHome, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = bob.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        bobIdentity.Account.PublicKey.String(),
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Bob Home"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bobIdentity.Account.PublicKey.String(),
+		Account:        aliceIdentity.Account.PublicKey.String(),
+		Role:           documents.Role_AGENT,
+		Label:          "Bob aliasing Alice",
+	})
+	require.NoError(t, err)
+
+	pushDocuments(t, alice, bob, "hm://"+aliceHome.Account+aliceHome.Path)
+
+	_, err = bob.RPC.DocumentsV3.CreateAlias(ctx, &documents.CreateAliasRequest{
+		SigningKeyName: "main",
+		AliasAccount:   aliceIdentity.Account.PublicKey.String(),
+	})
+	require.NoError(t, err)
+
+	_, err = bob.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		Account: aliceHome.Account,
+		Path:    aliceHome.Path,
+	})
+	require.NoError(t, err)
+
+	bobComment, err := bob.RPC.DocumentsV3.CreateComment(ctx, &documents.CreateCommentRequest{
+		TargetAccount: aliceHome.Account,
+		TargetPath:    aliceHome.Path,
+		TargetVersion: aliceHome.Version,
+		Content: []*documents.BlockNode{
+			{Block: &documents.Block{Id: "b1", Type: "paragraph", Text: "Bob comment"}},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	pushDocuments(t, bob, alice, "hm://"+aliceHome.Account+aliceHome.Path)
+
+	_, err = alice.RPC.DocumentsV3.GetComment(ctx, &documents.GetCommentRequest{Id: bobComment.Id})
+	require.NoError(t, err)
+
+	aliasedBob, err := alice.RPC.DocumentsV3.GetAccount(ctx, &documents.GetAccountRequest{
+		Id: bobIdentity.Account.PublicKey.String(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, aliceIdentity.Account.PublicKey.String(), aliasedBob.AliasAccount, "bob profile must redirect to alice")
 }
 
 func TestBug_BrokenFormattingAnnotations(t *testing.T) {
