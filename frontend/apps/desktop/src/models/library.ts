@@ -242,3 +242,46 @@ export function useChildrenActivity(
     }),
   }
 }
+
+/**
+ * Fetches all documents with activity summaries.
+ * Returns a map of document id (id.id) -> HMLibraryDocument for quick lookup.
+ */
+export function useSubscribedDocuments() {
+  const allDocuments = useQuery({
+    queryKey: [queryKeys.LIBRARY],
+    queryFn: async () => {
+      const res = await grpcClient.documents.listDocuments({
+        pageSize: BIG_INT,
+      })
+      return res.documents.map((docInfo) => prepareHMDocumentInfo(docInfo))
+    },
+  })
+
+  // Fetch comments for document-level activity
+  const commentIds = (allDocuments.data || [])
+    .map((doc) => doc.activitySummary?.latestCommentId)
+    .filter((id): id is string => !!id && id.length > 0)
+    .map((id) => hmId(id))
+  const comments = useComments(commentIds)
+
+  // Build map of document id -> document with latestComment
+  const documentsMap = new Map<string, HMLibraryDocument>()
+  if (allDocuments.data) {
+    for (const doc of allDocuments.data) {
+      documentsMap.set(doc.id.id, {
+        ...doc,
+        latestComment: doc.activitySummary?.latestCommentId
+          ? comments.data?.find(
+              (c) => c?.id === doc.activitySummary?.latestCommentId,
+            )
+          : undefined,
+      })
+    }
+  }
+
+  return {
+    ...allDocuments,
+    data: documentsMap,
+  }
+}

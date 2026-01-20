@@ -13,6 +13,7 @@ import {
   HMTimestamp,
   UnpackedHypermediaId,
 } from '@shm/shared'
+import {BIG_INT} from '@shm/shared/constants'
 import {
   useAccount,
   useAccounts,
@@ -355,7 +356,11 @@ export function useContactsMetadata(ids: string[]): HMAccountsMetadata {
 }
 
 export function useContactList() {
-  const accounts = useAccountList()
+  const accounts = useAccountList({
+    queryOptions: {
+      pageSize: BIG_INT,
+    },
+  })
   const contacts = useSelectedAccountContacts()
   if (!accounts.data) return accounts
   return {

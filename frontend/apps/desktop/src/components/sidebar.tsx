@@ -3,6 +3,7 @@ import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useFavorites} from '@/models/favorites'
+import {useSubscribedDocuments} from '@/models/library'
 import {useListSubscriptions} from '@/models/subscription'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
@@ -29,7 +30,6 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {useImageUrl} from '@shm/ui/get-file-url'
-import {useHighlighter} from '@shm/ui/highlight-context'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {SmallListItem} from '@shm/ui/list-item'
@@ -56,7 +56,6 @@ export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
-  const highlighter = useHighlighter()
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => (
@@ -329,15 +328,19 @@ function SubscriptionsSection() {
     if (indexB === -1) return -1
     return indexA - indexB
   })
+
   const subscriptionIds = sortedSubs.map((sub) => sub.id)
   const subscriptionEntities = useResources(subscriptionIds)
   const contacts = useSelectedAccountContacts()
   const route = useNavRoute()
 
-  const accounts = accountList.data?.accounts || []
   const accountsMetadata = accountList.data?.accountsMetadata
+  const accounts = accountList.data?.accounts || []
 
-  // fetch latest comments for activity summaries
+  // Fetch document-level activity for sub-document subscriptions
+  const subscribedDocs = useSubscribedDocuments()
+
+  // Fetch comments for account-level activity (for home subscriptions)
   const commentIds = accounts
     .map((acc) => acc.activitySummary?.latestCommentId)
     .filter((id): id is string => !!id && id.length > 0)
@@ -364,18 +367,49 @@ function SubscriptionsSection() {
         }
         // @ts-expect-error TODO: fix this
         const {id, document} = entity.data
-        const metadata = id.path?.length
-          ? document?.metadata
-          : getContactMetadata(id.uid, document?.metadata, contacts.data)
-        if (!metadata) return null
-        const account = accounts.find((acc) => acc.id === id.uid)
-        const activitySummary = account?.activitySummary
-        const isUnread = activitySummary?.isUnread ?? false
-        const latestComment = activitySummary?.latestCommentId
-          ? comments.data?.find(
-              (c) => c?.id === activitySummary.latestCommentId,
-            )
+        const isHomeSubscription = !id.path?.length
+
+        // Get document data from listDocuments (has proper metadata + activity)
+        const docData = subscribedDocs.data?.get(id.id)
+
+        // For home subscriptions, also check account-level data
+        const account = isHomeSubscription
+          ? accounts.find((acc) => acc.id === id.uid)
           : undefined
+
+        // Skip subscriptions with no discoverable data (not synced yet)
+        if (!docData && !account && !document?.metadata?.name) {
+          return null
+        }
+
+        // Use best available metadata:
+        // 1. For home subs: prefer contact name override, then docData, then entity
+        // 2. For sub-docs: prefer docData, then entity
+        const baseMetadata = docData?.metadata || document?.metadata
+        const metadata = isHomeSubscription
+          ? getContactMetadata(id.uid, baseMetadata, contacts.data)
+          : baseMetadata
+        if (!metadata) return null
+
+        // Use account-level activity for home subs (if available), else document-level
+        let activitySummary: HMActivitySummary | undefined
+        let latestComment: HMComment | undefined
+
+        if (isHomeSubscription && account?.activitySummary) {
+          // Prefer account-level activity for home subscriptions
+          activitySummary = account.activitySummary as HMActivitySummary
+          latestComment = activitySummary?.latestCommentId
+            ? comments.data?.find(
+                (c) => c?.id === activitySummary?.latestCommentId,
+              )
+            : undefined
+        } else {
+          // Fall back to document-level activity
+          activitySummary = docData?.activitySummary
+          latestComment = docData?.latestComment ?? undefined
+        }
+
+        const isUnread = activitySummary?.isUnread ?? false
         return (
           <SubscriptionListItem
             key={id.id}
@@ -383,7 +417,7 @@ function SubscriptionsSection() {
             metadata={metadata}
             active={route.key === 'document' && route.id.id === id.id}
             isUnread={isUnread}
-            activitySummary={activitySummary as HMActivitySummary | undefined}
+            activitySummary={activitySummary}
             latestComment={latestComment}
             accountsMetadata={accountsMetadata}
           />

@@ -3,6 +3,7 @@ import {useMyAccountIds} from '@/models/daemon'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
+import {ListAccountsRequest} from '@shm/shared'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMDocumentMetadataSchema,
@@ -17,11 +18,13 @@ export function useAccount_deprecated() {
   throw new Error('useAccount_deprecated is fully broken')
 }
 
-export function useAccountList() {
+export function useAccountList({
+  queryOptions,
+}: {queryOptions?: Partial<ListAccountsRequest>} = {}) {
   const q = useQuery({
     queryKey: [queryKeys.LIST_ACCOUNTS],
     queryFn: async () => {
-      const res = await grpcClient.documents.listAccounts({})
+      const res = await grpcClient.documents.listAccounts(queryOptions ?? {})
 
       const accounts = res.accounts.map((account) => ({
         ...toPlainMessage(account),
