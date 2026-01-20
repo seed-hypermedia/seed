@@ -212,7 +212,7 @@ func (c LLM) Default() LLM {
 		Backend: Backend{
 			Ollama: OllamaBackend{
 				URL:                 "http://localhost:11434",
-				SleepBetweenBatches: 300 * time.Millisecond,
+				SleepBetweenBatches: 750 * time.Millisecond,
 			},
 		},
 		Embedding: Embedder{
