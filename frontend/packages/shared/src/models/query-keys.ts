@@ -128,6 +128,14 @@ export const queryKeys = {
   SECURE_STORAGE: 'SECURE_STORAGE',
   DRAFTS_LIST: 'DRAFTS_LIST',
   DRAFTS_LIST_ACCOUNT: 'DRAFTS_LIST_ACCOUNT', // accountUid
+
+  // Bluesky/AT Protocol
+  BLUESKY_CONNECTIONS: 'BLUESKY_CONNECTIONS', //
+  BLUESKY_CONNECTION_STATUS: 'BLUESKY_CONNECTION_STATUS', // seedAccount: string
+  BLUESKY_PROFILE: 'BLUESKY_PROFILE', // seedAccount: string, actor: string
+  BLUESKY_TIMELINE: 'BLUESKY_TIMELINE', // seedAccount: string
+  BLUESKY_NOTIFICATIONS: 'BLUESKY_NOTIFICATIONS', // seedAccount: string
+  BLUESKY_SEARCH_ACTORS: 'BLUESKY_SEARCH_ACTORS', // seedAccount: string, query: string
 } as const
 
 export function labelOfQueryKey(key: QueryKey) {
@@ -240,6 +248,20 @@ export function labelOfQueryKey(key: QueryKey) {
     // activity
     case queryKeys.ACTIVITY_FEED:
       return 'Activity Feed'
+
+    // bluesky
+    case queryKeys.BLUESKY_CONNECTIONS:
+      return 'Bluesky Connections'
+    case queryKeys.BLUESKY_CONNECTION_STATUS:
+      return 'Bluesky Status'
+    case queryKeys.BLUESKY_PROFILE:
+      return 'Bluesky Profile'
+    case queryKeys.BLUESKY_TIMELINE:
+      return 'Bluesky Timeline'
+    case queryKeys.BLUESKY_NOTIFICATIONS:
+      return 'Bluesky Notifications'
+    case queryKeys.BLUESKY_SEARCH_ACTORS:
+      return 'Bluesky Search'
 
     default:
       // return 'unknown'

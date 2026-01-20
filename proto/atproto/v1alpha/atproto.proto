@@ -1,0 +1,638 @@
+syntax = "proto3";
+
+package com.seed.atproto.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "seed/backend/genproto/atproto/v1alpha;atproto";
+
+// ATProto service provides integration with AT Protocol (Bluesky).
+service ATProto {
+  // Connects a Bluesky account using app password authentication.
+  // This creates a session that can be used for subsequent operations.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+
+  // Disconnects a previously connected Bluesky account.
+  rpc Disconnect(DisconnectRequest) returns (google.protobuf.Empty);
+
+  // Lists all connected Bluesky accounts.
+  rpc ListConnections(ListConnectionsRequest) returns (ListConnectionsResponse);
+
+  // Gets the connection status for a specific Seed account.
+  rpc GetConnectionStatus(GetConnectionStatusRequest) returns (ConnectionStatus);
+
+  // Resolves a Bluesky handle to a DID.
+  rpc ResolveHandle(ResolveHandleRequest) returns (ResolveHandleResponse);
+
+  // Gets a Bluesky profile by DID or handle.
+  rpc GetProfile(GetProfileRequest) returns (BlueskyProfile);
+
+  // Searches for Bluesky actors by query.
+  rpc SearchActors(SearchActorsRequest) returns (SearchActorsResponse);
+
+  // Gets the feed (timeline) for a connected account.
+  rpc GetTimeline(GetTimelineRequest) returns (GetTimelineResponse);
+
+  // Creates a post on Bluesky.
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+
+  // Deletes a post from Bluesky.
+  rpc DeletePost(DeletePostRequest) returns (google.protobuf.Empty);
+
+  // Follows a Bluesky account.
+  rpc Follow(FollowRequest) returns (FollowResponse);
+
+  // Unfollows a Bluesky account.
+  rpc Unfollow(UnfollowRequest) returns (google.protobuf.Empty);
+
+  // Likes a post on Bluesky.
+  rpc Like(LikeRequest) returns (LikeResponse);
+
+  // Removes a like from a post.
+  rpc Unlike(UnlikeRequest) returns (google.protobuf.Empty);
+
+  // Reposts a post on Bluesky.
+  rpc Repost(RepostRequest) returns (RepostResponse);
+
+  // Removes a repost.
+  rpc Unrepost(UnrepostRequest) returns (google.protobuf.Empty);
+
+  // Gets notifications for a connected account.
+  rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
+}
+
+// Request to connect a Bluesky account.
+message ConnectRequest {
+  // Required. Seed account ID to associate with this Bluesky connection.
+  string seed_account = 1;
+
+  // Required. Bluesky handle (e.g., "alice.bsky.social") or DID.
+  string identifier = 2;
+
+  // Required. App password for authentication.
+  // Regular passwords should NOT be used; create an app password at:
+  // https://bsky.app/settings/app-passwords
+  string app_password = 3;
+
+  // Optional. PDS (Personal Data Server) URL.
+  // Defaults to "https://bsky.social" if not specified.
+  string pds_url = 4;
+}
+
+// Response after connecting a Bluesky account.
+message ConnectResponse {
+  // The connection status.
+  ConnectionStatus status = 1;
+
+  // The authenticated Bluesky profile.
+  BlueskyProfile profile = 2;
+}
+
+// Request to disconnect a Bluesky account.
+message DisconnectRequest {
+  // Required. Seed account ID for which to disconnect Bluesky.
+  string seed_account = 1;
+}
+
+// Request to list all connections.
+message ListConnectionsRequest {
+  // Optional. Page size.
+  int32 page_size = 1;
+
+  // Optional. Page token.
+  string page_token = 2;
+}
+
+// Response listing all connections.
+message ListConnectionsResponse {
+  // List of connection statuses.
+  repeated ConnectionStatus connections = 1;
+
+  // Token for the next page.
+  string next_page_token = 2;
+}
+
+// Request to get connection status.
+message GetConnectionStatusRequest {
+  // Required. Seed account ID to check.
+  string seed_account = 1;
+}
+
+// Status of a Bluesky connection.
+message ConnectionStatus {
+  // Seed account ID.
+  string seed_account = 1;
+
+  // Bluesky DID.
+  string did = 2;
+
+  // Bluesky handle.
+  string handle = 3;
+
+  // Whether the connection is active.
+  bool is_connected = 4;
+
+  // PDS URL being used.
+  string pds_url = 5;
+
+  // Time when the connection was established.
+  google.protobuf.Timestamp connect_time = 6;
+
+  // Time when the session expires (if known).
+  google.protobuf.Timestamp expire_time = 7;
+}
+
+// Request to resolve a handle to DID.
+message ResolveHandleRequest {
+  // Required. Handle to resolve (e.g., "alice.bsky.social").
+  string handle = 1;
+}
+
+// Response with resolved DID.
+message ResolveHandleResponse {
+  // The resolved DID.
+  string did = 1;
+}
+
+// Request to get a Bluesky profile.
+message GetProfileRequest {
+  // Required. Seed account ID for authentication context.
+  string seed_account = 1;
+
+  // Required. Actor identifier (DID or handle).
+  string actor = 2;
+}
+
+// Bluesky profile information.
+message BlueskyProfile {
+  // DID of the account.
+  string did = 1;
+
+  // Handle (e.g., "alice.bsky.social").
+  string handle = 2;
+
+  // Display name.
+  string display_name = 3;
+
+  // Profile description/bio.
+  string description = 4;
+
+  // Avatar URL.
+  string avatar = 5;
+
+  // Banner URL.
+  string banner = 6;
+
+  // Number of followers.
+  int64 followers_count = 7;
+
+  // Number of accounts following.
+  int64 follows_count = 8;
+
+  // Number of posts.
+  int64 posts_count = 9;
+
+  // Time when indexed.
+  google.protobuf.Timestamp indexed_at = 10;
+
+  // Whether the viewer is following this account.
+  bool viewer_following = 11;
+
+  // Whether this account is following the viewer.
+  bool viewer_followed_by = 12;
+
+  // Whether the viewer has blocked this account.
+  bool viewer_blocking = 13;
+
+  // Whether the viewer has muted this account.
+  bool viewer_muted = 14;
+}
+
+// Request to search for actors.
+message SearchActorsRequest {
+  // Required. Seed account ID for authentication context.
+  string seed_account = 1;
+
+  // Required. Search query.
+  string query = 2;
+
+  // Optional. Maximum results to return.
+  int32 limit = 3;
+
+  // Optional. Cursor for pagination.
+  string cursor = 4;
+}
+
+// Response with search results.
+message SearchActorsResponse {
+  // List of matching profiles.
+  repeated BlueskyProfile actors = 1;
+
+  // Cursor for next page.
+  string cursor = 2;
+}
+
+// Request to get timeline.
+message GetTimelineRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Optional. Maximum posts to return.
+  int32 limit = 2;
+
+  // Optional. Cursor for pagination.
+  string cursor = 3;
+
+  // Optional. Algorithm/feed to use.
+  string algorithm = 4;
+}
+
+// Response with timeline posts.
+message GetTimelineResponse {
+  // List of feed items.
+  repeated FeedItem feed = 1;
+
+  // Cursor for next page.
+  string cursor = 2;
+}
+
+// A feed item (post with context).
+message FeedItem {
+  // The post itself.
+  Post post = 1;
+
+  // Reply context if this is a reply.
+  ReplyContext reply = 2;
+
+  // Reason for inclusion (e.g., repost info).
+  FeedReason reason = 3;
+}
+
+// Context for replies.
+message ReplyContext {
+  // Root post of the thread.
+  Post root = 1;
+
+  // Direct parent post.
+  Post parent = 2;
+}
+
+// Reason a post appears in feed.
+message FeedReason {
+  // Type of reason (repost, etc.).
+  string type = 1;
+
+  // Actor who caused this (e.g., who reposted).
+  BlueskyProfile by = 2;
+
+  // When this action occurred.
+  google.protobuf.Timestamp indexed_at = 3;
+}
+
+// A Bluesky post.
+message Post {
+  // Post URI (at://did/app.bsky.feed.post/rkey).
+  string uri = 1;
+
+  // CID of the post record.
+  string cid = 2;
+
+  // Author of the post.
+  BlueskyProfile author = 3;
+
+  // Post content/text.
+  string text = 4;
+
+  // Facets (mentions, links, tags) in the post.
+  repeated Facet facets = 5;
+
+  // Time when the post was created.
+  google.protobuf.Timestamp created_at = 6;
+
+  // Time when indexed.
+  google.protobuf.Timestamp indexed_at = 7;
+
+  // Embedded content (images, external links, quoted posts).
+  Embed embed = 8;
+
+  // Number of replies.
+  int64 reply_count = 9;
+
+  // Number of reposts.
+  int64 repost_count = 10;
+
+  // Number of likes.
+  int64 like_count = 11;
+
+  // Whether the viewer has liked this post.
+  bool viewer_liked = 12;
+
+  // Whether the viewer has reposted this post.
+  bool viewer_reposted = 13;
+
+  // URI of the viewer's like (if liked).
+  string viewer_like_uri = 14;
+
+  // URI of the viewer's repost (if reposted).
+  string viewer_repost_uri = 15;
+}
+
+// Rich text facet (mention, link, hashtag).
+message Facet {
+  // Byte range in the text.
+  int32 byte_start = 1;
+  int32 byte_end = 2;
+
+  // Type of facet.
+  oneof feature {
+    Mention mention = 3;
+    Link link = 4;
+    Tag tag = 5;
+  }
+}
+
+// Mention facet.
+message Mention {
+  // DID of mentioned account.
+  string did = 1;
+}
+
+// Link facet.
+message Link {
+  // URL of the link.
+  string uri = 1;
+}
+
+// Hashtag facet.
+message Tag {
+  // Tag text (without #).
+  string tag = 1;
+}
+
+// Embedded content.
+message Embed {
+  oneof embed {
+    ImagesEmbed images = 1;
+    ExternalEmbed external = 2;
+    RecordEmbed record = 3;
+    RecordWithMediaEmbed record_with_media = 4;
+  }
+}
+
+// Embedded images.
+message ImagesEmbed {
+  repeated ImageView images = 1;
+}
+
+// Single image view.
+message ImageView {
+  // Image thumbnail URL.
+  string thumb = 1;
+
+  // Full-size image URL.
+  string fullsize = 2;
+
+  // Alt text.
+  string alt = 3;
+
+  // Aspect ratio.
+  AspectRatio aspect_ratio = 4;
+}
+
+// Aspect ratio.
+message AspectRatio {
+  int32 width = 1;
+  int32 height = 2;
+}
+
+// External link embed.
+message ExternalEmbed {
+  // URL.
+  string uri = 1;
+
+  // Title.
+  string title = 2;
+
+  // Description.
+  string description = 3;
+
+  // Thumbnail URL.
+  string thumb = 4;
+}
+
+// Quoted record embed.
+message RecordEmbed {
+  // The quoted post (simplified).
+  Post record = 1;
+}
+
+// Record with media embed.
+message RecordWithMediaEmbed {
+  // The quoted post.
+  Post record = 1;
+
+  // Additional media.
+  oneof media {
+    ImagesEmbed images = 2;
+    ExternalEmbed external = 3;
+  }
+}
+
+// Request to create a post.
+message CreatePostRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. Post text content.
+  string text = 2;
+
+  // Optional. Reply reference.
+  ReplyRef reply_to = 3;
+
+  // Optional. Quote post reference.
+  string quote_uri = 4;
+
+  // Optional. Languages (BCP-47 codes).
+  repeated string langs = 5;
+
+  // Optional. Facets for rich text (auto-detected if not specified).
+  repeated Facet facets = 6;
+}
+
+// Reference for replying to a post.
+message ReplyRef {
+  // URI of the root post in the thread.
+  string root_uri = 1;
+
+  // CID of the root post.
+  string root_cid = 2;
+
+  // URI of the direct parent post.
+  string parent_uri = 3;
+
+  // CID of the parent post.
+  string parent_cid = 4;
+}
+
+// Response after creating a post.
+message CreatePostResponse {
+  // URI of the created post.
+  string uri = 1;
+
+  // CID of the created post.
+  string cid = 2;
+}
+
+// Request to delete a post.
+message DeletePostRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. URI of the post to delete.
+  string uri = 2;
+}
+
+// Request to follow an account.
+message FollowRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. DID of account to follow.
+  string subject = 2;
+}
+
+// Response after following.
+message FollowResponse {
+  // URI of the follow record.
+  string uri = 1;
+
+  // CID of the follow record.
+  string cid = 2;
+}
+
+// Request to unfollow an account.
+message UnfollowRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. DID of account to unfollow.
+  string subject = 2;
+}
+
+// Request to like a post.
+message LikeRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. URI of post to like.
+  string subject_uri = 2;
+
+  // Required. CID of the post.
+  string subject_cid = 3;
+}
+
+// Response after liking.
+message LikeResponse {
+  // URI of the like record.
+  string uri = 1;
+
+  // CID of the like record.
+  string cid = 2;
+}
+
+// Request to unlike a post.
+message UnlikeRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. URI of the like record to delete.
+  string uri = 2;
+}
+
+// Request to repost.
+message RepostRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. URI of post to repost.
+  string subject_uri = 2;
+
+  // Required. CID of the post.
+  string subject_cid = 3;
+}
+
+// Response after reposting.
+message RepostResponse {
+  // URI of the repost record.
+  string uri = 1;
+
+  // CID of the repost record.
+  string cid = 2;
+}
+
+// Request to remove a repost.
+message UnrepostRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Required. URI of the repost record to delete.
+  string uri = 2;
+}
+
+// Request to get notifications.
+message GetNotificationsRequest {
+  // Required. Seed account ID.
+  string seed_account = 1;
+
+  // Optional. Maximum notifications to return.
+  int32 limit = 2;
+
+  // Optional. Cursor for pagination.
+  string cursor = 3;
+
+  // Optional. Only show notifications since this time.
+  google.protobuf.Timestamp seen_at = 4;
+}
+
+// Response with notifications.
+message GetNotificationsResponse {
+  // List of notifications.
+  repeated Notification notifications = 1;
+
+  // Cursor for next page.
+  string cursor = 2;
+
+  // Count of unread notifications.
+  int64 unread_count = 3;
+
+  // Time of last seen notification.
+  google.protobuf.Timestamp seen_at = 4;
+}
+
+// A notification.
+message Notification {
+  // URI of the notification.
+  string uri = 1;
+
+  // CID of the notification.
+  string cid = 2;
+
+  // Actor who caused the notification.
+  BlueskyProfile author = 3;
+
+  // Reason for the notification.
+  string reason = 4;
+
+  // Related post (if applicable).
+  Post reason_subject = 5;
+
+  // Post associated with notification (e.g., reply content).
+  Post record = 6;
+
+  // Whether this has been read.
+  bool is_read = 7;
+
+  // Time when indexed.
+  google.protobuf.Timestamp indexed_at = 8;
+}
