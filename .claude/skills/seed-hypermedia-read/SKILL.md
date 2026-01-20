@@ -1,8 +1,11 @@
+---
+name: seed-hypermedia-read
+description: Read-only Seed Hypermedia gRPC operations for querying documents, comments, entities, accounts, and server metadata. Use when the user wants to fetch or inspect Seed data without writing, updating, or deleting anything.
+---
+
 # Seed Hypermedia gRPC Skill
 
-Use this skill only for **read-only** interactions with Seed (Seed Hypermedia) — querying documents, comments, entities, accounts, or other content as well as general information about the server/network.
-
-If the user wants to **write, update, or delete** anything in Seed, you must refuse and direct them to the **write-seed-hypermedia** skill instead.
+Scope: Read-only gRPC access to Seed Hypermedia. If the user wants to write, update, or delete, refuse and route to the **write-seed-hypermedia** skill.
 
 ## Prerequisites
 
