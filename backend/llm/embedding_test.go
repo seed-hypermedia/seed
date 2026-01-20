@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -157,7 +158,23 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	secondPassInputs := append([]string(nil), backend.embedInputs[1]...)
 	backend.mu.Unlock()
 
-	require.Equal(t, chunkText("01234567890123456789", 9), firstPassInputs)
+	expectedChunks := chunkText("01234567890123456789", 9, pctOverlap)
+	require.Equal(t, expectedChunks, firstPassInputs)
+
+	expectedOverlap := int(math.Round(float64(pctOverlap) * float64(9)))
+	if expectedOverlap >= 9 {
+		expectedOverlap = 8
+	}
+	for i := 0; i+1 < len(expectedChunks); i++ {
+		prev := []rune(expectedChunks[i])
+		next := []rune(expectedChunks[i+1])
+		if expectedOverlap == 0 {
+			continue
+		}
+		require.GreaterOrEqual(t, len(prev), expectedOverlap)
+		require.GreaterOrEqual(t, len(next), expectedOverlap)
+		require.Equal(t, prev[len(prev)-expectedOverlap:], next[:expectedOverlap])
+	}
 	require.Equal(t, []string{"tiny-text"}, secondPassInputs)
 
 	conn, release, err = db.Conn(ctx)

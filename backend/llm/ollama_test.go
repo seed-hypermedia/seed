@@ -1,7 +1,9 @@
 package llm
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,4 +68,32 @@ func TestOllamaClientEmbedRequiresModel(t *testing.T) {
 	_, err = client.Embed(ctx, []string{"alpha"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "LoadModel")
+}
+
+func TestOllamaClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+
+	const model = "embeddinggemma"
+	mockServer := newMockOllamaServer(t)
+	t.Cleanup(mockServer.server.Close)
+
+	client, err := NewOllamaClient(
+		mockServer.server.URL,
+		WithBatchSize(2),
+		WithWaitBetweenBatches(5*time.Second),
+	)
+	require.NoError(t, err)
+
+	_, err = client.LoadModel(ctx, model, true)
+	require.NoError(t, err)
+
+	// Two full batches (2 + 2). The client must wait before the 2nd batch.
+	_, err = client.Embed(ctx, []string{"a", "b", "c", "d"})
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	mockServer.mu.Lock()
+	defer mockServer.mu.Unlock()
+	require.Equal(t, 1, mockServer.embedRequests, "second embed request must not be sent once ctx expires during wait")
 }

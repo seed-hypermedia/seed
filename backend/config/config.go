@@ -175,8 +175,8 @@ func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 type Embedder struct {
 	// PeriodicInterval is the period between each indexing run. Default is 1 minute.
 	PeriodicInterval time.Duration
-	// SleepBetweenPass is the time to sleep between passes when indexing.
-	SleepBetweenPass time.Duration
+	// SleepBetweenPasses is the time to sleep between passes when indexing.
+	SleepBetweenPasses time.Duration
 	// IndexPassSize is the number of FTS rows to keep in memory per pass. Default is 100.
 	IndexPassSize int
 	// Model is the LLM model to use for embeddings.
@@ -190,7 +190,11 @@ type Embedder struct {
 }
 
 type OllamaBackend struct {
+	// URL is the base URL of the Ollama server.
 	URL string
+
+	// SleepBetweenBatches is the time to wait between embedding batches.
+	SleepBetweenBatches time.Duration
 }
 
 type Backend struct {
@@ -207,17 +211,18 @@ func (c LLM) Default() LLM {
 	return LLM{
 		Backend: Backend{
 			Ollama: OllamaBackend{
-				URL: "http://localhost:11434",
+				URL:                 "http://localhost:11434",
+				SleepBetweenBatches: 300 * time.Millisecond,
 			},
 		},
 		Embedding: Embedder{
-			PeriodicInterval: llm.DefaultEmbeddingRunInterval,
-			SleepBetweenPass: llm.DefaultEmbeddingSleepBetweenPass,
-			IndexPassSize:    llm.DefaultEmbeddingIndexPassSize,
-			Model:            llm.DefaultEmbeddingModel,
-			DocumentPrefix:   "",
-			QueryPrefix:      "",
-			Enabled:          false,
+			PeriodicInterval:   llm.DefaultEmbeddingRunInterval,
+			SleepBetweenPasses: llm.DefaultEmbeddingSleepBetweenPasses,
+			IndexPassSize:      llm.DefaultEmbeddingIndexPassSize,
+			Model:              llm.DefaultEmbeddingModel,
+			DocumentPrefix:     "",
+			QueryPrefix:        "",
+			Enabled:            false,
 		},
 	}
 }
@@ -225,8 +230,9 @@ func (c LLM) Default() LLM {
 // BindFlags binds the flags to the given FlagSet.
 func (c *LLM) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Backend.Ollama.URL, "llm.ollama.url", c.Backend.Ollama.URL, "Ollama base URL")
+	fs.DurationVar(&c.Backend.Ollama.SleepBetweenBatches, "llm.ollama.sleep-between-batches", c.Backend.Ollama.SleepBetweenBatches, "Wait time between embedding batches")
 	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
-	fs.DurationVar(&c.Embedding.SleepBetweenPass, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPass, "Wait time between embedding passes")
+	fs.DurationVar(&c.Embedding.SleepBetweenPasses, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPasses, "Wait time between embedding passes")
 	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "How many FTS rows to scan at once")
 	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use")
 	fs.StringVar(&c.Embedding.DocumentPrefix, "llm.embedding.document-prefix", c.Embedding.DocumentPrefix, "Prefix to add to document texts before embedding")

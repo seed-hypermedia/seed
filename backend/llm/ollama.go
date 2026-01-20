@@ -20,11 +20,12 @@ const (
 )
 
 type OllamaClient struct {
-	baseURL   *url.URL
-	http      *http.Client
-	client    *api.Client
-	batchSize int
-	model     string
+	baseURL            *url.URL
+	http               *http.Client
+	client             *api.Client
+	batchSize          int
+	waitBetweenBatches time.Duration
+	model              string
 }
 
 type OllamaOption func(*OllamaClient) error
@@ -74,9 +75,19 @@ func WithHTTPTransport(httpClient *http.Client) OllamaOption {
 	}
 }
 
+// WithBatchSize sets the batch size for embedding requests.
 func WithBatchSize(size int) OllamaOption {
 	return func(client *OllamaClient) error {
 		client.batchSize = size
+		return nil
+	}
+}
+
+// WithWaitBetweenBatches waits duration between a full batch size and
+// the next full batch size when embedding.
+func WithWaitBetweenBatches(duration time.Duration) OllamaOption {
+	return func(client *OllamaClient) error {
+		client.waitBetweenBatches = duration
 		return nil
 	}
 }
@@ -161,6 +172,7 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 	}
 
 	embeddings := make([][]float32, 0, len(inputs))
+	var wasPreviousBatchFull bool
 	for start := 0; start < len(inputs); start += client.batchSize {
 		end := start + client.batchSize
 		if end > len(inputs) {
@@ -168,6 +180,16 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 		}
 
 		batch := inputs[start:end]
+		isBatchFull := len(batch) == client.batchSize
+		if client.waitBetweenBatches > 0 && wasPreviousBatchFull && isBatchFull {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(client.waitBetweenBatches):
+			}
+		}
+		wasPreviousBatchFull = isBatchFull
+
 		request := &api.EmbedRequest{
 			Model: model,
 			Input: batch,
