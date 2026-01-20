@@ -424,11 +424,15 @@ func initLLM(
 		zap.String("documentPrefix", cfg.Embedding.DocumentPrefix),
 		zap.String("queryPrefix", cfg.Embedding.QueryPrefix),
 		zap.Duration("periodicInterval", cfg.Embedding.PeriodicInterval),
-		zap.Duration("sleepBetweenPass", cfg.Embedding.SleepBetweenPass),
+		zap.Duration("SleepBetweenPasses", cfg.Embedding.SleepBetweenPasses),
 		zap.Int("indexPassSize", cfg.Embedding.IndexPassSize),
 	)
 
-	backend, err := llm.NewOllamaClient(cfg.Backend.Ollama.URL)
+	ollamaOpts := []llm.OllamaOption{
+		llm.WithWaitBetweenBatches(cfg.Backend.Ollama.SleepBetweenBatches),
+	}
+
+	backend, err := llm.NewOllamaClient(cfg.Backend.Ollama.URL, ollamaOpts...)
 	if err != nil {
 		return err
 	}
@@ -438,7 +442,7 @@ func initLLM(
 		llm.WithIndexPassSize(cfg.Embedding.IndexPassSize),
 		llm.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
 		llm.WithQueryPrefix(cfg.Embedding.QueryPrefix),
-		llm.WithSleepPerPass(cfg.Embedding.SleepBetweenPass),
+		llm.WithSleepPerPass(cfg.Embedding.SleepBetweenPasses),
 		llm.WithInterval(cfg.Embedding.PeriodicInterval),
 		llm.WithModel(cfg.Embedding.Model),
 	}

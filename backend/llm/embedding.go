@@ -24,8 +24,8 @@ const (
 	// Adjust the sleep duration via WithSleepPerPass.
 	DefaultEmbeddingIndexPassSize = 10
 
-	// DefaultSleepBetweenPass is the default sleep duration after each indexing pass.
-	DefaultEmbeddingSleepBetweenPass = time.Millisecond * 500 // to not starve the CPU.
+	// DefaultSleepBetweenPasses is the default sleep duration after each indexing pass.
+	DefaultEmbeddingSleepBetweenPasses = time.Millisecond * 500 // to not starve the CPU.
 
 	// DefaultRunInterval is the default wait time after a run finishes before starting the next one.
 	DefaultEmbeddingRunInterval = 1 * time.Minute
@@ -36,6 +36,7 @@ const (
 	taskID              = "embedding_indexer"
 	taskDescription     = "Indexing embeddings"
 	embeddingColumnDims = 768
+	pctOverlap          = 0.1
 
 	minRunInterval = 5 * time.Second
 )
@@ -54,23 +55,23 @@ type Backend interface {
 }
 
 type Embedder struct {
-	backend          Backend
-	pool             *sqlitex.Pool
-	logger           *zap.Logger
-	taskMgr          *taskmanager.TaskManager
-	model            string
-	indexPassSize    int
-	interval         time.Duration
-	sleepBetweenPass time.Duration
-	forceLoad        bool
-	dimensions       int
-	contextSize      int
-	modelLoaded      bool
-	initialized      bool
-	documentPrefix   string
-	queryPrefix      string
-	maxChunkLength   int
-	mu               sync.Mutex
+	backend            Backend
+	pool               *sqlitex.Pool
+	logger             *zap.Logger
+	taskMgr            *taskmanager.TaskManager
+	model              string
+	indexPassSize      int
+	interval           time.Duration
+	SleepBetweenPasses time.Duration
+	forceLoad          bool
+	dimensions         int
+	contextSize        int
+	modelLoaded        bool
+	initialized        bool
+	documentPrefix     string
+	queryPrefix        string
+	maxChunkLength     int
+	mu                 sync.Mutex
 }
 
 // EmbedderOption configures the embedder.
@@ -94,7 +95,7 @@ func WithIndexPassSize(size int) EmbedderOption {
 // Default is 10ms.
 func WithSleepPerPass(duration time.Duration) EmbedderOption {
 	return func(embedder *Embedder) error {
-		embedder.sleepBetweenPass = duration
+		embedder.SleepBetweenPasses = duration
 		return nil
 	}
 }
@@ -168,13 +169,13 @@ func NewEmbedder(
 	}
 
 	embedder := &Embedder{
-		backend:          backend,
-		pool:             pool,
-		logger:           logger,
-		taskMgr:          taskMgr,
-		indexPassSize:    DefaultEmbeddingIndexPassSize,
-		sleepBetweenPass: DefaultEmbeddingSleepBetweenPass,
-		interval:         DefaultEmbeddingRunInterval,
+		backend:            backend,
+		pool:               pool,
+		logger:             logger,
+		taskMgr:            taskMgr,
+		indexPassSize:      DefaultEmbeddingIndexPassSize,
+		SleepBetweenPasses: DefaultEmbeddingSleepBetweenPasses,
+		interval:           DefaultEmbeddingRunInterval,
 	}
 
 	for _, opt := range opts {
@@ -277,7 +278,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 			break
 		}
 		processed += int64(len(textsToEmbed))
-		embeddings, err := e.embedTexts(ctx, textsToEmbed)
+		embeddings, err := e.embedTexts(ctx, textsToEmbed, pctOverlap)
 		if err != nil {
 			return err
 		}
@@ -303,7 +304,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 		release()
 
 		_, _ = e.taskMgr.UpdateProgress(taskID, totalPending, processed)
-		time.Sleep(e.sleepBetweenPass)
+		time.Sleep(e.SleepBetweenPasses)
 	}
 
 	return nil
@@ -355,11 +356,11 @@ type embeddingOutput struct {
 	embeddingQuantized []int8
 }
 
-func (e *Embedder) embedTexts(ctx context.Context, inputs []embeddingInput) ([]embeddingOutput, error) {
+func (e *Embedder) embedTexts(ctx context.Context, inputs []embeddingInput, pctOverlap float32) ([]embeddingOutput, error) {
 	chunkedInputs := []embeddingInput{}
 	chunkedTexts := []string{}
 	for _, input := range inputs {
-		chunks := chunkText(input.text, e.maxChunkLength)
+		chunks := chunkText(input.text, e.maxChunkLength, pctOverlap)
 		for _, chunk := range chunks {
 			chunkedTexts = append(chunkedTexts, chunk)
 			chunkedInputs = append(chunkedInputs, embeddingInput{
@@ -418,9 +419,24 @@ func fetchPending(conn *sqlite.Conn, limit int) ([]embeddingInput, error) {
 	return rows, nil
 }
 
-func chunkText(text string, maxLen int) []string {
+func chunkText(text string, maxLen int, overlappingPct float32) []string {
 	if maxLen <= 0 {
 		return []string{text}
+	}
+	if overlappingPct < 0 {
+		overlappingPct = 0
+	}
+	if overlappingPct > 1 {
+		overlappingPct = 1
+	}
+
+	overlap := int(math.Round(float64(overlappingPct) * float64(maxLen)))
+	if overlap >= maxLen {
+		overlap = maxLen - 1
+	}
+	step := maxLen - overlap
+	if step <= 0 {
+		step = 1
 	}
 
 	runes := []rune(text)
@@ -428,8 +444,8 @@ func chunkText(text string, maxLen int) []string {
 		return []string{text}
 	}
 
-	chunks := make([]string, 0, (len(runes)/maxLen)+1)
-	for start := 0; start < len(runes); start += maxLen {
+	chunks := make([]string, 0, (len(runes)/step)+1)
+	for start := 0; start < len(runes); start += step {
 		end := start + maxLen
 		if end > len(runes) {
 			end = len(runes)
