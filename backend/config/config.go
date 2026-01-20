@@ -181,6 +181,12 @@ type Embedder struct {
 	IndexPassSize int
 	// Model is the LLM model to use for embeddings.
 	Model string
+	// DocumentPrefix is the prefix to add to document texts before embedding.
+	DocumentPrefix string
+	// QueryPrefix is the prefix to add to query texts before embedding.
+	QueryPrefix string
+	// Enabled indicates whether the embedder is enabled.
+	Enabled bool
 }
 
 type OllamaBackend struct {
@@ -209,6 +215,9 @@ func (c LLM) Default() LLM {
 			SleepBetweenPass: llm.DefaultEmbeddingSleepBetweenPass,
 			IndexPassSize:    llm.DefaultEmbeddingIndexPassSize,
 			Model:            llm.DefaultEmbeddingModel,
+			DocumentPrefix:   "",
+			QueryPrefix:      "",
+			Enabled:          false,
 		},
 	}
 }
@@ -217,9 +226,12 @@ func (c LLM) Default() LLM {
 func (c *LLM) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Backend.Ollama.URL, "llm.ollama.url", c.Backend.Ollama.URL, "Ollama base URL")
 	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
-	fs.DurationVar(&c.Embedding.SleepBetweenPass, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPass, "Sleep between embedding passes")
-	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "Rows to index per pass")
+	fs.DurationVar(&c.Embedding.SleepBetweenPass, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPass, "Wait time between embedding passes")
+	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "How many FTS rows to scan at once")
 	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use")
+	fs.StringVar(&c.Embedding.DocumentPrefix, "llm.embedding.document-prefix", c.Embedding.DocumentPrefix, "Prefix to add to document texts before embedding")
+	fs.StringVar(&c.Embedding.QueryPrefix, "llm.embedding.query-prefix", c.Embedding.QueryPrefix, "Prefix to add to query texts before embedding")
+	fs.BoolVar(&c.Embedding.Enabled, "llm.embedding.enabled", c.Embedding.Enabled, "Whether the embedding indexer is enabled")
 }
 
 // Lndhub related config.

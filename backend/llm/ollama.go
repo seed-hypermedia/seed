@@ -14,7 +14,10 @@ import (
 	"github.com/ollama/ollama/types/model"
 )
 
-const defaultBatchSize = 32
+const (
+	defaultBatchSize   = 10
+	defaultHTTPTimeout = 5 * time.Minute
+)
 
 type OllamaClient struct {
 	baseURL   *url.URL
@@ -40,7 +43,7 @@ func NewOllamaClient(baseURL string, opts ...OllamaOption) (*OllamaClient, error
 
 	client := &OllamaClient{
 		baseURL:   parsedURL,
-		http:      &http.Client{Timeout: 30 * time.Second},
+		http:      &http.Client{Timeout: defaultHTTPTimeout},
 		batchSize: defaultBatchSize,
 	}
 
@@ -78,30 +81,46 @@ func WithBatchSize(size int) OllamaOption {
 	}
 }
 
+// WithHTTPTimeout sets the HTTP client timeout used for Ollama requests.
+// This covers the entire request (connect + send + wait for headers/body).
+func WithHTTPTimeout(timeout time.Duration) OllamaOption {
+	return func(client *OllamaClient) error {
+		if timeout <= 0 {
+			return errors.New("ollama http timeout must be positive")
+		}
+		if client.http == nil {
+			client.http = &http.Client{}
+		}
+		client.http.Timeout = timeout
+		return nil
+	}
+}
+
 // LoadModel ensures a model is available; when force is true it pulls it.
 // It returns the embedding dimensions and context size from the model metadata.
-func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (int, int, error) {
+func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error) {
 	model = strings.TrimSpace(model)
+	ret := ModelInfo{}
 	if model == "" {
-		return 0, 0, errors.New("ollama model name is required")
+		return ret, errors.New("ollama model name is required")
 	}
 
 	showResponse, err := client.client.Show(ctx, &api.ShowRequest{Model: model})
 	if err == nil {
-		dimensions, contextSize, parseErr := parseModelInfo(model, showResponse)
+		ret, parseErr := parseModelInfo(model, showResponse)
 		if parseErr != nil {
-			return 0, 0, parseErr
+			return ret, parseErr
 		}
-
 		client.model = model
-		return dimensions, contextSize, nil
+
+		return ret, nil
 	} else if !force {
 		var statusError api.StatusError
 		if errors.As(err, &statusError) && statusError.StatusCode == http.StatusNotFound {
-			return 0, 0, fmt.Errorf("ollama model not found: %s", model)
+			return ret, fmt.Errorf("ollama model not found: %s", model)
 		}
 
-		return 0, 0, err
+		return ret, err
 	}
 
 	stream := false
@@ -113,21 +132,21 @@ func (client *OllamaClient) LoadModel(ctx context.Context, model string, force b
 	if err := client.client.Pull(ctx, request, func(api.ProgressResponse) error {
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return ModelInfo{}, err
 	}
 
 	showResponse, err = client.client.Show(ctx, &api.ShowRequest{Model: model})
 	if err != nil {
-		return 0, 0, err
+		return ModelInfo{}, err
 	}
 
-	dimensions, contextSize, err := parseModelInfo(model, showResponse)
+	info, err := parseModelInfo(model, showResponse)
 	if err != nil {
-		return 0, 0, err
+		return ModelInfo{}, err
 	}
 
 	client.model = model
-	return dimensions, contextSize, nil
+	return info, nil
 }
 
 // Embed returns embeddings for inputs in batches sized by the client.
@@ -168,13 +187,13 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 	return embeddings, nil
 }
 
-func parseModelInfo(model string, response *api.ShowResponse) (int, int, error) {
+func parseModelInfo(model string, response *api.ShowResponse) (ModelInfo, error) {
 	if response == nil {
-		return 0, 0, fmt.Errorf("ollama model info missing: %s", model)
+		return ModelInfo{}, fmt.Errorf("ollama model info missing: %s", model)
 	}
 
 	if !hasEmbeddingCapability(response.Capabilities) {
-		return 0, 0, fmt.Errorf("ollama model does not support embeddings: %s", model)
+		return ModelInfo{}, fmt.Errorf("ollama model does not support embeddings: %s", model)
 	}
 
 	dimensions := readIntFromInfo(response.ModelInfo, embeddingDimensionKeys)
@@ -182,7 +201,7 @@ func parseModelInfo(model string, response *api.ShowResponse) (int, int, error) 
 		dimensions = readIntFromInfo(response.ProjectorInfo, embeddingDimensionKeys)
 	}
 	if dimensions == 0 {
-		return 0, 0, fmt.Errorf("ollama model embedding dimensions missing: %s", model)
+		return ModelInfo{}, fmt.Errorf("ollama model embedding dimensions missing: %s", model)
 	}
 
 	contextSize := readIntFromInfo(response.ModelInfo, contextSizeKeys)
@@ -190,10 +209,10 @@ func parseModelInfo(model string, response *api.ShowResponse) (int, int, error) 
 		contextSize = readIntFromInfo(response.ProjectorInfo, contextSizeKeys)
 	}
 	if contextSize == 0 {
-		return 0, 0, fmt.Errorf("ollama model context size missing: %s", model)
+		return ModelInfo{}, fmt.Errorf("ollama model context size missing: %s", model)
 	}
 
-	return dimensions, contextSize, nil
+	return ModelInfo{Dimensions: dimensions, ContextSize: contextSize}, nil
 }
 
 func readIntFromInfo(info map[string]any, keys []string) int {

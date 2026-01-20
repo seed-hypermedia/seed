@@ -15,10 +15,10 @@ func TestOllamaClientEmbeddings(t *testing.T) {
 	client, err := NewOllamaClient(mockServer.server.URL, WithBatchSize(2))
 	require.NoError(t, err)
 
-	dimensions, contextSize, err := client.LoadModel(ctx, model, true)
+	info, err := client.LoadModel(ctx, model, true)
 	require.NoError(t, err)
-	require.Equal(t, 768, dimensions)
-	require.Equal(t, 2048, contextSize)
+	require.Equal(t, 768, info.Dimensions)
+	require.Equal(t, 2048, info.ContextSize)
 
 	inputs := []string{"alpha", "bravo", "charlie", "delta", "echo"}
 	embeddings, err := client.Embed(ctx, inputs)
@@ -49,7 +49,7 @@ func TestOllamaClientEmbedEmptyInput(t *testing.T) {
 	client, err := NewOllamaClient(mockServer.server.URL)
 	require.NoError(t, err)
 
-	_, _, err = client.LoadModel(ctx, model, true)
+	_, err = client.LoadModel(ctx, model, true)
 	require.NoError(t, err)
 
 	embeddings, err := client.Embed(ctx, nil)

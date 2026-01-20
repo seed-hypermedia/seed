@@ -27,7 +27,7 @@ type fakeEmbeddingBackend struct {
 	contextSize int
 }
 
-func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool) (int, int, error) {
+func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error) {
 	_ = ctx
 	_ = model
 	_ = force
@@ -36,7 +36,7 @@ func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, forc
 	defer b.mu.Unlock()
 
 	b.loadCalls++
-	return 768, b.contextSize, nil
+	return ModelInfo{Dimensions: 768, ContextSize: b.contextSize}, nil
 }
 
 func (b *fakeEmbeddingBackend) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
