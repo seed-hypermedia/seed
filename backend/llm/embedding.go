@@ -224,11 +224,13 @@ func (e *Embedder) Init(ctx context.Context) {
 }
 
 func (e *Embedder) runOnce(ctx context.Context) error {
-	e.logger.Info("starting embedding indexing run")
-	startTime := time.Now()
-	defer func() {
-		e.logger.Info("embedding indexing run completed", zap.Duration("Elapsed time", time.Since(startTime)))
-	}()
+	/*
+		e.logger.Info("starting embedding indexing run")
+		startTime := time.Now()
+		defer func() {
+			e.logger.Info("embedding indexing run completed", zap.Duration("Elapsed time in seconds", time.Since(startTime)))
+		}()
+	*/
 	if err := e.ensureModel(ctx); err != nil {
 		return err
 	}
