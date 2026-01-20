@@ -21,6 +21,7 @@ import (
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
+	"seed/backend/llm"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
@@ -195,7 +196,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			if _, err := a.taskMgr.DeleteTask(taskID); err != nil {
 				a.log.Warn("failed to delete reindexing task", zap.Error(err))
 			}
-			// TODO: initialise embeddings indexing here.
 			return nil
 		})
 	}
@@ -237,6 +237,10 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.setupLogging(ctx, cfg)
+	err = initLLM(cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	select {
 	case <-ctx.Done():
@@ -400,6 +404,50 @@ func initGRPC(
 	})
 
 	return
+}
+
+func initLLM(
+	cfg config.LLM,
+	db *sqlitex.Pool,
+	log *zap.Logger,
+	tskMgr *taskmanager.TaskManager,
+	ctx context.Context,
+
+) error {
+	if !cfg.Embedding.Enabled {
+		log.Info("LLM embedding indexer is disabled")
+		return nil
+	}
+
+	log.Info("Initializing LLM embedding indexer",
+		zap.String("model", cfg.Embedding.Model),
+		zap.String("documentPrefix", cfg.Embedding.DocumentPrefix),
+		zap.String("queryPrefix", cfg.Embedding.QueryPrefix),
+		zap.Duration("periodicInterval", cfg.Embedding.PeriodicInterval),
+		zap.Duration("sleepBetweenPass", cfg.Embedding.SleepBetweenPass),
+		zap.Int("indexPassSize", cfg.Embedding.IndexPassSize),
+	)
+
+	backend, err := llm.NewOllamaClient(cfg.Backend.Ollama.URL)
+	if err != nil {
+		return err
+	}
+	log.Info("LLM Backend initialized", zap.String("Ollama URL", cfg.Backend.Ollama.URL))
+	embedderOpts := []llm.EmbedderOption{
+
+		llm.WithIndexPassSize(cfg.Embedding.IndexPassSize),
+		llm.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
+		llm.WithQueryPrefix(cfg.Embedding.QueryPrefix),
+		llm.WithSleepPerPass(cfg.Embedding.SleepBetweenPass),
+		llm.WithInterval(cfg.Embedding.PeriodicInterval),
+		llm.WithModel(cfg.Embedding.Model),
+	}
+	embedder, err := llm.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
+	if err != nil {
+		return err
+	}
+	embedder.Init(ctx)
+	return nil
 }
 
 // WithMiddleware generates an grpc option with the given middleware.

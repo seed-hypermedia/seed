@@ -22,10 +22,10 @@ const (
 	// DefaultIndexPassSize is the default number of FTS rows to keep in memory per pass.
 	// After each pass, the embedder sleeps for a short time to avoid starving the CPU.
 	// Adjust the sleep duration via WithSleepPerPass.
-	DefaultEmbeddingIndexPassSize = 100
+	DefaultEmbeddingIndexPassSize = 10
 
 	// DefaultSleepBetweenPass is the default sleep duration after each indexing pass.
-	DefaultEmbeddingSleepBetweenPass = time.Millisecond * 10 // to not starve the CPU.
+	DefaultEmbeddingSleepBetweenPass = time.Millisecond * 500 // to not starve the CPU.
 
 	// DefaultRunInterval is the default wait time after a run finishes before starting the next one.
 	DefaultEmbeddingRunInterval = 1 * time.Minute
@@ -40,8 +40,15 @@ const (
 	minRunInterval = 5 * time.Second
 )
 
+type ModelInfo struct {
+	// Dimensions is the dimensions of the embedding vector.
+	Dimensions int
+
+	// ContextSize is the context size of the model.
+	ContextSize int
+}
 type Backend interface {
-	LoadModel(ctx context.Context, model string, force bool) (int, int, error)
+	LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error)
 	Embed(ctx context.Context, inputs []string) ([][]float32, error)
 	Version(ctx context.Context) (string, error)
 }
@@ -60,6 +67,9 @@ type Embedder struct {
 	contextSize      int
 	modelLoaded      bool
 	initialized      bool
+	documentPrefix   string
+	queryPrefix      string
+	maxChunkLength   int
 	mu               sync.Mutex
 }
 
@@ -116,6 +126,22 @@ func WithModel(model string) EmbedderOption {
 			return errors.New("embedder model name is required")
 		}
 		embedder.model = trimmed
+		return nil
+	}
+}
+
+// WithDocumentPrefix sets the prefix to add to document texts before embedding.
+func WithDocumentPrefix(prefix string) EmbedderOption {
+	return func(embedder *Embedder) error {
+		embedder.documentPrefix = prefix
+		return nil
+	}
+}
+
+// WithQueryPrefix sets the prefix to add to query texts before semantic searching.
+func WithQueryPrefix(prefix string) EmbedderOption {
+	return func(embedder *Embedder) error {
+		embedder.queryPrefix = prefix
 		return nil
 	}
 }
@@ -183,11 +209,13 @@ func (e *Embedder) Init(ctx context.Context) {
 			}
 
 			if e.interval <= 0 {
+				e.logger.Info("embedding indexing completed, not restarting due to non-positive interval")
 				return
 			}
 
 			select {
 			case <-ctx.Done():
+				e.logger.Info("embedding indexing stopped", zap.Error(ctx.Err()))
 				return
 			case <-time.After(e.interval):
 			}
@@ -256,7 +284,6 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		defer release()
 		if err := sqlitex.WithTx(conn, func() error {
 			for _, embedding := range embeddings {
 				if len(embedding.embeddingQuantized) != e.dimensions {
@@ -268,8 +295,10 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 			}
 			return nil
 		}); err != nil {
+			release()
 			return err
 		}
+		release()
 
 		_, _ = e.taskMgr.UpdateProgress(taskID, totalPending, processed)
 		time.Sleep(e.sleepBetweenPass)
@@ -286,32 +315,31 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 	}
 	e.mu.Unlock()
 
-	dimensions, contextSize, err := e.backend.LoadModel(ctx, e.model, e.forceLoad)
+	info, err := e.backend.LoadModel(ctx, e.model, e.forceLoad)
 	if err != nil {
 		return err
 	}
-	if dimensions != embeddingColumnDims {
-		return fmt.Errorf("embedding dimensions mismatch: got %d want %d", dimensions, embeddingColumnDims)
+	if info.Dimensions != embeddingColumnDims {
+		return fmt.Errorf("embedding dimensions mismatch: got %d want %d", info.Dimensions, embeddingColumnDims)
 	}
-	if contextSize <= 0 {
-		return fmt.Errorf("embedding context size invalid: %d", contextSize)
+	if info.ContextSize <= 0 {
+		return fmt.Errorf("embedding context size invalid: %d", info.ContextSize)
 	}
 
 	e.mu.Lock()
-	e.dimensions = dimensions
-	e.contextSize = contextSize
+	e.dimensions = info.Dimensions
+	e.contextSize = info.ContextSize
 	e.modelLoaded = true
+	chunkLen := int(math.Floor(float64(e.contextSize) * 0.9))
+	if chunkLen < 1 {
+		e.maxChunkLength = e.contextSize
+	} else {
+		e.maxChunkLength = chunkLen
+	}
+
 	e.mu.Unlock()
 
 	return nil
-}
-
-func (e *Embedder) maxChunkLength() int {
-	chunkLen := int(math.Floor(float64(e.contextSize) * 0.9))
-	if chunkLen < 1 {
-		return e.contextSize
-	}
-	return chunkLen
 }
 
 type embeddingInput struct {
@@ -329,7 +357,7 @@ func (e *Embedder) embedTexts(ctx context.Context, inputs []embeddingInput) ([]e
 	chunkedInputs := []embeddingInput{}
 	chunkedTexts := []string{}
 	for _, input := range inputs {
-		chunks := chunkText(input.text, e.maxChunkLength())
+		chunks := chunkText(input.text, e.maxChunkLength)
 		for _, chunk := range chunks {
 			chunkedTexts = append(chunkedTexts, chunk)
 			chunkedInputs = append(chunkedInputs, embeddingInput{
@@ -386,18 +414,6 @@ func fetchPending(conn *sqlite.Conn, limit int) ([]embeddingInput, error) {
 	}
 
 	return rows, nil
-}
-
-func updateProcessed(remaining map[int64]int, batch []embeddingInput) int {
-	completed := 0
-	for _, item := range batch {
-		remaining[item.ftsID]--
-		if remaining[item.ftsID] == 0 {
-			completed++
-			delete(remaining, item.ftsID)
-		}
-	}
-	return completed
 }
 
 func chunkText(text string, maxLen int) []string {
@@ -468,7 +484,6 @@ var qEmbeddingsPending = dqb.Str(`
 	SELECT fts.rowid, fts.raw_content
 	FROM fts
 	JOIN pending ON pending.rowid = fts.rowid
-	ORDER BY fts.rowid
 	LIMIT ?;
 `)
 
