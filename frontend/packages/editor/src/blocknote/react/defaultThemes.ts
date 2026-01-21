@@ -1,6 +1,17 @@
 import {Theme} from './index'
 
-export const defaultColorScheme = [
+export const defaultColorScheme: readonly [
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+] = [
   '#FFFFFF',
   '#EFEFEF',
   '#CFCFCF',
@@ -20,40 +31,27 @@ export const lightDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-ignore
       background: defaultColorScheme[0],
     },
     tooltip: {
-      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-ignore
       background: defaultColorScheme[1],
     },
     hovered: {
-      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-ignore
       background: defaultColorScheme[1],
     },
     selected: {
-      // @ts-ignore
       text: defaultColorScheme[0],
-      // @ts-ignore
       background: defaultColorScheme[5],
     },
     disabled: {
-      // @ts-ignore
       text: defaultColorScheme[3],
-      // @ts-ignore
       background: defaultColorScheme[1],
     },
-    // @ts-ignore
     shadow: defaultColorScheme[2],
-    // @ts-ignore
     border: defaultColorScheme[1],
-    // @ts-ignore
     sideMenu: defaultColorScheme[2],
     highlightColors: {
       gray: {
@@ -106,40 +104,27 @@ export const darkDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-ignore
       background: defaultColorScheme[6],
     },
     tooltip: {
-      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-ignore
       background: defaultColorScheme[7],
     },
     hovered: {
-      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-ignore
       background: defaultColorScheme[7],
     },
     selected: {
-      // @ts-ignore
       text: defaultColorScheme[2],
-      // @ts-ignore
       background: defaultColorScheme[8],
     },
     disabled: {
-      // @ts-ignore
       text: defaultColorScheme[5],
-      // @ts-ignore
       background: defaultColorScheme[7],
     },
-    // @ts-ignore
     shadow: defaultColorScheme[8],
-    // @ts-ignore
     border: defaultColorScheme[7],
-    // @ts-ignore
     sideMenu: defaultColorScheme[4],
     highlightColors: {
       gray: {

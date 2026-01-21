@@ -26,35 +26,37 @@ function toHMBlockType(
   return undefined
 }
 
+// Mutable block type for building HMBlock before validation
+type MutableBlock = {
+  id: string
+  type: HMBlockType
+  text: string
+  link?: string
+  annotations: HMAnnotations
+  attributes: Record<string, unknown>
+}
+
 export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   const blockType = toHMBlockType(editorBlock.type)
   if (!blockType) throw new Error('Unsupported block type ' + editorBlock.type)
-  // @ts-expect-error
-  let block: HMBlock = {
+
+  let block: MutableBlock = {
     id: editorBlock.id,
     type: blockType,
-    // @ts-expect-error
-    attributes: {} as HMBlock['attributes'],
+    attributes: {},
     text: '',
     annotations: [],
   }
 
   let leaves = flattenLeaves(editorBlock.content)
 
-  // @ts-expect-error
-  block.annotations = [] as HMAnnotations
-
   if (editorBlock.props.childrenType == 'Group') {
-    // @ts-expect-error
     block.attributes.childrenType = 'Group'
   } else if (editorBlock.props.childrenType == 'Unordered') {
-    // @ts-expect-error
     block.attributes.childrenType = 'Unordered'
   } else if (editorBlock.props.childrenType == 'Ordered') {
-    // @ts-expect-error
     block.attributes.childrenType = 'Ordered'
   } else if (editorBlock.props.childrenType == 'Blockquote') {
-    // @ts-expect-error
     block.attributes.childrenType = 'Blockquote'
   }
 
@@ -62,71 +64,75 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   //   parentBlock.attributes.start = editorBlock.props.start.toString()
   // }
 
-  // @ts-expect-error
-  block.text = ''
-
   const annotations = new AnnotationSet()
 
+  // Type for flattened leaves which all have text property
+  type FlattenedLeaf = {
+    type: 'text' | 'link' | 'inline-embed'
+    text: string
+    styles?: {
+      bold?: boolean
+      italic?: boolean
+      underline?: boolean
+      strike?: boolean
+      code?: boolean
+      math?: boolean
+    }
+    href?: string
+    link?: string
+  }
+
   let pos = 0
-  for (let leaf of leaves) {
+  for (let leaf of leaves as FlattenedLeaf[]) {
     const start = pos
     // TODO: Handle non-text leaves (embed)
-    // @ts-expect-error
     const charCount = codePointLength(leaf.text)
     const end = start + charCount
 
-    // @ts-expect-error
     if (leaf.styles?.bold) {
       annotations.addSpan('Bold', null, start, end)
     }
 
-    // @ts-expect-error
     if (leaf.styles?.italic) {
       annotations.addSpan('Italic', null, start, end)
     }
 
-    // @ts-expect-error
     if (leaf.styles?.underline) {
       annotations.addSpan('Underline', null, start, end)
     }
 
-    // @ts-expect-error
     if (leaf.styles?.strike) {
       annotations.addSpan('Strike', null, start, end)
     }
 
-    // @ts-expect-error
     if (leaf.styles?.code) {
       annotations.addSpan('Code', null, start, end)
     }
 
-    // @ts-expect-error
     if (leaf.styles?.math) {
       annotations.addSpan('Math', null, start, end)
     }
 
     if (leaf.type == 'inline-embed') {
-      annotations.addSpan('Embed', {link: leaf.link}, start, end)
+      annotations.addSpan('Embed', {link: leaf.link!}, start, end)
     }
 
     if (leaf.type == 'link') {
-      annotations.addSpan('Link', {link: leaf.href}, start, end)
+      annotations.addSpan('Link', {link: leaf.href!}, start, end)
     }
 
-    // @ts-expect-error
     block.text += leaf.text
     pos += charCount
   }
 
   let outAnnotations = annotations.list()
   if (outAnnotations) {
-    // @ts-expect-error
     block.annotations = outAnnotations
   }
 
   const blockCode = block.type === 'Code' ? block : undefined
   if (blockCode && editorBlock.type == 'code-block') {
-    blockCode.attributes!.language = editorBlock.props.language
+    blockCode.attributes.language = editorBlock.props.language
   }
 
   const blockImage = block.type === 'Image' ? block : undefined
@@ -242,7 +248,6 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockEmbed = block.type === 'Embed' ? block : undefined
   if (blockEmbed && editorBlock.type == 'embed') {
-    // @ts-expect-error
     block.text = '' // for some reason the text was being set to " " but it should be "" according to the schema
     if (editorBlock.props.url) blockEmbed.link = editorBlock.props.url
     if (editorBlock.props.view)
@@ -253,18 +258,17 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (blockQuery && editorBlock.type == 'query') {
     blockQuery.attributes.style = editorBlock.props.style
     blockQuery.attributes.columnCount = Number(editorBlock.props.columnCount)
-    blockQuery.attributes.query = {
+    const query: {includes: unknown[]; sort: unknown[]; limit?: number} = {
       includes: [],
       sort: [],
     }
     if (editorBlock.props.queryIncludes)
-      blockQuery.attributes.query.includes = JSON.parse(
-        editorBlock.props.queryIncludes,
-      )
+      query.includes = JSON.parse(editorBlock.props.queryIncludes)
     if (editorBlock.props.querySort)
-      blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
+      query.sort = JSON.parse(editorBlock.props.querySort)
     if (editorBlock.props.queryLimit)
-      blockQuery.attributes.query.limit = Number(editorBlock.props.queryLimit)
+      query.limit = Number(editorBlock.props.queryLimit)
+    blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
   }
 
@@ -289,40 +293,36 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 function flattenLeaves(
   content: Array<HMInlineContent>,
 ): Array<HMInlineContent> {
-  let result = []
+  let result: HMInlineContent[] = []
 
   for (let i = 0; i < content.length; i++) {
-    let leaf = content[i]
+    const leaf = content[i]
+    if (!leaf) continue
 
-    // @ts-ignore
     if (leaf.type == 'link') {
-      // @ts-ignore
       let nestedLeaves = flattenLeaves(leaf.content).map(
         (l: HMInlineContent) =>
           ({
             ...l,
-            // @ts-ignore
             href: leaf.href,
             type: 'link',
-          }) as const,
+          }) as HMInlineContent,
       )
       result.push(...nestedLeaves)
     }
-    // @ts-ignore
+
     if (leaf.type == 'inline-embed') {
       result.push({
         ...leaf,
         text: '\uFFFC',
-        // @ts-ignore
         link: leaf.link,
-      } as const)
+      } as unknown as HMInlineContent)
     }
 
-    // @ts-ignore
     if (leaf.type == 'text') {
       result.push(leaf)
     }
   }
 
-  return result as Array<HMInlineContent>
+  return result
 }

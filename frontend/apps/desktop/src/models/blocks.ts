@@ -1,6 +1,16 @@
 import {HMBlock, HMQuery} from '@shm/shared'
 import _ from 'lodash'
 
+// Type for comparing blocks that may have different properties based on their type
+type GenericBlockFields = {
+  id: string
+  type: string
+  text?: string
+  link?: string
+  annotations?: unknown[]
+  attributes?: Record<string, unknown>
+}
+
 export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   if (!b1 || !b2) {
     console.log('Blocks not equal: One or both blocks are null/undefined', {
@@ -11,8 +21,12 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   }
   if (b1 === b2) return true
 
+  // Cast to generic type for property access
+  const block1 = b1 as GenericBlockFields
+  const block2 = b2 as GenericBlockFields
+
   // Helper function to compare annotations, treating undefined and empty arrays as equal
-  const areAnnotationsEqual = (a1?: any[], a2?: any[]) => {
+  const areAnnotationsEqual = (a1?: unknown[], a2?: unknown[]) => {
     if (!a1 && !a2) return true
     if (!a1 && a2?.length === 0) return true
     if (!a2 && a1?.length === 0) return true
@@ -28,14 +42,11 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   }
 
   const checks = {
-    id: b1.id === b2.id,
-    // @ts-expect-error
-    text: isTextEqual(b1.text, b2.text),
-    // @ts-expect-error
-    link: b1.link === b2.link,
-    type: b1.type === b2.type,
-    // @ts-expect-error
-    annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
+    id: block1.id === block2.id,
+    text: isTextEqual(block1.text, block2.text),
+    link: block1.link === block2.link,
+    type: block1.type === block2.type,
+    annotations: areAnnotationsEqual(block1.annotations, block2.annotations),
     attributes: isBlockAttributesEqual(b1, b2),
   }
 
@@ -43,29 +54,23 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   if (!result) {
     console.log('Blocks not equal. Differences found:', {
-      blockId: b1.id,
+      blockId: block1.id,
       differences: Object.entries(checks)
         .filter(([_, isEqual]) => !isEqual)
         .map(([prop]) => ({
           property: prop,
           b1Value:
             prop === 'annotations'
-              ? // @ts-expect-error
-                b1.annotations
+              ? block1.annotations
               : prop === 'attributes'
-              ? // @ts-expect-error
-                b1.attributes
-              : // @ts-expect-error
-                b1[prop],
+              ? block1.attributes
+              : block1[prop as keyof GenericBlockFields],
           b2Value:
             prop === 'annotations'
-              ? // @ts-expect-error
-                b2.annotations
+              ? block2.annotations
               : prop === 'attributes'
-              ? // @ts-expect-error
-                b2.attributes
-              : // @ts-expect-error
-                b2[prop],
+              ? block2.attributes
+              : block2[prop as keyof GenericBlockFields],
         })),
     })
   }
@@ -74,10 +79,12 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  // @ts-expect-error
-  const a1 = b1.attributes
-  // @ts-expect-error
-  const a2 = b2.attributes
+  const a1 = (b1 as GenericBlockFields).attributes as
+    | Record<string, unknown>
+    | undefined
+  const a2 = (b2 as GenericBlockFields).attributes as
+    | Record<string, unknown>
+    | undefined
 
   if (!a1 && !a2) return true
   if (!a1 || !a2) {
@@ -109,7 +116,10 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   const result = attributesToCompare.every((attr) => {
     if (attr === 'query') {
-      return isQueryEqual(a1.query, a2.query)
+      return isQueryEqual(
+        a1.query as HMQuery | undefined,
+        a2.query as HMQuery | undefined,
+      )
     }
     return (
       (a1[attr] === undefined && a2[attr] === undefined) ||
@@ -157,23 +167,22 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
     const include1 = q1.includes[i]
     const include2 = q2.includes[i]
 
-    // @ts-ignore
+    if (!include1 || !include2) return false
     if (include1.mode !== include2.mode) return false
-    // @ts-ignore
     if (include1.path !== include2.path) return false
-    // @ts-ignore
     if (include1.space !== include2.space) return false
   }
 
-  if (q1.sort?.length !== q2.sort?.length) return false
+  const sort1Arr = q1.sort || []
+  const sort2Arr = q2.sort || []
+  if (sort1Arr.length !== sort2Arr.length) return false
 
-  for (let i = 0; i < q1.sort!.length; i++) {
-    const sort1 = q1.sort![i]
-    const sort2 = q2.sort![i]
+  for (let i = 0; i < sort1Arr.length; i++) {
+    const sort1 = sort1Arr[i]
+    const sort2 = sort2Arr[i]
 
-    // @ts-ignore
+    if (!sort1 || !sort2) return false
     if (sort1.reverse !== sort2.reverse) return false
-    // @ts-ignore
     if (sort1.term !== sort2.term) return false
   }
   return true

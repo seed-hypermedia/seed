@@ -159,10 +159,9 @@ export function useDocumentEmbeds(
 
 // TODO: Duplicate (apps/site/server/routers/_app.ts#~187)
 export function sortDocuments(a?: Timestamp, b?: Timestamp) {
-  let dateA = a ? a.toDate() : 0
-  let dateB = b ? b.toDate() : 1
+  let dateA = a ? a.toDate().getTime() : 0
+  let dateB = b ? b.toDate().getTime() : 1
 
-  // @ts-ignore
   return dateB - dateA
 }
 
@@ -188,12 +187,10 @@ function useDraftDiagnosis() {
       client.diagnosis.completeDraftLog.mutate(input),
   })
   return {
-    // @ts-expect-error
-    append(draftId, event) {
+    append(draftId: string, event: unknown) {
       return appendDraft.mutateAsync({draftId, event})
     },
-    // @ts-expect-error
-    complete(draftId, event) {
+    complete(draftId: string, event: unknown) {
       return completeDraft.mutateAsync({draftId, event})
     },
   }
@@ -551,17 +548,14 @@ export function useDraftEditor() {
         return
       const domAtPos = view.domAtPos(selection.from)
       try {
-        // @ts-expect-error
-        const rect: DOMRect = domAtPos.node.getBoundingClientRect()
+        const node = domAtPos.node as HTMLElement
+        const rect: DOMRect = node.getBoundingClientRect()
         // Check if the cursor is off screen
         // if (rect && (rect.top < 0 || rect.top > window.innerHeight)) {
         if (rect && rect.top > window.innerHeight) {
           // Scroll the cursor into view if not caused by media drag
-          // @ts-ignore
-          // @ts-expect-error
-          if (!editor.sideMenu.sideMenuView?.isDragging)
-            // @ts-expect-error
-            domAtPos.node.scrollIntoView({block: 'center'})
+          if (!(editor as any).sideMenu?.sideMenuView?.isDragging)
+            node.scrollIntoView({block: 'center'})
         }
       } catch {}
       return

@@ -22,8 +22,7 @@ export function getDaemonFileUrl(ipfsUrl?: string) {
 export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
   const regex = /^ipfs:\/\/(.+)$/
   const match = cidOrIPFSUrl.match(regex)
-  // @ts-ignore
-  return match ? match[1] : cidOrIPFSUrl
+  return match ? match[1]! : cidOrIPFSUrl
 }
 
 export function EmailContent({notification}: {notification: Notification}) {
@@ -368,16 +367,18 @@ function renderBlock(
   notifUrl: string,
   resolvedNames?: Record<string, string>,
 ) {
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-  const {type, text, annotations, link, attributes} = blockNode.block
+  const block = blockNode.block as {
+    type: string
+    text?: string
+    annotations?: unknown[]
+    link?: string
+    attributes?: Record<string, unknown>
+  }
+  const {type, text, annotations, link, attributes} = block
 
   const innerHtml = renderInlineTextWithAnnotations(
-    text,
-    annotations,
+    text || '',
+    annotations || [],
     resolvedNames,
   )
 
@@ -417,8 +418,7 @@ function renderBlock(
         <MjmlImage
           src={src}
           alt={text || 'Image'}
-          // @ts-ignore
-          width={width}
+          width={width as number}
           paddingBottom="8px"
         />
         {text && (
@@ -473,7 +473,7 @@ function renderBlock(
           Open in Instagram
         </MjmlButton>
       )
-    } else if (link.includes('x.com')) {
+    } else if (link?.includes('x.com')) {
       return (
         <MjmlButton
           href={link}
@@ -488,6 +488,7 @@ function renderBlock(
   }
 
   if (type === 'Button') {
+    const buttonAttrs = attributes as {fields?: {name?: {kind?: {value?: string}}}}
     return (
       <MjmlButton
         href={link}
@@ -495,8 +496,7 @@ function renderBlock(
         fontSize="14px"
         align="left"
       >
-        {/* @ts-ignore */}
-        {attributes.fields?.name?.kind?.value || link}
+        {buttonAttrs.fields?.name?.kind?.value || link}
       </MjmlButton>
     )
   }
@@ -574,44 +574,32 @@ function renderInlineTextWithAnnotations(
     } else if (annotation.type === 'Strike') {
       annotatedText = `<s>${annotatedText}</s>`
     } else if (annotation.type === 'Code') {
-      // @ts-ignore
-      // @ts-ignore
-      // @ts-ignore
       annotatedText = `<code>${annotatedText}</code>`
     } else if (annotation.type === 'Link') {
-      let href = annotation.link
+      let href = annotation.link as string | undefined
       if (href?.startsWith('hm://')) {
-        // @ts-ignore
         const unpacked = unpackHmId(href)
-        // @ts-ignore
-        href = createWebHMUrl(unpacked.uid, {
-          // @ts-ignore
-          path: unpacked.path,
-          // @ts-ignore
-          hostname: unpacked.hostname ?? null,
-        })
+        if (unpacked) {
+          href = createWebHMUrl(unpacked.uid, {
+            path: unpacked.path,
+            hostname: unpacked.hostname ?? null,
+          })
+        }
       }
       annotatedText = `<a href="${href}" style="color: #346DB7;">${annotatedText}</a>`
     } else if (annotation.type === 'Embed') {
-      const resolved = resolvedNames?.[annotation.link] || annotation.link
+      const annotationLink = annotation.link as string | undefined
+      const resolved = resolvedNames?.[annotationLink || ''] || annotationLink
 
-      // @ts-ignore
-      // @ts-ignore
-      // @ts-ignore
-      let href = annotation.link
-      // @ts-ignore
-      // @ts-ignore
-      // @ts-ignore
+      let href = annotationLink
       if (href?.startsWith('hm://')) {
-        // @ts-ignore
         const unpacked = unpackHmId(href)
-        // @ts-ignore
-        href = createWebHMUrl(unpacked.uid, {
-          // @ts-ignore
-          path: unpacked.path,
-          // @ts-ignore
-          hostname: unpacked.hostname ?? null,
-        })
+        if (unpacked) {
+          href = createWebHMUrl(unpacked.uid, {
+            path: unpacked.path,
+            hostname: unpacked.hostname ?? null,
+          })
+        }
       }
       annotatedText = `<a href="${href}" style="color: #008060;">@${resolved}</a>`
     }
