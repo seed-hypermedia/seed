@@ -350,10 +350,7 @@ function DocumentPageContent({
 
   return (
     <div className="flex h-full flex-1 flex-col">
-      <AccessoryLayout
-        panelUI={selectionUI}
-        panelKey={panelKey as any}
-      >
+      <AccessoryLayout panelUI={selectionUI} panelKey={panelKey as any}>
         <MainDocumentPage
           id={docId}
           route={route}

@@ -544,7 +544,10 @@ function DocumentEditor({
             <div ref={elementRef} className="draft-editor w-full flex-1">
               {/* Title section - centered */}
               {!isHomeDoc ? (
-                <div className="mx-auto w-full" style={{maxWidth: mainContentProps.style.maxWidth}}>
+                <div
+                  className="mx-auto w-full"
+                  style={{maxWidth: mainContentProps.style.maxWidth}}
+                >
                   <DraftMetadataEditor
                     draftActor={actor}
                     onEnter={() => {
