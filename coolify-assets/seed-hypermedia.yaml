@@ -50,7 +50,7 @@ services:
     <<: *seed-common
     image: seedhypermedia/site:${SEED_TAG:-latest}
     environment:
-      - SERVICE_FQDN_SEEDWEB
+      - SITE_URL=${SERVICE_URL_SEEDWEB}
       - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
       - SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}
       - LIGHTNING_API_URL=${SEED_LIGHTNING_URL:-https://ln.seed.hyper.media}
@@ -60,8 +60,23 @@ services:
       - "56000:56000/udp"
     volumes:
       - seed-daemon-data:/data:rw
-    command: >
-      sh -c "seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=56001 -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=${SEED_NO_PULL:-false} -p2p.announce-addrs=/dns4/${SERVICE_FQDN_SEEDWEB}/tcp/56000,/dns4/${SERVICE_FQDN_SEEDWEB}/udp/56000/quic-v1 ${SERVICE_URL_SEEDWEB}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HOSTNAME=$$(echo "$$SITE_URL" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*||')
+        exec seed-daemon \
+          -data-dir=/data \
+          -lndhub.mainnet \
+          -p2p.port=56000 \
+          --http.port=56001 \
+          -grpc.port=56002 \
+          -p2p.no-relay=true \
+          -p2p.force-reachability-public=true \
+          -syncing.smart=true \
+          -syncing.no-sync-back=true \
+          -syncing.no-pull=false \
+          -p2p.announce-addrs=/dns4/$$HOSTNAME/tcp/56000,/dns4/$$HOSTNAME/udp/56000/quic-v1 \
+          "$$SITE_URL"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:56001/debug/healthz"]
       interval: 10s
