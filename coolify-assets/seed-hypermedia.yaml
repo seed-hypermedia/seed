@@ -17,6 +17,7 @@ services:
   seed-web:
     <<: *seed-common
     image: seedhypermedia/web:${SEED_TAG:-latest}
+    working_dir: /app/frontend/apps/web
     environment:
       - SERVICE_URL_SEEDWEB_3000
       - SEED_BASE_URL=${SERVICE_URL_SEEDWEB}
@@ -33,7 +34,7 @@ services:
     command:
       - |
         if [ ! -f /data/config.json ]; then
-          echo "{\"availableRegistrationSecret\": \"$$REGISTRATION_SECRET\"}" > /data/config.json
+          echo "{\"availableRegistrationSecret\": \"$$REGISTRATION_SECRET\"}" > /data/config.json || echo "Warning: Could not write config.json"
         fi
         exec npm run start:prod
     depends_on:
