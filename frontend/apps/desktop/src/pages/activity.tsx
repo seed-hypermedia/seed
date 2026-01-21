@@ -1,12 +1,6 @@
-import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CommentBox} from '@/components/commenting'
-import {useDocumentSelection} from '@/components/document-accessory'
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {
-  useDocumentEmbeds,
-  useDocumentRead,
-  useSiteNavigationItems,
-} from '@/models/documents'
+import {useDocumentEmbeds, useSiteNavigationItems} from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
 import {useSelectedAccount} from '@/selected-account'
@@ -14,9 +8,8 @@ import {useNavigate} from '@/utils/useNavigate'
 import {
   ActivityRoute,
   HMDocument,
-  HMResourceFetchResult,
   hmId,
-  PanelSelectionOptions,
+  HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useAccount, useResource} from '@shm/shared/models/entity'
@@ -37,31 +30,6 @@ import {toast} from '@shm/ui/toast'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import React, {useEffect} from 'react'
-
-export default function ActivityPage() {
-  const route = useNavRoute()
-
-  const docId: UnpackedHypermediaId | null =
-    route.key === 'activity' ? route.id : null
-  if (!docId) throw new Error('Invalid route, no document id')
-  if (route.key !== 'activity')
-    throw new Error('Invalid route, key is not activity')
-
-  useDocumentRead(docId)
-
-  const panelKey = route.panel?.key as PanelSelectionOptions | undefined
-  const replace = useNavigate('replace')
-
-  const {selectionUI} = useDocumentSelection({docId})
-
-  return (
-    <div className="flex h-full flex-1 flex-col">
-      <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
-        <ActivityContent id={docId} route={route} />
-      </AccessoryLayout>
-    </div>
-  )
-}
 
 function _ActivityContent({
   id,

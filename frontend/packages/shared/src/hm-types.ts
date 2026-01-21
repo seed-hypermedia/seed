@@ -35,6 +35,10 @@ export const unpackedHmIdSchema = z.object({
 
 export type UnpackedHypermediaId = z.infer<typeof unpackedHmIdSchema>
 
+export type HMExistingDraft = {
+  id: string
+}
+
 export const HMBlockChildrenTypeSchema = z
   .union([
     z.literal('Group'),

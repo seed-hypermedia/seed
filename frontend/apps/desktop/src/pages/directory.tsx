@@ -1,11 +1,6 @@
-import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {useDocumentSelection} from '@/components/document-accessory'
 import {useAllDocumentCapabilities} from '@/models/access-control'
-import {
-  useDocumentEmbeds,
-  useDocumentRead,
-  useSiteNavigationItems,
-} from '@/models/documents'
+import {useDocumentEmbeds, useSiteNavigationItems} from '@/models/documents'
+import {useExistingDraft} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
 import {NewSubDocumentButton, useCanCreateSubDocument} from '@/pages/document'
@@ -15,7 +10,6 @@ import {
   HMDocument,
   hmId,
   HMResourceFetchResult,
-  PanelSelectionOptions,
   UnpackedHypermediaId,
 } from '@shm/shared'
 import {useAccount, useResource} from '@shm/shared/models/entity'
@@ -23,8 +17,8 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {panelContainerStyles} from '@shm/ui/container'
 import {DirectoryPageContent} from '@shm/ui/directory-page'
-import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
+import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {
   PageDiscovery,
   PageNotFound,
@@ -34,31 +28,6 @@ import {SiteHeader} from '@shm/ui/site-header'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
 import React, {useEffect} from 'react'
-
-export default function DirectoryPage() {
-  const route = useNavRoute()
-
-  const docId: UnpackedHypermediaId | null =
-    route.key === 'directory' ? route.id : null
-  if (!docId) throw new Error('Invalid route, no document id')
-  if (route.key !== 'directory')
-    throw new Error('Invalid route, key is not directory')
-
-  useDocumentRead(docId)
-
-  const panelKey = route.panel?.key as PanelSelectionOptions | undefined
-  const replace = useNavigate('replace')
-
-  const {selectionUI} = useDocumentSelection({docId})
-
-  return (
-    <div className="flex h-full flex-1 flex-col">
-      <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
-        <DirectoryContent id={docId} route={route} />
-      </AccessoryLayout>
-    </div>
-  )
-}
 
 function _DirectoryContent({
   id,
@@ -71,6 +40,8 @@ function _DirectoryContent({
   const navigate = useNavigate()
   const canCreate = useCanCreateSubDocument(id)
 
+  const existingDraft = useExistingDraft(route)
+  console.log('~~ Existing draft:', existingDraft)
   // Data for DocumentTools
   const directory = useChildrenActivity(id)
   const {data: collaborators} = useAllDocumentCapabilities(id)
@@ -147,6 +118,7 @@ function _DirectoryContent({
             ? (route.panel.key as 'activity' | 'discussions' | 'collaborators')
             : 'directory'
         }
+        isContentDraft={!!existingDraft}
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
         directoryCount={directory.data?.length}

@@ -43,7 +43,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {AccessoryOptions, DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -338,7 +338,7 @@ export default function DraftPage() {
 // function WelcomePopover({onClose}: {onClose: () => void}) {
 //   return (
 //     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
-//       <div className="p-6 mx-4 max-w-md rounded-lg border shadow-lg bg-background">
+//       <div className="max-w-md p-6 mx-4 border rounded-lg shadow-lg bg-background">
 //         <h2 className="mb-4 text-2xl font-bold">
 //           Congratulations on creating your account! 🎉
 //         </h2>
@@ -353,7 +353,7 @@ export default function DraftPage() {
 //         </div>
 //         <button
 //           onClick={onClose}
-//           className="px-4 py-2 w-full font-semibold rounded-md transition-colors bg-primary text-primary-foreground hover:bg-primary/90"
+//           className="w-full px-4 py-2 font-semibold transition-colors rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
 //         >
 //           Got it, let's start!
 //         </button>
@@ -380,7 +380,6 @@ function DocumentEditor({
   isHomeDoc: boolean
 }) {
   const route = useNavRoute()
-  const navigate = useNavigate()
   const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = useMutation({
@@ -442,48 +441,15 @@ function DocumentEditor({
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
-  function onCommentsClick() {
-    if (editId) {
-      navigate({
-        key: 'document',
-        id: editId,
-        panel: {
-          key:
-            'panel' in route && route.panel?.key == 'discussions'
-              ? undefined
-              : 'discussions',
-        },
-      } as DocumentRoute)
-    }
-  }
-
-  function onFeedClick() {
-    if (editId) {
-      navigate({
-        key: 'document',
-        id: editId,
-        panel: {
-          key:
-            'panel' in route && route.panel?.key == 'activity'
-              ? undefined
-              : 'activity',
-        },
-      } as DocumentRoute)
-    }
-  }
-
   const {data: collaborators} = useAllDocumentCapabilities(id)
   const directory = useChildrenActivity(id)
   console.log('== EDIT ID IN DOC EDITOR', editId)
 
   const documentTools = editId ? (
     <DocumentTools
+      activeTab="draft"
       id={editId}
-      activeTab={
-        route.panel && route.panel.key != 'options'
-          ? route.panel.key
-          : undefined
-      }
+      existingDraft={draftQuery.data || false}
       commentsCount={interactionSummary.data?.comments || 0}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
@@ -565,8 +531,10 @@ function DocumentEditor({
                 documentTools
               ) : id ? (
                 <DocumentTools
+                  activeTab="draft"
                   id={id}
                   rightActions={<DraftActionButtons route={route} />}
+                  existingDraft={draftQuery.data || false}
                 />
               ) : null}
               {/* Editor content - centered with sidebar */}

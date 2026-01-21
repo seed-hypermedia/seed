@@ -1,6 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {AddCollaboratorForm} from '@/components/collaborators-panel'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentUrl} from '@/components/copy-reference-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {
@@ -19,13 +19,13 @@ import {
 import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
-  useAccountDraftList,
   useCreateDraft,
   useDocumentEmbeds,
   useDocumentRead,
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
+import {useExistingDraft} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
 import {useSelectedAccount} from '@/selected-account'
@@ -35,7 +35,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import '@shm/editor/editor.css'
 import {
-  PanelSelectionOptions,
   ActivityRoute,
   CollaboratorsRoute,
   DiscussionsRoute,
@@ -45,12 +44,12 @@ import {
   HMDocument,
   HMResource,
   HMResourceFetchResult,
+  PanelSelectionOptions,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
   getCommentTargetId,
   hmId,
-  pathMatches,
 } from '@shm/shared'
 import {
   CommentsProvider,
@@ -67,6 +66,7 @@ import {
   BlocksContentProvider,
 } from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {
   Popover,
@@ -74,7 +74,6 @@ import {
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
-import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DirectoryPageContent} from '@shm/ui/directory-page'
 import {DiscussionsPageContent} from '@shm/ui/discussions-page'
@@ -90,7 +89,6 @@ import {
   PageNotFound,
   PageRedirected,
 } from '@shm/ui/page-message-states'
-import {PageLayout} from '@shm/ui/page-layout'
 import {SiteHeader} from '@shm/ui/site-header'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -515,6 +513,8 @@ function _MainDocumentPage({
     route.key === 'activity' ? (route as ActivityRoute).filterEventType : null,
   ])
 
+  const existingDraft = useExistingDraft(route)
+
   // @ts-ignore
   if (resource.isInitialLoading) return null
 
@@ -567,6 +567,7 @@ function _MainDocumentPage({
     <DocumentTools
       id={id}
       activeTab={activeMainPanel}
+      existingDraft={existingDraft}
       commentsCount={interactionSummary.data?.comments || 0}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
@@ -1025,7 +1026,7 @@ function EditDocButton() {
   const capability = useSelectedAccountCapability(typedRoute.id)
   const navigate = useNavigate()
 
-  const existingDraft = useExistingDraft(typedRoute)
+  const existingDraft = useExistingDraft(route)
 
   const [popoverVisible, setPopoverVisible] = useState(false)
 
@@ -1038,8 +1039,8 @@ function EditDocButton() {
   const button = (
     <Button
       size="sm"
-      variant={existingDraft ? 'secondary' : 'ghost'}
-      className="mx-2 shadow-sm"
+      variant={existingDraft ? undefined : 'ghost'}
+      className={cn('mx-2 shadow-sm', existingDraft ? 'bg-yellow-200' : '')}
       onClick={() => {
         if (existingDraft) {
           navigate({
@@ -1106,15 +1107,4 @@ function EditDocButton() {
       </Tooltip>
     </>
   )
-}
-
-function useExistingDraft(route: DocumentPageRoute) {
-  const drafts = useAccountDraftList(route.id.uid)
-  const existingDraft = drafts.data?.find((d) => {
-    // @ts-expect-error
-    const id = d.editId
-    if (!id) return false
-    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
-  })
-  return existingDraft
 }

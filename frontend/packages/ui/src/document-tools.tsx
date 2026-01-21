@@ -1,12 +1,13 @@
 import {NavRoute, useRouteLink} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMExistingDraft, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Folder, MessageSquare, Newspaper, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button, ButtonProps} from './button'
 import {HistoryIcon, IconComponent} from './icons'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 export function DocumentTools({
   id,
@@ -15,10 +16,12 @@ export function DocumentTools({
   collabsCount = 0,
   directoryCount = 0,
   rightActions,
+  existingDraft,
 }: {
   id: UnpackedHypermediaId
   /** Which tab is currently active in the main content area */
   activeTab?:
+    | 'draft'
     | 'content'
     | 'activity'
     | 'discussions'
@@ -28,6 +31,7 @@ export function DocumentTools({
   collabsCount?: number
   directoryCount?: number
   rightActions?: React.ReactNode
+  existingDraft?: HMExistingDraft | false
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -71,6 +75,7 @@ export function DocumentTools({
     }
   }, [activeTab])
 
+  const documentRoute: NavRoute = {key: 'document', id}
   const buttons: {
     label: string
     tooltip: string
@@ -78,13 +83,24 @@ export function DocumentTools({
     count?: number
     active: boolean
     route: NavRoute
+    bg?: string
   }[] = [
     {
       label: 'Content',
-      tooltip: 'Open Content',
+      tooltip: existingDraft ? 'Resume Editing' : 'Open Content',
       icon: Newspaper,
-      active: activeTab == 'content',
-      route: {key: 'document', id: id},
+      active: activeTab == 'draft' || activeTab == 'content',
+      route: existingDraft
+        ? activeTab === 'draft'
+          ? documentRoute
+          : {
+              key: 'draft',
+              id: existingDraft.id,
+              editPath: id.path || [],
+              editUid: id.uid,
+            }
+        : documentRoute,
+      bg: existingDraft ? 'bg-yellow-200' : undefined,
     },
     {
       label: 'Activity',
@@ -141,6 +157,7 @@ export function DocumentTools({
               tooltip={button.tooltip}
               icon={button.icon}
               count={button.count}
+              bg={button.bg}
               showLabel
             />
           ))}
@@ -153,6 +170,8 @@ export function DocumentTools({
             label={button.label}
             tooltip={button.tooltip}
             icon={button.icon}
+            count={button.count}
+            bg={button.bg}
             showLabel={showLabels}
           />
         ))}
@@ -175,6 +194,7 @@ function ToolLink({
   icon: Icon,
   active = false,
   showLabel = true,
+  bg,
 }: ButtonProps & {
   route: NavRoute
   label?: string
@@ -183,13 +203,17 @@ function ToolLink({
   tooltip?: string
   active?: boolean
   showLabel?: boolean
+  bg?: string
 }) {
   const linkProps = useRouteLink(route)
   let btn = (
     <Button
-      className={`flex-1 rounded-full ${
-        IS_DESKTOP ? '' : 'plausible-event-name=Open+Document+Comments'
-      }`}
+      className={cn(
+        `flex-1 rounded-full ${
+          IS_DESKTOP ? '' : 'plausible-event-name=Open+Document+Comments'
+        }`,
+        bg,
+      )}
       asChild
       variant={active ? 'accent' : 'ghost'}
     >
@@ -202,5 +226,5 @@ function ToolLink({
       </a>
     </Button>
   )
-  return tooltip ? <Tooltip content={tooltip}>{btn}</Tooltip> : btn
+  return <Tooltip content={active ? '' : tooltip || ''}>{btn}</Tooltip>
 }
