@@ -18,6 +18,7 @@ services:
     <<: *seed-common
     image: seedhypermedia/web:${SEED_TAG:-latest}
     working_dir: /app/frontend/apps/web
+    user: "0:0"
     environment:
       SERVICE_URL_SEEDWEB_3000: ""
       SEED_BASE_URL: ${SERVICE_URL_SEEDWEB}
