@@ -52,7 +52,7 @@ export function NewSubDocumentButton({
             size={size}
             variant="default"
             className="w-full"
-            onClick={createDraft}
+            onClick={() => createDraft()}
           >
             <FilePlus className="size-4" />
             Create

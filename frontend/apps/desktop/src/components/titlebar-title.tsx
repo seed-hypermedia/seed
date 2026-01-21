@@ -4,12 +4,10 @@ import {
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
-import {useComment} from '@/models/comments'
 import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
-import {NewSubDocumentButton} from '@/pages/document'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -59,6 +57,7 @@ import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
+import {NewSubDocumentButton} from './document-accessory'
 import {FavoriteButton} from './favoriting'
 import {DNSInstructions} from './publish-site'
 import {DocOptionsButton} from './titlebar-common'
@@ -233,10 +232,10 @@ function BreadcrumbTitle({
     panel?.key === 'discussions' && panel.openComment
       ? commentIdToHmId(panel.openComment)
       : null
-  const comment = useComment(openCommentId)
-  const commentAuthorId = comment.data?.author
-    ? hmId(comment.data.author)
-    : null
+  const comment = useResource(openCommentId)
+  const commentData =
+    comment.data?.type === 'comment' ? comment.data.comment : null
+  const commentAuthorId = commentData?.author ? hmId(commentData.author) : null
   const commentAuthor = useAccount(commentAuthorId?.uid, {
     enabled: !!commentAuthorId,
   })
