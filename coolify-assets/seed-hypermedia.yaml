@@ -19,15 +19,15 @@ services:
     image: seedhypermedia/web:${SEED_TAG:-latest}
     working_dir: /app/frontend/apps/web
     environment:
-      - SERVICE_URL_SEEDWEB_3000
-      - SEED_BASE_URL=${SERVICE_URL_SEEDWEB}
-      - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
-      - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
-      - SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}
-      - DAEMON_HTTP_URL=http://seed-daemon:56001
-      - PORT=3000
-      - DATA_DIR=/data
-      - REGISTRATION_SECRET=${SERVICE_PASSWORD_SEEDWEB}
+      SERVICE_URL_SEEDWEB_3000: ""
+      SEED_BASE_URL: ${SERVICE_URL_SEEDWEB}
+      NOTIFY_SERVICE_HOST: ${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
+      SEED_IS_GATEWAY: ${SEED_IS_GATEWAY:-false}
+      SEED_ENABLE_STATISTICS: ${SEED_ENABLE_STATISTICS:-false}
+      DAEMON_HTTP_URL: http://seed-daemon:56001
+      PORT: "3000"
+      DATA_DIR: /data
+      REGISTRATION_SECRET: ${SERVICE_PASSWORD_SEEDWEB}
     volumes:
       - seed-web-data:/data:rw
     entrypoint: ["/bin/sh", "-c"]
@@ -51,11 +51,11 @@ services:
     <<: *seed-common
     image: seedhypermedia/site:${SEED_TAG:-latest}
     environment:
-      - SITE_URL=${SERVICE_URL_SEEDWEB}
-      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
-      - SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}
-      - LIGHTNING_API_URL=${SEED_LIGHTNING_URL:-https://ln.seed.hyper.media}
-      - SENTRY_DSN=${SEED_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}
+      SITE_URL: ${SERVICE_URL_SEEDWEB}
+      SEED_P2P_TESTNET_NAME: ${SEED_P2P_TESTNET_NAME:-}
+      SEED_LOG_LEVEL: ${SEED_LOG_LEVEL:-info}
+      LIGHTNING_API_URL: ${SEED_LIGHTNING_URL:-https://ln.seed.hyper.media}
+      SENTRY_DSN: ${SEED_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}
     ports:
       - "56000:56000/tcp"
       - "56000:56000/udp"
