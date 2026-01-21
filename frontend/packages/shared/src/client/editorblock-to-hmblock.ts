@@ -132,7 +132,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
 
   const blockCode = block.type === 'Code' ? block : undefined
   if (blockCode && editorBlock.type == 'code-block') {
-    blockCode.attributes!.language = editorBlock.props.language
+    blockCode.attributes.language = editorBlock.props.language
   }
 
   const blockImage = block.type === 'Image' ? block : undefined
@@ -258,18 +258,17 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
   if (blockQuery && editorBlock.type == 'query') {
     blockQuery.attributes.style = editorBlock.props.style
     blockQuery.attributes.columnCount = Number(editorBlock.props.columnCount)
-    blockQuery.attributes.query = {
+    const query: {includes: unknown[]; sort: unknown[]; limit?: number} = {
       includes: [],
       sort: [],
     }
     if (editorBlock.props.queryIncludes)
-      blockQuery.attributes.query.includes = JSON.parse(
-        editorBlock.props.queryIncludes,
-      )
+      query.includes = JSON.parse(editorBlock.props.queryIncludes)
     if (editorBlock.props.querySort)
-      blockQuery.attributes.query.sort = JSON.parse(editorBlock.props.querySort)
+      query.sort = JSON.parse(editorBlock.props.querySort)
     if (editorBlock.props.queryLimit)
-      blockQuery.attributes.query.limit = Number(editorBlock.props.queryLimit)
+      query.limit = Number(editorBlock.props.queryLimit)
+    blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
   }
 
@@ -297,7 +296,8 @@ function flattenLeaves(
   let result: HMInlineContent[] = []
 
   for (let i = 0; i < content.length; i++) {
-    let leaf = content[i]!
+    const leaf = content[i]
+    if (!leaf) continue
 
     if (leaf.type == 'link') {
       let nestedLeaves = flattenLeaves(leaf.content).map(

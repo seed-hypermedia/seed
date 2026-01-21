@@ -1,6 +1,9 @@
 import {Theme} from './index'
 
-export const defaultColorScheme = [
+export const defaultColorScheme: readonly [
+  string, string, string, string, string,
+  string, string, string, string, string,
+] = [
   '#FFFFFF',
   '#EFEFEF',
   '#CFCFCF',
@@ -20,28 +23,28 @@ export const lightDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      text: defaultColorScheme[5]!,
-      background: defaultColorScheme[0]!,
+      text: defaultColorScheme[5],
+      background: defaultColorScheme[0],
     },
     tooltip: {
-      text: defaultColorScheme[5]!,
-      background: defaultColorScheme[1]!,
+      text: defaultColorScheme[5],
+      background: defaultColorScheme[1],
     },
     hovered: {
-      text: defaultColorScheme[5]!,
-      background: defaultColorScheme[1]!,
+      text: defaultColorScheme[5],
+      background: defaultColorScheme[1],
     },
     selected: {
-      text: defaultColorScheme[0]!,
-      background: defaultColorScheme[5]!,
+      text: defaultColorScheme[0],
+      background: defaultColorScheme[5],
     },
     disabled: {
-      text: defaultColorScheme[3]!,
-      background: defaultColorScheme[1]!,
+      text: defaultColorScheme[3],
+      background: defaultColorScheme[1],
     },
-    shadow: defaultColorScheme[2]!,
-    border: defaultColorScheme[1]!,
-    sideMenu: defaultColorScheme[2]!,
+    shadow: defaultColorScheme[2],
+    border: defaultColorScheme[1],
+    sideMenu: defaultColorScheme[2],
     highlightColors: {
       gray: {
         text: '#9b9a97',
@@ -93,28 +96,28 @@ export const darkDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      text: defaultColorScheme[2]!,
-      background: defaultColorScheme[6]!,
+      text: defaultColorScheme[2],
+      background: defaultColorScheme[6],
     },
     tooltip: {
-      text: defaultColorScheme[2]!,
-      background: defaultColorScheme[7]!,
+      text: defaultColorScheme[2],
+      background: defaultColorScheme[7],
     },
     hovered: {
-      text: defaultColorScheme[2]!,
-      background: defaultColorScheme[7]!,
+      text: defaultColorScheme[2],
+      background: defaultColorScheme[7],
     },
     selected: {
-      text: defaultColorScheme[2]!,
-      background: defaultColorScheme[8]!,
+      text: defaultColorScheme[2],
+      background: defaultColorScheme[8],
     },
     disabled: {
-      text: defaultColorScheme[5]!,
-      background: defaultColorScheme[7]!,
+      text: defaultColorScheme[5],
+      background: defaultColorScheme[7],
     },
-    shadow: defaultColorScheme[8]!,
-    border: defaultColorScheme[7]!,
-    sideMenu: defaultColorScheme[4]!,
+    shadow: defaultColorScheme[8],
+    border: defaultColorScheme[7],
+    sideMenu: defaultColorScheme[4],
     highlightColors: {
       gray: {
         text: '#bebdb8',

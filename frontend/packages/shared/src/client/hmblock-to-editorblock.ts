@@ -290,11 +290,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   // Creates a new leaf, and makes it current.
   // Uses annotations current position belongs to.
   function startLeaf(posAnnotations: Set<HMAnnotation>) {
-    leaf = {
+    const newLeaf: EditorText = {
       type: 'text',
       text: '',
       styles: {},
     }
+    leaf = newLeaf
 
     type CustomAnnotation = {
       type: string
@@ -327,8 +328,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
           annotationData.type,
         )
       ) {
-        const styleKey = annotationData.type.toLowerCase() as keyof typeof leaf.styles
-        ;(leaf!.styles as Record<string, boolean>)[styleKey] = true
+        const styleKey = annotationData.type.toLowerCase()
+        ;(newLeaf.styles as Record<string, boolean>)[styleKey] = true
       }
 
       // if (l.type === 'color') {
@@ -477,7 +478,9 @@ export function annotationContains(
     mid = Math.floor((low + high) / 2)
     // Binary search. If the midpoint span ends before the position
     // we're checking — we drop the left side of the array entirely.
-    if (annotation.ends[mid]! <= pos) {
+    const endAtMid = annotation.ends[mid]
+    if (endAtMid === undefined) break
+    if (endAtMid <= pos) {
       low = mid + 1
     } else {
       high = mid - 1
@@ -488,7 +491,10 @@ export function annotationContains(
     return -1
   }
 
-  if (annotation.starts[low]! <= pos && pos < annotation.ends[low]!) {
+  const startAtLow = annotation.starts[low]
+  const endAtLow = annotation.ends[low]
+  if (startAtLow !== undefined && endAtLow !== undefined &&
+      startAtLow <= pos && pos < endAtLow) {
     return low
   }
 

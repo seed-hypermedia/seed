@@ -208,7 +208,7 @@ export function compareBlocksWithMap(
             case: 'moveBlock',
             value: {
               blockId: block.id,
-              leftSibling: idx > 0 ? blocks[idx - 1]!.id : '',
+              leftSibling: idx > 0 ? (blocks[idx - 1]?.id ?? '') : '',
               parent: parentId,
             },
           },
@@ -221,7 +221,7 @@ export function compareBlocksWithMap(
         }),
       )
     } else {
-      let left = idx > 0 ? blocks[idx - 1]!.id : ''
+      let left = idx > 0 ? (blocks[idx - 1]?.id ?? '') : ''
       if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
         changes.push(
           new DocumentChange({
@@ -403,7 +403,7 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
   // Helper function to check if a single attribute is equal
   const isAttributeEqual = (attr: string) => {
     if (attr === 'query') {
-      return isQueryEqual(a1.query, a2.query)
+      return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
     }
     return (
       (a1[attr] === undefined && a2[attr] === undefined) ||
@@ -447,9 +447,10 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
 
   // Deep compare each include item
   for (let i = 0; i < includes1.length; i++) {
-    const include1 = includes1[i]!
-    const include2 = includes2[i]!
+    const include1 = includes1[i]
+    const include2 = includes2[i]
 
+    if (!include1 || !include2) return false
     if (include1.mode !== include2.mode) return false
     if (include1.path !== include2.path) return false
     if (include1.space !== include2.space) return false
@@ -457,14 +458,16 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
 
   // Note: The sort comparison above with _.isEqual should already handle this,
   // but keeping the explicit loop for consistency
-  if ((q1.sort?.length || 0) !== (q2.sort?.length || 0)) return false
+  const sort1Arr = q1.sort || []
+  const sort2Arr = q2.sort || []
+  if (sort1Arr.length !== sort2Arr.length) return false
 
-  for (let i = 0; i < (q1.sort?.length || 0); i++) {
-    const sort1 = q1.sort![i]!
-    const sort2 = q2.sort![i]!
+  for (let i = 0; i < sort1Arr.length; i++) {
+    const sort1 = sort1Arr[i]
+    const sort2 = sort2Arr[i]
 
+    if (!sort1 || !sort2) return false
     if (sort1.reverse !== sort2.reverse) return false
-
     if (sort1.term !== sort2.term) return false
   }
   return true

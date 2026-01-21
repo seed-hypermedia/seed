@@ -161,20 +161,24 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
 
   // Deep compare each include item
   for (let i = 0; i < q1.includes.length; i++) {
-    const include1 = q1.includes[i]!
-    const include2 = q2.includes[i]!
+    const include1 = q1.includes[i]
+    const include2 = q2.includes[i]
 
+    if (!include1 || !include2) return false
     if (include1.mode !== include2.mode) return false
     if (include1.path !== include2.path) return false
     if (include1.space !== include2.space) return false
   }
 
-  if (q1.sort?.length !== q2.sort?.length) return false
+  const sort1Arr = q1.sort || []
+  const sort2Arr = q2.sort || []
+  if (sort1Arr.length !== sort2Arr.length) return false
 
-  for (let i = 0; i < q1.sort!.length; i++) {
-    const sort1 = q1.sort![i]!
-    const sort2 = q2.sort![i]!
+  for (let i = 0; i < sort1Arr.length; i++) {
+    const sort1 = sort1Arr[i]
+    const sort2 = sort2Arr[i]
 
+    if (!sort1 || !sort2) return false
     if (sort1.reverse !== sort2.reverse) return false
     if (sort1.term !== sort2.term) return false
   }
