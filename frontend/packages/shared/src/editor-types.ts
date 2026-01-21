@@ -11,6 +11,7 @@ export type EditorBlock =
   | EditorEmbedBlock
   | EditorWebEmbedBlock
   | EditorMathBlock
+  | EditorMermaidBlock
   | EditorNostrBlock
   | EditorQueryBlock
 export type HMInlineContent = EditorText | EditorInlineEmbed | EditorLink
@@ -106,6 +107,11 @@ export interface EditorEmbedBlock extends EditorBaseBlock {
 
 export interface EditorMathBlock extends EditorBaseBlock {
   type: 'math'
+  content: Array<HMInlineContent>
+}
+
+export interface EditorMermaidBlock extends EditorBaseBlock {
+  type: 'mermaid'
   content: Array<HMInlineContent>
 }
 

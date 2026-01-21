@@ -7,6 +7,7 @@ import {
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
+  EditorMermaidBlock,
   EditorQueryBlock,
   EditorVideoBlock,
   EditorWebEmbedBlock,
@@ -18,6 +19,7 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
+  HMBlockMermaid,
   HMBlockQuery,
   HMBlockWebEmbed,
 } from '../../hm-types'
@@ -461,6 +463,66 @@ describe('EditorBlock to HMBlock', () => {
         id: 'foo',
         type: 'Math',
         text: `MATH HERE`,
+        annotations: [],
+        attributes: {},
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('mermaid', () => {
+      const editorBlock: EditorMermaidBlock = {
+        id: 'foo',
+        type: 'mermaid',
+        children: [],
+        props: {},
+        content: [
+          {
+            type: 'text',
+            text: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Result 1]
+    B -->|No| D[Result 2]`,
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockMermaid = {
+        id: 'foo',
+        type: 'Mermaid',
+        text: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Result 1]
+    B -->|No| D[Result 2]`,
+        annotations: [],
+        attributes: {},
+      }
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect(val).toEqual(result)
+    })
+
+    test('mermaid empty', () => {
+      const editorBlock: EditorMermaidBlock = {
+        id: 'foo',
+        type: 'mermaid',
+        children: [],
+        props: {},
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+      }
+
+      const result: HMBlockMermaid = {
+        id: 'foo',
+        type: 'Mermaid',
+        text: '',
         annotations: [],
         attributes: {},
       }

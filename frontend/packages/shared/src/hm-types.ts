@@ -254,6 +254,15 @@ export const HMBlockMathSchema = z
   })
   .strict()
 
+export const HMBlockMermaidSchema = z
+  .object({
+    type: z.literal('Mermaid'),
+    ...blockBaseProperties,
+    attributes: z.object(parentBlockAttributes).optional().default({}),
+    text: z.string().default(''),
+  })
+  .strict()
+
 export function toNumber(value: any): number | null {
   // If it's already a number, return it directly
   if (typeof value == 'number' && !isNaN(value)) {
@@ -461,6 +470,15 @@ export type HMPublishableBlockMath = {
   children?: HMPublishableBlock[]
 }
 
+export type HMPublishableBlockMermaid = {
+  id: string
+  type: 'Mermaid'
+  text: string
+  annotations: HMPublishableAnnotation[]
+  childrenType?: HMBlockChildrenType
+  children?: HMPublishableBlock[]
+}
+
 export type HMPublishableBlockImage = {
   id: string
   type: 'Image'
@@ -520,6 +538,7 @@ export type HMPublishableBlock =
   | HMPublishableBlockParagraph
   | HMPublishableBlockHeading
   | HMPublishableBlockMath
+  | HMPublishableBlockMermaid
   | HMPublishableBlockCode
   | HMPublishableBlockImage
   | HMPublishableBlockVideo
@@ -1114,6 +1133,7 @@ export const HMBlockKnownSchema = z.discriminatedUnion('type', [
   HMBlockHeadingSchema,
   HMBlockCodeSchema,
   HMBlockMathSchema,
+  HMBlockMermaidSchema,
   HMBlockImageSchema,
   HMBlockVideoSchema,
   HMBlockFileSchema,
@@ -1145,6 +1165,7 @@ export type HMBlockParagraph = z.infer<typeof HMBlockParagraphSchema>
 export type HMBlockHeading = z.infer<typeof HMBlockHeadingSchema>
 export type HMBlockCode = z.infer<typeof HMBlockCodeSchema>
 export type HMBlockMath = z.infer<typeof HMBlockMathSchema>
+export type HMBlockMermaid = z.infer<typeof HMBlockMermaidSchema>
 export type HMBlockImage = z.infer<typeof HMBlockImageSchema>
 export type HMBlockVideo = z.infer<typeof HMBlockVideoSchema>
 export type HMBlockFile = z.infer<typeof HMBlockFileSchema>

@@ -16,6 +16,7 @@ function toHMBlockType(
   if (editorBlockType === 'paragraph') return 'Paragraph'
   if (editorBlockType === 'code-block') return 'Code'
   if (editorBlockType === 'math') return 'Math'
+  if (editorBlockType === 'mermaid') return 'Mermaid'
   if (editorBlockType === 'image') return 'Image'
   if (editorBlockType === 'video') return 'Video'
   if (editorBlockType === 'file') return 'File'

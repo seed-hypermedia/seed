@@ -9,6 +9,7 @@ import {FileBlock} from './file'
 import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
+import {MermaidBlock} from './mermaid'
 import CodeBlockLowlight from './tiptap-extension-code-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
@@ -40,6 +41,7 @@ export const hmBlockSchema: BlockSchema = {
   video: VideoBlock,
   button: ButtonBlock,
   math: MathBlock('math'),
+  mermaid: MermaidBlock,
   ['web-embed']: WebEmbed,
   embed: EmbedBlock,
   // nostr: NostrBlock,

@@ -10,6 +10,7 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
+  HMBlockMermaid,
   HMBlockNode,
   HMBlockParagraph,
   HMBlockQuery,
@@ -1091,6 +1092,10 @@ function BlockContent(props: BlockContentProps) {
 
   if (props.block.type == 'Math') {
     return <BlockContentMath {...props} {...dataProps} block={props.block} />
+  }
+
+  if (props.block.type == 'Mermaid') {
+    return <BlockContentMermaid {...props} {...dataProps} block={props.block} />
   }
 
   if (props.block.type == 'Query') {
@@ -2732,6 +2737,100 @@ export function BlockContentMath({
         )}
         dangerouslySetInnerHTML={{__html: tex || ''}}
       />
+    </div>
+  )
+}
+
+export function BlockContentMermaid({
+  block,
+  parentBlockId,
+  ...props
+}: BlockContentProps<HMBlockMermaid>) {
+  const {layoutUnit} = useBlocksContentContext()
+  const [svgContent, setSvgContent] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
+  const [showCode, setShowCode] = useState(false)
+  const mermaidRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const renderMermaid = async () => {
+      if (!block.text) {
+        setError(null)
+        setSvgContent('')
+        return
+      }
+
+      try {
+        // Dynamic import to avoid SSR issues
+        const mermaid = (await import('mermaid')).default
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+        })
+
+        const id = `mermaid-read-${block.id}-${Date.now()}`
+        const {svg} = await mermaid.render(id, block.text)
+        setSvgContent(svg)
+        setError(null)
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Invalid diagram'
+        setError(errorMessage)
+        setSvgContent('')
+      }
+    }
+
+    renderMermaid()
+  }, [block.text, block.id])
+
+  return (
+    <div
+      {...props}
+      data-content-type="mermaid"
+      data-content={block.text}
+      className={cn(
+        'block-content block-mermaid bg-background border-border w-full gap-2 rounded-md border py-3',
+        blockStyles,
+      )}
+      style={{
+        padding: layoutUnit / 2,
+        marginLeft: (-1 * layoutUnit) / 2,
+        marginRight: (-1 * layoutUnit) / 2,
+      }}
+    >
+      {error ? (
+        <div className="w-full rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+          <p className="font-mono text-sm">Mermaid Error: {error}</p>
+          <pre className="mt-2 max-h-40 overflow-auto rounded bg-red-50 p-2 text-xs dark:bg-red-950/50">
+            <code>{block.text}</code>
+          </pre>
+        </div>
+      ) : svgContent ? (
+        <div className="flex w-full flex-col gap-2">
+          <div
+            ref={mermaidRef}
+            className="mermaid-diagram flex w-full items-center justify-center overflow-auto"
+            dangerouslySetInnerHTML={{__html: svgContent}}
+          />
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCode(!showCode)}
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              {showCode ? 'Hide Code' : 'View Code'}
+            </Button>
+          </div>
+          {showCode && (
+            <pre className="bg-muted max-h-60 overflow-auto rounded-md p-3">
+              <code className="font-mono text-sm">{block.text}</code>
+            </pre>
+          )}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-center">Empty Mermaid block</p>
+      )}
     </div>
   )
 }
