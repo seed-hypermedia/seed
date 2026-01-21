@@ -208,7 +208,7 @@ export function compareBlocksWithMap(
             case: 'moveBlock',
             value: {
               blockId: block.id,
-              leftSibling: idx > 0 ? (blocks[idx - 1]?.id ?? '') : '',
+              leftSibling: idx > 0 ? blocks[idx - 1]?.id ?? '' : '',
               parent: parentId,
             },
           },
@@ -221,7 +221,7 @@ export function compareBlocksWithMap(
         }),
       )
     } else {
-      let left = idx > 0 ? (blocks[idx - 1]?.id ?? '') : ''
+      let left = idx > 0 ? blocks[idx - 1]?.id ?? '' : ''
       if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
         changes.push(
           new DocumentChange({
@@ -403,7 +403,10 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
   // Helper function to check if a single attribute is equal
   const isAttributeEqual = (attr: string) => {
     if (attr === 'query') {
-      return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
+      return isQueryEqual(
+        a1.query as HMQuery | undefined,
+        a2.query as HMQuery | undefined,
+      )
     }
     return (
       (a1[attr] === undefined && a2[attr] === undefined) ||

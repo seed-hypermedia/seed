@@ -1,8 +1,16 @@
 import {Theme} from './index'
 
 export const defaultColorScheme: readonly [
-  string, string, string, string, string,
-  string, string, string, string, string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
 ] = [
   '#FFFFFF',
   '#EFEFEF',

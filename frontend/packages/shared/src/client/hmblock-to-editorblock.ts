@@ -488,8 +488,12 @@ export function annotationContains(
 
   const startAtLow = annotation.starts[low]
   const endAtLow = annotation.ends[low]
-  if (startAtLow !== undefined && endAtLow !== undefined &&
-      startAtLow <= pos && pos < endAtLow) {
+  if (
+    startAtLow !== undefined &&
+    endAtLow !== undefined &&
+    startAtLow <= pos &&
+    pos < endAtLow
+  ) {
     return low
   }
 
