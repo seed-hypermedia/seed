@@ -1,12 +1,12 @@
+import {PanelSelectionOptions} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
-import type {AccessoryOptions} from '@shm/shared'
 
 describe('accessory shortcut logic', () => {
   describe('navigation guard - accessory availability check', () => {
     it('should return undefined when no accessory at index', () => {
       const accessoryOptions = [
-        {key: 'activity' as AccessoryOptions, label: 'Activity'},
-        {key: 'discussions' as AccessoryOptions, label: 'Discussions'},
+        {key: 'activity' as PanelSelectionOptions, label: 'Activity'},
+        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'},
       ]
 
       const result = accessoryOptions[2] // Out of bounds
@@ -15,8 +15,8 @@ describe('accessory shortcut logic', () => {
 
     it('should return accessory when index is valid', () => {
       const accessoryOptions = [
-        {key: 'activity' as AccessoryOptions, label: 'Activity'},
-        {key: 'discussions' as AccessoryOptions, label: 'Discussions'},
+        {key: 'activity' as PanelSelectionOptions, label: 'Activity'},
+        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'},
       ]
 
       const result = accessoryOptions[0]
@@ -25,7 +25,7 @@ describe('accessory shortcut logic', () => {
 
     it('should handle empty accessory options array', () => {
       const accessoryOptions: Array<{
-        key: AccessoryOptions
+        key: PanelSelectionOptions
         label: string
       }> = []
 
@@ -36,28 +36,28 @@ describe('accessory shortcut logic', () => {
 
   describe('toggle logic - open vs close', () => {
     it('should determine to close when current key matches target key', () => {
-      const currentAccessoryKey: AccessoryOptions = 'activity'
-      const targetAccessoryKey: AccessoryOptions = 'activity'
+      const currentSelectionKey: PanelSelectionOptions = 'activity'
+      const targetSelectionKey: PanelSelectionOptions = 'activity'
 
-      const shouldClose = currentAccessoryKey === targetAccessoryKey
+      const shouldClose = currentSelectionKey === targetSelectionKey
       expect(shouldClose).toBe(true)
     })
 
     it('should determine to open when current key does not match target key', () => {
-      const currentAccessoryKey: AccessoryOptions | undefined =
-        'activity' as AccessoryOptions
-      const targetAccessoryKey: AccessoryOptions =
-        'discussions' as AccessoryOptions
+      const currentSelectionKey: PanelSelectionOptions | undefined =
+        'activity' as PanelSelectionOptions
+      const targetSelectionKey: PanelSelectionOptions =
+        'discussions' as PanelSelectionOptions
 
-      const shouldClose = currentAccessoryKey === targetAccessoryKey
+      const shouldClose = currentSelectionKey === targetSelectionKey
       expect(shouldClose).toBe(false)
     })
 
     it('should determine to open when no accessory is currently open', () => {
-      const currentAccessoryKey: AccessoryOptions | undefined = undefined
-      const targetAccessoryKey: AccessoryOptions = 'activity'
+      const currentSelectionKey: PanelSelectionOptions | undefined = undefined
+      const targetSelectionKey: PanelSelectionOptions = 'activity'
 
-      const shouldClose = currentAccessoryKey === targetAccessoryKey
+      const shouldClose = currentSelectionKey === targetSelectionKey
       expect(shouldClose).toBe(false)
     })
   })
@@ -86,44 +86,43 @@ describe('accessory shortcut logic', () => {
   })
 
   describe('route accessory key extraction', () => {
-    it('should extract accessory key from document route', () => {
+    it('should extract selection key from document route', () => {
       const route = {
         key: 'document' as const,
         id: {uid: 'test'},
-        accessory: {key: 'activity' as AccessoryOptions},
+        selection: {key: 'activity' as PanelSelectionOptions},
       }
 
-      const accessoryKey =
-        route.key === 'document' ? route.accessory?.key : undefined
-      expect(accessoryKey).toBe('activity')
+      const panelKey =
+        route.key === 'document' ? route.selection?.key : undefined
+      expect(panelKey).toBe('activity')
     })
 
-    it('should extract accessory key from draft route', () => {
+    it('should extract selection key from draft route', () => {
       const route = {
         key: 'draft' as const,
         id: 'test-draft',
-        accessory: {key: 'discussions' as AccessoryOptions},
+        selection: {key: 'discussions' as PanelSelectionOptions},
       }
 
-      const accessoryKey =
-        route.key === 'draft' ? route.accessory?.key : undefined
-      expect(accessoryKey).toBe('discussions')
+      const panelKey = route.key === 'draft' ? route.selection?.key : undefined
+      expect(panelKey).toBe('discussions')
     })
 
-    it('should return undefined when no accessory in route', () => {
+    it('should return undefined when no selection in route', () => {
       const route: {
         key: 'document'
         id: {uid: string}
-        accessory?: {key: AccessoryOptions} | null
+        selection?: {key: PanelSelectionOptions} | null
       } = {
         key: 'document' as const,
         id: {uid: 'test'},
-        accessory: null,
+        selection: null,
       }
 
-      const accessoryKey =
-        route.key === 'document' ? route.accessory?.key : undefined
-      expect(accessoryKey).toBeUndefined()
+      const panelKey =
+        route.key === 'document' ? route.selection?.key : undefined
+      expect(panelKey).toBeUndefined()
     })
 
     it('should return undefined for non-document/draft routes', () => {
@@ -132,36 +131,36 @@ describe('accessory shortcut logic', () => {
         | {
             key: 'document'
             id: {uid: string}
-            accessory?: {key: AccessoryOptions}
+            selection?: {key: PanelSelectionOptions}
           }
-        | {key: 'draft'; id: string; accessory?: {key: AccessoryOptions}}
+        | {key: 'draft'; id: string; selection?: {key: PanelSelectionOptions}}
 
       const route: Route = {
         key: 'feed',
       }
 
-      function getAccessoryKey(r: Route): AccessoryOptions | undefined {
+      function getSelectionKey(r: Route): PanelSelectionOptions | undefined {
         if (r.key === 'document') {
-          return r.accessory?.key
+          return r.selection?.key
         } else if (r.key === 'draft') {
-          return r.accessory?.key
+          return r.selection?.key
         }
         return undefined
       }
 
-      const accessoryKey = getAccessoryKey(route)
-      expect(accessoryKey).toBeUndefined()
+      const panelKey = getSelectionKey(route)
+      expect(panelKey).toBeUndefined()
     })
   })
 
   describe('accessory options order', () => {
     it('should maintain order for shortcut mapping', () => {
       const accessoryOptions = [
-        {key: 'activity' as AccessoryOptions, label: 'Activity'}, // Cmd+1 → index 0
-        {key: 'discussions' as AccessoryOptions, label: 'Discussions'}, // Cmd+2 → index 1
-        {key: 'collaborators' as AccessoryOptions, label: 'Collaborators'}, // Cmd+3 → index 2
-        {key: 'directory' as AccessoryOptions, label: 'Directory'}, // Cmd+4 → index 3
-        {key: 'options' as AccessoryOptions, label: 'Options'}, // Cmd+5 → index 4
+        {key: 'activity' as PanelSelectionOptions, label: 'Activity'}, // Cmd+1 → index 0
+        {key: 'discussions' as PanelSelectionOptions, label: 'Discussions'}, // Cmd+2 → index 1
+        {key: 'collaborators' as PanelSelectionOptions, label: 'Collaborators'}, // Cmd+3 → index 2
+        {key: 'directory' as PanelSelectionOptions, label: 'Directory'}, // Cmd+4 → index 3
+        {key: 'options' as PanelSelectionOptions, label: 'Options'}, // Cmd+5 → index 4
       ]
 
       expect(accessoryOptions[0].key).toBe('activity')

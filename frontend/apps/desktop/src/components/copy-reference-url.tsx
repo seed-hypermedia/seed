@@ -1,6 +1,5 @@
 import {usePushResource} from '@/models/documents'
-import {UnpackedHypermediaId} from '@shm/shared'
-import {createWebHMUrl} from '@shm/shared/utils/entity-id-url'
+import {NavRoute, routeToUrl, UnpackedHypermediaId} from '@shm/shared'
 import {NavigationContext} from '@shm/shared/utils/navigation'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
@@ -27,16 +26,13 @@ export function useCopyReferenceUrl(
   })
   const pushOnCopy = usePushOnCopy()
   const pushResource = usePushResource()
-  function onCopy(input: UnpackedHypermediaId) {
-    const url = createWebHMUrl(input.uid, {
-      version: input.version,
-      blockRef: input.blockRef,
-      blockRange: input.blockRange,
+  function onCopy(route: NavRoute) {
+    console.log('== onCopy routeToUrl', route, {hostname, originHomeId})
+    const url = routeToUrl(route, {
       hostname,
-      path: input.path,
-      latest: input.latest,
       originHomeId,
     })
+    console.log('== url', url)
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
       return
@@ -44,18 +40,21 @@ export function useCopyReferenceUrl(
     const [setPushStatus, pushStatus] =
       writeableStateStream<PushResourceStatus | null>(null)
 
-    const pushPromise = pushResource(input, hostname, setPushStatus)
-    toast.promise(pushPromise, {
-      loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
-      success: <CopiedToast pushStatus={pushStatus} status="success" />,
-      error: (err) => (
-        <CopiedToast
-          pushStatus={pushStatus}
-          status="error"
-          errorMessage={err.message}
-        />
-      ),
-    })
+    const pushId = route.key === 'document' ? route.id : null
+    if (pushId) {
+      const pushPromise = pushResource(pushId, hostname, setPushStatus)
+      toast.promise(pushPromise, {
+        loading: <CopiedToast pushStatus={pushStatus} status="loading" />,
+        success: <CopiedToast pushStatus={pushStatus} status="success" />,
+        error: (err) => (
+          <CopiedToast
+            pushStatus={pushStatus}
+            status="error"
+            errorMessage={err.message}
+          />
+        ),
+      })
+    }
   }
   return [dialog.content, onCopy] as const
 }

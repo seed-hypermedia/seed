@@ -346,3 +346,17 @@ export function getAnnotations(block: HMBlock): HMAnnotation[] | undefined {
   if (block.type === 'Button') return block.annotations || []
   return undefined
 }
+
+export function getBlockText(block: HMBlock): string {
+  if (block.type === 'Paragraph') return block.text || ''
+  if (block.type === 'Heading') return block.text || ''
+  if (block.type === 'Embed') return block.text || ''
+  if (block.type === 'Video') return block.text || ''
+  if (block.type === 'File') return block.text || ''
+  if (block.type === 'Image') return block.text || ''
+  if (block.type === 'Query') return block.text || ''
+  if (block.type === 'Math') return block.text || ''
+  if (block.type === 'Code') return block.text || ''
+  if (block.type === 'Button') return block.text || ''
+  return ''
+}

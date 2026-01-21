@@ -1,18 +1,18 @@
 import {useNavigate} from '@/utils/useNavigate'
-import {DocAccessoryOption} from '@shm/shared'
-import {useTx, useTxString} from '@shm/shared/translation'
+import {PanelSelectionOptions} from '@shm/shared'
+import {useTx} from '@shm/shared/translation'
 import {
-  useNavRoute,
+  useFocus,
   useNavigationDispatch,
   useNavigationState,
+  useNavRoute,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {panelContainerStyles} from '@shm/ui/container'
 import {FeedFilters} from '@shm/ui/feed-filters'
 import {Text} from '@shm/ui/text'
-import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {ChevronLeft, X} from 'lucide-react'
+import {X} from 'lucide-react'
 import {useEffect, useLayoutEffect, useMemo, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -22,63 +22,25 @@ import {
   PanelResizeHandle,
 } from 'react-resizable-panels'
 
-// Remove the local hook definition since it's now imported
-
-export function AccessoryLayout<Options extends DocAccessoryOption[]>({
+export function AccessoryLayout({
   children,
-  accessory,
-  accessoryKey,
+  panelUI,
+  panelKey,
 }: {
   children: React.ReactNode
-  accessory: React.ReactNode | null
-  accessoryKey: Options[number]['key'] | undefined
-  accessoryOptions: Options
-  onAccessorySelect: (key: Options[number]['key'] | undefined) => void
-  mainPanelRef?: React.RefObject<HTMLDivElement>
-  isNewDraft?: boolean
+  panelUI: React.ReactNode | null
+  panelKey: PanelSelectionOptions | undefined
 }) {
   const panelsRef = useRef<ImperativePanelGroupHandle>(null)
   const accesoryPanelRef = useRef<ImperativePanelHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const prevAccessoryKey = useRef<Options[number]['key'] | undefined>(
-    accessoryKey,
-  )
+  const prevPanelKey = useRef<PanelSelectionOptions | undefined>(panelKey)
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()
   const tx = useTx()
-  const txString = useTxString()
   const route = useNavRoute()
   const replace = useNavigate('replace')
-
-  // Determine if we should show the back button
-  const shouldShowBackButton = useMemo(() => {
-    if (!route || route.key !== 'document') return false
-    const accessory = route.accessory
-    // Type guard to check if we're in discussions accessory
-    if (accessory?.key === 'discussions') {
-      return !!(accessory.targetBlockId || accessory.openComment)
-    }
-    return false
-  }, [route])
-
-  // Handle back button click
-  const handleBack = () => {
-    if (!route || route.key !== 'document') return
-    const accessory = route.accessory
-    if (
-      accessory?.key === 'discussions' &&
-      (accessory.targetBlockId || accessory.openComment)
-    ) {
-      replace({
-        ...route,
-        accessory: {
-          ...accessory,
-          targetBlockId: undefined,
-          openComment: undefined,
-        },
-      })
-    }
-  }
+  const navigate = useNavigate('push')
 
   const widthStorage = useMemo(
     () => ({
@@ -124,20 +86,13 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
   // Enforce 480px minimum when opening the accessory panel
   useLayoutEffect(() => {
     const isOpening =
-      prevAccessoryKey.current === undefined && accessoryKey !== undefined
-
-    // console.log('[480px constraint] Effect running:', {
-    //   prevAccessoryKey: prevAccessoryKey.current,
-    //   currentAccessoryKey: accessoryKey,
-    //   isOpening,
-    // })
+      prevPanelKey.current === undefined && panelKey !== undefined
 
     if (isOpening) {
       const container = containerRef.current
       console.log('[480px constraint] Panel opening, container:', !!container)
 
       if (container) {
-        // Get the container width
         const containerWidth = container.getBoundingClientRect().width
 
         console.log('[480px constraint] Container width:', containerWidth)
@@ -145,12 +100,6 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         if (containerWidth) {
           const storedPercent = state?.accessoryWidth || 20
           const pixelValue = (storedPercent / 100) * containerWidth
-
-          // console.log('[480px constraint] Width calculation:', {
-          //   storedPercent,
-          //   pixelValue,
-          //   needsAdjustment: pixelValue < 480,
-          // })
 
           // If the stored percentage would result in less than 480px, adjust it
           if (pixelValue < 480) {
@@ -162,20 +111,52 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
       }
     }
 
-    prevAccessoryKey.current = accessoryKey
-  }, [accessoryKey, state?.accessoryWidth, dispatch])
+    prevPanelKey.current = panelKey
+  }, [panelKey, state?.accessoryWidth, dispatch])
 
   let accessoryTitle = tx('Document Activity')
-  if (accessoryKey == 'collaborators') {
+  if (panelKey == 'collaborators') {
     accessoryTitle = tx('Collaborators')
-  } else if (accessoryKey == 'directory') {
-    accessoryTitle = tx('Directory')
-  } else if (accessoryKey == 'options') {
+  } else if (panelKey == 'directory') {
+    accessoryTitle = tx('Children Documents')
+  } else if (panelKey == 'options') {
     accessoryTitle = tx('Draft Options')
-  } else if (accessoryKey == 'activity') {
+  } else if (panelKey == 'activity') {
     accessoryTitle = tx('Document Activity')
-  } else if (accessoryKey == 'discussions') {
+  } else if (panelKey == 'discussions') {
     accessoryTitle = tx('Discussions')
+  }
+
+  const focus = useFocus()
+
+  // Auto-focus panel when it opens, main when it closes
+  const hasPanel = panelKey !== undefined
+  const prevHasPanel = useRef(hasPanel)
+
+  useLayoutEffect(() => {
+    // Only auto-focus on panel open/close transitions, use replace to not pollute history
+    if (hasPanel && !prevHasPanel.current) {
+      // Panel opening - focus panel
+      replace({...route, focus: 'panel'} as typeof route)
+    } else if (!hasPanel && prevHasPanel.current) {
+      // Panel closing - focus main
+      replace({...route, focus: 'main'} as typeof route)
+    }
+    prevHasPanel.current = hasPanel
+  }, [hasPanel])
+
+  // User clicking to change focus - push to history so back button works
+  const setFocus = (value: 'main' | 'panel', e: React.MouseEvent) => {
+    // Don't change focus if clicking on an interactive element (button, link, input, etc.)
+    const target = e.target as HTMLElement
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], [data-no-focus]',
+    )
+    if (isInteractive) return
+
+    if (focus !== value) {
+      navigate({...route, focus: value} as typeof route)
+    }
   }
 
   return (
@@ -187,14 +168,22 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
         autoSaveId="accessory"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50} className="overflow-hidden pr-1">
-          {children}
+        <Panel id="main" minSize={50} className="p-0.5 pr-1">
+          <div
+            onClick={(e) => setFocus('main', e)}
+            className={cn(
+              'h-full rounded-lg transition-shadow',
+              focus === 'main' && 'ring-2 ring-blue-500/40',
+            )}
+          >
+            {children}
+          </div>
         </Panel>
-        {accessoryKey !== undefined ? (
+        {panelKey !== undefined ? (
           <PanelResizeHandle className="panel-resize-handle" />
         ) : null}
         <Panel
-          hidden={accessoryKey === undefined}
+          hidden={panelKey === undefined}
           id="accessory"
           ref={accesoryPanelRef}
           maxSize={50}
@@ -203,77 +192,73 @@ export function AccessoryLayout<Options extends DocAccessoryOption[]>({
           onResize={(size) => {
             dispatch({type: 'accessoryWidth', value: size})
           }}
-          className="pl-1"
+          className="p-0.5 pl-1"
         >
           <div
+            onClick={(e) => setFocus('panel', e)}
             className={cn(
-              panelContainerStyles,
-              'dark:bg-background flex flex-col bg-white',
+              'h-full rounded-lg transition-shadow',
+              focus === 'panel' && 'ring-2 ring-blue-500/40',
             )}
           >
-            <div className="border-border border-b px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                {shouldShowBackButton && (
-                  <Tooltip content={txString('Back to All discussions')}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleBack}
-                      className="h-7 px-2 text-xs"
-                    >
-                      <ChevronLeft className="size-3" />
-                    </Button>
-                  </Tooltip>
-                )}
-                <Text weight="semibold" size="lg" className="flex-1">
-                  {accessoryTitle}
-                </Text>
-                <Button
-                  size="icon"
-                  onClick={() => {
-                    if ('accessory' in route && route.accessory) {
-                      replace({
-                        ...route!,
-                        accessory: null,
-                      })
-                    }
-                  }}
-                >
-                  <X className="size-4" />
-                </Button>
-              </div>
-              {accessoryKey == 'activity' ? (
-                <FeedFilters
-                  filterEventType={
-                    route &&
-                    (route.key === 'document' || route.key === 'feed') &&
-                    route.accessory?.key == 'activity'
-                      ? route.accessory?.filterEventType
-                      : undefined
-                  }
-                  onFilterChange={({
-                    filterEventType,
-                  }: {
-                    filterEventType?: string[]
-                  }) => {
-                    console.log('== ~ FILTER onFilterChange', filterEventType)
-                    if (
+            <div
+              className={cn(
+                panelContainerStyles,
+                'dark:bg-background flex flex-col bg-white',
+              )}
+            >
+              <div className="border-border border-b px-5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Text weight="semibold" size="lg" className="flex-1">
+                    {accessoryTitle}
+                  </Text>
+                  <Button
+                    size="icon"
+                    onClick={() => {
+                      if ('panel' in route && route.panel) {
+                        replace({
+                          ...route!,
+                          panel: null,
+                        })
+                      }
+                    }}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                {panelKey == 'activity' ? (
+                  <FeedFilters
+                    filterEventType={
                       route &&
-                      (route.key === 'document' || route.key === 'feed')
-                    ) {
-                      replace({
-                        ...route,
-                        accessory: {
-                          ...(route.accessory as any),
-                          filterEventType,
-                        },
-                      })
+                      (route.key === 'document' || route.key === 'feed') &&
+                      route.panel?.key == 'activity'
+                        ? route.panel?.filterEventType
+                        : undefined
                     }
-                  }}
-                />
-              ) : null}
+                    onFilterChange={({
+                      filterEventType,
+                    }: {
+                      filterEventType?: string[]
+                    }) => {
+                      console.log('== ~ FILTER onFilterChange', filterEventType)
+                      if (
+                        route &&
+                        (route.key === 'document' || route.key === 'feed')
+                      ) {
+                        replace({
+                          ...route,
+                          panel: {
+                            ...(route.panel as any),
+                            filterEventType,
+                          },
+                        })
+                      }
+                    }}
+                  />
+                ) : null}
+              </div>
+              {panelUI}
             </div>
-            {accessory}
           </div>
         </Panel>
       </PanelGroup>

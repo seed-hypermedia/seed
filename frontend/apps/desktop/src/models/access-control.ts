@@ -52,13 +52,6 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
   })
 }
 
-export function getRoleName(role: HMRole) {
-  if (role === 'writer') return 'Writer'
-  if (role === 'owner') return 'Owner'
-  if (role === 'none') return 'None'
-  return 'None'
-}
-
 export function getRoleCapabilityType(role: Role): HMRole | null {
   if (role === Role.WRITER) return 'writer'
   return null

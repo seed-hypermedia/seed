@@ -1,5 +1,5 @@
 import {
-  createHMUrl,
+  hmIdToURL,
   isHypermediaScheme,
   isPublicGatewayLink,
   normalizeHmId,
@@ -127,7 +127,7 @@ export function getLinkMenuItems({
             const {state, schema} = editor._tiptapEditor
             const {selection} = state
             if (!selection.empty) return
-            const hmRef = createHMUrl(hmId)
+            const hmRef = hmIdToURL(hmId)
             const node = schema.nodes.embed.create(
               {
                 url: hmRef,
@@ -151,7 +151,7 @@ export function getLinkMenuItems({
             const {state, schema} = editor._tiptapEditor
             const {selection} = state
             if (!selection.empty) return
-            const hmRef = createHMUrl(hmId)
+            const hmRef = hmIdToURL(hmId)
             const node = schema.nodes.embed.create(
               {
                 url: hmRef,

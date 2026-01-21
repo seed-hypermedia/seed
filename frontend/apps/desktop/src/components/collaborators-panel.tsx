@@ -1,35 +1,27 @@
 import {
-  getRoleName,
   useAddCapabilities,
   useAllDocumentCapabilities,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useSelectedAccountContacts} from '@/models/contacts'
 import {useSelectedAccountId} from '@/selected-account'
-import {useNavigate} from '@/utils/useNavigate'
-import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {Role} from '@shm/shared/client/grpc-types'
-import {getContactMetadata} from '@shm/shared/content'
-import {
-  HMCapability,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@shm/shared/hm-types'
+import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
-import {createHMUrl, hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {AccessoryContent} from '@shm/ui/accessories'
+import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {SelectionContent} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
+import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, X} from '@shm/ui/icons'
-import {RadioButtons} from '@shm/ui/radio-buttons'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import './combobox.css'
 
@@ -41,44 +33,10 @@ export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
     debug: false,
   })
   return (
-    <AccessoryContent scrollRef={scrollRef}>
+    <SelectionContent scrollRef={scrollRef}>
       <AddCollaboratorForm id={docId} />
-      <PublisherCollaborator id={docId} />
-      <CollaboratorsList id={docId} />
-    </AccessoryContent>
-  )
-}
-
-function PublisherCollaborator({id}: {id?: UnpackedHypermediaId}) {
-  const navigate = useNavigate('push')
-  const pubId = id ? hmId(id.uid) : null
-  const resource = useResource(pubId)
-
-  if (!id || !resource.data) return null
-  const metadata =
-    resource.data.type === 'document'
-      ? resource.data.document?.metadata
-      : undefined
-  return (
-    <div className="flex flex-col">
-      <Button
-        className="h-auto w-full"
-        variant="ghost"
-        onClick={() => {
-          navigate({key: 'contact', id: hmId(id.uid)})
-        }}
-      >
-        <HMIcon name={metadata?.name} icon={metadata?.icon} id={id} size={24} />
-        <div className="flex flex-1 items-center gap-2 overflow-hidden">
-          <SizableText size="sm" className="flex-1 truncate text-left">
-            {metadata?.name}
-          </SizableText>
-          <SizableText size="xs" color="muted">
-            Publisher
-          </SizableText>
-        </div>
-      </Button>
-    </div>
+      <ReadOnlyCollaboratorsContent docId={docId} />
+    </SelectionContent>
   )
 }
 
@@ -89,7 +47,7 @@ type SearchResult = {
   metadata?: HMMetadata
 }
 
-function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
+export function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const myCapability = useSelectedAccountCapability(id, 'owner')
   const addCapabilities = useAddCapabilities(id)
   const [selectedCollaborators, setSelectedCollaborators] = useState<
@@ -175,7 +133,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
                 onClick={() => {
                   console.log('Add new member', search)
                   let hmUrl = unpackHmId(search)
-                  let result = hmUrl ? createHMUrl(hmId(hmUrl.uid)) : null
+                  let result = hmUrl ? hmIdToURL(hmId(hmUrl.uid)) : null
                   if (result && hmUrl) {
                     setSelectedCollaborators((v) => [
                       ...v,
@@ -213,145 +171,7 @@ function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
           </Button>
         ) : null}
       </div>
-
-      {/* <Button bg="#DED9FF" icon={Link} size="$2">
-        Generate Invite Link
-      </Button> */}
     </div>
-  )
-}
-
-const COLLABORATOR_TABS = [
-  {key: 'granted', label: 'Granted'},
-  // {key: 'devices', label: 'Devices'},
-] as const
-
-function CollaboratorsList({id}: {id: UnpackedHypermediaId}) {
-  const capabilities = useAllDocumentCapabilities(id)
-  const [tab, setTab] = useState<'granted' | 'devices'>('granted')
-  let content = (
-    <GrantedCollabs
-      capabilities={
-        capabilities.data?.filter(
-          (cap) =>
-            cap.grantId.id === id.id &&
-            cap.role !== 'owner' &&
-            cap.role !== 'agent',
-        ) || []
-      }
-      id={id}
-    />
-  )
-  if (tab === 'devices') {
-    content = (
-      <GrantedCollabs
-        capabilities={
-          capabilities.data?.filter(
-            (cap) => cap.grantId.id === id.id && cap.role === 'agent',
-          ) || ([] as Array<HMCapability>)
-        }
-        id={id}
-      />
-    )
-  }
-
-  const parentCapabilities =
-    capabilities.data?.filter(
-      (cap) => cap.grantId.id !== id.id && cap.role !== 'agent',
-    ) || []
-
-  return (
-    <div className="flex flex-col gap-3">
-      {parentCapabilities ? (
-        <div className="mb-3">
-          {parentCapabilities.map((cap) => (
-            <CollaboratorItem key={cap.accountUid} capability={cap} id={id} />
-          ))}
-        </div>
-      ) : null}
-      <div className="flex">
-        <RadioButtons
-          activeColor="$brand5"
-          size="$2"
-          options={COLLABORATOR_TABS}
-          // @ts-expect-error
-          value={tab}
-          onValue={setTab}
-        />
-      </div>
-      {content}
-    </div>
-  )
-}
-
-function GrantedCollabs({
-  capabilities = [],
-  id,
-}: {
-  capabilities: Array<HMCapability>
-  id: UnpackedHypermediaId
-}) {
-  return (
-    <div>
-      {capabilities?.map((capability) => {
-        return (
-          <CollaboratorItem
-            key={capability.accountUid}
-            capability={capability}
-            id={id}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function CollaboratorItem({
-  capability,
-  id,
-}: {
-  capability: HMCapability
-  id: UnpackedHypermediaId
-}) {
-  const navigate = useNavigate('push')
-  const myContacts = useSelectedAccountContacts()
-  const collaboratorId = hmId(capability.accountUid)
-  const collaborator = useResource(collaboratorId, {subscribed: true})
-  const collaboratorMetadata =
-    // @ts-ignore
-    collaborator.data?.type === 'document'
-      ? // @ts-ignore
-        collaborator.data.document?.metadata
-      : undefined
-  if (capability.role === 'owner') return null
-  const isLoading = collaborator.isLoading || collaborator.isDiscovering
-  return (
-    <Button
-      onClick={() => navigate({key: 'contact', id: collaboratorId})}
-      className="w-full"
-    >
-      <HMIcon
-        name={isLoading ? undefined : collaboratorMetadata?.name}
-        icon={isLoading ? undefined : collaboratorMetadata?.icon}
-        id={collaboratorId}
-        size={24}
-      />
-      <div className="flex flex-1 items-center gap-2 overflow-hidden">
-        <SizableText size="sm" className="flex-1 truncate text-left">
-          {isLoading
-            ? 'Loading...'
-            : getContactMetadata(
-                capability.accountUid,
-                collaboratorMetadata,
-                myContacts.data,
-              )?.name}
-        </SizableText>
-        <SizableText size="xs" color="muted">
-          {getRoleName(capability.role)}{' '}
-          {capability.grantId.id !== id.id ? '(Parent Capability)' : ''}
-        </SizableText>
-      </div>
-    </Button>
   )
 }
 

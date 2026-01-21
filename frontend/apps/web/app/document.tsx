@@ -9,7 +9,9 @@ import {
   HMMetadata,
   HMResourceFetchResult,
   NavRoute,
+  PanelQueryKey,
   UnpackedHypermediaId,
+  ViewRouteKey,
   hmId,
   routeToHref,
   unpackHmId,
@@ -56,6 +58,33 @@ import {
   useRef,
   useState,
 } from 'react'
+
+// Lazy load page content components
+const ActivityPageContent = lazy(() =>
+  import('@shm/ui/activity-page').then((m) => ({
+    default: m.ActivityPageContent,
+  })),
+)
+const DirectoryPageContent = lazy(() =>
+  import('@shm/ui/directory-page').then((m) => ({
+    default: m.DirectoryPageContent,
+  })),
+)
+const DiscussionsPageContent = lazy(() =>
+  import('@shm/ui/discussions-page').then((m) => ({
+    default: m.DiscussionsPageContent,
+  })),
+)
+const CollaboratorsPageContent = lazy(() =>
+  import('@shm/ui/collaborators-page').then((m) => ({
+    default: m.CollaboratorsPageContent,
+  })),
+)
+const ReadOnlyCollaboratorsContent = lazy(() =>
+  import('@shm/ui/collaborators-page').then((m) => ({
+    default: m.ReadOnlyCollaboratorsContent,
+  })),
+)
 import {ErrorBoundary, FallbackProps} from 'react-error-boundary'
 import {
   ImperativePanelHandle,
@@ -66,6 +95,7 @@ import {
 import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
 import WebCommenting from './commenting'
+import {FocusProvider, useFocusContext, FocusTarget} from './focus-context'
 import type {SiteDocumentPayload} from './loaders'
 import {addRecent} from './local-db-recents'
 import {NotFoundPage} from './not-found'
@@ -86,9 +116,32 @@ const DirectoryPanel = lazy(() =>
   import('@shm/ui/directory-panel').then((m) => ({default: m.DirectoryPanel})),
 )
 
-// export const links = () => [{rel: 'stylesheet', href: blocksContentStyles}]
+// Focusable area wrapper - adds click-to-focus and glow indicator
+function FocusableArea({
+  target,
+  children,
+  className,
+}: {
+  target: FocusTarget
+  children: React.ReactNode
+  className?: string
+}) {
+  const {focus, handleFocusClick} = useFocusContext()
+  return (
+    <div
+      onClick={(e) => handleFocusClick(target, e)}
+      className={cn(
+        'rounded-lg transition-shadow',
+        focus === target && 'ring-2 ring-blue-500/40',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
 
-type WebAccessory =
+type WebSelection =
   | {
       type: 'activity'
       filterEventType?: string[]
@@ -106,7 +159,11 @@ type WebAccessory =
 const DEFAULT_MAIN_PANEL_SIZE = 65
 
 export function DocumentPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & {
+    prefersLanguages?: string[]
+    viewTerm?: ViewRouteKey | null
+    panelParam?: PanelQueryKey | null
+  },
 ) {
   const {siteHost, origin, prefersLanguages, document, dehydratedState} = props
   return (
@@ -127,15 +184,17 @@ export function DocumentPage(
 }
 
 function InnerDocumentPage(
-  props: SiteDocumentPayload & {prefersLanguages?: string[]},
+  props: SiteDocumentPayload & {
+    prefersLanguages?: string[]
+    viewTerm?: ViewRouteKey | null
+    panelParam?: PanelQueryKey | null
+  },
 ) {
   const mainPanelRef = useRef<ImperativePanelHandle>(null)
   const media = useMedia()
   const [editorAutoFocus, setEditorAutoFocus] = useState(false)
-  let panel: any = null
+  let panel: React.ReactNode = null
   let panelTitle: string = ''
-
-  const [_activePanel, setActivePanel] = useState<WebAccessory | null>(null)
 
   const {
     document,
@@ -147,7 +206,28 @@ function InnerDocumentPage(
     origin,
     comment,
     isLatest,
+    viewTerm,
+    panelParam,
   } = props
+
+  // Convert panelParam from URL to initial panel state
+  // viewTerm now controls main content, not panel - so we only use panelParam for panels
+  const initialPanel = useMemo((): WebSelection | null => {
+    // Panel is only opened from ?panel=... query param
+    if (panelParam) {
+      if (panelParam === 'activity') return {type: 'activity'}
+      if (panelParam === 'discussions') return {type: 'discussions'}
+      if (panelParam === 'directory') return {type: 'directory'}
+      if (panelParam === 'collaborators') return {type: 'directory'}
+      // 'options' panel not supported on web yet
+    }
+    // viewTerm (:activity, :discussions, etc.) now controls main content area, not panel
+    return null
+  }, [])
+
+  const [_activePanel, setActivePanel] = useState<WebSelection | null>(
+    initialPanel,
+  )
 
   // Persist feed filters in localStorage per document
   const [savedFeedFilters, setSavedFeedFilters] = useState({
@@ -189,7 +269,6 @@ function InnerDocumentPage(
   )
 
   const mainScrollRef = useScrollRestoration('main-document-scroll', true)
-  // const activityScrollRef = useScrollRestoration(`activity-${id.id}`)
 
   const keyPair = useLocalKeyPair()
   const currentAccount = useAccount(keyPair?.id || undefined)
@@ -242,7 +321,7 @@ function InnerDocumentPage(
   // if the server is providing a comment, use it as default, but allow local state to override
   // On mobile, activePanel can be set independently
   // _activePanel can override the default comment panel
-  const activePanel: WebAccessory | null =
+  const activePanel: WebSelection | null =
     _activePanel ||
     (comment
       ? {
@@ -253,20 +332,7 @@ function InnerDocumentPage(
         }
       : null)
 
-  // TODO: Re-enable scroll restoration for activity panel
-  // Reset scroll when filter changes for activity panel (design decision 2B)
-  // useEffect(() => {
-  //   if (activePanel?.type === 'activity' && activityScrollRef.current) {
-  //     const viewport = activityScrollRef.current.querySelector(
-  //       '[data-slot="scroll-area-viewport"]',
-  //     ) as HTMLElement
-  //     if (viewport) {
-  //       viewport.scrollTo({top: 0, behavior: 'instant'})
-  //     }
-  //   }
-  // }, [activePanel?.type === 'activity' ? activePanel.filterEventType : null])
-
-  function setDocumentPanel(panel: WebAccessory | null) {
+  function setDocumentPanel(panel: WebSelection | null) {
     // If switching to activity, include saved filters
     if (panel?.type == 'activity') {
       panel = {...panel, filterEventType: savedFeedFilters.filterEventType}
@@ -274,21 +340,10 @@ function InnerDocumentPage(
     setActivePanel(panel)
     setMobilePanelOpen(!!panel)
 
-    // Update URL to reflect panel state
-    // If closing discussions panel (going to activity or null), navigate back to document URL
-    if (panel?.type == 'activity' || panel === null) {
-      const route: NavRoute = {
-        key: 'document',
-        id,
-      }
-      const href = routeToHref(route, {
-        hmUrlHref: context.hmUrlHref,
-        originHomeId: context.originHomeId,
-      })
-      if (href) {
-        replace(href, {replace: true})
-      }
-    }
+    // Note: Panel state is now separate from main content (viewTerm)
+    // Main content is controlled by URL path (/:activity, /:discussions, etc.)
+    // Panel overlay is controlled by this state for secondary interactions
+    // We could optionally update ?panel= query param here for shareability
   }
 
   function setCommentPanel(comment: HMComment) {
@@ -341,6 +396,9 @@ function InnerDocumentPage(
     }
   }, [comment?.id, blockRef, blockRange])
 
+  // Note: viewTerm now controls main content area, not panels
+  // Panels are only opened via ?panel=... query param or explicit user action
+
   const context = useUniversalAppContext()
   const onActivateBlock = useCallback(
     (blockId: string) => {
@@ -369,6 +427,9 @@ function InnerDocumentPage(
     [id, context.hmUrlHref, context.originHomeId, replace],
   )
 
+  // Only show sidebars (document outline) when viewing content, not other views
+  const shouldShowSidebars = showSidebarOutlineDirectory && !viewTerm
+
   const {
     showSidebars,
     elementRef,
@@ -378,7 +439,7 @@ function InnerDocumentPage(
     mainContentProps,
   } = useDocumentLayout({
     contentWidth: document?.metadata?.contentWidth,
-    showSidebars: showSidebarOutlineDirectory,
+    showSidebars: shouldShowSidebars,
   })
 
   const activityEnabled = document?.metadata?.showActivity !== false
@@ -421,7 +482,7 @@ function InnerDocumentPage(
       const route = {
         key: 'document',
         id: targetId,
-        accessory: {
+        selection: {
           key: 'discussions',
           openComment: comment.id,
         },
@@ -435,6 +496,7 @@ function InnerDocumentPage(
 
   const navigate = useNavigate()
 
+  // Comment editor for both panel and main content views
   const commentEditor =
     activePanel?.type === 'discussions' ? (
       <WebCommenting
@@ -447,7 +509,9 @@ function InnerDocumentPage(
         }
         quotingBlockId={activePanel.blockId || undefined}
       />
-    ) : activePanel?.type === 'activity' ? (
+    ) : activePanel?.type === 'activity' ||
+      viewTerm === 'activity' ||
+      viewTerm === 'discussions' ? (
       <WebCommenting docId={id} />
     ) : null
 
@@ -510,46 +574,15 @@ function InnerDocumentPage(
       />
     )
 
+  // Determine active view for DocumentTools
+  // viewTerm determines what's shown in main content area
+  // 'content' means the document itself, otherwise it's activity/discussions/etc
+  const activeView = viewTerm || 'content'
+
   const documentTools = (
     <DocumentTools
-      activePanel={activePanel?.type}
-      onFeedClick={
-        activityEnabled
-          ? () => {
-              setDocumentPanel(
-                activePanel?.type == 'activity' ? null : {type: 'activity'},
-              )
-              if (!media.gtSm) {
-                setMobilePanelOpen(true)
-              }
-            }
-          : activityDisabledToast
-      }
-      onCommentsClick={
-        activityEnabled
-          ? () => {
-              setDocumentPanel(
-                activePanel?.type == 'discussions'
-                  ? null
-                  : {
-                      type: 'discussions',
-                      blockId: undefined,
-                    },
-              )
-              if (!media.gtSm) {
-                setMobilePanelOpen(true)
-              }
-            }
-          : commentsDisabledToast
-      }
-      onDirectoryClick={() => {
-        setDocumentPanel(
-          activePanel?.type == 'directory' ? null : {type: 'directory'},
-        )
-        if (!media.gtSm) {
-          setMobilePanelOpen(true)
-        }
-      }}
+      id={id}
+      activeTab={activeView}
       commentsCount={interactionSummary.data?.comments}
       directoryCount={interactionSummary.data?.children}
     />
@@ -562,346 +595,407 @@ function InnerDocumentPage(
         </div>
       }
     >
-      <CommentsProvider
-        onReplyClick={onReplyClick}
-        onReplyCountClick={onReplyCountClick}
-      >
-        <div
-          className={cn(
-            'bg-panel flex w-screen flex-col',
-            media.gtSm && 'h-screen max-h-screen overflow-hidden',
-            !media.gtSm && 'min-h-svh',
-          )}
+      <FocusProvider defaultFocus={viewTerm || panel ? 'panel' : 'main'}>
+        <CommentsProvider
+          onReplyClick={onReplyClick}
+          onReplyCountClick={onReplyCountClick}
         >
-          <WebSiteHeader
-            hideSiteBarClassName={hideSiteHeaderClassName}
-            noScroll={!!panel}
-            homeMetadata={homeMetadata}
-            originHomeId={originHomeId}
-            siteHomeId={hmId(id.uid)}
-            docId={id}
-            document={document}
-            origin={origin}
-            isLatest={isLatest}
-          />
-          <NavigationLoadingContent className="flex flex-1 overflow-hidden">
-            <PanelGroup
-              direction="horizontal"
-              autoSaveId="web-document"
-              className="dark:bg-background flex flex-1 overflow-hidden bg-white"
-            >
-              <Panel
-                ref={mainPanelRef}
-                collapsible
-                id="main-panel"
-                className="h-full"
+          <div
+            className={cn(
+              'bg-panel flex w-screen flex-col',
+              media.gtSm && 'h-screen max-h-screen overflow-hidden',
+              !media.gtSm && 'min-h-svh',
+            )}
+          >
+            <WebSiteHeader
+              hideSiteBarClassName={hideSiteHeaderClassName}
+              noScroll={!!panel}
+              homeMetadata={homeMetadata}
+              originHomeId={originHomeId}
+              siteHomeId={hmId(id.uid)}
+              docId={id}
+              document={document}
+              origin={origin}
+              isLatest={isLatest}
+            />
+            <NavigationLoadingContent className="flex flex-1 overflow-hidden">
+              <PanelGroup
+                direction="horizontal"
+                autoSaveId="web-document"
+                className="dark:bg-background flex flex-1 overflow-hidden bg-white"
               >
-                <div className="relative flex h-full flex-col" ref={elementRef}>
-                  <div
-                    className={cn(
-                      'flex flex-1 flex-col',
-                      media.gtSm && 'overflow-y-auto',
-                    )}
-                    ref={media.gtSm ? mainScrollRef : null}
-                  >
-                    <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
-                      {isHomeDoc ? documentTools : null}
-                      <DocumentCover cover={document.metadata.cover} />
+                <Panel
+                  ref={mainPanelRef}
+                  collapsible
+                  id="main-panel"
+                  className="h-full"
+                >
+                  <FocusableArea target="main" className="h-full">
+                    <div
+                      className="relative flex h-full flex-col"
+                      ref={elementRef}
+                    >
                       <div
-                        {...wrapperProps}
-                        className={cn('flex flex-1', wrapperProps.className)}
+                        className={cn(
+                          'flex flex-1 flex-col',
+                          media.gtSm && 'overflow-y-auto',
+                        )}
+                        ref={media.gtSm ? mainScrollRef : null}
                       >
-                        {showSidebars ? (
-                          <div
-                            className={cn(
-                              sidebarProps.className,
-                              'hide-scrollbar overflow-y-scroll pb-6',
-                            )}
-                            style={{
-                              ...sidebarProps.style,
-                              marginTop: document.metadata?.cover ? 152 : 220,
-                            }}
-                          >
-                            <div className="hide-scrollbar overflow-scroll pb-6">
-                              <WebDocumentOutline
-                                showCollapsed={showCollapsed}
-                                onActivateBlock={onActivateBlock}
-                                id={id}
-                                document={document}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                        <div {...mainContentProps}>
-                          {isHomeDoc ? null : (
-                            <DocumentHeader
-                              docId={id}
-                              docMetadata={document.metadata}
-                              // @ts-expect-error
-                              authors={document.authors.map(
-                                (author) => accountsMetadata[author],
-                              )}
-                              updateTime={document.updateTime}
-                              // @ts-expect-error
-                              breadcrumbs={props.breadcrumbs}
-                              commentsCount={
-                                interactionSummary.data?.comments || 0
-                              }
-                              onCommentsClick={
-                                activityEnabled
-                                  ? () => {
-                                      setDocumentPanel({
-                                        type: 'discussions',
-                                        blockId: undefined,
-                                      })
-                                      if (!media.gtSm) {
-                                        setMobilePanelOpen(true)
-                                      }
-                                    }
-                                  : commentsDisabledToast
-                              }
-                              onFeedClick={
-                                activityEnabled
-                                  ? () => {
-                                      setDocumentPanel({type: 'activity'})
-                                      if (!media.gtSm) {
-                                        setMobilePanelOpen(true)
-                                      }
-                                    }
-                                  : activityDisabledToast
-                              }
-                              documentTools={documentTools}
-                            />
+                        <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
+                          {isHomeDoc ? documentTools : null}
+                          {/* Only show cover when viewing document content */}
+                          {!viewTerm && (
+                            <DocumentCover cover={document.metadata.cover} />
                           )}
-                          <div className="pr-3">
-                            <BlocksContentProvider
-                              resourceId={{
-                                ...id,
-                                blockRef: blockRef || null,
-                                blockRange: blockRange || null,
-                              }}
-                              onBlockCitationClick={
-                                activityEnabled
-                                  ? onBlockCitationClick
-                                  : activityDisabledToast
-                              }
-                              onBlockCommentClick={
-                                activityEnabled
-                                  ? onBlockCommentClick
-                                  : commentsDisabledToast
-                              }
-                              onBlockSelect={(blockId, blockRange) => {
-                                const shouldCopy =
-                                  blockRange?.copyToClipboard !== false
-                                const route = {
-                                  key: 'document',
-                                  id: {
-                                    uid: id.uid,
-                                    path: id.path,
-                                    version: id.version,
-                                    blockRef: blockId,
-                                    blockRange:
-                                      blockRange &&
-                                      'start' in blockRange &&
-                                      'end' in blockRange
-                                        ? {
-                                            start: blockRange.start,
-                                            end: blockRange.end,
-                                          }
-                                        : null,
-                                  },
-                                } as NavRoute
-                                const href = routeToHref(route, {
-                                  hmUrlHref: context.hmUrlHref,
-                                  originHomeId: context.originHomeId,
-                                })
-                                if (!href) {
-                                  toast.error('Failed to create block link')
-                                  return
-                                }
-                                if (shouldCopy) {
-                                  window.navigator.clipboard.writeText(
-                                    `${siteHost}${href}`,
-                                  )
-                                  toast.success(
-                                    'Block link copied to clipboard',
-                                  )
-                                }
-                                // Only navigate if we're not explicitly just copying
-                                if (blockRange?.copyToClipboard !== true) {
-                                  // Scroll to block smoothly BEFORE updating URL
-                                  const element =
-                                    window.document.getElementById(blockId)
-                                  if (element) {
-                                    element.scrollIntoView({
-                                      behavior: 'smooth',
-                                      block: 'start',
-                                    })
+                          <div
+                            {...wrapperProps}
+                            className={cn(
+                              'flex flex-1',
+                              wrapperProps.className,
+                            )}
+                          >
+                            {showSidebars ? (
+                              <div
+                                className={cn(
+                                  sidebarProps.className,
+                                  'hide-scrollbar overflow-y-scroll pb-6',
+                                )}
+                                style={{
+                                  ...sidebarProps.style,
+                                  marginTop: document.metadata?.cover
+                                    ? 152
+                                    : 220,
+                                }}
+                              >
+                                <div className="hide-scrollbar overflow-scroll pb-6">
+                                  <WebDocumentOutline
+                                    showCollapsed={showCollapsed}
+                                    onActivateBlock={onActivateBlock}
+                                    id={id}
+                                    document={document}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+                            <div {...mainContentProps}>
+                              {isHomeDoc ? null : (
+                                <DocumentHeader
+                                  docId={id}
+                                  docMetadata={document.metadata}
+                                  // @ts-expect-error
+                                  authors={document.authors.map(
+                                    (author) => accountsMetadata[author],
+                                  )}
+                                  updateTime={document.updateTime}
+                                  // @ts-expect-error
+                                  breadcrumbs={props.breadcrumbs}
+                                  commentsCount={
+                                    interactionSummary.data?.comments || 0
                                   }
+                                  onCommentsClick={
+                                    activityEnabled
+                                      ? () => {
+                                          setDocumentPanel({
+                                            type: 'discussions',
+                                            blockId: undefined,
+                                          })
+                                          if (!media.gtSm) {
+                                            setMobilePanelOpen(true)
+                                          }
+                                        }
+                                      : commentsDisabledToast
+                                  }
+                                  onFeedClick={
+                                    activityEnabled
+                                      ? () => {
+                                          setDocumentPanel({type: 'activity'})
+                                          if (!media.gtSm) {
+                                            setMobilePanelOpen(true)
+                                          }
+                                        }
+                                      : activityDisabledToast
+                                  }
+                                  documentTools={documentTools}
+                                />
+                              )}
+                              {/* Render main content based on viewTerm */}
+                              {viewTerm === 'activity' ? (
+                                <ActivityPageContent
+                                  docId={id}
+                                  commentEditor={commentEditor}
+                                  currentAccountId={currentAccount.data?.id.uid}
+                                  showOpenInPanel={false}
+                                  showTitle={false}
+                                />
+                              ) : viewTerm === 'discussions' ? (
+                                <DiscussionsPageContent
+                                  docId={id}
+                                  commentEditor={commentEditor}
+                                  currentAccountId={currentAccount.data?.id.uid}
+                                  showOpenInPanel={false}
+                                  showTitle={false}
+                                />
+                              ) : viewTerm === 'directory' ? (
+                                <DirectoryPageContent
+                                  docId={id}
+                                  showSearch={true}
+                                  showTitle={false}
+                                />
+                              ) : viewTerm === 'collaborators' ? (
+                                <CollaboratorsPageContent
+                                  docId={id}
+                                  showOpenInPanel={false}
+                                  showTitle={false}
+                                >
+                                  <ReadOnlyCollaboratorsContent docId={id} />
+                                </CollaboratorsPageContent>
+                              ) : (
+                                <div className="pr-3">
+                                  <BlocksContentProvider
+                                    resourceId={{
+                                      ...id,
+                                      blockRef: blockRef || null,
+                                      blockRange: blockRange || null,
+                                    }}
+                                    onBlockCitationClick={
+                                      activityEnabled
+                                        ? onBlockCitationClick
+                                        : activityDisabledToast
+                                    }
+                                    onBlockCommentClick={
+                                      activityEnabled
+                                        ? onBlockCommentClick
+                                        : commentsDisabledToast
+                                    }
+                                    onBlockSelect={(blockId, blockRange) => {
+                                      const shouldCopy =
+                                        blockRange?.copyToClipboard !== false
+                                      const route = {
+                                        key: 'document',
+                                        id: {
+                                          uid: id.uid,
+                                          path: id.path,
+                                          version: id.version,
+                                          blockRef: blockId,
+                                          blockRange:
+                                            blockRange &&
+                                            'start' in blockRange &&
+                                            'end' in blockRange
+                                              ? {
+                                                  start: blockRange.start,
+                                                  end: blockRange.end,
+                                                }
+                                              : null,
+                                        },
+                                      } as NavRoute
+                                      const href = routeToHref(route, {
+                                        hmUrlHref: context.hmUrlHref,
+                                        originHomeId: context.originHomeId,
+                                      })
+                                      if (!href) {
+                                        toast.error(
+                                          'Failed to create block link',
+                                        )
+                                        return
+                                      }
+                                      if (shouldCopy) {
+                                        window.navigator.clipboard.writeText(
+                                          `${siteHost}${href}`,
+                                        )
+                                        toast.success(
+                                          'Block link copied to clipboard',
+                                        )
+                                      }
+                                      // Only navigate if we're not explicitly just copying
+                                      if (
+                                        blockRange?.copyToClipboard !== true
+                                      ) {
+                                        // Scroll to block smoothly BEFORE updating URL
+                                        const element =
+                                          window.document.getElementById(
+                                            blockId,
+                                          )
+                                        if (element) {
+                                          element.scrollIntoView({
+                                            behavior: 'smooth',
+                                            block: 'start',
+                                          })
+                                        }
 
-                                  navigate(href, {
-                                    replace: true,
-                                    preventScrollReset: true,
-                                  })
-                                }
-                              }}
-                              blockCitations={interactionSummary.data?.blocks}
-                            >
-                              <BlocksContent blocks={document.content} />
-                            </BlocksContentProvider>
+                                        navigate(href, {
+                                          replace: true,
+                                          preventScrollReset: true,
+                                        })
+                                      }
+                                    }}
+                                    blockCitations={
+                                      interactionSummary.data?.blocks
+                                    }
+                                  >
+                                    <BlocksContent blocks={document.content} />
+                                  </BlocksContentProvider>
+                                </div>
+                              )}
+                            </div>
+                            {showSidebars ? (
+                              <div
+                                className={cn(sidebarProps.className)}
+                                style={sidebarProps.style}
+                              />
+                            ) : null}
+                          </div>
+                          <MyAccountBubble />
+                          <div className="mb-[80px] flex-none shrink-0 grow-0 md:mb-0">
+                            <PageFooter id={id} />
                           </div>
                         </div>
-                        {showSidebars ? (
-                          <div
-                            className={cn(sidebarProps.className)}
-                            style={sidebarProps.style}
-                          />
-                        ) : null}
-                      </div>
-                      <MyAccountBubble />
-                      <div className="mb-[80px] flex-none shrink-0 grow-0 md:mb-0">
-                        <PageFooter id={id} />
                       </div>
                     </div>
-                  </div>
-                </div>
-              </Panel>
-              {!media.gtSm ? null : panel ? (
-                <>
-                  <PanelResizeHandle className="panel-resize-handle" />
-                  <Panel
-                    defaultSize={
-                      media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
-                    }
-                    maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
-                    minSize={media.gtSm ? 20 : 100}
-                    className="border-sidebar-border flex h-full flex-1 flex-col border-l"
-                  >
-                    <div className="dark:bg-background border-border border-b bg-white p-3">
-                      <div className="flex items-center">
-                        {activePanel?.type === 'discussions' &&
-                        (activePanel.comment || activePanel.blockId) ? (
-                          <Tooltip content={tx('Back to All discussions')}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="mr-2 flex-none"
-                              onClick={() => {
-                                setDocumentPanel({
-                                  type: 'discussions',
-                                  blockId: undefined,
-                                  comment: undefined,
+                  </FocusableArea>
+                </Panel>
+                {!media.gtSm ? null : panel ? (
+                  <>
+                    <PanelResizeHandle className="panel-resize-handle" />
+                    <Panel
+                      defaultSize={
+                        media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100
+                      }
+                      maxSize={media.gtSm ? 100 - DEFAULT_MAIN_PANEL_SIZE : 100}
+                      minSize={media.gtSm ? 20 : 100}
+                      className="border-sidebar-border flex h-full flex-1 flex-col border-l"
+                    >
+                      <FocusableArea
+                        target="panel"
+                        className="flex h-full flex-col"
+                      >
+                        <div className="dark:bg-background border-border border-b bg-white p-3">
+                          <div className="flex items-center">
+                            {activePanel?.type === 'discussions' &&
+                            (activePanel.comment || activePanel.blockId) ? (
+                              <Tooltip content={tx('Back to All discussions')}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="mr-2 flex-none"
+                                  onClick={() => {
+                                    setDocumentPanel({
+                                      type: 'discussions',
+                                      blockId: undefined,
+                                      comment: undefined,
+                                    })
+                                  }}
+                                >
+                                  <ChevronLeft className="size-4" />
+                                </Button>
+                              </Tooltip>
+                            ) : null}
+                            <Text weight="bold" size="md" className="flex-1">
+                              {panelTitle}
+                            </Text>
+                            <Tooltip content={tx('Close')}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="flex-none"
+                                onClick={() => {
+                                  setDocumentPanel(null)
+                                }}
+                              >
+                                <Close className="size-4" />
+                              </Button>
+                            </Tooltip>
+                          </div>
+
+                          {activePanel?.type == 'activity' ? (
+                            <FeedFilters
+                              filterEventType={activePanel?.filterEventType}
+                              onFilterChange={({
+                                filterEventType,
+                              }: {
+                                filterEventType?: string[]
+                              }) => {
+                                setActivePanel({
+                                  ...activePanel,
+                                  filterEventType: filterEventType || [],
+                                })
+                                updateSavedFilters({
+                                  filterEventType: filterEventType || [],
                                 })
                               }}
-                            >
-                              <ChevronLeft className="size-4" />
-                            </Button>
-                          </Tooltip>
-                        ) : null}
-                        <Text weight="bold" size="md" className="flex-1">
-                          {panelTitle}
-                        </Text>
-                        <Tooltip content={tx('Close')}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="flex-none"
-                            onClick={() => {
-                              setDocumentPanel(null)
-                            }}
-                          >
-                            <Close className="size-4" />
-                          </Button>
-                        </Tooltip>
-                      </div>
+                            />
+                          ) : null}
+                        </div>
+                        <div className="flex-1 overflow-hidden">{panel}</div>
+                      </FocusableArea>
+                    </Panel>
+                  </>
+                ) : null}
+              </PanelGroup>
+            </NavigationLoadingContent>
 
-                      {activePanel?.type == 'activity' ? (
-                        <FeedFilters
-                          filterEventType={activePanel?.filterEventType}
-                          onFilterChange={({
-                            filterEventType,
-                          }: {
-                            filterEventType?: string[]
-                          }) => {
-                            setActivePanel({
-                              ...activePanel,
-                              filterEventType: filterEventType || [],
-                            })
-                            updateSavedFilters({
-                              filterEventType: filterEventType || [],
-                            })
-                          }}
-                        />
-                      ) : null}
-                    </div>
-                    <div className="flex-1 overflow-hidden">{panel}</div>
-                  </Panel>
-                </>
-              ) : null}
-            </PanelGroup>
-          </NavigationLoadingContent>
+            {media.gtSm || !activityEnabled ? null : (
+              <>
+                <MobileInteractionCardCollapsed
+                  onClick={() => {
+                    setDocumentPanel({type: 'discussions'})
+                    // setMobilePanelOpen(true)
+                  }}
+                  commentsCount={interactionSummary.data?.comments || 0}
+                  id={id}
+                  hideMobileBarClassName={hideMobileBarClassName}
+                />
 
-          {media.gtSm || !activityEnabled ? null : (
-            <>
-              <MobileInteractionCardCollapsed
-                onClick={() => {
-                  setDocumentPanel({type: 'discussions'})
-                  // setMobilePanelOpen(true)
-                }}
-                commentsCount={interactionSummary.data?.comments || 0}
-                id={id}
-                hideMobileBarClassName={hideMobileBarClassName}
-              />
+                <div
+                  className={cn(
+                    'bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
+                    isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
+                  )}
+                >
+                  {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
 
-              <div
-                className={cn(
-                  'bg-panel fixed inset-0 z-50 flex h-screen max-h-screen flex-1 flex-col overflow-hidden transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)] md:hidden',
-                  isMobilePanelOpen ? 'translate-y-0' : 'translate-y-full',
-                )}
-              >
-                {/* "bg-panel fixed inset-0 z-50 flex h-full flex-1 flex-col overflow-hidden" */}
-
-                <div className="border-border flex items-center border-b px-3 py-2 text-left">
-                  {activePanel?.type === 'discussions' &&
-                  activePanel.comment ? (
+                  <div className="border-border flex items-center border-b px-3 py-2 text-left">
+                    {activePanel?.type === 'discussions' &&
+                    activePanel.comment ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="mr-2 flex-none"
+                        onClick={() => {
+                          setDocumentPanel({
+                            type: 'discussions',
+                            blockId: undefined,
+                            comment: undefined,
+                          })
+                        }}
+                      >
+                        <ChevronLeft className="size-4" />
+                      </Button>
+                    ) : null}
+                    <Text weight="semibold" className="flex-1">
+                      {panelTitle}
+                    </Text>
                     <Button
-                      variant="ghost"
                       size="icon"
-                      className="mr-2 flex-none"
                       onClick={() => {
-                        setDocumentPanel({
-                          type: 'discussions',
-                          blockId: undefined,
-                          comment: undefined,
-                        })
+                        setMobilePanelOpen(false)
+                        setDocumentPanel(null)
                       }}
+                      className="flex-0 shrink-0 grow-0"
                     >
-                      <ChevronLeft className="size-4" />
+                      <Close className="size-4" />
                     </Button>
-                  ) : null}
-                  <Text weight="semibold" className="flex-1">
-                    {panelTitle}
-                  </Text>
-                  <Button
-                    size="icon"
-                    onClick={() => {
-                      setMobilePanelOpen(false)
-                      setDocumentPanel(null)
-                    }}
-                    className="flex-0 shrink-0 grow-0"
-                  >
-                    <Close className="size-4" />
-                  </Button>
-                </div>
+                  </div>
 
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  {panel}
+                  <div className="flex flex-1 flex-col overflow-hidden">
+                    {panel}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-      </CommentsProvider>
+              </>
+            )}
+          </div>
+        </CommentsProvider>
+      </FocusProvider>
     </Suspense>
   )
 }

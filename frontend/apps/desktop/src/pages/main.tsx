@@ -51,6 +51,10 @@ var Settings = lazy(() => import('./settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./document'))
+var Directory = lazy(() => import('./directory'))
+var Collaborators = lazy(() => import('./collaborators'))
+var Activity = lazy(() => import('./activity'))
+var Discussions = lazy(() => import('./discussions'))
 var Feed = lazy(() => import('./feed'))
 var Draft = lazy(() => import('./draft'))
 var Library = lazy(() => import('./library'))
@@ -295,6 +299,26 @@ function getPageComponent(navRoute: NavRoute) {
     case 'feed':
       return {
         PageComponent: Feed,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'directory':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'collaborators':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'activity':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'discussions':
+      return {
+        PageComponent: Document,
         Fallback: DocumentPlaceholder,
       }
     case 'profile':

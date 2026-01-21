@@ -117,7 +117,7 @@ function getEmbedOutline(
   return outline
 }
 
-function findContentBlock(
+export function findContentBlock(
   content: HMBlockNode[],
   blockRef: string,
 ): HMBlockNode | null {

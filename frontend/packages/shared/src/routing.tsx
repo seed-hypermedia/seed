@@ -5,7 +5,7 @@ import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {createHMUrl, hmId, idToUrl, unpackHmId} from './utils'
+import {hmId, hmIdToURL, idToUrl, unpackHmId} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -182,6 +182,32 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'profile') {
     return `/hm/profile/${route.id.uid}`
   }
+
+  // Handle view routes (activity, discussions, directory, collaborators)
+  if (
+    typeof route !== 'string' &&
+    (route.key === 'activity' ||
+      route.key === 'discussions' ||
+      route.key === 'directory' ||
+      route.key === 'collaborators')
+  ) {
+    const docId = route.id
+    // Build path with view term
+    let basePath = ''
+    if (options?.originHomeId?.uid === docId.uid) {
+      // Same as origin, use relative path
+      basePath = docId.path?.length ? `/${docId.path.join('/')}` : ''
+    } else {
+      basePath = `/hm/${docId.uid}${
+        docId.path?.length ? `/${docId.path.join('/')}` : ''
+      }`
+    }
+    // Add view term - need a / separator between path and view term
+    const viewTerm = `:${route.key}`
+    // If basePath is empty, use "/:viewTerm", otherwise use "basePath/:viewTerm"
+    return basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+  }
+
   const docRoute =
     typeof route !== 'string' &&
     (route.key == 'document' || route.key == 'feed')
@@ -193,25 +219,25 @@ export function routeToHref(
       : route.key == 'document' || route.key == 'feed'
       ? route.id
       : null
-  const activeCommentAccessory =
-    docRoute?.accessory?.key == 'discussions' ? docRoute.accessory : null
+  const activeCommentSelection =
+    docRoute?.panel?.key == 'discussions' ? docRoute.panel : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
-  } else if (activeCommentAccessory && activeCommentAccessory.openComment) {
-    const activeCommentId = activeCommentAccessory.openComment
+  } else if (activeCommentSelection && activeCommentSelection.openComment) {
+    const activeCommentId = activeCommentSelection.openComment
     const [accountUid, commentTsid] = activeCommentId.split('/')
     if (!accountUid || !commentTsid) return undefined
     const commentId = hmId(accountUid, {
       path: [commentTsid],
-      blockRef: activeCommentAccessory.targetBlockId,
-      blockRange: activeCommentAccessory.blockRange,
+      blockRef: activeCommentSelection.targetBlockId,
+      blockRange: activeCommentSelection.blockRange,
       hostname: options?.origin,
     })
-    href = options?.hmUrlHref ? createHMUrl(commentId) : idToUrl(commentId)
+    href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
     href = options?.hmUrlHref
-      ? createHMUrl(docId)
+      ? hmIdToURL(docId)
       : idToUrl(
           {...docId, hostname: null},
           {

@@ -1,21 +1,79 @@
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
+import {useCreateDraft} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {useSelectedAccount} from '@/selected-account'
-import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {DocAccessoryOption} from '@shm/shared/routes'
+import {DocSelectionOption} from '@shm/shared/routes'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {Feed} from '@shm/ui/feed'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
-import {ReactNode, useEffect, useState} from 'react'
-import {ActorRefFrom} from 'xstate'
-import {NewSubDocumentButton} from '@/pages/document'
+import {Button, ButtonProps} from '@shm/ui/button'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
+import {Feed} from '@shm/ui/feed'
+import {MoreHorizontal} from '@shm/ui/icons'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
+import {FilePlus} from 'lucide-react'
+import {ReactNode, useEffect} from 'react'
+import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
 import {CommentBox} from './commenting'
 import {DiscussionsPanel} from './discussions-panel'
+import {ImportDropdownButton} from './import-doc-button'
 import {OptionsPanel} from './options-panel'
 
-export function useDocumentAccessory({
+/** Hook to check if user can create sub-documents at a location */
+export function useCanCreateSubDocument(locationId?: UnpackedHypermediaId) {
+  const capability = useSelectedAccountCapability(locationId)
+  return locationId ? roleCanWrite(capability?.role) : false
+}
+
+export function NewSubDocumentButton({
+  locationId,
+  size = 'sm',
+  importDropdown = true,
+}: {
+  locationId: UnpackedHypermediaId
+  size?: ButtonProps['size']
+  importDropdown?: boolean
+}) {
+  const canEditDoc = useCanCreateSubDocument(locationId)
+  const createDraft = useCreateDraft({
+    locationUid: locationId.uid,
+    locationPath: locationId.path || undefined,
+  })
+  if (!canEditDoc) return null
+  return (
+    <div className="flex w-full flex-row items-center gap-2">
+      <div className="flex-1">
+        <Tooltip content="Create a new document">
+          <Button
+            size={size}
+            variant="default"
+            className="w-full"
+            onClick={createDraft}
+          >
+            <FilePlus className="size-4" />
+            Create
+          </Button>
+        </Tooltip>
+      </div>
+      {importDropdown && (
+        <ImportDropdownButton
+          id={locationId}
+          button={
+            <Button size="icon">
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+export function useDocumentSelection({
   docId,
   state,
   actor,
@@ -34,11 +92,10 @@ export function useDocumentAccessory({
   deleteCommentDialogContent?: ReactNode
   targetDomain?: string
 }): {
-  accessory: ReactNode | null
-  accessoryOptions: Array<DocAccessoryOption>
+  selectionUI: ReactNode | null
+  selectionOptions: Array<DocSelectionOption>
 } {
   const route = useNavRoute()
-  const replace = useNavigate('replace')
 
   // Create scroll restoration refs for activity and contacts panels
   // These need to be called unconditionally
@@ -53,15 +110,34 @@ export function useDocumentAccessory({
     debug: false,
   })
 
+  // Routes that support panels
+  const routesWithPanels = [
+    'document',
+    'draft',
+    'feed',
+    'directory',
+    'collaborators',
+    'activity',
+    'discussions',
+  ] as const
+  const hasPanel = routesWithPanels.includes(route.key as any)
+
+  // Get panel info for activity scroll reset
+  const activityPanelFilterEventType =
+    (route.key === 'document' ||
+      route.key === 'draft' ||
+      route.key === 'feed' ||
+      route.key === 'directory' ||
+      route.key === 'collaborators' ||
+      route.key === 'activity' ||
+      route.key === 'discussions') &&
+    route.panel?.key === 'activity'
+      ? route.panel?.filterEventType
+      : null
+
   // Reset scroll when filter changes for activity panel (design decision 2B)
   useEffect(() => {
-    if (
-      (route.key === 'document' ||
-        route.key === 'draft' ||
-        route.key === 'feed') &&
-      route.accessory?.key === 'activity' &&
-      activityScrollRef.current
-    ) {
+    if (activityPanelFilterEventType !== null && activityScrollRef.current) {
       const viewport = activityScrollRef.current.querySelector(
         '[data-slot="scroll-area-viewport"]',
       ) as HTMLElement
@@ -69,39 +145,57 @@ export function useDocumentAccessory({
         viewport.scrollTo({top: 0, behavior: 'instant'})
       }
     }
-  }, [
-    route.key === 'document' || route.key === 'draft' || route.key === 'feed'
-      ? route.accessory?.key === 'activity'
-        ? route.accessory?.filterEventType
-        : null
-      : null,
-  ])
+  }, [activityPanelFilterEventType])
 
-  if (route.key != 'document' && route.key != 'draft' && route.key != 'feed')
-    return {accessory: null, accessoryOptions: []}
+  if (!hasPanel) return {selectionUI: null, selectionOptions: []}
 
-  let accessory: ReactNode = null
-  const accessoryKey = route.accessory?.key
-  const accessoryOptions: Array<DocAccessoryOption> = []
+  let selectionUI: ReactNode = null
+  // Extract panel info from routes that have panels
+  let panelKey: string | undefined
+  let discussionsPanel: {key: 'discussions'; openComment?: string} | undefined
+  let activityAutoFocus: boolean | undefined
+  let activityFilterEventType: string[] | undefined
+
+  if (
+    route.key === 'document' ||
+    route.key === 'draft' ||
+    route.key === 'feed' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'activity' ||
+    route.key === 'discussions'
+  ) {
+    panelKey = route.panel?.key
+    if (route.panel?.key === 'discussions') {
+      discussionsPanel = route.panel
+    }
+    if (route.panel?.key === 'activity') {
+      activityAutoFocus = route.panel.autoFocus
+      activityFilterEventType = route.panel.filterEventType
+    }
+  }
+  const selectionOptions: Array<DocSelectionOption> = []
 
   const selectedAccount = useSelectedAccount()
-  const [filterEventType, setFilterEventType] = useState([])
+  const canCreateSubDoc = useCanCreateSubDocument(docId)
 
-  if (accessoryKey === 'collaborators') {
+  if (panelKey === 'collaborators') {
     // @ts-expect-error
-    accessory = <CollaboratorsPanel docId={docId} />
-  } else if (accessoryKey === 'directory') {
-    accessory = docId ? (
+    selectionUI = <CollaboratorsPanel docId={docId} />
+  } else if (panelKey === 'directory') {
+    selectionUI = docId ? (
       <DirectoryPanel
         docId={docId}
         header={
-          <NewSubDocumentButton locationId={docId} importDropdown={false} />
+          canCreateSubDoc ? (
+            <NewSubDocumentButton locationId={docId} />
+          ) : undefined
         }
       />
     ) : null
-  } else if (accessoryKey === 'options' || isNewDraft) {
+  } else if (panelKey === 'options' || isNewDraft) {
     // TODO update options panel flow of updating from newspaper layout
-    accessory =
+    selectionUI =
       state?.context?.metadata && actor ? (
         <OptionsPanel
           draftId={'UPDATE ME'}
@@ -116,20 +210,19 @@ export function useDocumentAccessory({
           }}
         />
       ) : null
-  } else if (accessoryKey === 'discussions') {
-    if (route.accessory?.key === 'discussions' && docId) {
-      accessory = (
-        <DiscussionsPanel
-          docId={docId}
-          accessory={route.accessory}
-          onAccessory={(acc) => {
-            replace({...route, accessory: acc})
-          }}
-        />
+  } else if (panelKey === 'discussions') {
+    if (discussionsPanel && docId) {
+      // DiscussionsPanel expects a full DiscussionsRoute with id
+      const fullDiscussionsSelection = {
+        ...discussionsPanel,
+        id: docId,
+      }
+      selectionUI = (
+        <DiscussionsPanel docId={docId} selection={fullDiscussionsSelection} />
       )
     }
-  } else if (accessoryKey === 'activity') {
-    accessory = (
+  } else if (panelKey === 'activity') {
+    selectionUI = (
       <>
         {deleteCommentDialogContent}
         <Feed
@@ -139,25 +232,21 @@ export function useDocumentAccessory({
               <CommentBox
                 docId={docId}
                 context="accessory"
-                autoFocus={
-                  route.accessory?.key === 'activity'
-                    ? route.accessory?.autoFocus
-                    : undefined
-                }
+                autoFocus={activityAutoFocus}
               />
             ) : null
           }
           filterResource={docId?.id}
           currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={route.accessory?.filterEventType || []}
+          filterEventType={activityFilterEventType || []}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
           scrollRef={activityScrollRef}
         />
       </>
     )
-  } else if (accessoryKey === 'contacts') {
-    accessory = (
+  } else if (panelKey === 'contacts') {
+    selectionUI = (
       <>
         {deleteCommentDialogContent}
         <Feed
@@ -177,36 +266,36 @@ export function useDocumentAccessory({
   }
 
   if (route.key == 'draft') {
-    accessoryOptions.push({
+    selectionOptions.push({
       key: 'options',
       label: 'Draft Options',
     })
   }
 
   if (docId) {
-    accessoryOptions.push({
+    selectionOptions.push({
       key: 'activity',
       label: 'Feed',
     })
 
-    accessoryOptions.push({
+    selectionOptions.push({
       key: 'discussions',
       label: 'Discussions',
     })
 
-    accessoryOptions.push({
+    selectionOptions.push({
       key: 'collaborators',
       label: 'Collaborators',
     })
 
-    accessoryOptions.push({
+    selectionOptions.push({
       key: 'directory',
       label: 'Directory',
     })
   }
 
   return {
-    accessoryOptions,
-    accessory,
+    selectionOptions,
+    selectionUI,
   }
 }

@@ -14,11 +14,13 @@ import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {NavRoute} from '@shm/shared/routes'
 import {
+  extractViewTermFromUrl,
   isHypermediaScheme,
   packHmId,
   parseCustomURL,
   parseFragment,
   unpackHmId,
+  viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
 import {
   appRouteOfId,
@@ -316,30 +318,49 @@ export function SearchInput({
   )
 }
 
+/**
+ * Apply view term to a resolved route (e.g., /:directory -> open Directory page)
+ */
+function applyViewTermToRoute(
+  route: NavRoute,
+  routeKey: ReturnType<typeof viewTermToRouteKey>,
+): NavRoute {
+  if (!routeKey) return route
+  if (route.key === 'document') {
+    // Return first-class page route, not panel
+    return {key: routeKey, id: route.id}
+  }
+  return route
+}
+
 function useURLHandler() {
   const experiments = useExperiments()
   const webQuery = useMutation({
     mutationFn: (input: {webUrl: string}) => client.webQuery.mutate(input),
   })
   const connect = useConnectPeer({
-    onSuccess: () => {
-      // toast.success('Connection Added')
-    },
+    onSuccess: () => {},
     onError: (err) => {
       console.error('Peer Connect Error:', err)
-      // toast.error('Connection Error : ' + err?.rawMessage)
     },
   })
+
   return async (search: string): Promise<NavRoute | null> => {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
-    connect.mutate(httpSearch)
+
+    // Extract view term (e.g., /:activity) before making request
+    const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(httpSearch)
+    const routeKey = viewTermToRouteKey(viewTerm)
+
+    connect.mutate(cleanUrl)
+
     if (experiments.data?.webImporting) {
-      const webResult = await webQuery.mutateAsync({webUrl: httpSearch})
+      const webResult = await webQuery.mutateAsync({webUrl: cleanUrl})
       if (webResult.hypermedia) {
         const res = await resolveHypermediaUrl(webResult.hypermedia.url)
         const resId = res?.id ? unpackHmId(res.id) : null
         const navRoute = resId ? appRouteOfId(resId) : null
-        if (navRoute) return navRoute
+        if (navRoute) return applyViewTermToRoute(navRoute, routeKey)
         console.log(
           'Failed to open this hypermedia content',
           webResult.hypermedia,
@@ -348,29 +369,15 @@ function useURLHandler() {
         return null
       }
       toast('Importing from the web')
-      //   const imported = await importWebCapture(webResult, grpcClient)
-      //   const documentId = imported.published.document?.id
-      //   const ownerId = imported.published.document?.author
-      //   if (!documentId)
-      //     throw new Error('Conversion succeeded but documentId is not here')
-      //   if (!ownerId)
-      //     throw new Error('Conversion succeeded but ownerId is not here')
-      //   return {
-      //     key: 'document',
-      //     documentId,
-      //   }
     } else {
-      const result = await resolveHypermediaUrl(httpSearch)
-      const parsedUrl = parseCustomURL(httpSearch)
+      const result = await resolveHypermediaUrl(cleanUrl)
+      const parsedUrl = parseCustomURL(cleanUrl)
       const fragment = parseFragment(parsedUrl?.fragment || '')
       const idFragment = {
         blockRef: fragment?.blockId || null,
         blockRange:
           fragment?.start !== undefined && fragment?.end !== undefined
-            ? {
-                start: fragment.start,
-                end: fragment.end,
-              }
+            ? {start: fragment.start, end: fragment.end}
             : null,
       }
       if (!result) {
@@ -387,19 +394,17 @@ function useURLHandler() {
         route = {
           key: 'document',
           id: result.target,
-          accessory: {
+          panel: {
             key: 'discussions',
+            id: result.target,
             openComment: `${result.hmId.uid}/${result.hmId.path.join('/')}`,
             ...idFragment,
           },
         }
       } else if (result.hmId) {
-        route = appRouteOfId({
-          ...result.hmId,
-          ...idFragment,
-        })
+        route = appRouteOfId({...result.hmId, ...idFragment})
       }
-      if (route) return route
+      if (route) return applyViewTermToRoute(route, routeKey)
       toast.error('Failed to open this hypermedia content')
       return null
     }

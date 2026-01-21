@@ -49,5 +49,5 @@ export const windowContainerStyles = cn(
 )
 
 export const panelContainerStyles = cn(
-  'flex flex-col w-full h-full rounded-md overflow-hidden bg-panel border border-border',
+  'flex flex-col w-full h-full min-h-0 rounded-md overflow-hidden bg-panel border border-border',
 )

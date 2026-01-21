@@ -31,6 +31,7 @@ export function DocumentHeader({
   siteUrl,
   documentTools,
   visibility,
+  showTitle = true,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -43,6 +44,7 @@ export function DocumentHeader({
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
+  showTitle?: boolean
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -78,9 +80,11 @@ export function DocumentHeader({
           <Breadcrumbs breadcrumbs={breadcrumbs} />
         ) : null}
         {isPrivate && <PrivateBadge />}
-        <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
-          {docMetadata?.name}
-        </SizableText>
+        {showTitle && (
+          <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
+            {docMetadata?.name}
+          </SizableText>
+        )}
         {docMetadata?.summary ? (
           <span className="font-body text-muted-foreground text-xl">
             {docMetadata?.summary}

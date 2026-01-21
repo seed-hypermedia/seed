@@ -2,10 +2,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {useDeleteComment} from '@shm/shared/comments-service-provider'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {
-  DocumentAccessory,
-  DocumentDiscussionsAccessory,
-} from '@shm/shared/routes'
+import {DiscussionsRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -22,10 +19,9 @@ export const DiscussionsPanel = memo(_DiscussionsPanel)
 
 function _DiscussionsPanel(props: {
   docId: UnpackedHypermediaId
-  accessory: DocumentDiscussionsAccessory
-  onAccessory: (acc: DocumentAccessory) => void
+  selection: DiscussionsRoute
 }) {
-  const {docId, accessory} = props
+  const {docId, selection} = props
   const route = useNavRoute()
   const scrollRef = useScrollRestoration({
     scrollId: `discussions-${docId.id}`,
@@ -42,10 +38,10 @@ function _DiscussionsPanel(props: {
   const commentEditor = (
     <CommentBox
       docId={docId}
-      commentId={accessory.openComment}
-      quotingBlockId={accessory.targetBlockId}
+      commentId={selection.openComment}
+      quotingBlockId={selection.targetBlockId}
       context="accessory"
-      autoFocus={accessory.autoFocus}
+      autoFocus={selection.autoFocus}
     />
   )
 
@@ -71,10 +67,10 @@ function _DiscussionsPanel(props: {
 
   const currentAccountId = selectedAccount?.id.uid
 
-  if (accessory.targetBlockId) {
+  if (selection.targetBlockId) {
     const targetId = hmId(docId.uid, {
       ...docId,
-      blockRef: accessory.targetBlockId,
+      blockRef: selection.targetBlockId,
     })
     return (
       <>
@@ -91,12 +87,12 @@ function _DiscussionsPanel(props: {
     )
   }
 
-  if (accessory.openComment) {
+  if (selection.openComment) {
     return (
       <>
         {deleteCommentDialog.content}
         <CommentDiscussions
-          commentId={accessory.openComment}
+          commentId={selection.openComment}
           commentEditor={commentEditor}
           targetId={docId}
           targetDomain={targetDomain}
@@ -104,10 +100,10 @@ function _DiscussionsPanel(props: {
           onCommentDelete={onCommentDelete}
           scrollRef={scrollRef}
           selection={
-            accessory.blockId
+            selection.blockId
               ? {
-                  blockId: accessory.blockId,
-                  blockRange: accessory.blockRange || undefined,
+                  blockId: selection.blockId,
+                  blockRange: selection.blockRange || undefined,
                 }
               : undefined
           }

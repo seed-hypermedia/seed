@@ -178,7 +178,7 @@ function DocumentDraftItem({
     <div
       className="group hover:bg-muted h-auto w-full cursor-pointer rounded px-4 py-2"
       onClick={() => {
-        navigate({key: 'draft', id: item.id, accessory: {key: 'options'}})
+        navigate({key: 'draft', id: item.id})
       }}
     >
       <div className="flex w-full items-center justify-between gap-4 overflow-hidden">
@@ -294,13 +294,13 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
         // Navigate to the target document with the comment editor focused
         if (targetDocId) {
           // Only open activity accessory if the draft was created in accessory context
-          const shouldOpenAccessory = item.context === 'accessory'
+          const shouldOpenSelection = item.context === 'accessory'
 
-          const navParams = shouldOpenAccessory
+          const navParams = shouldOpenSelection
             ? {
                 key: 'document' as const,
                 id: targetDocId,
-                accessory: {
+                selection: {
                   key: 'activity' as const,
                   openComment: item.replyCommentId,
                   targetBlockId: item.quotingBlockId,
@@ -315,7 +315,7 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
           navigate(navParams)
 
           // For non-accessory drafts, use the focus trigger mechanism after navigation
-          if (!shouldOpenAccessory) {
+          if (!shouldOpenSelection) {
             setTimeout(() => {
               triggerCommentDraftFocus(targetDocId.id, item.replyCommentId)
             }, 300)
@@ -327,7 +327,7 @@ function CommentDraftItem({item}: {item: HMListedCommentDraft}) {
         <div className="flex-1 overflow-hidden">
           <div className="flex items-center gap-2">
             <MessageSquare className="text-muted-foreground size-4 shrink-0" />
-            {/* <Badge variant="secondary" className="shrink-0 text-xs">
+            {/* <Badge variant="secondary" className="text-xs shrink-0">
               {contextLabel}
             </Badge> */}
             {item.context && (

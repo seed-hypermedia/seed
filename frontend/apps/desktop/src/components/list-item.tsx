@@ -80,7 +80,7 @@ export function ListItem({
   )
 }
 
-export function TimeAccessory({
+export function TimeSelection({
   time,
   onPress,
   tooltipLabel,

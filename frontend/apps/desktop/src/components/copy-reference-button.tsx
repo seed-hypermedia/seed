@@ -9,6 +9,7 @@ import {
   createWebHMUrl,
   hmId,
 } from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink, Link} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -29,6 +30,7 @@ export function useDocumentUrl({
   content: ReactNode
 } | null {
   const docEntity = useResource(docId)
+  const route = useNavRoute()
   if (!docId?.uid) return null
   const accountId = hmId(docId.uid)
   const accountEntity = useResource(accountId)
@@ -63,16 +65,8 @@ export function useDocumentUrl({
     content: copyDialogContent,
     onCopy: (blockId: string | undefined, blockRange?: BlockRange | null) => {
       const focusBlockId = isBlockFocused ? docId.blockRef : null
-      onCopyReference({
-        ...docId,
-        hostname: siteHostname || gwUrl,
-        // @ts-expect-error
-        version: docEntity.data?.document?.version || null,
-        blockRef: blockId || focusBlockId || null,
-        blockRange: blockRange || null,
-        path: docId.path,
-        latest,
-      })
+      // Always include panel in URL via ?panel= query param for cross-platform sharing
+      onCopyReference(route)
     },
   }
 }

@@ -33,6 +33,7 @@ import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
@@ -43,7 +44,7 @@ import {
   useState,
 } from 'react'
 import {toast} from 'sonner'
-import {AccessoryContent} from './accessories'
+import {SelectionContent} from './accessories'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
@@ -76,6 +77,7 @@ export function CommentDiscussions({
   onCommentDelete,
   selection,
   scrollRef: externalScrollRef,
+  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -89,6 +91,8 @@ export function CommentDiscussions({
     blockRange?: BlockRange
   }
   scrollRef?: React.Ref<HTMLDivElement>
+  /** When true, constrains content width and centers it */
+  centered?: boolean
 }) {
   const internalScrollRef = useRef<HTMLDivElement>(null)
   const scrollRef = (externalScrollRef ||
@@ -224,36 +228,36 @@ export function CommentDiscussions({
 
   if (commentsService.error) {
     return (
-      <AccessoryContent>
+      <SelectionContent centered={centered}>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
           </SizableText>
         </div>
-      </AccessoryContent>
+      </SelectionContent>
     )
   }
 
   if (commentsService.isLoading && !commentsService.data) {
     return (
-      <AccessoryContent>
+      <SelectionContent centered={centered}>
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
-      </AccessoryContent>
+      </SelectionContent>
     )
   }
 
   // If comment not found in the list, show a message
   if (!commentFound && commentsService.data) {
     return (
-      <AccessoryContent>
+      <SelectionContent centered={centered}>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
           </SizableText>
         </div>
-      </AccessoryContent>
+      </SelectionContent>
     )
   }
 
@@ -261,7 +265,11 @@ export function CommentDiscussions({
   const hasParents = parentThread?.thread && parentThread.thread.length > 1
 
   return (
-    <AccessoryContent scrollRef={scrollRef} bottomPadding={bottomPadding}>
+    <SelectionContent
+      scrollRef={scrollRef}
+      bottomPadding={bottomPadding}
+      centered={centered}
+    >
       {/* Render parent thread above focused comment when ready */}
       {hasParents && showParents && (
         <div ref={parentsRef}>
@@ -343,7 +351,7 @@ export function CommentDiscussions({
       ) : (
         <EmptyDiscussions emptyReplies />
       )}
-    </AccessoryContent>
+    </SelectionContent>
   )
 }
 
@@ -355,6 +363,7 @@ export function Discussions({
   currentAccountId,
   onCommentDelete,
   scrollRef,
+  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -363,6 +372,8 @@ export function Discussions({
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   scrollRef?: React.Ref<HTMLDivElement>
+  /** When true, constrains content width and centers it */
+  centered?: boolean
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -448,9 +459,13 @@ export function Discussions({
   }
 
   return (
-    <AccessoryContent header={commentEditor} scrollRef={scrollRef}>
+    <SelectionContent
+      header={commentEditor}
+      scrollRef={scrollRef}
+      centered={centered}
+    >
       {panelContent}
-    </AccessoryContent>
+    </SelectionContent>
   )
 }
 
@@ -461,6 +476,7 @@ export function BlockDiscussions({
   currentAccountId,
   onCommentDelete,
   scrollRef,
+  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
@@ -468,6 +484,8 @@ export function BlockDiscussions({
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   scrollRef?: React.Ref<HTMLDivElement>
+  /** When true, constrains content width and centers it */
+  centered?: boolean
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -551,11 +569,11 @@ export function BlockDiscussions({
   }
 
   return (
-    <AccessoryContent scrollRef={scrollRef}>
+    <SelectionContent scrollRef={scrollRef} centered={centered}>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
-    </AccessoryContent>
+    </SelectionContent>
   )
 }
 
@@ -875,8 +893,9 @@ export function CommentContent({
       openRoute({
         key: 'document',
         id: targetId,
-        accessory: {
+        panel: {
           key: 'discussions',
+          id: targetId,
           openComment: comment.id,
           blockId,
           blockRange,
@@ -914,14 +933,27 @@ export function CommentContent({
 
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
-  const destRoute: NavRoute = {
-    key: 'document',
-    id: targetId!,
-    accessory: {
-      key: 'discussions',
-      openComment: comment.id,
-    },
-  }
+  const currentRoute = useNavRoute()
+
+  // Determine if we should navigate to full discussions page or document panel
+  const useFullPageNavigation =
+    currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+
+  const destRoute: NavRoute = useFullPageNavigation
+    ? {
+        key: 'discussions',
+        id: targetId!,
+        openComment: comment.id,
+      }
+    : {
+        key: 'document',
+        id: targetId!,
+        panel: {
+          key: 'discussions',
+          id: targetId!,
+          openComment: comment.id,
+        },
+      }
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
