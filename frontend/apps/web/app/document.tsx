@@ -579,14 +579,14 @@ function InnerDocumentPage(
   // 'content' means the document itself, otherwise it's activity/discussions/etc
   const activeView = viewTerm || 'content'
 
-  const documentTools = (
+  const documentTools = activityEnabled ? (
     <DocumentTools
       id={id}
       activeTab={activeView}
       commentsCount={interactionSummary.data?.comments}
       directoryCount={interactionSummary.data?.children}
     />
-  )
+  ) : null
   return (
     <Suspense
       fallback={
@@ -830,7 +830,9 @@ function InnerDocumentPage(
                                       }
                                     }}
                                     blockCitations={
-                                      interactionSummary.data?.blocks
+                                      activityEnabled
+                                        ? interactionSummary.data?.blocks
+                                        : undefined
                                     }
                                   >
                                     <BlocksContent blocks={document.content} />
