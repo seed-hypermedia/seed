@@ -79,11 +79,11 @@ services:
           -p2p.announce-addrs=/dns4/$$HOSTNAME/tcp/56000,/dns4/$$HOSTNAME/udp/56000/quic-v1 \
           "$$SITE_URL"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:56001/debug/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:56001/debug/version"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
 volumes:
   seed-web-data:
