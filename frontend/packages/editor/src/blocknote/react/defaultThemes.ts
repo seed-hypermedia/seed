@@ -20,41 +20,28 @@ export const lightDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-ignore
-      text: defaultColorScheme[5],
-      // @ts-ignore
-      background: defaultColorScheme[0],
+      text: defaultColorScheme[5]!,
+      background: defaultColorScheme[0]!,
     },
     tooltip: {
-      // @ts-ignore
-      text: defaultColorScheme[5],
-      // @ts-ignore
-      background: defaultColorScheme[1],
+      text: defaultColorScheme[5]!,
+      background: defaultColorScheme[1]!,
     },
     hovered: {
-      // @ts-ignore
-      text: defaultColorScheme[5],
-      // @ts-ignore
-      background: defaultColorScheme[1],
+      text: defaultColorScheme[5]!,
+      background: defaultColorScheme[1]!,
     },
     selected: {
-      // @ts-ignore
-      text: defaultColorScheme[0],
-      // @ts-ignore
-      background: defaultColorScheme[5],
+      text: defaultColorScheme[0]!,
+      background: defaultColorScheme[5]!,
     },
     disabled: {
-      // @ts-ignore
-      text: defaultColorScheme[3],
-      // @ts-ignore
-      background: defaultColorScheme[1],
+      text: defaultColorScheme[3]!,
+      background: defaultColorScheme[1]!,
     },
-    // @ts-ignore
-    shadow: defaultColorScheme[2],
-    // @ts-ignore
-    border: defaultColorScheme[1],
-    // @ts-ignore
-    sideMenu: defaultColorScheme[2],
+    shadow: defaultColorScheme[2]!,
+    border: defaultColorScheme[1]!,
+    sideMenu: defaultColorScheme[2]!,
     highlightColors: {
       gray: {
         text: '#9b9a97',
@@ -106,41 +93,28 @@ export const darkDefaultTheme: Theme = {
       background: 'transparent',
     },
     menu: {
-      // @ts-ignore
-      text: defaultColorScheme[2],
-      // @ts-ignore
-      background: defaultColorScheme[6],
+      text: defaultColorScheme[2]!,
+      background: defaultColorScheme[6]!,
     },
     tooltip: {
-      // @ts-ignore
-      text: defaultColorScheme[2],
-      // @ts-ignore
-      background: defaultColorScheme[7],
+      text: defaultColorScheme[2]!,
+      background: defaultColorScheme[7]!,
     },
     hovered: {
-      // @ts-ignore
-      text: defaultColorScheme[2],
-      // @ts-ignore
-      background: defaultColorScheme[7],
+      text: defaultColorScheme[2]!,
+      background: defaultColorScheme[7]!,
     },
     selected: {
-      // @ts-ignore
-      text: defaultColorScheme[2],
-      // @ts-ignore
-      background: defaultColorScheme[8],
+      text: defaultColorScheme[2]!,
+      background: defaultColorScheme[8]!,
     },
     disabled: {
-      // @ts-ignore
-      text: defaultColorScheme[5],
-      // @ts-ignore
-      background: defaultColorScheme[7],
+      text: defaultColorScheme[5]!,
+      background: defaultColorScheme[7]!,
     },
-    // @ts-ignore
-    shadow: defaultColorScheme[8],
-    // @ts-ignore
-    border: defaultColorScheme[7],
-    // @ts-ignore
-    sideMenu: defaultColorScheme[4],
+    shadow: defaultColorScheme[8]!,
+    border: defaultColorScheme[7]!,
+    sideMenu: defaultColorScheme[4]!,
     highlightColors: {
       gray: {
         text: '#bebdb8',

@@ -211,8 +211,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         finishLeaf(textStart, i + 2)
 
         if (inlineBlockContent) {
-          // @ts-ignore
-          if (!isText(leaves[leaves.length - 1])) {
+          const lastLeaf = leaves[leaves.length - 1]
+          if (lastLeaf && !isText(lastLeaf)) {
             // leaves.push({type: 'text', text: '', styles: {}})
           }
 
@@ -241,8 +241,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       finishLeaf(textStart, i + 1)
 
       if (inlineBlockContent) {
-        // @ts-ignore
-        if (!isText(leaves[leaves.length - 1])) {
+        const lastLeaf = leaves[leaves.length - 1]
+        if (lastLeaf && !isText(lastLeaf)) {
           //   leaves.push({type: 'text', text: '', styles: {}})
         }
         leaves.push(inlineBlockContent)
@@ -327,8 +327,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
           annotationData.type,
         )
       ) {
-        // @ts-ignore
-        leaf.styles[annotationData.type.toLowerCase()] = true
+        const styleKey = annotationData.type.toLowerCase() as keyof typeof leaf.styles
+        ;(leaf!.styles as Record<string, boolean>)[styleKey] = true
       }
 
       // if (l.type === 'color') {
@@ -338,49 +338,41 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     })
 
     if (linkAnnotation) {
-      // @ts-expect-error
       if (linkAnnotation.type === 'Embed') {
         leaves.push({
           type: 'inline-embed',
           styles: {},
-          // @ts-expect-error
           link: linkAnnotation.link || '',
         } as EditorInlineEmbed)
         textStart = i + 1
       } else if (inlineBlockContent) {
         if (linkChangedIdentity(linkAnnotation as any)) {
           leaves.push(inlineBlockContent)
-          // @ts-expect-error
           if (linkAnnotation.type === 'Link') {
             inlineBlockContent = {
               type: 'link',
               content: [],
-              // @ts-expect-error
               href: linkAnnotation.href || '',
             } as EditorLink
           } else {
             inlineBlockContent = {
               type: 'inline-embed',
               styles: {},
-              // @ts-expect-error
               link: linkAnnotation.link || '',
             } as EditorInlineEmbed
           }
         }
       } else {
-        // @ts-expect-error
         if (linkAnnotation.type === 'Link') {
           inlineBlockContent = {
             type: 'link',
             content: [],
-            // @ts-expect-error
             href: linkAnnotation.href || '',
           } as EditorLink
         } else {
           inlineBlockContent = {
             type: 'inline-embed',
             styles: {},
-            // @ts-expect-error
             link: linkAnnotation.link || '',
           } as EditorInlineEmbed
         }
@@ -441,8 +433,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
     // When position matches — we enable the annotation for the current leaf.
     // When it doesn't match — we disable the annotation for the current leaf.
-    // @ts-expect-error
-    ;(block as any).annotations.forEach((l) => {
+    const blockAnnotations = (block as any).annotations as unknown[]
+    blockAnnotations.forEach((l) => {
       let spanIdx = annotationContains(l as unknown as Annotation, pos)
       if (spanIdx === -1) {
         // If the annotation was in the set, we remove it and mark set as "dirty".
@@ -485,8 +477,7 @@ export function annotationContains(
     mid = Math.floor((low + high) / 2)
     // Binary search. If the midpoint span ends before the position
     // we're checking — we drop the left side of the array entirely.
-    // @ts-ignore
-    if (annotation.ends[mid] <= pos) {
+    if (annotation.ends[mid]! <= pos) {
       low = mid + 1
     } else {
       high = mid - 1
@@ -497,8 +488,7 @@ export function annotationContains(
     return -1
   }
 
-  // @ts-ignore
-  if (annotation.starts[low] <= pos && pos < annotation.ends[low]) {
+  if (annotation.starts[low]! <= pos && pos < annotation.ends[low]!) {
     return low
   }
 

@@ -85,20 +85,17 @@ export function getDocAttributeChanges(metadata: HMMetadata) {
 
 type PrimitiveValue = string | number | boolean | null | undefined
 
-export function extractMetaEntries(jsonObject: {}): [
-  string[],
-  PrimitiveValue,
-][] {
-  // @ts-expect-error
-  return Object.entries(jsonObject).flatMap(
-    // @ts-expect-error
-    ([key, value]: [string, unknown]) => {
-      if (typeof value === 'object' && value !== null) {
-        return extractMetaEntries(value).map(([k, v]) => [key + '.' + k, v])
-      }
-      return [[[key], value]]
-    },
-  )
+export function extractMetaEntries(
+  jsonObject: Record<string, unknown>,
+): [string[], PrimitiveValue][] {
+  return Object.entries(jsonObject).flatMap(([key, value]) => {
+    if (typeof value === 'object' && value !== null) {
+      return extractMetaEntries(value as Record<string, unknown>).map(
+        ([k, v]) => [[key, ...k], v] as [string[], PrimitiveValue],
+      )
+    }
+    return [[[key], value as PrimitiveValue]] as [string[], PrimitiveValue][]
+  })
 }
 
 function docAttributeChangeString(key: string[], value: string) {
@@ -192,24 +189,15 @@ export function compareBlocksWithMap(
     let prevBlockState = blocksMap[block.id]
 
     // const childGroup = getBlockGroup(editor, block.id) // TODO: do this with no editor
-
-    // if (childGroup) {
-    if (false) {
-      // @ts-expect-error
-      block.props.childrenType = childGroup.type ? childGroup.type : 'Group'
-      // @ts-expect-error
-      block.props.listLevel = childGroup.listLevel
-      // @ts-expect-error
-      if (childGroup.start) block.props.start = childGroup.start.toString()
-    }
     let currentBlockState = editorBlockToHMBlock(block)
+
+    type BlockWithAttributes = {attributes?: {listLevel?: unknown}}
+    const prevAttrs = prevBlockState?.block as BlockWithAttributes | undefined
+    const currAttrs = currentBlockState as BlockWithAttributes
 
     if (
       !prevBlockState ||
-      // @ts-expect-error
-      prevBlockState.block.attributes?.listLevel !==
-        // @ts-expect-error
-        currentBlockState.attributes?.listLevel
+      prevAttrs?.attributes?.listLevel !== currAttrs.attributes?.listLevel
     ) {
       const serverBlock = editorBlockToHMBlock(block)
 
@@ -220,8 +208,7 @@ export function compareBlocksWithMap(
             case: 'moveBlock',
             value: {
               blockId: block.id,
-              // @ts-ignore
-              leftSibling: idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : '',
+              leftSibling: idx > 0 ? blocks[idx - 1]!.id : '',
               parent: parentId,
             },
           },
@@ -234,8 +221,7 @@ export function compareBlocksWithMap(
         }),
       )
     } else {
-      // @ts-ignore
-      let left = idx > 0 && blocks[idx - 1] ? blocks[idx - 1].id : ''
+      let left = idx > 0 ? blocks[idx - 1]!.id : ''
       if (prevBlockState.left !== left || prevBlockState.parent !== parentId) {
         changes.push(
           new DocumentChange({
@@ -300,6 +286,16 @@ export function extractDeletes(
   )
 }
 
+// Type for comparing blocks that may have different properties based on their type
+type GenericBlockFields = {
+  id: string
+  type: string
+  text?: string
+  link?: string
+  annotations?: unknown[]
+  attributes?: Record<string, unknown>
+}
+
 export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   if (!b1 || !b2) {
     console.log('Blocks not equal: One or both blocks are null/undefined', {
@@ -310,8 +306,12 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   }
   if (b1 === b2) return true
 
+  // Cast to generic type for property access
+  const block1 = b1 as GenericBlockFields
+  const block2 = b2 as GenericBlockFields
+
   // Helper function to compare annotations, treating undefined and empty arrays as equal
-  const areAnnotationsEqual = (a1?: any[], a2?: any[]) => {
+  const areAnnotationsEqual = (a1?: unknown[], a2?: unknown[]) => {
     if (!a1 && !a2) return true
     if (!a1 && a2?.length === 0) return true
     if (!a2 && a1?.length === 0) return true
@@ -327,14 +327,11 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
   }
 
   const checks = {
-    id: b1.id === b2.id,
-    // @ts-expect-error
-    text: isTextEqual(b1.text, b2.text),
-    // @ts-expect-error
-    link: b1.link === b2.link,
-    type: b1.type === b2.type,
-    // @ts-expect-error
-    annotations: areAnnotationsEqual(b1.annotations, b2.annotations),
+    id: block1.id === block2.id,
+    text: isTextEqual(block1.text, block2.text),
+    link: block1.link === block2.link,
+    type: block1.type === block2.type,
+    annotations: areAnnotationsEqual(block1.annotations, block2.annotations),
     attributes: isBlockAttributesEqual(b1, b2),
   }
 
@@ -342,29 +339,23 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 
   if (!result) {
     console.log('Blocks not equal. Differences found:', {
-      blockId: b1.id,
+      blockId: block1.id,
       differences: Object.entries(checks)
         .filter(([_, isEqual]) => !isEqual)
         .map(([prop]) => ({
           property: prop,
           b1Value:
             prop === 'annotations'
-              ? // @ts-expect-error
-                b1.annotations
+              ? block1.annotations
               : prop === 'attributes'
-              ? // @ts-expect-error
-                b1.attributes
-              : // @ts-expect-error
-                b1[prop],
+              ? block1.attributes
+              : block1[prop as keyof GenericBlockFields],
           b2Value:
             prop === 'annotations'
-              ? // @ts-expect-error
-                b2.annotations
+              ? block2.annotations
               : prop === 'attributes'
-              ? // @ts-expect-error
-                b2.attributes
-              : // @ts-expect-error
-                b2[prop],
+              ? block2.attributes
+              : block2[prop as keyof GenericBlockFields],
         })),
     })
   }
@@ -373,10 +364,12 @@ export function isBlocksEqual(b1: HMBlock, b2: HMBlock): boolean {
 }
 
 function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
-  // @ts-expect-error
-  const a1 = b1.attributes
-  // @ts-expect-error
-  const a2 = b2.attributes
+  const a1 = (b1 as GenericBlockFields).attributes as
+    | Record<string, unknown>
+    | undefined
+  const a2 = (b2 as GenericBlockFields).attributes as
+    | Record<string, unknown>
+    | undefined
 
   if (!a1 && !a2) return true
   if (!a1 || !a2) {
@@ -454,14 +447,11 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
 
   // Deep compare each include item
   for (let i = 0; i < includes1.length; i++) {
-    const include1 = includes1[i]
-    const include2 = includes2[i]
+    const include1 = includes1[i]!
+    const include2 = includes2[i]!
 
-    // @ts-ignore
     if (include1.mode !== include2.mode) return false
-    // @ts-ignore
     if (include1.path !== include2.path) return false
-    // @ts-ignore
     if (include1.space !== include2.space) return false
   }
 
@@ -470,13 +460,11 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   if ((q1.sort?.length || 0) !== (q2.sort?.length || 0)) return false
 
   for (let i = 0; i < (q1.sort?.length || 0); i++) {
-    const sort1 = q1.sort![i]
-    const sort2 = q2.sort![i]
+    const sort1 = q1.sort![i]!
+    const sort2 = q2.sort![i]!
 
-    // @ts-ignore
     if (sort1.reverse !== sort2.reverse) return false
 
-    // @ts-ignore
     if (sort1.term !== sort2.term) return false
   }
   return true
