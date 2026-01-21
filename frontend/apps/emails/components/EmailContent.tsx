@@ -377,8 +377,8 @@ function renderBlock(
   const {type, text, annotations, link, attributes} = block
 
   const innerHtml = renderInlineTextWithAnnotations(
-    text,
-    annotations,
+    text || '',
+    annotations || [],
     resolvedNames,
   )
 
@@ -473,7 +473,7 @@ function renderBlock(
           Open in Instagram
         </MjmlButton>
       )
-    } else if (link.includes('x.com')) {
+    } else if (link?.includes('x.com')) {
       return (
         <MjmlButton
           href={link}

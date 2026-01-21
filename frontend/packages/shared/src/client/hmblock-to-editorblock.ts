@@ -306,7 +306,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
 
     let linkAnnotation: CustomAnnotation | null = null
-    for (const l of posAnnotations) {
+    for (const l of Array.from(posAnnotations)) {
       const annotationData = l as unknown as CustomAnnotation
 
       if (annotationData.type === 'Link') {
