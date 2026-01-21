@@ -19,8 +19,15 @@ If not installed:
 # macOS
 brew install grpcurl
 
-# Linux (using go)
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+# Linux (package manager)
+# Debian/Ubuntu
+sudo apt-get install grpcurl
+
+# Fedora/RHEL
+sudo dnf install grpcurl
+
+# Arch
+sudo pacman -S grpcurl
 
 # Or download binary from: https://github.com/fullstorydev/grpcurl/releases
 ```
