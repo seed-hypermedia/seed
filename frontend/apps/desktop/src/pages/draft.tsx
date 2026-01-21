@@ -536,7 +536,11 @@ function DocumentEditor({
                   rightActions={<DraftActionButtons route={route} />}
                   existingDraft={draftQuery.data || false}
                 />
-              ) : null}
+              ) : (
+                <div className="flex justify-end px-4 pt-2">
+                  <DraftActionButtons route={route} />
+                </div>
+              )}
               {/* Editor content - centered with sidebar */}
               <div {...wrapperProps}>
                 {showSidebars ? (
