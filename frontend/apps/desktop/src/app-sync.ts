@@ -574,6 +574,24 @@ export function getSubscriptionCount(): number {
   return state.subscriptions.size
 }
 
+export function getDiscoveryStreamCount(): number {
+  return state.discoveryStreams.size
+}
+
+// Memory monitor stats
+export function getSyncStats() {
+  return {
+    subscriptions: state.subscriptions.size,
+    subscriptionCounts: state.subscriptionCounts.size,
+    recursiveSubscriptions: state.recursiveSubscriptions.size,
+    discoveryStreams: state.discoveryStreams.size,
+    lastKnownVersions: state.lastKnownVersions.size,
+    pendingInvalidations: state.pendingInvalidations.size,
+    hasActivityPollTimer: state.activityPollTimer !== null,
+    hasDebounceTimer: state.debounceTimer !== null,
+  }
+}
+
 // ============ tRPC API ============
 
 // Schema for UnpackedHypermediaId - matches the one in hm-types.ts
