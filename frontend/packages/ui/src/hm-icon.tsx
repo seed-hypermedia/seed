@@ -12,7 +12,6 @@ import {useImageUrl} from './get-file-url'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
-// TODO: support new drafts now
 export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
   // Custom comparison function for memo
   // Deep comparison for id object
@@ -24,17 +23,8 @@ export const HMIcon = memo(_HMIcon, (prevProps, nextProps) => {
   if (prevProps.className !== nextProps.className) return false
 
   // Direct comparison for name and icon props
-  if (prevProps.name !== nextProps.name) {
-    return false
-  }
-  if (prevProps.icon !== nextProps.icon) {
-    console.log('🔄 HMIcon memo: icon changed', {
-      prev: prevProps.icon,
-      next: nextProps.icon,
-      id: prevProps.id?.uid?.slice(0, 8),
-    })
-    return false
-  }
+  if (prevProps.name !== nextProps.name) return false
+  if (prevProps.icon !== nextProps.icon) return false
 
   return true
 })

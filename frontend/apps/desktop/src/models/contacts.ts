@@ -1,5 +1,5 @@
 import {grpcClient} from '@/grpc-client'
-import {useAccount_deprecated, useAccountList} from '@/models/accounts'
+import {useAccountList} from '@/models/accounts'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
@@ -204,30 +204,6 @@ export function useConnectionSummary() {
   return {
     online: connectedPeers.length > 0,
     connectedCount: connectedPeers.length,
-  }
-}
-
-export function useAccountWithDevices(accountId: string) {
-  // @ts-expect-error
-  const account = useAccount_deprecated(accountId)
-  const peers = useConnectedPeers()
-  return {
-    // @ts-expect-error
-    ...account.data,
-    // @ts-expect-error
-    profile: account.data?.profile,
-
-    // @ts-expect-error
-    devices: Object.values(account?.data?.devices || {}).map(
-      // TODO: FIX TYPES
-      (device: any) => {
-        const deviceId = device.deviceId
-        return {
-          deviceId,
-          isConnected: !!peers.data?.find((peer) => peer.id === deviceId),
-        }
-      },
-    ),
   }
 }
 

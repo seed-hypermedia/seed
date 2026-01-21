@@ -1,4 +1,4 @@
-import {draftMachine} from '@/models/draft-machine'
+import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -26,7 +26,7 @@ export function useDocumentAccessory({
   targetDomain,
 }: {
   docId?: UnpackedHypermediaId
-  state?: any // TODO: fix this type
+  state?: DraftMachineState
   actor?: ActorRefFrom<typeof draftMachine>
   isEditingHomeDoc?: boolean
   isNewDraft?: boolean

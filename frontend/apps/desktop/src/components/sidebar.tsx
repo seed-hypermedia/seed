@@ -239,7 +239,7 @@ function FavoritesSection() {
             />
           )
         }
-        // @ts-expect-error TODO: fix this
+        if (favorite.data.type !== 'document') return null
         const {id, document} = favorite.data
         const metadata = id.path?.length
           ? document?.metadata
@@ -365,7 +365,7 @@ function SubscriptionsSection() {
             />
           )
         }
-        // @ts-expect-error TODO: fix this
+        if (entity.data.type !== 'document') return null
         const {id, document} = entity.data
         const isHomeSubscription = !id.path?.length
 

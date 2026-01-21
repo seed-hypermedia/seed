@@ -1,7 +1,4 @@
-// import {Interceptor} from '@bufbuild/connect-web'
-
-// TODO: change to expect-error instead
-// @ts-ignore
+// @ts-expect-error - interceptor types from connect-web not imported for simplicity
 export const loggingInterceptor = (next) => async (req) => {
   const timeout = setTimeout(() => {
     console.log(`🚨 TIMEOUT on ${req.method.name}`, req.message)
@@ -10,7 +7,6 @@ export const loggingInterceptor = (next) => async (req) => {
     console.log(`↗️ to ${req.method.name}`, req.message)
     const result = await next(req)
     clearTimeout(timeout)
-    // @ts-ignore
     console.log(`🔃 to ${req.method.name}`, req.message, result?.message)
     return result
   } catch (e) {
@@ -20,8 +16,7 @@ export const loggingInterceptor = (next) => async (req) => {
   }
 }
 
-// TODO: change to expect-error instead
-// @ts-ignore
+// @ts-expect-error - interceptor types from connect-web not imported for simplicity
 export const prodInter = (next) => async (req) => {
   const result = await next({
     ...req,

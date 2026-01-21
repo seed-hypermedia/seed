@@ -56,7 +56,7 @@ import {UniqueID} from './extensions/UniqueID/UniqueID'
 import {mergeCSSClasses} from './shared/utils'
 
 export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
-  // TODO: Figure out if enableBlockNoteExtensions/disableHistoryExtension are needed and document them.
+  // Note: enableBlockNoteExtensions/disableHistoryExtension are internal options
   enableBlockNoteExtensions: boolean
   /**
    *
@@ -140,7 +140,6 @@ export type BlockNoteEditorOptions<BSchema extends BlockSchema> = {
 
   // isEditable
   isEditable: boolean
-  // TODO: check types
   linkExtensionOptions?: LinkExtensionOptions
   onMentionsQuery?: any
   importWebFile?: ImportWebFileFunction
@@ -227,17 +226,12 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     const newOptions: Omit<typeof options, 'defaultStyles' | 'blockSchema'> & {
       defaultStyles: boolean
       blockSchema: BSchema
-      // TODO: add proper types to this
-      linkExtensionOptions?: any
+      linkExtensionOptions?: LinkExtensionOptions
       inlineEmbedOptions?: InlineMentionsResult
       onMentionsQuery?: (query: string) => void
     } = {
       defaultStyles: true,
-      // TODO: There's a lot of annoying typing stuff to deal with here. If
-      //  BSchema is specified, then options.blockSchema should also be required.
-      //  If BSchema is not specified, then options.blockSchema should also not
-      //  be defined. Unfortunately, trying to implement these constraints seems
-      //  to be a huge pain, hence the `as any` casts.
+      // BSchema generic constraints make proper typing complex - using `as any` for hmBlockSchema fallback
       blockSchema: options.blockSchema || (hmBlockSchema as any),
       editable: options.editable || true,
       ...options,

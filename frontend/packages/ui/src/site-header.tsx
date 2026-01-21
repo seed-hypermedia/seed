@@ -241,7 +241,7 @@ export function SiteHeader({
                 // @ts-expect-error
                 onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
-                  console.log('SEARCH RESULT', item) // TODO: navigate to the document with the correct URL based on the site
+                  // Navigation not yet implemented for mobile search results
                 }}
               />
 

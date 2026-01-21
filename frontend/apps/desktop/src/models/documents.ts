@@ -412,20 +412,6 @@ type MoveBlockAction = {
   parent: string
 }
 
-export function useDrafts(
-  ids: string[],
-  options?: UseQueryOptions<HMDocument | null>,
-) {
-  // return useQueries({
-  //   queries: ids.map((draftId) => trpc.drafts.get.useQuery(draftId, {
-  //     enabled: !!draftId,
-  //     queryKey: [queryKeys.DRAFT, draftId],
-  //   }),
-  //   ...(options || {}),
-  // })
-  // TODO: IMPLEMENT ME
-}
-
 export function queryDraft({
   draftId,
   diagnosis,
@@ -1150,25 +1136,6 @@ function observeBlocks(
     if (block.children) {
       observeBlocks(editor, block.children, onChange)
     }
-
-    // TODO: this code was making impossible to remove a paragraph above a media element when it was nested. This was in place because it was also impossible to add a selection above a media element when this media element was the last one in the draft. Now it seems to both cases be fixed when this code is removed. 🤷‍♂️
-    // if (
-    //   index === blocks.length - 1 &&
-    //   ['image', 'video', 'file', 'embed'].includes(block.type)
-    // ) {
-    //   editor.insertBlocks(
-    //     [
-    //       {
-    //         type: 'paragraph',
-    //       },
-    //     ],
-    //     block.id,
-    //     'after',
-    //   )
-    //   if (editor.getTextCursorPosition().nextBlock) {
-    //     editor.setTextCursorPosition(editor.getTextCursorPosition().nextBlock)
-    //   }
-    // }
   })
 }
 

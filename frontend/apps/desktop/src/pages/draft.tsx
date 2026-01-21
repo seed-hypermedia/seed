@@ -14,7 +14,7 @@ import {
 } from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
-import {draftMachine} from '@/models/draft-machine'
+import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
@@ -47,7 +47,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {AccessoryOptions, DocumentRoute, DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -279,7 +279,7 @@ export default function DraftPage() {
             onScroll={() => dispatchScroll(true)}
             onAccessorySelect={(key) => {
               if (!key) return
-              replace({...route, accessory: {key: key as any}}) // TODO: fix this type
+              replace({...route, accessory: {key: key as AccessoryOptions}})
             }}
             accessoryOptions={accessoryOptions}
             isNewDraft={editId == undefined}
@@ -786,13 +786,13 @@ function DraftAppHeader({
   draftMetadata?: HMMetadata
   isEditingHomeDoc: boolean
   onDocNav: (navigation: HMNavigationItem[]) => void
-  actor: any // TODO: proper type
+  actor: ActorRefFrom<typeof draftMachine>
 }) {
   const dir = useDirectory(docId, {mode: 'Children'})
   const notifyServiceHost = useNotifyServiceHost()
   const currentDocNav: HMNavigationItem[] | undefined = useSelector(
     actor,
-    (s: any) => s.context.navigation,
+    (s: DraftMachineState) => s.context.navigation,
   )
   const navItems = useSiteNavigationItems(siteHomeEntity)?.filter(
     (item) => !item.draftId,

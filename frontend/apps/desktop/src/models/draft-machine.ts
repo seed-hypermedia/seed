@@ -25,7 +25,7 @@ export const draftMachine = setup({
       editUid: HMDraft['editUid']
       editPath: HMDraft['editPath']
       navigation?: HMNavigationItem[]
-      error: any // TODO: fix types
+      error: unknown
       changed: boolean
       hasChangedWhileSaving: boolean
       draftCreated: boolean

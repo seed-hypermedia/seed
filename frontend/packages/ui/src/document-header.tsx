@@ -41,8 +41,7 @@ export function DocumentHeader({
     metadata: HMMetadata
   }>
   siteUrl?: string
-  // TODO: add proper types to this component.
-  documentTools?: any
+  documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])

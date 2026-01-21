@@ -1187,9 +1187,7 @@ function AppSettings() {
                 id="auto-update"
                 checked={autoUpdate.data == 'true'}
                 onCheckedChange={(newVal) => {
-                  let val = newVal ? 'true' : 'false'
-                  // TODO: use the actual type for autoUpdate
-                  setAutoUpdate(val as 'true' | 'false')
+                  setAutoUpdate(newVal ? 'true' : 'false')
                 }}
               />
             </div>

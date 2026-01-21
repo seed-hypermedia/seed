@@ -696,7 +696,7 @@ export function Comment({
     <div
       className={cn(
         'group relative flex gap-1 rounded-lg p-2',
-        isEntirelyHighlighted && 'bg-accent', // TODO: review color for dark theme
+        isEntirelyHighlighted && 'bg-accent',
       )}
     >
       {heading ? null : (

@@ -16,9 +16,7 @@ import {
 import {packHmId} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {BIG_INT} from '@shm/shared/constants'
 import {hasBlockContent} from '@shm/shared/content'
-import {GRPCClient} from '@shm/shared/grpc-client'
 import {
   HMBlockNode,
   HMBlockNodeSchema,
@@ -34,27 +32,13 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {toast} from '@shm/ui/toast'
-import {UseQueryOptions, useMutation, useQuery} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {hmBlockSchema} from '../editor'
 import {setGroupTypes} from './editor-utils'
 import {useGatewayUrlStream} from './gateway-settings'
-
-// TODO: REMOVE THIS
-export function useCommentReplies(
-  targetCommentId: string,
-  targetDocId: UnpackedHypermediaId | undefined,
-) {
-  const comments = useAllDiscussions(targetDocId)
-  return useMemo(() => {
-    const thread = comments.data?.filter(
-      (c) => c.replyParent === targetCommentId,
-    )
-    return thread
-  }, [comments.data, targetCommentId])
-}
 
 export function useCommentDraft(
   targetDocId: UnpackedHypermediaId,
@@ -86,57 +70,6 @@ export function useCommentDraft(
   }
 }
 
-function queryComment(
-  grpcClient: GRPCClient,
-  commentId: UnpackedHypermediaId | null | undefined,
-  opts?: UseQueryOptions<HMComment | null>,
-) {
-  return {
-    // ...opts,
-    queryKey: [queryKeys.COMMENT, commentId],
-    enabled: opts?.enabled !== false && !!commentId,
-    queryFn: async () => {
-      if (!commentId) return null
-      try {
-        const tsId = commentId.path?.[0]
-        if (!tsId) {
-          console.warn(
-            'commentId provided to queryComment with no tsId',
-            commentId,
-          )
-          return null
-        }
-        const comment = await grpcClient.comments.getComment({
-          id: commentId.uid + '/' + tsId,
-        })
-        return toPlainMessage(comment) as HMComment
-      } catch (error: any) {
-        // Handle ConnectError for NotFound comments gracefully
-        if (
-          error?.code === 'not_found' ||
-          error?.message?.includes('not found')
-        ) {
-          console.warn(
-            `Comment ${commentId} not found, treating as acceptable warning`,
-          )
-          return null
-        }
-        // Re-throw other errors
-        throw error
-      }
-    },
-  }
-}
-
-// TODO: REMOVE THIS
-export function useComment(
-  id: UnpackedHypermediaId | null | undefined,
-  opts?: UseQueryOptions<HMComment | null>,
-) {
-  return useQuery(queryComment(grpcClient, id, opts))
-}
-
-// TODO: REMOVE THIS
 export function useComments(commentIds: UnpackedHypermediaId[] = []) {
   return useQuery({
     queryKey: [queryKeys.COMMENTS_BATCH],
@@ -155,44 +88,6 @@ export function useComments(commentIds: UnpackedHypermediaId[] = []) {
         } as HMComment
       })
     },
-  })
-}
-
-// TODO: REMOVE THIS
-export function useAllDiscussions(
-  docId: UnpackedHypermediaId | null | undefined,
-  opts?: {enabled?: boolean},
-) {
-  return useQuery({
-    queryFn: async () => {
-      if (!docId) return []
-      let res = await grpcClient.comments.listComments({
-        targetAccount: docId.uid,
-        targetPath: hmIdPathToEntityQueryPath(docId.path),
-        pageSize: BIG_INT,
-      })
-      return res.comments.map((c) => {
-        const json = c.toJson({
-          emitDefaultValues: true,
-          enumAsInteger: false,
-        }) as any
-        return {
-          ...json,
-          content:
-            json.content?.map((blockNode: any) => {
-              const parsed = HMBlockNodeSchema.safeParse(blockNode)
-              return parsed.success ? parsed.data : blockNode
-            }) || [],
-        } as HMComment
-      })
-    },
-    enabled: !!docId && opts?.enabled !== false,
-    refetchInterval: 10_000,
-    queryKey: [
-      queryKeys.DOCUMENT_DISCUSSION,
-      docId?.uid,
-      ...(docId?.path || []),
-    ],
   })
 }
 

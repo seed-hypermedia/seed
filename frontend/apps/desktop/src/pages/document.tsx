@@ -705,8 +705,7 @@ function DocPageHeader({
 }: {
   docId: UnpackedHypermediaId
   document?: HMDocument
-  // TODO: fix proper types
-  documentTools?: any
+  documentTools?: React.ReactNode
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
   const authorIds = useMemo(() => authors?.map((a) => hmId(a)) || [], [authors])

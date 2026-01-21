@@ -37,9 +37,9 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
   editor: BlockNoteEditor<BSchema>
   domAttributes: Partial<BlockNoteDOMAttributes>
   blockSchema: BSchema
-  // TODO: properly type this.
-  linkExtensionOptions: any
-  inlineEmbedOptions: any
+  // These types are complex due to tiptap extension options - using any for compatibility
+  linkExtensionOptions?: any
+  inlineEmbedOptions?: any
   collaboration?: {
     fragment: Y.XmlFragment
     user: {
