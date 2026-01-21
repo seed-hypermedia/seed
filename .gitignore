@@ -105,3 +105,6 @@ scratch.*.*
 data
 
 .yarn/cache
+
+# Use yarn.lock only, ignore bun lock file
+bun.lock
