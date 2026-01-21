@@ -114,3 +114,6 @@ backend/util/llama-go/**/*.o
 
 # GGUF models (downloaded at setup time)
 *.gguf
+
+# Use yarn.lock only, ignore bun lock file
+bun.lock
