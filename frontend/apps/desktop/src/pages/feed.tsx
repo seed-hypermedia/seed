@@ -1,22 +1,14 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
-import {useDocumentAccessory} from '@/components/document-accessory'
-import {ImportDropdownButton} from '@/components/import-doc-button'
-import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
+import {useDocumentSelection} from '@/components/document-accessory'
 import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
-import {
-  useCreateDraft,
   useDocumentEmbeds,
   useDocumentRead,
   useSiteNavigationItems,
 } from '@/models/documents'
-import {useResource} from '@shm/shared/models/entity'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
-import {useOpenUrl} from '@/open-url'
 import {useSelectedAccount} from '@/selected-account'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import '@shm/editor/editor.css'
 import {
@@ -33,26 +25,26 @@ import {
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import '@shm/shared/styles/document.css'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
-import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {Feed} from '@shm/ui/feed'
-import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
+import {
+  PageDiscovery,
+  PageNotFound,
+  PageRedirected,
+} from '@shm/ui/page-message-states'
 import {Separator as TSeparator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
-import {Spinner} from '@shm/ui/spinner'
-import {SizableText, Text} from '@shm/ui/text'
+import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
-import {FilePlus} from 'lucide-react'
-import React, {ReactNode, useCallback, useEffect, useRef} from 'react'
+import React, {useCallback, useEffect, useRef} from 'react'
 
 export default function FeedPage() {
   const route = useNavRoute()
@@ -66,11 +58,11 @@ export default function FeedPage() {
 
   useDocumentRead(docId)
 
-  const accessoryKey = route.accessory?.key
+  const panelKey = route.panel?.key
   const replace = useNavigate('replace')
   const push = useNavigate('push')
 
-  const {accessory, accessoryOptions} = useDocumentAccessory({docId})
+  const {selectionUI, selectionOptions} = useDocumentSelection({docId})
 
   const mainPanelRef = useRef<HTMLDivElement>(null)
 
@@ -87,8 +79,9 @@ export default function FeedPage() {
           push({
             key: route.key,
             id: targetRoute,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: targetRoute,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -97,8 +90,9 @@ export default function FeedPage() {
           console.log('targetRoute is the same. replacing...')
           replace({
             ...route,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: route.id,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -116,8 +110,9 @@ export default function FeedPage() {
           push({
             key: route.key,
             id: targetRoute,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: targetRoute,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -126,8 +121,9 @@ export default function FeedPage() {
           // comment target is the same as the route, so we can replace safely
           replace({
             ...route,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: route.id,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -136,17 +132,7 @@ export default function FeedPage() {
       }}
     >
       <div className="flex h-full flex-1 flex-col">
-        <AccessoryLayout
-          mainPanelRef={mainPanelRef}
-          accessory={accessory}
-          accessoryKey={accessoryKey}
-          onAccessorySelect={(key: typeof accessoryKey) => {
-            if (key === accessoryKey || key === undefined)
-              return replace({...route, accessory: null})
-            replace({...route, accessory: {key}})
-          }}
-          accessoryOptions={accessoryOptions}
-        >
+        <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
           <FeedContent
             id={homeId}
             route={route}
@@ -157,10 +143,10 @@ export default function FeedPage() {
                 isFrozen ? 'hidden' : 'auto',
               )
             }, [])}
-            isCommentingPanelOpen={route.accessory?.key === 'activity'}
-            onAccessory={useCallback(
-              (accessory) => {
-                replace({...route, accessory})
+            isCommentingPanelOpen={route.panel?.key === 'activity'}
+            onSelection={useCallback(
+              (panel) => {
+                replace({...route, panel})
               },
               [route, replace],
             )}
@@ -181,7 +167,7 @@ function _FeedContent({
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
   isCommentingPanelOpen: boolean
-  onAccessory: (accessory: DocumentRoute['accessory']) => void
+  onSelection: (selection: DocumentRoute['panel']) => void
   route: DocumentRoute | FeedRoute
 }) {
   const replace = useNavigate('replace')
@@ -240,7 +226,7 @@ function _FeedContent({
         replace({
           key: route.key,
           id: targetDocId,
-          accessory: {key: 'discussions', openComment: comment.id},
+          panel: {key: 'discussions', id: targetDocId, openComment: comment.id},
         })
       }
     }
@@ -290,20 +276,19 @@ function _FeedContent({
 
   if (resource.data?.type === 'redirect') {
     return (
-      <DocRedirected docId={id} redirectTarget={resource.data.redirectTarget} />
+      <PageRedirected
+        docId={id}
+        redirectTarget={resource.data.redirectTarget}
+        onNavigate={(target) => replace({key: route.key, id: target})}
+      />
     )
   }
 
   if (resource.data?.type === 'not-found') {
     if (resource.isDiscovering) {
-      return <DocDiscovery />
+      return <PageDiscovery />
     }
-    return (
-      <DocMessageBox
-        title="Document Not Found"
-        message="This document could not be found on the network."
-      />
-    )
+    return <PageNotFound />
   }
 
   if (loadedCommentResource) {
@@ -410,134 +395,5 @@ function _AppDocSiteHeader({
       isMainFeedVisible={route.key == 'feed'}
       notifyServiceHost={notifyServiceHost}
     />
-  )
-}
-
-export function NewSubDocumentButton({
-  locationId,
-  size = 'sm',
-  importDropdown = true,
-}: {
-  locationId: UnpackedHypermediaId
-  importDropdown?: boolean
-  size?: ButtonProps['size']
-}) {
-  const capability = useSelectedAccountCapability(locationId)
-  const canEditDoc = roleCanWrite(capability?.role)
-  const createDraft = useCreateDraft({
-    locationUid: locationId.uid,
-    locationPath: locationId.path || undefined,
-  })
-  if (!canEditDoc) return null
-  return (
-    <>
-      <Tooltip content="Create a new document">
-        <TWButton
-          size={size}
-          variant="default"
-          className="w-full"
-          onClick={createDraft}
-        >
-          <FilePlus className="size-4" />
-          Create
-        </TWButton>
-      </Tooltip>
-      {importDropdown && (
-        <ImportDropdownButton
-          id={locationId}
-          button={
-            <Button size="icon">
-              <MoreHorizontal className="size-4" />
-            </Button>
-          }
-        />
-      )}
-    </>
-  )
-}
-
-function DocRedirected({
-  docId,
-  redirectTarget,
-}: {
-  docId: UnpackedHypermediaId
-  redirectTarget: UnpackedHypermediaId
-}) {
-  const navigate = useNavigate()
-  return (
-    <DocMessageBox
-      title="Redirected"
-      message="This document has been redirected to a new location."
-      children={
-        <Button
-          onClick={() => {
-            navigate({key: 'document', id: redirectTarget})
-          }}
-        >
-          <ArrowRight className="size-4" />
-          Go to New Location
-        </Button>
-      }
-    />
-  )
-}
-
-function DocMessageBox({
-  title,
-  message,
-  children,
-  spinner,
-}: {
-  title: string
-  message: string
-  children?: ReactNode
-  spinner?: boolean
-}) {
-  return (
-    <div className={cn(panelContainerStyles)}>
-      <div className="mx-auto px-8 py-10">
-        <div className="border-border bg-background flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
-          {spinner ? (
-            <div className="flex items-center justify-start">
-              <Spinner className="fill-link size-6" />
-            </div>
-          ) : null}
-          <SizableText size="2xl" weight="bold">
-            {title}
-          </SizableText>
-
-          <SizableText asChild className="text-muted-foreground">
-            <p>{message}</p>
-          </SizableText>
-          {children}
-        </div>
-      </div>
-    </div>
-  )
-}
-function DocDiscovery() {
-  return (
-    <DocMessageBox
-      title="Looking for this document..."
-      spinner
-      message="This document is not on your node yet. Now finding a peer who can provide it."
-    />
-  )
-}
-const Separator = () => <TSeparator vertical />
-
-function SiteURLButton({siteUrl}: {siteUrl?: string}) {
-  const open = useOpenUrl()
-  if (!siteUrl) return null
-  return (
-    <SizableText
-      size="sm"
-      className="underline-transparent hover:underline"
-      onClick={() => {
-        open(siteUrl)
-      }}
-    >
-      {siteUrl}
-    </SizableText>
   )
 }

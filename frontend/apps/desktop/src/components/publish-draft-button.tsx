@@ -42,8 +42,7 @@ export default function PublishDraftButton() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
   const draftRoute: DraftRoute | null = route.key === 'draft' ? route : null
-  if (!draftRoute)
-    throw new Error('DraftPublicationButtons requires draft route')
+  if (!draftRoute) throw new Error('PublishDraftButton requires draft route')
   const draftId = draftRoute.id
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
@@ -152,9 +151,9 @@ export default function PublishDraftButton() {
               )
             navigate({
               key: 'document',
-              accessory:
-                route.key == 'draft' && route.accessory?.key == 'activity'
-                  ? route.accessory
+              panel:
+                route.key == 'draft' && route.panel?.key == 'activity'
+                  ? route.panel
                   : null,
               id: resultDocId,
               immediatelyPromptNotifs: !hasAlreadyPrompted,

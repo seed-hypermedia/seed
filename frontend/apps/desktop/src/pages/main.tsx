@@ -297,6 +297,26 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Feed,
         Fallback: DocumentPlaceholder,
       }
+    case 'directory':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'collaborators':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'activity':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
+    case 'discussions':
+      return {
+        PageComponent: Document,
+        Fallback: DocumentPlaceholder,
+      }
     case 'profile':
       return {
         PageComponent: Profile,

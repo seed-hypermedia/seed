@@ -46,7 +46,7 @@ export function DocumentSmallListItem({
   visibility?: HMResourceVisibility
 }) {
   const route: NavRoute | undefined = draftId
-    ? {key: 'draft', id: draftId, accessory: {key: 'options'}}
+    ? {key: 'draft', id: draftId}
     : id && {key: 'document', id}
   if (!route) {
     throw new Error(

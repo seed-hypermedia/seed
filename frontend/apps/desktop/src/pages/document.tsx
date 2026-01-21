@@ -1,8 +1,14 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {triggerCommentDraftFocus} from '@/components/commenting'
+import {AddCollaboratorForm} from '@/components/collaborators-panel'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentUrl} from '@/components/copy-reference-button'
+import {CreateDocumentButton} from '@/components/create-doc-button'
 import {DocNavigation} from '@/components/doc-navigation'
-import {useDocumentAccessory} from '@/components/document-accessory'
+import {
+  NewSubDocumentButton,
+  useCanCreateSubDocument,
+  useDocumentSelection,
+} from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {ImportDropdownButton} from '@/components/import-doc-button'
 import {editPopoverEvents} from '@/components/onboarding'
@@ -14,34 +20,38 @@ import {
 import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
-  useAccountDraftList,
   useCreateDraft,
   useDocumentEmbeds,
   useDocumentRead,
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
+import {useExistingDraft} from '@/models/drafts'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
-import {useOpenUrl} from '@/open-url'
+import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import '@shm/editor/editor.css'
 import {
-  AccessoryOptions,
+  ActivityRoute,
+  CollaboratorsRoute,
+  DiscussionsRoute,
+  DocumentDirectorySelection,
   DocumentRoute,
+  DraftRoute,
   FeedRoute,
   HMDocument,
   HMResource,
   HMResourceFetchResult,
+  PanelSelectionOptions,
   UnpackedHypermediaId,
   calculateBlockCitations,
   commentIdToHmId,
   getCommentTargetId,
   hmId,
-  pathMatches,
 } from '@shm/shared'
 import {
   CommentsProvider,
@@ -51,13 +61,14 @@ import {
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
   BlocksContentProvider,
 } from '@shm/ui/blocks-content'
 import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {
   Popover,
@@ -66,18 +77,26 @@ import {
 } from '@shm/ui/components/popover'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
+import {DirectoryPageContent} from '@shm/ui/directory-page'
+import {DiscussionsPageContent} from '@shm/ui/discussions-page'
 import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
 import {DocumentTools} from '@shm/ui/document-tools'
-import {ArrowRight, MoreHorizontal} from '@shm/ui/icons'
+import {Feed} from '@shm/ui/feed'
+import {MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
-import {Separator as TSeparator} from '@shm/ui/separator'
+import {OpenInPanelButton} from '@shm/ui/open-in-panel'
+import {
+  PageDiscovery,
+  PageNotFound,
+  PageRedirected,
+} from '@shm/ui/page-message-states'
 import {SiteHeader} from '@shm/ui/site-header'
-import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {FilePlus, Pencil} from 'lucide-react'
@@ -91,15 +110,61 @@ import React, {
   useState,
 } from 'react'
 
+// Type for routes that this page handles
+type DocumentPageRoute =
+  | DocumentRoute
+  | FeedRoute
+  | DocumentDirectorySelection
+  | CollaboratorsRoute
+  | ActivityRoute
+  | DiscussionsRoute
+
+// Helper to extract id from any of the supported route types
+function getRouteId(route: DocumentPageRoute): UnpackedHypermediaId {
+  return route.id
+}
+
+// Helper to get the active main panel based on route key
+function getActiveMainPanel(
+  route: DocumentPageRoute,
+): 'content' | 'directory' | 'collaborators' | 'activity' | 'discussions' {
+  switch (route.key) {
+    case 'directory':
+      return 'directory'
+    case 'collaborators':
+      return 'collaborators'
+    case 'activity':
+      return 'activity'
+    case 'discussions':
+      return 'discussions'
+    default:
+      return 'content'
+  }
+}
+
 export default function DocumentPage() {
   const route = useNavRoute()
 
-  const docId = route.key == 'document' && route.id
+  // Handle all supported route types
+  const supportedKeys = [
+    'document',
+    'feed',
+    'directory',
+    'collaborators',
+    'activity',
+    'discussions',
+  ]
+  if (!supportedKeys.includes(route.key)) {
+    throw new Error(`DocumentPage: unsupported route key ${route.key}`)
+  }
+
+  const typedRoute = route as DocumentPageRoute
+  const docId = getRouteId(typedRoute)
   useDocumentRead(docId)
   if (!docId) throw new Error('Invalid route, no document id')
 
-  const accessoryKey: AccessoryOptions | undefined = route.accessory?.key as
-    | AccessoryOptions
+  const panelKey: PanelSelectionOptions | undefined = typedRoute.panel?.key as
+    | PanelSelectionOptions
     | undefined
   const replace = useNavigate('replace')
   const push = useNavigate('push')
@@ -107,7 +172,9 @@ export default function DocumentPage() {
   const notifyServiceHost = useNotifyServiceHost()
   const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
   const immediatePromptNotifs =
-    route.immediatelyPromptNotifs && !route.id?.path?.length
+    route.key === 'document' &&
+    route.immediatelyPromptNotifs &&
+    !route.id?.path?.length
 
   const markPromptedKey = useMutation({
     mutationFn: (input: {key: string; isPrompted: boolean}) =>
@@ -115,7 +182,11 @@ export default function DocumentPage() {
   })
 
   useEffect(() => {
-    if (immediatePromptNotifs && notifyServiceHost) {
+    if (
+      immediatePromptNotifs &&
+      notifyServiceHost &&
+      route.key === 'document'
+    ) {
       notifSettingsDialog.open({
         notifyServiceHost: notifyServiceHost,
         accountUid: route.id.uid,
@@ -136,7 +207,7 @@ export default function DocumentPage() {
       useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
       onReplyClick={(replyComment) => {
         const targetRoute = isRouteEqualToCommentTarget({
-          id: route.id,
+          id: docId,
           comment: replyComment,
         })
 
@@ -144,8 +215,9 @@ export default function DocumentPage() {
           push({
             key: 'document',
             id: targetRoute,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: docId,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -153,19 +225,20 @@ export default function DocumentPage() {
         } else {
           console.log('targetRoute is the same. replacing...')
           replace({
-            ...route,
-            accessory: {
+            ...typedRoute,
+            panel: {
               key: 'discussions',
+              id: docId,
               openComment: replyComment.id,
               isReplying: true,
             },
-          })
+          } as DocumentPageRoute)
         }
         triggerCommentDraftFocus(docId.id, replyComment.id)
       }}
       onReplyCountClick={(replyComment) => {
         const targetRoute = isRouteEqualToCommentTarget({
-          id: route.id,
+          id: docId,
           comment: replyComment,
         })
         if (targetRoute) {
@@ -173,8 +246,9 @@ export default function DocumentPage() {
           push({
             key: 'document',
             id: targetRoute,
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: targetRoute,
               openComment: replyComment.id,
               isReplying: true,
             },
@@ -182,23 +256,22 @@ export default function DocumentPage() {
         } else {
           // comment target is the same as the route, so we can replace safely
           replace({
-            ...route,
-            accessory: {
+            ...typedRoute,
+            panel: {
               key: 'discussions',
+              id: docId,
               openComment: replyComment.id,
               isReplying: true,
             },
-          })
+          } as DocumentPageRoute)
         }
       }}
     >
       <DocumentPageContent
         docId={docId}
-        route={route}
-        replace={replace}
-        push={push}
+        route={typedRoute}
         mainPanelRef={mainPanelRef}
-        accessoryKey={accessoryKey}
+        panelKey={panelKey}
         notifSettingsDialogContent={notifSettingsDialog.content}
       />
     </CommentsProvider>
@@ -208,21 +281,18 @@ export default function DocumentPage() {
 function DocumentPageContent({
   docId,
   route,
-  replace,
-  push,
   mainPanelRef,
-  accessoryKey,
+  panelKey,
   notifSettingsDialogContent,
 }: {
   docId: UnpackedHypermediaId
-  route: any
-  replace: any
-  push: any
+  route: DocumentPageRoute
   mainPanelRef: React.RefObject<HTMLDivElement>
-  accessoryKey: string | undefined
+  panelKey: string | undefined
   notifSettingsDialogContent: ReactNode
 }) {
   const deleteComment = useDeleteComment()
+  const navigate = useNavigate()
   const deleteCommentDialog = useDeleteCommentDialog()
   const homeDoc = useResource(hmId(docId.uid))
   const targetDomain =
@@ -247,7 +317,7 @@ function DocumentPageContent({
     [docId, deleteComment, deleteCommentDialog],
   )
 
-  const {accessory, accessoryOptions} = useDocumentAccessory({
+  const {selectionUI, selectionOptions} = useDocumentSelection({
     docId,
     onCommentDelete,
     deleteCommentDialogContent: deleteCommentDialog.content,
@@ -256,52 +326,54 @@ function DocumentPageContent({
 
   useListenAppEvent('toggle_accessory', (event) => {
     // Navigation guard: Check if accessory exists at this index
-    const targetAccessory = accessoryOptions[event.index]
+    const targetSelection = selectionOptions[event.index]
 
-    if (!targetAccessory) {
+    if (!targetSelection) {
       // No accessory at this index, do nothing
       return
     }
 
     // Check if already open
-    if (accessoryKey === targetAccessory.key) {
+    if (panelKey === targetSelection.key) {
       // Already open → close it
-      replace({...route, accessory: null})
+      navigate({...route, panel: null} as DocumentPageRoute)
     } else {
       // Not open → open it
-      replace({...route, accessory: {key: targetAccessory.key}})
+      navigate({
+        ...route,
+        panel: {key: targetSelection.key, id: docId},
+      } as DocumentPageRoute)
     }
   })
 
+  const activeMainPanel = getActiveMainPanel(route)
+
   return (
     <div className="flex h-full flex-1 flex-col">
-      <AccessoryLayout
-        mainPanelRef={mainPanelRef}
-        accessory={accessory}
-        accessoryKey={accessoryKey as any}
-        onAccessorySelect={(key: AccessoryOptions | undefined) => {
-          if (key === accessoryKey || key === undefined)
-            return replace({...route, accessory: null})
-          replace({...route, accessory: {key}})
-        }}
-        accessoryOptions={accessoryOptions}
-      >
+      <AccessoryLayout panelUI={selectionUI} panelKey={panelKey as any}>
         <MainDocumentPage
-          id={route.id}
-          isBlockFocused={route.isBlockFocused || false}
+          id={docId}
+          route={route}
+          activeMainPanel={activeMainPanel}
+          isBlockFocused={
+            route.key === 'document' ? route.isBlockFocused || false : false
+          }
           onScrollParamSet={useCallback((isFrozen) => {
             mainPanelRef.current?.style.setProperty(
               'overflow',
               isFrozen ? 'hidden' : 'auto',
             )
           }, [])}
-          isCommentingPanelOpen={route.accessory?.key === 'activity'}
-          onAccessory={useCallback(
-            (accessory) => {
-              replace({...route, accessory})
+          isCommentingPanelOpen={route.panel?.key === 'activity'}
+          onSelection={useCallback(
+            (panel) => {
+              navigate({...route, panel} as DocumentPageRoute)
             },
-            [route, replace],
+            [route, navigate],
           )}
+          onCommentDelete={onCommentDelete}
+          deleteCommentDialogContent={deleteCommentDialog.content}
+          targetDomain={targetDomain}
         />
       </AccessoryLayout>
       {notifSettingsDialogContent}
@@ -311,25 +383,39 @@ function DocumentPageContent({
 
 function _MainDocumentPage({
   id,
+  route,
+  activeMainPanel,
   isBlockFocused,
   onScrollParamSet,
+  onCommentDelete,
+  deleteCommentDialogContent,
+  targetDomain,
 }: {
   id: UnpackedHypermediaId
+  route: DocumentPageRoute
+  activeMainPanel:
+    | 'content'
+    | 'directory'
+    | 'collaborators'
+    | 'activity'
+    | 'discussions'
   isBlockFocused: boolean
   onScrollParamSet: (isFrozen: boolean) => void
   isCommentingPanelOpen: boolean
-  onAccessory: (accessory: DocumentRoute['accessory']) => void
+  onSelection: (panel: DocumentRoute['panel']) => void
+  onCommentDelete: (commentId: string, signingAccountId?: string) => void
+  deleteCommentDialogContent: ReactNode
+  targetDomain?: string
 }) {
   const replace = useNavigate('replace')
-  const route = useNavRoute()
-  const docRoute = route.key === 'document' ? route : null
-  if (!docRoute) throw new Error('MainDocumentPage must have document route')
+  const selectedAccount = useSelectedAccount()
+  const canCreate = useCanCreateSubDocument(id)
   const account = useAccount(id.uid, {enabled: !id.path?.length})
 
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
-      replace({key: 'document', id: account.data.id})
+      replace({...route, id: account.data.id} as DocumentPageRoute)
     }
   }, [account.data])
 
@@ -340,7 +426,7 @@ function _MainDocumentPage({
     onRedirectOrDeleted: ({redirectTarget}) => {
       if (redirectTarget) {
         toast(`Redirected to this document from ${id.id}`)
-        replace({key: 'document', id: redirectTarget})
+        replace({...route, id: redirectTarget} as DocumentPageRoute)
       }
     },
   })
@@ -355,7 +441,7 @@ function _MainDocumentPage({
         replace({
           key: 'document',
           id: targetDocId,
-          accessory: {key: 'discussions', openComment: comment.id},
+          panel: {key: 'discussions', id: targetDocId, openComment: comment.id},
         })
       }
     }
@@ -392,6 +478,7 @@ function _MainDocumentPage({
     elementRef,
     showCollapsed,
     wrapperProps,
+    contentMaxWidth,
   } = useDocumentLayout({
     contentWidth: metadata?.contentWidth,
     showSidebars: showSidebarOutlineDirectory,
@@ -403,32 +490,32 @@ function _MainDocumentPage({
 
   const interactionSummary = useInteractionSummary(docId)
 
-  function onCommentsClick() {
-    replace({
-      ...route,
-      accessory: {
-        key:
-          'accessory' in route && route.accessory?.key == 'discussions'
-            ? undefined
-            : 'discussions',
-      },
-    } as DocumentRoute)
-  }
+  // Scroll restoration for activity feed
+  const activityScrollRef = useScrollRestoration({
+    scrollId: `activity-page-${id.id}`,
+    getStorageKey: () => getRouteKey(route),
+    debug: false,
+  })
 
-  function onFeedClick() {
-    console.log('Toggling activity panel', route)
-    replace({
-      ...route,
-      accessory: {
-        key:
-          'accessory' in route && route.accessory?.key == 'activity'
-            ? undefined
-            : 'activity',
-      },
-    } as DocumentRoute)
-  }
+  // Reset scroll when filter changes (activity page)
+  useEffect(() => {
+    if (
+      activityScrollRef.current &&
+      route.key === 'activity' &&
+      route.filterEventType
+    ) {
+      const viewport = activityScrollRef.current.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLElement
+      if (viewport) {
+        viewport.scrollTo({top: 0, behavior: 'instant'})
+      }
+    }
+  }, [
+    route.key === 'activity' ? (route as ActivityRoute).filterEventType : null,
+  ])
 
-  if (route.key != 'document' && route.key != 'feed') return null
+  const existingDraft = useExistingDraft(route)
 
   // @ts-ignore
   if (resource.isInitialLoading) return null
@@ -436,22 +523,23 @@ function _MainDocumentPage({
   // @ts-ignore
   if (resource.data?.type === 'redirect') {
     return (
-      // @ts-ignore
-      <DocRedirected docId={id} redirectTarget={resource.data.redirectTarget} />
+      <PageRedirected
+        docId={id}
+        // @ts-ignore
+        redirectTarget={resource.data.redirectTarget}
+        onNavigate={(target) =>
+          replace({...route, id: target} as DocumentPageRoute)
+        }
+      />
     )
   }
 
   // @ts-ignore
   if (resource.data?.type === 'not-found') {
     if (resource.isDiscovering) {
-      return <DocDiscovery />
+      return <PageDiscovery />
     }
-    return (
-      <DocMessageBox
-        title="Document Not Found"
-        message="This document could not be found on the network."
-      />
-    )
+    return <PageNotFound />
   }
 
   // @ts-ignore
@@ -479,40 +567,167 @@ function _MainDocumentPage({
 
   const documentTools = (
     <DocumentTools
-      activePanel={
-        route.accessory &&
-        route.accessory.key != 'options' &&
-        route.accessory.key != 'contacts'
-          ? route.accessory.key
-          : undefined
-      }
+      id={id}
+      activeTab={activeMainPanel}
+      existingDraft={existingDraft}
       commentsCount={interactionSummary.data?.comments || 0}
-      onCommentsClick={onCommentsClick}
-      onFeedClick={onFeedClick}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
-      onDirectoryClick={() => {
-        replace({
-          ...route,
-          accessory: {
-            key: route.accessory?.key == 'directory' ? undefined : 'directory',
-          },
-        } as DocumentRoute)
-      }}
-      onCollabsClick={() => {
-        replace({
-          ...route,
-          accessory: {
-            key:
-              route.accessory?.key == 'collaborators'
-                ? undefined
-                : 'collaborators',
-          },
-        } as DocumentRoute)
-      }}
-      draftActions={isHomeDoc ? <EditDocButton /> : undefined}
+      rightActions={
+        activeMainPanel === 'content' ? (
+          <>
+            <EditDocButton />
+            <CreateDocumentButton locationId={id} />
+          </>
+        ) : (
+          <OpenInPanelButton id={id} panelRoute={{key: activeMainPanel, id}} />
+        )
+      }
     />
   )
+
+  // Build main content based on activeMainPanel
+  const renderMainContent = () => {
+    switch (activeMainPanel) {
+      case 'directory':
+        return (
+          <DirectoryPageContent
+            docId={id}
+            header={
+              canCreate ? <NewSubDocumentButton locationId={id} /> : undefined
+            }
+            canCreate={canCreate}
+            showTitle={false}
+            contentMaxWidth={contentMaxWidth}
+          />
+        )
+      case 'collaborators':
+        return (
+          <div
+            className="mx-auto w-full px-4"
+            style={{maxWidth: contentMaxWidth}}
+          >
+            <div className="flex flex-col gap-4 p-4">
+              <AddCollaboratorForm id={id} />
+              <ReadOnlyCollaboratorsContent docId={id} />
+            </div>
+          </div>
+        )
+      case 'activity': {
+        const activityRoute = route as ActivityRoute
+        return (
+          <div
+            className="mx-auto w-full px-4"
+            style={{maxWidth: contentMaxWidth}}
+          >
+            <Feed
+              size="md"
+              centered
+              commentEditor={
+                <CommentBox
+                  docId={id}
+                  context="feed"
+                  autoFocus={activityRoute.autoFocus}
+                />
+              }
+              filterResource={id.id}
+              currentAccount={selectedAccount?.id.uid || ''}
+              filterEventType={activityRoute.filterEventType || []}
+              scrollRef={activityScrollRef}
+            />
+          </div>
+        )
+      }
+      case 'discussions': {
+        const discussionsRoute = route as DiscussionsRoute
+        const commentEditor = (
+          <CommentBox
+            docId={id}
+            commentId={discussionsRoute.openComment}
+            quotingBlockId={discussionsRoute.targetBlockId}
+            context="feed"
+            autoFocus={discussionsRoute.autoFocus}
+          />
+        )
+        return (
+          <DiscussionsPageContent
+            docId={id}
+            openComment={discussionsRoute.openComment}
+            targetBlockId={discussionsRoute.targetBlockId}
+            blockId={discussionsRoute.blockId}
+            blockRange={discussionsRoute.blockRange}
+            autoFocus={discussionsRoute.autoFocus}
+            isReplying={discussionsRoute.isReplying}
+            commentEditor={commentEditor}
+            targetDomain={targetDomain}
+            onCommentDelete={onCommentDelete}
+            deleteCommentDialogContent={deleteCommentDialogContent}
+            showOpenInPanel={false}
+            showTitle={false}
+            contentMaxWidth={contentMaxWidth}
+          />
+        )
+      }
+      case 'content':
+      default: {
+        const docRoute =
+          route.key === 'document' || route.key === 'feed' ? route : null
+        return (
+          <>
+            <DocumentCover cover={document?.metadata.cover} />
+
+            <div
+              {...wrapperProps}
+              className={cn(wrapperProps.className, 'flex')}
+            >
+              {showSidebars ? (
+                <div
+                  {...sidebarProps}
+                  className={`${sidebarProps.className || ''} flex flex-col`}
+                  style={{
+                    ...sidebarProps.style,
+                    marginTop: document?.metadata.cover ? 152 : 220,
+                  }}
+                >
+                  <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
+                    <DocNavigation showCollapsed={showCollapsed} />
+                  </div>
+                </div>
+              ) : null}
+
+              <Container
+                clearVerticalSpace
+                {...mainContentProps}
+                className={cn(
+                  mainContentProps.className,
+                  'base-doc-container relative sm:mr-10 sm:ml-0',
+                )}
+              >
+                {isHomeDoc ? null : (
+                  <DocPageHeader docId={id} document={document} />
+                )}
+                <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
+                  {resource.data?.type === 'document' && docRoute ? (
+                    <DocPageContent
+                      docRoute={docRoute}
+                      resource={resource.data}
+                      isBlockFocused={isBlockFocused}
+                    />
+                  ) : null}
+                </div>
+              </Container>
+              {showSidebars ? (
+                <div
+                  {...sidebarProps}
+                  className={`${sidebarProps.className || ''} flex flex-col`}
+                />
+              ) : null}
+            </div>
+          </>
+        )
+      }
+    }
+  }
 
   return (
     <div className={cn(panelContainerStyles)}>
@@ -521,83 +736,24 @@ function _MainDocumentPage({
         docId={id}
         document={document}
         onScrollParamSet={onScrollParamSet}
+        route={route}
       />
+      <div>
+        <div
+          className="mx-auto w-full px-4 py-4"
+          style={{maxWidth: contentMaxWidth}}
+        >
+          <SizableText size="4xl" weight="bold" className="truncate">
+            {isHomeDoc ? 'Home' : metadata?.name}
+          </SizableText>
+        </div>
+      </div>
+      {documentTools}
       <div
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}
       >
-        {/* <div className="flex absolute top-2 right-2 z-40 items-center bg-white rounded-md shadow-md dark:bg-background">
-          <DocInteractionSummary
-            isHome={isHomeDoc}
-            isAccessoryOpen={!!route.accessory}
-            commentsCount={interactionSummary.data?.comments || 0}
-            onCommentsClick={onCommentsClick}
-            onFeedClick={onFeedClick}
-          />
-        </div> */}
-        {isHomeDoc ? (
-          documentTools
-        ) : (
-          <div className="bg-background absolute top-4 right-4 z-10 rounded-md shadow-md dark:bg-black">
-            <EditDocButton />
-          </div>
-        )}
-
-        <ScrollArea>
-          <DocumentCover cover={document?.metadata.cover} />
-
-          <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
-            {showSidebars ? (
-              <div
-                {...sidebarProps}
-                className={`${sidebarProps.className || ''} flex flex-col`}
-                style={{
-                  ...sidebarProps.style,
-                  marginTop: document?.metadata.cover ? 152 : 220,
-                }}
-              >
-                <div
-                  className="hide-scrollbar flex h-full flex-col overflow-scroll"
-                  // paddingVertical="$4"
-                >
-                  <DocNavigation showCollapsed={showCollapsed} />
-                </div>
-              </div>
-            ) : null}
-
-            <Container
-              clearVerticalSpace
-              {...mainContentProps}
-              className={cn(
-                mainContentProps.className,
-                'base-doc-container relative sm:mr-10 sm:ml-0',
-              )}
-            >
-              {isHomeDoc ? null : (
-                <DocPageHeader
-                  docId={id}
-                  document={document}
-                  documentTools={documentTools}
-                />
-              )}
-              <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
-                {resource.data?.type === 'document' ? (
-                  <DocPageContent
-                    docRoute={docRoute}
-                    resource={resource.data}
-                    isBlockFocused={isBlockFocused}
-                  />
-                ) : null}
-              </div>
-            </Container>
-            {showSidebars ? (
-              <div
-                {...sidebarProps}
-                className={`${sidebarProps.className || ''} flex flex-col`}
-              />
-            ) : null}
-          </div>
-        </ScrollArea>
+        <ScrollArea>{renderMainContent()}</ScrollArea>
       </div>
     </div>
   )
@@ -610,20 +766,20 @@ function _AppDocSiteHeader({
   docId,
   document,
   onScrollParamSet,
+  route,
 }: {
   siteHomeEntity: HMResourceFetchResult | undefined | null
   docId: UnpackedHypermediaId
   document?: HMDocument
   onScrollParamSet: (isFrozen: boolean) => void
+  route: DocumentPageRoute
 }) {
   const replace = useNavigate('replace')
-  const route = useNavRoute()
   const navItems = useSiteNavigationItems(siteHomeEntity)
   const notifyServiceHost = useNotifyServiceHost()
   const embeds = useDocumentEmbeds(document)
 
   if (!siteHomeEntity) return null
-  if (route.key !== 'document' && route.key != 'feed') return null
 
   return (
     <SiteHeader
@@ -644,68 +800,26 @@ function _AppDocSiteHeader({
           element.scrollIntoView({behavior: 'smooth', block: 'center'})
         }
 
-        replace({...route, id: {...route.id, blockRef: blockId}})
+        replace({
+          ...route,
+          id: {...route.id, blockRef: blockId},
+        } as DocumentPageRoute)
       }}
       onShowMobileMenu={(isShown) => {
         onScrollParamSet(isShown)
       }}
-      isMainFeedVisible={route.key == 'feed'}
+      isMainFeedVisible={route.key === 'feed'}
       notifyServiceHost={notifyServiceHost}
     />
-  )
-}
-
-export function NewSubDocumentButton({
-  locationId,
-  size = 'sm',
-  importDropdown = true,
-}: {
-  locationId: UnpackedHypermediaId
-  importDropdown?: boolean
-  size?: ButtonProps['size']
-}) {
-  const capability = useSelectedAccountCapability(locationId)
-  const canEditDoc = roleCanWrite(capability?.role)
-  const createDraft = useCreateDraft({
-    locationUid: locationId.uid,
-    locationPath: locationId.path || undefined,
-  })
-  if (!canEditDoc) return null
-  return (
-    <>
-      <Tooltip content="Create a new document">
-        <TWButton
-          size={size}
-          variant="default"
-          className="w-full"
-          onClick={createDraft}
-        >
-          <FilePlus className="size-4" />
-          Create
-        </TWButton>
-      </Tooltip>
-      {importDropdown && (
-        <ImportDropdownButton
-          id={locationId}
-          button={
-            <Button size="icon">
-              <MoreHorizontal className="size-4" />
-            </Button>
-          }
-        />
-      )}
-    </>
   )
 }
 
 function DocPageHeader({
   docId,
   document,
-  documentTools,
 }: {
   docId: UnpackedHypermediaId
   document?: HMDocument
-  documentTools?: React.ReactNode
 }) {
   const authors = useMemo(() => document?.authors || [], [document])
   const authorIds = useMemo(() => authors?.map((a) => hmId(a)) || [], [authors])
@@ -736,77 +850,8 @@ function DocPageHeader({
       authors={authorMetadata}
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
-      documentTools={documentTools}
       visibility={document.visibility}
-    />
-  )
-}
-
-function DocRedirected({
-  docId,
-  redirectTarget,
-}: {
-  docId: UnpackedHypermediaId
-  redirectTarget: UnpackedHypermediaId
-}) {
-  const navigate = useNavigate()
-  return (
-    <DocMessageBox
-      title="Redirected"
-      message="This document has been redirected to a new location."
-      children={
-        <Button
-          onClick={() => {
-            navigate({key: 'document', id: redirectTarget})
-          }}
-        >
-          <ArrowRight className="size-4" />
-          Go to New Location
-        </Button>
-      }
-    />
-  )
-}
-
-function DocMessageBox({
-  title,
-  message,
-  children,
-  spinner,
-}: {
-  title: string
-  message: string
-  children?: ReactNode
-  spinner?: boolean
-}) {
-  return (
-    <div className={cn(panelContainerStyles)}>
-      <div className="mx-auto px-8 py-10">
-        <div className="border-border bg-background flex w-full max-w-lg flex-none flex-col gap-4 rounded-lg border p-6 shadow-lg dark:bg-black">
-          {spinner ? (
-            <div className="flex items-center justify-start">
-              <Spinner className="fill-link size-6" />
-            </div>
-          ) : null}
-          <SizableText size="2xl" weight="bold">
-            {title}
-          </SizableText>
-
-          <SizableText asChild className="text-muted-foreground">
-            <p>{message}</p>
-          </SizableText>
-          {children}
-        </div>
-      </div>
-    </div>
-  )
-}
-function DocDiscovery() {
-  return (
-    <DocMessageBox
-      title="Looking for this document..."
-      spinner
-      message="This document is not on your node yet. Now finding a peer who can provide it."
+      showTitle={false}
     />
   )
 }
@@ -827,23 +872,6 @@ function DocErrorMessage({message}: {message: string}) {
     </div>
   )
 }
-const Separator = () => <TSeparator vertical />
-
-function SiteURLButton({siteUrl}: {siteUrl?: string}) {
-  const open = useOpenUrl()
-  if (!siteUrl) return null
-  return (
-    <SizableText
-      size="sm"
-      className="underline-transparent hover:underline"
-      onClick={() => {
-        open(siteUrl)
-      }}
-    >
-      {siteUrl}
-    </SizableText>
-  )
-}
 
 function DocPageContent({
   resource,
@@ -853,9 +881,9 @@ function DocPageContent({
   resource: HMResource | null | undefined
   blockId?: string
   isBlockFocused: boolean
-  docRoute: DocumentRoute
+  docRoute: DocumentRoute | FeedRoute
 }) {
-  const replace = useNavigate('replace')
+  const navigate = useNavigate()
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
 
@@ -866,25 +894,35 @@ function DocPageContent({
 
   const reference = useDocumentUrl({docId: resource.id, isBlockFocused})
 
+  // Only show block selection visually when content selection is active
+  const displayResourceId = useMemo(() => {
+    if (!docRoute.panel?.key) {
+      return docRoute.id
+    }
+    // Strip blockRef/blockRange when not in content selection mode
+    return {...docRoute.id, blockRef: null, blockRange: null}
+  }, [docRoute.id, docRoute.panel?.key])
+
   return (
     <>
       <BlocksContentProvider
-        resourceId={docRoute.id}
+        resourceId={displayResourceId}
         blockCitations={useMemo(() => {
           if (!citations.data) return {}
           return calculateBlockCitations(citations.data)
         }, [citations.data])}
         onBlockCitationClick={(blockId) => {
           if (!docRoute) return
-          replace({
+          navigate({
             ...docRoute,
             id: {
               ...docRoute.id,
               blockRef: blockId || null,
               blockRange: null,
             },
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: docRoute.id,
               blockId: blockId || undefined,
             },
           })
@@ -898,15 +936,16 @@ function DocPageContent({
             'end' in blockRangeInput
               ? blockRangeInput
               : null
-          replace({
+          navigate({
             ...route,
             id: {
               ...route.id,
               blockRef: blockId,
               blockRange,
             },
-            accessory: {
+            panel: {
               key: 'discussions',
+              id: route.id,
               targetBlockId: blockId,
               blockRange,
               autoFocus: true,
@@ -940,7 +979,7 @@ function DocPageContent({
                       })
                     }
 
-                    replace({
+                    navigate({
                       ...route,
                       id: {
                         ...route.id,
@@ -960,15 +999,12 @@ function DocPageContent({
                   }
                   return false
                 },
-                [route, replace, reference],
+                [route, navigate, reference],
               )
             : null
         }
       >
-        <BlocksContent
-          blocks={document.content}
-          // focusBlockId={isBlockFocused ? docRoute.id.blockRef || undefined : undefined}
-        />
+        <BlocksContent blocks={document.content} />
       </BlocksContentProvider>
       {reference?.content}
     </>
@@ -977,9 +1013,22 @@ function DocPageContent({
 
 function EditDocButton() {
   const route = useNavRoute()
-  if (route.key != 'document' && route.key != 'feed')
-    throw new Error('EditDocButton can only be rendered on document route')
-  const capability = useSelectedAccountCapability(route.id)
+  // Support all document-related route types
+  const supportedKeys = [
+    'document',
+    'feed',
+    'directory',
+    'collaborators',
+    'activity',
+    'discussions',
+  ]
+  if (!supportedKeys.includes(route.key)) {
+    throw new Error(
+      'EditDocButton can only be rendered on document-related routes',
+    )
+  }
+  const typedRoute = route as DocumentPageRoute
+  const capability = useSelectedAccountCapability(typedRoute.id)
   const navigate = useNavigate()
 
   const existingDraft = useExistingDraft(route)
@@ -995,22 +1044,23 @@ function EditDocButton() {
   const button = (
     <Button
       size="sm"
-      variant={existingDraft ? 'secondary' : 'ghost'}
+      variant={existingDraft ? undefined : 'ghost'}
+      className={cn('mx-2 shadow-sm', existingDraft ? 'bg-yellow-200' : '')}
       onClick={() => {
         if (existingDraft) {
           navigate({
             key: 'draft',
             id: existingDraft.id,
-            accessory: null,
+            panel: null,
           })
         } else {
           navigate({
             key: 'draft',
             id: nanoid(10),
-            editUid: route.id.uid,
-            editPath: route.id.path || [],
-            deps: route.id.version ? [route.id.version] : undefined,
-            accessory: null,
+            editUid: typedRoute.id.uid,
+            editPath: typedRoute.id.path || [],
+            deps: typedRoute.id.version ? [typedRoute.id.version] : undefined,
+            panel: null,
           })
         }
       }}
@@ -1062,15 +1112,4 @@ function EditDocButton() {
       </Tooltip>
     </>
   )
-}
-
-function useExistingDraft(route: DocumentRoute | FeedRoute) {
-  const drafts = useAccountDraftList(route.id.uid)
-  const existingDraft = drafts.data?.find((d) => {
-    // @ts-expect-error
-    const id = d.editId
-    if (!id) return false
-    return id.uid === route.id.uid && pathMatches(id.path, route.id.path)
-  })
-  return existingDraft
 }

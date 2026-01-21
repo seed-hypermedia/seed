@@ -1,6 +1,7 @@
 import {useFullRender} from '@/cache-policy'
 import {DocumentPage} from '@/document'
 import {FeedPage} from '@/feed'
+import {ViewTermPage} from '@/view-term-page'
 import {
   createInstrumentationContext,
   instrument,
@@ -23,12 +24,46 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
+  PanelQueryKey,
+  VIEW_TERMS,
+  ViewRouteKey,
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {SizableText} from '@shm/ui/text'
 
-type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
+// Extended payload with view term and panel param for page routing
+type ExtendedSitePayload = SiteDocumentPayload & {
+  viewTerm?: ViewRouteKey | null
+  panelParam?: PanelQueryKey | null
+}
+
+type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
+
+/**
+ * Extract view term from path parts and return cleaned path + view term
+ * e.g., ['docs', ':activity'] -> {path: ['docs'], viewTerm: 'activity'}
+ */
+function extractViewTermFromPath(pathParts: string[]): {
+  path: string[]
+  viewTerm: ViewRouteKey | null
+} {
+  if (pathParts.length === 0) return {path: [], viewTerm: null}
+
+  const lastPart = pathParts[pathParts.length - 1]
+  const viewTermMatch = VIEW_TERMS.find((term) => lastPart === term)
+
+  if (viewTermMatch) {
+    // Map :activity -> activity, etc.
+    const viewTerm = viewTermMatch.slice(1) as ViewRouteKey
+    return {
+      path: pathParts.slice(0, -1),
+      viewTerm,
+    }
+  }
+
+  return {path: pathParts, viewTerm: null}
+}
 
 const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
@@ -185,6 +220,7 @@ export const loader = async ({
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
   const feed = url.searchParams.get('feed') === 'true'
+  const panelParam = url.searchParams.get('panel') as PanelQueryKey | null
 
   const serviceConfig = await instrument(ctx, 'getConfig', () =>
     getConfig(hostname),
@@ -204,25 +240,34 @@ export const loader = async ({
   }
 
   let documentId
+  let viewTerm: ViewRouteKey | null = null
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
+    const {path: cleanPath, viewTerm: extractedViewTerm} =
+      extractViewTermFromPath(pathParts.slice(2))
+    viewTerm = extractedViewTerm
     documentId = hmId(pathParts[1], {
-      path: pathParts.slice(2),
+      path: cleanPath,
       version,
       latest,
     })
   } else {
     // Site document (regular path)
-    const path = params['*'] ? params['*'].split('/').filter(Boolean) : []
-    documentId = hmId(registeredAccountUid, {path, version, latest})
+    const rawPath = params['*'] ? params['*'].split('/').filter(Boolean) : []
+    const {path: cleanPath, viewTerm: extractedViewTerm} =
+      extractViewTermFromPath(rawPath)
+    viewTerm = extractedViewTerm
+    documentId = hmId(registeredAccountUid, {path: cleanPath, version, latest})
   }
 
   const result = await instrument(ctx, 'loadSiteResource', () =>
     loadSiteResource(parsedRequest, documentId, {
       prefersLanguages: parsedRequest.prefersLanguages,
       feed,
+      viewTerm,
+      panelParam,
       instrumentationCtx: ctx,
     }),
   )
@@ -261,7 +306,14 @@ export default function UnifiedDocumentPage() {
     return <FeedPage {...data} />
   }
 
-  return <DocumentPage {...data} />
+  // Pass viewTerm and panelParam to DocumentPage
+  return (
+    <DocumentPage
+      {...data}
+      viewTerm={data.viewTerm}
+      panelParam={data.panelParam}
+    />
+  )
 }
 
 export function DaemonErrorPage(props: GRPCError) {

@@ -4,7 +4,7 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {AccessoryContent} from '@shm/ui/accessories'
+import {SelectionContent} from '@shm/ui/accessories'
 import {Button} from '@shm/ui/button'
 import {DatePicker} from '@shm/ui/components/date-picker'
 import {Input} from '@shm/ui/components/input'
@@ -36,7 +36,7 @@ export function OptionsPanel({
   isHomeDoc: boolean
 }) {
   return (
-    <AccessoryContent>
+    <SelectionContent>
       <div className="flex flex-col gap-4 p-4">
         {isHomeDoc ? (
           <>
@@ -91,7 +91,7 @@ export function OptionsPanel({
           </>
         )}
       </div>
-    </AccessoryContent>
+    </SelectionContent>
   )
 }
 

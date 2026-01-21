@@ -15,13 +15,12 @@ export function Tooltip({
   side?: React.ComponentProps<typeof TooltipContent>['side']
   asChild?: boolean
 }) {
-  if (!content) return children
   return (
     <TooltipPrimitive.Root data-slot="tooltip" {...props} delayDuration={delay}>
       <TooltipTrigger asChild>
         {asChild ? children : <span>{children}</span>}
       </TooltipTrigger>
-      <TooltipContent side={side}>{content}</TooltipContent>
+      {content && <TooltipContent side={side}>{content}</TooltipContent>}
     </TooltipPrimitive.Root>
   )
 }

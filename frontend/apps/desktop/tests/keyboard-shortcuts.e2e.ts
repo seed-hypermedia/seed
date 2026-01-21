@@ -1,4 +1,4 @@
-import {test, expect} from '../test/fixtures'
+import {expect, test} from '../test/fixtures'
 
 // Helper to get the correct modifier key for the platform
 const getModifierKey = () =>
@@ -142,7 +142,7 @@ test('Keyboard shortcuts work on draft page', async ({homePage}) => {
     await appWindow.keyboard.press(`${modKey}+1`)
     await appWindow.waitForTimeout(300)
 
-    // Accessory shortcuts should work on draft page
+    // Selection shortcuts should work on draft page
   })
 })
 

@@ -1,9 +1,8 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {triggerCommentDraftFocus} from '@/components/commenting'
 import {CoverImage} from '@/components/cover-image'
 import DiscardDraftButton from '@/components/discard-draft-button'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
-import {useDocumentAccessory} from '@/components/document-accessory'
+import {useDocumentSelection} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
 import {HyperMediaEditorView} from '@/components/editor'
 import PublishDraftButton from '@/components/publish-draft-button'
@@ -33,10 +32,7 @@ import {
   chromiumSupportedVideoMimeTypes,
   generateBlockId,
 } from '@shm/editor/utils'
-import {
-  CommentsProvider,
-  isRouteEqualToCommentTarget,
-} from '@shm/shared/comments-service-provider'
+import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {
   HMDocument,
   HMMetadata,
@@ -47,7 +43,7 @@ import {
 } from '@shm/shared/hm-types'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {AccessoryOptions, DocumentRoute, DraftRoute} from '@shm/shared/routes'
+import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -59,15 +55,15 @@ import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {PrivateBadge} from '@shm/ui/private-badge'
-import {Separator} from '@shm/ui/separator'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, PanelRight} from 'lucide-react'
+import {Eye, Settings} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -95,9 +91,9 @@ export default function DraftPage() {
     return undefined
   }, [route, data])
 
-  const accessoryKey = useMemo(() => {
+  const panelKey = useMemo(() => {
     if (route.key != 'draft') return undefined
-    return (route as DraftRoute).accessory?.key || undefined
+    return (route as DraftRoute).panel?.key || undefined
   }, [route])
 
   const editId = useMemo(() => {
@@ -128,7 +124,7 @@ export default function DraftPage() {
   const homeDocument =
     homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
-  const {accessory, accessoryOptions} = useDocumentAccessory({
+  const {selectionUI, selectionOptions} = useDocumentSelection({
     docId: editId,
     state,
     actor,
@@ -137,20 +133,23 @@ export default function DraftPage() {
 
   useListenAppEvent('toggle_accessory', (event) => {
     // Navigation guard: Check if accessory exists at this index
-    const targetAccessory = accessoryOptions[event.index]
+    const targetSelection = selectionOptions[event.index]
 
-    if (!targetAccessory) {
+    if (!targetSelection) {
       // No accessory at this index, do nothing
       return
     }
-
+    const id = route.editUid
+      ? hmId(route.editUid, {path: route.editPath})
+      : undefined
+    if (!id) return
     // Check if already open
-    if (accessoryKey === targetAccessory.key) {
+    if (panelKey === targetSelection.key) {
       // Already open → close it
-      replace({...route, accessory: null})
+      replace({...route, panel: null})
     } else {
       // Not open → open it
-      replace({...route, accessory: {key: targetAccessory.key}})
+      replace({...route, panel: {key: targetSelection.key, id}})
     }
   })
 
@@ -214,76 +213,74 @@ export default function DraftPage() {
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={(replyComment) => {
-          const targetRoute = isRouteEqualToCommentTarget({
-            id: editId || locationId,
-            comment: replyComment,
-          })
-
-          if (targetRoute) {
-            push({
-              key: 'document',
-              id: targetRoute,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          } else {
-            console.log('targetRoute is the same. replacing...')
-            replace({
-              ...route,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          }
-          triggerCommentDraftFocus(route.id, replyComment.id)
+          toast.error('Not implemented draft CommentsProvider onReplyClick')
+          return
+          // const targetRoute = isRouteEqualToCommentTarget({
+          //   id: editId || locationId,
+          //   comment: replyComment,
+          // })
+          // if (targetRoute) {
+          //   push({
+          //     key: 'document',
+          //     id: targetRoute,
+          //     panel: {
+          //       key: 'discussions',
+          //       id: targetRoute,
+          //       openComment: replyComment.id,
+          //       isReplying: true,
+          //     },
+          //   })
+          // } else {
+          //   console.log('targetRoute is the same. replacing...')
+          //   replace({
+          //     ...route,
+          //     panel: {
+          //       key: 'discussions',
+          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
+          //       openComment: replyComment.id,
+          //       isReplying: true,
+          //     },
+          //   })
+          // }
+          // triggerCommentDraftFocus(route.id, replyComment.id)
         }}
         onReplyCountClick={(replyComment) => {
-          const targetRoute = isRouteEqualToCommentTarget({
-            id: editId || locationId,
-            comment: replyComment,
-          })
-          if (targetRoute) {
-            // comment target is not the same as the route, so we need to change the whole route
-            push({
-              key: 'document',
-              id: targetRoute,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          } else {
-            // comment target is the same as the route, so we can replace safely
-            replace({
-              ...route,
-              accessory: {
-                key: 'discussions',
-                openComment: replyComment.id,
-                isReplying: true,
-              },
-            })
-          }
+          toast.error(
+            'Not implemented draft CommentsProvider onReplyCountClick',
+          )
+          return
+          // const targetRoute = isRouteEqualToCommentTarget({
+          //   id: editId || locationId,
+          //   comment: replyComment,
+          // })
+          // if (targetRoute) {
+          //   // comment target is not the same as the route, so we need to change the whole route
+          //   push({
+          //     key: 'document',
+          //     id: targetRoute,
+          //     panel: {
+          //       key: 'discussions',
+          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
+          //       openComment: replyComment.id,
+          //       isReplying: true,
+          //     },
+          //   })
+          // } else {
+          //   // comment target is the same as the route, so we can replace safely
+          //   replace({
+          //     ...route,
+          //     panel: {
+          //       key: 'discussions',
+          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
+          //       openComment: replyComment.id,
+          //       isReplying: true,
+          //     },
+          //   })
+          // }
         }}
       >
         <div className="flex h-full flex-1">
-          <AccessoryLayout
-            accessory={accessory}
-            accessoryKey={accessoryKey}
-            // @ts-expect-error
-            onScroll={() => dispatchScroll(true)}
-            onAccessorySelect={(key) => {
-              if (!key) return
-              replace({...route, accessory: {key: key as AccessoryOptions}})
-            }}
-            accessoryOptions={accessoryOptions}
-            isNewDraft={editId == undefined}
-          >
+          <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
             <div
               className={cn(
                 panelContainerStyles,
@@ -341,13 +338,13 @@ export default function DraftPage() {
 // function WelcomePopover({onClose}: {onClose: () => void}) {
 //   return (
 //     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
-//       <div className="bg-background mx-4 max-w-md rounded-lg border p-6 shadow-lg">
+//       <div className="max-w-md p-6 mx-4 border rounded-lg shadow-lg bg-background">
 //         <h2 className="mb-4 text-2xl font-bold">
 //           Congratulations on creating your account! 🎉
 //         </h2>
-//         <div className="text-muted-foreground mb-6 space-y-3">
+//         <div className="mb-6 space-y-3 text-muted-foreground">
 //           <p className="font-semibold">Quick tips to get started:</p>
-//           <ul className="list-inside list-disc space-y-2">
+//           <ul className="space-y-2 list-disc list-inside">
 //             <li>[Tip 1: How to edit and format your content]</li>
 //             <li>[Tip 2: How to publish your document]</li>
 //             <li>[Tip 3: How to share your profile]</li>
@@ -356,7 +353,7 @@ export default function DraftPage() {
 //         </div>
 //         <button
 //           onClick={onClose}
-//           className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-md px-4 py-2 font-semibold transition-colors"
+//           className="w-full px-4 py-2 font-semibold transition-colors rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
 //         >
 //           Got it, let's start!
 //         </button>
@@ -383,7 +380,6 @@ function DocumentEditor({
   isHomeDoc: boolean
 }) {
   const route = useNavRoute()
-  const navigate = useNavigate()
   const openUrl = useOpenUrl()
   if (route.key != 'draft') throw new Error('DraftPage must have draft route')
   const importWebFile = useMutation({
@@ -445,81 +441,19 @@ function DocumentEditor({
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
-  function onCommentsClick() {
-    if (editId) {
-      navigate({
-        key: 'document',
-        id: editId,
-        accessory: {
-          key:
-            'accessory' in route && route.accessory?.key == 'discussions'
-              ? undefined
-              : 'discussions',
-        },
-      } as DocumentRoute)
-    }
-  }
-
-  function onFeedClick() {
-    if (editId) {
-      navigate({
-        key: 'document',
-        id: editId,
-        accessory: {
-          key:
-            'accessory' in route && route.accessory?.key == 'activity'
-              ? undefined
-              : 'activity',
-        },
-      } as DocumentRoute)
-    }
-  }
-
   const {data: collaborators} = useAllDocumentCapabilities(id)
   const directory = useChildrenActivity(id)
   console.log('== EDIT ID IN DOC EDITOR', editId)
 
   const documentTools = editId ? (
     <DocumentTools
-      activePanel={
-        route.accessory &&
-        route.accessory.key != 'options' &&
-        route.accessory.key != 'contacts'
-          ? route.accessory.key
-          : undefined
-      }
+      activeTab="draft"
+      id={editId}
+      existingDraft={draftQuery.data || false}
       commentsCount={interactionSummary.data?.comments || 0}
-      onCommentsClick={onCommentsClick}
-      onFeedClick={onFeedClick}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
-      onDirectoryClick={() => {
-        if (editId) {
-          navigate({
-            key: 'document',
-            id: editId,
-            accessory: {
-              key:
-                route.accessory?.key == 'directory' ? undefined : 'directory',
-            },
-          } as DocumentRoute)
-        }
-      }}
-      onCollabsClick={() => {
-        if (editId) {
-          navigate({
-            key: 'document',
-            id: editId,
-            accessory: {
-              key:
-                route.accessory?.key == 'collaborators'
-                  ? undefined
-                  : 'collaborators',
-            },
-          } as DocumentRoute)
-        }
-      }}
-      draftActions={
+      rightActions={
         isHomeDoc ? <DraftActionButtons route={route} /> : undefined
       }
     />
@@ -563,13 +497,6 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="flex flex-1 flex-col overflow-hidden"
         >
-          {isHomeDoc ? (
-            documentTools
-          ) : (
-            <DocumentTools
-              draftActions={<DraftActionButtons route={route} />}
-            />
-          )}
           <ScrollArea onScroll={() => dispatchScroll(true)}>
             <DraftCover
               draftActor={actor}
@@ -581,6 +508,40 @@ function DocumentEditor({
               showOutline={showOutline}
             />
             <div ref={elementRef} className="draft-editor w-full flex-1">
+              {/* Title section - centered */}
+              {!isHomeDoc ? (
+                <div
+                  className="mx-auto w-full"
+                  style={{maxWidth: mainContentProps.style.maxWidth}}
+                >
+                  <DraftMetadataEditor
+                    draftActor={actor}
+                    onEnter={() => {
+                      editor._tiptapEditor.commands.focus()
+                      editor._tiptapEditor.commands.setTextSelection(0)
+                    }}
+                    showCover={showCover}
+                    setShowCover={setShowCover}
+                    visibility={route.visibility || data?.visibility}
+                  />
+                </div>
+              ) : null}
+              {/* DocumentTools - full width */}
+              {isHomeDoc ? (
+                documentTools
+              ) : id ? (
+                <DocumentTools
+                  activeTab="draft"
+                  id={id}
+                  rightActions={<DraftActionButtons route={route} />}
+                  existingDraft={draftQuery.data || false}
+                />
+              ) : (
+                <div className="flex justify-end px-4 pt-2">
+                  <DraftActionButtons route={route} />
+                </div>
+              )}
+              {/* Editor content - centered with sidebar */}
               <div {...wrapperProps}>
                 {showSidebars ? (
                   <div
@@ -602,20 +563,6 @@ function DocumentEditor({
                   </div>
                 ) : null}
                 <div {...mainContentProps}>
-                  {!isHomeDoc ? (
-                    <DraftMetadataEditor
-                      draftActor={actor}
-                      onEnter={() => {
-                        editor._tiptapEditor.commands.focus()
-                        editor._tiptapEditor.commands.setTextSelection(0)
-                      }}
-                      // disabled={!state.matches('ready')}
-                      showCover={showCover}
-                      setShowCover={setShowCover}
-                      visibility={route.visibility || data?.visibility}
-                      documentTools={documentTools}
-                    />
-                  ) : null}
                   <Container
                     // @ts-expect-error
                     paddingLeft="$4"
@@ -856,7 +803,6 @@ function DraftMetadataEditor({
   showCover = false,
   setShowCover,
   visibility,
-  documentTools,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
@@ -864,7 +810,6 @@ function DraftMetadataEditor({
   showCover?: boolean
   setShowCover?: (show: boolean) => void
   visibility?: HMResourceVisibility
-  documentTools?: React.ReactNode
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -1018,9 +963,7 @@ function DraftMetadataEditor({
             }}
             placeholder="Document Summary"
           />
-          <Separator />
         </div>
-        {documentTools}
       </Container>
     </div>
   )
@@ -1168,14 +1111,21 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           onClick={() => {
             replace({
               ...route,
-              accessory:
-                route.key == 'draft' && route.accessory?.key == 'options'
+              panel:
+                route.key == 'draft' && route.panel?.key == 'options'
                   ? null
                   : {key: 'options'},
             })
           }}
         >
-          <PanelRight className="size-4" />
+          <Settings
+            className={cn(
+              'size-4',
+              route.key == 'draft' &&
+                route.panel?.key == 'options' &&
+                'text-brand',
+            )}
+          />
         </Button>
       </Tooltip>
     </div>

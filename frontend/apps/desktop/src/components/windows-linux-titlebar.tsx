@@ -128,7 +128,6 @@ export function SystemMenu() {
                 createDraft({
                   key: 'draft',
                   id: nanoid(10),
-                  accessory: null,
                 }),
               icon: <AddSquare className="size-4" />,
             },

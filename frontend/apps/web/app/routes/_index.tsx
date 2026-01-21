@@ -1,6 +1,7 @@
 import {Params, useLoaderData} from '@remix-run/react'
 import {loader as loaderFn, meta as metaFn} from './$'
 import {FeedPage} from '@/feed'
+import {ViewTermPage} from '@/view-term-page'
 import {unwrap} from '@/wrapping'
 import type {SiteDocumentPayload} from '@/loaders'
 import {NotRegisteredPage} from '@/not-registered'
@@ -8,6 +9,7 @@ import {NoSitePage} from '@/not-registered'
 import {DocumentPage} from '@/document'
 import {DaemonErrorPage} from './$'
 import {Code} from '@connectrpc/connect'
+import {ViewRouteKey} from '@shm/shared'
 
 export const loader = async ({
   params,
@@ -22,7 +24,11 @@ export const loader = async ({
   })
 }
 
-type DocumentPayload = SiteDocumentPayload | 'unregistered' | 'no-site'
+type ExtendedSitePayload = SiteDocumentPayload & {
+  viewTerm?: ViewRouteKey | null
+}
+
+type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
 
 export default function IndexPage() {
   const unwrappedData = useLoaderData()
@@ -50,8 +56,8 @@ export default function IndexPage() {
     return <FeedPage {...data} />
   }
 
-  // Otherwise show the document page
-  return <DocumentPage {...data} />
+  // Pass viewTerm to DocumentPage - it will open the corresponding panel
+  return <DocumentPage {...data} viewTerm={data.viewTerm} />
 }
 
 export const meta = metaFn

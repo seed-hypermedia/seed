@@ -83,15 +83,15 @@ function _CommentBox(props: {
     if (
       autoFocus &&
       route.key === 'document' &&
-      route.accessory?.key === 'activity'
+      route.panel?.key === 'activity'
     ) {
-      const accessory = route.accessory
-      if (accessory.autoFocus) {
+      const panel = route.panel
+      if (panel.autoFocus) {
         setTimeout(() => {
-          const {autoFocus: _, ...restAccessory} = accessory
+          const {autoFocus: _, ...restPanel} = panel
           navigate({
             ...route,
-            accessory: restAccessory,
+            panel: restPanel,
           })
         }, 150)
       }

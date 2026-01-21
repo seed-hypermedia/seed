@@ -1905,8 +1905,9 @@ export function BlockEmbedContentComment({
       route={{
         key: 'document',
         id: getCommentTargetId(comment)!,
-        accessory: {
+        panel: {
           key: 'discussions',
+          id,
           openComment: comment.id,
         },
       }}

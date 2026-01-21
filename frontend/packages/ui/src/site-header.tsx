@@ -409,7 +409,7 @@ function HeaderLinkItem({
       ? {
           key: 'draft',
           id: draftId,
-          accessory: {key: 'options'},
+          // panel: {key: 'options'},
         }
       : id
       ? {

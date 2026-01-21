@@ -1,7 +1,69 @@
 import {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '..'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
+import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
+
+// View terms for URL paths (e.g., /:activity, /:directory)
+export const VIEW_TERMS = [
+  ':activity',
+  ':discussions',
+  ':collaborators',
+  ':directory',
+] as const
+export type ViewTerm = (typeof VIEW_TERMS)[number]
+
+// Route keys that correspond to view terms (excludes 'options' which is panel-only)
+export type ViewRouteKey =
+  | 'activity'
+  | 'discussions'
+  | 'collaborators'
+  | 'directory'
+
+// Panel keys that can be encoded in URL query param
+export type PanelQueryKey =
+  | 'activity'
+  | 'discussions'
+  | 'collaborators'
+  | 'directory'
+  | 'options'
+
+/**
+ * Extract view term from URL path and return cleaned URL + view term
+ * e.g., "https://example.com/path/:directory?v=123" -> {url: "https://example.com/path?v=123", viewTerm: ":directory"}
+ */
+export function extractViewTermFromUrl(url: string): {
+  url: string
+  viewTerm: ViewTerm | null
+} {
+  for (const term of VIEW_TERMS) {
+    // Match term at end of path (before query/fragment)
+    const termPattern = new RegExp(`/${term.replace(':', '\\:')}(?=[?#]|$)`)
+    if (termPattern.test(url)) {
+      return {
+        url: url.replace(termPattern, ''),
+        viewTerm: term,
+      }
+    }
+  }
+  return {url, viewTerm: null}
+}
+
+/**
+ * Convert view term to route key for navigation
+ */
+export function viewTermToRouteKey(
+  viewTerm: ViewTerm | null,
+): ViewRouteKey | null {
+  if (!viewTerm) return null
+  const mapping: Record<ViewTerm, ViewRouteKey> = {
+    ':activity': 'activity',
+    ':discussions': 'discussions',
+    ':collaborators': 'collaborators',
+    ':directory': 'directory',
+  }
+  return mapping[viewTerm] ?? null
+}
 
 export function createSiteUrl({
   path,
@@ -48,7 +110,7 @@ export function commentIdToHmId(commentId: string): UnpackedHypermediaId {
   })
 }
 
-export function createHMUrl({
+export function hmIdToURL({
   uid,
   path,
   version,
@@ -72,7 +134,7 @@ export function createHMUrl({
 /**
  * Create URL for OS protocol registration (to open desktop app).
  * Uses 'hm://'
- * This is separate from createHMUrl which creates document URLs.
+ * This is separate from hmIdToURL which creates document URLs.
  */
 export function createOSProtocolUrl({
   uid,
@@ -96,6 +158,108 @@ export function createOSProtocolUrl({
 
   return res
 }
+function getRouteViewTerm(route: NavRoute): string | null {
+  // For first-class page routes, return their view term
+  if (route.key === 'activity') return ':activity'
+  if (route.key === 'discussions') return ':discussions'
+  if (route.key === 'collaborators') return ':collaborators'
+  if (route.key === 'directory') return ':directory'
+  return null
+}
+
+/**
+ * Extract panel key from route for URL query param
+ */
+function getRoutePanelParam(route: NavRoute): PanelQueryKey | null {
+  if (route.key === 'document' && route.panel) {
+    return route.panel.key as PanelQueryKey
+  }
+  if (
+    (route.key === 'activity' ||
+      route.key === 'discussions' ||
+      route.key === 'collaborators' ||
+      route.key === 'directory') &&
+    route.panel
+  ) {
+    return route.panel.key as PanelQueryKey
+  }
+  return null
+}
+/**
+ * Get the comment ID from a route if viewing a specific comment
+ */
+function getRouteCommentId(
+  route: NavRoute,
+): {uid: string; path: string[]} | null {
+  // Check discussions page route
+  if (route.key === 'discussions' && route.openComment) {
+    const [uid, ...path] = route.openComment.split('/')
+    if (uid && path.length) return {uid, path}
+  }
+  // Check document with discussions panel
+  if (
+    route.key === 'document' &&
+    route.panel?.key === 'discussions' &&
+    route.panel.openComment
+  ) {
+    const [uid, ...path] = route.panel.openComment.split('/')
+    if (uid && path.length) return {uid, path}
+  }
+  return null
+}
+
+export function routeToUrl(
+  route: NavRoute,
+  opts?: {
+    hostname?: string | null | undefined
+    originHomeId?: UnpackedHypermediaId | undefined
+  },
+) {
+  // Check if viewing a specific comment - generate comment URL instead
+  const commentId = getRouteCommentId(route)
+  if (commentId) {
+    return createWebHMUrl(commentId.uid, {
+      path: commentId.path,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+    })
+  }
+
+  const panelParam = getRoutePanelParam(route)
+
+  if (route.key === 'document') {
+    const url = createWebHMUrl(route.id.uid, {
+      ...route.id,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+      viewTerm: getRouteViewTerm(route),
+      panel: panelParam,
+    })
+    return url
+  }
+  if (route.key === 'feed') {
+    return createWebHMUrl(route.id.uid, {
+      ...route.id,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+    })
+  }
+  if (
+    route.key === 'activity' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'discussions'
+  ) {
+    return createWebHMUrl(route.id.uid, {
+      ...route.id,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+      viewTerm: getRouteViewTerm(route),
+      panel: panelParam,
+    })
+  }
+  return 'TODO'
+}
 
 export function createWebHMUrl(
   uid: string,
@@ -108,6 +272,8 @@ export function createWebHMUrl(
     path,
     originHomeId,
     feed,
+    viewTerm,
+    panel,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -117,6 +283,8 @@ export function createWebHMUrl(
     path?: string[] | null
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
+    viewTerm?: string | null
+    panel?: PanelQueryKey | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -134,10 +302,14 @@ export function createWebHMUrl(
     res += `/${path.join('/')}`
   }
   if (res === '') res = '/'
+  if (viewTerm) {
+    res += `/${viewTerm}`
+  }
   res += getHMQueryString({
     latest: null,
     version: latest ? undefined : version,
     feed,
+    panel,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -149,10 +321,12 @@ function getHMQueryString({
   feed,
   version,
   latest,
+  panel,
 }: {
   feed?: boolean
   version?: string | null
   latest?: boolean | null
+  panel?: PanelQueryKey | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -163,6 +337,9 @@ function getHMQueryString({
   }
   if (feed) {
     query.feed = 'true'
+  }
+  if (panel) {
+    query.panel = panel
   }
   return serializeQueryString(query)
 }

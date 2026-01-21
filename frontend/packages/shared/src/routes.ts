@@ -7,11 +7,6 @@ import {
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
-export const exploreRouteSchema = z.object({
-  key: z.literal('explore'),
-})
-export type ExploreRoute = z.infer<typeof exploreRouteSchema>
-
 export const contactsRouteSchema = z.object({key: z.literal('contacts')})
 export type ContactsRoute = z.infer<typeof contactsRouteSchema>
 
@@ -27,53 +22,96 @@ export const profileRouteSchema = z.object({
 })
 export type ProfileRoute = z.infer<typeof profileRouteSchema>
 
-export const documentDirectoryAccessorySchema = z.object({
-  key: z.literal('directory'),
-})
-export type DocumentDirectoryAccessory = z.infer<
-  typeof documentDirectoryAccessorySchema
->
-
-export const documentContactsAccessorySchema = z.object({
-  key: z.literal('contacts'),
-})
-export type DocumentContactsAccessory = z.infer<
-  typeof documentContactsAccessorySchema
->
-
-export const documentCollaboratorsAccessorySchema = z.object({
-  key: z.literal('collaborators'),
-})
-export type DocumentCollaboratorsAccessory = z.infer<
-  typeof documentCollaboratorsAccessorySchema
->
-
-export const documentSuggestedChangesAccessorySchema = z.object({
-  key: z.literal('suggested-changes'),
-})
-export type DocumentSuggestedChangesAccessory = z.infer<
-  typeof documentSuggestedChangesAccessorySchema
->
-
-export const documentOptionsAccessorySchema = z.object({
-  key: z.literal('options'),
-})
-export type DocumentOptionsAccessory = z.infer<
-  typeof documentOptionsAccessorySchema
->
-
-export const documentActivityAccessorySchema = z.object({
+// Shared panel schemas for use in page-level routes
+const activityPanelSchema = z.object({
   key: z.literal('activity'),
-  width: z.number().optional(),
+  id: unpackedHmIdSchema.optional(),
   autoFocus: z.boolean().optional(),
   filterEventType: z.array(z.string()).optional(),
 })
-export type DocumentActivityAccessory = z.infer<
-  typeof documentActivityAccessorySchema
->
 
-export const documentDiscussionsAccessorySchema = z.object({
+const discussionsPanelSchema = z.object({
   key: z.literal('discussions'),
+  id: unpackedHmIdSchema.optional(),
+  openComment: z.string().optional(),
+})
+
+const collaboratorsPanelSchema = z.object({
+  key: z.literal('collaborators'),
+  id: unpackedHmIdSchema.optional(),
+})
+
+const directoryPanelSchema = z.object({
+  key: z.literal('directory'),
+  id: unpackedHmIdSchema.optional(),
+})
+
+// Focus schema for routes with panels
+const focusSchema = z.enum(['main', 'panel'])
+
+// Directory page panel options
+const directoryPagePanelSchema = z.discriminatedUnion('key', [
+  activityPanelSchema,
+  discussionsPanelSchema,
+  collaboratorsPanelSchema,
+])
+
+export const directoryRouteSchema = z.object({
+  key: z.literal('directory'),
+  id: unpackedHmIdSchema,
+  panel: directoryPagePanelSchema.nullable().optional(),
+  focus: focusSchema.optional(),
+})
+export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
+
+// Collaborators page panel options
+const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
+  activityPanelSchema,
+  discussionsPanelSchema,
+  directoryPanelSchema,
+])
+
+export const collaboratorsRouteSchema = z.object({
+  key: z.literal('collaborators'),
+  id: unpackedHmIdSchema,
+  panel: collaboratorsPagePanelSchema.nullable().optional(),
+  focus: focusSchema.optional(),
+})
+export type CollaboratorsRoute = z.infer<typeof collaboratorsRouteSchema>
+
+// Activity page panel options
+const activityPagePanelSchema = z.discriminatedUnion('key', [
+  discussionsPanelSchema,
+  collaboratorsPanelSchema,
+  directoryPanelSchema,
+])
+
+export const documentOptionsRouteSchema = z.object({
+  key: z.literal('options'),
+})
+export type DocumentOptionsRoute = z.infer<typeof documentOptionsRouteSchema>
+
+export const activityRouteSchema = z.object({
+  key: z.literal('activity'),
+  id: unpackedHmIdSchema,
+  width: z.number().optional(),
+  autoFocus: z.boolean().optional(),
+  filterEventType: z.array(z.string()).optional(),
+  panel: activityPagePanelSchema.nullable().optional(),
+  focus: focusSchema.optional(),
+})
+export type ActivityRoute = z.infer<typeof activityRouteSchema>
+
+// Discussions page panel options
+const discussionsPagePanelSchema = z.discriminatedUnion('key', [
+  activityPanelSchema,
+  collaboratorsPanelSchema,
+  directoryPanelSchema,
+])
+
+export const discussionsRouteSchema = z.object({
+  key: z.literal('discussions'),
+  id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
   targetBlockId: z.string().optional(),
@@ -81,21 +119,20 @@ export const documentDiscussionsAccessorySchema = z.object({
   blockRange: BlockRangeSchema.nullable().optional(),
   autoFocus: z.boolean().optional(),
   isReplying: z.boolean().optional(),
+  panel: discussionsPagePanelSchema.nullable().optional(),
+  focus: focusSchema.optional(),
 })
-export type DocumentDiscussionsAccessory = z.infer<
-  typeof documentDiscussionsAccessorySchema
->
+export type DiscussionsRoute = z.infer<typeof discussionsRouteSchema>
 
-const documentAccessorySchema = z.discriminatedUnion('key', [
-  documentActivityAccessorySchema,
-  documentDiscussionsAccessorySchema,
-  documentDirectoryAccessorySchema,
-  documentCollaboratorsAccessorySchema,
-  documentContactsAccessorySchema,
-  documentOptionsAccessorySchema,
+const documentPanelRoute = z.discriminatedUnion('key', [
+  activityRouteSchema,
+  discussionsRouteSchema,
+  directoryRouteSchema,
+  collaboratorsRouteSchema,
+  documentOptionsRouteSchema,
 ])
-export type DocumentAccessory = z.infer<typeof documentAccessorySchema>
-export type AccessoryOptions = DocumentAccessory['key']
+export type DocumentPanelRoute = z.infer<typeof documentPanelRoute>
+export type PanelSelectionOptions = DocumentPanelRoute['key']
 
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
@@ -103,13 +140,15 @@ export const documentRouteSchema = z.object({
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptNotifs: z.boolean().optional(),
-  accessory: documentAccessorySchema.nullable().optional(),
+  panel: documentPanelRoute.nullable().optional(),
+  focus: focusSchema.optional(),
 })
 
 export const feedRouteSchema = z.object({
   key: z.literal('feed'),
   id: unpackedHmIdSchema,
-  accessory: documentAccessorySchema.nullable().optional(),
+  panel: documentPanelRoute.nullable().optional(),
+  focus: focusSchema.optional(),
 })
 
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
@@ -123,9 +162,10 @@ export const draftRouteSchema = z.object({
   editUid: z.string().optional(),
   editPath: z.array(z.string()).optional(),
   deps: z.array(z.string()).optional(),
-  accessory: documentAccessorySchema.nullable().optional(),
+  panel: documentPanelRoute.nullable().optional(),
   isWelcomeDraft: z.boolean().optional(),
   visibility: HMResourceVisibilitySchema.optional(),
+  focus: focusSchema.optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
@@ -178,13 +218,24 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRouteSchema,
   draftRebaseRouteSchema,
   previewRouteSchema,
-  exploreRouteSchema,
   favoritesSchema,
   draftsSchema,
   deletedContentRouteSchema,
   feedRouteSchema,
+  directoryRouteSchema,
+  collaboratorsRouteSchema,
+  activityRouteSchema,
+  discussionsRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
+export type Focus = z.infer<typeof focusSchema>
+
+/** Get the effective focus for a route. Derives from panel presence if not explicitly set. */
+export function getEffectiveFocus(route: NavRoute): Focus {
+  if ('focus' in route && route.focus) return route.focus
+  if ('panel' in route && route.panel) return 'panel'
+  return 'main'
+}
 
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
@@ -193,7 +244,40 @@ export function getRecentsRouteEntityUrl(route: NavRoute) {
   return null
 }
 
-export type DocAccessoryOption = {
-  key: AccessoryOptions
+export type DocSelectionOption = {
+  key: PanelSelectionOptions
   label: string
+}
+
+export function getRoutePanel(route: NavRoute): NavRoute | null {
+  let panel: DocumentPanelRoute | undefined | null = undefined
+  let routeId: z.infer<typeof unpackedHmIdSchema> | undefined = undefined
+  if (route.key === 'document') {
+    panel = route.panel
+    routeId = route.id
+  } else if (route.key === 'draft') {
+    panel = route.panel
+  } else if (route.key === 'feed') {
+    panel = route.panel
+    routeId = route.id
+  } else if (route.key === 'directory') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
+  } else if (route.key === 'collaborators') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
+  } else if (route.key === 'activity') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
+  } else if (route.key === 'discussions') {
+    panel = route.panel as DocumentPanelRoute | null
+    routeId = route.id
+  }
+  if (panel?.key === 'options') return null
+  if (!panel) return null
+  // Ensure panel has id from parent route if not set
+  if (routeId && 'id' in panel && !panel.id) {
+    return {...panel, id: routeId} as NavRoute
+  }
+  return panel as NavRoute
 }

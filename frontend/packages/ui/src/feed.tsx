@@ -1,4 +1,3 @@
-import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {useHackyAuthorsSubscriptions} from '@shm/shared/comments-service-provider'
 import {
   HMBlockNode,
@@ -15,6 +14,7 @@ import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
+import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {
   AnyTimestamp,
   formattedDateShort,
@@ -26,7 +26,7 @@ import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
 import {memo, useEffect, useMemo, useRef} from 'react'
 import {toast} from 'sonner'
-import {AccessoryContent} from './accessories'
+import {SelectionContent} from './accessories'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {Button} from './button'
 import {CommentContent} from './comments'
@@ -58,6 +58,8 @@ export function Feed({
   targetDomain,
   size = 'md',
   scrollRef,
+  navigationContext,
+  centered,
 }: {
   size?: 'sm' | 'md'
   commentEditor: any
@@ -68,9 +70,22 @@ export function Feed({
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
   scrollRef?: React.Ref<HTMLDivElement>
+  /** Navigation context for comment clicks: 'page' navigates to full discussions page, 'panel' uses document panel */
+  navigationContext?: 'page' | 'panel'
+  /** When true, constrains content width and centers it */
+  centered?: boolean
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
+  const currentRoute = useNavRoute()
+
+  // Determine navigation context: 'page' means navigate to full discussions page
+  // 'panel' means navigate to document with discussions panel open
+  const useFullPageNavigation = useMemo(() => {
+    if (navigationContext) return navigationContext === 'page'
+    // Auto-detect: if we're on activity or discussions page, use full page navigation
+    return currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  }, [navigationContext, currentRoute.key])
 
   const {
     data,
@@ -177,10 +192,14 @@ export function Feed({
   }
 
   return (
-    <AccessoryContent header={commentEditor} scrollRef={scrollRef}>
+    <SelectionContent
+      header={commentEditor}
+      scrollRef={scrollRef}
+      centered={centered}
+    >
       <div>
         {allEvents.map((e) => {
-          const route = getEventRoute(e)
+          const route = getEventRoute(e, useFullPageNavigation)
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
@@ -229,7 +248,7 @@ export function Feed({
           No more events
         </div>
       )}
-    </AccessoryContent>
+    </SelectionContent>
   )
 }
 
@@ -796,21 +815,33 @@ function formatUTC(date: Date) {
   return `${year}-${month}-${day} ${hours}:${minutes} (UTC)`
 }
 
-function getEventRoute(event: LoadedEvent): NavRoute | null {
+function getEventRoute(
+  event: LoadedEvent,
+  useFullPageNavigation: boolean = false,
+): NavRoute | null {
   if (event.type == 'comment') {
     // Navigate to the target document with discussions open and the comment focused
     if (!event.target?.id || !event.comment) return null
 
-    const route = {
+    if (useFullPageNavigation) {
+      // Navigate to full discussions page
+      return {
+        key: 'discussions' as const,
+        id: event.target.id,
+        openComment: event.comment.id,
+      }
+    }
+
+    // Navigate to document with discussions panel
+    return {
       key: 'document' as const,
       id: event.target.id,
-      accessory: {
+      panel: {
         key: 'discussions' as const,
+        id: event.target.id,
         openComment: event.comment.id,
       },
     }
-
-    return route
   }
 
   if (event.type == 'doc-update') {
@@ -858,17 +889,24 @@ function getEventRoute(event: LoadedEvent): NavRoute | null {
     // Navigate to the target document (the document being cited)
     if (!event.source?.id) return null
 
-    // For comment citations, open the comment in discussions panel
+    // For comment citations, open the comment in discussions
     if (event.citationType === 'c' && event.comment) {
-      const route = {
+      if (useFullPageNavigation) {
+        return {
+          key: 'discussions' as const,
+          id: event.source.id,
+          openComment: event.comment.id,
+        }
+      }
+      return {
         key: 'document' as const,
         id: event.source.id,
-        accessory: {
+        panel: {
           key: 'discussions' as const,
+          id: event.source.id,
           openComment: event.comment.id,
         },
       }
-      return route
     }
 
     // For document citations, navigate to the target document

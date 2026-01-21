@@ -8,26 +8,36 @@ import {useContact, useSelectedAccountContacts} from '@/models/contacts'
 import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrlStream} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
-import {NewSubDocumentButton} from '@/pages/document'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
+  commentIdToHmId,
+  findContentBlock,
   getParentPaths,
   hmId,
   HMMetadata,
   hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
+import {
+  getBlockText,
+  getContactMetadata,
+  getDocumentTitle,
+} from '@shm/shared/content'
 import {
   useAccount,
   useDirectoryWithDrafts,
   useResource,
   useResources,
 } from '@shm/shared/models/entity'
-import {ContactRoute, DraftRoute, ProfileRoute} from '@shm/shared/routes'
+import {
+  ContactRoute,
+  DocumentPanelRoute,
+  DraftRoute,
+  ProfileRoute,
+} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useFocus, useNavRoute} from '@shm/shared/utils/navigation'
 import {
   HoverCard,
   HoverCardContent,
@@ -37,15 +47,7 @@ import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {useHighlighter} from '@shm/ui/highlight-context'
-import {
-  AlertCircle,
-  Contact,
-  Copy,
-  File,
-  HistoryIcon,
-  Star,
-  X,
-} from '@shm/ui/icons'
+import {AlertCircle, Contact, Copy, File, Star, X} from '@shm/ui/icons'
 import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, TextProps} from '@shm/ui/text'
@@ -55,6 +57,7 @@ import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
+import {NewSubDocumentButton} from './document-accessory'
 import {FavoriteButton} from './favoriting'
 import {DNSInstructions} from './publish-site'
 import {DocOptionsButton} from './titlebar-common'
@@ -69,6 +72,7 @@ export function TitleContent({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const route = useNavRoute()
+  const focus = useFocus()
   const titleProps: TextProps = {
     size: 'md',
     weight: 'bold',
@@ -77,11 +81,10 @@ export function TitleContent({
   }
   useWindowTitleSetter(async () => {
     if (route.key === 'contacts') return 'Contacts'
-    if (route.key === 'explore') return 'Explore'
     if (route.key === 'favorites') return 'Favorites'
     if (route.key === 'library') return 'Library'
     if (route.key === 'drafts') return 'Drafts'
-    // document, draft, contact are handled in the child components which have the relevant data!
+    // document, draft, contact, directory are handled in the child components which have the relevant data!
     return null
   }, [route])
 
@@ -93,12 +96,53 @@ export function TitleContent({
       </>
     )
   }
-  if (route.key === 'explore') {
+  if (route.key === 'directory') {
+    // For page routes, when focus=panel show the panel suffix, otherwise show the page type suffix
+    const panelForBreadcrumbs =
+      focus === 'panel' && route.panel
+        ? route.panel
+        : {key: 'directory' as const}
     return (
-      <>
-        <HistoryIcon className="size-4" />
-        <TitleText {...titleProps}>Explore</TitleText>
-      </>
+      <BreadcrumbTitle
+        entityId={route.id}
+        panel={panelForBreadcrumbs as DocumentPanelRoute}
+      />
+    )
+  }
+  if (route.key === 'collaborators') {
+    const panelForBreadcrumbs =
+      focus === 'panel' && route.panel
+        ? route.panel
+        : {key: 'collaborators' as const}
+    return (
+      <BreadcrumbTitle
+        entityId={route.id}
+        panel={panelForBreadcrumbs as DocumentPanelRoute}
+      />
+    )
+  }
+  if (route.key === 'activity') {
+    const panelForBreadcrumbs =
+      focus === 'panel' && route.panel
+        ? route.panel
+        : {key: 'activity' as const}
+    return (
+      <BreadcrumbTitle
+        entityId={route.id}
+        panel={panelForBreadcrumbs as DocumentPanelRoute}
+      />
+    )
+  }
+  if (route.key === 'discussions') {
+    const panelForBreadcrumbs =
+      focus === 'panel' && route.panel
+        ? route.panel
+        : {key: 'discussions' as const, openComment: route.openComment}
+    return (
+      <BreadcrumbTitle
+        entityId={route.id}
+        panel={panelForBreadcrumbs as DocumentPanelRoute}
+      />
     )
   }
   if (route.key === 'favorites') {
@@ -132,7 +176,15 @@ export function TitleContent({
     return <ProfileTitle route={route} />
   }
   if (route.key === 'document' || route.key === 'feed') {
-    return <BreadcrumbTitle entityId={route.id} onPublishSite={onPublishSite} />
+    // When main is focused, don't show panel suffix in breadcrumbs
+    const panelForBreadcrumbs = focus === 'main' ? null : route.panel
+    return (
+      <BreadcrumbTitle
+        entityId={route.id}
+        onPublishSite={onPublishSite}
+        panel={panelForBreadcrumbs}
+      />
+    )
   }
   if (route.key === 'draft') {
     return <DraftTitle route={route} />
@@ -158,6 +210,7 @@ function BreadcrumbTitle({
   draft = false,
   isNewDraft = false,
   onPublishSite,
+  panel,
 }: {
   entityId: UnpackedHypermediaId
   hideControls?: boolean
@@ -166,12 +219,27 @@ function BreadcrumbTitle({
   draft?: boolean
   isNewDraft?: boolean
   onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
+  panel?: DocumentPanelRoute | null
 }) {
   const contacts = useSelectedAccountContacts()
   const latestDoc = useResource({...entityId, version: null, latest: true})
   const isLatest =
     // @ts-expect-error
     entityId.latest || entityId.version === latestDoc.data?.document?.version
+
+  // Fetch comment and author for breadcrumb when viewing a single comment
+  const openCommentId =
+    panel?.key === 'discussions' && panel.openComment
+      ? commentIdToHmId(panel.openComment)
+      : null
+  const comment = useResource(openCommentId)
+  const commentData =
+    comment.data?.type === 'comment' ? comment.data.comment : null
+  const commentAuthorId = commentData?.author ? hmId(commentData.author) : null
+  const commentAuthor = useAccount(commentAuthorId?.uid, {
+    enabled: !!commentAuthorId,
+  })
+
   const entityIds = useMemo(() => {
     const paths = getParentPaths(entityId.path)
     // For new drafts, exclude the last path since that document doesn't exist yet.
@@ -191,6 +259,7 @@ function BreadcrumbTitle({
       return {id, entity: {id: data.id, document: data.document}, isDiscovering}
     return {id, entity: undefined, isDiscovering}
   })
+  const activeDocContent = entityContents.at(-1)
   const homeMetadata = entityContents.at(0)?.entity?.document?.metadata
   const [collapsedCount, setCollapsedCount] = useState(0)
   const [itemMaxWidths, setItemMaxWidths] = useState<Record<string, number>>({})
@@ -238,8 +307,69 @@ function BreadcrumbTitle({
       })
     }
 
+    const blockId = entityId.blockRef
+    if (!panel?.key && blockId) {
+      const activeContent = activeDocContent?.entity?.document?.content
+      const blockNode =
+        activeContent && blockId
+          ? findContentBlock(activeContent, blockId)
+          : null
+      crumbs.push({
+        name: (blockNode?.block && getBlockText(blockNode?.block)) || 'Block',
+        id: null,
+        crumbKey: `content`,
+      })
+    }
+    if (panel?.key === 'collaborators') {
+      crumbs.push({
+        name: 'Collaborators',
+        id: null,
+        crumbKey: `collaborators`,
+      })
+    }
+    if (panel?.key === 'discussions') {
+      if (panel.openComment) {
+        // Show "Comment by AuthorName" when viewing a single comment
+        const authorName = commentAuthor.data?.metadata?.name
+        crumbs.push({
+          name: authorName ? `Comment by ${authorName}` : 'Comment',
+          isLoading: comment.isLoading || commentAuthor.isLoading,
+          id: null,
+          crumbKey: `comment`,
+        })
+      } else {
+        crumbs.push({
+          name: 'Discussions',
+          id: null,
+          crumbKey: `discussions`,
+        })
+      }
+    }
+
+    if (panel?.key === 'directory') {
+      crumbs.push({
+        name: 'Children Documents',
+        id: null,
+        crumbKey: `directory`,
+      })
+    }
+    if (panel?.key === 'activity') {
+      crumbs.push({
+        name: 'Activity',
+        id: null,
+        crumbKey: `activity`,
+      })
+    }
+
     return crumbs
-  }, [entityIds, entityContents])
+  }, [
+    entityIds,
+    entityContents,
+    panel,
+    comment.isLoading,
+    commentAuthor.data,
+    commentAuthor.isLoading,
+  ])
   const isAllError = crumbDetails.every((details) => details?.isError)
 
   function updateWidths() {
@@ -841,6 +971,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     return (
       <BreadcrumbTitle
         entityId={isPrivate ? hmId(locationId.uid) : locationId}
+        panel={route.panel}
         hideControls
         draftName={draft.data?.metadata?.name || 'New Draft'}
         draft
@@ -852,6 +983,7 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     return (
       <BreadcrumbTitle
         entityId={editId}
+        panel={route.panel}
         hideControls
         draftName={draft.data?.metadata?.name}
         replaceLastItem={!!draft.data?.metadata?.name}

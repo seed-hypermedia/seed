@@ -1,7 +1,7 @@
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
 import {UnpackedHypermediaId} from '../hm-types'
-import {defaultRoute, NavRoute} from '../routes'
+import {defaultRoute, Focus, getEffectiveFocus, NavRoute} from '../routes'
 import {useStream, useStreamSelector} from '../use-stream'
 import {hmId} from './entity-id-url'
 import {StateStream} from './stream'
@@ -18,7 +18,7 @@ export type PopAction = {type: 'pop'}
 export type ForwardAction = {type: 'forward'}
 export type SetSidebarLockedAction = {type: 'sidebarLocked'; value: boolean}
 export type SetSidebarWidthAction = {type: 'sidebarWidth'; value: number}
-export type SetAccessoryWidthAction = {type: 'accessoryWidth'; value: number}
+export type SetSelectionWidthAction = {type: 'accessoryWidth'; value: number}
 export type SetSelectedIdentityAction = {
   type: 'selectedIdentity'
   value: string | null
@@ -33,7 +33,7 @@ export type NavAction =
   | ForwardAction
   | SetSidebarLockedAction
   | SetSidebarWidthAction
-  | SetAccessoryWidthAction
+  | SetSelectionWidthAction
   | SetSelectedIdentityAction
 export type NavState = {
   sidebarLocked?: boolean
@@ -50,12 +50,18 @@ export type NavigationContext = {
 }
 
 export function getRouteKey(route: NavRoute): string {
-  if (route.key == 'draft') {
+  if (route.key === 'draft') {
     return `draft:${route.id}`
   }
-  if (route.key == 'document')
+  if (
+    route.key === 'document' ||
+    route.key === 'discussions' ||
+    route.key === 'activity' ||
+    route.key === 'collaborators' ||
+    route.key === 'directory'
+  )
     return `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
-  if (route.key == 'feed')
+  if (route.key === 'feed')
     return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key
 }
@@ -67,20 +73,14 @@ export function navStateReducer(state: NavState, action: NavAction): NavState {
     case 'push':
       return {
         ...state,
-        routes: [
-          ...state.routes.slice(0, state.routeIndex + 1),
-          spreadRouteIfPossible(state.routes, action.route),
-        ],
+        routes: [...state.routes.slice(0, state.routeIndex + 1), action.route],
         routeIndex: state.routeIndex + 1,
         lastAction: action.type,
       }
     case 'replace':
       return {
         ...state,
-        routes: [
-          ...state.routes.slice(0, state.routeIndex),
-          spreadRouteIfPossible(state.routes, action.route),
-        ],
+        routes: [...state.routes.slice(0, state.routeIndex), action.route],
         routeIndex: state.routeIndex,
         lastAction: action.type,
       }
@@ -167,6 +167,11 @@ export function useNavRoute() {
   return navRoute
 }
 
+export function useFocus(): Focus {
+  const route = useNavRoute()
+  return getEffectiveFocus(route)
+}
+
 export function useRouteDocId(): UnpackedHypermediaId | null {
   const route = useNavRoute()
   if (route.key === 'document') {
@@ -200,6 +205,20 @@ export function useNavigationDispatch() {
   return nav.dispatch
 }
 
+export function useNavigate() {
+  const dispatch = useNavigationDispatch()
+  return (route: NavRoute) => {
+    dispatch({type: 'push', route})
+  }
+}
+
+export function useReplace() {
+  const dispatch = useNavigationDispatch()
+  return (route: NavRoute) => {
+    dispatch({type: 'replace', route})
+  }
+}
+
 export type NavMode = 'push' | 'replace' | 'spawn' | 'backplace'
 
 export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
@@ -213,78 +232,4 @@ export function appRouteOfId(id: UnpackedHypermediaId): NavRoute | undefined {
 
 export function isHttpUrl(url: string) {
   return /^https?:\/\//.test(url)
-}
-
-function spreadRouteIfPossible(routes: Array<NavRoute>, nextRoute: NavRoute) {
-  if (nextRoute.key !== 'document' && nextRoute.key !== 'draft') {
-    return nextRoute
-  }
-
-  if (routes.length === 0) {
-    return nextRoute
-  }
-
-  const prevRoute = routes[routes.length - 1]
-
-  // Step 1: Determine the accessory to use
-  let resultAccessory =
-    'accessory' in nextRoute ? nextRoute.accessory : undefined
-
-  // If nextRoute has no accessory (undefined), spread from prevRoute
-  // Note: if accessory is null, it means explicitly closed, so don't spread
-  if (resultAccessory === undefined) {
-    // @ts-ignore
-    if (prevRoute.key === 'document' || prevRoute.key === 'draft') {
-      const prevAccessory =
-        'accessory' in prevRoute ? prevRoute.accessory : undefined
-      if (prevAccessory) {
-        // Special case: don't spread 'options' from draft to document
-        if (
-          prevRoute.key === 'draft' &&
-          prevAccessory.key === 'options' &&
-          nextRoute.key === 'document'
-        ) {
-          resultAccessory = undefined
-        } else {
-          resultAccessory = prevAccessory
-        }
-      } else if (nextRoute.key === 'draft') {
-        // Special case: going to draft with no accessory defaults to 'options'
-        resultAccessory = {key: 'options'}
-      }
-    }
-  }
-
-  // Step 2: Post-processing - if result is document with 'options', change to 'activity'
-  if (nextRoute.key === 'document' && resultAccessory?.key === 'options') {
-    resultAccessory = {key: 'activity'}
-  }
-
-  // Step 3: Clean up openComment and targetBlockId if navigating to a different document
-  if (resultAccessory?.key === 'discussions' && prevRoute) {
-    const isNavigatingToDifferentDoc =
-      prevRoute.key == 'document' &&
-      nextRoute.key == 'document' &&
-      prevRoute.id.id != nextRoute.id.id
-
-    // If the next route explicitly has an openComment, keep discussions panel
-    const hasExplicitComment =
-      'accessory' in nextRoute &&
-      nextRoute.accessory?.key == 'discussions' &&
-      nextRoute.accessory?.openComment
-
-    if (isNavigatingToDifferentDoc && !hasExplicitComment) {
-      // Remove openComment and targetBlockId when switching documents - switch to activity
-      resultAccessory = {
-        key: 'activity',
-      }
-    }
-  }
-
-  const result = {
-    ...nextRoute,
-    ...(resultAccessory !== undefined && {accessory: resultAccessory}),
-  }
-
-  return result
 }
