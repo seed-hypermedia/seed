@@ -1,0 +1,74 @@
+# documentation: https://github.com/seed-hypermedia/seed?tab=readme-ov-file#deploy-a-group-site
+# slogan: "Seed Hypermedia Site - Deploy a decentralized, P2P-powered website for your community or organization."
+# category: cms
+# tags: hypermedia, p2p, decentralized, website, cms, community, publishing
+# logo: svgs/seed-hypermedia.svg
+# port: 3000
+
+# After deployment, get your registration URL:
+#   Your Site URL + /hm/register?secret=<REGISTRATION_SECRET value>
+#   Example: https://your-site.com/hm/register?secret=abc123xyz
+# Share this URL with the group owner to register and start publishing.
+
+x-seed-common: &seed-common
+  restart: unless-stopped
+
+services:
+  seed-web:
+    <<: *seed-common
+    image: seedhypermedia/web:${SEED_TAG:-latest}
+    environment:
+      - SERVICE_URL_SEEDWEB_3000
+      - SEED_BASE_URL=${SERVICE_URL_SEEDWEB}
+      - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
+      - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
+      - SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}
+      - DAEMON_HTTP_URL=http://seed-daemon:56001
+      - PORT=3000
+      - DATA_DIR=/data
+      - REGISTRATION_SECRET=${SERVICE_PASSWORD_SEEDWEB}
+    volumes:
+      - seed-web-data:/data:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -f /data/config.json ]; then
+          echo "{\"availableRegistrationSecret\": \"$$REGISTRATION_SECRET\"}" > /data/config.json
+        fi
+        exec npm run start:prod
+    depends_on:
+      seed-daemon:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  seed-daemon:
+    <<: *seed-common
+    image: seedhypermedia/site:${SEED_TAG:-latest}
+    environment:
+      - SERVICE_FQDN_SEEDWEB
+      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
+      - SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}
+      - LIGHTNING_API_URL=${SEED_LIGHTNING_URL:-https://ln.seed.hyper.media}
+      - SENTRY_DSN=${SEED_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}
+    ports:
+      - "56000:56000/tcp"
+      - "56000:56000/udp"
+    volumes:
+      - seed-daemon-data:/data:rw
+    command: >
+      sh -c "seed-daemon -data-dir=/data -lndhub.mainnet -p2p.port=56000 --http.port=56001 -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=${SEED_NO_PULL:-false} -p2p.announce-addrs=/dns4/${SERVICE_FQDN_SEEDWEB}/tcp/56000,/dns4/${SERVICE_FQDN_SEEDWEB}/udp/56000/quic-v1 ${SERVICE_URL_SEEDWEB}"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:56001/debug/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  seed-web-data:
+  seed-daemon-data:
