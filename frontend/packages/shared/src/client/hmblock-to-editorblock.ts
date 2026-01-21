@@ -306,8 +306,8 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
 
     let linkAnnotation: CustomAnnotation | null = null
-    posAnnotations.forEach((l: unknown) => {
-      const annotationData = l as CustomAnnotation
+    for (const l of posAnnotations) {
+      const annotationData = l as unknown as CustomAnnotation
 
       if (annotationData.type === 'Link') {
         linkAnnotation = {
@@ -331,12 +331,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
         const styleKey = annotationData.type.toLowerCase()
         ;(newLeaf.styles as Record<string, boolean>)[styleKey] = true
       }
-
-      // if (l.type === 'color') {
-      //   // @ts-ignore
-      //   leaf.styles['color'] = l.attributes.color
-      // }
-    })
+    }
 
     if (linkAnnotation) {
       if (linkAnnotation.type === 'Embed') {
