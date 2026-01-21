@@ -55,7 +55,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
       <SmallListItem
         icon={<Add className="size-4" />}
         title="Create"
-        onClick={createDraft}
+        onClick={() => createDraft()}
         indented={indented}
       />
     )

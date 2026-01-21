@@ -1237,16 +1237,16 @@ export function useCreateDraft(
     editUid?: HMDraftMeta['editUid']
     editPath?: HMDraftMeta['editPath']
     deps?: HMDraftContent['deps']
-    visibility?: HMResourceVisibility
   } = {},
 ) {
   const navigate = useNavigate('push')
   const selectedAccountId = useSelectedAccountId()
+  const route = useNavRoute()
 
-  return () => {
+  return ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
     const id = nanoid(10)
 
-    if (draftParams.visibility === 'PRIVATE' && selectedAccountId) {
+    if (visibility === 'PRIVATE' && selectedAccountId) {
       // Private documents: random nanoid path at root level, unchangeable.
       const privatePath = nanoid(21)
       navigate({
@@ -1261,6 +1261,7 @@ export function useCreateDraft(
         key: 'draft',
         id,
         ...draftParams,
+        visibility: visibility ?? undefined,
       })
     }
   }

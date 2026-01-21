@@ -241,7 +241,7 @@ export function DocOptionsButton({
       key: 'create-draft',
       label: 'New Document...',
       icon: <FilePlus className="size-4" />,
-      onClick: createDraft,
+      onClick: () => createDraft(),
     })
     menuItems.push({
       key: 'import',

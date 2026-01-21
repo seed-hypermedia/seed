@@ -158,7 +158,7 @@ function EmptyDraftsState() {
           be saved here.
         </SizableText>
       </div>
-      <Button onClick={createDraft}>Create New Draft</Button>
+      <Button onClick={() => createDraft()}>Create New Draft</Button>
     </div>
   )
 }

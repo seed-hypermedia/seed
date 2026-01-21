@@ -118,7 +118,6 @@ function _DirectoryContent({
             ? (route.panel.key as 'activity' | 'discussions' | 'collaborators')
             : 'directory'
         }
-        isContentDraft={!!existingDraft}
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
         directoryCount={directory.data?.length}
@@ -137,7 +136,6 @@ function _DirectoryContent({
   )
 }
 
-const DirectoryContent = React.memo(_DirectoryContent)
 const DirectorySiteHeader = React.memo(_DirectorySiteHeader)
 
 function _DirectorySiteHeader({

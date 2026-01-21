@@ -2,6 +2,7 @@ import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentUrl} from '@/components/copy-reference-button'
+import {CreateDocumentButton} from '@/components/create-doc-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {
   NewSubDocumentButton,
@@ -40,6 +41,7 @@ import {
   DiscussionsRoute,
   DocumentDirectorySelection,
   DocumentRoute,
+  DraftRoute,
   FeedRoute,
   HMDocument,
   HMResource,
@@ -573,7 +575,10 @@ function _MainDocumentPage({
       directoryCount={directory.data?.length}
       rightActions={
         activeMainPanel === 'content' ? (
-          <EditDocButton />
+          <>
+            <EditDocButton />
+            <CreateDocumentButton locationId={id} />
+          </>
         ) : (
           <OpenInPanelButton id={id} panelRoute={{key: activeMainPanel, id}} />
         )
