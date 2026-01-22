@@ -182,7 +182,11 @@ function _CommentBox(props: {
       removeDraft.mutate()
 
       // Invalidate queries
-      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
+      invalidateQueries([
+        queryKeys.DOCUMENT_DISCUSSION,
+        docId.uid,
+        ...(docId.path || []),
+      ])
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
@@ -192,7 +196,9 @@ function _CommentBox(props: {
       queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_ACTIVITY]})
       queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
       queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS]})
-      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY]})
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
+      })
       queryClient.invalidateQueries({queryKey: [queryKeys.BLOCK_DISCUSSIONS]})
       queryClient.invalidateQueries({queryKey: [queryKeys.ACTIVITY_FEED]})
 
@@ -206,7 +212,11 @@ function _CommentBox(props: {
 
   // Clear autoFocus from route after used
   useEffect(() => {
-    if (autoFocus && route.key === 'document' && route.panel?.key === 'activity') {
+    if (
+      autoFocus &&
+      route.key === 'document' &&
+      route.panel?.key === 'activity'
+    ) {
       const panel = route.panel
       if (panel.autoFocus) {
         setTimeout(() => {
@@ -289,19 +299,16 @@ function _CommentBox(props: {
   )
 
   // Desktop file attachment handler
-  const handleFileAttachment = useCallback(
-    async (file: File) => {
-      const props = await handleDragMedia(file)
-      if (!props) {
-        throw new Error('Failed to handle file')
-      }
-      return {
-        displaySrc: props.url,
-        // Desktop uploads files immediately and returns URL, no binary needed
-      }
-    },
-    [],
-  )
+  const handleFileAttachment = useCallback(async (file: File) => {
+    const props = await handleDragMedia(file)
+    if (!props) {
+      throw new Error('Failed to handle file')
+    }
+    return {
+      displaySrc: props.url,
+      // Desktop uploads files immediately and returns URL, no binary needed
+    }
+  }, [])
 
   if (draft.isInitialLoading) return null
 
@@ -326,7 +333,9 @@ function _CommentBox(props: {
       }}
       perspectiveAccountUid={selectedAccountId}
       submitButton={({getContent, reset}) => (
-        <Tooltip content={`Publish Comment as "${account?.document?.metadata?.name}"`}>
+        <Tooltip
+          content={`Publish Comment as "${account?.document?.metadata?.name}"`}
+        >
           <Button
             size="icon"
             onClick={(e) => {
