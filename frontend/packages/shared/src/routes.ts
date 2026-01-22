@@ -263,3 +263,26 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   }
   return panel as NavRoute
 }
+
+export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
+  switch (route.key) {
+    case 'activity': {
+      const {panel, ...rest} = route
+      return rest
+    }
+    case 'discussions': {
+      const {panel, ...rest} = route
+      return rest
+    }
+    case 'directory': {
+      const {panel, ...rest} = route
+      return rest
+    }
+    case 'collaborators': {
+      const {panel, ...rest} = route
+      return rest
+    }
+    default:
+      return null
+  }
+}

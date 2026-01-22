@@ -49,6 +49,7 @@ import {
   commentIdToHmId,
   getCommentTargetId,
   hmId,
+  routeToPanelRoute,
 } from '@shm/shared'
 import {
   CommentsProvider,
@@ -576,7 +577,10 @@ function _MainDocumentPage({
             <CreateDocumentButton locationId={id} />
           </>
         ) : (
-          <OpenInPanelButton id={id} panelRoute={{key: activeMainPanel, id}} />
+          <OpenInPanelButton
+            id={id}
+            panelRoute={routeToPanelRoute(route) ?? {key: activeMainPanel, id}}
+          />
         )
       }
     />
