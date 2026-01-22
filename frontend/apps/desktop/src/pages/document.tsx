@@ -772,6 +772,23 @@ function _AppDocSiteHeader({
   const notifyServiceHost = useNotifyServiceHost()
   const embeds = useDocumentEmbeds(document)
 
+  // Scroll to blockRef when route changes (e.g., clicking embed in panel)
+  // Only scroll when viewing document content, not directory/collaborators/etc
+  useEffect(() => {
+    if (route.key !== 'document' && route.key !== 'feed') return
+    const blockRef = route.id?.blockRef
+    if (blockRef) {
+      // Small delay to ensure DOM is rendered
+      const timer = setTimeout(() => {
+        const element = window.document.getElementById(blockRef)
+        if (element) {
+          element.scrollIntoView({behavior: 'smooth', block: 'center'})
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [route.key, route.id?.blockRef])
+
   if (!siteHomeEntity) return null
 
   return (
