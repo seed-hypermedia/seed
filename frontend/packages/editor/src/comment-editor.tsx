@@ -848,7 +848,7 @@ export function CommentEditor({
             />
           )}
         </div>
-        <div className="bg-muted ring-px ring-border w-full min-w-0 flex-1 rounded-md ring">
+        <div className="bg-muted w-full min-w-0 flex-1 rounded-lg">
           <div
             className={cn(
               'comment-editor max-h-[160px] min-h-8 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',

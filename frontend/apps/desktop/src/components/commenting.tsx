@@ -1,35 +1,31 @@
-import {useCommentDraft, useCommentEditor} from '@/models/comments'
-import {useOpenUrl} from '@/open-url'
-import {useSelectedAccount} from '@/selected-account'
-import {
-  chromiumSupportedImageMimeTypes,
-  chromiumSupportedVideoMimeTypes,
-  generateBlockId,
-  handleDragMedia,
-} from '@/utils/media-drag'
-import {useNavigate} from '@/utils/useNavigate'
-import {commentIdToHmId, queryClient, queryKeys} from '@shm/shared'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {useCallback} from 'react'
-
+import {grpcClient} from '@/grpc-client'
+import {useCommentDraft} from '@/models/comments'
 import {usePushResource} from '@/models/documents'
-import {useSizeObserver} from '@/utils/use-size-observer'
+import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {client} from '@/trpc'
+import {handleDragMedia} from '@/utils/media-drag'
+import {useNavigate} from '@/utils/useNavigate'
+import {toPlainMessage} from '@bufbuild/protobuf'
+import {CommentEditor} from '@shm/editor/comment-editor'
+import {commentIdToHmId, packHmId, queryClient, queryKeys} from '@shm/shared'
+import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {
-  HMCommentDraft,
+  HMBlockNode,
   HMCommentGroup,
   HMListDiscussionsOutput,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useContacts} from '@shm/shared/models/entity'
-import {useStream} from '@shm/shared/use-stream'
-import {StateStream} from '@shm/shared/utils/stream'
-import {UIAvatar} from '@shm/ui/avatar'
+import {useContacts, useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {HMIcon} from '@shm/ui/hm-icon'
+import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useMutation} from '@tanstack/react-query'
 import {SendHorizonal} from 'lucide-react'
-import {memo, MouseEvent, useEffect, useState} from 'react'
-import {HyperMediaEditorView} from './editor'
+import {nanoid} from 'nanoid'
+import {memo, useCallback, useEffect, useRef, useState} from 'react'
 
 export function useCommentGroupAuthors(
   commentGroups: HMCommentGroup[],
@@ -59,108 +55,291 @@ function _CommentBox(props: {
   autoFocus?: boolean
   context?: 'accessory' | 'feed' | 'document-content'
 }) {
-  const {
-    docId,
-    backgroundColor = 'transparent',
-    quotingBlockId,
-    commentId,
-    autoFocus,
-    context,
-  } = props
+  const {docId, quotingBlockId, commentId, autoFocus, context} = props
 
   const account = useSelectedAccount()
+  const selectedAccountId = useSelectedAccountId()
+  const targetEntity = useResource(docId)
+  const pushResource = usePushResource()
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
+
   const draft = useCommentDraft(
     quotingBlockId ? {...docId, blockRef: quotingBlockId} : docId,
     commentId,
     quotingBlockId,
     context,
   )
-  const route = useNavRoute()
-  const navigate = useNavigate('replace')
 
-  // Clear autoFocus from route after it's been used
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const isDeletingDraft = useRef(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout>()
+
+  const commentDraftQueryKey = [
+    queryKeys.COMMENT_DRAFT,
+    docId.id,
+    commentId,
+    quotingBlockId,
+    context,
+  ]
+
+  // Draft write mutation
+  const writeDraft = useMutation({
+    mutationFn: (blocks: HMBlockNode[]) =>
+      client.comments.writeCommentDraft.mutate({
+        blocks: blocks.map((b) => new BlockNode(b as any)),
+        targetDocId: docId.id,
+        replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
+      }),
+    onSuccess: () => {
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+    },
+  })
+
+  // Draft remove mutation
+  const removeDraft = useMutation({
+    mutationFn: () =>
+      client.comments.removeCommentDraft.mutate({
+        targetDocId: docId.id,
+        replyCommentId: commentId,
+        quotingBlockId: quotingBlockId,
+        context: context,
+      }),
+    onMutate: async () => {
+      isDeletingDraft.current = true
+      clearTimeout(saveTimeoutRef.current)
+      await queryClient.cancelQueries({queryKey: commentDraftQueryKey})
+      queryClient.setQueryData(commentDraftQueryKey, null)
+    },
+    onSuccess: () => {
+      invalidateQueries([queryKeys.COMMENT_DRAFTS_LIST])
+      invalidateQueries(commentDraftQueryKey)
+      isDeletingDraft.current = false
+    },
+    onError: () => {
+      isDeletingDraft.current = false
+    },
+  })
+
+  // Recent signer mutation
+  const writeRecentSigner = useMutation({
+    mutationFn: (signingKeyName: string) =>
+      client.recentSigners.writeRecentSigner.mutate(signingKeyName),
+  })
+
+  // Publish comment mutation
+  const publishComment = useMutation({
+    mutationFn: async ({
+      content,
+      signingKeyName,
+    }: {
+      content: BlockNode[]
+      signingKeyName: string
+    }) => {
+      const publishContent = quotingBlockId
+        ? [
+            new BlockNode({
+              block: {
+                id: nanoid(8),
+                type: 'Embed',
+                text: '',
+                attributes: {
+                  childrenType: 'Group',
+                  view: 'Content',
+                } as any,
+                annotations: [],
+                link: packHmId({...docId, blockRef: quotingBlockId}),
+              },
+              children: content,
+            }),
+          ]
+        : content
+
+      const resultComment = await grpcClient.comments.createComment({
+        content: publishContent,
+        replyParent: commentId || undefined,
+        targetAccount: docId.uid,
+        targetPath: hmIdPathToEntityQueryPath(docId.path),
+        signingKeyName,
+        // @ts-expect-error
+        targetVersion: targetEntity.data?.document?.version!,
+      })
+
+      writeRecentSigner.mutateAsync(signingKeyName).then(() => {
+        invalidateQueries([queryKeys.RECENT_SIGNERS])
+      })
+
+      if (!resultComment) throw new Error('no resultComment')
+      return toPlainMessage(resultComment)
+    },
+    onSuccess: (newComment) => {
+      setIsSubmitting(false)
+      isDeletingDraft.current = true
+      clearTimeout(saveTimeoutRef.current)
+
+      removeDraft.mutate()
+
+      // Invalidate queries
+      invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
+      invalidateQueries([queryKeys.LIBRARY])
+      invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
+      invalidateQueries([queryKeys.LIST_ACCOUNTS])
+      invalidateQueries([queryKeys.DOC_CITATIONS])
+
+      // Invalidate additional queries
+      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_ACTIVITY]})
+      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_DISCUSSION]})
+      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_COMMENTS]})
+      queryClient.invalidateQueries({queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY]})
+      queryClient.invalidateQueries({queryKey: [queryKeys.BLOCK_DISCUSSIONS]})
+      queryClient.invalidateQueries({queryKey: [queryKeys.ACTIVITY_FEED]})
+
+      pushResource(commentIdToHmId(newComment.id))
+    },
+    onError: (err: {message: string}) => {
+      setIsSubmitting(false)
+      toast.error(`Failed to create comment: ${err.message}`)
+    },
+  })
+
+  // Clear autoFocus from route after used
   useEffect(() => {
-    if (
-      autoFocus &&
-      route.key === 'document' &&
-      route.panel?.key === 'activity'
-    ) {
+    if (autoFocus && route.key === 'document' && route.panel?.key === 'activity') {
       const panel = route.panel
       if (panel.autoFocus) {
         setTimeout(() => {
           const {autoFocus: _, ...restPanel} = panel
-          navigate({
-            ...route,
-            panel: restPanel,
-          })
+          navigate({...route, panel: restPanel})
         }, 150)
       }
     }
   }, [autoFocus])
 
+  // Handle content changes - save draft
+  const handleContentChange = useCallback(
+    (blocks: HMBlockNode[]) => {
+      if (isDeletingDraft.current) return
+
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = setTimeout(() => {
+        const hasContent = blocks.some(
+          (block) =>
+            // @ts-expect-error - text exists on paragraph/heading blocks
+            (block.block?.text && block.block.text.trim()) ||
+            (block.children && block.children.length > 0),
+        )
+
+        if (!hasContent) {
+          if (draft.data) {
+            removeDraft.mutate()
+          }
+          return
+        }
+
+        writeDraft.mutate(blocks)
+      }, 500)
+    },
+    [draft.data, writeDraft, removeDraft],
+  )
+
+  // Handle submit
+  const handleSubmit = useCallback(
+    async (
+      getContent: (
+        prepareAttachments: (binaries: Uint8Array[]) => Promise<{
+          blobs: {cid: string; data: Uint8Array}[]
+          resultCIDs: string[]
+        }>,
+      ) => Promise<{
+        blockNodes: HMBlockNode[]
+        blobs: {cid: string; data: Uint8Array}[]
+      }>,
+      reset: () => void,
+    ) => {
+      if (isSubmitting || !account) return
+
+      setIsSubmitting(true)
+
+      try {
+        // For desktop, we handle file uploads differently - files are already uploaded
+        // So we just need to get the content without re-uploading
+        const {blockNodes} = await getContent(async (binaries) => {
+          // Desktop handles media uploads inline via handleDragMedia
+          // which already returns URLs, so no additional upload needed
+          return {blobs: [], resultCIDs: []}
+        })
+
+        // Convert to BlockNode for gRPC
+        const content = blockNodes.map((b) => new BlockNode(b as any))
+
+        await publishComment.mutateAsync({
+          content,
+          signingKeyName: account.id.uid,
+        })
+
+        reset()
+      } catch (err) {
+        setIsSubmitting(false)
+        console.error('Failed to submit comment:', err)
+      }
+    },
+    [isSubmitting, account, publishComment],
+  )
+
+  // Desktop file attachment handler
+  const handleFileAttachment = useCallback(
+    async (file: File) => {
+      const props = await handleDragMedia(file)
+      if (!props) {
+        throw new Error('Failed to handle file')
+      }
+      return {
+        displaySrc: props.url,
+        // Desktop uploads files immediately and returns URL, no binary needed
+      }
+    },
+    [],
+  )
+
   if (draft.isInitialLoading) return null
 
-  let content = null
-
   if (!account) {
-    content = (
-      <span className="text-sm font-thin italic">No account is loaded</span>
-    )
-  } else {
-    content = (
-      <CommentDraftEditor
-        docId={docId}
-        autoFocus={autoFocus}
-        initCommentDraft={draft.data}
-        quotingBlockId={quotingBlockId}
-        commentId={commentId}
-        context={context}
-        onDiscardDraft={() => {}}
-        onSuccess={() => {
-          // Don't invalidate draft queries here - removeDraft mutation handles it via optimistic updates
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.DOCUMENT_ACTIVITY],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.DOCUMENT_DISCUSSION],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.DOCUMENT_COMMENTS],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.DOCUMENT_INTERACTION_SUMMARY],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.DOC_CITATIONS],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.BLOCK_DISCUSSIONS],
-          })
-          queryClient.invalidateQueries({
-            queryKey: [queryKeys.ACTIVITY_FEED],
-          })
-        }}
-      />
+    return (
+      <div className="flex w-full items-start gap-2">
+        <span className="text-sm font-thin italic">No account is loaded</span>
+      </div>
     )
   }
 
   return (
-    <div className="flex w-full items-start gap-2">
-      <div className="flex shrink-0 grow-0">
-        {account ? (
-          <HMIcon
-            id={account.id}
-            name={account.document?.metadata?.name}
-            icon={account.document?.metadata?.icon}
-            size={32}
-          />
-        ) : (
-          <UIAvatar id="no-account" size={32} />
-        )}
-      </div>
-
-      <div className="bg-muted w-full min-w-0 flex-1 rounded-md">{content}</div>
-    </div>
+    <CommentEditor
+      autoFocus={autoFocus}
+      handleSubmit={handleSubmit}
+      initialBlocks={draft.data?.blocks}
+      onContentChange={handleContentChange}
+      handleFileAttachment={handleFileAttachment}
+      account={{
+        id: account.id,
+        metadata: account.document?.metadata,
+      }}
+      perspectiveAccountUid={selectedAccountId}
+      submitButton={({getContent, reset}) => (
+        <Tooltip content={`Publish Comment as "${account?.document?.metadata?.name}"`}>
+          <Button
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              handleSubmit(getContent, reset)
+            }}
+            disabled={isSubmitting}
+          >
+            <SendHorizonal className="size-4" />
+          </Button>
+        </Tooltip>
+      )}
+    />
   )
 }
 
@@ -173,200 +352,3 @@ export function triggerCommentDraftFocus(docId: string, commentId?: string) {
 }
 
 const focusSubscribers = new Map<string, Set<() => void>>()
-
-const CommentDraftEditor = memo(_CommentDraftEditor)
-function _CommentDraftEditor({
-  docId,
-  onDiscardDraft,
-  autoFocus,
-  commentId,
-  initCommentDraft,
-  onSuccess,
-  quotingBlockId,
-  context,
-}: {
-  docId: UnpackedHypermediaId
-  onDiscardDraft?: () => void
-  autoFocus?: boolean
-  commentId?: string
-  initCommentDraft?: HMCommentDraft | null | undefined
-  onSuccess?: (commentId: {id: string}) => void
-  quotingBlockId?: string
-  context?: 'accessory' | 'feed' | 'document-content'
-}) {
-  const [isHorizontal, setIsHorizontal] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-  const sizeObserverdRef = useSizeObserver((rect) => {
-    setIsHorizontal(rect.width > 322)
-  })
-  const pushResource = usePushResource()
-  const {editor, onSubmit, onDiscard, isSaved, account, isSubmitting} =
-    useCommentEditor(docId, {
-      onDiscardDraft,
-      commentId,
-      initCommentDraft,
-      onSuccess: (successData: {id: string}) => {
-        pushResource(commentIdToHmId(successData.id))
-        onSuccess?.(successData)
-      },
-      quotingBlockId,
-      context,
-      autoFocus,
-    })
-  const openUrl = useOpenUrl()
-
-  if (!account) return null
-
-  const focusEditor = useCallback(() => {
-    if (editor?._tiptapEditor) {
-      editor._tiptapEditor.commands.focus()
-    }
-  }, [editor])
-
-  useEffect(() => {
-    const focusKey = `${docId.id}-${commentId || quotingBlockId}`
-    const subscribers = focusSubscribers.get(focusKey)
-    if (subscribers) {
-      subscribers.add(focusEditor)
-    } else {
-      focusSubscribers.set(focusKey, new Set([focusEditor]))
-    }
-
-    return () => {
-      const subscribers = focusSubscribers.get(focusKey)
-      if (subscribers) {
-        subscribers.delete(focusEditor)
-      }
-    }
-  }, [docId.id, commentId, quotingBlockId, focusEditor])
-
-  function onDrop(event: React.DragEvent) {
-    if (!isDragging) return
-    const dataTransfer = event.dataTransfer
-
-    if (dataTransfer?.files && dataTransfer.files.length > 0) {
-      event.preventDefault()
-
-      // Iterate through all dropped files
-      const files = Array.from(dataTransfer.files)
-
-      // Get the current block ID where files should be inserted
-      const currentBlock = editor.getTextCursorPosition().block
-      let lastInsertedBlockId = currentBlock.id
-
-      // Process files sequentially to maintain order
-      files.reduce((promise, file) => {
-        return promise.then(async () => {
-          try {
-            const props = await handleDragMedia(file)
-            if (!props) return
-
-            let blockType: string
-            if (chromiumSupportedImageMimeTypes.has(file.type)) {
-              blockType = 'image'
-            } else if (chromiumSupportedVideoMimeTypes.has(file.type)) {
-              blockType = 'video'
-            } else {
-              blockType = 'file'
-            }
-
-            const newBlockId = generateBlockId()
-            const mediaBlock = {
-              id: newBlockId,
-              type: blockType,
-              props: {
-                url: props.url,
-                name: props.name,
-                ...(blockType === 'file' ? {size: props.size} : {}),
-              },
-              content: [],
-              children: [],
-            }
-
-            // Insert after the last inserted block (or current block for first file)
-            editor.insertBlocks([mediaBlock], lastInsertedBlockId, 'after')
-
-            // Update the last inserted block ID for next iteration
-            lastInsertedBlockId = newBlockId
-          } catch (error) {
-            console.error('Failed to upload file:', file.name, error)
-          }
-        })
-      }, Promise.resolve())
-
-      setIsDragging(false)
-      return
-    }
-  }
-
-  return (
-    <div
-      ref={sizeObserverdRef}
-      className="comment-editor ring-px ring-border mt-1 flex min-w-0 flex-1 flex-col gap-2 overflow-x-hidden px-4 ring"
-      onDragStart={() => {
-        setIsDragging(true)
-      }}
-      onDragEnd={() => {
-        setIsDragging(false)
-      }}
-      onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault()
-        setIsDragging(true)
-      }}
-      onDrop={onDrop}
-      onClick={(e: MouseEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLElement
-
-        // Check if the clicked element is not an input, button, or textarea
-        if (target.closest('input, textarea, select, button')) {
-          return // Don't focus the editor in this case
-        }
-        e.stopPropagation()
-        editor._tiptapEditor.commands.focus()
-      }}
-    >
-      <div className="min-w-0 flex-1">
-        <HyperMediaEditorView editor={editor} openUrl={openUrl} comment />
-      </div>
-      <div
-        className={`w-full max-w-[320px] flex-1 gap-2 self-end ${
-          isHorizontal ? 'flex-row items-center' : 'flex-col'
-        } flex`}
-      >
-        <div className="flex flex-1 items-center">
-          <AutosaveIndicator isSaved={isSaved} />
-        </div>
-        <div className="flex items-center">
-          <Tooltip
-            content={`Publish Comment as "${account?.document?.metadata.name}"`}
-          >
-            <Button
-              className="w-full flex-1"
-              size="icon"
-              onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                if (isSubmitting) return
-                e.stopPropagation()
-                onSubmit()
-              }}
-              disabled={!isSaved.get() || isSubmitting}
-            >
-              <SendHorizonal className="size-4" />
-            </Button>
-          </Tooltip>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function AutosaveIndicator({isSaved}: {isSaved: StateStream<boolean>}) {
-  const currentIsSaved = useStream(isSaved)
-  return (
-    <div
-      className="absolute top-0 left-0 h-1.5 w-1.5 -translate-x-3 translate-y-2.5 rounded-full"
-      style={{
-        backgroundColor: currentIsSaved ? 'transparent' : '#eab308',
-      }}
-    />
-  )
-}
