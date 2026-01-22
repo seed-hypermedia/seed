@@ -2,18 +2,25 @@
 
 ## Overview
 
-The Sync Service is the central coordination point for data synchronization in the Seed desktop app. It runs in the Electron main process (Node.js) and handles two primary responsibilities:
+The Sync Service is the central coordination point for data synchronization in
+the Seed desktop app. It runs in the Electron main process (Node.js) and handles
+two primary responsibilities:
 
 1. **Discovery**: Syncing data from the P2P network for subscribed resources
-2. **Activity Polling**: Watching the activity feed for changes and invalidating React Query caches
+2. **Activity Polling**: Watching the activity feed for changes and invalidating
+   React Query caches
 
 ## Why Main Process?
 
-The sync service runs in the Electron main process rather than renderer processes because:
+The sync service runs in the Electron main process rather than renderer
+processes because:
 
-1. **Single polling loop**: Multiple windows would each poll independently, causing duplicate API calls and redundant invalidations
-2. **Shared state**: Subscription counts and cursors are shared across all windows
-3. **Broadcast invalidations**: The existing `appInvalidateQueries` infrastructure broadcasts to all windows
+1. **Single polling loop**: Multiple windows would each poll independently,
+   causing duplicate API calls and redundant invalidations
+2. **Shared state**: Subscription counts and cursors are shared across all
+   windows
+3. **Broadcast invalidations**: The existing `appInvalidateQueries`
+   infrastructure broadcasts to all windows
 
 ## Architecture Diagram
 
@@ -56,6 +63,7 @@ The sync service runs in the Electron main process rather than renderer processe
 ### 1. Sync State (`SyncState`)
 
 Central state object holding:
+
 - `lastEventId`: Cursor for activity feed pagination
 - `isPolling`: Prevents concurrent poll operations
 - `pendingInvalidations`: Set of resources to invalidate (debounced)
@@ -63,21 +71,24 @@ Central state object holding:
 - `subscriptionCounts`: Reference counting for subscriptions
 - `recursiveSubscriptions`: Set of recursive subscription keys
 - `discoveryStreams`: Map of discovery state streams per entity
-- `lastKnownVersions`: Map of entity ID to last discovered version (for deduplication)
+- `lastKnownVersions`: Map of entity ID to last discovered version (for
+  deduplication)
 
 ### 2. Activity Polling
 
-Polls the backend activity feed every 3 seconds for new events. When events are detected for subscribed resources, schedules query invalidations.
+Polls the backend activity feed every 3 seconds for new events. When events are
+detected for subscribed resources, schedules query invalidations.
 
 ### 3. Discovery Manager
 
-Runs discovery loops for each subscribed resource. Discovery syncs data from the P2P network and invalidates queries when complete.
+Runs discovery loops for each subscribed resource. Discovery syncs data from the
+P2P network and invalidates queries when complete.
 
 ### 4. tRPC API (`syncApi`)
 
 Exposes the sync service to renderer processes:
+
 - `subscribe`: Register a resource subscription
-- `getDiscoveryState`: Get current discovery state for an entity
 - `discoveryState`: Subscribe to discovery state changes
 - `getAggregatedState`: Get aggregated discovery stats
 - `aggregatedState`: Subscribe to aggregated state changes
@@ -110,7 +121,9 @@ Exposes the sync service to renderer processes:
 
 ### Version Tracking Optimization
 
-The sync service tracks the last known version for each subscribed entity in `state.lastKnownVersions`. This prevents unnecessary query invalidations when discovery completes but no new data has arrived:
+The sync service tracks the last known version for each subscribed entity in
+`state.lastKnownVersions`. This prevents unnecessary query invalidations when
+discovery completes but no new data has arrived:
 
 ```typescript
 // Only invalidate if version actually changed
@@ -124,23 +137,24 @@ if (newVersion && newVersion !== lastKnownVersion) {
 }
 ```
 
-This optimization significantly reduces unnecessary refetches when the app is idle.
+This optimization significantly reduces unnecessary refetches when the app is
+idle.
 
 ## File Locations
 
-| File | Purpose |
-|------|---------|
-| `frontend/apps/desktop/src/app-sync.ts` | Main process sync service |
-| `frontend/apps/desktop/src/models/entities.ts` | Renderer-side subscription management |
-| `frontend/apps/desktop/src/app-invalidation.ts` | Cross-window invalidation utilities |
-| `frontend/apps/desktop/src/app-api.ts` | tRPC router including syncApi |
+| File                                            | Purpose                               |
+| ----------------------------------------------- | ------------------------------------- |
+| `frontend/apps/desktop/src/app-sync.ts`         | Main process sync service             |
+| `frontend/apps/desktop/src/models/entities.ts`  | Renderer-side subscription management |
+| `frontend/apps/desktop/src/app-invalidation.ts` | Cross-window invalidation utilities   |
+| `frontend/apps/desktop/src/app-api.ts`          | tRPC router including syncApi         |
 
 ## Configuration
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `DISCOVERY_POLL_INTERVAL_MS` | 3000 | Discovery loop interval |
-| `ACTIVITY_POLL_INTERVAL_MS` | 3000 | Activity feed poll interval |
-| `INVALIDATION_DEBOUNCE_MS` | 100 | Debounce window for batching invalidations |
-| `ACTIVITY_PAGE_SIZE` | 30 | Events per activity feed request |
-| `DISCOVERY_DEBOUNCE_MS` | (from constants) | Initial discovery delay |
+| Constant                     | Value            | Purpose                                    |
+| ---------------------------- | ---------------- | ------------------------------------------ |
+| `DISCOVERY_POLL_INTERVAL_MS` | 3000             | Discovery loop interval                    |
+| `ACTIVITY_POLL_INTERVAL_MS`  | 3000             | Activity feed poll interval                |
+| `INVALIDATION_DEBOUNCE_MS`   | 100              | Debounce window for batching invalidations |
+| `ACTIVITY_PAGE_SIZE`         | 30               | Events per activity feed request           |
+| `DISCOVERY_DEBOUNCE_MS`      | (from constants) | Initial discovery delay                    |
