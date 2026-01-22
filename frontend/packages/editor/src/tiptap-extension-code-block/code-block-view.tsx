@@ -1,4 +1,5 @@
 import {Button} from '@shm/ui/button'
+import {Tooltip} from '@shm/ui/tooltip'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import mermaid from 'mermaid'
@@ -202,19 +203,20 @@ export const CodeBlockView = ({
                 <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
               </Button>
               {onConvertToMermaidBlock && (
-                <Button
-                  className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    handleConvertToMermaid()
-                  }}
-                  type="button"
-                  title="Convert to Mermaid Block"
-                >
-                  <GitBranch className="h-3 w-3" />
-                  <span>To Block</span>
-                </Button>
+                <Tooltip content="Convert to Mermaid Block" asChild>
+                  <Button
+                    className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleConvertToMermaid()
+                    }}
+                    type="button"
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    <span>To Block</span>
+                  </Button>
+                </Tooltip>
               )}
             </>
           )}

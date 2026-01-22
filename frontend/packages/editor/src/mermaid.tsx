@@ -2,6 +2,7 @@ import {blocksContentContext} from '@shm/ui/blocks-content'
 import {Button} from '@shm/ui/button'
 import {Textarea} from '@shm/ui/components/textarea'
 import {Separator} from '@shm/ui/separator'
+import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import mermaid from 'mermaid'
 import {NodeSelection} from 'prosemirror-state'
@@ -293,36 +294,37 @@ const Render = (
               Mermaid Diagram Code
             </span>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  // Convert to code block with mermaid language
-                  editor.replaceBlocks(
-                    [block.id],
-                    [
-                      {
-                        type: 'code-block',
-                        props: {
-                          language: 'mermaid',
-                        },
-                        content: [
-                          {
-                            type: 'text',
-                            text: mermaidText,
-                            styles: {},
+              <Tooltip content="Convert to Code Block" asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    // Convert to code block with mermaid language
+                    editor.replaceBlocks(
+                      [block.id],
+                      [
+                        {
+                          type: 'code-block',
+                          props: {
+                            language: 'mermaid',
                           },
-                        ],
-                      },
-                    ],
-                  )
-                }}
-                className="gap-1"
-                title="Convert to Code Block"
-              >
-                <RiCodeBoxLine size={14} />
-                <span className="text-xs">To Code</span>
-              </Button>
+                          content: [
+                            {
+                              type: 'text',
+                              text: mermaidText,
+                              styles: {},
+                            },
+                          ],
+                        },
+                      ],
+                    )
+                  }}
+                  className="gap-1"
+                >
+                  <RiCodeBoxLine size={14} />
+                  <span className="text-xs">To Code</span>
+                </Button>
+              </Tooltip>
               <Button
                 size="sm"
                 variant="ghost"
