@@ -1,5 +1,5 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
-import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
+import {triggerCommentDraftFocus} from '@/components/commenting'
 import {useDocumentSelection} from '@/components/document-accessory'
 import {
   useDocumentEmbeds,
@@ -331,9 +331,6 @@ function _FeedContent({
 
               {deleteCommentDialog.content}
               <Feed
-                commentEditor={
-                  homeId ? <CommentBox docId={homeId} context="feed" /> : null
-                }
                 filterResource={`${homeId.id}*`}
                 currentAccount={selectedAccount?.id.uid || ''}
                 onCommentDelete={onCommentDelete}

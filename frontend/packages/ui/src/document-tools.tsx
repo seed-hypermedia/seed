@@ -100,7 +100,7 @@ export function DocumentTools({
               editUid: id.uid,
             }
         : documentRoute,
-      bg: existingDraft ? 'bg-yellow-200' : undefined,
+      // bg: existingDraft ? 'bg-yellow-200' : undefined,
     },
     {
       label: 'Activity',

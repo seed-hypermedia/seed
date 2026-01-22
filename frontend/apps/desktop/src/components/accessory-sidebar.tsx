@@ -2,7 +2,6 @@ import {useNavigate} from '@/utils/useNavigate'
 import {PanelSelectionOptions} from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {
-  useFocus,
   useNavigationDispatch,
   useNavigationState,
   useNavRoute,
@@ -40,7 +39,6 @@ export function AccessoryLayout({
   const tx = useTx()
   const route = useNavRoute()
   const replace = useNavigate('replace')
-  const navigate = useNavigate('push')
 
   const widthStorage = useMemo(
     () => ({
@@ -127,38 +125,6 @@ export function AccessoryLayout({
     accessoryTitle = tx('Discussions')
   }
 
-  const focus = useFocus()
-
-  // Auto-focus panel when it opens, main when it closes
-  const hasPanel = panelKey !== undefined
-  const prevHasPanel = useRef(hasPanel)
-
-  useLayoutEffect(() => {
-    // Only auto-focus on panel open/close transitions, use replace to not pollute history
-    if (hasPanel && !prevHasPanel.current) {
-      // Panel opening - focus panel
-      replace({...route, focus: 'panel'} as typeof route)
-    } else if (!hasPanel && prevHasPanel.current) {
-      // Panel closing - focus main
-      replace({...route, focus: 'main'} as typeof route)
-    }
-    prevHasPanel.current = hasPanel
-  }, [hasPanel])
-
-  // User clicking to change focus - push to history so back button works
-  const setFocus = (value: 'main' | 'panel', e: React.MouseEvent) => {
-    // Don't change focus if clicking on an interactive element (button, link, input, etc.)
-    const target = e.target as HTMLElement
-    const isInteractive = target.closest(
-      'button, a, input, textarea, select, [role="button"], [data-no-focus]',
-    )
-    if (isInteractive) return
-
-    if (focus !== value) {
-      navigate({...route, focus: value} as typeof route)
-    }
-  }
-
   return (
     <div ref={containerRef} className="flex h-full flex-1">
       <PanelGroup
@@ -169,15 +135,7 @@ export function AccessoryLayout({
         storage={widthStorage}
       >
         <Panel id="main" minSize={50} className="p-0.5 pr-1">
-          <div
-            onClick={(e) => setFocus('main', e)}
-            className={cn(
-              'h-full rounded-lg transition-shadow',
-              focus === 'main' && 'ring-2 ring-blue-500/40',
-            )}
-          >
-            {children}
-          </div>
+          <div className="h-full rounded-lg">{children}</div>
         </Panel>
         {panelKey !== undefined ? (
           <PanelResizeHandle className="panel-resize-handle" />
@@ -194,13 +152,7 @@ export function AccessoryLayout({
           }}
           className="p-0.5 pl-1"
         >
-          <div
-            onClick={(e) => setFocus('panel', e)}
-            className={cn(
-              'h-full rounded-lg transition-shadow',
-              focus === 'panel' && 'ring-2 ring-blue-500/40',
-            )}
-          >
+          <div className="h-full rounded-lg">
             <div
               className={cn(
                 panelContainerStyles,

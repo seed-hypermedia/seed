@@ -1,7 +1,7 @@
 import {Buffer} from 'buffer'
 import {createContext, useContext} from 'react'
 import {UnpackedHypermediaId} from '../hm-types'
-import {defaultRoute, Focus, getEffectiveFocus, NavRoute} from '../routes'
+import {defaultRoute, NavRoute} from '../routes'
 import {useStream, useStreamSelector} from '../use-stream'
 import {hmId} from './entity-id-url'
 import {StateStream} from './stream'
@@ -165,11 +165,6 @@ export function useNavRoute() {
     return state.routes[state.routeIndex] || defaultRoute
   })
   return navRoute
-}
-
-export function useFocus(): Focus {
-  const route = useNavRoute()
-  return getEffectiveFocus(route)
 }
 
 export function useRouteDocId(): UnpackedHypermediaId | null {

@@ -33,7 +33,6 @@ export function ActivityPageContent({
   docId,
   filterEventType = [],
   currentAccountId,
-  commentEditor,
   scrollRef: externalScrollRef,
   showOpenInPanel = true,
   showTitle = true,
@@ -67,7 +66,6 @@ export function ActivityPageContent({
       <Feed
         size={size}
         centered
-        commentEditor={commentEditor}
         filterResource={docId.id}
         currentAccount={currentAccountId || ''}
         filterEventType={filterEventType}

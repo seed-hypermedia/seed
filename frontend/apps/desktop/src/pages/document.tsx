@@ -10,7 +10,6 @@ import {
   useDocumentSelection,
 } from '@/components/document-accessory'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
-import {ImportDropdownButton} from '@/components/import-doc-button'
 import {editPopoverEvents} from '@/components/onboarding'
 import {
   roleCanWrite,
@@ -20,7 +19,6 @@ import {
 import {useDocumentCitations} from '@/models/citations'
 import {useContactsMetadata} from '@/models/contacts'
 import {
-  useCreateDraft,
   useDocumentEmbeds,
   useDocumentRead,
   usePushResource,
@@ -41,7 +39,6 @@ import {
   DiscussionsRoute,
   DocumentDirectorySelection,
   DocumentRoute,
-  DraftRoute,
   FeedRoute,
   HMDocument,
   HMResource,
@@ -67,7 +64,7 @@ import {
   BlocksContent,
   BlocksContentProvider,
 } from '@shm/ui/blocks-content'
-import {Button, ButtonProps, Button as TWButton} from '@shm/ui/button'
+import {Button} from '@shm/ui/button'
 import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {
@@ -83,7 +80,6 @@ import {DocumentCover} from '@shm/ui/document-cover'
 import {DocumentHeader} from '@shm/ui/document-header'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
-import {MoreHorizontal} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {
@@ -99,7 +95,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
-import {FilePlus, Pencil} from 'lucide-react'
+import {Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import React, {
   ReactNode,
@@ -623,13 +619,6 @@ function _MainDocumentPage({
             <Feed
               size="md"
               centered
-              commentEditor={
-                <CommentBox
-                  docId={id}
-                  context="feed"
-                  autoFocus={activityRoute.autoFocus}
-                />
-              }
               filterResource={id.id}
               currentAccount={selectedAccount?.id.uid || ''}
               filterEventType={activityRoute.filterEventType || []}
@@ -894,19 +883,10 @@ function DocPageContent({
 
   const reference = useDocumentUrl({docId: resource.id, isBlockFocused})
 
-  // Only show block selection visually when content selection is active
-  const displayResourceId = useMemo(() => {
-    if (!docRoute.panel?.key) {
-      return docRoute.id
-    }
-    // Strip blockRef/blockRange when not in content selection mode
-    return {...docRoute.id, blockRef: null, blockRange: null}
-  }, [docRoute.id, docRoute.panel?.key])
-
   return (
     <>
       <BlocksContentProvider
-        resourceId={displayResourceId}
+        resourceId={docRoute.id}
         blockCitations={useMemo(() => {
           if (!citations.data) return {}
           return calculateBlockCitations(citations.data)

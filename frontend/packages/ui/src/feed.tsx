@@ -53,7 +53,6 @@ export function Feed({
   filterAuthors,
   filterEventType,
   currentAccount = '',
-  commentEditor,
   onCommentDelete,
   targetDomain,
   size = 'md',
@@ -62,7 +61,6 @@ export function Feed({
   centered,
 }: {
   size?: 'sm' | 'md'
-  commentEditor: any
   filterResource: HMListEventsParams['filterResource']
   filterAuthors?: HMListEventsParams['filterAuthors']
   filterEventType?: HMListEventsParams['filterEventType']
@@ -192,11 +190,7 @@ export function Feed({
   }
 
   return (
-    <SelectionContent
-      header={commentEditor}
-      scrollRef={scrollRef}
-      centered={centered}
-    >
+    <SelectionContent scrollRef={scrollRef} centered={centered}>
       <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e, useFullPageNavigation)

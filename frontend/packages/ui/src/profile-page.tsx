@@ -32,7 +32,6 @@ export function HMProfilePage({
         <Feed
           currentAccount={currentAccount}
           filterAuthors={[profile.id.uid]}
-          commentEditor={null}
           filterResource={undefined}
         />
       </div>

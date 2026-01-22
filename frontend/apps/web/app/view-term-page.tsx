@@ -125,7 +125,6 @@ function ViewTermContent({
             }
           >
             <LazyFeed
-              commentEditor={<WebCommenting docId={docId} />}
               filterResource={docId.id}
               currentAccount={currentAccountId}
               size="md"

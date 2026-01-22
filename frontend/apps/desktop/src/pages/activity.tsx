@@ -1,4 +1,3 @@
-import {CommentBox} from '@/components/commenting'
 import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useDocumentEmbeds, useSiteNavigationItems} from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
@@ -151,9 +150,6 @@ function _ActivityContent({
         <Feed
           size="md"
           centered
-          commentEditor={
-            <CommentBox docId={id} context="feed" autoFocus={route.autoFocus} />
-          }
           filterResource={id.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={route.filterEventType || []}

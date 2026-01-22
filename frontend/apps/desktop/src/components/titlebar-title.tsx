@@ -37,7 +37,7 @@ import {
   ProfileRoute,
 } from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
-import {useFocus, useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   HoverCard,
   HoverCardContent,
@@ -72,7 +72,6 @@ export function TitleContent({
   onPublishSite: (input: {id: UnpackedHypermediaId}) => void
 }) {
   const route = useNavRoute()
-  const focus = useFocus()
   const titleProps: TextProps = {
     size: 'md',
     weight: 'bold',
@@ -97,51 +96,40 @@ export function TitleContent({
     )
   }
   if (route.key === 'directory') {
-    // For page routes, when focus=panel show the panel suffix, otherwise show the page type suffix
-    const panelForBreadcrumbs =
-      focus === 'panel' && route.panel
-        ? route.panel
-        : {key: 'directory' as const}
+    // Always show the page type suffix in breadcrumbs
     return (
       <BreadcrumbTitle
         entityId={route.id}
-        panel={panelForBreadcrumbs as DocumentPanelRoute}
+        panel={{key: 'directory' as const} as DocumentPanelRoute}
       />
     )
   }
   if (route.key === 'collaborators') {
-    const panelForBreadcrumbs =
-      focus === 'panel' && route.panel
-        ? route.panel
-        : {key: 'collaborators' as const}
     return (
       <BreadcrumbTitle
         entityId={route.id}
-        panel={panelForBreadcrumbs as DocumentPanelRoute}
+        panel={{key: 'collaborators' as const} as DocumentPanelRoute}
       />
     )
   }
   if (route.key === 'activity') {
-    const panelForBreadcrumbs =
-      focus === 'panel' && route.panel
-        ? route.panel
-        : {key: 'activity' as const}
     return (
       <BreadcrumbTitle
         entityId={route.id}
-        panel={panelForBreadcrumbs as DocumentPanelRoute}
+        panel={{key: 'activity' as const} as DocumentPanelRoute}
       />
     )
   }
   if (route.key === 'discussions') {
-    const panelForBreadcrumbs =
-      focus === 'panel' && route.panel
-        ? route.panel
-        : {key: 'discussions' as const, openComment: route.openComment}
     return (
       <BreadcrumbTitle
         entityId={route.id}
-        panel={panelForBreadcrumbs as DocumentPanelRoute}
+        panel={
+          {
+            key: 'discussions' as const,
+            openComment: route.openComment,
+          } as DocumentPanelRoute
+        }
       />
     )
   }
@@ -176,13 +164,12 @@ export function TitleContent({
     return <ProfileTitle route={route} />
   }
   if (route.key === 'document' || route.key === 'feed') {
-    // When main is focused, don't show panel suffix in breadcrumbs
-    const panelForBreadcrumbs = focus === 'main' ? null : route.panel
+    // Don't show panel suffix in breadcrumbs for document routes
     return (
       <BreadcrumbTitle
         entityId={route.id}
         onPublishSite={onPublishSite}
-        panel={panelForBreadcrumbs}
+        panel={null}
       />
     )
   }

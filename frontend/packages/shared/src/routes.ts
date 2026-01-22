@@ -46,9 +46,6 @@ const directoryPanelSchema = z.object({
   id: unpackedHmIdSchema.optional(),
 })
 
-// Focus schema for routes with panels
-const focusSchema = z.enum(['main', 'panel'])
-
 // Directory page panel options
 const directoryPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
@@ -60,7 +57,6 @@ export const directoryRouteSchema = z.object({
   key: z.literal('directory'),
   id: unpackedHmIdSchema,
   panel: directoryPagePanelSchema.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 export type DocumentDirectorySelection = z.infer<typeof directoryRouteSchema>
 
@@ -75,7 +71,6 @@ export const collaboratorsRouteSchema = z.object({
   key: z.literal('collaborators'),
   id: unpackedHmIdSchema,
   panel: collaboratorsPagePanelSchema.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 export type CollaboratorsRoute = z.infer<typeof collaboratorsRouteSchema>
 
@@ -98,7 +93,6 @@ export const activityRouteSchema = z.object({
   autoFocus: z.boolean().optional(),
   filterEventType: z.array(z.string()).optional(),
   panel: activityPagePanelSchema.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 export type ActivityRoute = z.infer<typeof activityRouteSchema>
 
@@ -120,7 +114,6 @@ export const discussionsRouteSchema = z.object({
   autoFocus: z.boolean().optional(),
   isReplying: z.boolean().optional(),
   panel: discussionsPagePanelSchema.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 export type DiscussionsRoute = z.infer<typeof discussionsRouteSchema>
 
@@ -141,14 +134,12 @@ export const documentRouteSchema = z.object({
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptNotifs: z.boolean().optional(),
   panel: documentPanelRoute.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 
 export const feedRouteSchema = z.object({
   key: z.literal('feed'),
   id: unpackedHmIdSchema,
   panel: documentPanelRoute.nullable().optional(),
-  focus: focusSchema.optional(),
 })
 
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
@@ -165,7 +156,6 @@ export const draftRouteSchema = z.object({
   panel: documentPanelRoute.nullable().optional(),
   isWelcomeDraft: z.boolean().optional(),
   visibility: HMResourceVisibilitySchema.optional(),
-  focus: focusSchema.optional(),
 })
 export type DraftRoute = z.infer<typeof draftRouteSchema>
 
@@ -228,14 +218,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   discussionsRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
-export type Focus = z.infer<typeof focusSchema>
-
-/** Get the effective focus for a route. Derives from panel presence if not explicitly set. */
-export function getEffectiveFocus(route: NavRoute): Focus {
-  if ('focus' in route && route.focus) return route.focus
-  if ('panel' in route && route.panel) return 'panel'
-  return 'main'
-}
 
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version

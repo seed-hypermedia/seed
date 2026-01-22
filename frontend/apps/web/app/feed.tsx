@@ -10,7 +10,6 @@ import {cn} from '@shm/ui/utils'
 import {Suspense, lazy} from 'react'
 import {MyAccountBubble} from './account-bubble'
 import {useLocalKeyPair} from './auth'
-import WebCommenting from './commenting'
 import type {SiteDocumentPayload} from './loaders'
 import {NavigationLoadingContent, WebSiteProvider} from './providers'
 import {WebSiteHeader} from './web-site-header'
@@ -114,7 +113,6 @@ function InnerFeedPage(
                     }
                   >
                     <Feed
-                      commentEditor={<WebCommenting docId={id} />}
                       filterResource={`${id.id}*`}
                       currentAccount={currentAccount.data?.id.uid}
                       size="md"

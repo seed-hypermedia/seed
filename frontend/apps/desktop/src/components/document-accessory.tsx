@@ -18,7 +18,6 @@ import {FilePlus} from 'lucide-react'
 import {ReactNode, useEffect} from 'react'
 import {ActorRefFrom} from 'xstate'
 import {CollaboratorsPanel} from './collaborators-panel'
-import {CommentBox} from './commenting'
 import {DiscussionsPanel} from './discussions-panel'
 import {ImportDropdownButton} from './import-doc-button'
 import {OptionsPanel} from './options-panel'
@@ -227,15 +226,6 @@ export function useDocumentSelection({
         {deleteCommentDialogContent}
         <Feed
           size="sm"
-          commentEditor={
-            docId ? (
-              <CommentBox
-                docId={docId}
-                context="accessory"
-                autoFocus={activityAutoFocus}
-              />
-            ) : null
-          }
           filterResource={docId?.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={activityFilterEventType || []}
@@ -251,9 +241,6 @@ export function useDocumentSelection({
         {deleteCommentDialogContent}
         <Feed
           size="sm"
-          commentEditor={
-            docId ? <CommentBox docId={docId} context="accessory" /> : null
-          }
           filterResource={docId?.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={['Contact', 'Profile']}
