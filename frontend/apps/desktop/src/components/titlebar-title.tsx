@@ -335,7 +335,7 @@ function BreadcrumbTitle({
 
     if (panel?.key === 'directory') {
       crumbs.push({
-        name: 'Children Documents',
+        name: 'Directory',
         id: null,
         crumbKey: `directory`,
       })

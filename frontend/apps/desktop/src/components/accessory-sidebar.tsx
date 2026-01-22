@@ -116,7 +116,7 @@ export function AccessoryLayout({
   if (panelKey == 'collaborators') {
     accessoryTitle = tx('Collaborators')
   } else if (panelKey == 'directory') {
-    accessoryTitle = tx('Children Documents')
+    accessoryTitle = tx('Directory')
   } else if (panelKey == 'options') {
     accessoryTitle = tx('Draft Options')
   } else if (panelKey == 'activity') {

@@ -126,8 +126,8 @@ export function DocumentTools({
       route: {key: 'collaborators', id: id},
     },
     {
-      label: 'Children Documents',
-      tooltip: 'Open Children Documents',
+      label: 'Directory',
+      tooltip: 'Open Directory',
       icon: Folder,
       active: activeTab == 'directory',
       count: directoryCount,
@@ -219,10 +219,10 @@ function ToolLink({
     >
       <a {...linkProps}>
         <Icon className="size-4" />
-        {count ? <span className="text-sm">{count}</span> : null}
         {label && showLabel ? (
           <span className="hidden truncate text-sm md:block">{label}</span>
         ) : null}
+        {count ? <span className="text-sm">{count}</span> : null}
       </a>
     </Button>
   )

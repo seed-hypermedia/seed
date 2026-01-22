@@ -262,7 +262,7 @@ function EmptyQueryBlock({queryIncludes}: {queryIncludes: string | undefined}) {
   )
   if (!queryIncludesFirst || !queryIncludesFirst.space) {
     return (
-      <BlankQueryBlockMessage message="Empty Query. Select a Document to Query the Children Documents." />
+      <BlankQueryBlockMessage message="Empty Query. Select a Document to Query the Directory." />
     )
   }
   return (

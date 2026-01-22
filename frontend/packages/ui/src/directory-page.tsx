@@ -78,7 +78,7 @@ export function DirectoryPageContent({
 
   return (
     <PageLayout
-      title={showTitle ? 'Children Documents' : undefined}
+      title={showTitle ? 'Directory' : undefined}
       headerRight={
         <>
           {searchBox}
@@ -145,7 +145,7 @@ export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
     <div className="flex flex-col items-center justify-center gap-4 py-16">
       <Folder className="text-muted-foreground size-16" />
       <SizableText color="muted" weight="medium" size="xl">
-        There are no children documents
+        There are no documents here
       </SizableText>
       {canCreate && (
         <SizableText color="muted" size="sm">
