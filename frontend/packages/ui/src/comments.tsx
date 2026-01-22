@@ -845,6 +845,7 @@ export function CommentContent({
   selection,
   allowHighlight = true,
   openOnClick = true,
+  onBlockSelect: onBlockSelectProp,
 }: {
   comment: HMComment
   size?: 'sm' | 'md'
@@ -856,8 +857,10 @@ export function CommentContent({
   }
   allowHighlight?: boolean
   openOnClick?: boolean
+  onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
 }) {
   const openRoute = useOpenRoute()
+  const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
   const targetHomeDoc =
     targetHomeEntity.data?.type === 'document'
@@ -890,17 +893,19 @@ export function CommentContent({
         toast.error('Failed to get target comment target ID')
         return false
       }
-      openRoute({
-        key: 'document',
-        id: targetId,
-        panel: {
-          key: 'discussions',
-          id: targetId,
-          openComment: comment.id,
-          blockId,
-          blockRange,
-        },
-      })
+      if (onBlockSelectProp) {
+        onBlockSelectProp(blockId, blockRange)
+      } else {
+        openRoute(
+          getCommentNavRoute(
+            currentRoute.key,
+            targetId,
+            comment.id,
+            blockId,
+            blockRange,
+          ),
+        )
+      }
       return true
     }
   }
@@ -931,29 +936,41 @@ export function CommentContent({
   )
 }
 
+function getCommentNavRoute(
+  currentRouteKey: string,
+  targetId: UnpackedHypermediaId,
+  commentId: string,
+  blockId?: string,
+  blockRange?: BlockRange | null,
+): NavRoute {
+  const useFullPageNavigation =
+    currentRouteKey === 'activity' || currentRouteKey === 'discussions'
+  if (useFullPageNavigation) {
+    return {
+      key: 'discussions',
+      id: targetId,
+      openComment: commentId,
+      blockId,
+      blockRange,
+    }
+  }
+  return {
+    key: 'document',
+    id: targetId,
+    panel: {
+      key: 'discussions',
+      id: targetId,
+      openComment: commentId,
+      blockId,
+      blockRange,
+    },
+  }
+}
+
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   const currentRoute = useNavRoute()
-
-  // Determine if we should navigate to full discussions page or document panel
-  const useFullPageNavigation =
-    currentRoute.key === 'activity' || currentRoute.key === 'discussions'
-
-  const destRoute: NavRoute = useFullPageNavigation
-    ? {
-        key: 'discussions',
-        id: targetId!,
-        openComment: comment.id,
-      }
-    : {
-        key: 'document',
-        id: targetId!,
-        panel: {
-          key: 'discussions',
-          id: targetId!,
-          openComment: comment.id,
-        },
-      }
+  const destRoute = getCommentNavRoute(currentRoute.key, targetId!, comment.id)
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
