@@ -508,7 +508,9 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
           state.deletedEntities.add(id.id)
           discoveryStream.write(null)
           updateAggregatedDiscoveryState()
-          console.log(`[Discovery] Entity ${id.id} is deleted, stopping discovery`)
+          console.log(
+            `[Discovery] Entity ${id.id} is deleted, stopping discovery`,
+          )
           return
         }
         // Other errors - keep discovering state and retry
