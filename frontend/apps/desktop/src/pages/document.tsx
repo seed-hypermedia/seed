@@ -736,7 +736,7 @@ function _MainDocumentPage({
           className="mx-auto w-full px-4 py-4"
           style={{maxWidth: contentMaxWidth}}
         >
-          <SizableText size="4xl" weight="bold" className="truncate">
+          <SizableText size="4xl" weight="bold">
             {isHomeDoc ? 'Home' : metadata?.name}
           </SizableText>
         </div>
