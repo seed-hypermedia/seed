@@ -137,7 +137,9 @@ export function DocumentTools({
   return (
     <div className="flex w-full shrink-0">
       {/* Left spacer to balance the right actions */}
-      <div style={{width: rightActionsWidth}} className="shrink-0" />
+      {rightActions ? (
+        <div style={{width: rightActionsWidth}} className="shrink-0" />
+      ) : null}
       <div
         ref={containerRef}
         className="flex flex-1 items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
@@ -176,12 +178,14 @@ export function DocumentTools({
           />
         ))}
       </div>
-      <div
-        ref={rightActionsRef}
-        className="flex shrink-0 items-center gap-2 p-1 md:gap-4 md:p-2"
-      >
-        {rightActions}
-      </div>
+      {rightActions ? (
+        <div
+          ref={rightActionsRef}
+          className="flex shrink-0 items-center gap-2 p-1 md:gap-4 md:p-2"
+        >
+          {rightActions}
+        </div>
+      ) : null}
     </div>
   )
 }

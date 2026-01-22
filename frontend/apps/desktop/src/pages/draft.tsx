@@ -453,9 +453,6 @@ function DocumentEditor({
       commentsCount={interactionSummary.data?.comments || 0}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
-      rightActions={
-        isHomeDoc ? <DraftActionButtons route={route} /> : undefined
-      }
     />
   ) : null
 
@@ -495,8 +492,11 @@ function DocumentEditor({
           // @ts-expect-error
           onDrop={onDrop}
           onClick={handleFocusAtMousePos}
-          className="flex flex-1 flex-col overflow-hidden"
+          className="relative flex flex-1 flex-col overflow-hidden"
         >
+          <div className="bg-background absolute top-4 right-4 z-10 flex items-center rounded p-1">
+            <DraftActionButtons route={route} />
+          </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
             <DraftCover
               draftActor={actor}
@@ -507,8 +507,12 @@ function DocumentEditor({
               setShow={setShowCover}
               showOutline={showOutline}
             />
-            <div ref={elementRef} className="draft-editor w-full flex-1">
+            <div
+              ref={elementRef}
+              className="draft-editor relative w-full flex-1 bg-red-500"
+            >
               {/* Title section - centered */}
+
               {!isHomeDoc ? (
                 <div
                   className="mx-auto w-full"
@@ -533,7 +537,6 @@ function DocumentEditor({
                 <DocumentTools
                   activeTab="draft"
                   id={id}
-                  rightActions={<DraftActionButtons route={route} />}
                   existingDraft={draftQuery.data || false}
                 />
               ) : (
@@ -1087,7 +1090,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     )
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="animate flex items-center gap-1">
+      <PublishDraftButton key="publish-draft" />
       {draft.data ? (
         <Tooltip content="Preview Document">
           <Button
@@ -1104,7 +1108,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
-      <PublishDraftButton key="publish-draft" />
+
       <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button

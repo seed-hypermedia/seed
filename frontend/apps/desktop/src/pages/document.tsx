@@ -571,17 +571,12 @@ function _MainDocumentPage({
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
       directoryCount={directory.data?.length}
       rightActions={
-        activeMainPanel === 'content' ? (
-          <>
-            <EditDocButton />
-            <CreateDocumentButton locationId={id} />
-          </>
-        ) : (
+        activeMainPanel != 'content' ? (
           <OpenInPanelButton
             id={id}
             panelRoute={routeToPanelRoute(route) ?? {key: activeMainPanel, id}}
           />
-        )
+        ) : null
       }
     />
   )
@@ -731,17 +726,26 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
         route={route}
       />
-      <div>
+      <div className="relative">
+        <div className="absolute top-4 right-4 z-10 flex items-center">
+          {activeMainPanel == 'content' ? (
+            <>
+              <EditDocButton />
+              <CreateDocumentButton locationId={id} />
+            </>
+          ) : null}
+        </div>
         <div
-          className="mx-auto w-full px-4 py-4"
+          className="mx-auto flex w-full flex-col gap-4 px-4 py-4"
           style={{maxWidth: contentMaxWidth}}
         >
           <SizableText size="4xl" weight="bold">
             {isHomeDoc ? 'Home' : metadata?.name}
           </SizableText>
+          {documentTools}
         </div>
       </div>
-      {documentTools}
+
       <div
         className="relative flex flex-1 flex-col overflow-hidden"
         ref={elementRef}

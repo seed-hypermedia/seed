@@ -49,6 +49,7 @@ export function CreateDocumentButton({
     return (
       <Button
         variant="default"
+        size="sm"
         className="justify-center"
         onClick={() => createDraft()}
       >
@@ -63,7 +64,7 @@ export function CreateDocumentButton({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="default" className="justify-center">
+          <Button variant="default" size="sm" className="justify-center">
             <Add className="size-4" />
             <span className="truncate">New</span>
             <ChevronDown size={14} className="ml-1 opacity-60" />
