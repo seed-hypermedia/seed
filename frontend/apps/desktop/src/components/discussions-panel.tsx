@@ -22,14 +22,16 @@ function _DiscussionsPanel(props: {
   selection: DiscussionsRoute
 }) {
   const {docId, selection} = props
+  // Use selection.id if available (panel's own target), otherwise fall back to docId
+  const targetDocId = selection.id ?? docId
   const route = useNavRoute()
   const scrollRef = useScrollRestoration({
-    scrollId: `discussions-${docId.id}`,
+    scrollId: `discussions-${targetDocId.id}`,
     getStorageKey: () => getRouteKey(route),
     debug: false,
   })
   const selectedAccount = useSelectedAccount()
-  const homeDoc = useResource(hmId(docId.uid))
+  const homeDoc = useResource(hmId(targetDocId.uid))
   const targetDomain =
     homeDoc.data?.type === 'document'
       ? homeDoc.data.document.metadata.siteUrl
@@ -37,7 +39,7 @@ function _DiscussionsPanel(props: {
 
   const commentEditor = (
     <CommentBox
-      docId={docId}
+      docId={targetDocId}
       commentId={selection.openComment}
       quotingBlockId={selection.targetBlockId}
       context="accessory"
@@ -56,20 +58,20 @@ function _DiscussionsPanel(props: {
         onConfirm: () => {
           deleteComment.mutate({
             commentId,
-            targetDocId: docId,
+            targetDocId,
             signingAccountId,
           })
         },
       })
     },
-    [docId, selectedAccount?.id?.uid],
+    [targetDocId, selectedAccount?.id?.uid],
   )
 
   const currentAccountId = selectedAccount?.id.uid
 
   if (selection.targetBlockId) {
-    const targetId = hmId(docId.uid, {
-      ...docId,
+    const targetId = hmId(targetDocId.uid, {
+      ...targetDocId,
       blockRef: selection.targetBlockId,
     })
     return (
@@ -94,7 +96,7 @@ function _DiscussionsPanel(props: {
         <CommentDiscussions
           commentId={selection.openComment}
           commentEditor={commentEditor}
-          targetId={docId}
+          targetId={targetDocId}
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
@@ -117,7 +119,7 @@ function _DiscussionsPanel(props: {
       {deleteCommentDialog.content}
       <Discussions
         commentEditor={commentEditor}
-        targetId={docId}
+        targetId={targetDocId}
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}

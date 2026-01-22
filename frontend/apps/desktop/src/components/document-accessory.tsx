@@ -151,7 +151,9 @@ export function useDocumentSelection({
   let selectionUI: ReactNode = null
   // Extract panel info from routes that have panels
   let panelKey: string | undefined
-  let discussionsPanel: {key: 'discussions'; openComment?: string} | undefined
+  let discussionsPanel:
+    | {key: 'discussions'; id?: UnpackedHypermediaId; openComment?: string}
+    | undefined
   let activityAutoFocus: boolean | undefined
   let activityFilterEventType: string[] | undefined
 
@@ -211,10 +213,10 @@ export function useDocumentSelection({
       ) : null
   } else if (panelKey === 'discussions') {
     if (discussionsPanel && docId) {
-      // DiscussionsPanel expects a full DiscussionsRoute with id
+      // Use panel's own id if available (for preserved panel routes), otherwise fall back to docId
       const fullDiscussionsSelection = {
         ...discussionsPanel,
-        id: docId,
+        id: discussionsPanel.id ?? docId,
       }
       selectionUI = (
         <DiscussionsPanel docId={docId} selection={fullDiscussionsSelection} />

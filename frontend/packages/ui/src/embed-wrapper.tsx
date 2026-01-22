@@ -1,6 +1,7 @@
 import {NavRoute, UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {HTMLAttributes, PropsWithChildren} from 'react'
+import {HTMLAttributes, PropsWithChildren, useMemo} from 'react'
 import {blockStyles} from './blocks-content'
 import {useHighlighter} from './highlight-context'
 import {cn} from './utils'
@@ -30,6 +31,24 @@ export function EmbedWrapper({
 >) {
   const openRoute = useOpenRoute()
   const highlight = useHighlighter()
+  const currentRoute = useNavRoute()
+
+  // If current route has a panel, preserve it when navigating to documents
+  const effectiveRoute = useMemo(() => {
+    if (!route) return route
+    // Only modify document routes that don't already have a panel
+    if (route.key === 'document' && !route.panel) {
+      // Preserve panel from current document/feed route
+      if (currentRoute.key === 'document' && currentRoute.panel) {
+        return {...route, panel: currentRoute.panel}
+      }
+      if (currentRoute.key === 'feed' && currentRoute.panel) {
+        return {...route, panel: currentRoute.panel}
+      }
+    }
+    return route
+  }, [route, currentRoute])
+
   if (!id) return null
   return (
     <div
@@ -54,7 +73,7 @@ export function EmbedWrapper({
       }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={
-        openOnClick && route
+        openOnClick && effectiveRoute
           ? (e) => {
               e.stopPropagation()
               const selection = window.getSelection()
@@ -64,7 +83,7 @@ export function EmbedWrapper({
               }
               if (openRoute) {
                 e.preventDefault()
-                openRoute(route)
+                openRoute(effectiveRoute)
               }
             }
           : undefined
