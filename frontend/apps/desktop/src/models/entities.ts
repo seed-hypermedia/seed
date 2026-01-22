@@ -165,6 +165,30 @@ export function getAggregatedDiscoveryStream() {
   return aggregatedDiscoveryStream
 }
 
+// Active discoveries list - subscribe to main process
+const [writeActiveDiscoveries, activeDiscoveriesStream] = writeableStateStream<
+  DiscoveryState[]
+>([])
+
+let activeDiscoveriesSubscription: {unsubscribe: () => void} | null = null
+
+function ensureActiveDiscoveriesSubscription() {
+  if (activeDiscoveriesSubscription) return
+  activeDiscoveriesSubscription = client.sync.activeDiscoveries.subscribe(
+    undefined,
+    {
+      onData: (discoveries) => {
+        writeActiveDiscoveries(discoveries)
+      },
+    },
+  )
+}
+
+export function getActiveDiscoveriesStream() {
+  ensureActiveDiscoveriesSubscription()
+  return activeDiscoveriesStream
+}
+
 export type EntitySubscription = {
   id?: UnpackedHypermediaId | null
   recursive?: boolean

@@ -9,7 +9,6 @@
  */
 
 import {grpcClient} from '@/grpc-client'
-import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import {DISCOVERY_DEBOUNCE_MS} from '@shm/shared/constants'
 import {
   AggregatedDiscoveryState,
@@ -17,13 +16,14 @@ import {
   DiscoveryState,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+import {HMRedirectError, getErrorMessage} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
-import {HMRedirectError, getErrorMessage} from '@shm/shared/models/entity'
 import {observable} from '@trpc/server/observable'
 import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
@@ -375,6 +375,7 @@ async function runDiscovery(sub: ResourceSubscription) {
         isDiscovering: true,
         startedAt: Date.now(),
         entityId: id.id,
+        recursive,
         progress,
       })
       updateAggregatedDiscoveryState()
@@ -464,6 +465,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
       isDiscovering: true,
       startedAt: Date.now(),
       entityId: id.id,
+      recursive,
     })
   }
 
@@ -591,14 +593,6 @@ export const syncApi = t.router({
       })
     }),
 
-  // Get discovery state for an entity
-  getDiscoveryState: t.procedure
-    .input(z.string())
-    .query(({input: entityId}) => {
-      const stream = getDiscoveryStream(entityId)
-      return stream.get()
-    }),
-
   // Subscribe to discovery state changes
   discoveryState: t.procedure
     .input(z.string())
@@ -627,6 +621,32 @@ export const syncApi = t.router({
       })
       // Emit initial state
       emit.next(aggregatedDiscoveryStream.get())
+      return unsubscribe
+    })
+  }),
+
+  // Subscribe to list of active discoveries
+  activeDiscoveries: t.procedure.subscription(() => {
+    return observable<DiscoveryState[]>((emit) => {
+      function emitActiveDiscoveries() {
+        const active: DiscoveryState[] = []
+        state.discoveryStreams.forEach(({stream}) => {
+          const discoveryState = stream.get()
+          if (discoveryState?.isDiscovering) {
+            active.push(discoveryState)
+          }
+        })
+        emit.next(active)
+      }
+
+      // Subscribe to aggregated state changes to know when to re-emit
+      const unsubscribe = aggregatedDiscoveryStream.subscribe(() => {
+        emitActiveDiscoveries()
+      })
+
+      // Emit initial state
+      emitActiveDiscoveries()
+
       return unsubscribe
     })
   }),

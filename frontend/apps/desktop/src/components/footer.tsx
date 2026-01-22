@@ -1,12 +1,20 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
-import {getAggregatedDiscoveryStream} from '@/models/entities'
+import {
+  getActiveDiscoveriesStream,
+  getAggregatedDiscoveryStream,
+} from '@/models/entities'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
+import {DiscoveryState} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
+import {useRouteLink} from '@shm/shared/routing'
 import {useStream} from '@shm/shared/use-stream'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Progress} from '@shm/ui/components/progress'
 import {FooterWrapper} from '@shm/ui/footer'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -92,39 +100,114 @@ function FooterNetworkingButton() {
   )
 }
 
+function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
+  const id = unpackHmId(discovery.entityId)
+  const resource = useResource(id)
+  const linkProps = useRouteLink(id ? {key: 'document', id} : null)
+
+  const name =
+    resource.data?.type === 'document'
+      ? resource.data.document.metadata.name
+      : null
+  const isAccount = id && !id.path?.length
+  const fallbackName = id
+    ? isAccount
+      ? `Account ${id.uid.slice(0, 8)}...`
+      : `${id.uid.slice(0, 6)}/${id.path?.join('/')}`
+    : discovery.entityId
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <Spinner size="small" className="size-3 shrink-0" />
+      <a
+        {...linkProps}
+        className="text-foreground hover:text-foreground min-w-0 flex-1 truncate hover:underline"
+      >
+        {name || fallbackName}
+      </a>
+      {discovery.recursive && (
+        <span className="text-muted-foreground/70 shrink-0 text-[10px]">
+          recursive
+        </span>
+      )}
+      {discovery.progress && discovery.progress.blobsDiscovered > 0 && (
+        <span className="text-muted-foreground/70 shrink-0">
+          {discovery.progress.blobsDownloaded}/{discovery.progress.blobsDiscovered}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function DiscoveryIndicator() {
   const discovery = useStream(getAggregatedDiscoveryStream())
+  const activeDiscoveries = useStream(getActiveDiscoveriesStream())
+
   if (!discovery || discovery.activeCount === 0) return null
 
   const {blobsDiscovered, blobsDownloaded} = discovery
   const hasBlobs = blobsDiscovered > 0
   const progress = hasBlobs ? (blobsDownloaded / blobsDiscovered) * 100 : 0
 
-  return (
-    <div className="flex items-center gap-2 px-2">
-      {hasBlobs ? (
-        <>
-          <SizableText
-            size="xs"
-            className="text-muted-foreground select-none"
-            style={{fontSize: 10}}
-          >
-            Downloading ({Math.round(progress)}%)
-          </SizableText>
-          <Progress value={progress} className="h-1 w-16" />
-        </>
-      ) : (
-        <>
-          <SizableText
-            size="xs"
-            className="text-muted-foreground select-none"
-            style={{fontSize: 10}}
-          >
-            Searching peers...
-          </SizableText>
-          <Spinner size="small" className="text-muted-foreground" />
-        </>
+  const hoverContent = (
+    <div className="flex flex-col gap-2">
+      <SizableText size="sm" className="font-medium">
+        Discovering {discovery.activeCount} resource
+        {discovery.activeCount > 1 ? 's' : ''}
+      </SizableText>
+      {activeDiscoveries && activeDiscoveries.length > 0 && (
+        <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
+          {activeDiscoveries.map((d) => (
+            <DiscoveryItem key={d.entityId} discovery={d} />
+          ))}
+        </div>
+      )}
+      {hasBlobs && (
+        <div className="text-muted-foreground text-xs">
+          {blobsDownloaded}/{blobsDiscovered} blobs downloaded
+          {discovery.blobsFailed > 0 && (
+            <span className="text-destructive">
+              {' '}
+              ({discovery.blobsFailed} failed)
+            </span>
+          )}
+        </div>
       )}
     </div>
+  )
+
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="flex cursor-default items-center gap-2 px-2">
+          {hasBlobs ? (
+            <>
+              <SizableText
+                size="xs"
+                className="text-muted-foreground select-none"
+                style={{fontSize: 10}}
+              >
+                Downloading ({Math.round(progress)}%)
+              </SizableText>
+              <Progress value={progress} className="h-1 w-16" />
+            </>
+          ) : (
+            <>
+              <SizableText
+                size="xs"
+                className="text-muted-foreground select-none"
+                style={{fontSize: 10}}
+              >
+                Searching peers...
+              </SizableText>
+              <Spinner size="small" className="text-muted-foreground" />
+            </>
+          )}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="top" align="end" className="w-80">
+        {hoverContent}
+      </HoverCardContent>
+    </HoverCard>
   )
 }

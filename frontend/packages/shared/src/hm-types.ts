@@ -1244,6 +1244,7 @@ export type DiscoveryState = {
   isDiscovering: boolean
   startedAt: number
   entityId: string
+  recursive?: boolean
   progress?: DiscoveryProgress
 }
 
