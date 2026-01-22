@@ -296,9 +296,11 @@ function InnerDocumentPage(
   // if the server is providing a comment, use it as default, but allow local state to override
   // On mobile, activePanel can be set independently
   // _activePanel can override the default comment panel
+  // Note: when navigating directly to a comment URL (comment provided, no viewTerm),
+  // the comment should be shown in the main content area, not the side panel
   const activePanel: WebSelection | null =
     _activePanel ||
-    (comment
+    (comment && viewTerm
       ? {
           type: 'discussions',
           comment,
@@ -345,13 +347,17 @@ function InnerDocumentPage(
     setMobilePanelOpen(true)
   }
 
-  // used to toggle the mobile accessory sheet. If the server is providing a comment, it should be open by default.
-  const [isMobilePanelOpen, setMobilePanelOpen] = useState(!!comment)
+  // used to toggle the mobile accessory sheet. If the server is providing a comment AND there's a viewTerm, it should be open by default.
+  // If no viewTerm, comment is shown in main content, not panel.
+  const [isMobilePanelOpen, setMobilePanelOpen] = useState(
+    !!comment && !!viewTerm,
+  )
 
   // Sync activePanel with URL changes (e.g., from Feed navigation)
   useEffect(() => {
-    if (comment) {
-      // If URL has a comment and it's different from current activePanel, update it
+    // When comment is provided without viewTerm, it's shown in main content area, not panel
+    if (comment && viewTerm) {
+      // If URL has a comment with viewTerm and it's different from current activePanel, update it
       if (
         !_activePanel ||
         _activePanel.type !== 'discussions' ||
@@ -369,7 +375,7 @@ function InnerDocumentPage(
       // If URL no longer has a comment but activePanel does, clear it to activity
       setActivePanel({type: 'activity', ...savedFeedFilters})
     }
-  }, [comment?.id, blockRef, blockRange])
+  }, [comment?.id, blockRef, blockRange, viewTerm])
 
   // Note: viewTerm now controls main content area, not panels
   // Panels are only opened via ?panel=... query param or explicit user action
@@ -717,6 +723,29 @@ function InnerDocumentPage(
                               >
                                 <ReadOnlyCollaboratorsContent docId={id} />
                               </CollaboratorsPageContent>
+                            ) : comment && !viewTerm ? (
+                              // Direct comment URL - show comment in main content area
+                              <DiscussionsPageContent
+                                docId={id}
+                                openComment={comment.id}
+                                blockId={blockRef}
+                                blockRange={blockRange}
+                                commentEditor={
+                                  <WebCommenting
+                                    docId={id}
+                                    replyCommentId={comment.id}
+                                    replyCommentVersion={comment.version}
+                                    rootReplyCommentVersion={
+                                      comment.threadRootVersion ||
+                                      comment.version
+                                    }
+                                    quotingBlockId={blockRef}
+                                  />
+                                }
+                                currentAccountId={currentAccount.data?.id.uid}
+                                showOpenInPanel={false}
+                                showTitle={false}
+                              />
                             ) : (
                               <div className="pr-3">
                                 <BlocksContentProvider

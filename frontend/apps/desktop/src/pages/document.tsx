@@ -641,8 +641,8 @@ function _MainDocumentPage({
             docId={id}
             openComment={discussionsRoute.openComment}
             targetBlockId={discussionsRoute.targetBlockId}
-            blockId={discussionsRoute.blockId}
-            blockRange={discussionsRoute.blockRange}
+            blockId={discussionsRoute.id.blockRef || undefined}
+            blockRange={discussionsRoute.id.blockRange}
             autoFocus={discussionsRoute.autoFocus}
             isReplying={discussionsRoute.isReplying}
             commentEditor={commentEditor}

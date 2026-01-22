@@ -191,6 +191,21 @@ export function routeToHref(
       route.key === 'directory' ||
       route.key === 'collaborators')
   ) {
+    // For discussions routes with openComment, generate a comment URL
+    if (route.key === 'discussions' && route.openComment) {
+      const activeCommentId = route.openComment
+      const [accountUid, commentTsid] = activeCommentId.split('/')
+      if (accountUid && commentTsid) {
+        const commentId = hmId(accountUid, {
+          path: [commentTsid],
+          blockRef: route.id.blockRef,
+          blockRange: route.id.blockRange,
+          hostname: options?.origin,
+        })
+        return options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
+      }
+    }
+
     const docId = route.id
     // Build path with view term
     let basePath = ''
@@ -230,8 +245,8 @@ export function routeToHref(
     if (!accountUid || !commentTsid) return undefined
     const commentId = hmId(accountUid, {
       path: [commentTsid],
-      blockRef: activeCommentSelection.targetBlockId,
-      blockRange: activeCommentSelection.blockRange,
+      blockRef: activeCommentSelection.id?.blockRef,
+      blockRange: activeCommentSelection.id?.blockRange,
       hostname: options?.origin,
     })
     href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)

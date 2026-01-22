@@ -896,14 +896,25 @@ export function CommentContent({
       if (onBlockSelectProp) {
         onBlockSelectProp(blockId, blockRange)
       } else {
+        const idWithBlock = {
+          ...targetId,
+          blockRef: blockId || null,
+          blockRange: blockRange || null,
+        }
+        const useFullPageNavigation =
+          currentRoute.key === 'activity' || currentRoute.key === 'discussions'
         openRoute(
-          getCommentNavRoute(
-            currentRoute.key,
-            targetId,
-            comment.id,
-            blockId,
-            blockRange,
-          ),
+          useFullPageNavigation
+            ? {key: 'discussions', id: idWithBlock, openComment: comment.id}
+            : {
+                key: 'document',
+                id: targetId,
+                panel: {
+                  key: 'discussions',
+                  id: idWithBlock,
+                  openComment: comment.id,
+                },
+              },
         )
       }
       return true
@@ -936,41 +947,18 @@ export function CommentContent({
   )
 }
 
-function getCommentNavRoute(
-  currentRouteKey: string,
-  targetId: UnpackedHypermediaId,
-  commentId: string,
-  blockId?: string,
-  blockRange?: BlockRange | null,
-): NavRoute {
-  const useFullPageNavigation =
-    currentRouteKey === 'activity' || currentRouteKey === 'discussions'
-  if (useFullPageNavigation) {
-    return {
-      key: 'discussions',
-      id: targetId,
-      openComment: commentId,
-      blockId,
-      blockRange,
-    }
-  }
-  return {
-    key: 'document',
-    id: targetId,
-    panel: {
-      key: 'discussions',
-      id: targetId,
-      openComment: commentId,
-      blockId,
-      blockRange,
-    },
-  }
-}
-
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   const currentRoute = useNavRoute()
-  const destRoute = getCommentNavRoute(currentRoute.key, targetId!, comment.id)
+  const useFullPageNavigation =
+    currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  const destRoute: NavRoute = useFullPageNavigation
+    ? {key: 'discussions', id: targetId!, openComment: comment.id}
+    : {
+        key: 'document',
+        id: targetId!,
+        panel: {key: 'discussions', id: targetId!, openComment: comment.id},
+      }
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 

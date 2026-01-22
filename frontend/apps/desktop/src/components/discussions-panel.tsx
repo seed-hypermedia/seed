@@ -90,6 +90,9 @@ function _DiscussionsPanel(props: {
   }
 
   if (selection.openComment) {
+    // Block selection comes from selection.id.blockRef (the focused block within the comment)
+    const blockId = selection.id?.blockRef
+    const blockRange = selection.id?.blockRange
     return (
       <>
         {deleteCommentDialog.content}
@@ -102,10 +105,10 @@ function _DiscussionsPanel(props: {
           onCommentDelete={onCommentDelete}
           scrollRef={scrollRef}
           selection={
-            selection.blockId
+            blockId
               ? {
-                  blockId: selection.blockId,
-                  blockRange: selection.blockRange || undefined,
+                  blockId,
+                  blockRange: blockRange || undefined,
                 }
               : undefined
           }
