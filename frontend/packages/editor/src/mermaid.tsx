@@ -6,7 +6,7 @@ import {cn} from '@shm/ui/utils'
 import mermaid from 'mermaid'
 import {NodeSelection} from 'prosemirror-state'
 import {useCallback, useContext, useEffect, useRef, useState} from 'react'
-import {RiCodeSSlashLine, RiEyeLine} from 'react-icons/ri'
+import {RiCodeBoxLine, RiCodeSSlashLine, RiEyeLine} from 'react-icons/ri'
 import {findNextBlock, findPreviousBlock} from './block-utils'
 import {BlockNoteEditor} from './blocknote/core/BlockNoteEditor'
 import {selectableNodeTypes} from './blocknote/core/extensions/BlockManipulation/BlockManipulationExtension'
@@ -292,24 +292,56 @@ const Render = (
             <span className="text-muted-foreground text-xs">
               Mermaid Diagram Code
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowPreview(!showPreview)}
-              className="gap-1"
-            >
-              {showPreview ? (
-                <>
-                  <RiCodeSSlashLine size={14} />
-                  <span className="text-xs">Hide Preview</span>
-                </>
-              ) : (
-                <>
-                  <RiEyeLine size={14} />
-                  <span className="text-xs">Preview</span>
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  // Convert to code block with mermaid language
+                  editor.replaceBlocks(
+                    [block.id],
+                    [
+                      {
+                        type: 'code-block',
+                        props: {
+                          language: 'mermaid',
+                        },
+                        content: [
+                          {
+                            type: 'text',
+                            text: mermaidText,
+                            styles: {},
+                          },
+                        ],
+                      },
+                    ],
+                  )
+                }}
+                className="gap-1"
+                title="Convert to Code Block"
+              >
+                <RiCodeBoxLine size={14} />
+                <span className="text-xs">To Code</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowPreview(!showPreview)}
+                className="gap-1"
+              >
+                {showPreview ? (
+                  <>
+                    <RiCodeSSlashLine size={14} />
+                    <span className="text-xs">Hide Preview</span>
+                  </>
+                ) : (
+                  <>
+                    <RiEyeLine size={14} />
+                    <span className="text-xs">Preview</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
           <div className="relative flex min-h-7 items-center px-[16px] py-[10px]">
             <Textarea

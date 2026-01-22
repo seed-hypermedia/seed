@@ -295,7 +295,25 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
-      if (block.type === 'image') {
+
+      // Convert code blocks with mermaid language to mermaid blocks
+      if (block.type === 'code-block' && block.props.language === 'mermaid') {
+        // @ts-ignore
+        const codeContent = block.content[0]?.text || ''
+        blockToInsert = {
+          id: block.id,
+          type: 'mermaid',
+          content: [
+            {
+              type: 'text',
+              text: codeContent,
+              styles: {},
+            },
+          ],
+          children: [],
+          props: {},
+        }
+      } else if (block.type === 'image') {
         if (block.props.src == 'null') blockToInsert.props = {}
         else if (block.props.alt) {
           const contentArray = parseImageCaptionStyles(block.props.alt)

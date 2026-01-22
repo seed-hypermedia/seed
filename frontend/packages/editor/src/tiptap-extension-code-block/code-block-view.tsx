@@ -1,16 +1,26 @@
 import {Button} from '@shm/ui/button'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
-import {Check, ChevronDown} from 'lucide-react'
-import {useEffect, useRef, useState} from 'react'
+import mermaid from 'mermaid'
+import {Check, ChevronDown, Eye, EyeOff, GitBranch} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
+
+// Initialize mermaid
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  securityLevel: 'loose',
+})
 
 export const CodeBlockView = ({
   props,
   languages,
+  onConvertToMermaidBlock,
 }: {
   props: NodeViewProps
   languages: string[]
+  onConvertToMermaidBlock?: (content: string) => void
 }) => {
   const {node, updateAttributes} = props
   const [hovered, setHovered] = useState(false)
@@ -21,6 +31,42 @@ export const CodeBlockView = ({
   const [dropdownPosition, setDropdownPosition] = useState({top: 0, left: 0})
   const buttonRef = useRef<HTMLButtonElement>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [showMermaidPreview, setShowMermaidPreview] = useState(false)
+  const [mermaidSvg, setMermaidSvg] = useState<string>('')
+  const [mermaidError, setMermaidError] = useState<string | null>(null)
+
+  const isMermaid = language === 'mermaid'
+  const codeContent = node.textContent || ''
+
+  // Ensure mermaid is in the languages list
+  const allLanguages = languages.includes('mermaid')
+    ? languages
+    : [...languages, 'mermaid'].sort((a, b) => a.localeCompare(b))
+
+  const renderMermaid = useCallback(async () => {
+    if (!isMermaid || !codeContent.trim()) {
+      setMermaidSvg('')
+      setMermaidError(null)
+      return
+    }
+
+    try {
+      const id = `mermaid-preview-${Date.now()}`
+      const {svg} = await mermaid.render(id, codeContent)
+      setMermaidSvg(svg)
+      setMermaidError(null)
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : 'Invalid diagram'
+      setMermaidError(errorMessage)
+      setMermaidSvg('')
+    }
+  }, [isMermaid, codeContent])
+
+  useEffect(() => {
+    if (showMermaidPreview && isMermaid) {
+      renderMermaid()
+    }
+  }, [showMermaidPreview, isMermaid, renderMermaid])
 
   const cancelClose = () => {
     if (closeTimeoutRef.current) {
@@ -45,6 +91,12 @@ export const CodeBlockView = ({
     updateAttributes({language: newLanguage})
     setLanguage(newLanguage)
     setOpen(false)
+    // Reset mermaid preview when language changes
+    if (newLanguage !== 'mermaid') {
+      setShowMermaidPreview(false)
+      setMermaidSvg('')
+      setMermaidError(null)
+    }
   }
 
   const handleToggleDropdown = (e?: React.MouseEvent<HTMLButtonElement>) => {
@@ -102,6 +154,12 @@ export const CodeBlockView = ({
     }
   }, [open])
 
+  const handleConvertToMermaid = () => {
+    if (onConvertToMermaidBlock && codeContent) {
+      onConvertToMermaidBlock(codeContent)
+    }
+  }
+
   return (
     <div
       className="relative flex min-w-0 flex-col overflow-hidden"
@@ -120,10 +178,47 @@ export const CodeBlockView = ({
       {/* Show language button on hover or when dropdown is open */}
       {(hovered || open) && (
         <div
-          className="code-block-language-dropdown pointer-events-auto absolute top-1 right-4 z-50 flex w-[150px] items-center gap-4 p-1"
+          className="code-block-language-dropdown pointer-events-auto absolute top-1 right-4 z-50 flex items-center gap-2 p-1"
           contentEditable={false}
         >
-          <div className="relative w-full">
+          {/* Mermaid-specific buttons */}
+          {isMermaid && (
+            <>
+              <Button
+                className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setShowMermaidPreview(!showMermaidPreview)
+                }}
+                type="button"
+                title={showMermaidPreview ? 'Hide Preview' : 'Preview Diagram'}
+              >
+                {showMermaidPreview ? (
+                  <EyeOff className="h-3 w-3" />
+                ) : (
+                  <Eye className="h-3 w-3" />
+                )}
+                <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
+              </Button>
+              {onConvertToMermaidBlock && (
+                <Button
+                  className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleConvertToMermaid()
+                  }}
+                  type="button"
+                  title="Convert to Mermaid Block"
+                >
+                  <GitBranch className="h-3 w-3" />
+                  <span>To Block</span>
+                </Button>
+              )}
+            </>
+          )}
+          <div className="relative w-[120px]">
             <Button
               ref={buttonRef}
               className="border-input bg-background flex w-full items-center justify-between rounded-md border px-3 py-1.5 text-sm shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
@@ -160,7 +255,7 @@ export const CodeBlockView = ({
                 e.stopPropagation()
               }}
             >
-              {languages.map((item) => (
+              {allLanguages.map((item) => (
                 <Button
                   key={item}
                   onClick={() => handleChange(item)}
@@ -177,6 +272,29 @@ export const CodeBlockView = ({
           )}
         </>
       ) : null}
+
+      {/* Mermaid preview area */}
+      {isMermaid && showMermaidPreview && (
+        <div
+          className="border-border bg-muted/30 mb-2 rounded-md border p-3"
+          contentEditable={false}
+        >
+          {mermaidError ? (
+            <div className="rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              <p className="font-mono text-sm">Error: {mermaidError}</p>
+            </div>
+          ) : mermaidSvg ? (
+            <div
+              className="flex w-full items-center justify-center overflow-auto"
+              dangerouslySetInnerHTML={{__html: mermaidSvg}}
+            />
+          ) : (
+            <p className="text-muted-foreground text-center text-sm">
+              Enter diagram code to preview
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="relative w-full max-w-full touch-pan-x touch-pan-y overflow-x-auto overflow-y-auto overscroll-x-contain">
         <pre className="m-0 rounded-md bg-transparent px-3 py-3">

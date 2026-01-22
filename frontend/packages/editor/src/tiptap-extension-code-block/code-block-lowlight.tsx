@@ -1,11 +1,12 @@
 import {mergeCSSClasses} from '../blocknote'
 import styles from '../blocknote/core/extensions/Blocks/nodes/Block.module.css'
+import {getBlockInfoFromPos} from '../blocknote/core/extensions/Blocks/helpers/getBlockInfoFromPos'
 import {
   NodeViewProps,
   NodeViewWrapper,
   ReactNodeViewRenderer,
 } from '@tiptap/react'
-import {FC} from 'react'
+import {FC, useCallback} from 'react'
 import {CodeBlock, CodeBlockOptions} from './code-block'
 import {CodeBlockView} from './code-block-view'
 import {LowlightPlugin} from './lowlight-plugin.js'
@@ -24,13 +25,57 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
     }
   },
 
+  addStorage() {
+    return {
+      blockNoteEditor: null as any,
+    }
+  },
+
   addNodeView() {
     const BlockContent: FC<NodeViewProps> = (props: NodeViewProps) => {
       const Content = CodeBlockView
       const blockContentDOMAttributes =
         this.options.domAttributes?.blockContent || {}
       const language = props.node.attrs.language
-      const node = props.node
+
+      // Get block ID and handle conversion
+      const handleConvertToMermaidBlock = useCallback(
+        (content: string) => {
+          const {state} = this.editor
+          const pos = props.getPos()
+
+          if (typeof pos !== 'number') return
+
+          const blockInfo = getBlockInfoFromPos(state, pos)
+          if (!blockInfo) return
+
+          const blockId = blockInfo.block.node.attrs.id
+
+          // Get the BlockNoteEditor from storage
+          const blockNoteEditor = this.storage.blockNoteEditor
+
+          if (blockNoteEditor && blockId) {
+            // Use replaceBlocks to convert code block to mermaid block
+            blockNoteEditor.replaceBlocks(
+              [blockId],
+              [
+                {
+                  type: 'mermaid',
+                  content: [
+                    {
+                      type: 'text',
+                      text: content,
+                      styles: {},
+                    },
+                  ],
+                },
+              ],
+            )
+          }
+        },
+        [props.getPos],
+      )
+
       return (
         <NodeViewWrapper
           {...Object.fromEntries(
@@ -51,6 +96,11 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
             languages={[...this.options.lowlight.listLanguages(), 'html'].sort(
               (a, b) => a.localeCompare(b),
             )}
+            onConvertToMermaidBlock={
+              this.storage.blockNoteEditor
+                ? handleConvertToMermaidBlock
+                : undefined
+            }
           />
         </NodeViewWrapper>
       )
