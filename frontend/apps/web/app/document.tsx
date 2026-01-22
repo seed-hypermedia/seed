@@ -408,8 +408,10 @@ function InnerDocumentPage(
     [id, context.hmUrlHref, context.originHomeId, replace],
   )
 
-  // Only show sidebars (document outline) when viewing content, not other views
-  const shouldShowSidebars = showSidebarOutlineDirectory && !viewTerm
+  // Only show sidebars (document outline) when viewing document content
+  // Hide when viewing activity/discussions/etc (viewTerm) OR when viewing a comment directly
+  const shouldShowSidebars =
+    showSidebarOutlineDirectory && !viewTerm && !comment
 
   const {
     showSidebars,
@@ -557,7 +559,8 @@ function InnerDocumentPage(
   // Determine active view for DocumentTools
   // viewTerm determines what's shown in main content area
   // 'content' means the document itself, otherwise it's activity/discussions/etc
-  const activeView = viewTerm || 'content'
+  // When viewing a comment directly (no viewTerm but comment exists), show discussions as active
+  const activeView = viewTerm || (comment ? 'discussions' : 'content')
 
   const documentTools = activityEnabled ? (
     <DocumentTools
