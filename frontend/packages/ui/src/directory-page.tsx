@@ -63,7 +63,7 @@ export function DirectoryPageContent({
 
   const searchBox =
     showSearch && directoryItems.length > 0 ? (
-      <div className="relative w-64">
+      <div className="relative w-full">
         <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           placeholder="Filter documents..."

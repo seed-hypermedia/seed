@@ -135,7 +135,7 @@ export function DocumentTools({
     },
   ]
   return (
-    <div className="flex w-full shrink-0">
+    <div className="flex w-full shrink-0 py-4">
       {/* Left spacer to balance the right actions */}
       {rightActions ? (
         <div style={{width: rightActionsWidth}} className="shrink-0" />

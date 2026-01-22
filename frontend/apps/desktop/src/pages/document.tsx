@@ -5,7 +5,6 @@ import {useDocumentUrl} from '@/components/copy-reference-button'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {DocNavigation} from '@/components/doc-navigation'
 import {
-  NewSubDocumentButton,
   useCanCreateSubDocument,
   useDocumentSelection,
 } from '@/components/document-accessory'
@@ -588,9 +587,9 @@ function _MainDocumentPage({
         return (
           <DirectoryPageContent
             docId={id}
-            header={
-              canCreate ? <NewSubDocumentButton locationId={id} /> : undefined
-            }
+            // header={
+            //   canCreate ? <NewSubDocumentButton locationId={id} /> : undefined
+            // }
             canCreate={canCreate}
             showTitle={false}
             contentMaxWidth={contentMaxWidth}
@@ -727,7 +726,7 @@ function _MainDocumentPage({
         route={route}
       />
       <div className="relative">
-        <div className="absolute top-4 right-4 z-10 flex items-center">
+        <div className="bg-background absolute top-4 right-4 z-10 flex items-center rounded p-1 shadow-sm">
           {activeMainPanel == 'content' ? (
             <>
               <EditDocButton />
@@ -736,15 +735,15 @@ function _MainDocumentPage({
           ) : null}
         </div>
         <div
-          className="mx-auto flex w-full flex-col gap-4 px-4 py-4"
+          className="mx-auto flex w-full flex-col gap-6 px-4 py-6"
           style={{maxWidth: contentMaxWidth}}
         >
           <SizableText size="4xl" weight="bold">
             {isHomeDoc ? 'Home' : metadata?.name}
           </SizableText>
-          {documentTools}
         </div>
       </div>
+      {documentTools}
 
       <div
         className="relative flex flex-1 flex-col overflow-hidden"

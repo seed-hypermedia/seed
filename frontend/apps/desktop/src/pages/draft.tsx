@@ -494,7 +494,7 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="relative flex flex-1 flex-col overflow-hidden"
         >
-          <div className="bg-background absolute top-4 right-4 z-10 flex items-center rounded p-1">
+          <div className="bg-background absolute top-4 right-4 z-10 flex items-center rounded p-1 shadow-sm">
             <DraftActionButtons route={route} />
           </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
@@ -509,7 +509,7 @@ function DocumentEditor({
             />
             <div
               ref={elementRef}
-              className="draft-editor relative w-full flex-1 bg-red-500"
+              className="draft-editor relative w-full flex-1"
             >
               {/* Title section - centered */}
 
