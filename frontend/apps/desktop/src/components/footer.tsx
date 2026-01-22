@@ -132,7 +132,8 @@ function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
       )}
       {discovery.progress && discovery.progress.blobsDiscovered > 0 && (
         <span className="text-muted-foreground/70 shrink-0">
-          {discovery.progress.blobsDownloaded}/{discovery.progress.blobsDiscovered}
+          {discovery.progress.blobsDownloaded}/
+          {discovery.progress.blobsDiscovered}
         </span>
       )}
     </div>
