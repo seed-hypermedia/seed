@@ -16,7 +16,11 @@ import {
   DiscoveryState,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {HMRedirectError, getErrorMessage} from '@shm/shared/models/entity'
+import {
+  HMRedirectError,
+  HMResourceTombstoneError,
+  getErrorMessage,
+} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
@@ -74,6 +78,9 @@ type SyncState = {
 
   // Track last known versions to avoid unnecessary invalidations
   lastKnownVersions: Map<string, string>
+
+  // Track entities known to be deleted to stop discovery
+  deletedEntities: Set<string>
 }
 
 const state: SyncState = {
@@ -87,6 +94,7 @@ const state: SyncState = {
   recursiveSubscriptions: new Set(),
   discoveryStreams: new Map(),
   lastKnownVersions: new Map(),
+  deletedEntities: new Set(),
 }
 
 // Aggregated discovery state
@@ -355,7 +363,10 @@ export async function discoverDocument(
       retryDelayMs: 2_000,
       immediateCatch: (e) => {
         const error = getErrorMessage(e)
-        return error instanceof HMRedirectError
+        return (
+          error instanceof HMRedirectError ||
+          error instanceof HMResourceTombstoneError
+        )
       },
     },
   )
@@ -472,6 +483,13 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   let discoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   function discoveryLoop() {
+    // Skip discovery for entities known to be deleted
+    if (state.deletedEntities.has(id.id)) {
+      discoveryStream.write(null)
+      updateAggregatedDiscoveryState()
+      return
+    }
+
     if (isCovered) {
       discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       return
@@ -481,11 +499,19 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
       .then(() => {
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
+        discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
-      .catch(() => {
-        // Keep discovering state on failure
-      })
-      .finally(() => {
+      .catch((error) => {
+        const parsedError = getErrorMessage(error)
+        if (parsedError instanceof HMResourceTombstoneError) {
+          // Entity is deleted - stop discovery permanently
+          state.deletedEntities.add(id.id)
+          discoveryStream.write(null)
+          updateAggregatedDiscoveryState()
+          console.log(`[Discovery] Entity ${id.id} is deleted, stopping discovery`)
+          return
+        }
+        // Other errors - keep discovering state and retry
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
   }
@@ -501,8 +527,9 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     if (recursive) {
       state.recursiveSubscriptions.delete(key)
     }
-    // Clean up tracked version
+    // Clean up tracked state
     state.lastKnownVersions.delete(id.id)
+    state.deletedEntities.delete(id.id)
   }
 
   return {unsubscribe, discoveryTimer, isCovered}
