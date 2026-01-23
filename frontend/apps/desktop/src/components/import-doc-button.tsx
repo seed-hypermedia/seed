@@ -21,7 +21,6 @@ import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQuery} from '@tanstack/react-query'
 import {Button} from '@shm/ui/button'
 import {
   DialogClose,
@@ -31,7 +30,7 @@ import {
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {File, FileInput, Folder, FolderInput, Globe} from '@shm/ui/icons'
+import {File, FileInput, Folder, FolderInput} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {
   Select,
@@ -44,6 +43,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
@@ -65,7 +65,7 @@ export function ImportDialog({
     onImportDirectory: () => void
     onImportLatexFile: () => void
     onImportLatexDirectory: () => void
-    onImportWebSite: () => void
+    // onImportWebSite: () => void
   }
   onClose: () => void
 }) {
@@ -120,17 +120,6 @@ export function ImportDialog({
         >
           <Folder className="size-3" />
           Import LaTeX Directory
-        </Button>
-        <Button
-          className="border-border border"
-          variant="ghost"
-          onClick={() => {
-            onClose()
-            input.onImportWebSite()
-          }}
-        >
-          <Globe className="size-3" />
-          Import Web Site
         </Button>
       </div>
     </>
