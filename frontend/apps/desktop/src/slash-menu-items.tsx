@@ -10,7 +10,6 @@ import {
   RiArticleFill,
   RiCodeBoxFill,
   RiFile2Fill,
-  RiFlowChart,
   RiFunctions,
   RiGridFill,
   RiHeading,
@@ -327,27 +326,6 @@ export function getSlashMenuItems({
           props: {
             url: '',
           },
-        } as PartialBlock<HMBlockSchema>,
-        true,
-      )
-      const {state, view} = editor._tiptapEditor
-      view.dispatch(state.tr.scrollIntoView())
-    },
-  })
-
-  slashMenuItems.push({
-    name: 'Mermaid',
-    aliases: ['mermaid', 'diagram', 'flowchart', 'chart', 'graph', 'sequence'],
-    group: 'Media blocks',
-    icon: <RiFlowChart size={18} />,
-    hint: 'Insert a Mermaid Diagram',
-    execute: (
-      editor: BlockNoteEditor<Record<string, BlockSpec<string, PropSchema>>>,
-    ) => {
-      insertOrUpdateBlock(
-        editor,
-        {
-          type: 'mermaid',
         } as PartialBlock<HMBlockSchema>,
         true,
       )

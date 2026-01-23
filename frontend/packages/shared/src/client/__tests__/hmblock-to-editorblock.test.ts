@@ -7,7 +7,6 @@ import {
   EditorHeadingBlock,
   EditorImageBlock,
   EditorMathBlock,
-  EditorMermaidBlock,
   EditorNostrBlock,
   EditorQueryBlock,
   EditorVideoBlock,
@@ -21,7 +20,6 @@ import {
   HMBlockHeading,
   HMBlockImage,
   HMBlockMath,
-  HMBlockMermaid,
   HMBlockNostr,
   HMBlockQuery,
   HMBlockWebEmbed,
@@ -479,72 +477,6 @@ describe('HMBlock to EditorBlock', () => {
           {
             type: 'text',
             text: `MATH HERE`,
-            styles: {},
-          },
-        ],
-      }
-      const val = hmBlockToEditorBlock(hmBlock)
-
-      expect(val).toEqual(result)
-    })
-
-    test('mermaid', () => {
-      const hmBlock: HMBlockMermaid = {
-        id: 'foo',
-        type: 'Mermaid',
-        text: `graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Result 1]
-    B -->|No| D[Result 2]`,
-        annotations: [],
-        attributes: {},
-        revision: 'revision123',
-      }
-
-      const result: EditorMermaidBlock = {
-        id: 'foo',
-        type: 'mermaid',
-        children: [],
-        props: {
-          revision: 'revision123',
-        },
-        content: [
-          {
-            type: 'text',
-            text: `graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Result 1]
-    B -->|No| D[Result 2]`,
-            styles: {},
-          },
-        ],
-      }
-      const val = hmBlockToEditorBlock(hmBlock)
-
-      expect(val).toEqual(result)
-    })
-
-    test('mermaid empty', () => {
-      const hmBlock: HMBlockMermaid = {
-        id: 'foo',
-        type: 'Mermaid',
-        text: '',
-        annotations: [],
-        attributes: {},
-        revision: 'revision123',
-      }
-
-      const result: EditorMermaidBlock = {
-        id: 'foo',
-        type: 'mermaid',
-        children: [],
-        props: {
-          revision: 'revision123',
-        },
-        content: [
-          {
-            type: 'text',
-            text: '',
             styles: {},
           },
         ],

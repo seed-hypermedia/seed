@@ -56,32 +56,6 @@ test.describe('Block Manipulation', () => {
       expect(blocks[0].type).toBe('code-block')
     })
 
-    test('Should insert mermaid block with slash menu', async ({
-      editorHelpers,
-      page,
-    }) => {
-      await editorHelpers.openSlashMenu()
-      await editorHelpers.clickSlashMenuItem('Mermaid')
-      // await page.waitForTimeout(200)
-
-      const blocks = await editorHelpers.getBlocks()
-      expect(blocks[0].type).toBe('mermaid')
-    })
-
-    test('Should find mermaid when filtering slash menu with diagram alias', async ({
-      editorHelpers,
-      page,
-    }) => {
-      await editorHelpers.typeText('/diagram')
-      // await page.waitForTimeout(300)
-
-      // Mermaid should be visible in the Mantine Menu
-      const mermaidItem = page.locator(
-        '.mantine-Menu-dropdown >> text="Mermaid"',
-      )
-      await expect(mermaidItem).toBeVisible()
-    })
-
     test('Should filter slash menu items when typing after slash', async ({
       editorHelpers,
       page,

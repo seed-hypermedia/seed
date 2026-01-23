@@ -34,7 +34,6 @@ function toEditorBlockType(
   if (hmBlockType === 'Paragraph') return 'paragraph'
   if (hmBlockType === 'Code') return 'code-block'
   if (hmBlockType === 'Math') return 'math'
-  if (hmBlockType === 'Mermaid') return 'mermaid'
   if (hmBlockType === 'Image') return 'image'
   if (hmBlockType === 'Video') return 'video'
   if (hmBlockType === 'File') return 'file'
@@ -131,7 +130,6 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
       'embed',
       'web-embed',
       'math',
-      'mermaid',
       'nostr',
     ].includes(blockType)
   ) {

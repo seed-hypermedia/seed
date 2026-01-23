@@ -1,9 +1,8 @@
 import {Button} from '@shm/ui/button'
-import {Tooltip} from '@shm/ui/tooltip'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import mermaid from 'mermaid'
-import {Check, ChevronDown, Eye, EyeOff, GitBranch} from 'lucide-react'
+import {Check, ChevronDown, Eye, EyeOff} from 'lucide-react'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 
@@ -17,11 +16,9 @@ mermaid.initialize({
 export const CodeBlockView = ({
   props,
   languages,
-  onConvertToMermaidBlock,
 }: {
   props: NodeViewProps
   languages: string[]
-  onConvertToMermaidBlock?: (content: string) => void
 }) => {
   const {node, updateAttributes} = props
   const [hovered, setHovered] = useState(false)
@@ -155,12 +152,6 @@ export const CodeBlockView = ({
     }
   }, [open])
 
-  const handleConvertToMermaid = () => {
-    if (onConvertToMermaidBlock && codeContent) {
-      onConvertToMermaidBlock(codeContent)
-    }
-  }
-
   return (
     <div
       className="relative flex min-w-0 flex-col overflow-hidden"
@@ -202,22 +193,6 @@ export const CodeBlockView = ({
                 )}
                 <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
               </Button>
-              {onConvertToMermaidBlock && (
-                <Tooltip content="Convert to Mermaid Block" asChild>
-                  <Button
-                    className="border-input bg-background flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs shadow-sm hover:bg-black/5 dark:hover:bg-white/10"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      handleConvertToMermaid()
-                    }}
-                    type="button"
-                  >
-                    <GitBranch className="h-3 w-3" />
-                    <span>To Block</span>
-                  </Button>
-                </Tooltip>
-              )}
             </>
           )}
           <div className="relative w-[120px]">

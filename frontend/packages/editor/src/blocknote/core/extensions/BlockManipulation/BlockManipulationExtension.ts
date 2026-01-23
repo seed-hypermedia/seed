@@ -18,7 +18,6 @@ export const selectableNodeTypes = [
   'video',
   'web-embed',
   'math',
-  'mermaid',
   'button',
   'query',
 ]
@@ -85,7 +84,6 @@ export const BlockManipulationExtension = Extension.create({
                 'video',
                 'web-embed',
                 'math',
-                'mermaid',
                 'button',
                 'query',
               ].includes(node.type.name)
