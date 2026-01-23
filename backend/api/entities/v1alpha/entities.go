@@ -71,6 +71,15 @@ const (
 	taskTTL       = time.Second * 40 // if the frontend didn't request discovery for this long we discard the task
 )
 
+var qCheckResourceDeleted = dqb.Str(`
+	SELECT dg.is_deleted
+	FROM document_generations dg
+	JOIN resources r ON r.id = dg.resource
+	WHERE r.iri = ?
+	ORDER BY dg.generation DESC
+	LIMIT 1
+`)
+
 // DiscoverEntity implements the Entities server.
 func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEntityRequest) (*entities.DiscoverEntityResponse, error) {
 	if api.disc == nil {
@@ -96,6 +105,20 @@ func (api *Server) DiscoverEntity(ctx context.Context, in *entities.DiscoverEnti
 
 	if _, err := blob.Version(in.Version).Parse(); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid version %q: %v", in.Version, err)
+	}
+
+	// Check if resource is deleted (tombstone) before starting discovery.
+	var isDeleted bool
+	if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.ExecTransient(conn, qCheckResourceDeleted(), func(stmt *sqlite.Stmt) error {
+			isDeleted = stmt.ColumnInt(0) == 1
+			return nil
+		}, string(iri))
+	}); err != nil {
+		return nil, err
+	}
+	if isDeleted {
+		return nil, status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", iri)
 	}
 
 	v := blob.Version(in.Version)
