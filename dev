@@ -6,6 +6,8 @@ import argparse
 import os
 import subprocess
 import sys
+import shutil
+import tempfile
 
 
 def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
@@ -27,6 +29,126 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
     return subprocess.run(
         cmd, check=True, shell=True, capture_output=capture_output, env=env
     )
+
+
+def sync_llama_go():
+    """Clone llama-go and sync it to backend/llama-go."""
+    print("Syncing llama-go from GitHub...")
+    
+    # Create temp directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clone_path = os.path.join(temp_dir, "llama-go")
+        
+        # Clone the repository with submodules
+        print(f"Cloning llama-go to {clone_path}...")
+        subprocess.run(
+            ["git", "clone", "--recurse-submodules", 
+             "https://github.com/seed-hypermedia/llama-go", clone_path],
+            check=True
+        )
+        
+        # Switch to the fix/vulkan branch
+        print("Switching to fix/vulkan branch...")
+        subprocess.run(
+            ["git", "checkout", "fix/vulkan"],
+            cwd=clone_path,
+            check=True
+        )
+        
+        # Prepare destination
+        dest_path = os.path.join(os.getcwd(), "backend", "util", "llama-go")
+        
+        # Remove existing llama-go if it exists
+        if os.path.exists(dest_path):
+            print(f"Removing existing {dest_path}...")
+            shutil.rmtree(dest_path)
+        
+        # Create destination directory
+        os.makedirs(dest_path, exist_ok=True)
+        
+        # Copy files, excluding git-specific files and top-level unwanted folders
+        print(f"Copying files to {dest_path}...")
+        exclude_patterns = {
+            '.git', '.gitignore', '.gitmodules', '.github', '.claude', '.forgejo'
+        }
+        
+        def ignore_patterns(dir, files):
+            """Custom ignore function to exclude git-specific files."""
+            ignored = []
+            for f in files:
+                # Exclude folders only at top level
+                dir_basename = os.path.basename(dir)
+                parent_is_root = os.path.dirname(dir) == clone_path
+                if parent_is_root and f in {'docs', 'internal'}:
+                    ignored.append(f)
+                # Exclude git-specific files
+                elif f.startswith('.git'):
+                    ignored.append(f)
+            return ignored
+        
+        for item in os.listdir(clone_path):
+            # Skip excluded directories and markdown files
+            if item in exclude_patterns or item.endswith('.md') or item.endswith('.yaml') or item.endswith('.yml') or item.startswith('Dockerfile'):
+                continue
+                
+            src = os.path.join(clone_path, item)
+            dst = os.path.join(dest_path, item)
+            
+            if os.path.isdir(src):
+                shutil.copytree(src, dst, ignore=ignore_patterns)
+            else:
+                shutil.copy2(src, dst)
+        
+        # Delete specific folders completely
+        print("Removing unwanted folders...")
+        folders_to_delete = [
+            os.path.join(dest_path, "examples"),
+            os.path.join(dest_path, "internal"),
+            os.path.join(dest_path, "docs"),
+            os.path.join(dest_path, "llama.cpp", "examples"),
+            os.path.join(dest_path, "llama.cpp", "tests"),
+            os.path.join(dest_path, "llama.cpp", "benches"),
+            os.path.join(dest_path, "llama.cpp", "vendor", "miniaudio"),
+        ]
+        
+        for folder in folders_to_delete:
+            if os.path.exists(folder):
+                print(f"  Deleting {folder}...")
+                shutil.rmtree(folder)
+        
+        # Clean up specific folders by removing files except allowed extensions
+        print("Cleaning up remaining folders...")
+        allowed_extensions = {'.txt', '.c', '.cpp', '.h', '.hpp'}
+        folders_to_clean = [
+            os.path.join(dest_path, "llama.cpp", "tools"),
+            os.path.join(dest_path, "llama.cpp", "models"),
+            os.path.join(dest_path, "models"),
+        ]
+        
+        for folder in folders_to_clean:
+            if not os.path.exists(folder):
+                continue
+            for root, dirs, files in os.walk(folder, topdown=False):
+                for filename in files:
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    if file_ext not in allowed_extensions:
+                        file_path = os.path.join(root, filename)
+                        os.remove(file_path)
+        
+        # Restore placeholder directories for CMake
+        print("Restoring placeholder directories...")
+        placeholder_dirs = [
+            os.path.join(dest_path, "llama.cpp", "tests"),
+            os.path.join(dest_path, "llama.cpp", "examples"),
+        ]
+        
+        for placeholder_dir in placeholder_dirs:
+            os.makedirs(placeholder_dir, exist_ok=True)
+            cmake_file = os.path.join(placeholder_dir, "CMakeLists.txt")
+            # Create empty CMakeLists.txt file
+            open(cmake_file, 'a').close()
+        
+        print("llama-go sync completed successfully!")
 
 
 def main():
@@ -52,6 +174,20 @@ def main():
         "Check all the generated code is up to date. Otherwise run the code generation process to fix it.",
     )
     def gen(args):
+        # Sync llama-go only if --all flag is present
+        if '--all' in args:
+            try:
+                sync_llama_go()
+                # Remove --all from args so it doesn't get passed to plz commands
+                args = [arg for arg in args if arg != '--all']
+            except subprocess.CalledProcessError as e:
+                print(f"Error syncing llama-go: {e}")
+                sys.exit(1)
+            except Exception as e:
+                print(f"Unexpected error syncing llama-go: {e}")
+                sys.exit(1)
+        
+        # Then proceed with existing code generation checks
         targets_to_check = (
             run(
                 f"plz query filter -i 'generated:check' {str.join(' ', args)}",

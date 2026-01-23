@@ -1,5 +1,36 @@
 subinclude("//build/rules/go:defs", "//build/rules/codegen:defs")
 
+# Build llama.cpp bindings before compiling Go code
+genrule(
+    name = "llama-cpp",
+    srcs = glob(["util/llama-go/**/*"], exclude=[
+        "util/llama-go/.git/**",
+        "util/llama-go/build/**",
+        "util/llama-go/**/*.a",
+        "util/llama-go/**/*.o",
+    ]),
+    outs = ["util/llama-go/libbinding.a"],
+    cmd = """
+cd backend/util/llama-go
+export LIBRARY_PATH=$(pwd)
+export C_INCLUDE_PATH=$(pwd)
+export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
+# Use metal on macOS, vulkan on other platforms
+if [ "$OS" = "darwin" ]; then
+    export BUILD_TYPE=metal
+else
+    export BUILD_TYPE=vulkan
+fi
+make libbinding.a
+mv libbinding.a $OUT
+    """,
+    building_description = "Building llama.cpp bindings...",
+    env = {
+        "OS": CONFIG.TARGET_OS,
+    },
+    visibility = ["//backend/..."],
+)
+
 # Builds the seed-daemon binary. It depends on all the non-test
 # Go files inside the `backend` directory.
 go_binary(
@@ -15,6 +46,7 @@ go_binary(
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
         "//backend/wallet/walletsql:go_library",
+        ":llama-cpp",
     ],
     out = "seed-daemon-" + target_platform_triple(),
     cgo = True,
