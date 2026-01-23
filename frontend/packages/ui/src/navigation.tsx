@@ -352,12 +352,14 @@ export function DocNavigationWrapper({
     }
   }, [media.gtSm])
 
+  const limitedOutline = outline?.length > 7 ? outline.slice(0, 7) : outline
+
   return showCollapsed ? (
     <div className="flex items-center justify-center">
       <HoverCard openDelay={100}>
         <HoverCardTrigger className="flex w-5 flex-col gap-3">
-          {outline?.length
-            ? outline.map((node) => (
+          {limitedOutline?.length
+            ? limitedOutline.map((node) => (
                 <CollapsedOutlineNode key={node.id} node={node} />
               ))
             : null}
@@ -366,6 +368,7 @@ export function DocNavigationWrapper({
           side="right"
           align="start"
           sideOffset={12}
+          collisionPadding={{bottom: 24}}
           className="p-1"
         >
           <div className="h-full max-h-[80vh] w-full overflow-auto">
