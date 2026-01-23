@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	llama "github.com/tcpipuk/llama-go"
+	llama "github.com/seed-hypermedia/llama-go"
 )
 
 // NewLlamaCppClient creates a new LlamaCpp client bound to the provided base URL.
@@ -69,7 +69,7 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool) (
 	if path == "" {
 		return ret, errors.New("gguf model name is required")
 	}
-
+	os.Setenv("LLAMA_LOG", "error") // Quiet mode
 	client.model, err = llama.LoadModel(path,
 		llama.WithGPULayers(-1),
 		llama.WithMMap(true),

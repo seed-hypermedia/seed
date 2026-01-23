@@ -47,9 +47,15 @@ installed.
 - `./dev run-site`
 - `./dev build-site`
 
+If we want to have GPU offloading for llm tasks we can add the `BUILD_TYPE=metal`
+(MacOS) or `BUILD_TYPE=vulkan` (Linux/Windows) before any of the above commands
+```bash
+BUILD_TYPE=metal ./dev run-desktop # run app with MacOS GPU offloading
+```
+
 To run the dev build with the production network, use the following command:
 
-```
+```bash
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
 
