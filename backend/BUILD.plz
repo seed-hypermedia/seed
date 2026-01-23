@@ -17,22 +17,30 @@ genrule(
         "backend/util/llama-go/libggml-cpu.a",
         "backend/util/llama-go/libggml-base.a",
         "backend/util/llama-go/libggml-vulkan.a",
+        "backend/util/llama-go/libggml-metal.a",
+        "backend/util/llama-go/ggml-metal.metal",
     ],
     cmd = """
 cd backend/util/llama-go
 export LIBRARY_PATH=$(pwd)
 export C_INCLUDE_PATH=$(pwd)
 export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
-# Use metal on macOS, vulkan on other platforms
+
+# Build platform-specific GPU library
 if [ "$OS" = "darwin" ]; then
     export BUILD_TYPE=metal
+    make libbinding.a
+    # Copy Metal shader (required for runtime)
+    cp build/bin/ggml-metal.metal .
+    # Create stub for Vulkan (not used on macOS)
+    touch libggml-vulkan.a
 else
     export BUILD_TYPE=vulkan
+    make libbinding.a
+    # Create stubs for Metal (not used on Linux)
+    touch libggml-metal.a
+    touch ggml-metal.metal
 fi
-make libbinding.a
-
-# Files are already in the correct location (backend/util/llama-go/)
-# No need to copy - Please will find them at the expected output paths
     """,
     building_description = "Building llama.cpp bindings...",
     env = {
