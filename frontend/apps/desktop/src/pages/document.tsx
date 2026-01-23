@@ -775,23 +775,6 @@ function _AppDocSiteHeader({
   const notifyServiceHost = useNotifyServiceHost()
   const embeds = useDocumentEmbeds(document)
 
-  // Scroll to blockRef when route changes (e.g., clicking embed in panel)
-  // Only scroll when viewing document content, not directory/collaborators/etc
-  useEffect(() => {
-    if (route.key !== 'document' && route.key !== 'feed') return
-    const blockRef = route.id?.blockRef
-    if (blockRef) {
-      // Small delay to ensure DOM is rendered
-      const timer = setTimeout(() => {
-        const element = window.document.getElementById(blockRef)
-        if (element) {
-          element.scrollIntoView({behavior: 'smooth', block: 'center'})
-        }
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [route.key, route.id?.blockRef])
-
   if (!siteHomeEntity) return null
 
   return (
@@ -899,6 +882,20 @@ function DocPageContent({
   const navigate = useNavigate()
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
+  const lastScrolledBlockRef = useRef<string | null>(null)
+
+  // Scroll to blockRef when route changes (e.g., clicking embed in panel)
+  // Skip if already scrolled via onBlockSelect to avoid double scroll
+  const blockRef = docRoute.id?.blockRef
+  useEffect(() => {
+    if (blockRef && blockRef !== lastScrolledBlockRef.current) {
+      const element = window.document.getElementById(blockRef)
+      if (element) {
+        element.scrollIntoView({behavior: 'smooth', block: 'start'})
+      }
+    }
+    lastScrolledBlockRef.current = null
+  }, [blockRef])
 
   if (resource?.type !== 'document') {
     throw new Error('Invalid resource type')
@@ -977,12 +974,12 @@ function DocPageContent({
                   ) {
                     const element = window.document.getElementById(blockId)
                     if (element) {
+                      lastScrolledBlockRef.current = blockId
                       element.scrollIntoView({
                         behavior: 'smooth',
                         block: 'start',
                       })
                     }
-
                     navigate({
                       ...route,
                       id: {
