@@ -32,10 +32,8 @@ export function useExistingDraft(route: NavRoute) {
   const drafts = useAccountDraftList(id?.uid)
   if (!id) return false
   const existingDraft = drafts.data?.find((d) => {
-    // @ts-expect-error
-    const id = d.editId
-    if (!id) return false
-    return id.uid === id.uid && pathMatches(id.path, id.path)
+    if (!d.editUid) return false
+    return id.uid === d.editUid && pathMatches(d.editPath || [], id.path)
   })
   return existingDraft
 }
