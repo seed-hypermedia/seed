@@ -333,5 +333,6 @@ export function getSlashMenuItems({
       view.dispatch(state.tr.scrollIntoView())
     },
   })
+
   return slashMenuItems
 }

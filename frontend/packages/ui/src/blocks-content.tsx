@@ -2547,6 +2547,22 @@ export function BlockContentCode({
   ...props
 }: BlockContentProps<HMBlockCode>) {
   const layoutUnit = useLayoutUnit()
+  const language =
+    block.type === 'Code'
+      ? getBlockAttribute(block.attributes, 'language')
+      : null
+
+  // Handle mermaid code blocks specially
+  if (language === 'mermaid') {
+    return (
+      <BlockContentMermaidCode
+        block={block}
+        parentBlockId={parentBlockId}
+        {...props}
+      />
+    )
+  }
+
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
   }
@@ -2574,10 +2590,6 @@ export function BlockContentCode({
     return null
   }
   const lowlight = useLowlight(common)
-  const language =
-    block.type === 'Code'
-      ? getBlockAttribute(block.attributes, 'language')
-      : null
   const nodes: any[] =
     language && language.length > 0
       ? getHighlightNodes(lowlight.highlight(language, block.text))
@@ -2607,6 +2619,102 @@ export function BlockContentCode({
           : block.text}
       </code>
     </pre>
+  )
+}
+
+// Render mermaid code blocks as diagrams
+function BlockContentMermaidCode({
+  block,
+  parentBlockId,
+  ...props
+}: BlockContentProps<HMBlockCode>) {
+  const {layoutUnit} = useBlocksContentContext()
+  const [svgContent, setSvgContent] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
+  const [showCode, setShowCode] = useState(false)
+  const mermaidRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const renderMermaid = async () => {
+      if (!block.text) {
+        setError(null)
+        setSvgContent('')
+        return
+      }
+
+      try {
+        // Dynamic import to avoid SSR issues
+        const mermaid = (await import('mermaid')).default
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+        })
+
+        const id = `mermaid-code-${block.id}-${Date.now()}`
+        const {svg} = await mermaid.render(id, block.text)
+        setSvgContent(svg)
+        setError(null)
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : 'Invalid diagram'
+        setError(errorMessage)
+        setSvgContent('')
+      }
+    }
+
+    renderMermaid()
+  }, [block.text, block.id])
+
+  return (
+    <div
+      {...props}
+      data-content-type="code"
+      data-language="mermaid"
+      data-content={block.text}
+      className={cn(
+        'block-content block-code-mermaid bg-background border-border w-full gap-2 rounded-md border py-3',
+        blockStyles,
+      )}
+      style={{
+        padding: layoutUnit / 2,
+        marginLeft: (-1 * layoutUnit) / 2,
+        marginRight: (-1 * layoutUnit) / 2,
+      }}
+    >
+      {error ? (
+        <div className="w-full rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+          <p className="font-mono text-sm">Mermaid Error: {error}</p>
+          <pre className="mt-2 max-h-40 overflow-auto rounded bg-red-50 p-2 text-xs dark:bg-red-950/50">
+            <code>{block.text}</code>
+          </pre>
+        </div>
+      ) : svgContent ? (
+        <div className="flex w-full flex-col gap-2">
+          <div
+            ref={mermaidRef}
+            className="mermaid-diagram flex w-full items-center justify-center overflow-auto"
+            dangerouslySetInnerHTML={{__html: svgContent}}
+          />
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCode(!showCode)}
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              {showCode ? 'Hide Code' : 'View Code'}
+            </Button>
+          </div>
+          {showCode && (
+            <pre className="bg-muted max-h-60 overflow-auto rounded-md p-3">
+              <code className="font-mono text-sm">{block.text}</code>
+            </pre>
+          )}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-center">Empty Mermaid block</p>
+      )}
+    </div>
   )
 }
 

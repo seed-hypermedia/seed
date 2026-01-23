@@ -295,6 +295,7 @@ export const MarkdownToBlocks = async (
       stack.push({level: headingLevel, block})
     } else {
       let blockToInsert = block
+
       if (block.type === 'image') {
         if (block.props.src == 'null') blockToInsert.props = {}
         else if (block.props.alt) {
