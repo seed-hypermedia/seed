@@ -10,6 +10,7 @@ import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import CodeBlockLowlight from './tiptap-extension-code-block'
+import {UnknownBlock} from './unknown-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
 import {common, createLowlight} from 'lowlight'
@@ -42,6 +43,7 @@ export const hmBlockSchema: BlockSchema = {
   math: MathBlock('math'),
   ['web-embed']: WebEmbed,
   embed: EmbedBlock,
+  unknown: UnknownBlock,
   // nostr: NostrBlock,
 }
 

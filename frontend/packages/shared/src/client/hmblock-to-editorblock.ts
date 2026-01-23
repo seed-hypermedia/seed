@@ -27,9 +27,7 @@ type ServerToEditorRecursiveOpts = {
   level?: number
 }
 
-function toEditorBlockType(
-  hmBlockType: HMBlockType,
-): EditorBlockType | undefined {
+function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Heading') return 'heading'
   if (hmBlockType === 'Paragraph') return 'paragraph'
   if (hmBlockType === 'Code') return 'code-block'
@@ -42,7 +40,7 @@ function toEditorBlockType(
   if (hmBlockType === 'WebEmbed') return 'web-embed'
   if (hmBlockType === 'Nostr') return 'nostr'
   if (hmBlockType === 'Query') return 'query'
-  return undefined
+  return 'unknown'
 }
 
 export function hmBlocksToEditorContent(
@@ -84,10 +82,23 @@ export function hmBlocksToEditorContent(
     .filter((block): block is EditorBlock => block !== null)
 }
 
-export function hmBlockToEditorBlock(block: HMBlock): EditorBlock | null {
+export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
   const blockType = toEditorBlockType(block.type)
 
-  if (!blockType) return null
+  // Handle unknown block types by preserving original data
+  if (blockType === 'unknown') {
+    return {
+      id: block.id,
+      type: 'unknown',
+      content: [],
+      props: {
+        revision: (block as any).revision,
+        originalType: block.type,
+        originalData: JSON.stringify(block),
+      },
+      children: [],
+    } as EditorBlock
+  }
 
   let out: EditorBlock = {
     id: block.id,
