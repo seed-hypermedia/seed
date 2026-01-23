@@ -11,6 +11,8 @@ import (
 
 	"seed/backend/daemon/taskmanager"
 	daemonpb "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/llm/backends"
+	"seed/backend/storage"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -37,25 +39,13 @@ const (
 	taskDescription     = "Indexing embeddings"
 	embeddingColumnDims = 768
 	pctOverlap          = 0.1
+	minRunInterval      = 5 * time.Second
 
-	minRunInterval = 5 * time.Second
+	kvEmbeddingModelChecksumKey = "embedding_model_checksum"
 )
 
-type ModelInfo struct {
-	// Dimensions is the dimensions of the embedding vector.
-	Dimensions int
-
-	// ContextSize is the context size of the model.
-	ContextSize int
-}
-type Backend interface {
-	LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error)
-	Embed(ctx context.Context, inputs []string) ([][]float32, error)
-	Version(ctx context.Context) (string, error)
-}
-
 type Embedder struct {
-	backend            Backend
+	backend            backends.Backend
 	pool               *sqlitex.Pool
 	logger             *zap.Logger
 	taskMgr            *taskmanager.TaskManager
@@ -150,7 +140,7 @@ func WithQueryPrefix(prefix string) EmbedderOption {
 // NewEmbedder creates an embedder.
 func NewEmbedder(
 	pool *sqlitex.Pool,
-	backend Backend,
+	backend backends.Backend,
 	logger *zap.Logger,
 	taskMgr *taskmanager.TaskManager,
 	opts ...EmbedderOption,
@@ -199,6 +189,12 @@ func (e *Embedder) Init(ctx context.Context) {
 		e.mu.Unlock()
 		return
 	}
+	e.mu.Unlock()
+	if err := e.ensureModel(ctx); err != nil {
+		e.logger.Warn("Could not ensure LLM model", zap.Error(err))
+		return
+	}
+	e.mu.Lock()
 	e.initialized = true
 	e.mu.Unlock()
 
@@ -232,9 +228,6 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 			e.logger.Info("embedding indexing run completed", zap.Duration("Elapsed time in seconds", time.Since(startTime)))
 		}()
 	*/
-	if err := e.ensureModel(ctx); err != nil {
-		return err
-	}
 
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
@@ -328,7 +321,41 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 	if info.ContextSize <= 0 {
 		return fmt.Errorf("embedding context size invalid: %d", info.ContextSize)
 	}
-
+	if info.Checksum == "" {
+		return fmt.Errorf("embedding model checksum is empty")
+	}
+	checksum, err := storage.GetKV(ctx, e.pool, kvEmbeddingModelChecksumKey)
+	if err != nil || checksum == "" || checksum != info.Checksum {
+		conn, release, err := e.pool.Conn(ctx)
+		if err != nil {
+			return fmt.Errorf("could not get database connection to store embedding model checksum: %v", err)
+		}
+		defer release()
+		if err := sqlitex.WithTx(conn, func() error {
+			if err := sqlitex.Exec(conn, "delete from embeddings;", nil); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("Could not delete old embeddings: %v", err)
+		}
+		var tables []string
+		if err := sqlitex.Exec(conn, "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'embeddings%'", func(stmt *sqlite.Stmt) error {
+			tables = append(tables, stmt.ColumnText(0))
+			return nil
+		}); err != nil {
+			return err
+		}
+		// delete from each table
+		for _, table := range tables {
+			if err := sqlitex.Exec(conn, fmt.Sprintf("DELETE FROM %s", table), nil); err != nil {
+				return fmt.Errorf("could not delete from table %s: %v", table, err)
+			}
+		}
+		if err := storage.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, info.Checksum, true); err != nil {
+			return fmt.Errorf("could not store embedding model checksum: %v", err)
+		}
+	}
 	e.mu.Lock()
 	e.dimensions = info.Dimensions
 	e.contextSize = info.ContextSize

@@ -1,7 +1,9 @@
-package llm
+package ollama
 
 import (
 	"context"
+	"net/url"
+	"seed/backend/testutil"
 	"testing"
 	"time"
 
@@ -11,10 +13,11 @@ import (
 func TestOllamaClientEmbeddings(t *testing.T) {
 	ctx := t.Context()
 	const model = "embeddinggemma"
-	mockServer := newMockOllamaServer(t)
-	t.Cleanup(mockServer.server.Close)
-
-	client, err := NewOllamaClient(mockServer.server.URL, WithBatchSize(2))
+	mockServer := testutil.NewMockOllamaServer(t)
+	t.Cleanup(mockServer.Server.Close)
+	url, err := url.Parse(mockServer.Server.URL)
+	require.NoError(t, err)
+	client, err := NewOllamaClient(*url, WithBatchSize(2))
 	require.NoError(t, err)
 
 	info, err := client.LoadModel(ctx, model, true)
@@ -32,28 +35,29 @@ func TestOllamaClientEmbeddings(t *testing.T) {
 		require.Equal(t, float32(len(inputs[index])), embedding[0])
 	}
 
-	mockServer.mu.Lock()
-	defer mockServer.mu.Unlock()
+	mockServer.Mu.Lock()
+	defer mockServer.Mu.Unlock()
 
-	require.Empty(t, mockServer.loadedModels)
-	require.Equal(t, []int{2, 2, 1}, mockServer.batchSizes)
-	require.Equal(t, len(inputs), mockServer.seenEmbeddings)
-	require.Equal(t, 1, mockServer.showRequests)
+	require.Empty(t, mockServer.LoadedModels)
+	require.Equal(t, []int{2, 2, 1}, mockServer.BatchSizes)
+	require.Equal(t, len(inputs), mockServer.SeenEmbeddings)
+	require.Equal(t, 1, mockServer.ShowRequests)
 }
 
 func TestOllamaClientEmbedEmptyInput(t *testing.T) {
 	ctx := t.Context()
 	const model = "embeddinggemma"
 
-	mockServer := newMockOllamaServer(t)
-	t.Cleanup(mockServer.server.Close)
+	mockServer := testutil.NewMockOllamaServer(t)
+	t.Cleanup(mockServer.Server.Close)
 
-	client, err := NewOllamaClient(mockServer.server.URL)
+	url, err := url.Parse(mockServer.Server.URL)
+	require.NoError(t, err)
+	client, err := NewOllamaClient(*url)
 	require.NoError(t, err)
 
 	_, err = client.LoadModel(ctx, model, true)
 	require.NoError(t, err)
-
 	embeddings, err := client.Embed(ctx, nil)
 	require.NoError(t, err)
 	require.Empty(t, embeddings)
@@ -62,7 +66,10 @@ func TestOllamaClientEmbedEmptyInput(t *testing.T) {
 func TestOllamaClientEmbedRequiresModel(t *testing.T) {
 	ctx := t.Context()
 
-	client, err := NewOllamaClient("http://example.com")
+	url, err := url.Parse("http://example.com")
+	require.NoError(t, err)
+	client, err := NewOllamaClient(*url)
+	//client, err := NewOllamaClient("file:///home/julio/Documents/seed/backend/llm/backends/ollama/ollama.go")
 	require.NoError(t, err)
 
 	_, err = client.Embed(ctx, []string{"alpha"})
@@ -75,11 +82,13 @@ func TestOllamaClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 	defer cancel()
 
 	const model = "embeddinggemma"
-	mockServer := newMockOllamaServer(t)
-	t.Cleanup(mockServer.server.Close)
+	mockServer := testutil.NewMockOllamaServer(t)
+	t.Cleanup(mockServer.Server.Close)
 
+	url, err := url.Parse(mockServer.Server.URL)
+	require.NoError(t, err)
 	client, err := NewOllamaClient(
-		mockServer.server.URL,
+		*url,
 		WithBatchSize(2),
 		WithWaitBetweenBatches(5*time.Second),
 	)
@@ -93,7 +102,7 @@ func TestOllamaClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
-	mockServer.mu.Lock()
-	defer mockServer.mu.Unlock()
-	require.Equal(t, 1, mockServer.embedRequests, "second embed request must not be sent once ctx expires during wait")
+	mockServer.Mu.Lock()
+	defer mockServer.Mu.Unlock()
+	require.Equal(t, 1, mockServer.EmbedRequests, "second embed request must not be sent once ctx expires during wait")
 }

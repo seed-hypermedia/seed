@@ -1,11 +1,15 @@
-package llm
+package ollama
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"seed/backend/llm/backends"
 	"strconv"
 	"strings"
 	"time"
@@ -20,32 +24,18 @@ const (
 )
 
 type OllamaClient struct {
-	baseURL            *url.URL
-	http               *http.Client
-	client             *api.Client
-	batchSize          int
-	waitBetweenBatches time.Duration
-	model              string
+	cfg    backends.ClientCfg
+	http   *http.Client
+	client *api.Client
 }
 
 type OllamaOption func(*OllamaClient) error
 
 // NewOllamaClient creates a new Ollama client bound to the provided base URL.
-func NewOllamaClient(baseURL string, opts ...OllamaOption) (*OllamaClient, error) {
-	trimmed := strings.TrimSpace(baseURL)
-	if trimmed == "" {
-		return nil, errors.New("ollama base URL is required")
-	}
-
-	parsedURL, err := url.Parse(trimmed)
-	if err != nil {
-		return nil, fmt.Errorf("ollama base URL is invalid: %w", err)
-	}
-
+func NewOllamaClient(baseURL url.URL, opts ...OllamaOption) (*OllamaClient, error) {
 	client := &OllamaClient{
-		baseURL:   parsedURL,
-		http:      &http.Client{Timeout: defaultHTTPTimeout},
-		batchSize: defaultBatchSize,
+		http: &http.Client{Timeout: defaultHTTPTimeout},
+		cfg:  backends.ClientCfg{BatchSize: defaultBatchSize, URL: baseURL},
 	}
 
 	for _, opt := range opts {
@@ -54,11 +44,11 @@ func NewOllamaClient(baseURL string, opts ...OllamaOption) (*OllamaClient, error
 		}
 	}
 
-	if client.batchSize <= 0 {
+	if client.cfg.BatchSize <= 0 {
 		return nil, errors.New("ollama batch size must be positive")
 	}
 
-	client.client = api.NewClient(client.baseURL, client.http)
+	client.client = api.NewClient(&client.cfg.URL, client.http)
 
 	return client, nil
 }
@@ -78,7 +68,7 @@ func WithHTTPTransport(httpClient *http.Client) OllamaOption {
 // WithBatchSize sets the batch size for embedding requests.
 func WithBatchSize(size int) OllamaOption {
 	return func(client *OllamaClient) error {
-		client.batchSize = size
+		client.cfg.BatchSize = size
 		return nil
 	}
 }
@@ -87,7 +77,7 @@ func WithBatchSize(size int) OllamaOption {
 // the next full batch size when embedding.
 func WithWaitBetweenBatches(duration time.Duration) OllamaOption {
 	return func(client *OllamaClient) error {
-		client.waitBetweenBatches = duration
+		client.cfg.WaitBetweenBatches = duration
 		return nil
 	}
 }
@@ -107,11 +97,15 @@ func WithHTTPTimeout(timeout time.Duration) OllamaOption {
 	}
 }
 
+func (client *OllamaClient) CloseModel(_ context.Context) error {
+	return nil
+}
+
 // LoadModel ensures a model is available; when force is true it pulls it.
 // It returns the embedding dimensions and context size from the model metadata.
-func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error) {
+func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (backends.ModelInfo, error) {
 	model = strings.TrimSpace(model)
-	ret := ModelInfo{}
+	ret := backends.ModelInfo{}
 	if model == "" {
 		return ret, errors.New("ollama model name is required")
 	}
@@ -122,7 +116,7 @@ func (client *OllamaClient) LoadModel(ctx context.Context, model string, force b
 		if parseErr != nil {
 			return ret, parseErr
 		}
-		client.model = model
+		client.cfg.Model = model
 
 		return ret, nil
 	} else if !force {
@@ -143,27 +137,27 @@ func (client *OllamaClient) LoadModel(ctx context.Context, model string, force b
 	if err := client.client.Pull(ctx, request, func(api.ProgressResponse) error {
 		return nil
 	}); err != nil {
-		return ModelInfo{}, err
+		return backends.ModelInfo{}, err
 	}
 
 	showResponse, err = client.client.Show(ctx, &api.ShowRequest{Model: model})
 	if err != nil {
-		return ModelInfo{}, err
+		return backends.ModelInfo{}, err
 	}
 
 	info, err := parseModelInfo(model, showResponse)
 	if err != nil {
-		return ModelInfo{}, err
+		return backends.ModelInfo{}, err
 	}
 
-	client.model = model
+	client.cfg.Model = model
 	return info, nil
 }
 
 // Embed returns embeddings for inputs in batches sized by the client.
 // The model must be loaded via LoadModel before calling Embed.
 func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
-	model := strings.TrimSpace(client.model)
+	model := strings.TrimSpace(client.cfg.Model)
 	if model == "" {
 		return nil, errors.New("ollama model not loaded; call LoadModel first")
 	}
@@ -173,19 +167,19 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 
 	embeddings := make([][]float32, 0, len(inputs))
 	var wasPreviousBatchFull bool
-	for start := 0; start < len(inputs); start += client.batchSize {
-		end := start + client.batchSize
+	for start := 0; start < len(inputs); start += client.cfg.BatchSize {
+		end := start + client.cfg.BatchSize
 		if end > len(inputs) {
 			end = len(inputs)
 		}
 
 		batch := inputs[start:end]
-		isBatchFull := len(batch) == client.batchSize
-		if client.waitBetweenBatches > 0 && wasPreviousBatchFull && isBatchFull {
+		isBatchFull := len(batch) == client.cfg.BatchSize
+		if client.cfg.WaitBetweenBatches > 0 && wasPreviousBatchFull && isBatchFull {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(client.waitBetweenBatches):
+			case <-time.After(client.cfg.WaitBetweenBatches):
 			}
 		}
 		wasPreviousBatchFull = isBatchFull
@@ -209,13 +203,13 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 	return embeddings, nil
 }
 
-func parseModelInfo(model string, response *api.ShowResponse) (ModelInfo, error) {
+func parseModelInfo(model string, response *api.ShowResponse) (backends.ModelInfo, error) {
 	if response == nil {
-		return ModelInfo{}, fmt.Errorf("ollama model info missing: %s", model)
+		return backends.ModelInfo{}, fmt.Errorf("ollama model info missing: %s", model)
 	}
 
 	if !hasEmbeddingCapability(response.Capabilities) {
-		return ModelInfo{}, fmt.Errorf("ollama model does not support embeddings: %s", model)
+		return backends.ModelInfo{}, fmt.Errorf("ollama model does not support embeddings: %s", model)
 	}
 
 	dimensions := readIntFromInfo(response.ModelInfo, embeddingDimensionKeys)
@@ -223,7 +217,7 @@ func parseModelInfo(model string, response *api.ShowResponse) (ModelInfo, error)
 		dimensions = readIntFromInfo(response.ProjectorInfo, embeddingDimensionKeys)
 	}
 	if dimensions == 0 {
-		return ModelInfo{}, fmt.Errorf("ollama model embedding dimensions missing: %s", model)
+		return backends.ModelInfo{}, fmt.Errorf("ollama model embedding dimensions missing: %s", model)
 	}
 
 	contextSize := readIntFromInfo(response.ModelInfo, contextSizeKeys)
@@ -231,10 +225,16 @@ func parseModelInfo(model string, response *api.ShowResponse) (ModelInfo, error)
 		contextSize = readIntFromInfo(response.ProjectorInfo, contextSizeKeys)
 	}
 	if contextSize == 0 {
-		return ModelInfo{}, fmt.Errorf("ollama model context size missing: %s", model)
+		return backends.ModelInfo{}, fmt.Errorf("ollama model context size missing: %s", model)
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		return backends.ModelInfo{}, fmt.Errorf("ollama model info marshal error: %v", err)
 	}
 
-	return ModelInfo{Dimensions: dimensions, ContextSize: contextSize}, nil
+	localHash := sha256.Sum256(data)
+	checksum := hex.EncodeToString(localHash[:])
+	return backends.ModelInfo{Dimensions: dimensions, ContextSize: contextSize, Checksum: checksum}, nil
 }
 
 func readIntFromInfo(info map[string]any, keys []string) int {
