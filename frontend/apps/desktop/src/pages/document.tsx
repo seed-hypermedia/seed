@@ -662,8 +662,6 @@ function _MainDocumentPage({
           route.key === 'document' || route.key === 'feed' ? route : null
         return (
           <>
-            <DocumentCover cover={document?.metadata.cover} />
-
             <div
               {...wrapperProps}
               className={cn(wrapperProps.className, 'flex')}
@@ -691,9 +689,6 @@ function _MainDocumentPage({
                   'base-doc-container relative sm:mr-10 sm:ml-0',
                 )}
               >
-                {isHomeDoc ? null : (
-                  <DocPageHeader docId={id} document={document} />
-                )}
                 <div className="mt-4 mb-16 flex-1 pl-4 sm:pl-0">
                   {resource.data?.type === 'document' && docRoute ? (
                     <DocPageContent
@@ -726,7 +721,52 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
         route={route}
       />
+      <div className="relative flex h-full flex-col" ref={elementRef}>
+        <div className="bg-background absolute top-4 right-4 z-10 z-11 flex items-center gap-1 rounded-sm p-1 shadow-sm">
+          {activeMainPanel == 'content' ? (
+            <>
+              <EditDocButton />
+              <CreateDocumentButton locationId={id} />
+            </>
+          ) : null}
+        </div>
+        <ScrollArea>
+          <DocumentCover cover={document?.metadata.cover} />
+
+          <div
+            className={cn(
+              'mx-auto flex w-full flex-col px-4',
+              isHomeDoc && 'mt-6',
+            )}
+            style={{maxWidth: contentMaxWidth}}
+          >
+            {isHomeDoc ? (
+              <SizableText size="4xl" weight="bold">
+                Home
+              </SizableText>
+            ) : (
+              <DocPageHeader docId={id} document={document} />
+            )}
+          </div>
+
+          {documentTools}
+          {renderMainContent()}
+        </ScrollArea>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className={cn(panelContainerStyles)}>
+      <AppDocSiteHeader
+        siteHomeEntity={siteHomeEntityData}
+        docId={id}
+        document={document}
+        onScrollParamSet={onScrollParamSet}
+        route={route}
+      />
       <div className="relative">
+        <DocumentCover cover={document?.metadata.cover} />
         <div className="bg-background absolute top-4 right-4 z-10 z-11 flex items-center gap-1 rounded-sm p-1 shadow-sm">
           {activeMainPanel == 'content' ? (
             <>
@@ -746,12 +786,7 @@ function _MainDocumentPage({
       </div>
       {documentTools}
 
-      <div
-        className="relative flex flex-1 flex-col overflow-hidden"
-        ref={elementRef}
-      >
-        <ScrollArea>{renderMainContent()}</ScrollArea>
-      </div>
+      {renderMainContent()}
     </div>
   )
 }
@@ -848,7 +883,6 @@ function DocPageHeader({
       updateTime={document.updateTime}
       siteUrl={document.metadata.siteUrl}
       visibility={document.visibility}
-      showTitle={false}
     />
   )
 }

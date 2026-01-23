@@ -54,7 +54,7 @@ export function DocumentHeader({
 
   return (
     <Container
-      className="dark:bg-background w-full rounded-lg bg-white"
+      className="dark:bg-background relative w-full rounded-lg bg-white"
       style={{
         marginTop: hasCover ? -40 : 0,
         paddingTop: !hasCover ? 60 : 24,
@@ -82,7 +82,7 @@ export function DocumentHeader({
         {isPrivate && <PrivateBadge />}
         {showTitle && (
           <SizableText size="4xl" weight="bold" {...highlighter(docId)}>
-            {docMetadata?.name}
+            {isHomeDoc ? 'Home' : docMetadata?.name}
           </SizableText>
         )}
         {docMetadata?.summary ? (
