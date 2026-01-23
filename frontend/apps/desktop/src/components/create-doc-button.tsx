@@ -126,9 +126,12 @@ export function CreateDocumentButton({
                         className="w-64"
                       >
                         <div className="flex flex-col gap-3">
-                          <SizableText size="sm" className="text-muted-foreground">
-                            To create private documents, you need to configure your
-                            web domain first.
+                          <SizableText
+                            size="sm"
+                            className="text-muted-foreground"
+                          >
+                            To create private documents, you need to configure
+                            your web domain first.
                           </SizableText>
                           <Button
                             size="sm"
