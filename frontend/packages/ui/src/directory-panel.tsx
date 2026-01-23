@@ -4,8 +4,8 @@ import {ReactNode} from 'react'
 import {SelectionContent} from './accessories'
 import {
   DirectoryEmpty,
-  DirectoryListView,
-  useDirectoryData,
+  DirectoryListViewWithActivity,
+  useDirectoryDataWithActivity,
 } from './directory-page'
 import {Spinner} from './spinner'
 import {useScrollRestoration} from './use-scroll-restoration'
@@ -24,7 +24,8 @@ export function DirectoryPanel({
     debug: false,
   })
 
-  const {directoryItems, isInitialLoading} = useDirectoryData(docId)
+  const {items, accountsMetadata, isInitialLoading} =
+    useDirectoryDataWithActivity(docId)
 
   if (isInitialLoading) {
     return (
@@ -34,7 +35,7 @@ export function DirectoryPanel({
     )
   }
 
-  if (directoryItems.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="p-4">
         <DirectoryEmpty />
@@ -47,7 +48,10 @@ export function DirectoryPanel({
 
   return (
     <SelectionContent scrollRef={scrollRef} header={header}>
-      <DirectoryListView items={directoryItems} />
+      <DirectoryListViewWithActivity
+        items={items}
+        accountsMetadata={accountsMetadata}
+      />
     </SelectionContent>
   )
 }

@@ -1,9 +1,19 @@
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
+import {
+  HMAccountsMetadata,
+  HMDocumentInfo,
+  HMListedDraft,
+  UnpackedHypermediaId,
+} from '@shm/shared/hm-types'
+import {
+  useAccountsMetadata,
+  useDirectoryWithDrafts,
+} from '@shm/shared/models/entity'
+import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
-import {ChangeEvent, ReactNode, useState} from 'react'
+import {ChangeEvent, ReactNode, useMemo, useState} from 'react'
 import {Input} from './components/input'
+import {DocumentListItem} from './document-list-item'
 import {DocumentSmallListItem, getSiteNavDirectory} from './navigation'
 import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
@@ -41,17 +51,18 @@ export function DirectoryPageContent({
     debug: false,
   })
 
-  const {directoryItems, isInitialLoading} = useDirectoryData(docId)
+  const {items, accountsMetadata, isInitialLoading} =
+    useDirectoryDataWithActivity(docId)
 
   // Filter items based on search query
   const filteredItems = searchQuery
-    ? directoryItems.filter(
+    ? items.filter(
         (item) =>
           item.metadata?.name
             ?.toLowerCase()
             .includes(searchQuery.toLowerCase()),
       )
-    : directoryItems
+    : items
 
   if (isInitialLoading) {
     return (
@@ -62,7 +73,7 @@ export function DirectoryPageContent({
   }
 
   const searchBox =
-    showSearch && directoryItems.length > 0 ? (
+    showSearch && items.length > 0 ? (
       <div className="relative w-full">
         <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
@@ -95,12 +106,15 @@ export function DirectoryPageContent({
 
       {/* Content */}
       <div className="p-6" ref={scrollRef}>
-        {directoryItems.length === 0 ? (
+        {items.length === 0 ? (
           <DirectoryEmpty canCreate={canCreate} />
         ) : filteredItems.length === 0 ? (
           <DirectoryNoResults searchQuery={searchQuery} />
         ) : (
-          <DirectoryListView items={filteredItems} />
+          <DirectoryListViewWithActivity
+            items={filteredItems}
+            accountsMetadata={accountsMetadata}
+          />
         )}
       </div>
     </PageLayout>
@@ -169,4 +183,95 @@ export function useDirectoryData(docId: UnpackedHypermediaId) {
   })
 
   return {directoryItems, isInitialLoading}
+}
+
+/** Directory item with activity data */
+export type DirectoryItemWithActivity = HMDocumentInfo & {
+  draftId?: string
+  isPublished: boolean
+}
+
+/** Get the most recent activity time for sorting */
+function getActivityTime(item: DirectoryItemWithActivity): number {
+  const activity = item.activitySummary
+  if (!activity) return item.sortTime?.getTime() || 0
+
+  const changeTime = normalizeDate(activity.latestChangeTime)?.getTime() || 0
+  const commentTime = normalizeDate(activity.latestCommentTime)?.getTime() || 0
+
+  return Math.max(changeTime, commentTime) || item.sortTime?.getTime() || 0
+}
+
+/** Hook to fetch directory data with activity info for rich display */
+export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
+  const {directory, drafts, isInitialLoading} = useDirectoryWithDrafts(docId, {
+    mode: 'Children',
+  })
+
+  const items = useMemo(() => {
+    if (!directory) return []
+
+    const draftsArray = Array.isArray(drafts) ? drafts : []
+    const editIds = new Map<string, string>()
+    draftsArray.forEach((draft: HMListedDraft) => {
+      // @ts-expect-error editId exists on drafts
+      if (draft.editId?.id) {
+        // @ts-expect-error editId exists on drafts
+        editIds.set(draft.editId.id, draft.id)
+      }
+    })
+
+    // Map published items with draft info
+    const publishedItems: DirectoryItemWithActivity[] = directory.map(
+      (item) => ({
+        ...item,
+        draftId: editIds.get(item.id.id),
+        isPublished: true,
+      }),
+    )
+
+    // Sort by activity time (most recent first)
+    publishedItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
+
+    return publishedItems
+  }, [directory, drafts])
+
+  // Collect all author uids for fetching metadata
+  const authorUids = useMemo(() => {
+    const uids = new Set<string>()
+    items.forEach((item) => {
+      item.authors?.forEach((uid) => uids.add(uid))
+    })
+    return Array.from(uids)
+  }, [items])
+
+  const accountsMetadata = useAccountsMetadata(authorUids)
+
+  return {
+    items,
+    accountsMetadata: accountsMetadata.data,
+    isInitialLoading,
+    isLoadingMetadata: accountsMetadata.isLoading,
+  }
+}
+
+/** Directory list view with rich activity display like Library */
+export function DirectoryListViewWithActivity({
+  items,
+  accountsMetadata,
+}: {
+  items: DirectoryItemWithActivity[]
+  accountsMetadata?: HMAccountsMetadata
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      {items.map((item) => (
+        <DocumentListItem
+          key={item.id.id}
+          item={item}
+          accountsMetadata={accountsMetadata}
+        />
+      ))}
+    </div>
+  )
 }
