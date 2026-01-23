@@ -253,7 +253,6 @@ export function DocOptionsButton({
           onImportDirectory: importing.importDirectory,
           onImportLatexFile: importing.importLatexFile,
           onImportLatexDirectory: importing.importLatexDirectory,
-          onImportWebSite: importing.importWebSite,
         })
       },
     })

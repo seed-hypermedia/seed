@@ -69,7 +69,12 @@ export function CoverImage({
         <div className="absolute top-0 right-0 left-0 z-10 w-full">
           {showOutline ? <div /> : null}
           <div className="px-2">
-            <div className="flex items-center justify-end gap-2 px-4 pt-6 opacity-0 group-hover:opacity-100">
+            <div className="flex items-center gap-2 px-4 pt-6 opacity-0 group-hover:opacity-100">
+              <Tooltip content="Remove Cover image">
+                <Button variant="destructive" onClick={onRemoveCover}>
+                  <Trash className="size-4" />
+                </Button>
+              </Tooltip>
               <div className="relative flex items-center justify-center">
                 <input
                   type="file"
@@ -90,11 +95,6 @@ export function CoverImage({
                   url ? 'CHANGE' : 'ADD'
                 } COVER`}</Button>
               </div>
-              <Tooltip content="Remove Cover image">
-                <Button variant="destructive" onClick={onRemoveCover}>
-                  <Trash className="size-4" />
-                </Button>
-              </Tooltip>
             </div>
           </div>
         </div>

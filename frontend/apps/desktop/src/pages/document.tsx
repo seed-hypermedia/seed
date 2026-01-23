@@ -726,7 +726,7 @@ function _MainDocumentPage({
         route={route}
       />
       <div className="relative">
-        <div className="bg-background absolute top-4 right-4 z-10 flex items-center rounded p-1 shadow-sm">
+        <div className="bg-background absolute top-4 right-4 z-10 z-11 flex items-center gap-1 rounded-sm p-1 shadow-sm">
           {activeMainPanel == 'content' ? (
             <>
               <EditDocButton />
@@ -1046,7 +1046,7 @@ function EditDocButton() {
     <Button
       size="sm"
       variant={existingDraft ? undefined : 'ghost'}
-      className={cn('mx-2 shadow-sm', existingDraft ? 'bg-yellow-200' : '')}
+      className={cn(existingDraft && 'bg-yellow-200')}
       onClick={() => {
         if (existingDraft) {
           navigate({
