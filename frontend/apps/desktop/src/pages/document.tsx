@@ -409,6 +409,26 @@ function _MainDocumentPage({
   const canCreate = useCanCreateSubDocument(id)
   const account = useAccount(id.uid, {enabled: !id.path?.length})
 
+  // Track when DocumentTools becomes sticky
+  const [isToolsSticky, setIsToolsSticky] = useState(false)
+  const toolsSentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const sentinel = toolsSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // When sentinel is not intersecting (scrolled out of view), tools are sticky
+        setIsToolsSticky(!entry.isIntersecting)
+      },
+      {threshold: 0.1, rootMargin: '0px'},
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     if (account.data?.id?.uid && account.data?.id?.uid !== id.uid) {
       toast.error('This account redirects to another account.')
@@ -563,22 +583,46 @@ function _MainDocumentPage({
       : null
 
   const documentTools = (
-    <DocumentTools
-      id={id}
-      activeTab={activeMainPanel}
-      existingDraft={existingDraft}
-      commentsCount={interactionSummary.data?.comments || 0}
-      collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
-      directoryCount={directory.data?.length}
-      rightActions={
-        activeMainPanel != 'content' ? (
-          <OpenInPanelButton
-            id={id}
-            panelRoute={routeToPanelRoute(route) ?? {key: activeMainPanel, id}}
-          />
-        ) : null
-      }
-    />
+    <>
+      {/* Sentinel element to detect when tools become sticky */}
+      <div ref={toolsSentinelRef} className="h-0" />
+      <div
+        className={cn(
+          'dark:bg-background sticky top-0 z-10 bg-white',
+          isToolsSticky ? 'py-1 shadow-md' : 'py-4 shadow-none',
+          'transition-all',
+        )}
+      >
+        <DocumentTools
+          id={id}
+          activeTab={activeMainPanel}
+          existingDraft={existingDraft}
+          commentsCount={interactionSummary.data?.comments || 0}
+          collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
+          directoryCount={directory.data?.length}
+          rightActions={
+            activeMainPanel == 'content' ? (
+              <div
+                className={cn(
+                  'flex items-center gap-1 p-1 transition-all',
+                  isToolsSticky ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                <EditDocButton />
+                <CreateDocumentButton locationId={id} />
+              </div>
+            ) : (
+              <OpenInPanelButton
+                id={id}
+                panelRoute={
+                  routeToPanelRoute(route) ?? {key: activeMainPanel, id}
+                }
+              />
+            )
+          }
+        />
+      </div>
+    </>
   )
 
   // Build main content based on activeMainPanel
@@ -722,14 +766,18 @@ function _MainDocumentPage({
         route={route}
       />
       <div className="relative flex h-full flex-col" ref={elementRef}>
-        <div className="bg-background absolute top-4 right-4 z-10 z-11 flex items-center gap-1 rounded-sm p-1 shadow-sm">
-          {activeMainPanel == 'content' ? (
-            <>
-              <EditDocButton />
-              <CreateDocumentButton locationId={id} />
-            </>
-          ) : null}
-        </div>
+        {/* Floating edit buttons - hidden when DocumentTools is sticky */}
+        {activeMainPanel == 'content' && !isToolsSticky ? (
+          <div
+            className={cn(
+              'pointer-none bg-background absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm p-1 opacity-0 shadow-sm transition-all',
+              !isToolsSticky && 'pointer-default opacity-100',
+            )}
+          >
+            <EditDocButton />
+            <CreateDocumentButton locationId={id} />
+          </div>
+        ) : null}
         <ScrollArea>
           <DocumentCover cover={document?.metadata.cover} />
 
@@ -753,40 +801,6 @@ function _MainDocumentPage({
           {renderMainContent()}
         </ScrollArea>
       </div>
-    </div>
-  )
-
-  return (
-    <div className={cn(panelContainerStyles)}>
-      <AppDocSiteHeader
-        siteHomeEntity={siteHomeEntityData}
-        docId={id}
-        document={document}
-        onScrollParamSet={onScrollParamSet}
-        route={route}
-      />
-      <div className="relative">
-        <DocumentCover cover={document?.metadata.cover} />
-        <div className="bg-background absolute top-4 right-4 z-10 z-11 flex items-center gap-1 rounded-sm p-1 shadow-sm">
-          {activeMainPanel == 'content' ? (
-            <>
-              <EditDocButton />
-              <CreateDocumentButton locationId={id} />
-            </>
-          ) : null}
-        </div>
-        <div
-          className="mx-auto flex w-full flex-col gap-6 px-4 py-6"
-          style={{maxWidth: contentMaxWidth}}
-        >
-          <SizableText size="4xl" weight="bold">
-            {isHomeDoc ? 'Home' : metadata?.name}
-          </SizableText>
-        </div>
-      </div>
-      {documentTools}
-
-      {renderMainContent()}
     </div>
   )
 }
