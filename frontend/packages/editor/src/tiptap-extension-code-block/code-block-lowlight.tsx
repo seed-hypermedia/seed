@@ -24,12 +24,6 @@ export const CodeBlockLowlight = CodeBlock.extend<CodeBlockLowlightOptions>({
     }
   },
 
-  addStorage() {
-    return {
-      blockNoteEditor: null as any,
-    }
-  },
-
   addNodeView() {
     const BlockContent: FC<NodeViewProps> = (props: NodeViewProps) => {
       const Content = CodeBlockView
