@@ -223,8 +223,8 @@ const Render = (
         selected
           ? 'border-foreground/20 dark:border-foreground/30 bg-muted'
           : commentStyle
-            ? 'border-border bg-black/5 dark:bg-white/10'
-            : 'bg-muted border-border',
+          ? 'border-border bg-black/5 dark:bg-white/10'
+          : 'bg-muted border-border',
         'hover:bg-black/3 dark:hover:bg-white/3',
       )}
     >

@@ -372,9 +372,10 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
     }
 
     // Store reference to BlockNoteEditor in code-block extension for block conversion
-    const codeBlockExtension = this._tiptapEditor.extensionManager.extensions.find(
-      (ext) => ext.name === 'code-block',
-    )
+    const codeBlockExtension =
+      this._tiptapEditor.extensionManager.extensions.find(
+        (ext) => ext.name === 'code-block',
+      )
     if (codeBlockExtension?.storage) {
       codeBlockExtension.storage.blockNoteEditor = this
     }
