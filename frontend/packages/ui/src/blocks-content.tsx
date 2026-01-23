@@ -1109,7 +1109,7 @@ function BlockContentParagraph({
 
   let inline = useMemo(() => {
     const editorBlock = hmBlockToEditorBlock(block)
-    return editorBlock.content
+    return editorBlock?.content ?? []
   }, [block])
   return (
     <Text
@@ -1136,7 +1136,10 @@ export function BlockContentHeading({
   ...props
 }: BlockContentProps<HMBlockHeading>) {
   const {debug} = useBlocksContentContext()
-  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
+  let inline = useMemo(
+    () => hmBlockToEditorBlock(block)?.content ?? [],
+    [block],
+  )
 
   return (
     <SeedHeading
@@ -1176,7 +1179,10 @@ function BlockContentImage({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockImage>) {
-  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
+  let inline = useMemo(
+    () => hmBlockToEditorBlock(block)?.content ?? [],
+    [block],
+  )
   const {textUnit} = useBlocksContentContext()
   const imageUrl = useImageUrl()
   const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>(
@@ -1331,7 +1337,10 @@ function BlockContentVideo({
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockVideo>) {
-  let inline = useMemo(() => hmBlockToEditorBlock(block).content, [block])
+  let inline = useMemo(
+    () => hmBlockToEditorBlock(block)?.content ?? [],
+    [block],
+  )
   const link = block.link || ''
   const {textUnit} = useBlocksContentContext()
   const fileUrl = useFileUrl()
@@ -2280,9 +2289,9 @@ function BlockContentQuery({block}: {block: HMBlockQuery}) {
 }
 
 export function BlockContentUnknown(props: BlockContentProps<HMBlock>) {
-  let message = 'Unrecognized Block'
+  let message = `Unsupported Block: ${props.block.type}`
   if (props.block.type == 'Embed') {
-    message = `Unrecognized Embed: ${props.block.link}`
+    message = `Unsupported Embed: ${props.block.link}`
   }
   return <ErrorBlock message={message} debugData={props.block} />
 }

@@ -1133,7 +1133,12 @@ export const HMBlockKnownSchema = z.discriminatedUnion('type', [
 export const HMBlockUnknownSchema = z
   .object({
     type: z.string(),
-    ...blockBaseProperties,
+    id: z.string(),
+    revision: z.string().optional(),
+    attributes: z.record(z.any()).optional(),
+    annotations: z.array(z.any()).optional(),
+    text: z.string().optional(),
+    link: z.string().optional(),
   })
   .passthrough()
 

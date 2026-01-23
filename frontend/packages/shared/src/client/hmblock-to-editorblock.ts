@@ -84,10 +84,10 @@ export function hmBlocksToEditorContent(
     .filter((block): block is EditorBlock => block !== null)
 }
 
-export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
+export function hmBlockToEditorBlock(block: HMBlock): EditorBlock | null {
   const blockType = toEditorBlockType(block.type)
 
-  if (!blockType) throw new Error('Unsupported block type ' + block.type)
+  if (!blockType) return null
 
   let out: EditorBlock = {
     id: block.id,
