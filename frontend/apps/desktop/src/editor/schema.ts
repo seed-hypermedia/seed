@@ -11,6 +11,7 @@ import {HMHeadingBlockContent} from '@shm/editor/heading-component-plugin'
 import {ImageBlock} from '@shm/editor/image'
 import {MathBlock} from '@shm/editor/math'
 import CodeBlockLowlight from '@shm/editor/tiptap-extension-code-block'
+import {UnknownBlock} from '@shm/editor/unknown-block'
 import {VideoBlock} from '@shm/editor/video'
 import {WebEmbed} from '@shm/editor/web-embed'
 import {common, createLowlight} from 'lowlight'
@@ -47,6 +48,7 @@ export const hmBlockSchema: BlockSchema = {
   ['web-embed']: WebEmbed,
   math: MathBlock('math'),
   query: QueryBlock,
+  unknown: UnknownBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

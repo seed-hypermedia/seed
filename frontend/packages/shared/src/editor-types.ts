@@ -13,6 +13,7 @@ export type EditorBlock =
   | EditorMathBlock
   | EditorNostrBlock
   | EditorQueryBlock
+  | EditorUnknownBlock
 export type HMInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
 // ===============
@@ -137,6 +138,15 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryIncludes?: string
     querySort?: string
     banner?: 'true' | 'false'
+  }
+  content: Array<HMInlineContent>
+}
+
+export type EditorUnknownBlock = EditorBaseBlock & {
+  type: 'unknown'
+  props: EditorBlockProps & {
+    originalType: string
+    originalData: string
   }
   content: Array<HMInlineContent>
 }
