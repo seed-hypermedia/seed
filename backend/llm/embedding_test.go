@@ -3,13 +3,17 @@ package llm
 import (
 	"context"
 	"math"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"seed/backend/daemon/taskmanager"
 	daemonpb "seed/backend/genproto/daemon/v1alpha"
+	"seed/backend/llm/backends"
+	"seed/backend/llm/backends/ollama"
 	"seed/backend/storage"
+	"seed/backend/testutil"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -28,7 +32,12 @@ type fakeEmbeddingBackend struct {
 	contextSize int
 }
 
-func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error) {
+func (b *fakeEmbeddingBackend) CloseModel(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
+func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool) (backends.ModelInfo, error) {
 	_ = ctx
 	_ = model
 	_ = force
@@ -37,7 +46,7 @@ func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, forc
 	defer b.mu.Unlock()
 
 	b.loadCalls++
-	return ModelInfo{Dimensions: 768, ContextSize: b.contextSize}, nil
+	return backends.ModelInfo{Dimensions: 768, ContextSize: b.contextSize}, nil
 }
 
 func (b *fakeEmbeddingBackend) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
@@ -240,10 +249,11 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 	defer cancel()
 
 	// Use a small context size so chunking is exercised: floor(10*0.9)=9.
-	mockServer := newMockOllamaServer(t, withMockOllamaContextSize(10))
-	t.Cleanup(mockServer.server.Close)
-
-	backend, err := NewOllamaClient(mockServer.server.URL, WithBatchSize(1000))
+	mockServer := testutil.NewMockOllamaServer(t, testutil.WithMockOllamaContextSize(10))
+	t.Cleanup(mockServer.Server.Close)
+	url, err := url.Parse(mockServer.Server.URL)
+	require.NoError(t, err)
+	backend, err := ollama.NewOllamaClient(*url, ollama.WithBatchSize(1000))
 	require.NoError(t, err)
 
 	db := storage.MakeTestMemoryDB(t)
@@ -272,7 +282,7 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 	e.Init(ctx)
 
 	select {
-	case <-mockServer.firstEmbedDone:
+	case <-mockServer.FirstEmbedDone:
 		// Wait for the run to finish inserting before canceling.
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for Init() to trigger embedding")
@@ -296,10 +306,10 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 		return len(tm.Tasks()) == 0
 	}, 2*time.Second, 10*time.Millisecond)
 
-	mockServer.mu.Lock()
-	require.GreaterOrEqual(t, mockServer.showRequests, 1)
-	require.Equal(t, 1, mockServer.embedRequests)
-	require.Len(t, mockServer.batchSizes, 1)
-	require.Equal(t, 3, mockServer.batchSizes[0])
-	mockServer.mu.Unlock()
+	mockServer.Mu.Lock()
+	require.GreaterOrEqual(t, mockServer.ShowRequests, 1)
+	require.Equal(t, 1, mockServer.EmbedRequests)
+	require.Len(t, mockServer.BatchSizes, 1)
+	require.Equal(t, 3, mockServer.BatchSizes[0])
+	mockServer.Mu.Unlock()
 }

@@ -21,7 +21,10 @@ import (
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
-	"seed/backend/llm"
+	embeddings "seed/backend/llm"
+	"seed/backend/llm/backends"
+	"seed/backend/llm/backends/llamacpp"
+	"seed/backend/llm/backends/ollama"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
@@ -427,26 +430,43 @@ func initLLM(
 		zap.Duration("SleepBetweenPasses", cfg.Embedding.SleepBetweenPasses),
 		zap.Int("indexPassSize", cfg.Embedding.IndexPassSize),
 	)
+	var backend backends.Backend
+	switch cfg.Backend.Cfg.URL.Scheme {
+	case "file":
+		llamaCppOpts := []llamacpp.LlamaCppOption{
+			llamacpp.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+		}
 
-	ollamaOpts := []llm.OllamaOption{
-		llm.WithWaitBetweenBatches(cfg.Backend.Ollama.SleepBetweenBatches),
-	}
+		llamacpp, err := llamacpp.NewLlamaCppClient(cfg.Backend.Cfg.URL, llamaCppOpts...)
+		if err != nil {
+			return err
+		}
+		log.Info("LLM Backend initialized", zap.String("LlamaCpp File URL", cfg.Backend.Cfg.URL.String()))
+		backend = llamacpp
+	case "http", "https":
+		ollamaOpts := []ollama.OllamaOption{
+			ollama.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+		}
 
-	backend, err := llm.NewOllamaClient(cfg.Backend.Ollama.URL, ollamaOpts...)
-	if err != nil {
-		return err
+		ollama, err := ollama.NewOllamaClient(cfg.Backend.Cfg.URL, ollamaOpts...)
+		if err != nil {
+			return err
+		}
+		log.Info("LLM Backend initialized", zap.String("Ollama URL", cfg.Backend.Cfg.URL.String()))
+		backend = ollama
+	default:
+		return errors.New("unsupported LLM backend URL scheme: " + cfg.Backend.Cfg.URL.Scheme)
 	}
-	log.Info("LLM Backend initialized", zap.String("Ollama URL", cfg.Backend.Ollama.URL))
-	embedderOpts := []llm.EmbedderOption{
+	embedderOpts := []embeddings.EmbedderOption{
 
-		llm.WithIndexPassSize(cfg.Embedding.IndexPassSize),
-		llm.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
-		llm.WithQueryPrefix(cfg.Embedding.QueryPrefix),
-		llm.WithSleepPerPass(cfg.Embedding.SleepBetweenPasses),
-		llm.WithInterval(cfg.Embedding.PeriodicInterval),
-		llm.WithModel(cfg.Embedding.Model),
+		embeddings.WithIndexPassSize(cfg.Embedding.IndexPassSize),
+		embeddings.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
+		embeddings.WithQueryPrefix(cfg.Embedding.QueryPrefix),
+		embeddings.WithSleepPerPass(cfg.Embedding.SleepBetweenPasses),
+		embeddings.WithInterval(cfg.Embedding.PeriodicInterval),
+		embeddings.WithModel(cfg.Embedding.Model),
 	}
-	embedder, err := llm.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
+	embedder, err := embeddings.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
 	if err != nil {
 		return err
 	}

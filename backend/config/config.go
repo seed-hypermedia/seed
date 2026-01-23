@@ -4,6 +4,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"seed/backend/ipfs"
 	"seed/backend/util/must"
@@ -140,6 +141,35 @@ func newAddrsFlag(val []multiaddr.Multiaddr, p *[]multiaddr.Multiaddr) flag.Valu
 	return (*addrsFlag)(p)
 }
 
+type urlFlag url.URL
+
+func (al *urlFlag) String() string {
+	if al == nil {
+		return ""
+	}
+
+	return (*url.URL)(al).String()
+}
+
+func (al *urlFlag) Set(s string) error {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return fmt.Errorf("URL flag value cannot be empty")
+	}
+	parsedURL, err := url.Parse(trimmed)
+	if err != nil {
+		return err
+	}
+
+	*al = urlFlag(*parsedURL)
+	return nil
+}
+
+func newURLFlag(val url.URL, p *url.URL) flag.Value {
+	*p = val
+	return (*urlFlag)(p)
+}
+
 // HTTP configuration.
 type HTTP struct {
 	Port int
@@ -189,16 +219,17 @@ type Embedder struct {
 	Enabled bool
 }
 
-type OllamaBackend struct {
+type BackendCfg struct {
 	// URL is the base URL of the Ollama server.
-	URL string
+	// It could be an HTTP URL or a file URL depending on the backend.
+	URL url.URL
 
 	// SleepBetweenBatches is the time to wait between embedding batches.
 	SleepBetweenBatches time.Duration
 }
 
 type Backend struct {
-	Ollama OllamaBackend
+	Cfg BackendCfg
 }
 
 // LLM configuration.
@@ -210,8 +241,8 @@ type LLM struct {
 func (c LLM) Default() LLM {
 	return LLM{
 		Backend: Backend{
-			Ollama: OllamaBackend{
-				URL:                 "http://localhost:11434",
+			Cfg: BackendCfg{
+				URL:                 url.URL{Scheme: "http", Host: "localhost:11434"},
 				SleepBetweenBatches: 750 * time.Millisecond,
 			},
 		},
@@ -229,8 +260,8 @@ func (c LLM) Default() LLM {
 
 // BindFlags binds the flags to the given FlagSet.
 func (c *LLM) BindFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.Backend.Ollama.URL, "llm.ollama.url", c.Backend.Ollama.URL, "Ollama base URL")
-	fs.DurationVar(&c.Backend.Ollama.SleepBetweenBatches, "llm.ollama.sleep-between-batches", c.Backend.Ollama.SleepBetweenBatches, "Wait time between embedding batches")
+	fs.Var(newURLFlag(c.Backend.Cfg.URL, &c.Backend.Cfg.URL), "llm.backend.url", "Ollama base URL (e.g. http://localhost:11434) or llamacpp file URL (file:///path/to-model.gguf)")
+	fs.DurationVar(&c.Backend.Cfg.SleepBetweenBatches, "llm.ollama.sleep-between-batches", c.Backend.Cfg.SleepBetweenBatches, "Wait time between embedding batches")
 	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
 	fs.DurationVar(&c.Embedding.SleepBetweenPasses, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPasses, "Wait time between embedding passes")
 	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "How many FTS rows to scan at once")
