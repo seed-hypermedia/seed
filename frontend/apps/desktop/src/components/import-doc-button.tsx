@@ -71,7 +71,7 @@ export function ImportDialog({
 }) {
   return (
     <>
-      <DialogTitle>Import Documents</DialogTitle>
+      <DialogTitle>Import Content</DialogTitle>
       <DialogDescription>
         Import Markdown or LaTeX files, folders, or websites.
       </DialogDescription>

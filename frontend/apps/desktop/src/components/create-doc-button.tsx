@@ -11,13 +11,48 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@shm/ui/hover-card'
 import {Add} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
-import {ChevronDown, FilePlus2, Info, Lock} from 'lucide-react'
+import {ChevronDown, FilePlus2, Import, Info, Lock} from 'lucide-react'
+import {ReactNode} from 'react'
+import {useImportDialog, useImporting} from './import-doc-button'
 import {usePublishSite} from './publish-site'
+
+/** Component that handles import functionality with proper hook usage */
+function ImportMenuItem({
+  locationId,
+  children,
+}: {
+  locationId: UnpackedHypermediaId
+  children: (props: {
+    openImportDialog: () => void
+    content: ReactNode
+  }) => ReactNode
+}) {
+  const importing = useImporting(locationId)
+  const importDialog = useImportDialog()
+
+  const openImportDialog = () => {
+    importDialog.open({
+      onImportFile: importing.importFile,
+      onImportDirectory: importing.importDirectory,
+      onImportLatexFile: importing.importLatexFile,
+      onImportLatexDirectory: importing.importLatexDirectory,
+      onImportWebSite: importing.importWebSite,
+    })
+  }
+
+  return (
+    <>
+      {children({openImportDialog, content: importing.content})}
+      {importDialog.content}
+    </>
+  )
+}
 
 export function CreateDocumentButton({
   locationId,
@@ -43,83 +78,91 @@ export function CreateDocumentButton({
 
   if (!myAccountIds.data?.length) return null
   if (!canEdit) return null
+  if (!locationId) return null
 
-  // Non-home docs: simple button, no dropdown
-  if (!isHomeDoc) {
-    return (
-      <Button
-        variant="default"
-        size="sm"
-        className="justify-center"
-        onClick={() => createDraft()}
-      >
-        <Add className="size-4" />
-        <span className="truncate">New</span>
-      </Button>
-    )
-  }
-
-  // Home doc: dropdown with public/private options
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="default" size="sm" className="justify-center">
-            <Add className="size-4" />
-            <span className="truncate">New</span>
-            <ChevronDown size={14} className="ml-1 opacity-60" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={() => createDraft()}>
-            <FilePlus2 className="size-4" />
-            Public Document
-          </DropdownMenuItem>
-          {hasSiteUrl ? (
-            <DropdownMenuItem
-              onClick={() => createDraft({visibility: 'PRIVATE'})}
-            >
-              <Lock className="size-4" />
-              Private Document
-            </DropdownMenuItem>
-          ) : (
-            <HoverCard openDelay={100}>
-              <HoverCardTrigger asChild>
-                <div>
-                  <DropdownMenuItem
-                    className="pointer-events-none opacity-50"
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <Lock className="size-4" />
-                    Private Document
-                    <Info className="text-muted-foreground ml-auto size-3" />
+    <ImportMenuItem locationId={locationId}>
+      {({openImportDialog, content: importContent}) => (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="default" size="sm" className="justify-center">
+                <Add className="size-4" />
+                <span className="truncate">New</span>
+                <ChevronDown size={14} className="ml-1 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {isHomeDoc ? (
+                <>
+                  <DropdownMenuItem onClick={() => createDraft()}>
+                    <FilePlus2 className="size-4" />
+                    Public Document
                   </DropdownMenuItem>
-                </div>
-              </HoverCardTrigger>
-              <HoverCardContent side="right" sideOffset={12} className="w-64">
-                <div className="flex flex-col gap-3">
-                  <SizableText size="sm" className="text-muted-foreground">
-                    To create private documents, you need to configure your web
-                    domain first.
-                  </SizableText>
-                  <Button
-                    size="sm"
-                    variant="brand"
-                    onClick={() => {
-                      if (selectedAccount?.id) {
-                        publishSite.open({id: selectedAccount.id})
-                      }
-                    }}
-                  >
-                    Set Up Web Domain
-                  </Button>
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {publishSite.content}
-    </>
+                  {hasSiteUrl ? (
+                    <DropdownMenuItem
+                      onClick={() => createDraft({visibility: 'PRIVATE'})}
+                    >
+                      <Lock className="size-4" />
+                      Private Document
+                    </DropdownMenuItem>
+                  ) : (
+                    <HoverCard openDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <div>
+                          <DropdownMenuItem
+                            className="pointer-events-none opacity-50"
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            <Lock className="size-4" />
+                            Private Document
+                            <Info className="text-muted-foreground ml-auto size-3" />
+                          </DropdownMenuItem>
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="right"
+                        sideOffset={12}
+                        className="w-64"
+                      >
+                        <div className="flex flex-col gap-3">
+                          <SizableText size="sm" className="text-muted-foreground">
+                            To create private documents, you need to configure your
+                            web domain first.
+                          </SizableText>
+                          <Button
+                            size="sm"
+                            variant="brand"
+                            onClick={() => {
+                              if (selectedAccount?.id) {
+                                publishSite.open({id: selectedAccount.id})
+                              }
+                            }}
+                          >
+                            Set Up Web Domain
+                          </Button>
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  )}
+                </>
+              ) : (
+                <DropdownMenuItem onClick={() => createDraft()}>
+                  <FilePlus2 className="size-4" />
+                  New Document
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openImportDialog}>
+                <Import className="size-4" />
+                Import...
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {publishSite.content}
+          {importContent}
+        </>
+      )}
+    </ImportMenuItem>
   )
 }
