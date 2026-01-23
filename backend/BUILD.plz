@@ -9,7 +9,15 @@ genrule(
         "util/llama-go/**/*.a",
         "util/llama-go/**/*.o",
     ]),
-    outs = ["util/llama-go/libbinding.a"],
+    outs = [
+        "backend/util/llama-go/libbinding.a",
+        "backend/util/llama-go/libcommon.a",
+        "backend/util/llama-go/libllama.a",
+        "backend/util/llama-go/libggml.a",
+        "backend/util/llama-go/libggml-cpu.a",
+        "backend/util/llama-go/libggml-base.a",
+        "backend/util/llama-go/libggml-vulkan.a",
+    ],
     cmd = """
 cd backend/util/llama-go
 export LIBRARY_PATH=$(pwd)
@@ -22,7 +30,9 @@ else
     export BUILD_TYPE=vulkan
 fi
 make libbinding.a
-mv libbinding.a $OUT
+
+# Files are already in the correct location (backend/util/llama-go/)
+# No need to copy - Please will find them at the expected output paths
     """,
     building_description = "Building llama.cpp bindings...",
     env = {
@@ -31,15 +41,16 @@ mv libbinding.a $OUT
     visibility = ["//backend/..."],
 )
 
-# Builds the seed-daemon binary. It depends on all the non-test
-# Go files inside the `backend` directory.
-go_binary(
+# Builds the seed-daemon binary with llama.cpp CGO flags
+genrule(
     name = "seed-daemon",
     srcs = glob(
         [
             "**/*.go",
             "**/*.c",
             "**/*.h",
+            "**/*.cpp",
+            "**/*.hpp",
         ],
         exclude = ["**/*_test.go"],
     ) + [
@@ -47,11 +58,47 @@ go_binary(
         "//backend/storage:go_library",
         "//backend/wallet/walletsql:go_library",
         ":llama-cpp",
+        "//:gomod",
     ],
-    out = "seed-daemon-" + target_platform_triple(),
-    cgo = True,
-    gomod = "//:gomod",
-    package = "./cmd/seed-daemon",
+    outs = ["seed-daemon-" + target_platform_triple()],
+    cmd = """
+set -e
+TMPDIR=/tmp
+HOME=$(eval echo ~$(whoami))
+
+# Work from the actual workspace, not the temp build directory
+cd $WORKSPACE
+
+# Libraries from llama-cpp dependency are placed in TMP_DIR by Please
+# The outs from llama-cpp are declared as "backend/util/llama-go/*.a"
+# Since llama-cpp is in the backend package, outputs go to:
+# $TMP_DIR/backend/backend/util/llama-go/
+LLAMA_GO_PATH=$TMP_DIR/backend/backend/util/llama-go
+
+export CGO_ENABLED=1
+export LIBRARY_PATH=$LLAMA_GO_PATH
+export C_INCLUDE_PATH=$LLAMA_GO_PATH
+
+# Set CGO_LDFLAGS based on platform
+if [ "$OS" = "darwin" ]; then
+    export CGO_LDFLAGS="-framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
+else
+    export CGO_LDFLAGS="-lggml-vulkan -lvulkan"
+fi
+
+echo "Looking for llama libraries in: $LLAMA_GO_PATH"
+ls -la $LLAMA_GO_PATH/*.a || echo "No .a files found!"
+
+$TOOLS_GO build -trimpath -o $OUT ./backend/cmd/seed-daemon
+    """,
+    binary = True,
+    building_description = "Building seed-daemon with llama.cpp...",
+    tools = {
+        "go": [CONFIG.GO_TOOL],
+    },
+    env = {
+        "OS": CONFIG.TARGET_OS,
+    },
     visibility = ["PUBLIC"],
 )
 
