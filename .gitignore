@@ -109,5 +109,5 @@ data
 # llama-go
 #backend/util/llama-go/llama.cpp
 backend/util/llama-go/build
-backend/util/llama-go/*.a
-backend/util/llama-go/*.o
+backend/util/llama-go/**/*.a
+backend/util/llama-go/**/*.o
