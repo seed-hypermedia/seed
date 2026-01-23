@@ -29,9 +29,7 @@ export function draftEditId(draft: HMDraft | null | undefined) {
 
 export function useExistingDraft(route: NavRoute) {
   const id = getRouteResourceId(route)
-  console.log('~~ useExistingDraft id for route:', id)
   const drafts = useAccountDraftList(id?.uid)
-  console.log('~~ useExistingDraft drafts:', drafts.data)
   if (!id) return false
   const existingDraft = drafts.data?.find((d) => {
     // @ts-expect-error

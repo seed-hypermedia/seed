@@ -5,7 +5,6 @@ import {
   Meta,
   Outlet,
   Scripts,
-  ScrollRestoration,
   useRouteLoaderData,
   useRouteError,
 } from '@remix-run/react'
@@ -128,7 +127,9 @@ export function Layout({children}: {children: React.ReactNode}) {
       <body className="bg-muted min-h-screen font-sans antialiased">
         <Providers>{children}</Providers>
 
-        <ScrollRestoration />
+        {/* Note: Removed Remix's <ScrollRestoration /> because it interferes with
+            hash-based scrolling. We use a custom useScrollRestoration hook in
+            document.tsx that handles scroll restoration with hash support. */}
         <Scripts />
       </body>
     </html>

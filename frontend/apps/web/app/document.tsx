@@ -46,6 +46,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useBlockScroll} from '@shm/ui/use-block-scroll'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {ChevronLeft, HistoryIcon, MessageSquare} from 'lucide-react'
@@ -381,13 +382,14 @@ function InnerDocumentPage(
   // Panels are only opened via ?panel=... query param or explicit user action
 
   const context = useUniversalAppContext()
+
+  // Handle scrolling to blocks - deduplicates manual vs route-based scrolls
+  const {scrollToBlock} = useBlockScroll(blockRef)
+
   const onActivateBlock = useCallback(
     (blockId: string) => {
-      // Scroll to block smoothly
-      const targetElement = window.document.getElementById(blockId)
-      if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'start'})
-      }
+      // Scroll to block (marks as scrolled to prevent double-scroll from effect)
+      scrollToBlock(blockId)
 
       // Build URL for the block reference
       const route = {
@@ -405,7 +407,7 @@ function InnerDocumentPage(
         preventScrollReset: true,
       })
     },
-    [id, context.hmUrlHref, context.originHomeId, replace],
+    [id, context.hmUrlHref, context.originHomeId, replace, scrollToBlock],
   )
 
   // Only show sidebars (document outline) when viewing document content
@@ -618,10 +620,7 @@ function InnerDocumentPage(
                     ref={elementRef}
                   >
                     <div
-                      className={cn(
-                        'flex flex-1 flex-col',
-                        media.gtSm && 'overflow-y-auto',
-                      )}
+                      className="flex flex-1 flex-col sm:overflow-y-auto"
                       ref={media.gtSm ? mainScrollRef : null}
                     >
                       <div className="flex min-h-[calc(100vh-var(--site-header-h))] flex-col pt-[var(--site-header-h)] sm:pt-0 sm:pr-0">
@@ -806,15 +805,8 @@ function InnerDocumentPage(
                                     }
                                     // Only navigate if we're not explicitly just copying
                                     if (blockRange?.copyToClipboard !== true) {
-                                      // Scroll to block smoothly BEFORE updating URL
-                                      const element =
-                                        window.document.getElementById(blockId)
-                                      if (element) {
-                                        element.scrollIntoView({
-                                          behavior: 'smooth',
-                                          block: 'start',
-                                        })
-                                      }
+                                      // Scroll to block (marks as scrolled to prevent double-scroll)
+                                      scrollToBlock(blockId)
 
                                       navigate(href, {
                                         replace: true,

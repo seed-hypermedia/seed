@@ -92,6 +92,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useBlockScroll} from '@shm/ui/use-block-scroll'
 import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
@@ -882,20 +883,10 @@ function DocPageContent({
   const navigate = useNavigate()
   const route = useNavRoute()
   const citations = useDocumentCitations(resource?.id)
-  const lastScrolledBlockRef = useRef<string | null>(null)
 
-  // Scroll to blockRef when route changes (e.g., clicking embed in panel)
-  // Skip if already scrolled via onBlockSelect to avoid double scroll
+  // Handle scrolling to blocks - deduplicates manual vs route-based scrolls
   const blockRef = docRoute.id?.blockRef
-  useEffect(() => {
-    if (blockRef && blockRef !== lastScrolledBlockRef.current) {
-      const element = window.document.getElementById(blockRef)
-      if (element) {
-        element.scrollIntoView({behavior: 'smooth', block: 'start'})
-      }
-    }
-    lastScrolledBlockRef.current = null
-  }, [blockRef])
+  const {scrollToBlock} = useBlockScroll(blockRef)
 
   if (resource?.type !== 'document') {
     throw new Error('Invalid resource type')
@@ -972,14 +963,8 @@ function DocPageContent({
                     route.key === 'document' &&
                     blockRangeInput?.copyToClipboard !== true
                   ) {
-                    const element = window.document.getElementById(blockId)
-                    if (element) {
-                      lastScrolledBlockRef.current = blockId
-                      element.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                      })
-                    }
+                    // Scroll to block (marks as scrolled to prevent double-scroll)
+                    scrollToBlock(blockId)
                     navigate({
                       ...route,
                       id: {
@@ -1000,7 +985,7 @@ function DocPageContent({
                   }
                   return false
                 },
-                [route, navigate, reference],
+                [route, navigate, reference, scrollToBlock],
               )
             : null
         }
