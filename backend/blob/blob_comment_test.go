@@ -34,7 +34,7 @@ func TestCommentOldEncoding(t *testing.T) {
 	require.NoError(t, err)
 
 	var comment map[string]any
-	cbornode.DecodeInto(data, &comment)
+	require.NoError(t, cbornode.DecodeInto(data, &comment))
 
 	signer := core.Principal(comment["signer"].([]byte))
 	sig := core.Signature(comment["sig"].([]byte))

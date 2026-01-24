@@ -18,7 +18,7 @@ func TestLlamaCppClientEmbeddings(t *testing.T) {
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(*fileURL, WithBatchSize(2))
 	require.NoError(t, err)
-	t.Cleanup(func() { client.CloseModel(ctx) })
+	t.Cleanup(func() { _ = client.CloseModel(ctx) })
 
 	info, err := client.LoadModel(ctx, "", false)
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestLlamaCppClientEmbedEmptyInput(t *testing.T) {
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(*fileURL)
 	require.NoError(t, err)
-	t.Cleanup(func() { client.CloseModel(ctx) })
+	t.Cleanup(func() { _ = client.CloseModel(ctx) })
 
 	_, err = client.LoadModel(ctx, "", false)
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestLlamaCppClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 		WithWaitBetweenBatches(5*time.Second),
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { client.CloseModel(context.Background()) })
+	t.Cleanup(func() { _ = client.CloseModel(context.Background()) })
 
 	_, err = client.LoadModel(ctx, "", false)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestLlamaCppEmbeddingsAreNormalized(t *testing.T) {
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(*fileURL)
 	require.NoError(t, err)
-	t.Cleanup(func() { client.CloseModel(ctx) })
+	t.Cleanup(func() { _ = client.CloseModel(ctx) })
 
 	_, err = client.LoadModel(ctx, "", false)
 	require.NoError(t, err)

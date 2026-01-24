@@ -289,7 +289,7 @@ func TestUndoRedo(t *testing.T) {
 	testPlacement(t, want, d.Iterator())
 
 	for i := 1; i < len(d.movesLog); i++ {
-		d.redoMove(d.movesLog[i], i)
+		_ = d.redoMove(d.movesLog[i], i)
 	}
 
 	want = []testWant{
