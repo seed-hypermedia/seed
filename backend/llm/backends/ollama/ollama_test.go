@@ -22,7 +22,7 @@ func TestOllamaClientEmbeddings(t *testing.T) {
 
 	info, err := client.LoadModel(ctx, model, true)
 	require.NoError(t, err)
-	require.Equal(t, 768, info.Dimensions)
+	require.Equal(t, 384, info.Dimensions)
 	require.Equal(t, 2048, info.ContextSize)
 
 	inputs := []string{"alpha", "bravo", "charlie", "delta", "echo"}
@@ -31,7 +31,7 @@ func TestOllamaClientEmbeddings(t *testing.T) {
 	require.Len(t, embeddings, len(inputs))
 
 	for index, embedding := range embeddings {
-		require.Len(t, embedding, 768)
+		require.Len(t, embedding, 384)
 		require.Equal(t, float32(len(inputs[index])), embedding[0])
 	}
 

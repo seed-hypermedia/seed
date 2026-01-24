@@ -12,7 +12,6 @@ import (
 	"seed/backend/daemon/taskmanager"
 	daemonpb "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/llm/backends"
-	"seed/backend/storage"
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -37,7 +36,7 @@ const (
 
 	taskID              = "embedding_indexer"
 	taskDescription     = "Indexing embeddings"
-	embeddingColumnDims = 768
+	embeddingColumnDims = 384
 	pctOverlap          = 0.1
 	minRunInterval      = 5 * time.Second
 
@@ -324,13 +323,20 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 	if info.Checksum == "" {
 		return fmt.Errorf("embedding model checksum is empty")
 	}
-	checksum, err := storage.GetKV(ctx, e.pool, kvEmbeddingModelChecksumKey)
+	checksum, err := sqlitex.GetKV(ctx, e.pool, kvEmbeddingModelChecksumKey)
 	if err != nil || checksum == "" || checksum != info.Checksum {
 		conn, release, err := e.pool.Conn(ctx)
 		if err != nil {
 			return fmt.Errorf("could not get database connection to store embedding model checksum: %v", err)
 		}
 		defer release()
+		var tables []string
+		if err := sqlitex.Exec(conn, "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'embeddings%'", func(stmt *sqlite.Stmt) error {
+			tables = append(tables, stmt.ColumnText(0))
+			return nil
+		}); err != nil {
+			return err
+		}
 		if err := sqlitex.WithTx(conn, func() error {
 			if err := sqlitex.Exec(conn, "delete from embeddings;", nil); err != nil {
 				return err
@@ -339,22 +345,19 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 		}); err != nil {
 			return fmt.Errorf("Could not delete old embeddings: %v", err)
 		}
-		var tables []string
-		if err := sqlitex.Exec(conn, "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'embeddings%'", func(stmt *sqlite.Stmt) error {
-			tables = append(tables, stmt.ColumnText(0))
-			return nil
-		}); err != nil {
-			return err
-		}
-		// delete from each table
-		for _, table := range tables {
-			if err := sqlitex.Exec(conn, fmt.Sprintf("DELETE FROM %s", table), nil); err != nil {
-				return fmt.Errorf("could not delete from table %s: %v", table, err)
+		/*
+
+			// delete from each table
+			for _, table := range tables {
+				if err := sqlitex.Exec(conn, fmt.Sprintf("DELETE FROM %s", table), nil); err != nil {
+					return fmt.Errorf("could not delete from table %s: %v", table, err)
+				}
 			}
-		}
-		if err := storage.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, info.Checksum, true); err != nil {
+		*/
+		if err := sqlitex.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, info.Checksum, true); err != nil {
 			return fmt.Errorf("could not store embedding model checksum: %v", err)
 		}
+
 	}
 	e.mu.Lock()
 	e.dimensions = info.Dimensions
@@ -545,6 +548,6 @@ var qEmbeddingsPendingCount = dqb.Str(`
 `)
 
 var qEmbeddingsInsert = dqb.Str(`
-	INSERT INTO embeddings (embeddinggemma300m, fts_id)
+	INSERT INTO embeddings (multilingual_minilm_l12_v2, fts_id)
 	VALUES (vec_int8(?), ?);
 `)
