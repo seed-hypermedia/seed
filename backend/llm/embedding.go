@@ -310,7 +310,7 @@ func (e *Embedder) ensureModel(ctx context.Context) error {
 	}
 	e.mu.Unlock()
 
-	info, err := e.backend.LoadModel(ctx, e.model, e.forceLoad)
+	info, err := e.backend.LoadModel(ctx, e.model, e.forceLoad, e.taskMgr)
 	if err != nil {
 		return err
 	}

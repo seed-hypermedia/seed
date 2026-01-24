@@ -37,10 +37,16 @@ func (b *fakeEmbeddingBackend) CloseModel(ctx context.Context) error {
 	return nil
 }
 
-func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool) (backends.ModelInfo, error) {
+func (b *fakeEmbeddingBackend) TokenLength(ctx context.Context, input string) (int, error) {
+	_ = ctx
+	return len([]rune(input)), nil
+}
+
+func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, force bool, taskMgr *taskmanager.TaskManager) (backends.ModelInfo, error) {
 	_ = ctx
 	_ = model
 	_ = force
+	_ = taskMgr
 
 	b.mu.Lock()
 	defer b.mu.Unlock()

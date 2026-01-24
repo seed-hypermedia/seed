@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"net/url"
+	"seed/backend/daemon/taskmanager"
 	"seed/backend/testutil"
 	"testing"
 	"time"
@@ -11,16 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const modelPath = "file:///home/julio/Documents/llama-go/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+
 func TestLlamaCppClientEmbeddings(t *testing.T) {
 	testutil.Manual(t)
 	ctx := t.Context()
-	fileURL, err := url.Parse("file:///path/to/your/embedding-model.gguf")
+	fileURL, err := url.Parse(modelPath)
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(*fileURL, WithBatchSize(2))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.CloseModel(ctx) })
 
-	info, err := client.LoadModel(ctx, "", false)
+	info, err := client.LoadModel(ctx, "", false, taskmanager.NewTaskManager())
 	require.NoError(t, err)
 	require.Greater(t, info.Dimensions, 0)
 	require.Greater(t, info.ContextSize, 0)
@@ -29,22 +32,32 @@ func TestLlamaCppClientEmbeddings(t *testing.T) {
 	embeddings, err := client.Embed(ctx, inputs)
 	require.NoError(t, err)
 	require.Len(t, embeddings, len(inputs))
+	require.Len(t, embeddings, len(inputs))
 
-	for _, embedding := range embeddings {
+	for i, embedding := range embeddings {
 		require.Len(t, embedding, info.Dimensions)
+		// Calculate L2 norm (magnitude)
+		var magnitude float32
+		for _, val := range embedding {
+			magnitude += val * val
+		}
+		norm := float32(math.Sqrt(float64(magnitude)))
+
+		// Post-normalization L2 norm should be ~1.0
+		require.InDelta(t, 1.0, norm, 0.0001, "embedding %d should have L2 norm of 1.0, got %.6f", i, norm)
 	}
 }
 
 func TestLlamaCppClientEmbedEmptyInput(t *testing.T) {
 	testutil.Manual(t)
 	ctx := t.Context()
-	fileURL, err := url.Parse("file:///path/to/your/embedding-model.gguf")
+	fileURL, err := url.Parse(modelPath)
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(*fileURL)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.CloseModel(ctx) })
 
-	_, err = client.LoadModel(ctx, "", false)
+	_, err = client.LoadModel(ctx, "", false, taskmanager.NewTaskManager())
 	require.NoError(t, err)
 	embeddings, err := client.Embed(ctx, nil)
 	require.NoError(t, err)
@@ -60,7 +73,7 @@ func TestLlamaCppClientRequiresFileScheme(t *testing.T) {
 }
 
 func TestLlamaCppClientBatchSizeMustBePositive(t *testing.T) {
-	fileURL, err := url.Parse("file:///some/path.gguf")
+	fileURL, err := url.Parse(modelPath)
 	require.NoError(t, err)
 	_, err = NewLlamaCppClient(*fileURL, WithBatchSize(0))
 	require.Error(t, err)
@@ -72,7 +85,7 @@ func TestLlamaCppClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
-	fileURL, err := url.Parse("file:///path/to/your/embedding-model.gguf")
+	fileURL, err := url.Parse(modelPath)
 	require.NoError(t, err)
 	client, err := NewLlamaCppClient(
 		*fileURL,
@@ -82,43 +95,13 @@ func TestLlamaCppClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.CloseModel(context.Background()) })
 
-	_, err = client.LoadModel(ctx, "", false)
+	_, err = client.LoadModel(ctx, "", false, taskmanager.NewTaskManager())
 	require.NoError(t, err)
 
 	// Two full batches (2 + 2). The client must wait before the 2nd batch.
 	_, err = client.Embed(ctx, []string{"a", "b", "c", "d"})
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-}
-
-func TestLlamaCppEmbeddingsAreNormalized(t *testing.T) {
-	testutil.Manual(t)
-	ctx := t.Context()
-	fileURL, err := url.Parse("file:///path/to/your/embedding-model.gguf")
-	require.NoError(t, err)
-	client, err := NewLlamaCppClient(*fileURL)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = client.CloseModel(ctx) })
-
-	_, err = client.LoadModel(ctx, "", false)
-	require.NoError(t, err)
-
-	inputs := []string{"Hello world", "This is a test sentence", "Embeddings should be normalized"}
-	embeddings, err := client.Embed(ctx, inputs)
-	require.NoError(t, err)
-	require.Len(t, embeddings, len(inputs))
-
-	for i, embedding := range embeddings {
-		// Calculate L2 norm (magnitude)
-		var magnitude float32
-		for _, val := range embedding {
-			magnitude += val * val
-		}
-		norm := float32(math.Sqrt(float64(magnitude)))
-
-		// Post-normalization L2 norm should be ~1.0
-		require.InDelta(t, 1.0, norm, 0.0001, "embedding %d should have L2 norm of 1.0, got %.6f", i, norm)
-	}
 }
 
 func TestNormalizeFunction(t *testing.T) {
