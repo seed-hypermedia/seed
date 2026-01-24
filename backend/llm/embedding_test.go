@@ -71,6 +71,30 @@ func (b *fakeEmbeddingBackend) Version(ctx context.Context) (string, error) {
 	return "fake", nil
 }
 
+// Thread-safe getters for test assertions
+func (b *fakeEmbeddingBackend) getLoadCalls() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.loadCalls
+}
+
+func (b *fakeEmbeddingBackend) getEmbedCalls() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.embedCalls
+}
+
+func (b *fakeEmbeddingBackend) getEmbedInputs() [][]string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	// Return a copy to avoid races after releasing the lock
+	result := make([][]string, len(b.embedInputs))
+	for i, inputs := range b.embedInputs {
+		result[i] = append([]string(nil), inputs...)
+	}
+	return result
+}
+
 func countEmbeddings(t *testing.T, conn *sqlite.Conn) int64 {
 	t.Helper()
 
@@ -165,11 +189,12 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 
 	//require.NoError(t, e.runOnce(ctx))
 
-	require.Equal(t, 1, backend.loadCalls)
-	require.Eventually(t, func() bool { return backend.embedCalls == 2 },
+	require.Equal(t, 1, backend.getLoadCalls())
+	require.Eventually(t, func() bool { return backend.getEmbedCalls() == 2 },
 		200*time.Second, 10*time.Millisecond, "expected 2 embed call after init run")
-	firstPassInputs := append([]string(nil), backend.embedInputs[0]...)
-	secondPassInputs := append([]string(nil), backend.embedInputs[1]...)
+	embedInputs := backend.getEmbedInputs()
+	firstPassInputs := embedInputs[0]
+	secondPassInputs := embedInputs[1]
 
 	expectedChunks := chunkText("01234567890123456789", 9, pctOverlap)
 	require.Equal(t, expectedChunks, firstPassInputs)
@@ -205,10 +230,8 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	// Second run must not embed or insert anything new.
 	require.NoError(t, e.runOnce(ctx))
 
-	backend.mu.Lock()
-	require.Equal(t, 1, backend.loadCalls, "model must only be loaded once")
-	require.Equal(t, 2, backend.embedCalls, "no new embedding calls expected")
-	backend.mu.Unlock()
+	require.Equal(t, 1, backend.getLoadCalls(), "model must only be loaded once")
+	require.Equal(t, 2, backend.getEmbedCalls(), "no new embedding calls expected")
 
 	conn, release, err = db.Conn(ctx)
 	require.NoError(t, err)
