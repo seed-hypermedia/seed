@@ -90,6 +90,19 @@
     "build.directoryFilters": ["-", "-plz-out", "+backend", "+proto", "+build"]
   },
   "go.lintTool": "golangci-lint",
+  // Go test/build env vars for llama.cpp. LIBRARY_PATH and C_INCLUDE_PATH are platform-agnostic.
+  // CGO_LDFLAGS is set by direnv (.envrc) based on platform. If VSCode doesn't pick it up,
+  // launch VSCode from terminal after `direnv allow`, or add to your user settings:
+  //   Linux:  "CGO_LDFLAGS": "-lggml-vulkan -lvulkan"
+  //   macOS:  "CGO_LDFLAGS": "-framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
+  "go.testEnvVars": {
+    "LIBRARY_PATH": "${workspaceFolder}/plz-out/gen/backend/backend/util/llama-go",
+    "C_INCLUDE_PATH": "${workspaceFolder}/plz-out/gen/backend/backend/util/llama-go"
+  },
+  "go.toolsEnvVars": {
+    "LIBRARY_PATH": "${workspaceFolder}/plz-out/gen/backend/backend/util/llama-go",
+    "C_INCLUDE_PATH": "${workspaceFolder}/plz-out/gen/backend/backend/util/llama-go"
+  },
   "prettier.configPath": "frontend/.prettierrc",
   "prettier.resolveGlobalModules": true,
   "prettier.prettierPath": "./node_modules/prettier",
