@@ -30,7 +30,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ vulkan-headers libvulkan-dev glslc
+          sudo apt-get install -y cmake g++ libvulkan-dev glslc
 
       - name: Build llama.cpp
         run: |

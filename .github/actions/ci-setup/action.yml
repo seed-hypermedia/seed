@@ -39,7 +39,7 @@ runs:
     - name: "Install Vulkan dev packages (Linux)"
       if: inputs.matrix-os == 'ubuntu-latest'
       run: |
-        sudo apt-get install -y vulkan-headers libvulkan-dev glslc
+        sudo apt-get install -y libvulkan-dev glslc
       shell: bash
 
     - name: "Install Vulkan SDK (Windows)"
