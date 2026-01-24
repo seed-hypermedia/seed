@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -34,12 +33,12 @@ func generateSchema() (err error) {
 		return err
 	}
 
-	return ioutil.WriteFile("schema.gen.go", code, 0600)
+	return os.WriteFile("schema.gen.go", code, 0600)
 }
 
 // MakeConn creates a test connection with an example schema.
 func MakeConn() (conn *sqlite.Conn, closer func() error, err error) {
-	dir, err := ioutil.TempDir("", "sqlitegen-")
+	dir, err := os.MkdirTemp("", "sqlitegen-")
 	if err != nil {
 		return nil, nil, err
 	}

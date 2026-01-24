@@ -381,7 +381,7 @@ func TestBlobPtrs(t *testing.T) {
 	_, _ = gzw.Write([]byte("hello"))
 	_ = gzw.Close()
 
-	blob.Seek(0, 0)
+	_, _ = blob.Seek(0, 0)
 
 	gzr, err := gzip.NewReader(blob)
 	if err != nil {
