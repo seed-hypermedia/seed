@@ -30,7 +30,31 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.25.4"
-      - run: go test --count 1 ./backend/...
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ vulkan-headers libvulkan-dev glslc
+
+      - name: Build llama.cpp
+        run: |
+          cd backend/util/llama-go
+          BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+
+      - name: Run tests
+        run: go test -tags vulkan --count 1 ./backend/...
+        env:
+          CGO_ENABLED: 1
+          CGO_LDFLAGS: "-lggml-vulkan -lvulkan"
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
-      - run: go test --count 1 -race ./backend/...
+      - name: Run tests with race detector
+        run: go test -tags vulkan --count 1 -race ./backend/...
+        env:
+          CGO_ENABLED: 1
+          CGO_LDFLAGS: "-lggml-vulkan -lvulkan"
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
