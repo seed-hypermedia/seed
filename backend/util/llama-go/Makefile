@@ -217,7 +217,7 @@ llama.cpp/ggml-alloc.o: llama.cpp/ggml.o
 
 llama.cpp/ggml.o:
 	mkdir -p build
-	cd build && CC="$(CC)" CXX="$(CXX)" cmake ../llama.cpp $(CMAKE_ARGS) -DLLAMA_CURL=OFF && VERBOSE=1 cmake --build . --config Release --target ggml llama && cp -rf ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o ../llama.cpp/ggml.o
+	cd build && CC="$(CC)" CXX="$(CXX)" cmake ../llama.cpp $(CMAKE_ARGS) -DLLAMA_CURL=OFF && VERBOSE=1 cmake --build . --config Release -j 8 --target ggml llama && cp -rf ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o ../llama.cpp/ggml.o
 
 llama.cpp/ggml-cuda.o: llama.cpp/ggml.o
 	cd build && cp -rf "$(GGML_CUDA_OBJ_PATH)" ../llama.cpp/ggml-cuda.o
@@ -249,7 +249,7 @@ wrapper.o:
 # All Go bindings are now handled through wrapper.cpp
 
 libbinding.a: llama.cpp/ggml.o wrapper.o $(EXTRA_TARGETS)
-	cd build && cmake --build . --target common
+	cd build && cmake --build . --target common -j 8
 	ar crs libbinding.a wrapper.o $(EXTRA_TARGETS)
 	cp build/common/libcommon.a .
 ifneq (,$(findstring -DBUILD_SHARED_LIBS=OFF,$(CMAKE_ARGS)))

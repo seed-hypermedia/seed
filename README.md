@@ -47,17 +47,51 @@ installed.
 - `./dev run-site`
 - `./dev build-site`
 
-If we want to have GPU offloading for llm tasks we can add the `BUILD_TYPE=metal`
-(MacOS) or `BUILD_TYPE=vulkan` (Linux/Windows) before any of the above commands
+### GPU Acceleration (Optional)
+
+For GPU-accelerated LLM tasks, set `SEED_USE_GPU=true`. **Requires platform-specific dependencies:**
+
+**Linux (Vulkan):**
 ```bash
-BUILD_TYPE=metal ./dev run-desktop # run app with MacOS GPU offloading
+# Fedora/RHEL
+sudo dnf install vulkan-headers vulkan-loader-devel glslc
+
+# Ubuntu/Debian
+sudo apt install libvulkan-dev vulkan-tools glslc
 ```
+
+**macOS (Metal):**
+Metal is built-in with Xcode Command Line Tools (no extra packages needed).
+
+**Verify dependencies:**
+```bash
+mise run check-gpu  # validates GPU dependencies
+```
+
+**Enable GPU:**
+```bash
+SEED_USE_GPU=true ./dev run-desktop # one-time
+# OR add to .env.vars for persistence:
+echo "SEED_USE_GPU=true" >> .env.vars
+```
+
+The `./dev` script automatically detects GPU config changes and cleans the build cache when switching.
 
 To run the dev build with the production network, use the following command:
 
 ```bash
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
+
+## Backend Testing
+Since go test won't call the necessary precompilation steps (building 
+llama.go libraries), Before the first manual tests, one should call
+```bash
+./dev build-backend # build backend without GPU offloading
+```
+
+After the initial library compilation, tests can be executed normally, from
+the terminal or from the IDE.
 
 ## Frontend Testing
 

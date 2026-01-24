@@ -31,6 +31,30 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
     )
 
 
+GPU_CONFIG_FILE = ".plz-cache/.gpu-config"
+
+
+def check_gpu_config_changed():
+    """Check if SEED_USE_GPU changed since last build. Clean cache if needed."""
+    current_gpu = os.environ.get("SEED_USE_GPU", "false")
+
+    # Read previous value
+    previous_gpu = None
+    if os.path.exists(GPU_CONFIG_FILE):
+        with open(GPU_CONFIG_FILE, "r") as f:
+            previous_gpu = f.read().strip()
+
+    # If changed, clean the cache
+    if previous_gpu is not None and previous_gpu != current_gpu:
+        print(f"GPU config changed ({previous_gpu} -> {current_gpu}), cleaning build cache...")
+        subprocess.run("plz clean", shell=True, check=False)
+
+    # Store current value
+    os.makedirs(os.path.dirname(GPU_CONFIG_FILE), exist_ok=True)
+    with open(GPU_CONFIG_FILE, "w") as f:
+        f.write(current_gpu)
+
+
 def sync_llama_go():
     """Clone llama-go and sync it to backend/llama-go."""
     print("Syncing llama-go from GitHub...")
@@ -47,7 +71,8 @@ def sync_llama_go():
             check=True
         )
         
-        # Switch to the fix/vulkan branch
+        # Switch to the fix/vulkan branch 
+        # TODO: Switch to main when the vulkan fix is merged
         print("Switching to fix/vulkan branch...")
         subprocess.run(
             ["git", "checkout", "fix/vulkan"],
@@ -171,7 +196,7 @@ def main():
     @cmd(
         cmds,
         "gen",
-        "Check all the generated code is up to date. Otherwise run the code generation process to fix it.",
+        "Check the generated code is up to date. --all flag to refetch also llama-go dependencies. Otherwise run the code generation process to fix it.",
     )
     def gen(args):
         # Sync llama-go only if --all flag is present
@@ -212,6 +237,7 @@ def main():
 
     @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
+        check_gpu_config_changed()
         run("node scripts/cleanup-desktop.js")
         run("plz build //:yarn")
 
@@ -222,6 +248,7 @@ def main():
 
     @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
     def run_desktop_mainnet(args):
+        check_gpu_config_changed()
         run("node scripts/cleanup-desktop.js")
         run("plz build //:yarn")
 
@@ -246,6 +273,7 @@ def main():
 
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
+        check_gpu_config_changed()
         # run("node scripts/cleanup-desktop.js")
         # run("./scripts/cleanup-frontend.sh")
         run("yarn install")
@@ -268,6 +296,7 @@ def main():
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
+        check_gpu_config_changed()
         run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:yarn")
 
@@ -309,10 +338,12 @@ def main():
         "Build and run seed-daemon binary for the current platform.",
     )
     def run_backend(args):
+        check_gpu_config_changed()
         return run("plz run //backend:seed-daemon", args=args)
 
     @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
     def build_backend(args):
+        check_gpu_config_changed()
         return run("plz build //backend:seed-daemon")
 
     @cmd(cmds, "run-gw-backend", "Build and run backend for seed web gateway.")
