@@ -218,6 +218,10 @@ const config: ForgeConfig = {
           entry: 'src/preload-loading.ts',
           config: 'vite.preload.config.mts',
         },
+        {
+          entry: 'src/preload-profiler.ts',
+          config: 'vite.preload.config.mts',
+        },
       ],
       renderer: [
         {

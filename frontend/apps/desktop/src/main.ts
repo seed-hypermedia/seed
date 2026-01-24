@@ -84,6 +84,13 @@ import {
   setupMemoryMonitorLifecycle,
 } from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
+import {
+  isProfilerEnabled,
+  createProfilerWindow,
+  setupProfilerQuitHandler,
+  logWindowOpen,
+  logWindowClose,
+} from './memory-profiler-window'
 
 // Use 'hm' in production for OS protocol registration
 const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
@@ -272,6 +279,13 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
 
 app.whenReady().then(async () => {
   logger.debug('[MAIN]: Seed ready')
+
+  // Memory profiler mode - opens dedicated profiler window
+  if (isProfilerEnabled()) {
+    logger.info('[MAIN]: Memory profiler mode enabled')
+    createProfilerWindow()
+    setupProfilerQuitHandler()
+  }
 
   // Register memory monitor resource counters
   memoryMonitor.registerResourceCounter('windows', () => getAllWindows().size)

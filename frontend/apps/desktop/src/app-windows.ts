@@ -19,6 +19,7 @@ import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
+import {logWindowOpen, logWindowClose} from './memory-profiler-window'
 
 let windowIdCount = 1
 
@@ -580,6 +581,7 @@ export function createAppWindow(
     saveWindowPosition()
   })
   allWindows.set(windowId, browserWindow)
+  logWindowOpen(windowId)
 
   // Set the persistent window state - this should match the windValue above
   setWindowState(windowId, {
@@ -662,6 +664,7 @@ export function createAppWindow(
     allWindows.delete(windowId)
     delete windowNavState[windowId]
     initalizedWindows.delete(windowId)
+    logWindowClose(windowId)
 
     if (lastFocusedWindowId === windowId) {
       lastFocusedWindowId = null
