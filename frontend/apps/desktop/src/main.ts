@@ -79,10 +79,7 @@ import {
   setInitialAccountIdCount,
   setupOnboardingHandlers,
 } from './app-onboarding-store'
-import {
-  memoryMonitor,
-  setupMemoryMonitorLifecycle,
-} from './memory-monitor'
+import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
 import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
 import {
   isProfilerEnabled,

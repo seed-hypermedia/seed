@@ -96,7 +96,9 @@ class ListenerRegistry {
   }
 
   getByTarget(target: string): ListenerEntry[] {
-    return Array.from(this.listeners.values()).filter((l) => l.target === target)
+    return Array.from(this.listeners.values()).filter(
+      (l) => l.target === target,
+    )
   }
 
   getByEvent(event: string): ListenerEntry[] {
@@ -173,7 +175,9 @@ class TimerRegistry {
     for (const [id, entry] of this.timers) {
       const age = Date.now() - entry.createdAt
       details.push(
-        `${id}: ${entry.type} (age: ${Math.round(age / 1000)}s) ${entry.description || ''}`,
+        `${id}: ${entry.type} (age: ${Math.round(age / 1000)}s) ${
+          entry.description || ''
+        }`,
       )
     }
     return {
@@ -299,12 +303,13 @@ class MemoryMonitor {
     const last = recent[recent.length - 1]
 
     // Check heap growth
-    const heapGrowth =
-      ((last.heapUsed - first.heapUsed) / first.heapUsed) * 100
+    const heapGrowth = ((last.heapUsed - first.heapUsed) / first.heapUsed) * 100
     if (heapGrowth > 20) {
       suspects.push({
         type: 'heap',
-        description: `Heap grew ${heapGrowth.toFixed(1)}% in last ${recent.length} snapshots`,
+        description: `Heap grew ${heapGrowth.toFixed(1)}% in last ${
+          recent.length
+        } snapshots`,
         severity: heapGrowth > 50 ? 'high' : heapGrowth > 30 ? 'medium' : 'low',
         currentValue: last.heapUsed,
         trend: 'growing',
@@ -324,7 +329,8 @@ class MemoryMonitor {
       suspects.push({
         type: 'listeners',
         description: `Listener count grew from ${firstListenerCount} to ${lastListenerCount}`,
-        severity: lastListenerCount > firstListenerCount + 20 ? 'high' : 'medium',
+        severity:
+          lastListenerCount > firstListenerCount + 20 ? 'high' : 'medium',
         currentValue: lastListenerCount,
         trend: 'growing',
       })
@@ -536,7 +542,10 @@ export function trackedSetTimeout(
     memoryMonitor.timerRegistry.unregister(trackId)
     callback()
   }, ms)
-  const trackId = memoryMonitor.timerRegistry.registerTimer(timeout, description)
+  const trackId = memoryMonitor.timerRegistry.registerTimer(
+    timeout,
+    description,
+  )
   return {timeout, trackId}
 }
 

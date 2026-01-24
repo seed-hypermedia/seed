@@ -604,8 +604,7 @@ export function createAppWindow(
     windowNavState[windowId] = {
       routes,
       routeIndex,
-      sidebarLocked:
-        typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+      sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
       sidebarWidth: sidebarWidth || 15,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
@@ -614,8 +613,7 @@ export function createAppWindow(
       ...window,
       routes,
       routeIndex,
-      sidebarLocked:
-        typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+      sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
       sidebarWidth: sidebarWidth || 15,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
