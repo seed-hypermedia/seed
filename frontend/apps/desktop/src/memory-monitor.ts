@@ -107,7 +107,8 @@ class ListenerRegistry {
 
   getSummary(): Record<string, number> {
     const summary: Record<string, number> = {}
-    for (const entry of this.listeners.values()) {
+    const entries = Array.from(this.listeners.values())
+    for (const entry of entries) {
       const key = `${entry.target}:${entry.event}`
       summary[key] = (summary[key] || 0) + 1
     }
@@ -172,7 +173,8 @@ class TimerRegistry {
 
   getSummary(): {timers: number; intervals: number; details: string[]} {
     const details: string[] = []
-    for (const [id, entry] of this.timers) {
+    const entries = Array.from(this.timers.entries())
+    for (const [id, entry] of entries) {
       const age = Date.now() - entry.createdAt
       details.push(
         `${id}: ${entry.type} (age: ${Math.round(age / 1000)}s) ${
@@ -412,7 +414,7 @@ class MemoryMonitor {
       }
     }
 
-    return [...new Set(recommendations)] // Dedupe
+    return Array.from(new Set(recommendations)) // Dedupe
   }
 
   // Get full memory report

@@ -735,8 +735,8 @@ export function setupProfilerQuitHandler() {
         } else if (result.response === 1) {
           shell.openPath(path.dirname(reportPath))
         }
-      } catch (e) {
-        logger.error('[PROFILER] Failed to save final report', e)
+      } catch (e: unknown) {
+        logger.error('[PROFILER] Failed to save final report', e as Error)
       }
     }
   })
