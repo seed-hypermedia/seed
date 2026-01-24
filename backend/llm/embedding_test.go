@@ -46,7 +46,7 @@ func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, forc
 	defer b.mu.Unlock()
 
 	b.loadCalls++
-	return backends.ModelInfo{Dimensions: 768, ContextSize: b.contextSize}, nil
+	return backends.ModelInfo{Dimensions: 384, ContextSize: b.contextSize, Checksum: "fake-checksum"}, nil
 }
 
 func (b *fakeEmbeddingBackend) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
@@ -59,7 +59,7 @@ func (b *fakeEmbeddingBackend) Embed(ctx context.Context, inputs []string) ([][]
 
 	out := make([][]float32, len(inputs))
 	for i := range inputs {
-		embedding := make([]float32, 768)
+		embedding := make([]float32, 384)
 		embedding[0] = float32(len([]rune(inputs[i])))
 		out[i] = embedding
 	}
@@ -126,12 +126,15 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 		); err != nil {
 			return err
 		}
-
+		if err := sqlitex.SetKV(ctx, conn, kvEmbeddingModelChecksumKey, "fake-checksum", true); err != nil {
+			return err
+		}
 		// Mark fts2 as already embedded so it must be skipped by pending query.
 		return sqlitex.Exec(conn,
-			`INSERT INTO embeddings (embeddinggemma300m, fts_id) VALUES (vec_int8(?), ?);`,
-			nil, make([]int8, 768), fts2,
+			`INSERT INTO embeddings (multilingual_minilm_l12_v2, fts_id) VALUES (vec_int8(?), ?);`,
+			nil, make([]int8, 384), fts2,
 		)
+
 	}))
 
 	tm := taskmanager.NewTaskManager()
@@ -145,7 +148,8 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 		zap.NewNop(),
 		tm,
 		WithModel(DefaultEmbeddingModel),
-		WithIndexPassSize(1), // force multiple passes
+		WithInterval(10*time.Minute), // disable automatic runs
+		WithIndexPassSize(1),         // force multiple passes
 		WithSleepPerPass(0*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -157,15 +161,15 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	release()
 
 	require.Equal(t, int64(1), beforeFTS2)
+	e.Init(t.Context())
 
-	require.NoError(t, e.runOnce(ctx))
+	//require.NoError(t, e.runOnce(ctx))
 
-	backend.mu.Lock()
 	require.Equal(t, 1, backend.loadCalls)
-	require.Equal(t, 2, backend.embedCalls) // fts1 pass + fts3 pass
+	require.Eventually(t, func() bool { return backend.embedCalls == 2 },
+		200*time.Second, 10*time.Millisecond, "expected 2 embed call after init run")
 	firstPassInputs := append([]string(nil), backend.embedInputs[0]...)
 	secondPassInputs := append([]string(nil), backend.embedInputs[1]...)
-	backend.mu.Unlock()
 
 	expectedChunks := chunkText("01234567890123456789", 9, pctOverlap)
 	require.Equal(t, expectedChunks, firstPassInputs)

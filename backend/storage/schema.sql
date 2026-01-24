@@ -350,6 +350,6 @@ CREATE INDEX fts_index_by_genesis_blob ON fts_index (genesis_blob);
 
 -- Sqlite vector extension tables for different embedding models.
 CREATE VIRTUAL TABLE embeddings USING vec0(
-    embeddinggemma300m int8[768] distance_metric=cosine,
+    multilingual_minilm_l12_v2 int8[384] distance_metric=cosine,
     fts_id int
 );

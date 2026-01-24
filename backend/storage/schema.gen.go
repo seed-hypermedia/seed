@@ -140,22 +140,22 @@ const (
 
 // Table embeddings.
 const (
-	Embeddings                   sqlitegen.Table  = "embeddings"
-	EmbeddingsDistance           sqlitegen.Column = "embeddings.distance"
-	EmbeddingsEmbeddinggemma300m sqlitegen.Column = "embeddings.embeddinggemma300m"
-	EmbeddingsFtsID              sqlitegen.Column = "embeddings.fts_id"
-	EmbeddingsK                  sqlitegen.Column = "embeddings.k"
-	EmbeddingsRowid              sqlitegen.Column = "embeddings.rowid"
+	Embeddings                        sqlitegen.Table  = "embeddings"
+	EmbeddingsDistance                sqlitegen.Column = "embeddings.distance"
+	EmbeddingsFtsID                   sqlitegen.Column = "embeddings.fts_id"
+	EmbeddingsK                       sqlitegen.Column = "embeddings.k"
+	EmbeddingsMultilingualMinilmL12V2 sqlitegen.Column = "embeddings.multilingual_minilm_l12_v2"
+	EmbeddingsRowid                   sqlitegen.Column = "embeddings.rowid"
 )
 
 // Table embeddings. Plain strings.
 const (
-	T_Embeddings                   = "embeddings"
-	C_EmbeddingsDistance           = "embeddings.distance"
-	C_EmbeddingsEmbeddinggemma300m = "embeddings.embeddinggemma300m"
-	C_EmbeddingsFtsID              = "embeddings.fts_id"
-	C_EmbeddingsK                  = "embeddings.k"
-	C_EmbeddingsRowid              = "embeddings.rowid"
+	T_Embeddings                        = "embeddings"
+	C_EmbeddingsDistance                = "embeddings.distance"
+	C_EmbeddingsFtsID                   = "embeddings.fts_id"
+	C_EmbeddingsK                       = "embeddings.k"
+	C_EmbeddingsMultilingualMinilmL12V2 = "embeddings.multilingual_minilm_l12_v2"
+	C_EmbeddingsRowid                   = "embeddings.rowid"
 )
 
 // Table embeddings_chunks.
@@ -638,9 +638,9 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
 		EmbeddingsDistance:                      {Table: Embeddings, SQLType: ""},
-		EmbeddingsEmbeddinggemma300m:            {Table: Embeddings, SQLType: ""},
 		EmbeddingsFtsID:                         {Table: Embeddings, SQLType: ""},
 		EmbeddingsK:                             {Table: Embeddings, SQLType: ""},
+		EmbeddingsMultilingualMinilmL12V2:       {Table: Embeddings, SQLType: ""},
 		EmbeddingsRowid:                         {Table: Embeddings, SQLType: ""},
 		EmbeddingsChunksChunkID:                 {Table: EmbeddingsChunks, SQLType: "INTEGER"},
 		EmbeddingsChunksRowids:                  {Table: EmbeddingsChunks, SQLType: "BLOB"},

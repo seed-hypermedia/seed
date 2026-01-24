@@ -268,7 +268,7 @@ func NewMockOllamaServer(t *testing.T, opts ...MockOllamaServerOption) *MockOlla
 	t.Helper()
 
 	s := &MockOllamaServer{
-		embeddingDims:  768,
+		embeddingDims:  384,
 		contextSize:    2048,
 		FirstEmbedDone: make(chan struct{}),
 	}

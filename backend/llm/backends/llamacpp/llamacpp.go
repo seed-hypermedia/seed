@@ -99,53 +99,54 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool) (
 // Embed returns embeddings for inputs in batches sized by the client.
 // The model must be loaded via LoadModel before calling Embed.
 func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
-	return nil, fmt.Errorf("not implemented")
-	/*
-		model := strings.TrimSpace(client.cfg.Model)
-		if model == "" {
-			return nil, errors.New("llamacpp model not loaded; call LoadModel first")
-		}
-		if len(inputs) == 0 {
-			return [][]float32{}, nil
+	out := make([][]float32, 0, len(inputs))
+	var wasPreviousBatchFull bool
+	for start := 0; start < len(inputs); start += client.cfg.BatchSize {
+		end := start + client.cfg.BatchSize
+		if end > len(inputs) {
+			end = len(inputs)
 		}
 
-		embeddings := make([][]float32, 0, len(inputs))
-		var wasPreviousBatchFull bool
-		for start := 0; start < len(inputs); start += client.cfg.BatchSize {
-			end := start + client.cfg.BatchSize
-			if end > len(inputs) {
-				end = len(inputs)
+		batch := inputs[start:end]
+		isBatchFull := len(batch) == client.cfg.BatchSize
+		if client.cfg.WaitBetweenBatches > 0 && wasPreviousBatchFull && isBatchFull {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(client.cfg.WaitBetweenBatches):
 			}
+		}
+		wasPreviousBatchFull = isBatchFull
 
-			batch := inputs[start:end]
-			isBatchFull := len(batch) == client.cfg.BatchSize
-			if client.cfg.WaitBetweenBatches > 0 && wasPreviousBatchFull && isBatchFull {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(client.cfg.WaitBetweenBatches):
-				}
-			}
-			wasPreviousBatchFull = isBatchFull
-
-			request := &api.EmbedRequest{
-				Model: model,
-				Input: batch,
-			}
-			response, err := client.client.Embed(ctx, request)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(response.Embeddings) != len(batch) {
-				return nil, fmt.Errorf("ollama embeddings count mismatch: got %d want %d", len(response.Embeddings), len(batch))
-			}
-
-			embeddings = append(embeddings, response.Embeddings...)
+		res, err := client.embeddingContext.GetEmbeddingsBatch(batch)
+		if err != nil {
+			return nil, fmt.Errorf("Error generating embeddings: %v\n", err)
 		}
 
-		return embeddings, nil
-	*/
+		if len(res) != len(batch) {
+			return nil, fmt.Errorf("llama embeddings count mismatch: got %d want %d", len(res), len(batch))
+		}
+		norm := normalize(res)
+		out = append(out, norm...)
+	}
+
+	return out, nil
+}
+
+func normalize(vectors [][]float32) [][]float32 {
+	for _, batch := range vectors {
+		magnitude := float32(0.0)
+		for _, val := range batch {
+			magnitude += val * val
+		}
+		norm := float32(math.Sqrt(float64(magnitude)))
+		if norm > 0 {
+			for i := range batch {
+				batch[i] /= norm
+			}
+		}
+	}
+	return vectors
 }
 
 // Version returns the Ollama server version string.
