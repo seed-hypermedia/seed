@@ -25,19 +25,27 @@ cd backend/util/llama-go
 export LIBRARY_PATH=$(pwd)
 export C_INCLUDE_PATH=$(pwd)
 export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
-
-# Build platform-specific GPU library
-if [ "$OS" = "darwin" ]; then
+# Build with GPU support only if SEED_USE_GPU is explicitly set
+if [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" = "darwin" ]; then
+    # macOS with Metal GPU acceleration
     export BUILD_TYPE=metal
     make libbinding.a
     # Copy Metal shader (required for runtime)
     cp build/bin/ggml-metal.metal .
     # Create stub for Vulkan (not used on macOS)
     touch libggml-vulkan.a
-else
+elif [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" != "darwin" ]; then
+    # Linux/Windows with Vulkan GPU acceleration
     export BUILD_TYPE=vulkan
     make libbinding.a
-    # Create stubs for Metal (not used on Linux)
+    # Create stubs for Metal (not used on Linux/Windows)
+    touch libggml-metal.a
+    touch ggml-metal.metal
+else
+    # CPU-only build (SEED_USE_GPU not set or invalid)
+    make libbinding.a
+    # Create stubs for GPU libraries (not used in CPU-only build)
+    touch libggml-vulkan.a
     touch libggml-metal.a
     touch ggml-metal.metal
 fi
@@ -86,11 +94,10 @@ LLAMA_GO_PATH=$TMP_DIR/backend/backend/util/llama-go
 export CGO_ENABLED=1
 export LIBRARY_PATH=$LLAMA_GO_PATH
 export C_INCLUDE_PATH=$LLAMA_GO_PATH
-
-# Set CGO_LDFLAGS based on platform
-if [ "$OS" = "darwin" ]; then
-    export CGO_LDFLAGS="-framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
-else
+# Set CGO_LDFLAGS for GPU linking
+if [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" = "darwin" ]; then
+    export CGO_LDFLAGS="-framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
+elif [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" != "darwin" ]; then
     export CGO_LDFLAGS="-lggml-vulkan -lvulkan"
 fi
 

@@ -261,7 +261,6 @@ require (
 )
 
 replace (
-	//github.com/seed-hypermedia/llama-go => /home/julio/Documents/llama-go
 	github.com/seed-hypermedia/llama-go => ./backend/util/llama-go
 	roci.dev/fracdex => github.com/rocicorp/fracdex v0.0.0-20231009204907-ebc26eac9486
 )
