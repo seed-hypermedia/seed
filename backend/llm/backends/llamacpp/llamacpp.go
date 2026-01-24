@@ -5,17 +5,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
 	"math"
 	"net/url"
 	"os"
 	"runtime"
+	"seed/backend/daemon/taskmanager"
+	daemonpb "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/llm/backends"
 	"strings"
 	"time"
 
 	llama "github.com/seed-hypermedia/llama-go"
+)
+
+type LlamaCppClient struct {
+	model            *llama.Model
+	embeddingContext *llama.Context // not same meaning as context.Context
+	cfg              backends.ClientCfg
+}
+
+type LlamaCppOption func(*LlamaCppClient) error
+
+const (
+	defaultBatchSize    = 10
+	maxParallelContexts = 512
+	taskID              = "llamacpp-load-model-task"
+	taskDescription     = "Loading LlamaCpp model"
 )
 
 // NewLlamaCppClient creates a new LlamaCpp client bound to the provided base URL.
@@ -56,8 +72,8 @@ func WithWaitBetweenBatches(duration time.Duration) LlamaCppOption {
 }
 
 // LoadModel loads a model from the gguf espeficied when initializing the client.
-func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool) (backends.ModelInfo, error) {
-	path := client.cfg.URL.Path
+func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool, taskMgr *taskmanager.TaskManager) (backends.ModelInfo, error) {
+	path := strings.TrimSpace(client.cfg.URL.Path)
 	//TODO read gguf model to compute checksum
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -70,28 +86,48 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool) (
 		return ret, errors.New("gguf model name is required")
 	}
 	os.Setenv("LLAMA_LOG", "error") // Quiet mode
+	if taskMgr != nil {
+		if _, err := taskMgr.AddTask(taskID, daemonpb.TaskName_LOADING_MODEL, taskDescription, 100); err != nil {
+			if errors.Is(err, taskmanager.ErrTaskExists) {
+				return ret, fmt.Errorf("Another model is being loaded. Please wait until it ends before loading a new one: %w", err)
+			} else {
+				return ret, err
+			}
+		}
+		defer func() {
+			_, _ = taskMgr.DeleteTask(taskID)
+		}()
+	}
 	client.model, err = llama.LoadModel(path,
-		llama.WithGPULayers(-1),
+		llama.WithGPULayers(-1), // Load all layer to GPU
 		llama.WithMMap(true),
 		llama.WithSilentLoading(),
+		llama.WithProgressCallback(func(progress float32) bool {
+			if taskMgr != nil {
+				_, _ = taskMgr.UpdateProgress(taskID, 100, int64(progress*100))
+			}
+			return true
+		}),
 	)
 	if err != nil {
 		return ret, fmt.Errorf("error loading model: %w", err)
 	}
-	info, err := client.model.Stats()
-	if err != nil {
-		return ret, fmt.Errorf("Could not get model stats: %v\n", err)
-	}
+
 	client.embeddingContext, err = client.model.NewContext(
 		llama.WithThreads(runtime.NumCPU()),
 		llama.WithEmbeddings(),
 		llama.WithF16Memory(),
+		llama.WithParallel(min(maxParallelContexts, client.cfg.BatchSize)),
 	)
 	if err != nil {
 		return ret, fmt.Errorf("Could not create embedding context: %v\n", err)
 	}
-	ret.Dimensions = 384 // Hardcoded for now as llama-go does not expose embedding length yet
-	ret.ContextSize = info.Runtime.ContextSize
+	_, err = client.model.Stats()
+	if err != nil {
+		return ret, fmt.Errorf("Could not get model stats: %v\n", err)
+	}
+	ret.Dimensions = 384  // Hardcoded for now as llama-go does not expose embedding length yet
+	ret.ContextSize = 512 // Hardcoded for now as llama-go does not expose context size yet
 
 	return ret, nil
 }
@@ -130,6 +166,11 @@ func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]f
 		out = append(out, norm...)
 	}
 
+	stats, err := client.model.Stats()
+	if err != nil {
+		return nil, fmt.Errorf("Could not get model stats: %v\n", err)
+	}
+	_ = stats
 	return out, nil
 }
 
@@ -161,6 +202,15 @@ func (client *LlamaCppClient) Version(ctx context.Context) (string, error) {
 		stats.Metadata.SizeLabel}, "_"), nil
 }
 
+// TokenLength returns the number of tokens in the input string.
+func (client *LlamaCppClient) TokenLength(ctx context.Context, input string) (int, error) {
+	tokens, err := client.embeddingContext.Tokenize(input)
+	if err != nil {
+		return 0, err
+	}
+	return len(tokens), nil
+}
+
 func (client *LlamaCppClient) CloseModel(_ context.Context) error {
 	if client.embeddingContext != nil {
 		client.embeddingContext.Close()
@@ -170,97 +220,3 @@ func (client *LlamaCppClient) CloseModel(_ context.Context) error {
 	}
 	return nil
 }
-
-func main() {
-	var (
-		modelPath = flag.String("m", "embedding-model.gguf", "path to embedding model")
-		text      = flag.String("t", "Hello world", "text to get embeddings for")
-		gpuLayers = flag.Int("ngl", -1, "number of GPU layers (-1 for all)")
-		context   = flag.Int("c", 128, "context size")
-	)
-	flag.Parse()
-
-	// Load model with embeddings enabled
-	fmt.Printf("Loading embedded model: %s\n", *modelPath)
-	model, err := llama.LoadModel(*modelPath,
-		llama.WithGPULayers(*gpuLayers),
-		llama.WithMMap(true),
-		llama.WithSilentLoading(),
-	)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading model: %v\n", err)
-		os.Exit(1)
-	}
-	defer model.Close()
-
-	// Create context with embedding support
-	ctx, err := model.NewContext(
-		llama.WithContext(*context),
-		llama.WithThreads(runtime.NumCPU()),
-		llama.WithEmbeddings(),
-		llama.WithF16Memory(),
-	)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating context: %v\n", err)
-		os.Exit(1)
-	}
-	defer ctx.Close()
-
-	fmt.Printf("Model loaded successfully.\n")
-	fmt.Printf("Getting embeddings for: %s\n", *text)
-
-	// Generate embeddings
-	embeddingStart := time.Now()
-	embeddings, err := ctx.GetEmbeddings(*text)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating embeddings: %v\n", err)
-		os.Exit(1)
-	}
-	embeddingElapsed := time.Since(embeddingStart)
-
-	fmt.Printf("\nEmbeddings generated successfully!\n")
-	fmt.Printf("Vector dimension: %d\n", len(embeddings))
-
-	postStart := time.Now()
-	magnitude := float32(0.0)
-	for _, val := range embeddings {
-		magnitude += val * val
-	}
-
-	norm := float32(math.Sqrt(float64(magnitude)))
-	if norm > 0 {
-		for i := range embeddings {
-			embeddings[i] /= norm
-		}
-	}
-
-	meanSquared := magnitude / float32(len(embeddings)) // Mean squared (pre-normalization)
-	fmt.Printf("Mean squared magnitude: %.6f\n", meanSquared)
-	fmt.Printf("L2 norm (pre-normalization): %.6f\n", norm)
-	magnitude = 0.0
-	fmt.Printf("Embeddings:[")
-	for _, val := range embeddings {
-		fmt.Printf("%.8f, ", val)
-		magnitude += val * val
-	}
-	fmt.Printf("]\n")
-	norm = float32(math.Sqrt(float64(magnitude)))
-	fmt.Printf("L2 norm (post-normalization): %.6f\n", norm)
-	postElapsed := time.Since(postStart)
-
-	fmt.Printf("\nTiming:\n")
-	fmt.Printf("  Embedding generation: %s\n", embeddingElapsed)
-	fmt.Printf("  Post-processing: %s\n", postElapsed)
-}
-
-const (
-	defaultBatchSize   = 10
-	defaultHTTPTimeout = 5 * time.Minute
-)
-
-type LlamaCppClient struct {
-	model            *llama.Model
-	embeddingContext *llama.Context // not same meaning as context.Context
-	cfg              backends.ClientCfg
-}
-type LlamaCppOption func(*LlamaCppClient) error

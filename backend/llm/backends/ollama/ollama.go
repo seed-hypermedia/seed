@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"seed/backend/daemon/taskmanager"
 	"seed/backend/llm/backends"
 	"strconv"
 	"strings"
@@ -103,7 +104,7 @@ func (client *OllamaClient) CloseModel(_ context.Context) error {
 
 // LoadModel ensures a model is available; when force is true it pulls it.
 // It returns the embedding dimensions and context size from the model metadata.
-func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool) (backends.ModelInfo, error) {
+func (client *OllamaClient) LoadModel(ctx context.Context, model string, force bool, _ *taskmanager.TaskManager) (backends.ModelInfo, error) {
 	model = strings.TrimSpace(model)
 	ret := backends.ModelInfo{}
 	if model == "" {
@@ -201,6 +202,11 @@ func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]flo
 	}
 
 	return embeddings, nil
+}
+
+// TokenLength returns the number of tokens in the input string.
+func (client *OllamaClient) TokenLength(ctx context.Context, input string) (int, error) {
+	return 0, errors.New("ollama client does not support token length calculation")
 }
 
 func parseModelInfo(model string, response *api.ShowResponse) (backends.ModelInfo, error) {

@@ -3,6 +3,7 @@ package backends
 import (
 	"context"
 	"net/url"
+	"seed/backend/daemon/taskmanager"
 	"time"
 )
 
@@ -42,7 +43,7 @@ type ClientCfg struct {
 type Backend interface {
 	// LoadModel loads the specified model. If force is true, it
 	// downloads the necesseary files to load the model when not present.
-	LoadModel(ctx context.Context, model string, force bool) (ModelInfo, error)
+	LoadModel(ctx context.Context, model string, force bool, taskMgr *taskmanager.TaskManager) (ModelInfo, error)
 	// Embed generates embeddings for the given inputs.
 	// LoadModel must be called before calling Embed.
 	Embed(ctx context.Context, inputs []string) ([][]float32, error)
@@ -50,4 +51,6 @@ type Backend interface {
 	CloseModel(ctx context.Context) error
 	// Version returns the version of the backend.
 	Version(ctx context.Context) (string, error)
+	// TokenLength returns the number of tokens in the input string.
+	TokenLength(ctx context.Context, input string) (int, error)
 }

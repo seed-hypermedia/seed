@@ -20,7 +20,7 @@ func TestOllamaClientEmbeddings(t *testing.T) {
 	client, err := NewOllamaClient(*url, WithBatchSize(2))
 	require.NoError(t, err)
 
-	info, err := client.LoadModel(ctx, model, true)
+	info, err := client.LoadModel(ctx, model, true, nil)
 	require.NoError(t, err)
 	require.Equal(t, 384, info.Dimensions)
 	require.Equal(t, 2048, info.ContextSize)
@@ -56,7 +56,7 @@ func TestOllamaClientEmbedEmptyInput(t *testing.T) {
 	client, err := NewOllamaClient(*url)
 	require.NoError(t, err)
 
-	_, err = client.LoadModel(ctx, model, true)
+	_, err = client.LoadModel(ctx, model, true, nil)
 	require.NoError(t, err)
 	embeddings, err := client.Embed(ctx, nil)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestOllamaClientEmbed_WaitsBetweenFullBatches(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = client.LoadModel(ctx, model, true)
+	_, err = client.LoadModel(ctx, model, true, nil)
 	require.NoError(t, err)
 
 	// Two full batches (2 + 2). The client must wait before the 2nd batch.
