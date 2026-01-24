@@ -64,7 +64,7 @@ type migration struct {
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
 	// delete content of embeddings table before reindexing with new schema
-	{Version: "2026-01-19.1", Run: func(_ *Store, conn *sqlite.Conn) error {
+	{Version: "2026-01-24.1", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE VIRTUAL TABLE embeddings USING vec0(
     			multilingual_minilm_l12_v2 int8[384] distance_metric=cosine,
