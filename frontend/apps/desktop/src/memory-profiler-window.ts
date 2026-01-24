@@ -456,7 +456,8 @@ function getProfilerHTML(): string {
   </div>
 
   <script>
-    const {ipcRenderer} = require('electron')
+    // Use ipcRenderer exposed by preload via contextBridge
+    const ipc = window.ipcRenderer
 
     function formatBytes(bytes) {
       if (bytes < 1024) return bytes + ' B'
@@ -518,9 +519,9 @@ function getProfilerHTML(): string {
       ).join('')
     }
 
-    ipcRenderer.on('profiler:update', (event, data) => updateUI(data))
+    ipc.on('profiler:update', (event, data) => updateUI(data))
 
-    ipcRenderer.on('profiler:event', (event, e) => {
+    ipc.on('profiler:event', (event, e) => {
       const logEl = document.getElementById('eventLog')
       const html = '<div class="event"><span class="event-time">' + new Date(e.timestamp).toLocaleTimeString() + '</span>' +
         '<span class="event-type ' + e.type + '">' + e.type + '</span>' + e.details + '</div>'
@@ -528,22 +529,22 @@ function getProfilerHTML(): string {
     })
 
     async function takeSnapshot() {
-      const path = await ipcRenderer.invoke('profiler:takeSnapshot')
+      const path = await ipc.invoke('profiler:takeSnapshot')
       alert('Snapshot saved to:\\n' + path)
     }
 
     async function forceGC() {
-      const result = await ipcRenderer.invoke('profiler:forceGC')
+      const result = await ipc.invoke('profiler:forceGC')
       if (!result) alert('GC not available. Run with --expose-gc flag.')
     }
 
     async function exportReport() {
-      const path = await ipcRenderer.invoke('profiler:exportReport')
+      const path = await ipc.invoke('profiler:exportReport')
       alert('Report saved to:\\n' + path)
     }
 
     // Initial load
-    ipcRenderer.invoke('profiler:getState').then(updateUI)
+    ipc.invoke('profiler:getState').then(updateUI)
   </script>
 </body>
 </html>`
