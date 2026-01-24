@@ -56,7 +56,7 @@ func (src *Conn) BackupToDB(srcDB, dstPath string) (dst *Conn, err error) {
 	if err != nil {
 		return
 	}
-	defer b.Finish()
+	defer func() { _ = b.Finish() }()
 	err = b.Step(-1)
 	return
 }
