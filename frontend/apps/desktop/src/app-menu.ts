@@ -6,6 +6,7 @@ import {nanoid} from 'nanoid'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {getFocusedWindow} from './app-windows'
 import {checkForUpdates} from './auto-update'
+import {isProfilerEnabled, createProfilerWindow} from './memory-profiler-window'
 
 export function createAppMenu() {
   const appMenu = new Menu()
@@ -91,6 +92,17 @@ export function createAppMenu() {
         {role: 'reload'},
         {role: 'forceReload'},
         {role: 'toggleDevTools'},
+        ...(isProfilerEnabled()
+          ? [
+              {
+                label: 'Open Memory Profiler',
+                accelerator: 'CmdOrCtrl+Shift+M',
+                click: () => {
+                  createProfilerWindow()
+                },
+              },
+            ]
+          : []),
         {type: 'separator'},
         {
           id: 'back',
