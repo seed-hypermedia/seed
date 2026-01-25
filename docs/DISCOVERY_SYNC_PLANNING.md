@@ -1,304 +1,232 @@
-# Discovery & Sync Issues: Research & Planning Document
+# Discovery & Sync Issues: Planning Document (Final)
 
-## Executive Summary
+## Key Insight
 
-Three distinct issues identified in the app-sync discovery system:
+The UI already shows tombstone status from document query, not from discovery. Discovery is just background sync that keeps local DB up-to-date. These are separate concerns that got conflated.
 
-1. **Frontend Stacking Issue #1**: Resubscribe within 300ms grace period creates duplicate discovery loops
-2. **Frontend Stacking Issue #2**: In-progress discoveries continue after unsubscribe, then schedule new loops
-3. **Backend Deletion Check**: Commit `df4474a` blocks discovery for deleted docs, preventing undeletion propagation
-
----
-
-## Issue #1: Resubscribe Within 300ms Grace Period
-
-### Location
-`frontend/apps/desktop/src/app-sync.ts:540-571`
-
-### Root Cause
-When unsubscribing, `subscriptionCounts` is deleted immediately but cleanup is delayed 300ms. If user resubscribes within that window:
-
-```typescript
-// Unsubscribe path:
-state.subscriptionCounts.delete(key)  // Immediate
-setTimeout(() => {
-  if (!state.subscriptionCounts.has(key)) {  // Check after 300ms
-    subState?.unsubscribe()
-  }
-}, 300)
-
-// Resubscribe path (within 300ms):
-const currentCount = state.subscriptionCounts.get(key) || 0  // Returns 0!
-if (currentCount === 0) {
-  state.subscriptions.set(key, createSubscription(sub))  // OVERWRITES without cleanup
-}
 ```
+Current (conflated):
+  Discovery → throws error if deleted → Frontend stops discovery → UI shows tombstone
 
-### Problem
-- Old subscription's timer never cleared (reference lost on overwrite)
-- Old timer fires, calls `discoveryLoop()`, schedules more timers
-- Each quick unsub/resub cycle adds another parallel discovery loop
-
-### Fix
-```typescript
-if (currentCount === 0) {
-  const existing = state.subscriptions.get(key)
-  if (existing) existing.unsubscribe()  // Clean up before overwrite
-  state.subscriptions.set(key, createSubscription(sub))
-}
+Correct (separated):
+  Document query → returns tombstone → UI shows tombstone immediately
+  Discovery → syncs data → updates local DB → (triggers query invalidation if changed)
 ```
 
 ---
 
-## Issue #2: In-Progress Discoveries Continue After Unsubscribe
+## Problems to Fix
 
-### Location
-`frontend/apps/desktop/src/app-sync.ts:498-519, 527-535`
+### 1. Frontend Stacking Bug
 
-### Root Cause
-`unsubscribe()` clears pending timer but cannot cancel in-flight `runDiscovery()` promise:
+**Root cause:** No cancellation mechanism for in-progress discoveries.
+
+Two manifestations:
+- Resubscribe within 300ms: Old loop continues (wasn't cleaned up)
+- Unsubscribe during discovery: Promise completes, schedules new timer
+
+**Fix:** Add `cancelled` flag, always cleanup before overwrite.
+
+### 2. 300ms Grace Period Bug
+
+**Root cause:** Broken optimization that doesn't work as intended.
 
 ```typescript
-function discoveryLoop() {
-  runDiscovery(sub)  // Promise starts
-    .then(() => {
-      discoveryTimer = setTimeout(discoveryLoop, ...)  // Runs even after unsubscribe
-    })
-}
-
-function unsubscribe() {
-  if (discoveryTimer) clearTimeout(discoveryTimer)  // Only clears pending timer
-  // In-progress promise continues!
-}
+// On unsubscribe: deletes count, delays cleanup 300ms
+// On resubscribe within 300ms: count=0, creates NEW subscription anyway!
 ```
 
-### Problem
-- Backend discovery can take up to 10 minutes (`DefaultDiscoveryTimeout`)
-- User navigates away during discovery, unsubscribe called
-- Promise continues, eventually completes, schedules new timer
-- User navigates back, new subscription created
-- Now 2+ discovery loops for same resource
+The optimization doesn't reuse subscriptions - it just skips cleanup, causing stacking.
 
-### Fix
-```typescript
-let cancelled = false
+**Fix:** Remove 300ms delay entirely. Immediate cleanup is simpler and correct.
 
-function discoveryLoop() {
-  if (cancelled) return
+### 3. Backend Deletion Check Blocks Undeletion
 
-  runDiscovery(sub)
-    .then(() => {
-      if (cancelled) return  // Check before scheduling
-      discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
-    })
-    .catch((error) => {
-      if (cancelled) return
-      // ... error handling
-      discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
-    })
-}
-
-function unsubscribe() {
-  cancelled = true
-  if (discoveryTimer) clearTimeout(discoveryTimer)
-}
-```
-
----
-
-## Issue #3: Backend Deletion Check Prevents Undeletion Discovery
-
-### Location
-`backend/api/entities/v1alpha/entities.go:110-122` (commit `df4474a`)
-
-### The Check
-```go
-var isDeleted bool
-if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-    return sqlitex.ExecTransient(conn, qCheckResourceDeleted(), func(stmt *sqlite.Stmt) error {
-        isDeleted = stmt.ColumnInt(0) == 1
-        return nil
-    }, string(iri))
-}); err != nil {
-    return nil, err
-}
-if isDeleted {
-    return nil, status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", iri)
-}
-```
-
-### How Deletion/Undeletion Works
-```
-Deletion state = computed from: last_tombstone_ref_time > last_alive_ref_time
-
-DELETE:  Create Tombstone Ref (empty heads) → updates last_tombstone_ref_time
-UNDELETE: Create Alive Ref (with heads) → updates last_alive_ref_time
-
-Winner determined by timestamp comparison.
-```
-
-### The Problem
-
-| Local State | Network State | Result |
-|-------------|---------------|--------|
-| Deleted | Deleted | OK - no discovery needed |
-| Deleted | **Alive** | **BLOCKED** - throws error, never learns about undeletion |
-| Alive | Alive | OK - normal sync |
-| Alive | Deleted | OK - receives tombstone, updates timestamp |
-
-When a document is deleted locally but undeleted on the network:
-1. Local node tries to discover
-2. Check sees `is_deleted = true`, throws `FailedPrecondition`
-3. Discovery never starts, no peers contacted
-4. Local node never receives the new alive Ref
-5. **User stuck in deleted state forever**
-
-### Why The Check Was Added
-To avoid showing "Syncing..." spinner indefinitely for truly deleted documents.
-
-### The Tradeoff
-
-| Approach | Deleted Doc UX | Undeletion Support |
-|----------|----------------|-------------------|
-| **With check** (current) | Good - immediate tombstone error | Broken - never discovers undeletion |
-| **Without check** | Bad - infinite spinner | Works - discovers new alive Refs |
-
----
-
-## Proposed Solution for Issue #3
-
-### Option A: Remove the check entirely (simple but poor UX)
-- Reverts `df4474a`
-- Undeletion works
-- But deleted docs show infinite "Syncing..." spinner
-
-### Option B: Time-limited discovery for deleted docs (recommended)
-Allow discovery for deleted docs but with reduced timeout/retries:
+**Root cause:** `df4474a` added check that throws error before discovery starts.
 
 ```go
-// Check if resource is deleted
-isDeleted := checkResourceDeleted(ctx, api.db, iri)
-
-// Adjust discovery behavior based on deletion state
-var discoveryTimeout time.Duration
 if isDeleted {
-    discoveryTimeout = 10 * time.Second  // Quick check for undeletion
-} else {
-    discoveryTimeout = DefaultDiscoveryTimeout  // Full 10 minutes
+    return nil, status.Errorf(codes.FailedPrecondition, ...)  // Blocks undeletion discovery
+}
+```
+
+**Fix:** Remove this check. Discovery should sync regardless of local deletion state.
+
+### 4. Frontend `deletedEntities` is Redundant
+
+**Root cause:** Frontend caches the backend error to avoid re-discovery.
+
+But this is unnecessary:
+- UI already knows tombstone status from document query
+- With backend check removed, the error won't be thrown anyway
+
+**Fix:** Remove `deletedEntities` set entirely.
+
+---
+
+## The Minimal Fix
+
+### Backend Change (1 line removal)
+
+**File:** `backend/api/entities/v1alpha/entities.go`
+
+Remove lines 110-122 (the `is_deleted` check).
+
+That's it. No proto changes. No new fields.
+
+### Frontend Changes
+
+**File:** `frontend/apps/desktop/src/app-sync.ts`
+
+1. Add `cancelled` flag to subscription
+2. Remove 300ms delayed cleanup
+3. Remove `deletedEntities` set
+4. Clean up existing subscription before creating new one
+
+```typescript
+function createSubscription(sub: ResourceSubscription): SubscriptionState {
+  const {id, recursive} = sub
+  let cancelled = false  // NEW
+  let discoveryTimer: ReturnType<typeof setTimeout> | null = null
+
+  function discoveryLoop() {
+    if (cancelled) return  // NEW - check at start
+    if (state.deletedEntities.has(id.id)) { ... }  // REMOVE this check
+
+    runDiscovery(sub)
+      .then(() => {
+        if (cancelled) return  // NEW - check before scheduling
+        discoveryStream.write(null)
+        updateAggregatedDiscoveryState()
+        discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+      })
+      .catch((error) => {
+        if (cancelled) return  // NEW - check before scheduling
+        // REMOVE: HMResourceTombstoneError handling that adds to deletedEntities
+        discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+      })
+  }
+
+  function unsubscribe() {
+    cancelled = true  // NEW
+    if (discoveryTimer) clearTimeout(discoveryTimer)
+    // ... rest unchanged
+  }
+
+  return {unsubscribe, discoveryTimer, isCovered}
 }
 
-ctx, cancel := context.WithTimeout(ctx, discoveryTimeout)
-defer cancel()
-// ... proceed with discovery
-```
+export function subscribe(sub: ResourceSubscription): () => void {
+  const key = getSubscriptionKey(sub)
+  const currentCount = state.subscriptionCounts.get(key) || 0
 
-**Benefits:**
-- Deleted docs get quick discovery attempt (10s) - enough to find an undeletion Ref if peers have it
-- If still deleted after 10s, return tombstone error
-- User sees brief "Syncing..." then appropriate state
-- Undeletion propagates within ~10s
-
-### Option C: Periodic background check for deleted docs
-- Keep the immediate error for UI responsiveness
-- Add background job that periodically re-checks deleted docs for undeletion
-- More complex but best UX
-
-### Option D: Discovery with early termination
-- Start discovery but return tombstone immediately to UI
-- Continue discovery in background
-- If undeletion found, update state and notify UI
-- Most complex but best of both worlds
-
----
-
-## Frontend Changes for Deleted Doc Handling
-
-Current behavior in `app-sync.ts:504-514`:
-```typescript
-.catch((error) => {
-  const parsedError = getErrorMessage(error)
-  if (parsedError instanceof HMResourceTombstoneError) {
-    state.deletedEntities.add(id.id)  // Permanent stop
-    return  // No retry
+  if (currentCount === 0) {
+    const existing = state.subscriptions.get(key)  // NEW
+    if (existing) existing.unsubscribe()           // NEW - cleanup before overwrite
+    state.subscriptions.set(key, createSubscription(sub))
+    ensureActivityPolling()
   }
-  // Other errors - retry
-  discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
-})
-```
 
-### Problem
-Once `deletedEntities.add(id.id)` is called, discovery NEVER retries for that entity (even in new subscriptions checked at line 487).
+  state.subscriptionCounts.set(key, currentCount + 1)
 
-### Proposed Change
-Don't permanently stop discovery for deleted entities. Instead, use longer interval:
-
-```typescript
-const DELETED_POLL_INTERVAL_MS = 60_000  // Check every 60s for undeletion
-
-.catch((error) => {
-  const parsedError = getErrorMessage(error)
-  if (parsedError instanceof HMResourceTombstoneError) {
-    // Don't add to deletedEntities - allow periodic re-check
-    discoveryStream.write({
-      isDiscovering: false,
-      isTombstone: true,  // New field for UI
-      entityId: id.id,
-    })
-    // Slower polling for potential undeletion
-    discoveryTimer = setTimeout(discoveryLoop, DELETED_POLL_INTERVAL_MS)
-    return
+  return function unsubscribe() {
+    const count = state.subscriptionCounts.get(key) || 0
+    if (count <= 1) {
+      state.subscriptionCounts.delete(key)
+      // REMOVE: 300ms setTimeout wrapper
+      const subState = state.subscriptions.get(key)
+      subState?.unsubscribe()
+      state.subscriptions.delete(key)
+      if (state.subscriptions.size === 0) {
+        stopActivityPolling()
+      }
+    } else {
+      state.subscriptionCounts.set(key, count - 1)
+    }
   }
-  discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
-})
+}
+```
+
+Also remove from SyncState:
+```typescript
+// REMOVE: deletedEntities: Set<string>
 ```
 
 ---
 
-## Recommended Implementation Order
+## Why This Works
 
-### Phase 1: Fix Frontend Stacking (Low risk, high impact)
-1. Fix Issue #1: Clean up existing subscription before overwrite
-2. Fix Issue #2: Add cancellation flag to discovery loop
+### Deleted Document Flow (After Fix)
 
-### Phase 2: Fix Deleted Doc Discovery (Medium risk)
-1. Backend: Implement Option B (time-limited discovery for deleted docs)
-2. Frontend: Remove permanent `deletedEntities` blocking, use slower polling instead
-3. Frontend: Add `isTombstone` state to discovery stream for UI
+1. User navigates to deleted doc
+2. `useResource` subscribes → triggers discovery in background
+3. `useResource` queries document → returns tombstone from local DB → **UI shows tombstone immediately**
+4. Discovery runs in background, syncs latest Refs
+5. If doc was undeleted on network:
+   - Discovery syncs new alive Ref
+   - `last_alive_ref_time` updated, `is_deleted` becomes false
+   - Query invalidation triggered
+   - UI updates to show document
 
-### Phase 3: Improve UX (Optional)
-1. Consider Option D for best UX (immediate tombstone + background discovery)
-2. Add UI indicator distinguishing "deleted" vs "not found" vs "syncing"
+### Not-Found Document Flow
+
+1. User navigates to non-existent doc
+2. Discovery runs, times out (no providers)
+3. Document query returns "not found"
+4. UI shows "not found"
+5. Discovery continues polling - if doc is created later, it will be found
+
+### Stacking Prevention
+
+1. User navigates to doc A → subscription created, loop starts
+2. User navigates away → `cancelled = true`, timer cleared
+3. If discovery in progress: promise completes, checks `cancelled`, exits without scheduling
+4. User navigates back → new subscription, single loop
 
 ---
 
-## Testing Scenarios
+## What We're NOT Doing (And Why)
 
-### Stacking Tests
-1. Subscribe, unsubscribe, resubscribe within 300ms - verify single loop
-2. Subscribe, start long discovery, unsubscribe, resubscribe - verify single loop
-3. Rapid navigation between docs - verify no accumulated loops
+### NOT adding `is_deleted` to DiscoverEntityResponse
+- Document query already provides this
+- Keeps API simple
+- No proto changes needed
 
-### Deletion Tests
-1. Delete doc locally, verify tombstone shown
-2. Delete doc locally, undelete on another node, verify propagation
-3. View deleted doc, verify no infinite spinner
-4. View never-existed doc, verify appropriate behavior
+### NOT slowing down polling for deleted docs
+- Adds complexity
+- `lastKnownVersions` already prevents unnecessary invalidations
+- Background polling cost is acceptable
+
+### NOT keeping the 300ms grace period
+- It's broken and causes bugs
+- The "optimization" doesn't actually work
+- Simpler to just cleanup immediately
+
+### NOT using `getDocumentInfo` in app-sync
+- Discovery and document display are separate concerns
+- Keep them decoupled
+- Document query already handles tombstone display
 
 ---
 
-## Files to Modify
+## Summary
 
-### Frontend
-- `frontend/apps/desktop/src/app-sync.ts`
-  - Fix subscription overwrite cleanup
-  - Add cancellation flag
-  - Change deleted entity handling
+| Change | Lines | Risk |
+|--------|-------|------|
+| Remove backend `is_deleted` check | ~15 removed | Low - just removes a guard |
+| Add `cancelled` flag | ~10 added | Low - standard pattern |
+| Remove 300ms delay | ~10 removed | Low - simplification |
+| Remove `deletedEntities` | ~15 removed | Low - redundant code |
+| Cleanup before overwrite | ~3 added | Low - defensive check |
 
-### Backend
-- `backend/api/entities/v1alpha/entities.go`
-  - Modify or remove the `isDeleted` check
-  - Implement time-limited discovery for deleted docs
+**Total: Net removal of ~25 lines. Simpler, correct, enables undeletion.**
 
-### Shared Types (if adding isTombstone)
-- `frontend/packages/shared/src/hm-types.ts`
-  - Add `isTombstone` to `DiscoveryState`
+---
+
+## Testing
+
+1. **Stacking:** Navigate rapidly between docs, verify single loop per doc
+2. **Tombstone UX:** View deleted doc, verify immediate tombstone display
+3. **Undeletion:** Delete doc, undelete on another node, verify propagation
+4. **Not-found:** View non-existent doc, verify appropriate UI
+5. **Memory:** Long session with navigation, verify no timer leaks
