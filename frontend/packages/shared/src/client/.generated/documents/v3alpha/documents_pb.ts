@@ -429,6 +429,48 @@ export class CreateDocumentChangeRequest extends Message<CreateDocumentChangeReq
 }
 
 /**
+ * Response with prepared change data for client-side signing.
+ *
+ * @generated from message com.seed.documents.v3alpha.PrepareChangeResponse
+ */
+export class PrepareChangeResponse extends Message<PrepareChangeResponse> {
+  /**
+   * The raw CBOR bytes of the Change blob without the signature field.
+   * The client must add the signer and signature fields before hashing.
+   *
+   * @generated from field: bytes unsigned_change = 1;
+   */
+  unsignedChange = new Uint8Array(0);
+
+  constructor(data?: PartialMessage<PrepareChangeResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.PrepareChangeResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "unsigned_change", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PrepareChangeResponse {
+    return new PrepareChangeResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PrepareChangeResponse {
+    return new PrepareChangeResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PrepareChangeResponse {
+    return new PrepareChangeResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PrepareChangeResponse | PlainMessage<PrepareChangeResponse> | undefined, b: PrepareChangeResponse | PlainMessage<PrepareChangeResponse> | undefined): boolean {
+    return proto3.util.equals(PrepareChangeResponse, a, b);
+  }
+}
+
+/**
  * @generated from message com.seed.documents.v3alpha.DeleteDocumentRequest
  */
 export class DeleteDocumentRequest extends Message<DeleteDocumentRequest> {

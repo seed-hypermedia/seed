@@ -1,0 +1,6 @@
+# We don't actually use buf for building protos.
+# This file is here for LSP support built into buf.
+version: v2
+lint:
+  ignore:
+    - "."

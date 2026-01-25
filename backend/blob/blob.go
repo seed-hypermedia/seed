@@ -141,9 +141,37 @@ func (b BaseBlob) BlobType() Type {
 	return b.Type
 }
 
+// NewNopSigner creates a new [core.Signer] that doesn't actually sign anything.
+// It's used to prepare unsigned blobs to be signed later, reusing the existing signing backend code.
+func NewNopSigner(principal core.Principal) core.Signer {
+	return nopSigner{
+		principal: principal,
+	}
+}
+
+type nopSigner struct {
+	principal core.Principal
+}
+
+func (s nopSigner) Sign([]byte) (core.Signature, error) {
+	return nil, nil
+}
+
+func (s nopSigner) SignatureSize() int {
+	return 0
+}
+
+func (s nopSigner) Principal() core.Principal {
+	return s.principal
+}
+
 // Sign the blob and fill in the signature.
 // The pointer sig is supposed to be a field of v.
-func Sign(kp *core.KeyPair, v any, sig *core.Signature) error {
+func Sign(kp core.Signer, v any, sig *core.Signature) error {
+	if _, ok := kp.(nopSigner); ok {
+		return nil
+	}
+
 	// Unlike some other projects that use a nil signature or omit the field entirely for signing,
 	// we fill the space for the signature with zeros.
 	// This leaves us room for optimizations to avoid double-serialization:

@@ -181,44 +181,18 @@ func (srv *Server) BatchGetDocumentInfo(ctx context.Context, in *documents.Batch
 
 // CreateDocumentChange implements Documents API v3.
 func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.Document, error) {
-	ns, err := core.DecodePrincipal(in.Account)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
-	}
-
-	iri, err := makeIRI(ns, in.Path)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to make IRI from account=%s and path=%s: %v", in.Account, in.Path, err)
-	}
-
-	{
-		if in.Account == "" {
-			return nil, errutil.MissingArgument("account")
-		}
-
-		if in.SigningKeyName == "" {
-			return nil, errutil.MissingArgument("signing_key_name")
-		}
-
-		if len(in.Changes) == 0 {
-			return nil, status.Errorf(codes.InvalidArgument, "at least one change is required")
-		}
-
-		if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
-			// Private documents must have a non-empty path with no slashes except the leading one.
-			if in.Path == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "root documents cannot be private")
-			}
-
-			if strings.Count(in.Path, "/") != 1 {
-				return nil, status.Errorf(codes.InvalidArgument, "private documents must have a simple path with only a leading slash (e.g., '/document-name'): got %s", in.Path)
-			}
-		}
+	if in.SigningKeyName == "" {
+		return nil, errutil.MissingArgument("signing_key_name")
 	}
 
 	kp, err := srv.keys.GetKey(ctx, in.SigningKeyName)
 	if err != nil {
 		return nil, err
+	}
+
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
 	}
 
 	if err := srv.checkWriteAccess(ctx, ns, in.Path, kp); err != nil {
@@ -231,38 +205,8 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 		}
 	}
 
-	heads, err := docmodel.Version(in.BaseVersion).Parse()
+	doc, err := srv.handleDocumentChangeRequest(ctx, in)
 	if err != nil {
-		return nil, err
-	}
-
-	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, true)
-	if err != nil {
-		// If the document is deleted we create a new one, to allow reusing the previously existing path.
-		if status.Code(err) != codes.FailedPrecondition {
-			return nil, err
-		}
-
-		clock := cclock.New()
-		doc, err = docmodel.New(iri, clock)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if in.BaseVersion == "" {
-		switch {
-		// No base version is allowed for home documents with 1 change (which is the auto-generated genesis change).
-		case in.Path == "" && doc.NumChanges() == 1:
-		// No base version is allowed for newly created documents, i.e. when there's no changes applied yet.
-		case in.Path != "" && doc.NumChanges() == 0:
-		// Otherwise it's an error to not provide a base version.
-		default:
-			return nil, status.Errorf(codes.FailedPrecondition, "document with this path already exists, `base_version` is required for updating existing documents")
-		}
-	}
-
-	if err := applyChanges(doc, in.Changes); err != nil {
 		return nil, err
 	}
 
@@ -306,6 +250,92 @@ func (srv *Server) CreateDocumentChange(ctx context.Context, in *documents.Creat
 	}
 
 	return doc.Hydrate(ctx)
+}
+
+// PrepareChange prepares unsigned Change and Ref blobs for client-side signing.
+func (srv *Server) PrepareChange(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*documents.PrepareChangeResponse, error) {
+	doc, err := srv.handleDocumentChangeRequest(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use NopSigner to create the Change without actually signing it.
+	// The client will sign it themselves.
+	change, err := doc.CreateChange(blob.NewNopSigner(nil), time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return &documents.PrepareChangeResponse{
+		UnsignedChange: change.Data,
+	}, nil
+}
+
+// handleDocumentChangeRequest handles the common logic for CreateDocumentChange and PrepareChange.
+// It validates input, loads/creates the document, and applies the requested changes.
+func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in *documents.CreateDocumentChangeRequest) (*docmodel.Document, error) {
+	ns, err := core.DecodePrincipal(in.Account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode account %s: %v", in.Account, err)
+	}
+
+	iri, err := makeIRI(ns, in.Path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to make IRI from account=%s and path=%s: %v", in.Account, in.Path, err)
+	}
+
+	{
+		if in.Account == "" {
+			return nil, errutil.MissingArgument("account")
+		}
+
+		if len(in.Changes) == 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "at least one change is required")
+		}
+
+		if in.Visibility == documents.ResourceVisibility_RESOURCE_VISIBILITY_PRIVATE {
+			if in.Path == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "root documents cannot be private")
+			}
+
+			if strings.Count(in.Path, "/") != 1 {
+				return nil, status.Errorf(codes.InvalidArgument, "private documents must have a simple path with only a leading slash (e.g., '/document-name'): got %s", in.Path)
+			}
+		}
+	}
+
+	heads, err := docmodel.Version(in.BaseVersion).Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, true)
+	if err != nil {
+		if status.Code(err) != codes.FailedPrecondition {
+			return nil, err
+		}
+
+		clock := cclock.New()
+		doc, err = docmodel.New(iri, clock)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.BaseVersion == "" {
+		switch {
+		case in.Path == "" && doc.NumChanges() == 1:
+		case in.Path != "" && doc.NumChanges() == 0:
+		default:
+			return nil, status.Errorf(codes.FailedPrecondition, "document with this path already exists, `base_version` is required for updating existing documents")
+		}
+	}
+
+	if err := applyChanges(doc, in.Changes); err != nil {
+		return nil, err
+	}
+
+	return doc, nil
 }
 
 // ListDirectory implements Documents API v3.

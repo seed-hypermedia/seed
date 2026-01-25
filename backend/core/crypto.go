@@ -22,6 +22,7 @@ import (
 
 // Signer signs data and produces cryptographic signature.
 type Signer interface {
+	Principal() Principal
 	Sign([]byte) (Signature, error)
 	SignatureSize() int
 }

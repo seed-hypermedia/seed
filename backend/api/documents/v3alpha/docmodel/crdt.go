@@ -591,7 +591,7 @@ func addUnique(in []int, v int) []int {
 }
 
 // prepareChange to be applied later.
-func (e *docCRDT) prepareChange(ts time.Time, signer *core.KeyPair, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
+func (e *docCRDT) prepareChange(ts time.Time, signer core.Signer, body blob.ChangeBody) (hb blob.Encoded[*blob.Change], err error) {
 	var genesis cid.Cid
 	if len(e.cids) > 0 {
 		genesis = e.cids[0]

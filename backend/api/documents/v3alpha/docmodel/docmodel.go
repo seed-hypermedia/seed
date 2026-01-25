@@ -349,7 +349,13 @@ func (dm *Document) SignChange(kp *core.KeyPair) (hb blob.Encoded[*blob.Change],
 // SignChangeAt creates a change at the given timestamp, ignoring the internal clock.
 // The timestamp must still satisfy the causality rules, i.e. be strictly greater than any previously observed timestamp.
 func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
-	// TODO(burdiyan): we should make them reusable.
+	return dm.CreateChange(kp, at)
+}
+
+// CreateChange creates a Change blob with the given signer and principal.
+// This allows using NopSigner for client-side signing scenarios where the signer doesn't actually sign.
+// After this the Document instance must be discarded.
+func (dm *Document) CreateChange(signer core.Signer, at time.Time) (hb blob.Encoded[*blob.Change], err error) {
 	if dm.done {
 		return hb, fmt.Errorf("using already committed mutation")
 	}
@@ -363,7 +369,7 @@ func (dm *Document) SignChangeAt(kp *core.KeyPair, at time.Time) (hb blob.Encode
 
 	at = at.Round(dm.crdt.clock.Precision)
 
-	hb, err = dm.crdt.prepareChange(at, kp, ops)
+	hb, err = dm.crdt.prepareChange(at, signer, ops)
 	if err != nil {
 		return hb, err
 	}

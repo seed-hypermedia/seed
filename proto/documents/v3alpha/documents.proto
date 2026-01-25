@@ -2,17 +2,17 @@ syntax = "proto3";
 
 package com.seed.documents.v3alpha;
 
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "seed/backend/genproto/documents/v3alpha;documents";
 
 /*
-  WARNING: This API is a big mess right now, and a bit of a kitchen sink.
-  So are most of our other APIs right now. We are in the process of
-  cleaning things up and refactoring them for coherence and usability,
-  but it's going to take some time.
+   WARNING: This API is a big mess right now, and a bit of a kitchen sink.
+   So are most of our other APIs right now. We are in the process of
+   cleaning things up and refactoring them for coherence and usability,
+   but it's going to take some time.
 */
 
 // TODO(burdiyan): rename account to space/site everywhere in this API.
@@ -33,12 +33,19 @@ service Documents {
   // Creates a new Document Change.
   rpc CreateDocumentChange(CreateDocumentChangeRequest) returns (Document);
 
+  // Prepares relevant blobs for clients to sign and re-submit to the server.
+  // In ideal world it shouldn't exist. Trust is assumed between client and the server.
+  // It exists to avoid making clients aware of all the document CRDT complexities.
+  //
+  // This RPC ignores the signing_key_name field, because the blobs are expected to be signed by the client, not the server.
+  rpc PrepareChange(CreateDocumentChangeRequest) returns (PrepareChangeResponse);
+
   // Deletes a document.
   //
   // Deprecated: Use CreateRef API.
   rpc DeleteDocument(DeleteDocumentRequest) returns (google.protobuf.Empty) {
     option deprecated = true;
-  };
+  }
 
   // Lists all accounts.
   //
@@ -192,6 +199,13 @@ message CreateDocumentChangeRequest {
   // Can only be specified here when creating the document for the first time,
   // i.e. when `base_version` is empty.
   ResourceVisibility visibility = 8;
+}
+
+// Response with prepared change data for client-side signing.
+message PrepareChangeResponse {
+  // The raw CBOR bytes of the Change blob without the signature field.
+  // The client must add the signer and signature fields before hashing.
+  bytes unsigned_change = 1;
 }
 
 message DeleteDocumentRequest {
