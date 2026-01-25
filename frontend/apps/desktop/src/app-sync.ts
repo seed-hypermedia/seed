@@ -78,9 +78,6 @@ type SyncState = {
 
   // Track last known versions to avoid unnecessary invalidations
   lastKnownVersions: Map<string, string>
-
-  // Track entities known to be deleted to stop discovery
-  deletedEntities: Set<string>
 }
 
 const state: SyncState = {
@@ -94,7 +91,6 @@ const state: SyncState = {
   recursiveSubscriptions: new Set(),
   discoveryStreams: new Map(),
   lastKnownVersions: new Map(),
-  deletedEntities: new Set(),
 }
 
 // Aggregated discovery state
@@ -480,15 +476,11 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     })
   }
 
+  let cancelled = false
   let discoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   function discoveryLoop() {
-    // Skip discovery for entities known to be deleted
-    if (state.deletedEntities.has(id.id)) {
-      discoveryStream.write(null)
-      updateAggregatedDiscoveryState()
-      return
-    }
+    if (cancelled) return
 
     if (isCovered) {
       discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
@@ -497,23 +489,14 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
 
     runDiscovery(sub)
       .then(() => {
+        if (cancelled) return
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
-      .catch((error) => {
-        const parsedError = getErrorMessage(error)
-        if (parsedError instanceof HMResourceTombstoneError) {
-          // Entity is deleted - stop discovery permanently
-          state.deletedEntities.add(id.id)
-          discoveryStream.write(null)
-          updateAggregatedDiscoveryState()
-          console.log(
-            `[Discovery] Entity ${id.id} is deleted, stopping discovery`,
-          )
-          return
-        }
-        // Other errors - keep discovering state and retry
+      .catch(() => {
+        if (cancelled) return
+        // Keep discovering state and retry on errors
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
   }
@@ -525,13 +508,13 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   )
 
   function unsubscribe() {
+    cancelled = true
     if (discoveryTimer) clearTimeout(discoveryTimer)
     if (recursive) {
       state.recursiveSubscriptions.delete(key)
     }
     // Clean up tracked state
     state.lastKnownVersions.delete(id.id)
-    state.deletedEntities.delete(id.id)
   }
 
   return {unsubscribe, discoveryTimer, isCovered}
@@ -542,6 +525,10 @@ export function subscribe(sub: ResourceSubscription): () => void {
   const currentCount = state.subscriptionCounts.get(key) || 0
 
   if (currentCount === 0) {
+    // Clean up any existing subscription to prevent stacking
+    const existing = state.subscriptions.get(key)
+    if (existing) existing.unsubscribe()
+
     state.subscriptions.set(key, createSubscription(sub))
     ensureActivityPolling()
   }
@@ -552,18 +539,13 @@ export function subscribe(sub: ResourceSubscription): () => void {
     const count = state.subscriptionCounts.get(key) || 0
     if (count <= 1) {
       state.subscriptionCounts.delete(key)
-      // Delay cleanup in case another subscription arrives quickly
-      setTimeout(() => {
-        if (!state.subscriptionCounts.has(key)) {
-          const subState = state.subscriptions.get(key)
-          subState?.unsubscribe()
-          state.subscriptions.delete(key)
+      const subState = state.subscriptions.get(key)
+      subState?.unsubscribe()
+      state.subscriptions.delete(key)
 
-          if (state.subscriptions.size === 0) {
-            stopActivityPolling()
-          }
-        }
-      }, 300)
+      if (state.subscriptions.size === 0) {
+        stopActivityPolling()
+      }
     } else {
       state.subscriptionCounts.set(key, count - 1)
     }
