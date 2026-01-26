@@ -201,6 +201,7 @@ export function useResource(
   return {
     ...result,
     isDiscovering,
+    isTombstone,
   }
 }
 
@@ -363,6 +364,7 @@ export function useResources(
     return {
       ...result,
       isDiscovering,
+      isTombstone,
     }
   })
 }
