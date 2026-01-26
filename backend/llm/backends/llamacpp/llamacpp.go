@@ -29,7 +29,7 @@ type LlamaCppOption func(*LlamaCppClient) error
 
 const (
 	defaultBatchSize    = 10
-	maxParallelContexts = 512
+	maxParallelContexts = 16
 	taskID              = "llamacpp-load-model-task"
 	taskDescription     = "Loading LlamaCpp model"
 )
