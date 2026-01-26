@@ -17,11 +17,12 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
+  getErrorMessage,
   HMRedirectError,
   HMResourceTombstoneError,
-  getErrorMessage,
 } from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
@@ -36,6 +37,7 @@ import {t} from './app-trpc'
 // Polling intervals
 const DISCOVERY_POLL_INTERVAL_MS = 3_000
 const ACTIVITY_POLL_INTERVAL_MS = 3_000
+const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
 
 // Debounce window for batching invalidations
 const INVALIDATION_DEBOUNCE_MS = 100
@@ -79,8 +81,11 @@ type SyncState = {
   // Track last known versions to avoid unnecessary invalidations
   lastKnownVersions: Map<string, string>
 
-  // Track entities known to be deleted to stop discovery
-  deletedEntities: Set<string>
+  // Track known tombstones to avoid showing spinner on subsequent checks
+  knownTombstones: Set<string>
+
+  // Track known not-found resources to avoid UI churn
+  knownNotFound: Set<string>
 }
 
 const state: SyncState = {
@@ -94,17 +99,33 @@ const state: SyncState = {
   recursiveSubscriptions: new Set(),
   discoveryStreams: new Map(),
   lastKnownVersions: new Map(),
-  deletedEntities: new Set(),
+  knownTombstones: new Set(),
+  knownNotFound: new Set(),
 }
 
 // Aggregated discovery state
 const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
   writeableStateStream<AggregatedDiscoveryState>({
     activeCount: 0,
+    tombstoneCount: 0,
+    notFoundCount: 0,
     blobsDiscovered: 0,
     blobsDownloaded: 0,
     blobsFailed: 0,
   })
+
+// Resource fetcher for checking tombstone/redirect status
+const fetchResource = createResourceFetcher(grpcClient)
+
+async function checkResourceStatus(
+  id: UnpackedHypermediaId,
+): Promise<'ok' | 'tombstone' | 'redirect' | 'not-found'> {
+  const resource = await fetchResource(id)
+  if (resource.type === 'tombstone') return 'tombstone'
+  if (resource.type === 'redirect') return 'redirect'
+  if (resource.type === 'not-found') return 'not-found'
+  return 'ok'
+}
 
 // ============ Discovery State Streams ============
 
@@ -128,13 +149,19 @@ export function getAggregatedDiscoveryStream(): StateStream<AggregatedDiscoveryS
 
 function updateAggregatedDiscoveryState() {
   let activeCount = 0
+  let tombstoneCount = 0
+  let notFoundCount = 0
   let blobsDiscovered = 0
   let blobsDownloaded = 0
   let blobsFailed = 0
 
   state.discoveryStreams.forEach(({stream}) => {
     const discoveryState = stream.get()
-    if (discoveryState?.isDiscovering) {
+    if (discoveryState?.isTombstone) {
+      tombstoneCount++
+    } else if (discoveryState?.isNotFound) {
+      notFoundCount++
+    } else if (discoveryState?.isDiscovering) {
       activeCount++
       if (discoveryState.progress) {
         blobsDiscovered += discoveryState.progress.blobsDiscovered
@@ -146,6 +173,8 @@ function updateAggregatedDiscoveryState() {
 
   writeAggregatedDiscovery({
     activeCount,
+    tombstoneCount,
+    notFoundCount,
     blobsDiscovered,
     blobsDownloaded,
     blobsFailed,
@@ -372,29 +401,130 @@ export async function discoverDocument(
   )
 }
 
-async function runDiscovery(sub: ResourceSubscription) {
+type DiscoveryResult = {
+  version?: string
+  isTombstone?: boolean
+  isRedirect?: boolean
+  isNotFound?: boolean
+}
+
+async function runDiscovery(
+  sub: ResourceSubscription,
+): Promise<DiscoveryResult | null> {
   const {id, recursive} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
+  const isKnownTombstone = state.knownTombstones.has(id.id)
+  const isKnownNotFound = state.knownNotFound.has(id.id)
+  const isSilent = isKnownTombstone || isKnownNotFound
 
-  const result = await discoverDocument(
-    id.uid,
-    id.path,
-    undefined,
-    recursive,
-    (progress) => {
+  // Run discovery (syncs data from network)
+  // For known tombstones/not-found, run silently without updating UI state
+  let discoveryResult: {version: string} | null = null
+  try {
+    discoveryResult = await discoverDocument(
+      id.uid,
+      id.path,
+      undefined,
+      recursive,
+      isSilent
+        ? undefined // Silent discovery for settled resources
+        : (progress) => {
+            discoveryStream.write({
+              isDiscovering: true,
+              startedAt: Date.now(),
+              entityId: id.id,
+              recursive,
+              progress,
+            })
+            updateAggregatedDiscoveryState()
+          },
+    )
+  } catch (e) {
+    // Discovery failed (timeout, network error, etc.)
+    // Check resource status anyway - data may have been synced
+    console.log(
+      `[Discovery] ${id.id}: discovery error, checking resource status`,
+    )
+  }
+
+  // After discovery, check resource status via GetResource
+  const status = await checkResourceStatus(id)
+  console.log(`[Discovery] ${id.id}: status=${status}`)
+
+  if (status === 'tombstone') {
+    // Resource is deleted
+    const wasAlreadyTombstone = state.knownTombstones.has(id.id)
+    state.knownTombstones.add(id.id)
+
+    // Only update UI if this is newly discovered tombstone
+    if (!wasAlreadyTombstone) {
       discoveryStream.write({
-        isDiscovering: true,
+        isDiscovering: false,
+        isTombstone: true,
         startedAt: Date.now(),
         entityId: id.id,
         recursive,
-        progress,
       })
       updateAggregatedDiscoveryState()
-    },
-  )
 
-  // Only invalidate if the version has actually changed
-  const newVersion = result?.version
+      // Invalidate so UI shows tombstone
+      appInvalidateQueries([queryKeys.ENTITY, id.id])
+      appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    }
+
+    return {isTombstone: true}
+  }
+
+  if (status === 'redirect') {
+    // Resource redirects - clear tombstone/not-found state if it was one
+    state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    return {isRedirect: true}
+  }
+
+  if (status === 'not-found') {
+    // Resource not found after discovery attempt
+    const wasAlreadyNotFound = state.knownNotFound.has(id.id)
+    state.knownNotFound.add(id.id)
+    // Clear tombstone state if it was one
+    state.knownTombstones.delete(id.id)
+
+    // Only update UI if this is newly discovered as not-found
+    if (!wasAlreadyNotFound) {
+      discoveryStream.write({
+        isDiscovering: false,
+        isNotFound: true,
+        startedAt: Date.now(),
+        entityId: id.id,
+        recursive,
+      })
+      updateAggregatedDiscoveryState()
+    }
+    // Don't invalidate queries for not-found - let UI show stable "not found" state
+    return {isNotFound: true}
+  }
+
+  // Resource exists and is not deleted/redirected/not-found
+  // Check if it was previously a tombstone or not-found (content appeared!)
+  const wasSettled =
+    state.knownTombstones.has(id.id) || state.knownNotFound.has(id.id)
+  if (wasSettled) {
+    console.log(`[Discovery] ${id.id}: resource appeared (was settled)!`)
+    state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
+    discoveryStream.write(null) // Clear settled state
+    updateAggregatedDiscoveryState()
+    // Invalidate to show restored content
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.ACCOUNT, id.uid])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    return discoveryResult
+  }
+
+  // Normal flow - check version changes
+  const newVersion = discoveryResult?.version
   const lastKnownVersion = state.lastKnownVersions.get(id.id)
 
   const shouldInvalidate = newVersion && newVersion !== lastKnownVersion
@@ -432,7 +562,7 @@ async function runDiscovery(sub: ResourceSubscription) {
     }
   }
 
-  return result
+  return discoveryResult
 }
 
 // ============ Resource Subscriptions ============
@@ -480,15 +610,11 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     })
   }
 
+  let cancelled = false
   let discoveryTimer: ReturnType<typeof setTimeout> | null = null
 
   function discoveryLoop() {
-    // Skip discovery for entities known to be deleted
-    if (state.deletedEntities.has(id.id)) {
-      discoveryStream.write(null)
-      updateAggregatedDiscoveryState()
-      return
-    }
+    if (cancelled) return
 
     if (isCovered) {
       discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
@@ -496,24 +622,24 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     }
 
     runDiscovery(sub)
-      .then(() => {
+      .then((result) => {
+        if (cancelled) return
+
+        // For tombstoned/redirected/not-found resources, use slower polling
+        // (the stream state is already set by runDiscovery)
+        if (result?.isTombstone || result?.isRedirect || result?.isNotFound) {
+          discoveryTimer = setTimeout(discoveryLoop, DELETED_POLL_INTERVAL_MS)
+          return
+        }
+
+        // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
-      .catch((error) => {
-        const parsedError = getErrorMessage(error)
-        if (parsedError instanceof HMResourceTombstoneError) {
-          // Entity is deleted - stop discovery permanently
-          state.deletedEntities.add(id.id)
-          discoveryStream.write(null)
-          updateAggregatedDiscoveryState()
-          console.log(
-            `[Discovery] Entity ${id.id} is deleted, stopping discovery`,
-          )
-          return
-        }
-        // Other errors - keep discovering state and retry
+      .catch(() => {
+        if (cancelled) return
+        // Keep discovering state and retry on errors
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
       })
   }
@@ -525,13 +651,15 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
   )
 
   function unsubscribe() {
+    cancelled = true
     if (discoveryTimer) clearTimeout(discoveryTimer)
     if (recursive) {
       state.recursiveSubscriptions.delete(key)
     }
     // Clean up tracked state
     state.lastKnownVersions.delete(id.id)
-    state.deletedEntities.delete(id.id)
+    state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
   }
 
   return {unsubscribe, discoveryTimer, isCovered}
@@ -542,6 +670,10 @@ export function subscribe(sub: ResourceSubscription): () => void {
   const currentCount = state.subscriptionCounts.get(key) || 0
 
   if (currentCount === 0) {
+    // Clean up any existing subscription to prevent stacking
+    const existing = state.subscriptions.get(key)
+    if (existing) existing.unsubscribe()
+
     state.subscriptions.set(key, createSubscription(sub))
     ensureActivityPolling()
   }
@@ -552,18 +684,13 @@ export function subscribe(sub: ResourceSubscription): () => void {
     const count = state.subscriptionCounts.get(key) || 0
     if (count <= 1) {
       state.subscriptionCounts.delete(key)
-      // Delay cleanup in case another subscription arrives quickly
-      setTimeout(() => {
-        if (!state.subscriptionCounts.has(key)) {
-          const subState = state.subscriptions.get(key)
-          subState?.unsubscribe()
-          state.subscriptions.delete(key)
+      const subState = state.subscriptions.get(key)
+      subState?.unsubscribe()
+      state.subscriptions.delete(key)
 
-          if (state.subscriptions.size === 0) {
-            stopActivityPolling()
-          }
-        }
-      }, 300)
+      if (state.subscriptions.size === 0) {
+        stopActivityPolling()
+      }
     } else {
       state.subscriptionCounts.set(key, count - 1)
     }
@@ -679,7 +806,8 @@ export const syncApi = t.router({
         const active: DiscoveryState[] = []
         state.discoveryStreams.forEach(({stream}) => {
           const discoveryState = stream.get()
-          if (discoveryState?.isDiscovering) {
+          // Include both active discoveries and tombstones
+          if (discoveryState?.isDiscovering || discoveryState?.isTombstone) {
             active.push(discoveryState)
           }
         })

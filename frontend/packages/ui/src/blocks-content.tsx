@@ -1636,6 +1636,9 @@ export function BlockEmbedCard({
         <Spinner />
       </div>
     )
+  if (doc.isTombstone || doc.data?.type === 'tombstone') {
+    return <ErrorBlock message="Embedded content has been deleted" />
+  }
   if (doc.data?.type === 'not-found') {
     if (doc.isDiscovering) {
       return (
@@ -1728,6 +1731,9 @@ export function BlockEmbedContent({
     )
   }
   if (!id) return <ErrorBlock message="Invalid embed link" />
+  if (resource.isTombstone || resource.data?.type === 'tombstone') {
+    return <ErrorBlock message="Embedded content has been deleted" />
+  }
   if (resource.data?.type === 'not-found') {
     if (resource.isDiscovering) {
       return (
@@ -1751,9 +1757,6 @@ export function BlockEmbedContent({
         </Button>
       </ErrorBlock>
     )
-  }
-  if (resource.data?.type === 'tombstone') {
-    return <ErrorBlock message="Resource has been deleted" />
   }
   if (resource.data?.type === 'error') {
     return <ErrorBlock message={resource.data.message} />

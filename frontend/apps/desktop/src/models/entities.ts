@@ -141,6 +141,8 @@ export function getDiscoveryStream(
 const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
   writeableStateStream({
     activeCount: 0,
+    tombstoneCount: 0,
+    notFoundCount: 0,
     blobsDiscovered: 0,
     blobsDownloaded: 0,
     blobsFailed: 0,

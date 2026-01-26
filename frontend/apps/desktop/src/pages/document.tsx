@@ -83,6 +83,7 @@ import {Feed} from '@shm/ui/feed'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {
+  PageDeleted,
   PageDiscovery,
   PageNotFound,
   PageRedirected,
@@ -549,6 +550,11 @@ function _MainDocumentPage({
         }
       />
     )
+  }
+
+  // @ts-ignore - check tombstone from discovery state (API returns not-found when no local data)
+  if (resource.isTombstone || resource.data?.type === 'tombstone') {
+    return <PageDeleted />
   }
 
   // @ts-ignore

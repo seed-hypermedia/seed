@@ -100,3 +100,15 @@ export function PageNotFound() {
     />
   )
 }
+
+/**
+ * Shown when a document has been deleted (tombstone).
+ */
+export function PageDeleted() {
+  return (
+    <PageMessageBox
+      title="Document Deleted"
+      message="This document has been deleted by its owner."
+    />
+  )
+}
