@@ -230,3 +230,259 @@ Also remove from SyncState:
 3. **Undeletion:** Delete doc, undelete on another node, verify propagation
 4. **Not-found:** View non-existent doc, verify appropriate UI
 5. **Memory:** Long session with navigation, verify no timer leaks
+
+---
+
+## Remaining Issues (Post-Implementation)
+
+After implementing the initial fix, several issues remain:
+
+### Issue 5: "Searching Peers" Stuck Forever for Deleted Docs
+
+**Symptom:** Footer shows "Searching peers..." spinner indefinitely when viewing deleted docs.
+
+**Root cause:** For deleted docs, discovery returns empty `version`. This causes:
+1. `checkDiscoverySuccess(discoverResp)` returns `false` (no version)
+2. `tryUntilSuccess` returns `null`, keeps retrying until timeout
+3. `discoverDocument` throws "Timed out" error
+4. `discoveryLoop` catches error, schedules retry in 3 seconds
+5. Infinite loop of timeout → retry → timeout
+
+**Flow:**
+```
+discoverEntity() → empty version → tryUntilSuccess times out →
+catch in discoveryLoop → retry in 3s → repeat forever
+```
+
+### Issue 6: Refresh Required to See Deleted State
+
+**Symptom:** After deleting a doc, user must refresh to see tombstone UI.
+
+**Root cause:** Query invalidation only happens when `newVersion && newVersion !== lastKnownVersion`:
+```typescript
+const shouldInvalidate = newVersion && newVersion !== lastKnownVersion
+```
+
+For deleted docs, `newVersion` is empty/null, so `shouldInvalidate = false` and queries are never invalidated.
+
+### Issue 7: Discovery Panel Doesn't Show Deletion Status
+
+**Symptom:** Discovery hover panel shows spinner for deleted docs instead of "Deleted" indicator.
+
+**Root cause:** `DiscoveryState` type has no field for tombstone status:
+```typescript
+type DiscoveryState = {
+  isDiscovering: boolean
+  startedAt: number
+  entityId: string
+  recursive?: boolean
+  progress?: DiscoveryProgress
+  // Missing: isTombstone?: boolean
+}
+```
+
+### Issue 8: Footer Should Distinguish Deleted from Searching
+
+**Symptom:** Footer shows "Searching peers..." for deleted docs, should show something like "Some resources deleted".
+
+---
+
+## Solution: Add `is_deleted` to DiscoverEntityResponse
+
+The cleanest fix requires backend to tell frontend when a synced doc is deleted.
+
+### Proto Change
+
+**File:** `proto/entities/v1alpha/entities.proto`
+
+```protobuf
+message DiscoverEntityResponse {
+  string version = 1;
+  DiscoveryTaskState state = 2;
+  reserved 3;
+  google.protobuf.Timestamp last_result_time = 4;
+  string last_error = 5;
+  google.protobuf.Timestamp result_expire_time = 6;
+  DiscoveryProgress progress = 7;
+  bool is_deleted = 8;  // NEW: true if resource is deleted after sync
+}
+```
+
+### Backend Change
+
+**File:** `backend/api/entities/v1alpha/entities.go`
+
+```go
+// After TouchHotTask, check deletion status
+info := api.disc.TouchHotTask(iri, v, in.Recursive)
+
+// Check if resource is deleted AFTER sync (not before)
+var isDeleted bool
+if err := api.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+    return sqlitex.ExecTransient(conn, qCheckResourceDeleted(), func(stmt *sqlite.Stmt) error {
+        isDeleted = stmt.ColumnInt(0) == 1
+        return nil
+    }, string(iri))
+}); err != nil {
+    // Ignore error, just don't set isDeleted
+}
+
+resp := &entities.DiscoverEntityResponse{
+    Version:   info.Result.String(),
+    State:     stateToProto(info.State),
+    Progress:  progressToProto(info.Progress),
+    IsDeleted: isDeleted,  // NEW
+}
+```
+
+Note: Need to restore `qCheckResourceDeleted` query that was removed earlier.
+
+### Frontend Changes
+
+**File:** `frontend/packages/shared/src/hm-types.ts`
+
+```typescript
+export type DiscoveryState = {
+  isDiscovering: boolean
+  startedAt: number
+  entityId: string
+  recursive?: boolean
+  progress?: DiscoveryProgress
+  isTombstone?: boolean  // NEW
+}
+```
+
+**File:** `frontend/apps/desktop/src/app-sync.ts`
+
+```typescript
+// In discoverDocument, return is_deleted status
+return await tryUntilSuccess(
+  async () => {
+    const discoverResp = await grpcClient.entities.discoverEntity(discoverRequest)
+    // ...
+    // Consider deleted docs as "success" - we synced the tombstone
+    if (discoverResp.isDeleted) {
+      return {version: '', isDeleted: true}
+    }
+    if (checkDiscoverySuccess(discoverResp))
+      return {version: discoverResp.version, isDeleted: false}
+    return null
+  },
+  // ...
+)
+
+// In runDiscovery, handle deletion
+const result = await discoverDocument(...)
+
+if (result?.isDeleted) {
+  // Deleted doc - mark as tombstone, use slower polling
+  discoveryStream.write({
+    isDiscovering: false,
+    isTombstone: true,
+    entityId: id.id,
+    startedAt: Date.now(),
+  })
+  // Invalidate queries so UI shows tombstone
+  appInvalidateQueries([queryKeys.ENTITY, id.id])
+  appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+  return result
+}
+
+// In discoveryLoop, use slower polling for deleted docs
+runDiscovery(sub)
+  .then((result) => {
+    if (cancelled) return
+    discoveryStream.write(null)
+    updateAggregatedDiscoveryState()
+
+    // Slower polling for deleted docs (check for undeletion)
+    const interval = result?.isDeleted
+      ? DELETED_POLL_INTERVAL_MS  // 60 seconds
+      : DISCOVERY_POLL_INTERVAL_MS  // 3 seconds
+    discoveryTimer = setTimeout(discoveryLoop, interval)
+  })
+```
+
+**File:** `frontend/apps/desktop/src/components/footer.tsx`
+
+```typescript
+function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
+  // ...
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      {discovery.isTombstone ? (
+        <span className="text-muted-foreground">Deleted</span>
+      ) : (
+        <Spinner size="small" className="size-3 shrink-0" />
+      )}
+      {/* ... rest */}
+    </div>
+  )
+}
+
+function DiscoveryIndicator() {
+  const discovery = useStream(getAggregatedDiscoveryStream())
+  const activeDiscoveries = useStream(getActiveDiscoveriesStream())
+
+  // Count tombstoned vs actively discovering
+  const tombstonedCount = activeDiscoveries?.filter(d => d.isTombstone).length ?? 0
+  const searchingCount = (discovery?.activeCount ?? 0) - tombstonedCount
+
+  if (searchingCount === 0 && tombstonedCount === 0) return null
+
+  // Show different message based on what's happening
+  if (searchingCount === 0 && tombstonedCount > 0) {
+    return (
+      <div className="text-muted-foreground text-xs px-2">
+        {tombstonedCount} deleted resource{tombstonedCount > 1 ? 's' : ''}
+      </div>
+    )
+  }
+
+  // ... existing searching/downloading UI
+}
+```
+
+### Update AggregatedDiscoveryState
+
+```typescript
+export type AggregatedDiscoveryState = {
+  activeCount: number
+  tombstoneCount: number  // NEW
+  blobsDiscovered: number
+  blobsDownloaded: number
+  blobsFailed: number
+}
+```
+
+---
+
+## Implementation Order
+
+### Phase 1: Proto + Backend (enables frontend fix)
+1. Add `is_deleted` field to proto
+2. Regenerate proto files
+3. Add `qCheckResourceDeleted` query back to entities.go
+4. Set `IsDeleted` in response after discovery
+
+### Phase 2: Frontend Discovery Logic
+1. Update `discoverDocument` to return `isDeleted`
+2. Update `runDiscovery` to handle deleted state
+3. Update `discoveryLoop` to use slower polling for deleted docs
+4. Invalidate queries when deletion state is detected
+
+### Phase 3: Frontend UI
+1. Add `isTombstone` to `DiscoveryState` type
+2. Add `tombstoneCount` to `AggregatedDiscoveryState`
+3. Update footer to show deletion status appropriately
+4. Update discovery panel to show "Deleted" instead of spinner
+
+---
+
+## Constants
+
+```typescript
+const DISCOVERY_POLL_INTERVAL_MS = 3_000      // Normal polling
+const DELETED_POLL_INTERVAL_MS = 60_000       // Slower polling for deleted docs
+```
+
