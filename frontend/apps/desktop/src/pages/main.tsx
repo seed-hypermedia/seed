@@ -37,7 +37,7 @@ import {
   Panel,
   PanelGroup,
 } from 'react-resizable-panels'
-import {AppErrorPage} from '../components/app-error'
+import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
@@ -129,7 +129,7 @@ export default function Main({className}: {className?: string}) {
           <Panel id="page" order={2} className="pl-1">
             <ErrorBoundary
               key={routeKey}
-              FallbackComponent={AppErrorPage}
+              FallbackComponent={RootAppError}
               onReset={() => {
                 window.location.reload()
               }}
