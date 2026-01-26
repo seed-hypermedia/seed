@@ -57,7 +57,10 @@ export function SelectionContent({
   )
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden" {...props}>
+    <div
+      className="scroll-area-full-height flex h-full flex-1 flex-col overflow-hidden"
+      {...props}
+    >
       <ScrollArea ref={scrollRef}>
         {header ? (
           <div
