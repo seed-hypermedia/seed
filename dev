@@ -399,7 +399,9 @@ def main():
         gpu_enabled = "--gpu" in args
         args = [a for a in args if a != "--gpu"]
         setup_gpu_build(gpu_enabled)
-        return run("plz run //backend:seed-daemon", args=args)
+        env = os.environ.copy()
+        env["LLAMA_LOG"] = "error"
+        return run("plz run //backend:seed-daemon", args=args, env=env)
 
     @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform. Use --gpu for GPU acceleration.")
     def build_backend(args):

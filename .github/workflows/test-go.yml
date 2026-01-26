@@ -47,6 +47,7 @@ jobs:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
 
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
@@ -56,3 +57,4 @@ jobs:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
