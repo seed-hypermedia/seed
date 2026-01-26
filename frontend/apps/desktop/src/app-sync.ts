@@ -83,6 +83,9 @@ type SyncState = {
 
   // Track known tombstones to avoid showing spinner on subsequent checks
   knownTombstones: Set<string>
+
+  // Track known not-found resources to avoid UI churn
+  knownNotFound: Set<string>
 }
 
 const state: SyncState = {
@@ -97,6 +100,7 @@ const state: SyncState = {
   discoveryStreams: new Map(),
   lastKnownVersions: new Map(),
   knownTombstones: new Set(),
+  knownNotFound: new Set(),
 }
 
 // Aggregated discovery state
@@ -104,6 +108,7 @@ const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
   writeableStateStream<AggregatedDiscoveryState>({
     activeCount: 0,
     tombstoneCount: 0,
+    notFoundCount: 0,
     blobsDiscovered: 0,
     blobsDownloaded: 0,
     blobsFailed: 0,
@@ -145,6 +150,7 @@ export function getAggregatedDiscoveryStream(): StateStream<AggregatedDiscoveryS
 function updateAggregatedDiscoveryState() {
   let activeCount = 0
   let tombstoneCount = 0
+  let notFoundCount = 0
   let blobsDiscovered = 0
   let blobsDownloaded = 0
   let blobsFailed = 0
@@ -153,6 +159,8 @@ function updateAggregatedDiscoveryState() {
     const discoveryState = stream.get()
     if (discoveryState?.isTombstone) {
       tombstoneCount++
+    } else if (discoveryState?.isNotFound) {
+      notFoundCount++
     } else if (discoveryState?.isDiscovering) {
       activeCount++
       if (discoveryState.progress) {
@@ -166,6 +174,7 @@ function updateAggregatedDiscoveryState() {
   writeAggregatedDiscovery({
     activeCount,
     tombstoneCount,
+    notFoundCount,
     blobsDiscovered,
     blobsDownloaded,
     blobsFailed,
@@ -396,6 +405,7 @@ type DiscoveryResult = {
   version?: string
   isTombstone?: boolean
   isRedirect?: boolean
+  isNotFound?: boolean
 }
 
 async function runDiscovery(
@@ -404,9 +414,11 @@ async function runDiscovery(
   const {id, recursive} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
   const isKnownTombstone = state.knownTombstones.has(id.id)
+  const isKnownNotFound = state.knownNotFound.has(id.id)
+  const isSilent = isKnownTombstone || isKnownNotFound
 
   // Run discovery (syncs data from network)
-  // For known tombstones, run silently without updating UI state
+  // For known tombstones/not-found, run silently without updating UI state
   let discoveryResult: {version: string} | null = null
   try {
     discoveryResult = await discoverDocument(
@@ -414,8 +426,8 @@ async function runDiscovery(
       id.path,
       undefined,
       recursive,
-      isKnownTombstone
-        ? undefined // Silent discovery for known tombstones
+      isSilent
+        ? undefined // Silent discovery for settled resources
         : (progress) => {
             discoveryStream.write({
               isDiscovering: true,
@@ -464,20 +476,45 @@ async function runDiscovery(
   }
 
   if (status === 'redirect') {
-    // Resource redirects - clear tombstone state if it was one
+    // Resource redirects - clear tombstone/not-found state if it was one
     state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
     appInvalidateQueries([queryKeys.ENTITY, id.id])
     appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
     return {isRedirect: true}
   }
 
-  // Resource exists and is not deleted/redirected
-  // Check if it was previously a tombstone (undeletion case)
-  const wasUndeleteed = state.knownTombstones.has(id.id)
-  if (wasUndeleteed) {
-    console.log(`[Discovery] ${id.id}: resource was undeleted!`)
+  if (status === 'not-found') {
+    // Resource not found after discovery attempt
+    const wasAlreadyNotFound = state.knownNotFound.has(id.id)
+    state.knownNotFound.add(id.id)
+    // Clear tombstone state if it was one
     state.knownTombstones.delete(id.id)
-    discoveryStream.write(null) // Clear tombstone state
+
+    // Only update UI if this is newly discovered as not-found
+    if (!wasAlreadyNotFound) {
+      discoveryStream.write({
+        isDiscovering: false,
+        isNotFound: true,
+        startedAt: Date.now(),
+        entityId: id.id,
+        recursive,
+      })
+      updateAggregatedDiscoveryState()
+    }
+    // Don't invalidate queries for not-found - let UI show stable "not found" state
+    return {isNotFound: true}
+  }
+
+  // Resource exists and is not deleted/redirected/not-found
+  // Check if it was previously a tombstone or not-found (content appeared!)
+  const wasSettled =
+    state.knownTombstones.has(id.id) || state.knownNotFound.has(id.id)
+  if (wasSettled) {
+    console.log(`[Discovery] ${id.id}: resource appeared (was settled)!`)
+    state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
+    discoveryStream.write(null) // Clear settled state
     updateAggregatedDiscoveryState()
     // Invalidate to show restored content
     appInvalidateQueries([queryKeys.ENTITY, id.id])
@@ -588,9 +625,9 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
       .then((result) => {
         if (cancelled) return
 
-        // For tombstoned/redirected resources, use slower polling
+        // For tombstoned/redirected/not-found resources, use slower polling
         // (the stream state is already set by runDiscovery)
-        if (result?.isTombstone || result?.isRedirect) {
+        if (result?.isTombstone || result?.isRedirect || result?.isNotFound) {
           discoveryTimer = setTimeout(discoveryLoop, DELETED_POLL_INTERVAL_MS)
           return
         }
@@ -622,6 +659,7 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     // Clean up tracked state
     state.lastKnownVersions.delete(id.id)
     state.knownTombstones.delete(id.id)
+    state.knownNotFound.delete(id.id)
   }
 
   return {unsubscribe, discoveryTimer, isCovered}

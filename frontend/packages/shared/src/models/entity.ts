@@ -137,6 +137,7 @@ export function useDiscoveryState(entityId: string | undefined) {
     isDiscovering: discoveryState?.isDiscovering && !isTimedOut,
     isTimedOut,
     isTombstone: discoveryState?.isTombstone ?? false,
+    isNotFound: discoveryState?.isNotFound ?? false,
   }
 }
 
@@ -167,17 +168,20 @@ export function useResource(
   })
 
   // Get discovery state
-  const {isDiscovering: discoveryInProgress, isTombstone} = useDiscoveryState(
-    id?.id,
-  )
+  const {
+    isDiscovering: discoveryInProgress,
+    isTombstone,
+    isNotFound,
+  } = useDiscoveryState(id?.id)
 
   // Determine if we should show discovering UI
   // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
-  // BUT: never show discovering UI for tombstoned resources (they are deleted, not loading)
+  // BUT: never show discovering UI for tombstoned or settled not-found resources
   // The isFetching check covers the gap between discovery completion and data arrival
   const isDiscovering =
     !!subscribed &&
     !isTombstone &&
+    !isNotFound && // Don't show loading when discovery determined not-found
     result.data?.type === 'not-found' &&
     (!!discoveryInProgress || result.isFetching)
 
@@ -243,6 +247,7 @@ export function useResolvedResource(
 type DiscoveryStateInfo = {
   isDiscovering: boolean
   isTombstone: boolean
+  isNotFound: boolean
 }
 
 // Hook to get discovery states for multiple entity IDs
@@ -272,6 +277,7 @@ function useDiscoveryStates(
       return {
         isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
         isTombstone: state?.isTombstone ?? false,
+        isNotFound: state?.isNotFound ?? false,
       }
     }),
   )
@@ -290,6 +296,7 @@ function useDiscoveryStates(
           next[index] = {
             isDiscovering: (state?.isDiscovering && !isTimedOut) ?? false,
             isTombstone: state?.isTombstone ?? false,
+            isNotFound: state?.isNotFound ?? false,
           }
           return next
         })
@@ -339,13 +346,18 @@ export function useResources(
 
   // Combine query results with discovery state
   return queryResults.map((result, index) => {
-    const {isDiscovering: discoveryInProgress, isTombstone} =
-      discoveryStates[index] ?? {isDiscovering: false, isTombstone: false}
+    const {isDiscovering: discoveryInProgress, isTombstone, isNotFound} =
+      discoveryStates[index] ?? {
+        isDiscovering: false,
+        isTombstone: false,
+        isNotFound: false,
+      }
     // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
-    // BUT: never show discovering UI for tombstoned resources (they are deleted, not loading)
+    // BUT: never show discovering UI for tombstoned or settled not-found resources
     const isDiscovering =
       !!subscribed &&
       !isTombstone &&
+      !isNotFound &&
       result.data?.type === 'not-found' &&
       (!!discoveryInProgress || result.isFetching)
     return {

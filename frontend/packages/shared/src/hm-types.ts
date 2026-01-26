@@ -1252,11 +1252,13 @@ export type DiscoveryState = {
   recursive?: boolean
   progress?: DiscoveryProgress
   isTombstone?: boolean
+  isNotFound?: boolean // Resource not found after discovery attempt (settled state)
 }
 
 export type AggregatedDiscoveryState = {
   activeCount: number
   tombstoneCount: number
+  notFoundCount: number
   blobsDiscovered: number
   blobsDownloaded: number
   blobsFailed: number
