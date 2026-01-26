@@ -14,7 +14,7 @@ experimental = true
 [env]
 _.file = ".env"
 
-# System packages needed for GPU-accelerated llama.cpp build (SEED_USE_GPU=true):
+# System packages needed for GPU-accelerated llama.cpp build (./dev --gpu):
 #
 # Linux (Vulkan backend):
 #   Fedora/RHEL: sudo dnf install vulkan-headers vulkan-loader-devel glslang gcc-c++ cmake
@@ -26,26 +26,24 @@ _.file = ".env"
 #   No additional packages required - Metal is part of the macOS SDK
 
 [tasks.check-gpu]
-description = "Check if GPU acceleration dependencies are installed"
+description = "Check if GPU acceleration dependencies are installed for your platform"
 run = '''
-if [ "${SEED_USE_GPU:-}" = "true" ]; then
-  if [ "$(uname -s)" = "Darwin" ]; then
-    echo "✓ macOS: Metal support is built-in"
-  else
-    if ! command -v glslc >/dev/null 2>&1; then
-      echo "✗ Vulkan shader compiler (glslc) not found"
-      echo "  Install: sudo apt install glslc  
-      exit 1
-    fi
-    if ! pkg-config --exists vulkan 2>/dev/null; then
-      echo "✗ Vulkan SDK not found"
-      echo "  Install: sudo dnf install vulkan-headers vulkan-loader-devel  # Fedora/RHEL"
-      echo "  Install: sudo apt install libvulkan-dev                       # Ubuntu/Debian"
-      exit 1
-    fi
-    echo "✓ Vulkan SDK installed"
-  fi
+if [ "$(uname -s)" = "Darwin" ]; then
+  echo "✓ macOS: Metal support is built-in"
 else
-  echo "GPU acceleration disabled (SEED_USE_GPU not set to 'true')"
+  if ! command -v glslc >/dev/null 2>&1; then
+    echo "✗ Vulkan shader compiler (glslc) not found"
+    echo "  Install: sudo apt install glslc"
+    exit 1
+  fi
+  if ! pkg-config --exists vulkan 2>/dev/null; then
+    echo "✗ Vulkan SDK not found"
+    echo "  Install: sudo dnf install vulkan-headers vulkan-loader-devel  # Fedora/RHEL"
+    echo "  Install: sudo apt install libvulkan-dev                       # Ubuntu/Debian"
+    exit 1
+  fi
+  echo "✓ Vulkan SDK installed"
 fi
+echo ""
+echo "To build with GPU acceleration: ./dev run-backend --gpu"
 '''

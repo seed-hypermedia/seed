@@ -86,11 +86,10 @@ jobs:
         if: matrix.config.os == 'ubuntu-latest'
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags vulkan -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CGO_LDFLAGS: "-lggml-vulkan -lvulkan"
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
@@ -98,11 +97,10 @@ jobs:
         if: startsWith(matrix.config.os, 'macos')
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags metal -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CGO_LDFLAGS: "-framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
@@ -110,12 +108,11 @@ jobs:
         if: matrix.config.os == 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags vulkan -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: "windows"
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CGO_LDFLAGS: "-lggml-vulkan -lvulkan"
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
