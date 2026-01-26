@@ -435,6 +435,7 @@ func initLLM(
 	case "file":
 		llamaCppOpts := []llamacpp.LlamaCppOption{
 			llamacpp.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+			llamacpp.WithBatchSize(cfg.Backend.Cfg.BatchSize),
 		}
 
 		llamacpp, err := llamacpp.NewLlamaCppClient(cfg.Backend.Cfg.URL, llamaCppOpts...)
@@ -446,6 +447,7 @@ func initLLM(
 	case "http", "https":
 		ollamaOpts := []ollama.OllamaOption{
 			ollama.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+			ollama.WithBatchSize(cfg.Backend.Cfg.BatchSize),
 		}
 
 		ollama, err := ollama.NewOllamaClient(cfg.Backend.Cfg.URL, ollamaOpts...)
