@@ -49,7 +49,7 @@ installed.
 
 ### GPU Acceleration (Optional)
 
-For GPU-accelerated LLM tasks, set `SEED_USE_GPU=true`. **Requires platform-specific dependencies:**
+For GPU-accelerated LLM tasks, use the `--gpu` flag. **Requires platform-specific dependencies:**
 
 **Linux (Vulkan):**
 ```bash
@@ -70,9 +70,9 @@ mise run check-gpu  # validates GPU dependencies
 
 **Enable GPU:**
 ```bash
-SEED_USE_GPU=true ./dev run-desktop # one-time
-# OR add to .env.vars for persistence:
-echo "SEED_USE_GPU=true" >> .env.vars
+./dev run-desktop --gpu
+./dev run-backend --gpu
+./dev build-backend --gpu
 ```
 
 The `./dev` script automatically detects GPU config changes and cleans the build cache when switching.
@@ -84,10 +84,11 @@ SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
 
 ## Backend Testing
-Since go test won't call the necessary precompilation steps (building 
+Since go test won't call the necessary precompilation steps (building
 llama.go libraries), Before the first manual tests, one should call
 ```bash
-./dev build-backend # build backend without GPU offloading
+./dev build-backend        # build backend without GPU
+./dev build-backend --gpu  # build backend with GPU acceleration
 ```
 
 After the initial library compilation, tests can be executed normally, from
