@@ -31,4 +31,5 @@ COPY --from=builder /code/monitoring/grafana /monitoring/grafana
 COPY --from=builder /code/monitoring/prometheus /monitoring/prometheus
 EXPOSE 55000 55001 55002
 ENV SEED_PUBLIC_ONLY=true
+ENV LLAMA_LOG=error
 CMD ["/usr/local/bin/seed-daemon"]
