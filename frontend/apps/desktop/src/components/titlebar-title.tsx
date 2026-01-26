@@ -186,6 +186,7 @@ type CrumbDetails = {
   isError?: boolean
   isLoading?: boolean
   isTombstone?: boolean
+  isNotFound?: boolean
   crumbKey: string
 }
 
@@ -242,6 +243,8 @@ function BreadcrumbTitle({
     if (!data) return {id, entity: undefined, isDiscovering}
     if (data.type === 'tombstone')
       return {id, entity: {id: data.id, isTombstone: true}, isDiscovering}
+    if (data.type === 'not-found')
+      return {id, entity: {id: data.id, isNotFound: true}, isDiscovering}
     if (data.type === 'document')
       return {id, entity: {id: data.id, document: data.document}, isDiscovering}
     return {id, entity: undefined, isDiscovering}
@@ -265,14 +268,22 @@ function BreadcrumbTitle({
           contacts.data,
         ).name
       }
+      const isNotFound = contents.entity?.isNotFound || false
+      const isTombstone = contents.entity?.isTombstone || false
+      // Show loading while discovering
+      const isLoading = !!contents.isDiscovering
       return [
         {
           name,
-          fallbackName: id.path?.at(-1),
-          isError: contents.entity && !contents.entity.document,
-          isTombstone: contents.entity?.isTombstone || false,
-          // Show loading if no entity loaded OR if we're still discovering
-          isLoading: !contents.entity || contents.isDiscovering,
+          fallbackName: id.path?.at(-1) || id.uid.slice(0, 8),
+          isError:
+            contents.entity &&
+            !contents.entity.document &&
+            !isTombstone &&
+            !isNotFound,
+          isTombstone,
+          isNotFound,
+          isLoading,
           id,
           crumbKey: `id-${idIndex}`,
         },
@@ -707,13 +718,24 @@ function BreadcrumbItem({
   if (details.isLoading) {
     return (
       <div className="flex items-center justify-center">
-        <Spinner />
+        <TitleTextButton className="no-window-drag text-foreground-muted">
+          {details.fallbackName}
+        </TitleTextButton>
       </div>
     )
   }
   if (details.isTombstone) {
     return (
       <Tooltip content="This Document has been deleted">
+        <TitleTextButton className="no-window-drag text-destructive">
+          {details.fallbackName}
+        </TitleTextButton>
+      </Tooltip>
+    )
+  }
+  if (details.isNotFound) {
+    return (
+      <Tooltip content="Document not found on the network">
         <TitleTextButton className="no-window-drag text-destructive">
           {details.fallbackName}
         </TitleTextButton>

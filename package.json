@@ -25,6 +25,7 @@
     "notify:build": "cd frontend/apps/notify && yarn build",
     "notify:prod": "cd frontend/apps/notify && yarn start:prod",
     "desktop": "concurrently -n \"DESKTOP:APP,UI\" -c \"blue,green\" -p \"[{name}]\" \"yarn workspace @shm/desktop dev\" \"yarn watch\"",
+    "prepare": "yarn typecheck && yarn format:write",
     "types:suppress": "node scripts/suppress-ts-errors.mjs",
     "types:count": "node scripts/count-ts-directives.mjs",
     "types:dashboard": "mkdir -p reports/ts-directives && echo '[]' > reports/ts-directives/existing-data.json && node scripts/count-ts-directives.mjs --output=json --output-file=reports/ts-directives/current.json && node scripts/generate-ts-dashboard.mjs",
