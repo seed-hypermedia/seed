@@ -226,6 +226,9 @@ type BackendCfg struct {
 
 	// SleepBetweenBatches is the time to wait between embedding batches.
 	SleepBetweenBatches time.Duration
+
+	// BatchSize is the number of inputs to process in a single batch.
+	BatchSize int
 }
 
 type Backend struct {
@@ -244,6 +247,7 @@ func (c LLM) Default() LLM {
 			Cfg: BackendCfg{
 				URL:                 url.URL{Scheme: "http", Host: "localhost:11434"},
 				SleepBetweenBatches: 750 * time.Millisecond,
+				BatchSize:           16,
 			},
 		},
 		Embedding: Embedder{
@@ -261,11 +265,12 @@ func (c LLM) Default() LLM {
 // BindFlags binds the flags to the given FlagSet.
 func (c *LLM) BindFlags(fs *flag.FlagSet) {
 	fs.Var(newURLFlag(c.Backend.Cfg.URL, &c.Backend.Cfg.URL), "llm.backend.url", "Ollama base URL (e.g. http://localhost:11434) or llamacpp file URL (file:///path/to-model.gguf)")
-	fs.DurationVar(&c.Backend.Cfg.SleepBetweenBatches, "llm.ollama.sleep-between-batches", c.Backend.Cfg.SleepBetweenBatches, "Wait time between embedding batches")
+	fs.DurationVar(&c.Backend.Cfg.SleepBetweenBatches, "llm.backend.sleep-between-batches", c.Backend.Cfg.SleepBetweenBatches, "Wait time between embedding batches")
+	fs.IntVar(&c.Backend.Cfg.BatchSize, "llm.backend.batch-size", c.Backend.Cfg.BatchSize, "How many FTS rows to scan at once")
 	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
 	fs.DurationVar(&c.Embedding.SleepBetweenPasses, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPasses, "Wait time between embedding passes")
 	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "How many FTS rows to scan at once")
-	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use")
+	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use. Only applicable for Ollama backend")
 	fs.StringVar(&c.Embedding.DocumentPrefix, "llm.embedding.document-prefix", c.Embedding.DocumentPrefix, "Prefix to add to document texts before embedding")
 	fs.StringVar(&c.Embedding.QueryPrefix, "llm.embedding.query-prefix", c.Embedding.QueryPrefix, "Prefix to add to query texts before embedding")
 	fs.BoolVar(&c.Embedding.Enabled, "llm.embedding.enabled", c.Embedding.Enabled, "Whether the embedding indexer is enabled")
