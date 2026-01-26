@@ -17,11 +17,12 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
+  getErrorMessage,
   HMRedirectError,
   HMResourceTombstoneError,
-  getErrorMessage,
 } from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {createResourceFetcher} from '@shm/shared/resource-loader'
 import {Event} from '@shm/shared/src/client/.generated/activity/v1alpha/activity_pb'
 import {tryUntilSuccess} from '@shm/shared/try-until-success'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
@@ -36,6 +37,7 @@ import {t} from './app-trpc'
 // Polling intervals
 const DISCOVERY_POLL_INTERVAL_MS = 3_000
 const ACTIVITY_POLL_INTERVAL_MS = 3_000
+const DELETED_POLL_INTERVAL_MS = 60_000 // Slower polling for deleted/redirected resources
 
 // Debounce window for batching invalidations
 const INVALIDATION_DEBOUNCE_MS = 100
@@ -97,10 +99,24 @@ const state: SyncState = {
 const [writeAggregatedDiscovery, aggregatedDiscoveryStream] =
   writeableStateStream<AggregatedDiscoveryState>({
     activeCount: 0,
+    tombstoneCount: 0,
     blobsDiscovered: 0,
     blobsDownloaded: 0,
     blobsFailed: 0,
   })
+
+// Resource fetcher for checking tombstone/redirect status
+const fetchResource = createResourceFetcher(grpcClient)
+
+async function checkResourceStatus(
+  id: UnpackedHypermediaId,
+): Promise<'ok' | 'tombstone' | 'redirect' | 'not-found'> {
+  const resource = await fetchResource(id)
+  if (resource.type === 'tombstone') return 'tombstone'
+  if (resource.type === 'redirect') return 'redirect'
+  if (resource.type === 'not-found') return 'not-found'
+  return 'ok'
+}
 
 // ============ Discovery State Streams ============
 
@@ -124,13 +140,16 @@ export function getAggregatedDiscoveryStream(): StateStream<AggregatedDiscoveryS
 
 function updateAggregatedDiscoveryState() {
   let activeCount = 0
+  let tombstoneCount = 0
   let blobsDiscovered = 0
   let blobsDownloaded = 0
   let blobsFailed = 0
 
   state.discoveryStreams.forEach(({stream}) => {
     const discoveryState = stream.get()
-    if (discoveryState?.isDiscovering) {
+    if (discoveryState?.isTombstone) {
+      tombstoneCount++
+    } else if (discoveryState?.isDiscovering) {
       activeCount++
       if (discoveryState.progress) {
         blobsDiscovered += discoveryState.progress.blobsDiscovered
@@ -142,6 +161,7 @@ function updateAggregatedDiscoveryState() {
 
   writeAggregatedDiscovery({
     activeCount,
+    tombstoneCount,
     blobsDiscovered,
     blobsDownloaded,
     blobsFailed,
@@ -368,29 +388,74 @@ export async function discoverDocument(
   )
 }
 
-async function runDiscovery(sub: ResourceSubscription) {
+type DiscoveryResult = {
+  version?: string
+  isTombstone?: boolean
+  isRedirect?: boolean
+}
+
+async function runDiscovery(
+  sub: ResourceSubscription,
+): Promise<DiscoveryResult | null> {
   const {id, recursive} = sub
   const discoveryStream = getOrCreateDiscoveryStream(id.id)
 
-  const result = await discoverDocument(
-    id.uid,
-    id.path,
-    undefined,
-    recursive,
-    (progress) => {
-      discoveryStream.write({
-        isDiscovering: true,
-        startedAt: Date.now(),
-        entityId: id.id,
-        recursive,
-        progress,
-      })
-      updateAggregatedDiscoveryState()
-    },
-  )
+  // Run discovery first (syncs data from network)
+  let discoveryResult: {version: string} | null = null
+  try {
+    discoveryResult = await discoverDocument(
+      id.uid,
+      id.path,
+      undefined,
+      recursive,
+      (progress) => {
+        discoveryStream.write({
+          isDiscovering: true,
+          startedAt: Date.now(),
+          entityId: id.id,
+          recursive,
+          progress,
+        })
+        updateAggregatedDiscoveryState()
+      },
+    )
+  } catch (e) {
+    // Discovery failed (timeout, network error, etc.)
+    // Check resource status anyway - data may have been synced
+    console.log(`[Discovery] ${id.id}: discovery error, checking resource status`)
+  }
 
-  // Only invalidate if the version has actually changed
-  const newVersion = result?.version
+  // After discovery, check resource status via GetResource
+  const status = await checkResourceStatus(id)
+  console.log(`[Discovery] ${id.id}: status=${status}`)
+
+  if (status === 'tombstone') {
+    // Resource is deleted - mark as tombstone, invalidate queries
+    discoveryStream.write({
+      isDiscovering: false,
+      isTombstone: true,
+      startedAt: Date.now(),
+      entityId: id.id,
+      recursive,
+    })
+    updateAggregatedDiscoveryState()
+
+    // Invalidate so UI shows tombstone
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+
+    return {isTombstone: true}
+  }
+
+  if (status === 'redirect') {
+    // Resource redirects - let the UI handle it
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    return {isRedirect: true}
+  }
+
+  // Resource exists and is not deleted/redirected - normal flow
+  const newVersion = discoveryResult?.version
   const lastKnownVersion = state.lastKnownVersions.get(id.id)
 
   const shouldInvalidate = newVersion && newVersion !== lastKnownVersion
@@ -428,7 +493,7 @@ async function runDiscovery(sub: ResourceSubscription) {
     }
   }
 
-  return result
+  return discoveryResult
 }
 
 // ============ Resource Subscriptions ============
@@ -488,8 +553,17 @@ function createSubscription(sub: ResourceSubscription): SubscriptionState {
     }
 
     runDiscovery(sub)
-      .then(() => {
+      .then((result) => {
         if (cancelled) return
+
+        // For tombstoned/redirected resources, use slower polling
+        // (the stream state is already set by runDiscovery)
+        if (result?.isTombstone || result?.isRedirect) {
+          discoveryTimer = setTimeout(discoveryLoop, DELETED_POLL_INTERVAL_MS)
+          return
+        }
+
+        // Normal resource - clear discovering state
         discoveryStream.write(null)
         updateAggregatedDiscoveryState()
         discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)

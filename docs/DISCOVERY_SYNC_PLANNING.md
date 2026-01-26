@@ -486,3 +486,157 @@ const DISCOVERY_POLL_INTERVAL_MS = 3_000      // Normal polling
 const DELETED_POLL_INTERVAL_MS = 60_000       // Slower polling for deleted docs
 ```
 
+---
+
+## Frontend-Only Solution (Final)
+
+### Key Finding
+
+`GetResource` API already returns tombstone/redirect errors through `IterChanges`:
+- `loadDocument` → `IterChanges` → `iterChangesLatest`
+- Checks `isDeleted := dg.LastTombstoneRefTime > dg.LastAliveRefTime`
+- Returns `codes.FailedPrecondition` with "marked as deleted" for tombstones
+- Returns `codes.FailedPrecondition` with `RedirectErrorDetails` for redirects
+- Frontend's `getErrorMessage` parses these into `HMResourceTombstoneError` and `HMRedirectError`
+
+**No backend changes needed.** After discovery syncs data, call `GetResource` to detect tombstone/redirect status.
+
+### Implementation
+
+**File:** `frontend/apps/desktop/src/app-sync.ts`
+
+```typescript
+import {createResourceFetcher} from '@shm/shared/resource-loader'
+import {packHmId} from '@shm/shared/utils'
+
+// Create fetcher for checking resource status
+const fetchResource = createResourceFetcher(grpcClient)
+
+async function checkResourceStatus(id: UnpackedHypermediaId): Promise<'ok' | 'tombstone' | 'redirect' | 'not-found'> {
+  const resource = await fetchResource(id)
+  if (resource.type === 'tombstone') return 'tombstone'
+  if (resource.type === 'redirect') return 'redirect'
+  if (resource.type === 'not-found') return 'not-found'
+  return 'ok'
+}
+
+async function runDiscovery(sub: ResourceSubscription) {
+  const {id, recursive} = sub
+  const discoveryStream = getOrCreateDiscoveryStream(id.id)
+
+  // Run discovery first (syncs data from network)
+  let result: {version: string} | null = null
+  try {
+    result = await discoverDocument(
+      id.uid,
+      id.path,
+      undefined,
+      recursive,
+      (progress) => {
+        discoveryStream.write({
+          isDiscovering: true,
+          startedAt: Date.now(),
+          entityId: id.id,
+          recursive,
+          progress,
+        })
+        updateAggregatedDiscoveryState()
+      },
+    )
+  } catch (e) {
+    // Discovery failed (timeout, network error, etc.)
+    // Check resource status anyway - data may have been synced
+  }
+
+  // After discovery, check resource status via GetResource
+  const status = await checkResourceStatus(id)
+
+  if (status === 'tombstone') {
+    // Resource is deleted - mark as tombstone, invalidate queries
+    discoveryStream.write({
+      isDiscovering: false,
+      isTombstone: true,
+      startedAt: Date.now(),
+      entityId: id.id,
+      recursive,
+    })
+    updateAggregatedDiscoveryState()
+
+    // Invalidate so UI shows tombstone
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+
+    return {version: '', isTombstone: true}
+  }
+
+  if (status === 'redirect') {
+    // Resource redirects - let the UI handle it
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+    return {version: '', isRedirect: true}
+  }
+
+  // Resource exists and is not deleted - normal flow
+  const newVersion = result?.version
+  const lastKnownVersion = state.lastKnownVersions.get(id.id)
+  const shouldInvalidate = newVersion && newVersion !== lastKnownVersion
+
+  if (shouldInvalidate) {
+    state.lastKnownVersions.set(id.id, newVersion)
+    appInvalidateQueries([queryKeys.ENTITY, id.id])
+    // ... rest of invalidation logic
+  }
+
+  return result
+}
+
+function discoveryLoop() {
+  if (cancelled) return
+
+  runDiscovery(sub)
+    .then((result) => {
+      if (cancelled) return
+      discoveryStream.write(null)
+      updateAggregatedDiscoveryState()
+
+      // Slower polling for tombstoned/redirected resources
+      const interval = result?.isTombstone || result?.isRedirect
+        ? DELETED_POLL_INTERVAL_MS  // 60 seconds
+        : DISCOVERY_POLL_INTERVAL_MS  // 3 seconds
+      discoveryTimer = setTimeout(discoveryLoop, interval)
+    })
+    .catch(() => {
+      if (cancelled) return
+      discoveryTimer = setTimeout(discoveryLoop, DISCOVERY_POLL_INTERVAL_MS)
+    })
+}
+```
+
+**File:** `frontend/packages/shared/src/hm-types.ts`
+
+```typescript
+export type DiscoveryState = {
+  isDiscovering: boolean
+  startedAt: number
+  entityId: string
+  recursive?: boolean
+  progress?: DiscoveryProgress
+  isTombstone?: boolean  // NEW
+}
+```
+
+### Why This Works
+
+1. **Discovery syncs data** - even if the resource is deleted, discovery will sync the tombstone ref
+2. **GetResource checks status** - after sync, it queries local DB and returns tombstone/redirect errors
+3. **No backend changes** - uses existing GetResource behavior
+4. **UI shows correct state** - tombstoned resources show "Deleted" instead of spinner
+5. **Slower polling for tombstones** - reduces unnecessary network activity
+
+### Testing
+
+1. Navigate to deleted doc → should show tombstone UI immediately after first discovery cycle
+2. Navigate away and back → should not stack discoveries
+3. Delete doc on another node → should eventually show tombstone (after discovery syncs the deletion)
+4. Undelete doc → slower polling will eventually pick it up
+

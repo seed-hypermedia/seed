@@ -118,7 +118,13 @@ function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <Spinner size="small" className="size-3 shrink-0" />
+      {discovery.isTombstone ? (
+        <span className="text-muted-foreground shrink-0 text-[10px]">
+          Deleted
+        </span>
+      ) : (
+        <Spinner size="small" className="size-3 shrink-0" />
+      )}
       <a
         {...linkProps}
         className="text-foreground hover:text-foreground min-w-0 flex-1 truncate hover:underline"
@@ -144,17 +150,33 @@ function DiscoveryIndicator() {
   const discovery = useStream(getAggregatedDiscoveryStream())
   const activeDiscoveries = useStream(getActiveDiscoveriesStream())
 
-  if (!discovery || discovery.activeCount === 0) return null
+  const activeCount = discovery?.activeCount ?? 0
+  const tombstoneCount = discovery?.tombstoneCount ?? 0
+
+  // Don't show indicator if nothing is happening
+  if (!discovery || (activeCount === 0 && tombstoneCount === 0)) return null
 
   const {blobsDiscovered, blobsDownloaded} = discovery
   const hasBlobs = blobsDiscovered > 0
   const progress = hasBlobs ? (blobsDownloaded / blobsDiscovered) * 100 : 0
 
+  // Build header text based on what's happening
+  const headerParts: string[] = []
+  if (activeCount > 0) {
+    headerParts.push(
+      `Discovering ${activeCount} resource${activeCount > 1 ? 's' : ''}`,
+    )
+  }
+  if (tombstoneCount > 0) {
+    headerParts.push(
+      `${tombstoneCount} deleted resource${tombstoneCount > 1 ? 's' : ''}`,
+    )
+  }
+
   const hoverContent = (
     <div className="flex flex-col gap-2">
       <SizableText size="sm" className="font-medium">
-        Discovering {discovery.activeCount} resource
-        {discovery.activeCount > 1 ? 's' : ''}
+        {headerParts.join(', ')}
       </SizableText>
       {activeDiscoveries && activeDiscoveries.length > 0 && (
         <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
@@ -176,6 +198,28 @@ function DiscoveryIndicator() {
       )}
     </div>
   )
+
+  // Only tombstones, no active discovery - show static indicator
+  if (activeCount === 0 && tombstoneCount > 0) {
+    return (
+      <HoverCard openDelay={200}>
+        <HoverCardTrigger asChild>
+          <div className="flex cursor-default items-center gap-2 px-2">
+            <SizableText
+              size="xs"
+              className="text-muted-foreground select-none"
+              style={{fontSize: 10}}
+            >
+              {tombstoneCount} deleted
+            </SizableText>
+          </div>
+        </HoverCardTrigger>
+        <HoverCardContent side="top" align="end" className="w-80">
+          {hoverContent}
+        </HoverCardContent>
+      </HoverCard>
+    )
+  }
 
   return (
     <HoverCard openDelay={200}>

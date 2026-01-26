@@ -1251,10 +1251,12 @@ export type DiscoveryState = {
   entityId: string
   recursive?: boolean
   progress?: DiscoveryProgress
+  isTombstone?: boolean
 }
 
 export type AggregatedDiscoveryState = {
   activeCount: number
+  tombstoneCount: number
   blobsDiscovered: number
   blobsDownloaded: number
   blobsFailed: number
