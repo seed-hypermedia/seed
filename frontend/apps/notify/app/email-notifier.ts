@@ -552,6 +552,7 @@ async function evaluateNewCommentForNotifications(
   }
   let commentAuthorMeta: HMMetadata | null = null
   let targetMeta: HMMetadata | null = null
+  let targetAccountSiteUrl: string | null = null
 
   try {
     const authorResult = await requestAPI('Account', comment.author)
@@ -560,6 +561,22 @@ async function evaluateNewCommentForNotifications(
   } catch (error: any) {
     reportError(
       `Error getting comment author ${comment.author}: ${error.message}`,
+    )
+  }
+
+  // Get target account metadata to get siteUrl for email links
+  try {
+    const targetAccountResult = await requestAPI(
+      'Account',
+      comment.targetAccount,
+    )
+    if (targetAccountResult.type === 'account') {
+      targetAccountSiteUrl =
+        targetAccountResult.metadata?.siteUrl?.replace(/\/$/, '') || null
+    }
+  } catch (error: any) {
+    reportError(
+      `Error getting target account ${comment.targetAccount}: ${error.message}`,
     )
   }
 
@@ -579,14 +596,17 @@ async function evaluateNewCommentForNotifications(
   }
 
   // Create comment-specific URL for comment-related notifications
+  // Use the target account's siteUrl if available, otherwise fall back to SITE_BASE_URL
   const commentIdParts = comment.id.split('/')
   const commentTSID = commentIdParts[1]
   if (!commentTSID) {
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
+  const commentBaseUrl =
+    targetAccountSiteUrl || SITE_BASE_URL.replace(/\/$/, '')
   const commentUrl = createWebHMUrl(comment.author, {
     path: [commentTSID],
-    hostname: SITE_BASE_URL.replace(/\/$/, ''),
+    hostname: commentBaseUrl,
   })
 
   const targetDocId = hmId(comment.targetAccount, {
@@ -871,9 +891,15 @@ async function loadRefEvent(event: PlainMessage<Event>) {
 
   const changedDoc = await getDocument(id)
 
-  const openUrl = `${SITE_BASE_URL.replace(/\/$/, '')}/hm/${id.uid}/${(
-    id.path || []
-  ).join('/')}`
+  // Get the home account's siteUrl to use in email links
+  const homeAccountResult = await requestAPI('Account', id.uid)
+  const siteUrl =
+    homeAccountResult.type === 'account'
+      ? homeAccountResult.metadata?.siteUrl?.replace(/\/$/, '')
+      : null
+  const baseUrl = siteUrl || SITE_BASE_URL.replace(/\/$/, '')
+
+  const openUrl = `${baseUrl}/hm/${id.uid}/${(id.path || []).join('/')}`
 
   const prevVersionId = {
     ...id,
