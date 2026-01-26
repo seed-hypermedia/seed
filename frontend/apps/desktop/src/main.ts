@@ -79,6 +79,15 @@ import {
   setInitialAccountIdCount,
   setupOnboardingHandlers,
 } from './app-onboarding-store'
+import {memoryMonitor, setupMemoryMonitorLifecycle} from './memory-monitor'
+import {getSubscriptionCount, getDiscoveryStreamCount} from './app-sync'
+import {
+  isProfilerEnabled,
+  createProfilerWindow,
+  setupProfilerQuitHandler,
+  logWindowOpen,
+  logWindowClose,
+} from './memory-profiler-window'
 
 // Use 'hm' in production for OS protocol registration
 const OS_REGISTER_SCHEME = OS_PROTOCOL_SCHEME
@@ -107,6 +116,9 @@ Sentry.init({
 
 // Core initialization
 initPaths()
+
+// Memory monitoring setup
+setupMemoryMonitorLifecycle()
 
 contextMenu({
   showInspectElement: !IS_PROD_DESKTOP,
@@ -157,8 +169,18 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
+  logger.info('[MAIN]: App before-quit - starting cleanup')
+
   // Stop local server when app quits
   stopLocalServer()
+
+  // Stop memory monitoring
+  memoryMonitor.stopTracking()
+
+  // Unregister all global shortcuts
+  globalShortcut.unregisterAll()
+
+  logger.info('[MAIN]: App before-quit - cleanup complete')
 })
 
 /**
@@ -254,6 +276,21 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
 
 app.whenReady().then(async () => {
   logger.debug('[MAIN]: Seed ready')
+
+  // Memory profiler mode - opens dedicated profiler window
+  if (isProfilerEnabled()) {
+    logger.info('[MAIN]: Memory profiler mode enabled')
+    createProfilerWindow()
+    setupProfilerQuitHandler()
+  }
+
+  // Register memory monitor resource counters
+  memoryMonitor.registerResourceCounter('windows', () => getAllWindows().size)
+  memoryMonitor.registerResourceCounter('subscriptions', getSubscriptionCount)
+  memoryMonitor.registerResourceCounter(
+    'discoveryStreams',
+    getDiscoveryStreamCount,
+  )
 
   // Start local server in production to avoid file:// protocol issues with iframes
   if (IS_PROD_DESKTOP && !MAIN_WINDOW_VITE_DEV_SERVER_URL) {

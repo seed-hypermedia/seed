@@ -273,3 +273,21 @@ const onboarding = {
 }
 
 contextBridge.exposeInMainWorld('onboarding', onboarding)
+
+// Memory monitoring API (development only)
+const memoryMonitor = {
+  getReport: () => ipcRenderer.invoke('memory:getReport'),
+  takeSnapshot: () => ipcRenderer.invoke('memory:takeSnapshot'),
+  takeHeapSnapshot: (filename?: string) =>
+    ipcRenderer.invoke('memory:takeHeapSnapshot', filename),
+  forceGC: () => ipcRenderer.invoke('memory:forceGC'),
+  getHeapStats: () => ipcRenderer.invoke('memory:getHeapStats'),
+  startTracking: (intervalMs?: number) =>
+    ipcRenderer.invoke('memory:startTracking', intervalMs),
+  stopTracking: () => ipcRenderer.invoke('memory:stopTracking'),
+  clearHistory: () => ipcRenderer.invoke('memory:clearHistory'),
+  getListenerSummary: () => ipcRenderer.invoke('memory:getListenerSummary'),
+  getTimerSummary: () => ipcRenderer.invoke('memory:getTimerSummary'),
+}
+
+contextBridge.exposeInMainWorld('memoryMonitor', memoryMonitor)

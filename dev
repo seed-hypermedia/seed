@@ -96,6 +96,18 @@ def main():
 
         return run("yarn desktop", args=args)
 
+    @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window.")
+    def run_desktop_profiler(args):
+        run("node scripts/cleanup-desktop.js")
+        run("plz build //:yarn")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
+
+        os.environ["MEMORY_PROFILER"] = "1"
+
+        return run("yarn desktop", args=args)
+
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
     def build_desktop(args):
         # run("node scripts/cleanup-desktop.js")

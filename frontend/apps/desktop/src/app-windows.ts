@@ -19,6 +19,7 @@ import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, warn} from './logger'
+import {logWindowOpen, logWindowClose} from './memory-profiler-window'
 
 let windowIdCount = 1
 
@@ -580,6 +581,7 @@ export function createAppWindow(
     saveWindowPosition()
   })
   allWindows.set(windowId, browserWindow)
+  logWindowOpen(windowId)
 
   // Set the persistent window state - this should match the windValue above
   setWindowState(windowId, {
@@ -587,43 +589,43 @@ export function createAppWindow(
     bounds: null,
   })
 
-  // Note: The initWindow data is sent via the synchronous IPC handler above, not via send()
-  // browserWindow.webContents.send('initWindow', ...) - removed duplicate send
+  // IPC handler for window nav state - defined as const for cleanup reference
+  const windowNavStateHandler = (
+    info: any,
+    {
+      routes,
+      routeIndex,
+      sidebarLocked,
+      sidebarWidth,
+      accessoryWidth,
+      selectedIdentity,
+    }: NavState,
+  ) => {
+    windowNavState[windowId] = {
+      routes,
+      routeIndex,
+      sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+      sidebarWidth: sidebarWidth || 15,
+      accessoryWidth: accessoryWidth || 20,
+      selectedIdentity: selectedIdentity || null,
+    }
+    updateWindowState(windowId, (window) => ({
+      ...window,
+      routes,
+      routeIndex,
+      sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
+      sidebarWidth: sidebarWidth || 15,
+      accessoryWidth: accessoryWidth || 20,
+      selectedIdentity: selectedIdentity || null,
+    }))
+    // @ts-ignore
+    updateRecentRoute(routes[routeIndex])
+  }
+
+  // Note: The initWindow data is sent via the synchronous IPC handler above
   browserWindow.webContents.ipc.addListener(
     'windowNavState',
-    (
-      info,
-      {
-        routes,
-        routeIndex,
-        sidebarLocked,
-        sidebarWidth,
-        accessoryWidth,
-        selectedIdentity,
-      }: NavState,
-    ) => {
-      windowNavState[windowId] = {
-        routes,
-        routeIndex,
-        sidebarLocked:
-          typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-        sidebarWidth: sidebarWidth || 15,
-        accessoryWidth: accessoryWidth || 20,
-        selectedIdentity: selectedIdentity || null,
-      }
-      updateWindowState(windowId, (window) => ({
-        ...window,
-        routes,
-        routeIndex,
-        sidebarLocked:
-          typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-        sidebarWidth: sidebarWidth || 15,
-        accessoryWidth: accessoryWidth || 20,
-        selectedIdentity: selectedIdentity || null,
-      }))
-      // @ts-ignore
-      updateRecentRoute(routes[routeIndex])
-    },
+    windowNavStateHandler,
   )
 
   // First render trick: https://getlotus.app/21-making-electron-apps-feel-native-on-mac
@@ -641,8 +643,27 @@ export function createAppWindow(
   })
 
   browserWindow.on('close', () => {
+    // Clean up daemon listener
     releaseDaemonListener()
+
+    // Clear debounce timeout to prevent memory leak
+    if (windowPositionSaveTimeout) {
+      clearTimeout(windowPositionSaveTimeout)
+      windowPositionSaveTimeout = null
+    }
+
+    // Remove IPC listener to prevent memory leak
+    browserWindow.webContents.ipc.removeListener(
+      'windowNavState',
+      windowNavStateHandler,
+    )
+
+    // Clean up window state
     allWindows.delete(windowId)
+    delete windowNavState[windowId]
+    initalizedWindows.delete(windowId)
+    logWindowClose(windowId)
+
     if (lastFocusedWindowId === windowId) {
       lastFocusedWindowId = null
     }
