@@ -221,11 +221,14 @@ function DiscoveryIndicator() {
     )
   }
 
+  // Only show download progress when actively downloading (not at 100%)
+  const isDownloading = hasBlobs && blobsDownloaded < blobsDiscovered
+
   return (
     <HoverCard openDelay={200}>
       <HoverCardTrigger asChild>
         <div className="flex cursor-default items-center gap-2 px-2">
-          {hasBlobs ? (
+          {isDownloading ? (
             <>
               <SizableText
                 size="xs"
@@ -243,7 +246,7 @@ function DiscoveryIndicator() {
                 className="text-muted-foreground select-none"
                 style={{fontSize: 10}}
               >
-                Searching peers...
+                Syncing...
               </SizableText>
               <Spinner size="small" className="text-muted-foreground" />
             </>

@@ -768,7 +768,8 @@ export const syncApi = t.router({
         const active: DiscoveryState[] = []
         state.discoveryStreams.forEach(({stream}) => {
           const discoveryState = stream.get()
-          if (discoveryState?.isDiscovering) {
+          // Include both active discoveries and tombstones
+          if (discoveryState?.isDiscovering || discoveryState?.isTombstone) {
             active.push(discoveryState)
           }
         })
