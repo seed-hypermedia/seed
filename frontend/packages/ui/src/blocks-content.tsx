@@ -2924,12 +2924,14 @@ export function DocumentCardGrid({
   getEntity,
   accountsMetadata,
   columnCount = 1,
+  isDiscovering,
 }: {
   firstItem: HMDocumentInfo | undefined
   items: Array<HMDocumentInfo>
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
   accountsMetadata: HMAccountsMetadata
   columnCount?: number
+  isDiscovering?: boolean
 }) {
   const columnClasses = useMemo(() => {
     return cn(
@@ -2967,7 +2969,13 @@ export function DocumentCardGrid({
         </div>
       ) : null}
       {items.length == 0 ? (
-        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
+        <BlankQueryBlockMessage
+          message={
+            isDiscovering
+              ? 'Searching for documents...'
+              : 'No Documents found in this Query Block.'
+          }
+        />
       ) : null}
     </div>
   )

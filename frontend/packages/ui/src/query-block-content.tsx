@@ -14,6 +14,7 @@ export interface QueryBlockContentProps {
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
+  isDiscovering?: boolean
 }
 
 export function QueryBlockContent({
@@ -23,6 +24,7 @@ export function QueryBlockContent({
   banner = false,
   accountsMetadata,
   getEntity,
+  isDiscovering,
 }: QueryBlockContentProps) {
   if (style === 'Card') {
     return (
@@ -32,12 +34,17 @@ export function QueryBlockContent({
         columnCount={columnCount}
         accountsMetadata={accountsMetadata}
         getEntity={getEntity}
+        isDiscovering={isDiscovering}
       />
     )
   }
 
   return (
-    <QueryBlockListView items={items} accountsMetadata={accountsMetadata} />
+    <QueryBlockListView
+      items={items}
+      accountsMetadata={accountsMetadata}
+      isDiscovering={isDiscovering}
+    />
   )
 }
 
@@ -47,12 +54,14 @@ function QueryBlockCardView({
   columnCount,
   accountsMetadata,
   getEntity,
+  isDiscovering,
 }: {
   items: HMDocumentInfo[]
   banner: boolean
   columnCount: string | number
   accountsMetadata: HMAccountsMetadata
   getEntity: (id: UnpackedHypermediaId) => HMResourceFetchResult | null
+  isDiscovering?: boolean
 }) {
   const firstItem = banner ? items[0] : undefined
   const restItems = banner ? items.slice(1) : items
@@ -67,6 +76,7 @@ function QueryBlockCardView({
       getEntity={getEntity}
       accountsMetadata={accountsMetadata}
       columnCount={columnCountNum}
+      isDiscovering={isDiscovering}
     />
   )
 }
@@ -74,10 +84,21 @@ function QueryBlockCardView({
 function QueryBlockListView({
   items,
   accountsMetadata,
+  isDiscovering,
 }: {
   items: HMDocumentInfo[]
   accountsMetadata: HMAccountsMetadata
+  isDiscovering?: boolean
 }) {
+  if (isDiscovering && items.length === 0) {
+    return (
+      <div className="bg-muted flex items-center rounded-lg p-4">
+        <span className="text-muted-foreground">
+          Searching for documents...
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="my-4 flex w-full flex-col gap-1">
       {items.map((item) => {

@@ -116,8 +116,11 @@ function Render(
     }
     return null
   })
+  const mode = queryIncludes[0]?.mode || 'Children'
   const entity = useResource(queryId, {
     enabled: !!queryId,
+    subscribed: true,
+    recursive: mode === 'AllDescendants',
   })
   const directoryItems = useDirectory(queryId, {
     // @ts-ignore
@@ -245,6 +248,7 @@ function Render(
         banner={banner}
         accountsMetadata={accountsMetadata}
         getEntity={getEntity}
+        isDiscovering={entity.isDiscovering}
       />
     </div>
   )

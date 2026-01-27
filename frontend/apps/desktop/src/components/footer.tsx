@@ -6,7 +6,7 @@ import {
 } from '@/models/entities'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {DiscoveryState} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useResources} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {useStream} from '@shm/shared/use-stream'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -19,7 +19,7 @@ import {Cable} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
-import {ReactNode} from 'react'
+import {ReactNode, useEffect, useState} from 'react'
 import {OnlineIndicator} from './indicator'
 import {useNetworkDialog} from './network-dialog'
 
@@ -100,7 +100,13 @@ function FooterNetworkingButton() {
   )
 }
 
-function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
+function DiscoveryItem({
+  discovery,
+  hasLocalVersion,
+}: {
+  discovery: DiscoveryState
+  hasLocalVersion: boolean
+}) {
   const id = unpackHmId(discovery.entityId)
   const resource = useResource(id)
   const linkProps = useRouteLink(id ? {key: 'document', id} : null)
@@ -116,11 +122,17 @@ function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
       : `${id.uid.slice(0, 6)}/${id.path?.join('/')}`
     : discovery.entityId
 
+  const statusLabel = discovery.isTombstone
+    ? 'Deleted'
+    : hasLocalVersion
+    ? 'Checking'
+    : 'Searching'
+
   return (
     <div className="flex items-center gap-2 text-xs">
       {discovery.isTombstone ? (
         <span className="text-muted-foreground shrink-0 text-[10px]">
-          Deleted
+          {statusLabel}
         </span>
       ) : (
         <Spinner size="small" className="size-3 shrink-0" />
@@ -131,6 +143,9 @@ function DiscoveryItem({discovery}: {discovery: DiscoveryState}) {
       >
         {name || fallbackName}
       </a>
+      <span className="text-muted-foreground/70 shrink-0 text-[10px]">
+        {statusLabel}
+      </span>
       {discovery.recursive && (
         <span className="text-muted-foreground/70 shrink-0 text-[10px]">
           recursive
@@ -150,27 +165,71 @@ function DiscoveryIndicator() {
   const discovery = useStream(getAggregatedDiscoveryStream())
   const activeDiscoveries = useStream(getActiveDiscoveriesStream())
 
+  // Delay showing indicator by 500ms to avoid flashing for quick syncs
+  const [showIndicator, setShowIndicator] = useState(false)
   const activeCount = discovery?.activeCount ?? 0
   const tombstoneCount = discovery?.tombstoneCount ?? 0
 
-  // Don't show indicator if nothing is happening
+  useEffect(() => {
+    if (activeCount > 0) {
+      // Start timer to show indicator after 500ms
+      const timer = setTimeout(() => setShowIndicator(true), 500)
+      return () => clearTimeout(timer)
+    } else {
+      // Reset when no active discoveries
+      setShowIndicator(false)
+    }
+  }, [activeCount])
+
+  // Get IDs for all active discoveries to check local versions
+  const discoveryIds = (activeDiscoveries || [])
+    .filter((d) => !d.isTombstone && !d.isNotFound)
+    .map((d) => unpackHmId(d.entityId))
+    .filter((id) => id !== null)
+
+  // Batch fetch resources to check which have local versions
+  const resources = useResources(discoveryIds, {subscribed: false})
+
+  // Build map of entityId -> hasLocalVersion
+  const localVersionMap = new Map<string, boolean>()
+  discoveryIds.forEach((id, i) => {
+    if (id) {
+      const hasLocal = resources[i]?.data?.type === 'document'
+      localVersionMap.set(id.id, hasLocal)
+    }
+  })
+
+  // Don't show indicator if nothing is happening or delay hasn't passed
   if (!discovery || (activeCount === 0 && tombstoneCount === 0)) return null
+  if (activeCount > 0 && !showIndicator) return null
 
   const {blobsDiscovered, blobsDownloaded} = discovery
-  const hasBlobs = blobsDiscovered > 0
+  const hasBlobs = blobsDiscovered > 0 && blobsDownloaded < blobsDiscovered
   const progress = hasBlobs ? (blobsDownloaded / blobsDiscovered) * 100 : 0
+
+  // Count searching vs checking
+  const activeNonTombstone = (activeDiscoveries || []).filter(
+    (d) => !d.isTombstone && !d.isNotFound,
+  )
+  const searchingCount = activeNonTombstone.filter(
+    (d) => !localVersionMap.get(d.entityId),
+  ).length
+  const checkingCount = activeNonTombstone.filter((d) =>
+    localVersionMap.get(d.entityId),
+  ).length
 
   // Build header text based on what's happening
   const headerParts: string[] = []
-  if (activeCount > 0) {
+  if (searchingCount > 0) {
     headerParts.push(
-      `Discovering ${activeCount} resource${activeCount > 1 ? 's' : ''}`,
+      `Searching ${searchingCount} resource${searchingCount > 1 ? 's' : ''}`,
     )
   }
+  if (checkingCount > 0) {
+    headerParts.push(`Checking ${checkingCount} for updates`)
+  }
   if (tombstoneCount > 0) {
-    headerParts.push(
-      `${tombstoneCount} deleted resource${tombstoneCount > 1 ? 's' : ''}`,
-    )
+    headerParts.push(`${tombstoneCount} deleted`)
   }
 
   const hoverContent = (
@@ -181,7 +240,11 @@ function DiscoveryIndicator() {
       {activeDiscoveries && activeDiscoveries.length > 0 && (
         <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
           {activeDiscoveries.map((d) => (
-            <DiscoveryItem key={d.entityId} discovery={d} />
+            <DiscoveryItem
+              key={d.entityId}
+              discovery={d}
+              hasLocalVersion={localVersionMap.get(d.entityId) || false}
+            />
           ))}
         </div>
       )}
@@ -221,21 +284,31 @@ function DiscoveryIndicator() {
     )
   }
 
-  // Only show download progress when actively downloading (not at 100%)
-  const isDownloading = hasBlobs && blobsDownloaded < blobsDiscovered
+  // Determine main indicator text
+  let indicatorText: string
+  if (hasBlobs) {
+    indicatorText = `Downloading (${Math.round(progress)}%)`
+  } else if (searchingCount > 0 && checkingCount === 0) {
+    indicatorText = 'Searching'
+  } else if (checkingCount > 0 && searchingCount === 0) {
+    indicatorText = 'Checking for updates'
+  } else {
+    // Mix of both
+    indicatorText = 'Syncing'
+  }
 
   return (
     <HoverCard openDelay={200}>
       <HoverCardTrigger asChild>
         <div className="flex cursor-default items-center gap-2 px-2">
-          {isDownloading ? (
+          {hasBlobs ? (
             <>
               <SizableText
                 size="xs"
                 className="text-muted-foreground select-none"
                 style={{fontSize: 10}}
               >
-                Downloading ({Math.round(progress)}%)
+                {indicatorText}
               </SizableText>
               <Progress value={progress} className="h-1 w-16" />
             </>
@@ -246,9 +319,8 @@ function DiscoveryIndicator() {
                 className="text-muted-foreground select-none"
                 style={{fontSize: 10}}
               >
-                Syncing...
+                {indicatorText}
               </SizableText>
-              <Spinner size="small" className="text-muted-foreground" />
             </>
           )}
         </div>
