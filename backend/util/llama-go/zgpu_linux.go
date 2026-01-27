@@ -1,5 +1,7 @@
-//go:build gpu
+//go:build linux
 
+// Always include Vulkan LDFLAGS on Linux since libggml.a is compiled with Vulkan support.
+// The linker needs these even for non-GPU test runs.
 package llama
 
 /*
