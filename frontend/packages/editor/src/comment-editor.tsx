@@ -11,7 +11,7 @@ import {LinkIcon} from '@shm/ui/hm-icon'
 import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -301,6 +301,7 @@ export function CommentEditor({
   const isMobile = useMobile()
   const [isMentionsDialogOpen, setIsMentionsDialogOpen] = useState(false)
   const [isSlashDialogOpen, setIsSlashDialogOpen] = useState(false)
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
   const {editor} = useCommentEditor(
     perspectiveAccountUid,
@@ -503,6 +504,44 @@ export function CommentEditor({
       }, 100)
     }
   }, [autoFocus])
+
+  // Handle mobile keyboard - scroll toolbar into view when keyboard appears
+  useLayoutEffect(() => {
+    if (!isMobile || !isEditorFocused || !toolbarRef.current) return
+    if (typeof window === 'undefined' || !window.visualViewport) return
+
+    const viewport = window.visualViewport
+    let initialHeight = viewport.height
+
+    const handleViewportResize = () => {
+      // Detect keyboard opening (viewport shrinks significantly)
+      const heightDiff = initialHeight - viewport.height
+      if (heightDiff > 100 && toolbarRef.current) {
+        // Keyboard opened - scroll toolbar into view
+        toolbarRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        })
+      }
+    }
+
+    // Also scroll into view when editor first gets focused
+    const scrollTimeout = setTimeout(() => {
+      if (toolbarRef.current) {
+        toolbarRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        })
+      }
+    }, 300)
+
+    viewport.addEventListener('resize', handleViewportResize)
+
+    return () => {
+      clearTimeout(scrollTimeout)
+      viewport.removeEventListener('resize', handleViewportResize)
+    }
+  }, [isMobile, isEditorFocused])
 
   const getContent = async (
     prepareAttachments: (binaries: Uint8Array[]) => Promise<{
@@ -905,6 +944,7 @@ export function CommentEditor({
           </div>
           {isEditorFocused ? (
             <div
+              ref={toolbarRef}
               className={cn(
                 'mx-2 mb-2 flex gap-2',
                 isMobile ? 'justify-between' : 'justify-end',
