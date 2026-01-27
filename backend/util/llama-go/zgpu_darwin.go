@@ -1,5 +1,7 @@
-//go:build gpu
+//go:build darwin
 
+// Always include Metal LDFLAGS on Darwin since libggml.a is compiled with Metal support.
+// The linker needs these even for non-GPU test runs.
 package llama
 
 /*
