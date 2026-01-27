@@ -2968,14 +2968,10 @@ export function DocumentCardGrid({
           })}
         </div>
       ) : null}
-      {items.length == 0 ? (
-        <BlankQueryBlockMessage
-          message={
-            isDiscovering
-              ? 'Searching for documents...'
-              : 'No Documents found in this Query Block.'
-          }
-        />
+      {items.length == 0 && isDiscovering ? (
+        <BlankQueryBlockMessage message="Searching for documents..." />
+      ) : items.length == 0 ? (
+        <BlankQueryBlockMessage message="No Documents found in this Query Block." />
       ) : null}
     </div>
   )

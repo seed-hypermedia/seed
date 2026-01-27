@@ -499,6 +499,18 @@ async function runDiscovery(
     // Invalidate so UI shows the found resource
     appInvalidateQueries([queryKeys.ENTITY, id.id])
     appInvalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
+
+    // For recursive subscriptions, also invalidate directory queries
+    // so query blocks refresh when discovery completes
+    if (recursive) {
+      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, id.id])
+      getParentPaths(id.path).forEach((parentPath) => {
+        const parentId = hmId(id.uid, {path: parentPath})
+        appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
+      })
+      const rootId = hmId(id.uid)
+      appInvalidateQueries([queryKeys.DOC_LIST_DIRECTORY, rootId.id])
+    }
   }
 
   // Also check for version changes (for resources already known but updated)

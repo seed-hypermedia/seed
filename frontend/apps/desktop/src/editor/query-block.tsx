@@ -123,8 +123,7 @@ function Render(
     recursive: mode === 'AllDescendants',
   })
   const directoryItems = useDirectory(queryId, {
-    // @ts-ignore
-    mode: queryIncludes[0]?.mode,
+    mode,
   })
 
   const sortedItems = useMemo(() => {
@@ -248,7 +247,7 @@ function Render(
         banner={banner}
         accountsMetadata={accountsMetadata}
         getEntity={getEntity}
-        isDiscovering={entity.isDiscovering}
+        isDiscovering={entity.isDiscovering || directoryItems.isLoading}
       />
     </div>
   )

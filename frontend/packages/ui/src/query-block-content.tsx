@@ -90,15 +90,17 @@ function QueryBlockListView({
   accountsMetadata: HMAccountsMetadata
   isDiscovering?: boolean
 }) {
-  if (isDiscovering && items.length === 0) {
+  // Show loading state when discovering and no items yet
+  if (items.length === 0 && isDiscovering) {
     return (
       <div className="bg-muted flex items-center rounded-lg p-4">
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground italic">
           Searching for documents...
         </span>
       </div>
     )
   }
+
   return (
     <div className="my-4 flex w-full flex-col gap-1">
       {items.map((item) => {
