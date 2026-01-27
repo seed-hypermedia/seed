@@ -42,6 +42,40 @@ proto3.util.setEnumType(DiscoveryTaskState, "com.seed.entities.v1alpha.Discovery
 ]);
 
 /**
+ * Describes the state of the discovery task.
+ *
+ * @generated from enum com.seed.entities.v1alpha.SearchType
+ */
+export enum SearchType {
+  /**
+   * Keyword-based search.
+   *
+   * @generated from enum value: SEARCH_KEYWORD = 0;
+   */
+  SEARCH_KEYWORD = 0,
+
+  /**
+   * Semantic search.
+   *
+   * @generated from enum value: SEARCH_SEMANTIC = 1;
+   */
+  SEARCH_SEMANTIC = 1,
+
+  /**
+   * Hybrid search. with RRFusion.
+   *
+   * @generated from enum value: SEARCH_HYBRID = 2;
+   */
+  SEARCH_HYBRID = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(SearchType)
+proto3.util.setEnumType(SearchType, "com.seed.entities.v1alpha.SearchType", [
+  { no: 0, name: "SEARCH_KEYWORD" },
+  { no: 1, name: "SEARCH_SEMANTIC" },
+  { no: 2, name: "SEARCH_HYBRID" },
+]);
+
+/**
  * Request to get a change by ID.
  *
  * @generated from message com.seed.entities.v1alpha.GetChangeRequest
@@ -796,7 +830,7 @@ export class DeletedEntity extends Message<DeletedEntity> {
 }
 
 /**
- * Request to
+ * Request to search entities.
  *
  * @generated from message com.seed.entities.v1alpha.SearchEntitiesRequest
  */
@@ -844,6 +878,14 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   loggedAccountUid = "";
 
+  /**
+   * Optional. Type of search to perform. Could be keyword, semantic or hybrid.
+   * if not set, keyword search is used.
+   *
+   * @generated from field: com.seed.entities.v1alpha.SearchType search_type = 6;
+   */
+  searchType = SearchType.SEARCH_KEYWORD;
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -857,6 +899,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 3, name: "context_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "logged_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "search_type", kind: "enum", T: proto3.getEnumType(SearchType) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

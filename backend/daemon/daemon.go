@@ -216,8 +216,13 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 
 	dlink := devicelink.NewService(a.Net.Libp2p().Host, a.Storage.KeyStore(), a.Index, logging.New("seed/devicelink", cfg.LogLevel))
 
+	embedder, err := initLLM(cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr, embedder)
 	if err != nil {
 		return nil, err
 	}
@@ -238,13 +243,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	if err != nil {
 		return nil, err
 	}
-
 	a.setupLogging(ctx, cfg)
-	err = initLLM(cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -383,6 +382,7 @@ func initGRPC(
 	opts grpcOpts,
 	dlink *devicelink.Service,
 	taskMgr *taskmanager.TaskManager,
+	embedder embeddings.LightEmbedder,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
 	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
@@ -390,7 +390,7 @@ func initGRPC(
 	}
 
 	srv = grpc.NewServer(opts.serverOptions...)
-	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr)
+	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, dlink, taskMgr, embedder)
 	apis.Register(srv)
 
 	for _, extra := range opts.extraServices {
@@ -416,10 +416,10 @@ func initLLM(
 	tskMgr *taskmanager.TaskManager,
 	ctx context.Context,
 
-) error {
+) (*embeddings.Embedder, error) {
 	if !cfg.Embedding.Enabled {
 		log.Info("LLM embedding indexer is disabled")
-		return nil
+		return nil, nil
 	}
 
 	log.Info("Initializing LLM embedding indexer",
@@ -440,7 +440,7 @@ func initLLM(
 
 		llamacpp, err := llamacpp.NewLlamaCppClient(cfg.Backend.Cfg.URL, llamaCppOpts...)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		log.Info("LLM Backend initialized", zap.String("LlamaCpp File URL", cfg.Backend.Cfg.URL.String()))
 		backend = llamacpp
@@ -452,12 +452,12 @@ func initLLM(
 
 		ollama, err := ollama.NewOllamaClient(cfg.Backend.Cfg.URL, ollamaOpts...)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		log.Info("LLM Backend initialized", zap.String("Ollama URL", cfg.Backend.Cfg.URL.String()))
 		backend = ollama
 	default:
-		return errors.New("unsupported LLM backend URL scheme: " + cfg.Backend.Cfg.URL.Scheme)
+		return nil, errors.New("unsupported LLM backend URL scheme: " + cfg.Backend.Cfg.URL.Scheme)
 	}
 	embedderOpts := []embeddings.EmbedderOption{
 
@@ -470,10 +470,10 @@ func initLLM(
 	}
 	embedder, err := embeddings.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	embedder.Init(ctx)
-	return nil
+	return embedder, nil
 }
 
 // WithMiddleware generates an grpc option with the given middleware.
