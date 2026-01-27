@@ -24,6 +24,8 @@ export default defineConfig(({command, mode}) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
 
+  const enableProfiler = !!process.env.REACT_PROFILER
+
   const config = {
     build: {
       sourcemap: true,
@@ -68,6 +70,11 @@ export default defineConfig(({command, mode}) => {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
+        // React Profiler aliases for production profiling
+        ...(enableProfiler && {
+          'react-dom$': 'react-dom/profiling',
+          'scheduler/tracing': 'scheduler/tracing-profiling',
+        }),
       },
     },
     optimizeDeps: {

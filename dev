@@ -14,6 +14,7 @@ def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
     def wrapper(func):
         p = cmds.add_parser(name, help=help)
         p.set_defaults(func=func)
+        return p
 
     return wrapper
 
@@ -108,7 +109,7 @@ def main():
 
         return run("yarn desktop", args=args)
 
-    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform.")
+    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. Use --profiler to enable React Profiler.")
     def build_desktop(args):
         # run("node scripts/cleanup-desktop.js")
         # run("./scripts/cleanup-frontend.sh")
@@ -122,13 +123,19 @@ def main():
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
         # os.environ["VITE_SEED_HOST_URL"] = "https://host.seed.hyper.media"
 
+        # Enable React Profiler if --profiler flag is passed
+        if "--profiler" in args:
+            os.environ["REACT_PROFILER"] = "1"
+            args = [a for a in args if a != "--profiler"]
+
         run("yarn format:write")
         run("yarn typecheck")
         run("yarn test")
 
-        run(
-            "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media yarn desktop:make"
-        )
+        env_prefix = "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media"
+        if os.environ.get("REACT_PROFILER"):
+            env_prefix = f"REACT_PROFILER=1 {env_prefix}"
+        run(f"{env_prefix} yarn desktop:make")
 
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
