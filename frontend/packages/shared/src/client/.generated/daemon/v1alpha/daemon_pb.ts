@@ -60,11 +60,27 @@ export enum TaskName {
    * @generated from enum value: REINDEXING = 1;
    */
   REINDEXING = 1,
+
+  /**
+   * Task for generating embeddings.
+   *
+   * @generated from enum value: EMBEDDING = 2;
+   */
+  EMBEDDING = 2,
+
+  /**
+   * Task for loading a machine learning model.
+   *
+   * @generated from enum value: LOADING_MODEL = 3;
+   */
+  LOADING_MODEL = 3,
 }
 // Retrieve enum metadata with: proto3.getEnumType(TaskName)
 proto3.util.setEnumType(TaskName, "com.seed.daemon.v1alpha.TaskName", [
   { no: 0, name: "TASK_NAME_UNSPECIFIED" },
   { no: 1, name: "REINDEXING" },
+  { no: 2, name: "EMBEDDING" },
+  { no: 3, name: "LOADING_MODEL" },
 ]);
 
 /**

@@ -359,8 +359,8 @@ func TestBlobPtrs(t *testing.T) {
 
 	buf := new(bytes.Buffer)
 	gzw := gzip.NewWriter(buf)
-	gzw.Write([]byte("hello"))
-	gzw.Close()
+	_, _ = gzw.Write([]byte("hello"))
+	_ = gzw.Close()
 	n := buf.Len()
 
 	stmt := c.Prep("INSERT INTO blobs (col) VALUES ($col);")
@@ -378,10 +378,10 @@ func TestBlobPtrs(t *testing.T) {
 	defer blob.Close()
 
 	gzw = gzip.NewWriter(blob)
-	gzw.Write([]byte("hello"))
-	gzw.Close()
+	_, _ = gzw.Write([]byte("hello"))
+	_ = gzw.Close()
 
-	blob.Seek(0, 0)
+	_, _ = blob.Seek(0, 0)
 
 	gzr, err := gzip.NewReader(blob)
 	if err != nil {

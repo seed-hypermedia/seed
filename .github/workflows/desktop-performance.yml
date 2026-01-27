@@ -74,13 +74,16 @@ jobs:
         with:
           matrix-os: ubuntu-latest
 
-      - name: Build Backend (Unix)
+      - name: Build Backend (Linux)
         run: |
           mkdir -p plz-out/bin/backend
-          go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+          go build -tags vulkan -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
         env:
           GOARCH: amd64
           CGO_ENABLED: 1
+          CGO_LDFLAGS: "-lggml-vulkan -lvulkan"
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Set temporal version in package.json
         run: |

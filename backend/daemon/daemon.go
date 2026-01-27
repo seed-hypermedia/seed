@@ -21,6 +21,10 @@ import (
 	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/hmnet/syncing"
+	embeddings "seed/backend/llm"
+	"seed/backend/llm/backends"
+	"seed/backend/llm/backends/llamacpp"
+	"seed/backend/llm/backends/ollama"
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
@@ -195,7 +199,6 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			if _, err := a.taskMgr.DeleteTask(taskID); err != nil {
 				a.log.Warn("failed to delete reindexing task", zap.Error(err))
 			}
-
 			return nil
 		})
 	}
@@ -237,6 +240,10 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.setupLogging(ctx, cfg)
+	err = initLLM(cfg.LLM, a.Storage.DB(), logging.New("seed/llm", cfg.LogLevel), a.taskMgr, ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	select {
 	case <-ctx.Done():
@@ -400,6 +407,73 @@ func initGRPC(
 	})
 
 	return
+}
+
+func initLLM(
+	cfg config.LLM,
+	db *sqlitex.Pool,
+	log *zap.Logger,
+	tskMgr *taskmanager.TaskManager,
+	ctx context.Context,
+
+) error {
+	if !cfg.Embedding.Enabled {
+		log.Info("LLM embedding indexer is disabled")
+		return nil
+	}
+
+	log.Info("Initializing LLM embedding indexer",
+		zap.String("model", cfg.Embedding.Model),
+		zap.String("documentPrefix", cfg.Embedding.DocumentPrefix),
+		zap.String("queryPrefix", cfg.Embedding.QueryPrefix),
+		zap.Duration("periodicInterval", cfg.Embedding.PeriodicInterval),
+		zap.Duration("SleepBetweenPasses", cfg.Embedding.SleepBetweenPasses),
+		zap.Int("indexPassSize", cfg.Embedding.IndexPassSize),
+	)
+	var backend backends.Backend
+	switch cfg.Backend.Cfg.URL.Scheme {
+	case "file":
+		llamaCppOpts := []llamacpp.LlamaCppOption{
+			llamacpp.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+			llamacpp.WithBatchSize(cfg.Backend.Cfg.BatchSize),
+		}
+
+		llamacpp, err := llamacpp.NewLlamaCppClient(cfg.Backend.Cfg.URL, llamaCppOpts...)
+		if err != nil {
+			return err
+		}
+		log.Info("LLM Backend initialized", zap.String("LlamaCpp File URL", cfg.Backend.Cfg.URL.String()))
+		backend = llamacpp
+	case "http", "https":
+		ollamaOpts := []ollama.OllamaOption{
+			ollama.WithWaitBetweenBatches(cfg.Backend.Cfg.SleepBetweenBatches),
+			ollama.WithBatchSize(cfg.Backend.Cfg.BatchSize),
+		}
+
+		ollama, err := ollama.NewOllamaClient(cfg.Backend.Cfg.URL, ollamaOpts...)
+		if err != nil {
+			return err
+		}
+		log.Info("LLM Backend initialized", zap.String("Ollama URL", cfg.Backend.Cfg.URL.String()))
+		backend = ollama
+	default:
+		return errors.New("unsupported LLM backend URL scheme: " + cfg.Backend.Cfg.URL.Scheme)
+	}
+	embedderOpts := []embeddings.EmbedderOption{
+
+		embeddings.WithIndexPassSize(cfg.Embedding.IndexPassSize),
+		embeddings.WithDocumentPrefix(cfg.Embedding.DocumentPrefix),
+		embeddings.WithQueryPrefix(cfg.Embedding.QueryPrefix),
+		embeddings.WithSleepPerPass(cfg.Embedding.SleepBetweenPasses),
+		embeddings.WithInterval(cfg.Embedding.PeriodicInterval),
+		embeddings.WithModel(cfg.Embedding.Model),
+	}
+	embedder, err := embeddings.NewEmbedder(db, backend, log, tskMgr, embedderOpts...)
+	if err != nil {
+		return err
+	}
+	embedder.Init(ctx)
+	return nil
 }
 
 // WithMiddleware generates an grpc option with the given middleware.

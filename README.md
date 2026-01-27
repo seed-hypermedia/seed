@@ -47,11 +47,52 @@ installed.
 - `./dev run-site`
 - `./dev build-site`
 
+### GPU Acceleration (Optional)
+
+For GPU-accelerated LLM tasks, use the `--gpu` flag. **Requires platform-specific dependencies:**
+
+**Linux (Vulkan):**
+```bash
+# Fedora/RHEL
+sudo dnf install vulkan-headers vulkan-loader-devel glslc
+
+# Ubuntu/Debian
+sudo apt install libvulkan-dev vulkan-tools glslc
+```
+
+**macOS (Metal):**
+Metal is built-in with Xcode Command Line Tools (no extra packages needed).
+
+**Verify dependencies:**
+```bash
+mise run check-gpu  # validates GPU dependencies
+```
+
+**Enable GPU:**
+```bash
+./dev run-desktop --gpu
+./dev run-backend --gpu
+./dev build-backend --gpu
+```
+
+The `./dev` script automatically detects GPU config changes and cleans the build cache when switching.
+
 To run the dev build with the production network, use the following command:
 
-```
+```bash
 SEED_P2P_TESTNET_NAME="" ./dev run-desktop
 ```
+
+## Backend Testing
+Since go test won't call the necessary precompilation steps (building
+llama.go libraries), Before the first manual tests, one should call
+```bash
+./dev build-backend        # build backend without GPU
+./dev build-backend --gpu  # build backend with GPU acceleration
+```
+
+After the initial library compilation, tests can be executed normally, from
+the terminal or from the IDE.
 
 ## Frontend Testing
 
