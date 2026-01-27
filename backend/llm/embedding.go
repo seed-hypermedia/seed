@@ -43,6 +43,13 @@ const (
 	kvEmbeddingModelChecksumKey = "embedding_model_checksum"
 )
 
+// LightEmbedder defines a minimal interface for semantic search.
+// Just search without indexing loop capabilities.
+type LightEmbedder interface {
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string, iriGlob string) ([]SearchResult, error)
+}
+
+// Embedder handles embedding generation and indexing.
 type Embedder struct {
 	backend            backends.Backend
 	pool               *sqlitex.Pool
@@ -223,16 +230,19 @@ func (e *Embedder) Init(ctx context.Context) {
 }
 
 // SemanticSearchResult represents a single result from semantic search.
-type SemanticSearchResult struct {
-	IRI           string
-	BlobID        int64
-	BlockID       string
-	ContentType   string
-	TextSnippet   string
-	Version       string
-	SemanticScore float64
-	Timestamp     int64
-	MainAuthor    []byte
+// SearchResult represents a minimal search result from semantic or keyword search.
+// Contains only essential fields - full entity data is populated separately for winners.
+type SearchResult struct {
+	IRI         string
+	BlobID      int64
+	BlockID     string
+	ContentType string
+	TextSnippet string
+	Version     string
+	Score       float64 // Semantic: similarity (1-distance), Keyword: rank
+	Timestamp   int64
+	Owner       string // Principal string
+	FTSRowID    int64  // FTS table rowid for enrichment
 }
 
 // Allowed content types for semantic search (prevents SQL injection).
@@ -242,15 +252,49 @@ var allowedContentTypes = map[string]bool{
 	"comment":  true,
 }
 
+var qSemanticSearch = dqb.Str(`
+SELECT
+    v.rowid,
+    v.distance,
+    fi.blob_id,
+    fi.block_id,
+    fi.type AS content_type,
+    fi.version,
+    fi.ts,
+    f.raw_content,
+    COALESCE(r1.iri, r2.iri) as iri,
+    pk.principal,
+    v.fts_id
+FROM embeddings v
+JOIN fts_index fi ON fi.rowid = v.fts_id
+JOIN fts f ON f.rowid = v.fts_id
+LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
+LEFT JOIN resources r1 ON r1.id = sb.resource
+LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
+LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+LEFT JOIN public_keys pk ON pk.id = sb.author
+WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+  AND k = ?
+  AND fi.type IN (?, ?, ?, ?)
+  AND COALESCE(r1.iri, r2.iri) IS NOT NULL 
+  AND COALESCE(r1.iri, r2.iri) GLOB ?
+ORDER BY v.distance
+`)
+
 // SemanticSearch performs semantic search using sqlite-vec cosine similarity.
 // contentTypes filters by FTS content types (e.g., "title", "document", "comment").
 // If empty, defaults to ["title", "document", "comment"].
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string) ([]SemanticSearchResult, error) {
+// iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string, iriGlob string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	if len(contentTypes) == 0 {
 		contentTypes = []string{"title", "document", "comment"}
+	}
+	if iriGlob == "" {
+		iriGlob = "*"
 	}
 
 	// Validate content types to prevent injection
@@ -286,55 +330,40 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 
 	queryEmbedding := quantizeEmbedding(embeddings[0])
 
+	// Convert []int8 to []byte for SQLite binding
+	queryEmbeddingBytes := make([]byte, len(queryEmbedding))
+	for i, v := range queryEmbedding {
+		queryEmbeddingBytes[i] = byte(v)
+	}
+
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer release()
 
-	// Build dynamic SQL with content type placeholders
-	// Content types are validated above so this is safe
-	placeholders := make([]string, len(contentTypes))
-	for i := range contentTypes {
-		placeholders[i] = "?"
-	}
-
-	sql := fmt.Sprintf(`
-		SELECT
-			v.rowid,
-			v.distance,
-			fi.blob_id,
-			fi.block_id,
-			fi.type AS content_type,
-			fi.version,
-			fi.ts,
-			f.raw_content,
-			COALESCE(r1.iri, r2.iri) as iri,
-			pk.principal
-		FROM embeddings v
-		JOIN fts_index fi ON fi.rowid = v.fts_id
-		JOIN fts f ON f.rowid = v.fts_id
-		LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
-		LEFT JOIN resources r1 ON r1.id = sb.resource
-		LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
-		LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
-		LEFT JOIN resources r2 ON r2.id = sb_ref.resource
-		LEFT JOIN public_keys pk ON pk.id = sb.author
-		WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
-		  AND k = ?
-		  AND fi.type IN (%s)
-		ORDER BY v.distance
-	`, strings.Join(placeholders, ","))
-
-	// Build args: embedding, limit, then content types
-	args := make([]any, 0, 2+len(contentTypes))
-	args = append(args, queryEmbedding, limit)
+	// Map content types to positional parameters (nil for types not in contentTypes)
+	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	typeSet := make(map[string]bool)
 	for _, ct := range contentTypes {
-		args = append(args, ct)
+		typeSet[ct] = true
 	}
 
-	var results []SemanticSearchResult
-	if err := sqlitex.Exec(conn, sql, func(stmt *sqlite.Stmt) error {
+	if typeSet["title"] {
+		entityTypeTitle = "title"
+	}
+	if typeSet["contact"] {
+		entityTypeContact = "contact"
+	}
+	if typeSet["document"] {
+		entityTypeDoc = "document"
+	}
+	if typeSet["comment"] {
+		entityTypeComment = "comment"
+	}
+
+	var results []SearchResult
+	if err := sqlitex.Exec(conn, qSemanticSearch(), func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
 		similarity := max(0, 1-distance)
 
@@ -344,19 +373,20 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 			snippet = snippet[:300]
 		}
 
-		results = append(results, SemanticSearchResult{
-			IRI:           stmt.ColumnText(8),
-			BlobID:        stmt.ColumnInt64(2),
-			BlockID:       stmt.ColumnText(3),
-			ContentType:   stmt.ColumnText(4),
-			TextSnippet:   snippet,
-			Version:       stmt.ColumnText(5),
-			SemanticScore: similarity,
-			Timestamp:     stmt.ColumnInt64(6),
-			MainAuthor:    stmt.ColumnBytesUnsafe(9),
+		results = append(results, SearchResult{
+			IRI:         stmt.ColumnText(8),
+			BlobID:      stmt.ColumnInt64(2),
+			BlockID:     stmt.ColumnText(3),
+			ContentType: stmt.ColumnText(4),
+			TextSnippet: snippet,
+			Version:     stmt.ColumnText(5),
+			Score:       similarity,
+			Timestamp:   stmt.ColumnInt64(6),
+			Owner:       stmt.ColumnText(9),
+			FTSRowID:    stmt.ColumnInt64(10),
 		})
 		return nil
-	}, args...); err != nil {
+	}, queryEmbeddingBytes, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
 		return nil, fmt.Errorf("semantic search query failed: %w", err)
 	}
 
