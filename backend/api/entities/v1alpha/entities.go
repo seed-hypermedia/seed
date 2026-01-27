@@ -306,7 +306,7 @@ WHERE fts.raw_content MATCH ?
   AND COALESCE(r1.iri, r2.iri) IS NOT NULL
   AND COALESCE(r1.iri, r2.iri) GLOB ?
 ORDER BY
-  (fts.type = 'contact' OR fts.type = 'title') ASC,
+  (fts.type = 'contact' OR fts.type = 'title') DESC,
   fts.rank ASC
 LIMIT ?
 `)
@@ -549,11 +549,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		entityTypeContact = "contact"
 	}
 	// Adjust results limit based on search type
-	resultsLmit := 1000 // Default for keyword and semantic
-	if in.SearchType == entpb.SearchType_SEARCH_HYBRID {
-		resultsLmit = 100
-	} else if len(cleanQuery) < 3 {
+	resultsLmit := 300
+	if in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC {
 		resultsLmit = 200
+	} else if len(cleanQuery) < 3 {
+		resultsLmit = 100
 	}
 	ftsStrKeySearch := strings.ReplaceAll(cleanQuery, " ", "+")
 	if ftsStrKeySearch[len(ftsStrKeySearch)-1] == '+' {
@@ -577,17 +577,15 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	if in.IncludeBody {
 		contentTypes = append(contentTypes, "document", "comment")
 	}
-
+	//fmt.Println("Initial setup duration:", time.Since(start))
 	// Handle different search types
 	winnerIDs := []int64{}
 	winners := []llm.SearchResult{}
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
 		// Hybrid search: blend semantic + keyword with RRF
-		searchLimit := resultsLmit * 3
-
 		// Get semantic results
-		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, searchLimit, contentTypes, iriGlob)
+		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -596,7 +594,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		var keywordResults []llm.SearchResult
 		err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var err error
-			keywordResults, err = keywordSearch(conn, ftsStrKeySearch, searchLimit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob)
+			keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob)
 			return err
 		})
 		if err != nil {
@@ -604,11 +602,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 
 		// Blend results with RRF
-		winners = blendSearchResults(semanticResults, keywordResults, resultsLmit)
+		winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2)
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
 		// Semantic-only search
-		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit, contentTypes, iriGlob)
+		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -628,6 +626,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
+	//fmt.Println("After search duration:", time.Since(start))
 	scores := map[int64]float64{}
 	for _, w := range winners {
 		winnerIDs = append(winnerIDs, w.FTSRowID)
@@ -717,7 +716,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
-
+	//fmt.Println("After getByID duration:", time.Since(start))
 	seen := make(map[string]int)
 	var uniqueResults []searchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -968,7 +967,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	//fmt.Printf("totalCommentsTime took %.3f s and called %d times\n", totalCommentsTime.Seconds(), timesCalled2)
 
 	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
-	slices.SortFunc(finalResults, orderBySimilarity)
+	orderfunc := orderBySimilarity
+	if in.SearchType == entpb.SearchType_SEARCH_KEYWORD {
+		orderfunc = orderByTitle
+	}
+	slices.SortFunc(finalResults, orderfunc)
 	//sort.Slice(matchingEntities, func)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{
@@ -984,6 +987,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			Metadata:    match.metadata,
 		})
 	}
+
 	return &entpb.SearchEntitiesResponse{Entities: matchingEntities}, nil
 }
 
@@ -1007,29 +1011,13 @@ func orderByTitle(a, b searchResult) int {
 		}
 		return 1
 	}
-	if isTitleA && isTitleB {
-		lenA := utf8.RuneCountInString(a.content)
-		lenB := utf8.RuneCountInString(b.content)
-		if lenA != lenB {
-			return lenA - lenB
-		}
-	}
 
-	// 3) then by DocId (lexicographically)
-	if a.docID != b.docID {
-		if a.docID < b.docID {
-			return -1
+	// 3) everything else (including within contacts and titles) by Score descending (higher first)
+	if a.score != b.score {
+		if a.score > b.score {
+			return -1 // a comes first (higher score)
 		}
-		return 1
-	}
-
-	// 4) finally by VersionTime descending (higher time first)
-	timeA := a.versionTime.AsTime()
-	timeB := b.versionTime.AsTime()
-	if timeA.After(timeB) {
-		return -1
-	} else if timeA.Before(timeB) {
-		return 1
+		return 1 // b comes first (higher score)
 	}
 	return 0
 }
