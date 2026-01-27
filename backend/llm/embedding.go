@@ -181,7 +181,10 @@ func NewEmbedder(
 }
 
 // Init starts the indexing loop using the provided interval in the constructor.
+// It runs through the database getting textx, chunk them, and generating embeddings.
 // Calling Init multiple times has no effect.
+// If the user just wants to embed textx on demand (For semantic search), it can call
+// EmbedText directly.
 func (e *Embedder) Init(ctx context.Context) {
 	e.mu.Lock()
 	if e.initialized {
@@ -217,6 +220,170 @@ func (e *Embedder) Init(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// SemanticSearchResult represents a single result from semantic search.
+type SemanticSearchResult struct {
+	IRI           string
+	BlobID        int64
+	BlockID       string
+	ContentType   string
+	TextSnippet   string
+	Version       string
+	SemanticScore float64
+	Timestamp     int64
+	MainAuthor    []byte
+}
+
+// Allowed content types for semantic search (prevents SQL injection).
+var allowedContentTypes = map[string]bool{
+	"title":    true,
+	"document": true,
+	"comment":  true,
+}
+
+// SemanticSearch performs semantic search using sqlite-vec cosine similarity.
+// contentTypes filters by FTS content types (e.g., "title", "document", "comment").
+// If empty, defaults to ["title", "document", "comment"].
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string) ([]SemanticSearchResult, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if len(contentTypes) == 0 {
+		contentTypes = []string{"title", "document", "comment"}
+	}
+
+	// Validate content types to prevent injection
+	for _, ct := range contentTypes {
+		if !allowedContentTypes[ct] {
+			return nil, fmt.Errorf("invalid content type: %q (allowed: title, document, comment)", ct)
+		}
+	}
+
+	e.mu.Lock()
+	if !e.modelLoaded {
+		e.mu.Unlock()
+		return nil, fmt.Errorf("embedder model not loaded")
+	}
+	e.mu.Unlock()
+
+	// Embed query with optional prefix
+	queryText := query
+	if e.queryPrefix != "" {
+		queryText = e.queryPrefix + query
+	}
+
+	embeddings, err := e.backend.Embed(ctx, []string{queryText})
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed query: %w", err)
+	}
+	if len(embeddings) != 1 {
+		return nil, fmt.Errorf("embedding count mismatch: got %d want 1", len(embeddings))
+	}
+	if len(embeddings[0]) != e.dimensions {
+		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embeddings[0]), e.dimensions)
+	}
+
+	queryEmbedding := quantizeEmbedding(embeddings[0])
+
+	conn, release, err := e.pool.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	}
+	defer release()
+
+	// Build dynamic SQL with content type placeholders
+	// Content types are validated above so this is safe
+	placeholders := make([]string, len(contentTypes))
+	for i := range contentTypes {
+		placeholders[i] = "?"
+	}
+
+	sql := fmt.Sprintf(`
+		SELECT
+			v.rowid,
+			v.distance,
+			fi.blob_id,
+			fi.block_id,
+			fi.type AS content_type,
+			fi.version,
+			fi.ts,
+			f.raw_content,
+			COALESCE(r1.iri, r2.iri) as iri,
+			pk.principal
+		FROM embeddings v
+		JOIN fts_index fi ON fi.rowid = v.fts_id
+		JOIN fts f ON f.rowid = v.fts_id
+		LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
+		LEFT JOIN resources r1 ON r1.id = sb.resource
+		LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
+		LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+		LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+		LEFT JOIN public_keys pk ON pk.id = sb.author
+		WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+		  AND k = ?
+		  AND fi.type IN (%s)
+		ORDER BY v.distance
+	`, strings.Join(placeholders, ","))
+
+	// Build args: embedding, limit, then content types
+	args := make([]any, 0, 2+len(contentTypes))
+	args = append(args, queryEmbedding, limit)
+	for _, ct := range contentTypes {
+		args = append(args, ct)
+	}
+
+	var results []SemanticSearchResult
+	if err := sqlitex.Exec(conn, sql, func(stmt *sqlite.Stmt) error {
+		distance := stmt.ColumnFloat(1)
+		similarity := max(0, 1-distance)
+
+		rawContent := stmt.ColumnText(7)
+		snippet := rawContent
+		if len(snippet) > 300 {
+			snippet = snippet[:300]
+		}
+
+		results = append(results, SemanticSearchResult{
+			IRI:           stmt.ColumnText(8),
+			BlobID:        stmt.ColumnInt64(2),
+			BlockID:       stmt.ColumnText(3),
+			ContentType:   stmt.ColumnText(4),
+			TextSnippet:   snippet,
+			Version:       stmt.ColumnText(5),
+			SemanticScore: similarity,
+			Timestamp:     stmt.ColumnInt64(6),
+			MainAuthor:    stmt.ColumnBytesUnsafe(9),
+		})
+		return nil
+	}, args...); err != nil {
+		return nil, fmt.Errorf("semantic search query failed: %w", err)
+	}
+
+	return results, nil
+}
+func (e *Embedder) embedText(ctx context.Context, text string) ([]int8, error) {
+	e.mu.Lock()
+	if !e.initialized {
+		e.mu.Unlock()
+		return nil, fmt.Errorf("embedder not initialized")
+	}
+	e.mu.Unlock()
+	if len(text) > e.maxChunkLength {
+		return nil, fmt.Errorf("input text length %d exceeds maximum chunk length %d", len([]rune(text)), e.maxChunkLength)
+	}
+
+	embeddings, err := e.backend.Embed(ctx, []string{text})
+	if err != nil {
+		return nil, err
+	}
+	if len(embeddings) != 1 {
+		return nil, fmt.Errorf("embedding count mismatch: got %d want 1", len(embeddings))
+	}
+	if len(embeddings[0]) != e.dimensions {
+		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embeddings[0]), e.dimensions)
+	}
+	return quantizeEmbedding(embeddings[0]), nil
 }
 
 func (e *Embedder) runOnce(ctx context.Context) error {

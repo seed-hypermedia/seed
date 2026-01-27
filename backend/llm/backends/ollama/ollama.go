@@ -155,6 +155,29 @@ func (client *OllamaClient) LoadModel(ctx context.Context, model string, force b
 	return info, nil
 }
 
+// RetrieveSingle returns a single embedding for the input.
+func (client *OllamaClient) RetrieveSingle(ctx context.Context, input string) ([]float32, error) {
+	model := strings.TrimSpace(client.cfg.Model)
+	if model == "" {
+		return nil, errors.New("ollama model not loaded; call LoadModel first")
+	}
+
+	request := &api.EmbedRequest{
+		Model: model,
+		Input: []string{input},
+	}
+	response, err := client.client.Embed(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(response.Embeddings) != 1 {
+		return nil, fmt.Errorf("ollama single embedding count mismatch: got %d want %d", len(response.Embeddings), 1)
+	}
+
+	return response.Embeddings[0], nil
+}
+
 // Embed returns embeddings for inputs in batches sized by the client.
 // The model must be loaded via LoadModel before calling Embed.
 func (client *OllamaClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {

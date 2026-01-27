@@ -46,7 +46,12 @@ type Backend interface {
 	LoadModel(ctx context.Context, model string, force bool, taskMgr *taskmanager.TaskManager) (ModelInfo, error)
 	// Embed generates embeddings for the given inputs.
 	// LoadModel must be called before calling Embed.
+	// Results are normalized.
 	Embed(ctx context.Context, inputs []string) ([][]float32, error)
+	// RetrieveSingle generates a single embedding for the given input.
+	// LoadModel must be called before calling RetrieveSingle.
+	// Result is normalized.
+	RetrieveSingle(ctx context.Context, input string) ([]float32, error)
 	// CloseModel closes the currently active model so no resources are used.
 	CloseModel(ctx context.Context) error
 	// Version returns the version of the backend.

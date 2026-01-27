@@ -14,6 +14,7 @@ import (
 	daemonpb "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/llm/backends"
 	"strings"
+	"sync"
 	"time"
 
 	llama "github.com/seed-hypermedia/llama-go"
@@ -21,7 +22,10 @@ import (
 
 type LlamaCppClient struct {
 	model            *llama.Model
-	embeddingContext *llama.Context // not same meaning as context.Context
+	embeddingContext *llama.Context // For generating embeddings
+	muEmbed          sync.Mutex     // protects embeddingContext from concurrent access
+	retrievalContext *llama.Context // For retrieving similar embeddings
+	muRetrieval      sync.Mutex     // protects retrievalContext from concurrent access
 	cfg              backends.ClientCfg
 }
 
@@ -85,7 +89,6 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool, t
 	if path == "" {
 		return ret, errors.New("gguf model name is required")
 	}
-	os.Setenv("LLAMA_LOG", "error") // Quiet mode
 	if taskMgr != nil {
 		if _, err := taskMgr.AddTask(taskID, daemonpb.TaskName_LOADING_MODEL, taskDescription, 100); err != nil {
 			if errors.Is(err, taskmanager.ErrTaskExists) {
@@ -98,6 +101,7 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool, t
 			_, _ = taskMgr.DeleteTask(taskID)
 		}()
 	}
+
 	client.model, err = llama.LoadModel(path,
 		llama.WithGPULayers(-1), // Load all layer to GPU
 		llama.WithMMap(true),
@@ -126,15 +130,51 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool, t
 	if err != nil {
 		return ret, fmt.Errorf("Could not get model stats: %v\n", err)
 	}
+
+	client.retrievalContext, err = client.model.NewContext(
+		llama.WithThreads(runtime.NumCPU()),
+		llama.WithF16Memory(),
+		llama.WithParallel(min(maxParallelContexts, client.cfg.BatchSize)),
+		llama.WithEmbeddings(),
+	)
+	if err != nil {
+		return ret, fmt.Errorf("Could not create retrieval context: %v\n", err)
+	}
 	ret.Dimensions = 384  // Hardcoded for now as llama-go does not expose embedding length yet
 	ret.ContextSize = 512 // Hardcoded for now as llama-go does not expose context size yet
 
 	return ret, nil
 }
 
+// RetrieveSingle returns the embedding for a single input string.
+// The model must be loaded via LoadModel before calling RetrieveSingle.
+// Thread-safe: uses mutex to prevent concurrent access to retrievalContext.
+func (client *LlamaCppClient) RetrieveSingle(ctx context.Context, input string) ([]float32, error) {
+	client.muRetrieval.Lock()
+	defer client.muRetrieval.Unlock()
+	if client.retrievalContext == nil {
+		return nil, errors.New("llamacpp embedding model is not loaded")
+	}
+	embed, err := client.retrievalContext.GetEmbeddings(input)
+	if err != nil {
+		return nil, fmt.Errorf("Error generating embeddings: %v\n", err)
+	}
+	if len(embed) != 1 {
+		return nil, fmt.Errorf("llama embeddings count mismatch: got %d want %d", len(embed), 1)
+	}
+	norm := normalize([][]float32{embed})
+	return norm[0], nil
+}
+
 // Embed returns embeddings for inputs in batches sized by the client.
 // The model must be loaded via LoadModel before calling Embed.
+// Thread-safe: uses mutex to prevent concurrent access to embeddingContext.
 func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
+	client.muEmbed.Lock()
+	defer client.muEmbed.Unlock()
+	if client.embeddingContext == nil {
+		return nil, errors.New("llamacpp embedding model is not loaded")
+	}
 	out := make([][]float32, 0, len(inputs))
 	var wasPreviousBatchFull bool
 	for start := 0; start < len(inputs); start += client.cfg.BatchSize {
