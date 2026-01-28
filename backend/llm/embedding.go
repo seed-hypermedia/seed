@@ -45,9 +45,9 @@ const (
 )
 
 // LightEmbedder defines a minimal interface for semantic search.
-// Just search without indexing loop capabilities.
+// Returns the top limit results matching the query.
 type LightEmbedder interface {
-	SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string, iriGlob string) ([]SearchResult, error)
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) (SearchResultMap, error)
 }
 
 // Embedder handles embedding generation and indexing.
@@ -245,10 +245,25 @@ type SearchResult struct {
 	Score float32
 }
 
+// Keys returns an unordered list of rowIDs in the SearchResultMap.
+func (sr SearchResultMap) Keys() []int64 {
+	keys := make([]int64, 0, len(sr))
+	for id := range sr {
+		keys = append(keys, id)
+	}
+	return keys
+}
+
+// Values returns an unordered list of scores in the SearchResultMap.
+func (sr SearchResultMap) Values() []float32 {
+	values := make([]float32, 0, len(sr))
+	for _, score := range sr {
+		values = append(values, score)
+	}
+	return values
+}
+
 // Max returns the fts rowID if the maximum score found in the result set.
-// Depending on the search type (semantic or keyword), the maximum score
-// may be the most or least relevant result. For semantic search, it is the most relevant.
-// For keyword search, it is the least relevant.
 func (sr SearchResultMap) Max() SearchResult {
 	var maxScore float32
 	first := true
@@ -264,9 +279,6 @@ func (sr SearchResultMap) Max() SearchResult {
 }
 
 // Min returns the fts rowID of the minimum score found in the result set.
-// Depending on the search type (semantic or keyword), the minimum score
-// may be the most or least relevant result. For semantic search, it is the least relevant.
-// For keyword search, it is the most relevant.
 func (sr SearchResultMap) Min() SearchResult {
 	var minScore float32
 	first := true
@@ -283,7 +295,7 @@ func (sr SearchResultMap) Min() SearchResult {
 
 // ToList converts the SearchResultMap to a sorted list of SearchResult.
 // If desc is true, the list is sorted in descending order of Score.
-func (sr SearchResultMap) ToList(desc bool) []SearchResult {
+func (sr SearchResultMap) ToList(desc bool) SearchResultList {
 	results := make([]SearchResult, 0, len(sr))
 	for id, score := range sr {
 		results = append(results, SearchResult{RowID: id, Score: score})
@@ -311,35 +323,15 @@ func (sr SearchResultMap) ToList(desc bool) []SearchResult {
 	return results
 }
 
-var qSemanticSearch = dqb.Str(`
-SELECT
-    v.rowid,
-    v.distance,
-    fi.blob_id,
-    fi.block_id,
-    fi.type AS content_type,
-    fi.version,
-    fi.ts,
-    f.raw_content,
-    COALESCE(r1.iri, r2.iri) as iri,
-    pk.principal,
-    v.fts_id
-FROM embeddings v
-JOIN fts_index fi ON fi.rowid = v.fts_id
-JOIN fts f ON f.rowid = v.fts_id
-LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
-LEFT JOIN resources r1 ON r1.id = sb.resource
-LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
-LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
-LEFT JOIN resources r2 ON r2.id = sb_ref.resource
-LEFT JOIN public_keys pk ON pk.id = sb.author
-WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
-  AND k = ?
-  AND fi.type IN (?, ?, ?, ?)
-  AND COALESCE(r1.iri, r2.iri) IS NOT NULL 
-  AND COALESCE(r1.iri, r2.iri) GLOB ?
-ORDER BY v.distance
-`)
+type SearchResultList []SearchResult
+
+func (srList SearchResultList) ToMap() SearchResultMap {
+	resultMap := make(SearchResultMap)
+	for _, sr := range srList {
+		resultMap[sr.RowID] = sr.Score
+	}
+	return resultMap
+}
 
 // SemanticSearch performs semantic search using sqlite-vec cosine similarity.
 // contentTypes filters by FTS content types (e.g., "title", "document", "comment").
@@ -407,10 +399,10 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	defer release()
 
 	ret := make(map[int64]float32)
-	if err := sqlitex.Exec(conn, qSemanticSearch(), func(stmt *sqlite.Stmt) error {
+	if err := sqlitex.Exec(conn, qEmbeddingsSearch(), func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
 		similarity := max(0, 1-distance)
-		ret[stmt.ColumnInt64(10)] = float32(similarity)
+		ret[stmt.ColumnInt64(0)] = float32(similarity)
 		return nil
 	}, queryEmbedding, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
 		return nil, fmt.Errorf("semantic search query failed: %w", err)
@@ -773,4 +765,23 @@ var qEmbeddingsPendingCount = dqb.Str(`
 var qEmbeddingsInsert = dqb.Str(`
 	INSERT INTO embeddings (multilingual_minilm_l12_v2, fts_id)
 	VALUES (vec_int8(?), ?);
+`)
+
+var qEmbeddingsSearch = dqb.Str(`
+SELECT
+	v.fts_id,
+    v.distance
+FROM embeddings v
+JOIN fts_index fi ON fi.rowid = v.fts_id
+LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
+LEFT JOIN resources r1 ON r1.id = sb.resource
+LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
+LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+  AND k = ?
+  AND fi.type IN (?, ?, ?, ?)
+  AND COALESCE(r1.iri, r2.iri) IS NOT NULL 
+  AND COALESCE(r1.iri, r2.iri) GLOB ?
+ORDER BY v.distance
 `)
