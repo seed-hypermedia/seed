@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -360,6 +359,7 @@ func TestEmbedderInit_StartsIndexingLoop(t *testing.T) {
 const testModelPath = "file:///home/julio/Documents/llama-go/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
 
 func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
+	// Quality checks are tight to detect any regressions on embedding model.
 	testutil.Manual(t)
 	ctx := t.Context()
 
@@ -492,17 +492,18 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 
 		// Top results should be about technology
 		t.Logf("Query: 'artificial intelligence and machine learning'")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
 		// At least the top result should be tech-related
-		topResult := results[0].RawContent
-		isTech := strings.Contains(strings.ToLower(topResult), "learning") ||
-			strings.Contains(strings.ToLower(topResult), "neural") ||
-			strings.Contains(strings.ToLower(topResult), "aprendizaje") ||
-			strings.Contains(strings.ToLower(topResult), "redes")
-		require.True(t, isTech, "Top result should be about tech/ML, got: %s", topResult)
+		topResult := results.Max()
+		require.Greater(t, topResult.Score, float32(0.69), "Top result should have a high similarity score: %.4f", topResult.Score)
+		require.GreaterOrEqual(t, topResult.RowID, int64(1), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
+		require.LessOrEqual(t, topResult.RowID, int64(4), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
+		bottomResult := results.Min()
+		require.Less(t, bottomResult.Score, float32(0.01), "Bottom result should have a poor score: %.4f", bottomResult.Score)
+
 	})
 
 	t.Run("Spanish ML query finds tech content", func(t *testing.T) {
@@ -511,17 +512,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'inteligencia artificial y redes neuronales'")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// Top result should be tech-related (in any language)
-		topResult := results[0].RawContent
-		isTech := strings.Contains(strings.ToLower(topResult), "learning") ||
-			strings.Contains(strings.ToLower(topResult), "neural") ||
-			strings.Contains(strings.ToLower(topResult), "aprendizaje") ||
-			strings.Contains(strings.ToLower(topResult), "redes")
-		require.True(t, isTech, "Top result should be about tech/ML, got: %s", topResult)
+		// At least the top result should be tech-related
+		topResult := results.Max()
+		require.Greater(t, topResult.Score, float32(0.65), "Top result should have a solid score: %.4f", topResult.Score)
+		require.GreaterOrEqual(t, topResult.RowID, int64(1), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
+		require.LessOrEqual(t, topResult.RowID, int64(4), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
+		bottomResult := results.Min()
+		require.Less(t, bottomResult.Score, float32(0.018), "Bottom result should have a poor score: %.4f", bottomResult.Score)
 	})
 
 	t.Run("Food query finds cooking content", func(t *testing.T) {
@@ -530,18 +531,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'how to cook Italian food with pasta'")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
 		// Top result should be about food
-		topResult := results[0].RawContent
-		isFood := strings.Contains(strings.ToLower(topResult), "pasta") ||
-			strings.Contains(strings.ToLower(topResult), "cook") ||
-			strings.Contains(strings.ToLower(topResult), "italian") ||
-			strings.Contains(strings.ToLower(topResult), "cocina") ||
-			strings.Contains(strings.ToLower(topResult), "tomate")
-		require.True(t, isFood, "Top result should be about food, got: %s", topResult)
+		topResult := results.Max()
+		require.Greater(t, topResult.Score, float32(0.79), "Top result should have a high similarity score: %s", topResult.Score)
+		require.GreaterOrEqual(t, topResult.RowID, int64(5), "Top result should be in the food bucket: %d", topResult.RowID)
+		require.LessOrEqual(t, topResult.RowID, int64(8), "Top result should be in the food bucket: %d", topResult.RowID)
+		bottomResult := results.Min()
+		require.Less(t, bottomResult.Score, float32(0.01), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Spanish food query finds cooking content", func(t *testing.T) {
@@ -550,19 +550,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'recetas de comida italiana con aceite'")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
 		// Top result should be about food
-		topResult := results[0].RawContent
-		isFood := strings.Contains(strings.ToLower(topResult), "pasta") ||
-			strings.Contains(strings.ToLower(topResult), "cook") ||
-			strings.Contains(strings.ToLower(topResult), "italian") ||
-			strings.Contains(strings.ToLower(topResult), "cocina") ||
-			strings.Contains(strings.ToLower(topResult), "tomate") ||
-			strings.Contains(strings.ToLower(topResult), "aceite")
-		require.True(t, isFood, "Top result should be about food, got: %s", topResult)
+		topResult := results.Max()
+		require.Greater(t, topResult.Score, float32(0.8), "Top result should have a solid score: %s", topResult.Score)
+		require.GreaterOrEqual(t, topResult.RowID, int64(5), "Top result should be in the food bucket: %d", topResult.RowID)
+		require.LessOrEqual(t, topResult.RowID, int64(8), "Top result should be in the food bucket: %d", topResult.RowID)
+		bottomResult := results.Min()
+		require.Less(t, bottomResult.Score, float32(0.001), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Pets query finds animal content", func(t *testing.T) {
@@ -571,17 +569,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'pets and domestic animals'")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
 		// Top result should be about animals
-		topResult := results[0].RawContent
-		isAnimals := strings.Contains(strings.ToLower(topResult), "dog") ||
-			strings.Contains(strings.ToLower(topResult), "cat") ||
-			strings.Contains(strings.ToLower(topResult), "perro") ||
-			strings.Contains(strings.ToLower(topResult), "gato")
-		require.True(t, isAnimals, "Top result should be about animals, got: %s", topResult)
+		topResult := results.Max()
+		require.Greater(t, topResult.Score, float32(0.63), "Top result should have a high similarity score: %s", topResult.Score)
+		require.GreaterOrEqual(t, topResult.RowID, int64(9), "Top result should be in the animals bucket: %d", topResult.RowID)
+		require.LessOrEqual(t, topResult.RowID, int64(12), "Top result should be in the animals bucket: %d", topResult.RowID)
+		bottomResult := results.Min()
+		require.Less(t, bottomResult.Score, float32(0.025), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Cross-language similarity works", func(t *testing.T) {
@@ -596,52 +594,64 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		require.NotEmpty(t, resultsEs)
 
 		t.Logf("English query 'dogs playing and having fun':")
-		for i, r := range resultsEn {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range resultsEn {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 		t.Logf("Spanish query 'perros jugando y divirtiéndose':")
-		for i, r := range resultsEs {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
+		for ftsRowid, score := range resultsEs {
+			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// Both should return dog-related content as top result
-		isDogRelatedEn := strings.Contains(strings.ToLower(resultsEn[0].RawContent), "dog") ||
-			strings.Contains(strings.ToLower(resultsEn[0].RawContent), "perro")
-		isDogRelatedEs := strings.Contains(strings.ToLower(resultsEs[0].RawContent), "dog") ||
-			strings.Contains(strings.ToLower(resultsEs[0].RawContent), "perro")
+		// Both should return dog-related content as top result (IDs 9 or 10)
+		topResultEn := resultsEn.Max()
+		topResultEs := resultsEs.Max()
 
-		require.True(t, isDogRelatedEn, "English query top result should be about dogs")
-		require.True(t, isDogRelatedEs, "Spanish query top result should be about dogs")
+		// Dogs are in IDs 9-10, so top result should be in animals bucket
+		require.GreaterOrEqual(t, topResultEn.RowID, int64(9), "English query top result should be about animals")
+		require.LessOrEqual(t, topResultEn.RowID, int64(12), "English query top result should be about animals")
+		require.GreaterOrEqual(t, topResultEs.RowID, int64(9), "Spanish query top result should be about animals")
+		require.LessOrEqual(t, topResultEs.RowID, int64(12), "Spanish query top result should be about animals")
+
+		// Both should have good scores
+		require.Greater(t, topResultEn.Score, float32(0.81), "English query should have solid score")
+		require.Greater(t, topResultEs.Score, float32(0.84), "Spanish query should have solid score")
 	})
 
 	t.Run("Content type filtering works with real embeddings", func(t *testing.T) {
 		// Only comments (animals topic)
 		results, err := e.SemanticSearch(ctx, "domestic pets", 10, map[string]bool{"comment": true}, "*")
 		require.NoError(t, err)
+		require.NotEmpty(t, results)
 
 		t.Logf("Query 'domestic pets' filtered to comments only:")
-		for i, r := range results {
-			t.Logf("  %d. [%.4f] [%s] %s", i+1, r.Score, r.ContentType, r.RawContent[:min(60, len(r.RawContent))])
-			require.Equal(t, "comment", r.ContentType)
+		for ftsRowid, score := range results {
+			t.Logf("  %d. [%.4f]", ftsRowid, score)
+		}
+
+		// Comments are IDs 9-12, so all results should be in that range
+		for rowID := range results {
+			require.GreaterOrEqual(t, rowID, int64(9), "Filtered result should be comment type (IDs 9-12)")
+			require.LessOrEqual(t, rowID, int64(12), "Filtered result should be comment type (IDs 9-12)")
 		}
 	})
 
 	t.Run("Scores are ordered correctly", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "software development", 10, allTypes, "*")
+		resultsMap, err := e.SemanticSearch(ctx, "software development", 10, allTypes, "*")
 		require.NoError(t, err)
-		require.NotEmpty(t, results)
-
-		// Verify scores are in descending order
-		for i := 1; i < len(results); i++ {
-			require.GreaterOrEqual(t, results[i-1].Score, results[i].Score,
-				"Results should be ordered by score descending")
-		}
+		require.NotEmpty(t, resultsMap)
 
 		// All scores should be between 0 and 1
-		for _, r := range results {
-			require.GreaterOrEqual(t, r.Score, 0.0)
-			require.LessOrEqual(t, r.Score, 1.0)
-		}
+		maxScore := resultsMap.ToList(true)[2]
+		minScore := resultsMap.ToList(false)[1]
+
+		require.GreaterOrEqual(t, maxScore.Score, float32(0.0), "Max score should be >= 0")
+		require.LessOrEqual(t, maxScore.Score, float32(1.0), "Max score should be <= 1")
+		require.GreaterOrEqual(t, minScore.Score, float32(0.0), "Min score should be >= 0")
+		require.LessOrEqual(t, minScore.Score, float32(1.0), "Min score should be <= 1")
+		require.GreaterOrEqual(t, maxScore.Score, minScore.Score, "Max score should be >= min score")
+
+		t.Logf("Query 'software development' - max score: %.4f (rowID: %d), min score: %.4f (rowID: %d)",
+			maxScore.Score, maxScore.RowID, minScore.Score, minScore.RowID)
 	})
 }
 
@@ -672,11 +682,19 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 			}
 		}
 
+		// Insert public_key for author
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys(id, principal) VALUES (?, ?);`,
+			nil, int64(1), "test-author",
+		); err != nil {
+			return err
+		}
+
 		// Insert structural_blobs linking blob_id to resources
 		for i, blobID := range []int64{100, 101, 102} {
 			if err := sqlitex.Exec(conn,
-				`INSERT INTO structural_blobs(id, type, resource) VALUES (?, ?, ?);`,
-				nil, blobID, "Change", int64(i+1),
+				`INSERT INTO structural_blobs(id, type, resource, author) VALUES (?, ?, ?, ?);`,
+				nil, blobID, "Change", int64(i+1), int64(1),
 			); err != nil {
 				return err
 			}
@@ -789,20 +807,22 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	t.Run("search with content type filter", func(t *testing.T) {
 		results, err := e.SemanticSearch(ctx, "test query", 10, map[string]bool{"document": true}, "*")
 		require.NoError(t, err)
+		require.NotEmpty(t, results)
 
-		// All results should be documents
-		for _, r := range results {
-			require.Equal(t, "document", r.ContentType)
+		// Results should only include document fts rowids (1, 2 based on test data)
+		for rowID := range results {
+			require.Contains(t, []int64{1, 2}, rowID, "Filtered results should only include documents")
 		}
 	})
 
 	t.Run("search with title filter", func(t *testing.T) {
 		results, err := e.SemanticSearch(ctx, "test query", 10, map[string]bool{"title": true}, "*")
 		require.NoError(t, err)
+		require.NotEmpty(t, results)
 
-		// All results should be titles
-		for _, r := range results {
-			require.Equal(t, "title", r.ContentType)
+		// Results should only include title fts rowid (3 based on test data)
+		for rowID := range results {
+			require.Equal(t, int64(3), rowID, "Filtered results should only include title")
 		}
 	})
 
@@ -812,18 +832,15 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 		require.LessOrEqual(t, len(results), 1)
 	})
 
-	t.Run("results have required fields", func(t *testing.T) {
+	t.Run("results have valid scores", func(t *testing.T) {
 		results, err := e.SemanticSearch(ctx, "machine learning", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
-		for _, r := range results {
-			require.NotZero(t, r.BlobID)
-			require.NotEmpty(t, r.BlockID)
-			require.NotEmpty(t, r.ContentType)
-			require.NotEmpty(t, r.RawContent)
-			require.Greater(t, r.Score, 0.0)
-			require.LessOrEqual(t, r.Score, 1.0)
+		// All scores should be between 0 and 1
+		for _, score := range results {
+			require.GreaterOrEqual(t, score, float32(0.0))
+			require.LessOrEqual(t, score, float32(1.0))
 		}
 	})
 
