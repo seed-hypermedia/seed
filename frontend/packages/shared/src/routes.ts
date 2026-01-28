@@ -2,8 +2,10 @@ import {z} from 'zod'
 import {
   BlockRangeSchema,
   HMResourceVisibilitySchema,
+  UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from './hm-types'
+import type {ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -284,5 +286,27 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
     }
     default:
       return null
+  }
+}
+
+/**
+ * Convert docId + viewTerm into a NavRoute
+ * Used by web to initialize navigation context from URL
+ */
+export function createDocumentNavRoute(
+  docId: UnpackedHypermediaId,
+  viewTerm?: ViewRouteKey | null,
+): NavRoute {
+  switch (viewTerm) {
+    case 'activity':
+      return {key: 'activity', id: docId}
+    case 'discussions':
+      return {key: 'discussions', id: docId}
+    case 'directory':
+      return {key: 'directory', id: docId}
+    case 'collaborators':
+      return {key: 'collaborators', id: docId}
+    default:
+      return {key: 'document', id: docId}
   }
 }
