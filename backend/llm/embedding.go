@@ -46,8 +46,9 @@ const (
 
 // LightEmbedder defines a minimal interface for semantic search.
 // Returns the top limit results matching the query.
+// Threshold is the minimum similarity score (0.0 to 1.0) to include in results.
 type LightEmbedder interface {
-	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) (SearchResultMap, error)
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32) (SearchResultMap, error)
 }
 
 // Embedder handles embedding generation and indexing.
@@ -247,16 +248,16 @@ type SearchResult struct {
 
 // Keys returns an unordered list of rowIDs in the SearchResultMap.
 func (sr SearchResultMap) Keys() []int64 {
-	keys := make([]int64, 0, len(sr))
-	for id := range sr {
-		keys = append(keys, id)
+	keys := []int64{}
+	for k := range sr {
+		keys = append(keys, k)
 	}
 	return keys
 }
 
 // Values returns an unordered list of scores in the SearchResultMap.
 func (sr SearchResultMap) Values() []float32 {
-	values := make([]float32, 0, len(sr))
+	values := []float32{}
 	for _, score := range sr {
 		values = append(values, score)
 	}
@@ -337,7 +338,8 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 // contentTypes filters by FTS content types (e.g., "title", "document", "comment").
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) (SearchResultMap, error) {
+// Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32) (SearchResultMap, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -370,7 +372,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	}
 
 	queryEmbedding := quantizeEmbedding(embeddings[0])
-
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 	supportedType := false
 	if ok, val := contentTypes["title"]; ok && val {
@@ -397,14 +398,18 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer release()
-
+	// Convert threshold from similarity to distance
+	if threshold <= 0 {
+		threshold = -0.1 // there could be distances slightly above 1.0 due to quantization errors
+	}
+	maxDistance := 1 - float64(threshold)
 	ret := make(map[int64]float32)
 	if err := sqlitex.Exec(conn, qEmbeddingsSearch(), func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
 		similarity := max(0, 1-distance)
 		ret[stmt.ColumnInt64(0)] = float32(similarity)
 		return nil
-	}, queryEmbedding, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
+	}, queryEmbedding, maxDistance, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
 		return nil, fmt.Errorf("semantic search query failed: %w", err)
 	}
 
@@ -779,6 +784,7 @@ LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+  AND v.distance < ?
   AND k = ?
   AND fi.type IN (?, ?, ?, ?)
   AND COALESCE(r1.iri, r2.iri) IS NOT NULL 

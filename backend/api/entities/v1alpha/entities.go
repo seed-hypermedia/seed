@@ -569,13 +569,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	query := cleanQuery
 
 	//fmt.Println("Initial setup duration:", time.Since(start))
-	// Handle different search types
+
 	winners := llm.SearchResultMap{}
+	const semanticThreshold = 0.3 // Less than this, the results are not relevant enough. Tested with paraphrase-multilingual-MiniLM-L12-v2 model showed that 0.3 is a good threshold.
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
 		// Hybrid search: blend semantic + keyword with RRF
 		// Get semantic results
-		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob)
+		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -597,7 +598,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	case entpb.SearchType_SEARCH_SEMANTIC:
 		// Semantic-only search
 		var err error
-		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob)
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -626,29 +627,23 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			var icon icon
 			var heads []head
 			res.rawContent = stmt.ColumnText(0)
+
+			// Semantic results may not contain the query pattern (fuzzy match).
+			// So we find the first occurrence of the query pattern for context extraction.
 			firstRuneOffset, _, matchedRunes, _ := indexOfQueryPattern(res.rawContent, cleanQuery)
-			if firstRuneOffset == -1 {
-				return nil
-			}
-			// before extracting matchStr, convert fullMatchStr to runes
 			fullRunes := []rune(res.rawContent)
 			nRunes := len(fullRunes)
-
 			var contextStart, contextEndRune int
-			// default to full slice
 			contextEndRune = nRunes
-
 			if firstRuneOffset > contextBefore {
 				contextStart = firstRuneOffset - contextBefore
 			}
 			if firstRuneOffset+matchedRunes < nRunes-contextAfter {
 				contextEndRune = firstRuneOffset + matchedRunes + contextAfter
 			}
-
-			// build substring on rune boundaries
 			res.content = string(fullRunes[contextStart:contextEndRune])
-			res.blobCID = cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
 
+			res.blobCID = cid.NewCidV1(uint64(stmt.ColumnInt64(9)), stmt.ColumnBytesUnsafe(10)).String()
 			res.contentType = stmt.ColumnText(1)
 			res.blockID = stmt.ColumnText(2)
 			res.version = stmt.ColumnText(3)
@@ -1460,7 +1455,7 @@ func indexOfQueryPattern(haystack, pattern string) (startRunes, startChars, matc
 	re := regexp.MustCompile(regexPattern)
 	loc := re.FindStringIndex(haystack)
 	if loc == nil {
-		return -1, -1, 0, 0
+		return 0, 0, 0, 0
 	}
 	// The start index in runes.
 	startRunes = utf8.RuneCountInString(haystack[:loc[0]])
