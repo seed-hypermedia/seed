@@ -455,8 +455,6 @@ export function SiteHeaderMenu({
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
-  // null = not measured yet (SSR), show text by default
-  const [containerWidth, setContainerWidth] = useState<number | null>(null)
 
   // Calculate reserved width for the dropdown button, edit pane, and feed button
   const editNavPaneWidth =
@@ -494,27 +492,6 @@ export function SiteHeaderMenu({
     key: 'feed',
     id: {...siteHomeId, latest: true, version: null},
   })
-
-  // Track container width for responsive Feed button
-  useIsomorphicLayoutEffect(() => {
-    if (!containerRef.current) return
-
-    const updateWidth = () => {
-      setContainerWidth(containerRef.current?.offsetWidth || 0)
-    }
-
-    updateWidth()
-
-    const resizeObserver = new ResizeObserver(updateWidth)
-    resizeObserver.observe(containerRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [containerRef])
-
-  // Show text by default (SSR) or when container is larger than 500px
-  const showFeedText = containerWidth === null || containerWidth > 500
 
   return (
     <div
@@ -618,17 +595,17 @@ export function SiteHeaderMenu({
             )}
           />
 
-          {showFeedText && (
-            <span
-              className={cn(
-                isMainFeedVisible
-                  ? 'text-foreground text-bold'
-                  : 'text-muted-foreground',
-              )}
-            >
-              Feed
-            </span>
-          )}
+          {/* Hide text on smaller screens via CSS to avoid hydration flash */}
+          <span
+            className={cn(
+              'hidden lg:inline',
+              isMainFeedVisible
+                ? 'text-foreground text-bold'
+                : 'text-muted-foreground',
+            )}
+          >
+            Feed
+          </span>
         </a>
       </Tooltip>
     </div>

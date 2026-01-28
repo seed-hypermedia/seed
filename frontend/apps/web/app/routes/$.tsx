@@ -28,7 +28,7 @@ import {
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {ResourcePage} from '@shm/ui/resource-page-common'
+import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {SizableText} from '@shm/ui/text'
 
 // Extended payload with view term and panel param for page routing
@@ -313,7 +313,7 @@ export default function UnifiedDocumentPage() {
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
     >
-      <ResourcePage docId={data.id} />
+      <WebResourcePage docId={data.id} document={data.document} />
     </WebSiteProvider>
   )
 }
