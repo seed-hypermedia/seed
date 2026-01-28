@@ -1,12 +1,17 @@
 # CLAUDE.md
 
-- In all interactions and commit messages, be extremely concise and sacrifice grammar for the sake of concision.
+- In all interactions and commit messages, be extremely concise and sacrifice
+  grammar for the sake of concision.
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+NEVER commit without permission from me.
+
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Development Commands
 
 ### Building and Type Checking
+
 ```bash
 # Build shared package types first (required for type checking)
 pnpm -F @shm/shared build:types
@@ -26,6 +31,7 @@ pnpm security:check:dev   # Check development dependencies for vulnerabilities
 ### Running Applications
 
 **Desktop App:**
+
 ```bash
 # Run desktop app in development mode (testnet by default)
 ./dev run-desktop
@@ -38,6 +44,7 @@ pnpm desktop
 ```
 
 **Web App:**
+
 ```bash
 # Run web app in development mode
 pnpm web
@@ -50,6 +57,7 @@ pnpm web:dev:standalone
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 pnpm test
@@ -67,6 +75,7 @@ pnpm desktop:test:only  # E2E tests only
 ```
 
 ### Single Test Execution
+
 ```bash
 # For web tests
 pnpm web:test run <testFileName>
@@ -78,14 +87,17 @@ pnpm -F @shm/shared test run <testFileName>
 ## Architecture Overview
 
 ### Project Structure
+
 The codebase follows a monorepo structure using pnpm workspaces:
 
 - **`frontend/apps/`**: Application codebases
+
   - `desktop/`: Electron-based desktop application
   - `web/`: Remix-based web application
   - `explore/`, `landing/`, `performance/`: Supporting applications
 
 - **`frontend/packages/`**: Shared packages
+
   - `shared/`: Core shared utilities and models
   - `ui/`: Shared UI components
   - `editor/`: Document editor components
@@ -97,6 +109,7 @@ The codebase follows a monorepo structure using pnpm workspaces:
 ### Key Technologies
 
 **Frontend Stack:**
+
 - React 18 with TypeScript
 - Electron (desktop app)
 - Remix (web app)
@@ -106,12 +119,14 @@ The codebase follows a monorepo structure using pnpm workspaces:
 - Tanstack Query for data fetching
 
 **Backend Stack:**
+
 - Go for backend services
 - P2P networking with libp2p
 - Protocol Buffers for data serialization
 - Connect-RPC for service communication
 
 ### Development Tools
+
 - **`./dev`**: Main development CLI tool for running common tasks
 - Mise and Direnv for environment management
 - pnpm for package management
