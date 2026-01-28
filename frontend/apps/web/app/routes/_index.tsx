@@ -5,7 +5,7 @@ import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
 import {ViewRouteKey} from '@shm/shared'
-import {ResourcePage} from '@shm/ui/resource-page-common'
+import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({
@@ -56,7 +56,7 @@ export default function IndexPage() {
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
     >
-      <ResourcePage docId={data.id} />
+      <WebResourcePage docId={data.id} document={data.document} />
     </WebSiteProvider>
   )
 }
