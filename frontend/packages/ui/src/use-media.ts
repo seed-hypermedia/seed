@@ -74,21 +74,12 @@ export function useMedia(customMediaQueries?: MediaQueries): MediaQueryState {
     return strings
   }, [mediaQueries])
 
-  // Initialize state with current matches
+  // Initialize state with false for ALL queries (SSR-safe)
+  // This ensures hydration matches SSR output - actual values set in useEffect
   const [mediaStates, setMediaStates] = useState<MediaQueryState>(() => {
-    if (typeof window === 'undefined') {
-      // Return false for all queries during SSR
-      const initialState: MediaQueryState = {}
-      Object.keys(mediaQueryStrings).forEach((key) => {
-        initialState[key] = false
-      })
-      return initialState
-    }
-
-    // Initialize with current media query matches
     const initialState: MediaQueryState = {}
-    Object.entries(mediaQueryStrings).forEach(([key, queryString]) => {
-      initialState[key] = window.matchMedia(queryString).matches
+    Object.keys(mediaQueryStrings).forEach((key) => {
+      initialState[key] = false
     })
     return initialState
   })
@@ -124,7 +115,7 @@ export function useMedia(customMediaQueries?: MediaQueries): MediaQueryState {
         listeners.push(() => mql.removeListener(listener))
       }
 
-      // Set initial state
+      // Set actual state after hydration
       setMediaStates((prev) => ({
         ...prev,
         [key]: mql.matches,
