@@ -1,7 +1,5 @@
 import {useFullRender} from '@/cache-policy'
-import {DocumentPage} from '@/document'
 import {FeedPage} from '@/feed'
-import {ViewTermPage} from '@/view-term-page'
 import {
   createInstrumentationContext,
   instrument,
@@ -11,7 +9,7 @@ import {
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {getOptimizedImageUrl} from '@/providers'
+import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
@@ -30,6 +28,7 @@ import {
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
+import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
 
 // Extended payload with view term and panel param for page routing
@@ -306,13 +305,16 @@ export default function UnifiedDocumentPage() {
     return <FeedPage {...data} />
   }
 
-  // Pass viewTerm and panelParam to DocumentPage
+  // Render unified ResourcePage with WebSiteProvider for navigation context
   return (
-    <DocumentPage
-      {...data}
-      viewTerm={data.viewTerm}
-      panelParam={data.panelParam}
-    />
+    <WebSiteProvider
+      origin={data.origin}
+      originHomeId={data.originHomeId}
+      siteHost={data.siteHost}
+      dehydratedState={data.dehydratedState}
+    >
+      <ResourcePage docId={data.id} />
+    </WebSiteProvider>
   )
 }
 
