@@ -1,15 +1,12 @@
-import {Params, useLoaderData} from '@remix-run/react'
-import {loader as loaderFn, meta as metaFn} from './$'
-import {FeedPage} from '@/feed'
-import {ViewTermPage} from '@/view-term-page'
-import {unwrap} from '@/wrapping'
 import type {SiteDocumentPayload} from '@/loaders'
-import {NotRegisteredPage} from '@/not-registered'
-import {NoSitePage} from '@/not-registered'
-import {DocumentPage} from '@/document'
-import {DaemonErrorPage} from './$'
+import {NoSitePage, NotRegisteredPage} from '@/not-registered'
+import {WebSiteProvider} from '@/providers'
+import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
+import {Params, useLoaderData} from '@remix-run/react'
 import {ViewRouteKey} from '@shm/shared'
+import {ResourcePage} from '@shm/ui/resource-page-common'
+import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({
   params,
@@ -51,13 +48,17 @@ export default function IndexPage() {
     )
   }
 
-  // Show feed page if feed param is present
-  if (data.feed) {
-    return <FeedPage {...data} />
-  }
-
-  // Pass viewTerm to DocumentPage - it will open the corresponding panel
-  return <DocumentPage {...data} viewTerm={data.viewTerm} />
+  // Render unified ResourcePage with WebSiteProvider for navigation context
+  return (
+    <WebSiteProvider
+      origin={data.origin}
+      originHomeId={data.originHomeId}
+      siteHost={data.siteHost}
+      dehydratedState={data.dehydratedState}
+    >
+      <ResourcePage docId={data.id} />
+    </WebSiteProvider>
+  )
 }
 
 export const meta = metaFn
