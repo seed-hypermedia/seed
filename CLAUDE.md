@@ -1,12 +1,17 @@
 # CLAUDE.md
 
-- In all interactions and commit messages, be extremely concise and sacrifice grammar for the sake of concision.
+- In all interactions and commit messages, be extremely concise and sacrifice
+  grammar for the sake of concision.
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+NEVER commit without permission from me.
+
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Development Commands
 
 ### Building and Type Checking
+
 ```bash
 # Build shared package types first (required for type checking)
 yarn workspace @shm/shared build:types
@@ -26,6 +31,7 @@ yarn security:check:dev   # Check development dependencies for vulnerabilities
 ### Running Applications
 
 **Desktop App:**
+
 ```bash
 # Run desktop app in development mode (testnet by default)
 ./dev run-desktop
@@ -38,6 +44,7 @@ yarn desktop
 ```
 
 **Web App:**
+
 ```bash
 # Run web app in development mode
 yarn web
@@ -50,6 +57,7 @@ yarn web:dev:standalone
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 yarn test
@@ -58,7 +66,7 @@ yarn test
 yarn web:test
 yarn web:test run <testFileName>  # Run specific test file
 
-# Run shared package tests  
+# Run shared package tests
 yarn workspace @shm/shared test run
 
 # Run desktop app tests
@@ -67,6 +75,7 @@ yarn desktop:test:only  # E2E tests only
 ```
 
 ### Single Test Execution
+
 ```bash
 # For web tests
 yarn web:test run <testFileName>
@@ -78,14 +87,17 @@ yarn workspace @shm/shared test run <testFileName>
 ## Architecture Overview
 
 ### Project Structure
+
 The codebase follows a monorepo structure using Yarn workspaces:
 
 - **`frontend/apps/`**: Application codebases
+
   - `desktop/`: Electron-based desktop application
-  - `web/`: Remix-based web application  
+  - `web/`: Remix-based web application
   - `explore/`, `landing/`, `performance/`: Supporting applications
 
 - **`frontend/packages/`**: Shared packages
+
   - `shared/`: Core shared utilities and models
   - `ui/`: Shared UI components
   - `editor/`: Document editor components
@@ -97,6 +109,7 @@ The codebase follows a monorepo structure using Yarn workspaces:
 ### Key Technologies
 
 **Frontend Stack:**
+
 - React 18 with TypeScript
 - Electron (desktop app)
 - Remix (web app)
@@ -106,12 +119,14 @@ The codebase follows a monorepo structure using Yarn workspaces:
 - Tanstack Query for data fetching
 
 **Backend Stack:**
+
 - Go for backend services
 - P2P networking with libp2p
 - Protocol Buffers for data serialization
 - Connect-RPC for service communication
 
 ### Development Tools
+
 - **`./dev`**: Main development CLI tool for running common tasks
 - Mise and Direnv for environment management
 - Yarn 3 for package management
@@ -119,8 +134,10 @@ The codebase follows a monorepo structure using Yarn workspaces:
 
 ## Important Notes
 
-- Always run `yarn workspace @shm/shared build:types` before type checking to ensure types are built
+- Always run `yarn workspace @shm/shared build:types` before type checking to
+  ensure types are built
 - Tests should be run automatically when modifying code with existing test files
 - The desktop app uses Electron Forge for building and packaging
 - Web app uses Remix with server-side rendering
-- P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for production network
+- P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for
+  production network
