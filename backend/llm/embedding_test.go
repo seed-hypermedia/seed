@@ -371,8 +371,8 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = backend.CloseModel(ctx) })
 
-	db := storage.MakeTestMemoryDB(t)
-
+	db := storage.MakeTestDB(t)
+	var allTypes = map[string]bool{"title": true, "document": true, "comment": true, "contact": true}
 	// Test sentences: semantically related in different languages
 	testSentences := []struct {
 		id          int64
@@ -415,7 +415,36 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 
 	// Insert test data and generate real embeddings
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		// Insert public_key for author (shared by all entries)
+		if err := sqlitex.Exec(conn,
+			`INSERT INTO public_keys(id, principal) VALUES (?, ?);`,
+			nil, int64(1), "test-author",
+		); err != nil {
+			return err
+		}
+
 		for _, s := range testSentences {
+			// Insert blob
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO blobs(id, multihash, codec, size) VALUES (?, ?, ?, ?);`,
+				nil, s.id*100, []byte(fmt.Sprintf("hash-%d", s.id)), 0x55, len(s.text),
+			); err != nil {
+				return err
+			}
+			// Insert resource with IRI
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO resources(id, iri) VALUES (?, ?);`,
+				nil, s.id, fmt.Sprintf("hm://test/doc-%d", s.id),
+			); err != nil {
+				return err
+			}
+			// Insert structural_blob linking blob to resource
+			if err := sqlitex.Exec(conn,
+				`INSERT INTO structural_blobs(id, type, resource, author) VALUES (?, ?, ?, ?);`,
+				nil, s.id*100, "Change", s.id, int64(1),
+			); err != nil {
+				return err
+			}
 			// Insert FTS entry
 			if err := sqlitex.Exec(conn,
 				`INSERT INTO fts(rowid, raw_content, type, blob_id, block_id, version) VALUES (?, ?, ?, ?, ?, ?);`,
@@ -457,18 +486,18 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond, "indexing tasks should complete")
 
 	t.Run("English ML query finds tech content first", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "artificial intelligence and machine learning", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "artificial intelligence and machine learning", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
 		// Top results should be about technology
 		t.Logf("Query: 'artificial intelligence and machine learning'")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// At least the top result should be tech-related
-		topResult := results[0].TextSnippet
+		topResult := results[0].RawContent
 		isTech := strings.Contains(strings.ToLower(topResult), "learning") ||
 			strings.Contains(strings.ToLower(topResult), "neural") ||
 			strings.Contains(strings.ToLower(topResult), "aprendizaje") ||
@@ -477,17 +506,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	})
 
 	t.Run("Spanish ML query finds tech content", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "inteligencia artificial y redes neuronales", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "inteligencia artificial y redes neuronales", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'inteligencia artificial y redes neuronales'")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// Top result should be tech-related (in any language)
-		topResult := results[0].TextSnippet
+		topResult := results[0].RawContent
 		isTech := strings.Contains(strings.ToLower(topResult), "learning") ||
 			strings.Contains(strings.ToLower(topResult), "neural") ||
 			strings.Contains(strings.ToLower(topResult), "aprendizaje") ||
@@ -496,17 +525,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	})
 
 	t.Run("Food query finds cooking content", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "how to cook Italian food with pasta", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "how to cook Italian food with pasta", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'how to cook Italian food with pasta'")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// Top result should be about food
-		topResult := results[0].TextSnippet
+		topResult := results[0].RawContent
 		isFood := strings.Contains(strings.ToLower(topResult), "pasta") ||
 			strings.Contains(strings.ToLower(topResult), "cook") ||
 			strings.Contains(strings.ToLower(topResult), "italian") ||
@@ -516,17 +545,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	})
 
 	t.Run("Spanish food query finds cooking content", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "recetas de comida italiana con aceite", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "recetas de comida italiana con aceite", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'recetas de comida italiana con aceite'")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// Top result should be about food
-		topResult := results[0].TextSnippet
+		topResult := results[0].RawContent
 		isFood := strings.Contains(strings.ToLower(topResult), "pasta") ||
 			strings.Contains(strings.ToLower(topResult), "cook") ||
 			strings.Contains(strings.ToLower(topResult), "italian") ||
@@ -537,17 +566,17 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 	})
 
 	t.Run("Pets query finds animal content", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "pets and domestic animals", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "pets and domestic animals", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
 		t.Logf("Query: 'pets and domestic animals'")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// Top result should be about animals
-		topResult := results[0].TextSnippet
+		topResult := results[0].RawContent
 		isAnimals := strings.Contains(strings.ToLower(topResult), "dog") ||
 			strings.Contains(strings.ToLower(topResult), "cat") ||
 			strings.Contains(strings.ToLower(topResult), "perro") ||
@@ -557,29 +586,29 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 
 	t.Run("Cross-language similarity works", func(t *testing.T) {
 		// Query in English about dogs
-		resultsEn, err := e.SemanticSearch(ctx, "dogs playing and having fun", 10, nil, "*")
+		resultsEn, err := e.SemanticSearch(ctx, "dogs playing and having fun", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, resultsEn)
 
 		// Query in Spanish about dogs
-		resultsEs, err := e.SemanticSearch(ctx, "perros jugando y divirtiéndose", 10, nil, "*")
+		resultsEs, err := e.SemanticSearch(ctx, "perros jugando y divirtiéndose", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, resultsEs)
 
 		t.Logf("English query 'dogs playing and having fun':")
 		for i, r := range resultsEn {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 		t.Logf("Spanish query 'perros jugando y divirtiéndose':")
 		for i, r := range resultsEs {
-			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] %s", i+1, r.Score, r.RawContent[:min(60, len(r.RawContent))])
 		}
 
 		// Both should return dog-related content as top result
-		isDogRelatedEn := strings.Contains(strings.ToLower(resultsEn[0].TextSnippet), "dog") ||
-			strings.Contains(strings.ToLower(resultsEn[0].TextSnippet), "perro")
-		isDogRelatedEs := strings.Contains(strings.ToLower(resultsEs[0].TextSnippet), "dog") ||
-			strings.Contains(strings.ToLower(resultsEs[0].TextSnippet), "perro")
+		isDogRelatedEn := strings.Contains(strings.ToLower(resultsEn[0].RawContent), "dog") ||
+			strings.Contains(strings.ToLower(resultsEn[0].RawContent), "perro")
+		isDogRelatedEs := strings.Contains(strings.ToLower(resultsEs[0].RawContent), "dog") ||
+			strings.Contains(strings.ToLower(resultsEs[0].RawContent), "perro")
 
 		require.True(t, isDogRelatedEn, "English query top result should be about dogs")
 		require.True(t, isDogRelatedEs, "Spanish query top result should be about dogs")
@@ -587,18 +616,18 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 
 	t.Run("Content type filtering works with real embeddings", func(t *testing.T) {
 		// Only comments (animals topic)
-		results, err := e.SemanticSearch(ctx, "domestic pets", 10, []string{"comment"}, "*")
+		results, err := e.SemanticSearch(ctx, "domestic pets", 10, map[string]bool{"comment": true}, "*")
 		require.NoError(t, err)
 
 		t.Logf("Query 'domestic pets' filtered to comments only:")
 		for i, r := range results {
-			t.Logf("  %d. [%.4f] [%s] %s", i+1, r.Score, r.ContentType, r.TextSnippet[:min(60, len(r.TextSnippet))])
+			t.Logf("  %d. [%.4f] [%s] %s", i+1, r.Score, r.ContentType, r.RawContent[:min(60, len(r.RawContent))])
 			require.Equal(t, "comment", r.ContentType)
 		}
 	})
 
 	t.Run("Scores are ordered correctly", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "software development", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "software development", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
@@ -620,7 +649,7 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	ctx := t.Context()
 
 	db := storage.MakeTestMemoryDB(t)
-
+	allTypes := map[string]bool{"title": true, "document": true, "comment": true, "contact": true}
 	// Insert test data: FTS entries with corresponding embeddings
 	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
 		// Insert blobs (required for structural_blobs FK)
@@ -749,7 +778,7 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 
 	t.Run("basic search returns results", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "artificial intelligence", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "artificial intelligence", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
@@ -758,7 +787,7 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	})
 
 	t.Run("search with content type filter", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "test query", 10, []string{"document"}, "*")
+		results, err := e.SemanticSearch(ctx, "test query", 10, map[string]bool{"document": true}, "*")
 		require.NoError(t, err)
 
 		// All results should be documents
@@ -768,7 +797,7 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	})
 
 	t.Run("search with title filter", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "test query", 10, []string{"title"}, "*")
+		results, err := e.SemanticSearch(ctx, "test query", 10, map[string]bool{"title": true}, "*")
 		require.NoError(t, err)
 
 		// All results should be titles
@@ -778,13 +807,13 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 	})
 
 	t.Run("search respects limit", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "test", 1, nil, "")
+		results, err := e.SemanticSearch(ctx, "test", 1, allTypes, "*")
 		require.NoError(t, err)
 		require.LessOrEqual(t, len(results), 1)
 	})
 
 	t.Run("results have required fields", func(t *testing.T) {
-		results, err := e.SemanticSearch(ctx, "machine learning", 10, nil, "*")
+		results, err := e.SemanticSearch(ctx, "machine learning", 10, allTypes, "*")
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
@@ -792,7 +821,7 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 			require.NotZero(t, r.BlobID)
 			require.NotEmpty(t, r.BlockID)
 			require.NotEmpty(t, r.ContentType)
-			require.NotEmpty(t, r.TextSnippet)
+			require.NotEmpty(t, r.RawContent)
 			require.Greater(t, r.Score, 0.0)
 			require.LessOrEqual(t, r.Score, 1.0)
 		}
@@ -809,19 +838,19 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 		require.NoError(t, err)
 		// Don't call Init
 
-		_, err = uninitialized.SemanticSearch(ctx, "test", 10, nil, "*")
+		_, err = uninitialized.SemanticSearch(ctx, "test", 10, allTypes, "*")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "model not loaded")
 	})
 
 	t.Run("rejects invalid content types", func(t *testing.T) {
-		_, err := e.SemanticSearch(ctx, "test", 10, []string{"malicious'; DROP TABLE embeddings; --"}, "*")
+		_, err := e.SemanticSearch(ctx, "test", 10, map[string]bool{"malicious'; DROP TABLE embeddings; --": true}, "*")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid content type")
 	})
 
 	t.Run("rejects unknown content types", func(t *testing.T) {
-		_, err := e.SemanticSearch(ctx, "test", 10, []string{"unknown_type"}, "*")
+		_, err := e.SemanticSearch(ctx, "test", 10, map[string]bool{"unknown_type": true}, "*")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid content type")
 	})
