@@ -294,15 +294,15 @@ function DocumentBody({
           )}
         </div>
 
-        {/* Sentinel element to detect when tools become sticky */}
-        <div ref={toolsSentinelRef} className="h-0" />
+        {/* Sentinel element - also provides top spacing before tools */}
+        <div ref={toolsSentinelRef} className="h-3" />
 
-        {/* DocumentTools tab bar - sticky */}
+        {/* DocumentTools - sticky with compact padding, direct child of scroll area */}
         <div
           className={cn(
-            'dark:bg-background sticky top-0 z-10 bg-white',
-            isToolsSticky ? 'py-1 shadow-md' : 'py-4 shadow-none',
-            'transition-all',
+            'dark:bg-background sticky top-0 z-10 bg-white py-1',
+            isToolsSticky ? 'shadow-md' : 'shadow-none',
+            'transition-shadow',
           )}
         >
           <DocumentTools
