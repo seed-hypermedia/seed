@@ -313,7 +313,7 @@ export default function UnifiedDocumentPage() {
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
     >
-      <WebResourcePage docId={data.id} document={data.document} />
+      <WebResourcePage docId={data.id} />
     </WebSiteProvider>
   )
 }
