@@ -4,7 +4,7 @@ import {WebSiteProvider} from '@/providers'
 import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {ViewRouteKey} from '@shm/shared'
+import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
 import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
@@ -55,6 +55,7 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm)}
     >
       <WebResourcePage docId={data.id} />
     </WebSiteProvider>
