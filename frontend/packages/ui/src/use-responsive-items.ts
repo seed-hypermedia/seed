@@ -29,7 +29,9 @@ export function useResponsiveItems<T extends {key: string}>({
 
   // Calculate which items fit in the available space
   const updateVisibility = useCallback(() => {
-    if (!containerRef.current || !items?.length) {
+    // Don't set measuredVisible when container isn't ready - keep showing all items
+    if (!containerRef.current) return
+    if (!items?.length) {
       setMeasuredVisible([])
       setOverflowItems([])
       return
