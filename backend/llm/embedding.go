@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -229,20 +230,85 @@ func (e *Embedder) Init(ctx context.Context) {
 	}()
 }
 
-// SemanticSearchResult represents a single result from semantic search.
 // SearchResult represents a minimal search result from semantic or keyword search.
-// Contains only essential fields - full entity data is populated separately for winners.
+// The key is the rowID of the FTS entry, and the value is the score.
+// In the case of semantic search, the score is the similarity (0.0 to 1.0).
+// The higher the score, the more relevant.
+// In the case of keyword search, the score is the FTS rank. Usually the more
+// negative, the more relevant
+type SearchResultMap map[int64]float32
+
 type SearchResult struct {
-	IRI         string
-	BlobID      int64
-	BlockID     string
-	ContentType string
-	RawContent  string
-	Version     string
-	Score       float64 // Semantic: similarity (1-distance), Keyword: rank
-	Timestamp   int64
-	Owner       string // Principal string
-	FTSRowID    int64  // FTS table rowid for enrichment
+	// RowID is the FTS row ID.
+	RowID int64
+	// Score is the relevance score. Depending on the search type, higher or lower is better.
+	Score float32
+}
+
+// Max returns the fts rowID if the maximum score found in the result set.
+// Depending on the search type (semantic or keyword), the maximum score
+// may be the most or least relevant result. For semantic search, it is the most relevant.
+// For keyword search, it is the least relevant.
+func (sr SearchResultMap) Max() SearchResult {
+	var maxScore float32
+	first := true
+	var maxID int64
+	for id, score := range sr {
+		if first || score > maxScore {
+			maxScore = score
+			maxID = id
+			first = false
+		}
+	}
+	return SearchResult{RowID: maxID, Score: maxScore}
+}
+
+// Min returns the fts rowID of the minimum score found in the result set.
+// Depending on the search type (semantic or keyword), the minimum score
+// may be the most or least relevant result. For semantic search, it is the least relevant.
+// For keyword search, it is the most relevant.
+func (sr SearchResultMap) Min() SearchResult {
+	var minScore float32
+	first := true
+	var minID int64
+	for id, score := range sr {
+		if first || score < minScore {
+			minScore = score
+			minID = id
+			first = false
+		}
+	}
+	return SearchResult{RowID: minID, Score: minScore}
+}
+
+// ToList converts the SearchResultMap to a sorted list of SearchResult.
+// If desc is true, the list is sorted in descending order of Score.
+func (sr SearchResultMap) ToList(desc bool) []SearchResult {
+	results := make([]SearchResult, 0, len(sr))
+	for id, score := range sr {
+		results = append(results, SearchResult{RowID: id, Score: score})
+	}
+	slices.SortFunc(results, func(a, b SearchResult) int {
+		if desc {
+			switch {
+			case a.Score > b.Score:
+				return -1
+			case a.Score < b.Score:
+				return 1
+			default:
+				return 0
+			}
+		}
+		switch {
+		case a.Score < b.Score:
+			return -1
+		case a.Score > b.Score:
+			return 1
+		default:
+			return 0
+		}
+	})
+	return results
 }
 
 var qSemanticSearch = dqb.Str(`
@@ -279,7 +345,7 @@ ORDER BY v.distance
 // contentTypes filters by FTS content types (e.g., "title", "document", "comment").
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) ([]SearchResult, error) {
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) (SearchResultMap, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -313,12 +379,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 
 	queryEmbedding := quantizeEmbedding(embeddings[0])
 
-	// Convert []int8 to []byte for SQLite binding
-	queryEmbeddingBytes := make([]byte, len(queryEmbedding))
-	for i, v := range queryEmbedding {
-		queryEmbeddingBytes[i] = byte(v)
-	}
-
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 	supportedType := false
 	if ok, val := contentTypes["title"]; ok && val {
@@ -346,31 +406,17 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	}
 	defer release()
 
-	var results []SearchResult
+	ret := make(map[int64]float32)
 	if err := sqlitex.Exec(conn, qSemanticSearch(), func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
 		similarity := max(0, 1-distance)
-
-		rawContent := stmt.ColumnText(7)
-
-		results = append(results, SearchResult{
-			IRI:         stmt.ColumnText(8),
-			BlobID:      stmt.ColumnInt64(2),
-			BlockID:     stmt.ColumnText(3),
-			ContentType: stmt.ColumnText(4),
-			RawContent:  rawContent,
-			Version:     stmt.ColumnText(5),
-			Score:       similarity,
-			Timestamp:   stmt.ColumnInt64(6),
-			Owner:       stmt.ColumnText(9),
-			FTSRowID:    stmt.ColumnInt64(10),
-		})
+		ret[stmt.ColumnInt64(10)] = float32(similarity)
 		return nil
-	}, queryEmbeddingBytes, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
+	}, queryEmbedding, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
 		return nil, fmt.Errorf("semantic search query failed: %w", err)
 	}
 
-	return results, nil
+	return ret, nil
 }
 func (e *Embedder) embedText(ctx context.Context, text string) ([]int8, error) {
 	e.mu.Lock()
