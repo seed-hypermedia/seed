@@ -50,9 +50,8 @@ import {
   GitFork,
   Import,
   PanelLeft,
-  PanelRight,
 } from 'lucide-react'
-import {ReactNode, useContext, useEffect, useRef, useState} from 'react'
+import {ReactNode, useContext, useRef} from 'react'
 import {BranchDialog} from './branch-dialog'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
@@ -350,7 +349,6 @@ function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
       <SubscriptionButton id={route.id} />
       {isLatest ? null : <GoToLatestVersionButton route={route} />}
       {publishSite.content}
-      <PanelSidebarToggle />
     </TitlebarSection>
   )
 }
@@ -465,94 +463,6 @@ function GoToLatestVersionButton({route}: {route: DocumentRoute | FeedRoute}) {
       <ArrowRight className="size-4" />
     </Button>
   )
-}
-
-function PanelSidebarToggle() {
-  const route = useNavRoute()
-  const replace = useNavigate('replace')
-  const [currentPanel, setCurrentPanel] = useState<
-    DocumentRoute['panel'] | null | undefined
-  >(() => {
-    // // todo. maybe bring this behavior back, I think it creates a default panel
-    // if (
-    //   route.key == 'document' ||
-    //   route.key == 'draft' ||
-    //   route.key == 'feed'
-    // ) {
-    //   if (typeof route.panel == 'undefined' || route.panel == null) {
-    //     return {key: 'activity', id: route.id}
-    //   } else {
-    //     return route.panel
-    //   }
-    // } else {
-    //   return null
-    // }
-    if (route.key === 'document') return route.panel
-    if (route.key === 'draft') return route.panel
-    if (route.key === 'feed') return route.panel
-    return null
-  })
-
-  useEffect(() => {
-    if (
-      route.key == 'document' ||
-      route.key == 'draft' ||
-      route.key == 'feed'
-    ) {
-      if (typeof route.panel == 'undefined' || route.panel == null) {
-        // setCurrentPanel({key: 'discussions'})
-      } else {
-        setCurrentPanel(route.panel)
-      }
-    }
-  }, [route])
-
-  if (route.key == 'document' || route.key == 'feed') {
-    return (
-      <Tooltip content={route.panel ? 'Hide Panel' : 'Show Panel'}>
-        <Button
-          size="icon"
-          onClick={() => {
-            if (route.key == 'document') {
-              replace({
-                ...route,
-                panel: route.panel ? null : currentPanel,
-              })
-            } else if (route.key == 'feed') {
-              replace({
-                id: route.id,
-                key: route.key,
-                panel: route.panel ? null : currentPanel,
-              })
-            }
-          }}
-        >
-          <PanelRight className="size-4" />
-        </Button>
-      </Tooltip>
-    )
-  } else if (route.key == 'draft') {
-    return (
-      <Tooltip content={route.panel ? 'Hide Panel' : 'Show Panel'}>
-        <Button
-          size="icon"
-          onClick={() => {
-            replace({
-              ...route,
-              panel: route.panel
-                ? null
-                : {
-                    key: 'options',
-                  },
-            })
-          }}
-        >
-          <PanelRight className="size-4" />
-        </Button>
-      </Tooltip>
-    )
-  }
-  return null
 }
 
 export function TitlebarTitle() {
