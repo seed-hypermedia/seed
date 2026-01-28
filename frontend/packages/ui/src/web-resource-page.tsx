@@ -1,11 +1,9 @@
-import {HMDocument, UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
+import {UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
 import {HypermediaHostBanner} from './hm-host-banner'
 import {ResourcePage} from './resource-page-common'
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
-  /** Document from loader for SSR - currently unused, reserved for future SSR optimization */
-  document?: HMDocument | null
 }
 
 /**

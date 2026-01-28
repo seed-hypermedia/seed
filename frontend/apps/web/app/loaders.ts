@@ -498,8 +498,12 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
-  // Single prefetch phase - React Query handles deduplication
-  await prefetchResourceData(docId, document, prefetchCtx, ctx)
+  // Create the final ID that will be returned to the client
+  // This ensures the prefetch query key matches what useResource will use
+  const finalId: UnpackedHypermediaId = {...docId, version: document.version}
+
+  // Single prefetch phase - use finalId so query keys match on client
+  await prefetchResourceData(finalId, document, prefetchCtx, ctx)
 
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
@@ -514,7 +518,7 @@ async function loadResourcePayload(
     comment,
     accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: {...docId, version: document.version},
+    id: finalId,
     breadcrumbs,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),

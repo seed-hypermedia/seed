@@ -1,9 +1,4 @@
-import {
-  hmId,
-  HMDocument,
-  unpackHmId,
-  UnpackedHypermediaId,
-} from '@shm/shared'
+import {hmId, HMDocument, unpackHmId, UnpackedHypermediaId} from '@shm/shared'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {ScrollArea} from './components/scroll-area'
@@ -25,7 +20,7 @@ export interface ResourcePageProps {
 }
 
 export function ResourcePage({docId}: ResourcePageProps) {
-  // Load document data via React Query (pre-hydrated on web)
+  // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
     subscribed: true,
     recursive: true,
@@ -44,7 +39,7 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Compute header data
   const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
 
-  // Handle loading state
+  // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
     return (
       <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
