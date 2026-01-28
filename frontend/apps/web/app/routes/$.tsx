@@ -18,6 +18,7 @@ import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {
+  createDocumentNavRoute,
   getDocumentTitle,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -312,6 +313,7 @@ export default function UnifiedDocumentPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm)}
     >
       <WebResourcePage docId={data.id} />
     </WebSiteProvider>

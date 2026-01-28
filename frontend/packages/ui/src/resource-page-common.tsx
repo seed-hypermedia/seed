@@ -1,9 +1,16 @@
 import {hmId, HMDocument, unpackHmId, UnpackedHypermediaId} from '@shm/shared'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
+import {ReadOnlyCollaboratorsContent} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
+import {DirectoryPageContent} from './directory-page'
+import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {DocumentHeader} from './document-header'
+import {DocumentTools} from './document-tools'
+import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
 import {
@@ -14,6 +21,18 @@ import {
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {cn} from './utils'
+
+export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
+
+function getActiveView(routeKey: string): ActiveView {
+  switch (routeKey) {
+    case 'activity': return 'activity'
+    case 'discussions': return 'discussions'
+    case 'directory': return 'directory'
+    case 'collaborators': return 'collaborators'
+    default: return 'content'
+  }
+}
 
 export interface ResourcePageProps {
   docId: UnpackedHypermediaId
@@ -214,7 +233,12 @@ function DocumentBody({
   docId: UnpackedHypermediaId
   document: HMDocument
 }) {
+  const route = useNavRoute()
+  const activeView = getActiveView(route.key)
+
   const isHomeDoc = !docId.path?.length
+  const directory = useDirectory(docId)
+  const interactionSummary = useInteractionSummary(docId)
 
   const {
     showSidebars,
@@ -225,7 +249,7 @@ function DocumentBody({
     contentMaxWidth,
   } = useDocumentLayout({
     contentWidth: document.metadata?.contentWidth,
-    showSidebars: !isHomeDoc && document.metadata?.showOutline !== false,
+    showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
   })
 
   return (
@@ -247,6 +271,85 @@ function DocumentBody({
           )}
         </div>
 
+        {/* DocumentTools tab bar */}
+        <DocumentTools
+          id={docId}
+          activeTab={activeView}
+          commentsCount={interactionSummary.data?.comments || 0}
+          directoryCount={directory.data?.length}
+        />
+
+        {/* Main content based on activeView */}
+        <MainContent
+          docId={docId}
+          document={document}
+          activeView={activeView}
+          contentMaxWidth={contentMaxWidth}
+          wrapperProps={wrapperProps}
+          sidebarProps={sidebarProps}
+          mainContentProps={mainContentProps}
+          showSidebars={showSidebars}
+        />
+      </ScrollArea>
+    </div>
+  )
+}
+
+function MainContent({
+  docId,
+  document,
+  activeView,
+  contentMaxWidth,
+  wrapperProps,
+  sidebarProps,
+  mainContentProps,
+  showSidebars,
+}: {
+  docId: UnpackedHypermediaId
+  document: HMDocument
+  activeView: ActiveView
+  contentMaxWidth: number
+  wrapperProps: React.HTMLAttributes<HTMLDivElement>
+  sidebarProps: React.HTMLAttributes<HTMLDivElement>
+  mainContentProps: React.HTMLAttributes<HTMLDivElement>
+  showSidebars: boolean
+}) {
+  switch (activeView) {
+    case 'directory':
+      return (
+        <DirectoryPageContent
+          docId={docId}
+          showTitle={false}
+          contentMaxWidth={contentMaxWidth}
+        />
+      )
+
+    case 'collaborators':
+      return (
+        <div className="mx-auto w-full px-4" style={{maxWidth: contentMaxWidth}}>
+          <ReadOnlyCollaboratorsContent docId={docId} />
+        </div>
+      )
+
+    case 'activity':
+      return (
+        <div className="mx-auto w-full px-4" style={{maxWidth: contentMaxWidth}}>
+          <Feed size="md" centered filterResource={docId.id} />
+        </div>
+      )
+
+    case 'discussions':
+      return (
+        <DiscussionsPageContent
+          docId={docId}
+          showTitle={false}
+          contentMaxWidth={contentMaxWidth}
+        />
+      )
+
+    case 'content':
+    default:
+      return (
         <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
           {showSidebars && (
             <div {...sidebarProps}>{/* Document outline - placeholder */}</div>
@@ -260,7 +363,6 @@ function DocumentBody({
 
           {showSidebars && <div {...sidebarProps} />}
         </div>
-      </ScrollArea>
-    </div>
-  )
+      )
+  }
 }
