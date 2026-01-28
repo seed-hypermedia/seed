@@ -237,19 +237,12 @@ type SearchResult struct {
 	BlobID      int64
 	BlockID     string
 	ContentType string
-	TextSnippet string
+	RawContent  string
 	Version     string
 	Score       float64 // Semantic: similarity (1-distance), Keyword: rank
 	Timestamp   int64
 	Owner       string // Principal string
 	FTSRowID    int64  // FTS table rowid for enrichment
-}
-
-// Allowed content types for semantic search (prevents SQL injection).
-var allowedContentTypes = map[string]bool{
-	"title":    true,
-	"document": true,
-	"comment":  true,
 }
 
 var qSemanticSearch = dqb.Str(`
@@ -286,24 +279,14 @@ ORDER BY v.distance
 // contentTypes filters by FTS content types (e.g., "title", "document", "comment").
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes []string, iriGlob string) ([]SearchResult, error) {
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	if len(contentTypes) == 0 {
-		contentTypes = []string{"title", "document", "comment"}
-	}
+
 	if iriGlob == "" {
 		iriGlob = "*"
 	}
-
-	// Validate content types to prevent injection
-	for _, ct := range contentTypes {
-		if !allowedContentTypes[ct] {
-			return nil, fmt.Errorf("invalid content type: %q (allowed: title, document, comment)", ct)
-		}
-	}
-
 	e.mu.Lock()
 	if !e.modelLoaded {
 		e.mu.Unlock()
@@ -336,31 +319,32 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		queryEmbeddingBytes[i] = byte(v)
 	}
 
+	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
+	supportedType := false
+	if ok, val := contentTypes["title"]; ok && val {
+		entityTypeTitle = "title"
+		supportedType = true
+	}
+	if ok, val := contentTypes["contact"]; ok && val {
+		entityTypeContact = "contact"
+		supportedType = true
+	}
+	if ok, val := contentTypes["document"]; ok && val {
+		entityTypeDoc = "document"
+		supportedType = true
+	}
+	if ok, val := contentTypes["comment"]; ok && val {
+		entityTypeComment = "comment"
+		supportedType = true
+	}
+	if !supportedType {
+		return nil, fmt.Errorf("invalid content type filter: at least one of title, contact, document, comment must be specified")
+	}
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 	defer release()
-
-	// Map content types to positional parameters (nil for types not in contentTypes)
-	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
-	typeSet := make(map[string]bool)
-	for _, ct := range contentTypes {
-		typeSet[ct] = true
-	}
-
-	if typeSet["title"] {
-		entityTypeTitle = "title"
-	}
-	if typeSet["contact"] {
-		entityTypeContact = "contact"
-	}
-	if typeSet["document"] {
-		entityTypeDoc = "document"
-	}
-	if typeSet["comment"] {
-		entityTypeComment = "comment"
-	}
 
 	var results []SearchResult
 	if err := sqlitex.Exec(conn, qSemanticSearch(), func(stmt *sqlite.Stmt) error {
@@ -368,17 +352,13 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		similarity := max(0, 1-distance)
 
 		rawContent := stmt.ColumnText(7)
-		snippet := rawContent
-		if len(snippet) > 300 {
-			snippet = snippet[:300]
-		}
 
 		results = append(results, SearchResult{
 			IRI:         stmt.ColumnText(8),
 			BlobID:      stmt.ColumnInt64(2),
 			BlockID:     stmt.ColumnText(3),
 			ContentType: stmt.ColumnText(4),
-			TextSnippet: snippet,
+			RawContent:  rawContent,
 			Version:     stmt.ColumnText(5),
 			Score:       similarity,
 			Timestamp:   stmt.ColumnInt64(6),
