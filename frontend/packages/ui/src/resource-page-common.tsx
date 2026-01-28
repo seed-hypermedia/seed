@@ -2,6 +2,7 @@ import {hmId, HMDocument, unpackHmId, UnpackedHypermediaId} from '@shm/shared'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useEffect, useRef, useState} from 'react'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {ReadOnlyCollaboratorsContent} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
@@ -240,6 +241,28 @@ function DocumentBody({
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
+  // Track when DocumentTools becomes sticky
+  const [isToolsSticky, setIsToolsSticky] = useState(false)
+  const toolsSentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const sentinel = toolsSentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        // When sentinel is not intersecting (scrolled out of view), tools are sticky
+        setIsToolsSticky(!entry.isIntersecting)
+      },
+      {threshold: 0.1, rootMargin: '0px'},
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
   const {
     showSidebars,
     sidebarProps,
@@ -271,13 +294,24 @@ function DocumentBody({
           )}
         </div>
 
-        {/* DocumentTools tab bar */}
-        <DocumentTools
-          id={docId}
-          activeTab={activeView}
-          commentsCount={interactionSummary.data?.comments || 0}
-          directoryCount={directory.data?.length}
-        />
+        {/* Sentinel element to detect when tools become sticky */}
+        <div ref={toolsSentinelRef} className="h-0" />
+
+        {/* DocumentTools tab bar - sticky */}
+        <div
+          className={cn(
+            'dark:bg-background sticky top-0 z-10 bg-white',
+            isToolsSticky ? 'py-1 shadow-md' : 'py-4 shadow-none',
+            'transition-all',
+          )}
+        >
+          <DocumentTools
+            id={docId}
+            activeTab={activeView}
+            commentsCount={interactionSummary.data?.comments || 0}
+            directoryCount={directory.data?.length}
+          />
+        </div>
 
         {/* Main content based on activeView */}
         <MainContent
