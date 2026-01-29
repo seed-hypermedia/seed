@@ -108,9 +108,9 @@ jobs:
         run: |
           if [ "${{ matrix.suite }}" == "desktop" ]; then
             echo 'SKIP DESKTOP E2E FOR NOW.'
-            # pnpm --filter @shm/desktop playwright install chromium --with-deps
+            # cd frontend/apps/desktop && pnpm exec playwright install chromium --with-deps
           else
-            pnpm --filter @shm/editor playwright install chromium --with-deps
+            cd frontend/packages/editor && pnpm exec playwright install chromium --with-deps
           fi
 
       - name: Run E2E tests
