@@ -5,14 +5,29 @@ import {Copy, ExternalLink} from './icons'
 import {Text} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
-import { cn } from './utils'
+import {cn} from './utils'
 
-export function CopyUrlField({url, label, size = 'md'}: {url: string; label: string, size?: 'sm' | 'md'}) {
+export function CopyUrlField({
+  url,
+  label,
+  size = 'md',
+}: {
+  url: string
+  label: string
+  size?: 'sm' | 'md'
+}) {
   const {openUrl} = useUniversalAppContext()
   return (
-    <div className={cn("flex items-center rounded-md border border-gray-200", size == 'md' ? 'p-2.5 gap-2' : 'p-1 gap-1')}>
+    <div
+      className={cn(
+        'flex items-center rounded-md border border-gray-200',
+        size == 'md' ? 'gap-2 p-2.5' : 'gap-1 p-1',
+      )}
+    >
       <div className="flex-1 truncate overflow-hidden whitespace-nowrap">
-        <Text size={size} color="muted">{url}</Text>
+        <Text size={size} color="muted">
+          {url}
+        </Text>
       </div>
       <Tooltip content="Copy URL">
         <Button
@@ -28,7 +43,11 @@ export function CopyUrlField({url, label, size = 'md'}: {url: string; label: str
         </Button>
       </Tooltip>
       <Tooltip content="Open URL">
-        <Button onClick={() => openUrl(url)} variant="ghost" size={size == 'md' ? 'sm' : 'xs'}>
+        <Button
+          onClick={() => openUrl(url)}
+          variant="ghost"
+          size={size == 'md' ? 'sm' : 'xs'}
+        >
           <ExternalLink className="size-4" />
         </Button>
       </Tooltip>
