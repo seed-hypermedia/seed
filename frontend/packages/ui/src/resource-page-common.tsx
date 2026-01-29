@@ -1,13 +1,13 @@
 import {
   DocumentPanelRoute,
-  hmId,
   HMDocument,
-  unpackHmId,
+  hmId,
   UnpackedHypermediaId,
+  unpackHmId,
 } from '@shm/shared'
-import {getRoutePanel} from '@shm/shared/routes'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {getRoutePanel} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {useEffect, useRef, useState} from 'react'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
@@ -15,32 +15,40 @@ import {ReadOnlyCollaboratorsContent} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
+import {OpenInPanelButton} from './open-in-panel'
+import {PageLayout} from './page-layout'
 import {DocumentCover} from './document-cover'
 import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
-import {PanelLayout} from './panel-layout'
-import {useMedia} from './use-media'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
-import {
-  PageDeleted,
-  PageDiscovery,
-  PageNotFound,
-} from './page-message-states'
+import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
+import {PanelLayout} from './panel-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {useMedia} from './use-media'
 import {cn} from './utils'
 
-export type ActiveView = 'content' | 'activity' | 'discussions' | 'directory' | 'collaborators'
+export type ActiveView =
+  | 'content'
+  | 'activity'
+  | 'discussions'
+  | 'directory'
+  | 'collaborators'
 
 function getActiveView(routeKey: string): ActiveView {
   switch (routeKey) {
-    case 'activity': return 'activity'
-    case 'discussions': return 'discussions'
-    case 'directory': return 'directory'
-    case 'collaborators': return 'collaborators'
-    default: return 'content'
+    case 'activity':
+      return 'activity'
+    case 'discussions':
+      return 'discussions'
+    case 'directory':
+      return 'directory'
+    case 'collaborators':
+      return 'collaborators'
+    default:
+      return 'content'
   }
 }
 
@@ -66,12 +74,20 @@ export function ResourcePage({docId}: ResourcePageProps) {
       : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeId, siteHomeDocument, homeDirectory.data)
+  const headerData = computeHeaderData(
+    siteHomeId,
+    siteHomeDocument,
+    homeDirectory.data,
+  )
 
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -82,7 +98,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Handle discovery state
   if (resource.isDiscovering) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <PageDiscovery />
       </PageWrapper>
     )
@@ -91,7 +111,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Handle not-found
   if (!resource.data || resource.data.type === 'not-found') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <PageNotFound />
       </PageWrapper>
     )
@@ -100,7 +124,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Handle tombstone (deleted)
   if (resource.isTombstone || resource.data.type === 'tombstone') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <PageDeleted />
       </PageWrapper>
     )
@@ -109,7 +137,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Handle error
   if (resource.data.type === 'error') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
@@ -120,7 +152,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Handle redirect - for now just show not found, redirect handling comes later
   if (resource.data.type === 'redirect') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <PageNotFound />
       </PageWrapper>
     )
@@ -129,7 +165,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
   // Success: render document
   if (resource.data.type !== 'document') {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+      >
         <PageNotFound />
       </PageWrapper>
     )
@@ -165,7 +205,7 @@ function computeHeaderData(
   // Compute navigation items from home document's navigation block
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
-    ? (navigationBlockNode.children
+    ? navigationBlockNode.children
         ?.map((child) => {
           const linkBlock = child.block.type === 'Link' ? child.block : null
           if (!linkBlock) return null
@@ -179,7 +219,7 @@ function computeHeaderData(
             webUrl: id ? undefined : linkBlock.link,
           } as DocNavigationItem
         })
-        .filter((item): item is DocNavigationItem => item !== null) ?? [])
+        .filter((item): item is DocNavigationItem => item !== null) ?? []
     : []
 
   const directoryItems = getSiteNavDirectory({
@@ -223,12 +263,14 @@ function PageWrapper({
   const isMobile = media.xs
 
   return (
-    <div className={cn(
-      'flex flex-col',
-      // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
-      // On mobile: natural height for document scrolling
-      isMobile ? 'min-h-dvh' : 'h-dvh',
-    )}>
+    <div
+      className={cn(
+        'flex flex-col',
+        // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
+        // On mobile: natural height for document scrolling
+        isMobile ? 'min-h-dvh' : 'h-dvh',
+      )}
+    >
       <SiteHeader
         siteHomeId={siteHomeId}
         docId={docId}
@@ -254,7 +296,7 @@ function DocumentBody({
   document: HMDocument
 }) {
   const route = useNavRoute()
-  const replace = useNavigate('replace')
+  const navigate = useNavigate()
   const activeView = getActiveView(route.key)
 
   // Extract panel from route (only document/feed routes have panels)
@@ -373,7 +415,7 @@ function DocumentBody({
   // Close panel handler
   const handlePanelClose = () => {
     if ('panel' in route) {
-      replace({...route, panel: null})
+      navigate({...route, panel: null})
     }
   }
 
@@ -383,7 +425,7 @@ function DocumentBody({
       (route.key === 'document' || route.key === 'feed') &&
       route.panel?.key === 'activity'
     ) {
-      replace({
+      navigate({
         ...route,
         panel: {...route.panel, filterEventType: filter.filterEventType},
       })
@@ -420,13 +462,13 @@ function DocumentBody({
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
         filterEventType={
-          panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined
+          panelRoute?.key === 'activity'
+            ? panelRoute.filterEventType
+            : undefined
         }
         onFilterChange={handleFilterChange}
       >
-        <ScrollArea className="h-full">
-          {mainPageContent}
-        </ScrollArea>
+        <ScrollArea className="h-full">{mainPageContent}</ScrollArea>
       </PanelLayout>
     </div>
   )
@@ -515,21 +557,39 @@ function MainContent({
           docId={docId}
           showTitle={false}
           contentMaxWidth={contentMaxWidth}
+          headerRight={
+            <OpenInPanelButton
+              id={docId}
+              panelRoute={{key: 'directory', id: docId}}
+            />
+          }
         />
       )
 
     case 'collaborators':
       return (
-        <div className="mx-auto w-full px-4" style={{maxWidth: contentMaxWidth}}>
+        <PageLayout centered contentMaxWidth={contentMaxWidth}>
+          <div className="flex justify-end px-4 pb-2">
+            <OpenInPanelButton
+              id={docId}
+              panelRoute={{key: 'collaborators', id: docId}}
+            />
+          </div>
           <ReadOnlyCollaboratorsContent docId={docId} />
-        </div>
+        </PageLayout>
       )
 
     case 'activity':
       return (
-        <div className="mx-auto w-full px-4" style={{maxWidth: contentMaxWidth}}>
+        <PageLayout centered contentMaxWidth={contentMaxWidth}>
+          <div className="flex justify-end px-4 pb-2">
+            <OpenInPanelButton
+              id={docId}
+              panelRoute={{key: 'activity', id: docId}}
+            />
+          </div>
           <Feed size="md" centered filterResource={docId.id} />
-        </div>
+        </PageLayout>
       )
 
     case 'discussions':
