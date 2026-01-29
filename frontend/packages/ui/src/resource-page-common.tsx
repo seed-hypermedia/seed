@@ -1,7 +1,14 @@
-import {hmId, HMDocument, unpackHmId, UnpackedHypermediaId} from '@shm/shared'
+import {
+  DocumentPanelRoute,
+  hmId,
+  HMDocument,
+  unpackHmId,
+  UnpackedHypermediaId,
+} from '@shm/shared'
+import {getRoutePanel} from '@shm/shared/routes'
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {useEffect, useRef, useState} from 'react'
 import {BlocksContent, BlocksContentProvider} from './blocks-content'
 import {ReadOnlyCollaboratorsContent} from './collaborators-page'
@@ -13,6 +20,7 @@ import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
+import {PanelLayout} from './panel-layout'
 import {useMedia} from './use-media'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
 import {
@@ -246,15 +254,23 @@ function DocumentBody({
   document: HMDocument
 }) {
   const route = useNavRoute()
+  const replace = useNavigate('replace')
   const activeView = getActiveView(route.key)
 
+  // Extract panel from route (only document/feed routes have panels)
+  const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
+  const panelKey = panelRoute?.key ?? null
+
   // Extract discussions-specific params from route
-  const discussionsParams = route.key === 'discussions' ? {
-    openComment: route.openComment,
-    targetBlockId: route.targetBlockId,
-    blockId: route.blockId,
-    blockRange: route.blockRange,
-  } : undefined
+  const discussionsParams =
+    route.key === 'discussions'
+      ? {
+          openComment: route.openComment,
+          targetBlockId: route.targetBlockId,
+          blockId: route.blockId,
+          blockRange: route.blockRange,
+        }
+      : undefined
 
   const isHomeDoc = !docId.path?.length
   const directory = useDirectory(docId)
@@ -291,14 +307,18 @@ function DocumentBody({
     contentMaxWidth,
   } = useDocumentLayout({
     contentWidth: document.metadata?.contentWidth,
-    showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
+    showSidebars:
+      !isHomeDoc &&
+      document.metadata?.showOutline !== false &&
+      activeView === 'content',
   })
 
   // Use document scroll on mobile, element scroll on desktop
   const media = useMedia()
   const isMobile = media.xs
 
-  const content = (
+  // Main page content (used in both mobile and desktop layouts)
+  const mainPageContent = (
     <>
       <DocumentCover cover={document.metadata?.cover} />
 
@@ -350,23 +370,116 @@ function DocumentBody({
     </>
   )
 
-  // Mobile: use document scroll (no ScrollArea, content flows naturally)
-  // Desktop: use element scroll (ScrollArea contains content)
+  // Close panel handler
+  const handlePanelClose = () => {
+    if ('panel' in route) {
+      replace({...route, panel: null})
+    }
+  }
+
+  // Activity filter change handler
+  const handleFilterChange = (filter: {filterEventType?: string[]}) => {
+    if (
+      (route.key === 'document' || route.key === 'feed') &&
+      route.panel?.key === 'activity'
+    ) {
+      replace({
+        ...route,
+        panel: {...route.panel, filterEventType: filter.filterEventType},
+      })
+    }
+  }
+
+  // Mobile: use document scroll (no panels, content flows naturally)
   if (isMobile) {
     return (
       <div className="relative flex flex-1 flex-col" ref={elementRef}>
-        {content}
+        {mainPageContent}
       </div>
     )
   }
 
+  // Desktop: use PanelLayout with scrollable main content + optional panel
+  const panelContent = panelKey ? (
+    <ScrollArea className="flex-1">
+      <PanelContentRenderer
+        panelRoute={panelRoute!}
+        docId={docId}
+        contentMaxWidth={contentMaxWidth}
+      />
+    </ScrollArea>
+  ) : null
+
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
-      <ScrollArea className="flex-1">
-        {content}
-      </ScrollArea>
+    <div
+      className="relative flex flex-1 flex-col overflow-hidden"
+      ref={elementRef}
+    >
+      <PanelLayout
+        panelKey={panelKey}
+        panelContent={panelContent}
+        onPanelClose={handlePanelClose}
+        filterEventType={
+          panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined
+        }
+        onFilterChange={handleFilterChange}
+      >
+        <ScrollArea className="h-full">
+          {mainPageContent}
+        </ScrollArea>
+      </PanelLayout>
     </div>
   )
+}
+
+// Renders panel content based on panel type
+function PanelContentRenderer({
+  panelRoute,
+  docId,
+  contentMaxWidth,
+}: {
+  panelRoute: DocumentPanelRoute
+  docId: UnpackedHypermediaId
+  contentMaxWidth: number
+}) {
+  switch (panelRoute.key) {
+    case 'activity':
+      return (
+        <div className="p-4">
+          <Feed
+            size="sm"
+            filterResource={docId.id}
+            filterEventType={panelRoute.filterEventType}
+          />
+        </div>
+      )
+    case 'discussions':
+      return (
+        <DiscussionsPageContent
+          docId={docId}
+          showTitle={false}
+          showOpenInPanel={false}
+          contentMaxWidth={contentMaxWidth}
+          openComment={panelRoute.openComment}
+        />
+      )
+    case 'directory':
+      return (
+        <DirectoryPageContent
+          docId={docId}
+          showTitle={false}
+          contentMaxWidth={contentMaxWidth}
+        />
+      )
+    case 'collaborators':
+      return (
+        <div className="p-4">
+          <ReadOnlyCollaboratorsContent docId={docId} />
+        </div>
+      )
+    default:
+      return null
+  }
 }
 
 function MainContent({
