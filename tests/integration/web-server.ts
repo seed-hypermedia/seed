@@ -26,7 +26,7 @@ export async function buildWebApp(): Promise<void> {
   const webAppDir = path.resolve(__dirname, '../../frontend/apps/web')
   console.log('[Web] Building web app...')
 
-  execSync('yarn build', {
+  execSync('pnpm build', {
     cwd: webAppDir,
     stdio: 'inherit',
     env: {
@@ -59,7 +59,7 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
   }
 
   // Use remix-serve to run the built app
-  const webProcess = spawn('yarn', ['start:prod'], {
+  const webProcess = spawn('pnpm', ['start:prod'], {
     cwd: webAppDir,
     stdio: 'pipe',
     env,
