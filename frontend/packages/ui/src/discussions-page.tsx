@@ -1,5 +1,4 @@
 import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
-import {useNavRoute} from '@shm/shared/utils/navigation'
 import {MessageSquare} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
@@ -49,9 +48,6 @@ export function DiscussionsPageContent({
   showTitle = true,
   contentMaxWidth,
 }: DiscussionsPageContentProps) {
-  const route = useNavRoute()
-  const discussionsRoute = (route.key === 'discussions' ? route : undefined)!
-
   // Determine which view to show
   let content: ReactNode
 
@@ -108,8 +104,8 @@ export function DiscussionsPageContent({
       headerRight={
         showOpenInPanel ? (
           <OpenInPanelButton
-            id={discussionsRoute.id}
-            panelRoute={{key: 'discussions', id: discussionsRoute.id}}
+            id={docId}
+            panelRoute={{key: 'discussions', id: docId}}
           />
         ) : undefined
       }
