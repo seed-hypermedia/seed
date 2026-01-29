@@ -148,7 +148,7 @@ export function GenericSidebarContainer({
         <div
           ref={panelContentRef}
           className={cn(
-            `flex h-full w-full flex-col pr-1 transition-all duration-200 ease-in-out`,
+            `flex h-full w-full flex-col transition-all duration-200 ease-in-out`,
             isLocked
               ? 'relative'
               : 'border-border bg-background absolute z-[51] rounded-tr-lg rounded-br-lg border shadow-lg dark:bg-black',
@@ -169,7 +169,7 @@ export function GenericSidebarContainer({
           <div
             className={cn(
               'flex-1 overflow-y-auto pb-8',
-              isLocked ? '' : 'py-2 pr-1',
+              isLocked ? '' : 'py-2',
             )}
           >
             {children}
