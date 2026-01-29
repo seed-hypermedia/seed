@@ -139,21 +139,6 @@ export function useUniversalClient() {
   return universalClient
 }
 
-export function useOpenRoute() {
-  const context = useContext(UniversalAppContext)
-  if (!context)
-    throw new Error('useOpenRoute must be used in a UniversalRoutingProvider')
-  const openRoute = context.openRoute
-  if (!openRoute) {
-    throw new Error(
-      'No openRoute function in UniversalAppContext. Cannot open route',
-    )
-  }
-  return (route: NavRoute) => {
-    openRoute(route)
-  }
-}
-
 export function useOpenUrl() {
   const context = useContext(UniversalAppContext)
   if (!context)
