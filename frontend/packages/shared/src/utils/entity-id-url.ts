@@ -508,6 +508,7 @@ export function idToUrl(
   opts?: {
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
+    panel?: PanelQueryKey | null
   },
 ) {
   return createWebHMUrl(hmId.uid, {
@@ -518,6 +519,7 @@ export function idToUrl(
     hostname: hmId.hostname,
     originHomeId: opts?.originHomeId,
     feed: opts?.feed,
+    panel: opts?.panel,
     latest: hmId.latest,
   })
 }

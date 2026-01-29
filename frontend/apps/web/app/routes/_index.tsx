@@ -4,7 +4,7 @@ import {WebSiteProvider} from '@/providers'
 import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
+import {createDocumentNavRoute, PanelQueryKey, ViewRouteKey} from '@shm/shared'
 import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
@@ -23,6 +23,7 @@ export const loader = async ({
 
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
+  panelParam?: PanelQueryKey | null
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -55,7 +56,7 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm)}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
       <WebResourcePage docId={data.id} />
     </WebSiteProvider>

@@ -313,7 +313,7 @@ export default function UnifiedDocumentPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm)}
+      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
       <WebResourcePage docId={data.id} />
     </WebSiteProvider>
