@@ -803,7 +803,8 @@ export type HMQueryResult = z.infer<typeof HMQueryResultSchema>
 export const HMRoleSchema = z.enum(['writer', 'agent', 'none', 'owner'])
 export type HMRole = z.infer<typeof HMRoleSchema>
 
-export const HMDraftMetaSchema = z.object({
+// Base schema without refinement (needed for .extend())
+const HMDraftMetaBaseSchema = z.object({
   id: z.string(),
   locationUid: z.string().optional(),
   locationPath: z.array(z.string()).optional(),
@@ -813,13 +814,47 @@ export const HMDraftMetaSchema = z.object({
   visibility: HMResourceVisibilitySchema.optional().default('PUBLIC'),
 })
 
-export type HMDraftMeta = z.infer<typeof HMDraftMetaSchema>
+const draftLocationRefinement = (data: {
+  editUid?: string
+  locationUid?: string
+}) => data.editUid || data.locationUid
 
-export const HMListedDraftSchema = HMDraftMetaSchema.extend({
+// Refined schema for validation
+export const HMDraftMetaSchema = HMDraftMetaBaseSchema.refine(
+  draftLocationRefinement,
+  {message: 'Either editUid or locationUid must be provided'},
+)
+
+// TypeScript union type: editUid OR locationUid must be present
+type HMDraftMetaBase = {
+  id: string
+  locationPath?: string[]
+  editPath?: string[]
+  metadata: z.infer<typeof HMDocumentMetadataSchema>
+  visibility: HMResourceVisibility
+}
+
+export type HMDraftMeta = HMDraftMetaBase &
+  (
+    | {editUid: string; locationUid?: string}
+    | {editUid?: undefined; locationUid: string}
+  )
+
+// Schema with refinement for writing new drafts
+export const HMListedDraftSchema = HMDraftMetaBaseSchema.extend({
+  lastUpdateTime: z.number(),
+}).refine(draftLocationRefinement, {
+  message: 'Either editUid or locationUid must be provided',
+})
+
+// Looser schema for reading legacy drafts (no refinement)
+export const HMListedDraftReadSchema = HMDraftMetaBaseSchema.extend({
   lastUpdateTime: z.number(),
 })
 
-export type HMListedDraft = z.infer<typeof HMListedDraftSchema>
+export type HMListedDraft = HMDraftMeta & {
+  lastUpdateTime: number
+}
 
 export type HMInvoice = {
   payload: string
