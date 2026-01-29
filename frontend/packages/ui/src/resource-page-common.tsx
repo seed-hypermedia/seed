@@ -237,6 +237,14 @@ function DocumentBody({
   const route = useNavRoute()
   const activeView = getActiveView(route.key)
 
+  // Extract discussions-specific params from route
+  const discussionsParams = route.key === 'discussions' ? {
+    openComment: route.openComment,
+    targetBlockId: route.targetBlockId,
+    blockId: route.blockId,
+    blockRange: route.blockRange,
+  } : undefined
+
   const isHomeDoc = !docId.path?.length
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
@@ -323,6 +331,7 @@ function DocumentBody({
           sidebarProps={sidebarProps}
           mainContentProps={mainContentProps}
           showSidebars={showSidebars}
+          discussionsParams={discussionsParams}
         />
       </ScrollArea>
     </div>
@@ -338,6 +347,7 @@ function MainContent({
   sidebarProps,
   mainContentProps,
   showSidebars,
+  discussionsParams,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -347,6 +357,12 @@ function MainContent({
   sidebarProps: React.HTMLAttributes<HTMLDivElement>
   mainContentProps: React.HTMLAttributes<HTMLDivElement>
   showSidebars: boolean
+  discussionsParams?: {
+    openComment?: string
+    targetBlockId?: string
+    blockId?: string
+    blockRange?: import('@shm/shared').BlockRange | null
+  }
 }) {
   switch (activeView) {
     case 'directory':
@@ -378,6 +394,10 @@ function MainContent({
           docId={docId}
           showTitle={false}
           contentMaxWidth={contentMaxWidth}
+          openComment={discussionsParams?.openComment}
+          targetBlockId={discussionsParams?.targetBlockId}
+          blockId={discussionsParams?.blockId}
+          blockRange={discussionsParams?.blockRange}
         />
       )
 
