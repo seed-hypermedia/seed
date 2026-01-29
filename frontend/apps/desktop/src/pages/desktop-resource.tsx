@@ -1,3 +1,4 @@
+import {CommentBox} from '@/components/commenting'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 
@@ -21,5 +22,5 @@ export default function DesktopResourcePage() {
   const docId = route.id
   if (!docId) throw new Error('No document ID in route')
 
-  return <ResourcePage docId={docId} />
+  return <ResourcePage docId={docId} CommentEditor={CommentBox} />
 }

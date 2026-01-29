@@ -5,7 +5,7 @@ import {
   UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from './hm-types'
-import type {PanelQueryKey, ViewRouteKey} from './utils/entity-id-url'
+import type {ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -290,12 +290,19 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
 }
 
 /**
- * Create a DocumentPanelRoute from a panel key
+ * Create a DocumentPanelRoute from a panel param string
+ * Supports extended format like "discussions:BLOCKID" for block-specific discussions
  */
 function createPanelRoute(
-  panelParam: PanelQueryKey,
+  panelParam: string,
   docId: UnpackedHypermediaId,
 ): DocumentPanelRoute {
+  // Check for discussions:BLOCKID format
+  if (panelParam.startsWith('discussions:')) {
+    const targetBlockId = panelParam.slice('discussions:'.length)
+    return {key: 'discussions', id: docId, targetBlockId}
+  }
+
   switch (panelParam) {
     case 'activity':
       return {key: 'activity', id: docId}
@@ -307,17 +314,21 @@ function createPanelRoute(
       return {key: 'collaborators', id: docId}
     case 'options':
       return {key: 'options'}
+    default:
+      // Fallback for unknown panel types
+      return {key: 'discussions', id: docId}
   }
 }
 
 /**
  * Convert docId + viewTerm + panelParam into a NavRoute
  * Used by web to initialize navigation context from URL
+ * panelParam supports extended format like "discussions:BLOCKID"
  */
 export function createDocumentNavRoute(
   docId: UnpackedHypermediaId,
   viewTerm?: ViewRouteKey | null,
-  panelParam?: PanelQueryKey | null,
+  panelParam?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided
   const panel = panelParam ? createPanelRoute(panelParam, docId) : null
