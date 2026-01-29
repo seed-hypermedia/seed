@@ -17,7 +17,6 @@ import {
   UnpackedHypermediaId,
   useCommentGroups,
   useCommentParents,
-  useOpenRoute,
   useRouteLink,
 } from '@shm/shared'
 
@@ -33,7 +32,7 @@ import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
@@ -859,7 +858,7 @@ export function CommentContent({
   openOnClick?: boolean
   onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
 }) {
-  const openRoute = useOpenRoute()
+  const navigate = useNavigate()
   const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
   const targetHomeDoc =
@@ -903,7 +902,7 @@ export function CommentContent({
         }
         const useFullPageNavigation =
           currentRoute.key === 'activity' || currentRoute.key === 'discussions'
-        openRoute(
+        navigate(
           useFullPageNavigation
             ? {key: 'discussions', id: idWithBlock, openComment: comment.id}
             : {

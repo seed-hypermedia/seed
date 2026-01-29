@@ -39,7 +39,6 @@ import {
   unpackHmId,
   useHover,
   useLowlight,
-  useOpenRoute,
   useOpenUrl,
   useRangeSelection,
   useRouteLink,
@@ -56,6 +55,7 @@ import {
 import {useTxString} from '@shm/shared/translation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {pluralS} from '@shm/shared/utils/language'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {
   generateInstagramEmbedHtml,
   loadInstagramScript,
@@ -2010,7 +2010,7 @@ function BlockEmbedContentDocument(props: {
     viewType,
     openOnClick,
   } = props
-  const openRoute = useOpenRoute()
+  const navigate = useNavigate()
 
   const embedData = useMemo(() => {
     const selectedBlock =
@@ -2074,7 +2074,7 @@ function BlockEmbedContentDocument(props: {
         toast.error('Error: not implemented')
         return false
       }
-      openRoute({
+      navigate({
         key: 'document',
         id: {
           ...id,
@@ -2083,7 +2083,7 @@ function BlockEmbedContentDocument(props: {
       })
       return true
     },
-    [openRoute, id],
+    [navigate, id],
   )
 
   let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
