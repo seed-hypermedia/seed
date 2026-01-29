@@ -124,25 +124,27 @@ export function SmallListItem({
         ) : null}
         {children}
 
-        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
-          <SizableText
-            size="sm"
-            className={cn(
-              `${
-                multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
-              } mobile-menu-item-label text-left select-none`.trim(),
-              bold && 'font-bold',
-              textClass,
-            )}
-            style={{
-              color: typeof color === 'string' ? color : undefined,
-            }}
-          >
-            {title}
-          </SizableText>
-          {isDraft ? <DraftBadge /> : null}
-          {accessory}
-        </div>
+        {title || isDraft || accessory ? (
+          <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
+            <SizableText
+              size="sm"
+              className={cn(
+                `${
+                  multiline ? 'line-clamp-2' : 'truncate whitespace-nowrap'
+                } mobile-menu-item-label text-left select-none`.trim(),
+                bold && 'font-bold',
+                textClass,
+              )}
+              style={{
+                color: typeof color === 'string' ? color : undefined,
+              }}
+            >
+              {title}
+            </SizableText>
+            {isDraft ? <DraftBadge /> : null}
+            {accessory}
+          </div>
+        ) : null}
       </div>
       {isCollapsed != null ? (
         <Button
