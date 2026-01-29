@@ -13,6 +13,7 @@ import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
+import {useMobileConfig} from '@/use-mobile-config'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -24,6 +25,7 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
+  UnpackedHypermediaId,
   VIEW_TERMS,
   ViewRouteKey,
 } from '@shm/shared'
@@ -315,8 +317,20 @@ export default function UnifiedDocumentPage() {
       dehydratedState={data.dehydratedState}
       initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
-      <WebResourcePage docId={data.id} CommentEditor={WebCommenting} />
+      <InnerResourcePage docId={data.id} />
     </WebSiteProvider>
+  )
+}
+
+/** Inner component that can use hooks after providers are mounted */
+function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
+  const mobileConfig = useMobileConfig()
+  return (
+    <WebResourcePage
+      docId={docId}
+      CommentEditor={WebCommenting}
+      mobileConfig={mobileConfig}
+    />
   )
 }
 
