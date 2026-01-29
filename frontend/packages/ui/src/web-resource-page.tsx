@@ -1,16 +1,18 @@
 import {UnpackedHypermediaId, useUniversalAppContext} from '@shm/shared'
 import {HypermediaHostBanner} from './hm-host-banner'
-import {ResourcePage} from './resource-page-common'
+import {CommentEditorProps, ResourcePage} from './resource-page-common'
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
+  /** Platform-specific comment editor component */
+  CommentEditor?: React.ComponentType<CommentEditorProps>
 }
 
 /**
  * Web-specific wrapper for ResourcePage that handles:
  * - HypermediaHostBanner (shown when viewing content from a different site)
  */
-export function WebResourcePage({docId}: WebResourcePageProps) {
+export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const {origin, originHomeId} = useUniversalAppContext()
 
   // Show banner when viewing content from a different site than the host
@@ -20,7 +22,7 @@ export function WebResourcePage({docId}: WebResourcePageProps) {
   return (
     <>
       {showBanner && <HypermediaHostBanner origin={origin} />}
-      <ResourcePage docId={docId} />
+      <ResourcePage docId={docId} CommentEditor={CommentEditor} />
     </>
   )
 }

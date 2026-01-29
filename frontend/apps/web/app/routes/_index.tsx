@@ -1,10 +1,11 @@
+import {WebCommenting} from '@/client-lazy'
 import type {SiteDocumentPayload} from '@/loaders'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {WebSiteProvider} from '@/providers'
 import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {createDocumentNavRoute, PanelQueryKey, ViewRouteKey} from '@shm/shared'
+import {createDocumentNavRoute, ViewRouteKey} from '@shm/shared'
 import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
@@ -23,7 +24,7 @@ export const loader = async ({
 
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: PanelQueryKey | null
+  panelParam?: string | null // Supports extended format like "discussions:BLOCKID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -58,7 +59,7 @@ export default function IndexPage() {
       dehydratedState={data.dehydratedState}
       initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
-      <WebResourcePage docId={data.id} />
+      <WebResourcePage docId={data.id} CommentEditor={WebCommenting} />
     </WebSiteProvider>
   )
 }
