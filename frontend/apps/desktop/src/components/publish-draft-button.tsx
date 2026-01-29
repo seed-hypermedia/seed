@@ -1,16 +1,21 @@
 import {DraftStatus, draftStatus} from '@/draft-status'
 import {draftEditId, draftLocationId} from '@/models/drafts'
-import {usePushOnPublish} from '@/models/gateway-settings'
+import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {
+  createSiteUrl,
+  createWebHMUrl,
+  hmId,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   entityQueryPathToHmIdPath,
@@ -19,12 +24,21 @@ import {
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {AlertCircle, Check, Share} from '@shm/ui/icons'
+import {Input} from '@shm/ui/components/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
+import {CopyUrlField} from '@shm/ui/copy-url-field'
+import {AlertCircle, Check, Document, Pencil, Share} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
+import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useMutation} from '@tanstack/react-query'
 import {
   HTMLAttributes,
@@ -107,6 +121,88 @@ export default function PublishDraftButton() {
   const signingAccount = useSelectedAccount()
   const signingAccountId = signingAccount?.id.uid
 
+  // Determine if this is an edit (existing doc) or first publish (new doc)
+  const isFirstPublish = !editId
+  const defaultLocationId = draftLocationId(draft.data)
+
+  // For first publish, we need editable location state
+  const [editableLocation, setEditableLocation] =
+    useState<UnpackedHypermediaId | null>(null)
+  const [isEditingPath, setIsEditingPath] = useState(false)
+
+  // Track if location is available (not already taken)
+  const isLocationAvailable = useRef(true)
+
+  // Initialize editable location when signingAccountId becomes available
+  useEffect(() => {
+    if (!isFirstPublish || editableLocation) return
+    if (!signingAccountId) return
+
+    // For first publish, use the draft's location if available, otherwise use the signing account
+    const baseUid = defaultLocationId?.uid || signingAccountId
+    const basePath = defaultLocationId?.path || []
+    const docName = pathNameify(
+      draft.data?.metadata.name || 'Untitled Document',
+    )
+
+    setEditableLocation(
+      hmId(baseUid, {
+        path: [...basePath, docName],
+      }),
+    )
+  }, [
+    isFirstPublish,
+    signingAccountId,
+    defaultLocationId,
+    draft.data?.metadata.name,
+    editableLocation,
+  ])
+
+  // Use editable location for first publish, otherwise use editId
+  const locationId = isFirstPublish ? editableLocation : editId
+
+  const gatewayUrl = useGatewayUrl()
+  const {data: siteResource} = useResource(
+    locationId ? hmId(locationId.uid, {latest: true}) : undefined,
+  )
+  const siteDocument =
+    siteResource?.type === 'document' ? siteResource.document : undefined
+
+  // Compute parent URL (site root or parent path)
+  const parentUrl = useMemo(() => {
+    if (!locationId || !gatewayUrl.data) return null
+    const siteUrl = siteDocument?.metadata?.siteUrl
+    const parentPath = locationId.path?.slice(0, -1) || []
+    if (siteUrl) {
+      return createSiteUrl({
+        path: parentPath,
+        hostname: siteUrl,
+      })
+    }
+    return createWebHMUrl(locationId.uid, {
+      path: parentPath,
+      hostname: gatewayUrl.data,
+    })
+  }, [locationId, gatewayUrl.data, siteDocument?.metadata?.siteUrl])
+
+  const documentUrl = useMemo(() => {
+    if (!locationId || !gatewayUrl.data) return null
+    const siteUrl = siteDocument?.metadata?.siteUrl
+    if (siteUrl) {
+      return createSiteUrl({
+        path: locationId.path,
+        hostname: siteUrl,
+      })
+    }
+    return createWebHMUrl(locationId.uid, {
+      path: locationId.path,
+      hostname: gatewayUrl.data,
+    })
+  }, [locationId, gatewayUrl.data, siteDocument?.metadata?.siteUrl])
+
+  // Get the editable path segment (last part of the path)
+  const editablePath = editableLocation?.path?.at(-1) || ''
+
   function handlePublishPress() {
     if (!draftId) throw new Error('No Draft ID?!')
 
@@ -165,47 +261,177 @@ export default function PublishDraftButton() {
     }
 
     if (editId && signingAccountId) {
+      // Editing existing document
       handlePublish(editId, signingAccountId)
-    } else {
-      const isPrivate =
-        draftRoute?.visibility === 'PRIVATE' ||
-        draft.data.visibility === 'PRIVATE'
-      const locationId = draftLocationId(draft.data)
-
-      // For private documents, skip the dialog and publish directly with the nanoid path.
-      if (isPrivate && locationId && signingAccountId) {
-        handlePublish(locationId, signingAccountId)
+    } else if (editableLocation && signingAccountId) {
+      // First publish with editable location from popover
+      if (!isLocationAvailable.current) {
+        toast.error('This location is unavailable. Create a new path name.')
         return
       }
-
-      firstPublishDialog.open({
-        newDefaultName: pathNameify(
-          draft.data.metadata.name || 'Untitled Document',
-        ),
-        onSelectDestination: (location, account) => {
-          handlePublish(location, account)
-        },
-        defaultLocation: locationId,
-        defaultAccount: signingAccountId,
-      })
+      const pathInvalid = validatePath(
+        hmIdPathToEntityQueryPath(editableLocation.path),
+      )
+      if (pathInvalid) {
+        toast.error(pathInvalid.error)
+        return
+      }
+      handlePublish(editableLocation, signingAccountId)
+    } else {
+      toast.error('Cannot publish: missing location or account')
     }
   }
+
+  const popoverState = usePopoverState()
 
   return (
     <>
       <SaveIndicatorStatus />
-      <Tooltip
-        content={
-          signingAccount
-            ? `Publish as ${signingAccount?.document?.metadata.name}`
-            : 'Publish Document...'
-        }
-      >
-        <Button size="sm" className="px-2" onClick={handlePublishPress}>
-          <Share className="size-4" />
-          Publish
-        </Button>
-      </Tooltip>
+      <Popover {...popoverState}>
+        <Tooltip
+          content={
+            signingAccount
+              ? `Publish as ${signingAccount?.document?.metadata.name}`
+              : 'Publish Document...'
+          }
+        >
+          <PopoverTrigger asChild>
+            <Button size="sm" className="px-2">
+              <Share className="size-4" />
+              Publish
+            </Button>
+          </PopoverTrigger>
+        </Tooltip>
+        <PopoverContent
+          align="end"
+          className="w-80"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            ;(e.currentTarget as HTMLElement)?.focus()
+          }}
+        >
+          <div className="flex flex-col gap-4">
+            {/* You are publishing section */}
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">You are publishing</p>
+              {documentUrl && (
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0">
+                    <Document size={12} color="currentColor" />
+                  </span>
+                  <span
+                    className="text-xs"
+                    style={{
+                      direction: 'rtl',
+                      textAlign: 'left',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {documentUrl}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Your page will be available at section */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Your page will be available at
+                </p>
+                {isFirstPublish && editableLocation && (
+                  <Tooltip
+                    content={isEditingPath ? 'Done editing' : 'Edit path'}
+                  >
+                    <Button
+                      size="iconSm"
+                      variant="ghost"
+                      onClick={() => setIsEditingPath(!isEditingPath)}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                  </Tooltip>
+                )}
+              </div>
+              {/* Parent URL shown above input */}
+              {parentUrl && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {parentUrl.endsWith('/') ? parentUrl : `${parentUrl}/`}
+                </span>
+              )}
+              {isEditingPath && isFirstPublish && editableLocation ? (
+                <Input
+                  value={editablePath}
+                  onChange={(e) => {
+                    if (!editableLocation) return
+                    const newPath = [
+                      ...(editableLocation.path?.slice(0, -1) || []),
+                      pathNameify(e.target.value),
+                    ]
+                    setEditableLocation(
+                      hmId(editableLocation.uid, {path: newPath}),
+                    )
+                  }}
+                  onKeyDown={(e) => {
+                    // ENTER toggles edit state
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      setIsEditingPath(false)
+                    }
+                    // Cmd/Ctrl+A selects all text in input, prevents global select-all
+                    if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+                      e.stopPropagation()
+                      ;(e.target as HTMLInputElement).select()
+                    }
+                  }}
+                  placeholder="document-path"
+                  className="h-8 text-xs"
+                  autoFocus
+                />
+              ) : documentUrl ? (
+                <CopyUrlField size="sm" url={documentUrl} label="Document" />
+              ) : (
+                <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <Spinner className="size-3" />
+                  <span>Loading...</span>
+                </div>
+              )}
+            </div>
+            <Separator />
+            <div className="flex flex-col gap-1">
+              {/* Action buttons */}
+              <Button size="xs" variant="default" onClick={handlePublishPress}>
+                Publish: Make it live now
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  client.createAppWindow.mutate({
+                    routes: [{key: 'preview', draftId}],
+                    sidebarLocked: false,
+                    sidebarWidth: 0,
+                    accessoryWidth: 0,
+                  })
+                }}
+              >
+                Preview: View before publishing
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => popoverState.onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
       {firstPublishDialog.content}
     </>
   )
