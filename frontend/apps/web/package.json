@@ -65,7 +65,7 @@
     "@tiptap/extension-underline": "2.0.3",
     "@tiptap/pm": "2.0.3",
     "@tiptap/react": "2.0.3",
-    "@yudiel/react-qr-scanner": "^2.3.1",
+    "@yudiel/react-qr-scanner": "^2.5.1",
     "better-sqlite3": "^12.4.1",
     "blockstore-core": "^5.0.2",
     "class-variance-authority": "^0.7.1",
