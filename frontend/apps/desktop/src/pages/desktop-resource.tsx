@@ -1,9 +1,11 @@
 import {CommentBox} from '@/components/commenting'
+import {useDesktopMobileConfig} from '@/hooks/use-mobile-config'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
+  const mobileConfig = useDesktopMobileConfig()
 
   // Only handle document-related routes
   const supportedKeys = [
@@ -22,5 +24,11 @@ export default function DesktopResourcePage() {
   const docId = route.id
   if (!docId) throw new Error('No document ID in route')
 
-  return <ResourcePage docId={docId} CommentEditor={CommentBox} />
+  return (
+    <ResourcePage
+      docId={docId}
+      CommentEditor={CommentBox}
+      mobileConfig={mobileConfig}
+    />
+  )
 }
