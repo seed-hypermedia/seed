@@ -304,7 +304,7 @@ export default function PublishDraftButton() {
         </Tooltip>
         <PopoverContent
           align="end"
-          className="w-96"
+          className="w-80"
           onOpenAutoFocus={(e) => {
             e.preventDefault()
             ;(e.currentTarget as HTMLElement)?.focus()
@@ -312,15 +312,15 @@ export default function PublishDraftButton() {
         >
           <div className="flex flex-col gap-4">
             {/* You are publishing section */}
-            <div className="flex flex-col gap-2">
-              <p className="text-lg font-medium">You are publishing</p>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium">You are publishing</p>
               {documentUrl && (
                 <div className="flex items-center gap-1">
                   <span className="shrink-0">
-                    <Document size={16} color="currentColor" />
+                    <Document size={12} color="currentColor" />
                   </span>
                   <span
-                    className="text-sm"
+                    className="text-xs"
                     style={{
                       direction: 'rtl',
                       textAlign: 'left',
@@ -338,9 +338,9 @@ export default function PublishDraftButton() {
             <Separator />
 
             {/* Your page will be available at section */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
-                <p className="text-lg font-medium">
+                <p className="text-sm font-medium">
                   Your page will be available at
                 </p>
                 {isFirstPublish && editableLocation && (
@@ -348,7 +348,7 @@ export default function PublishDraftButton() {
                     content={isEditingPath ? 'Done editing' : 'Edit path'}
                   >
                     <Button
-                      size="xs"
+                      size="iconSm"
                       variant="ghost"
                       onClick={() => setIsEditingPath(!isEditingPath)}
                     >
@@ -357,19 +357,10 @@ export default function PublishDraftButton() {
                   </Tooltip>
                 )}
               </div>
-              {/* Full document URL shown smaller above input */}
-              {documentUrl && (
-                <span
-                  className="text-muted-foreground text-xs"
-                  style={{
-                    direction: 'rtl',
-                    textAlign: 'left',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {documentUrl}
+              {/* Parent URL shown above input */}
+              {parentUrl && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {parentUrl.endsWith('/') ? parentUrl : `${parentUrl}/`}
                 </span>
               )}
               {isEditingPath && isFirstPublish && editableLocation ? (
@@ -398,14 +389,14 @@ export default function PublishDraftButton() {
                     }
                   }}
                   placeholder="document-path"
-                  className="text-sm"
+                  className="h-8 text-xs"
                   autoFocus
                 />
               ) : documentUrl ? (
                 <CopyUrlField size="sm" url={documentUrl} label="Document" />
               ) : (
-                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                  <Spinner className="size-4" />
+                <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <Spinner className="size-3" />
                   <span>Loading...</span>
                 </div>
               )}
@@ -413,11 +404,11 @@ export default function PublishDraftButton() {
             <Separator />
             <div className="flex flex-col gap-1">
               {/* Action buttons */}
-              <Button size="sm" variant="default" onClick={handlePublishPress}>
+              <Button size="xs" variant="default" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
               <Button
-                size="sm"
+                size="xs"
                 variant="outline"
                 onClick={() => {
                   client.createAppWindow.mutate({
@@ -431,7 +422,7 @@ export default function PublishDraftButton() {
                 Preview: View before publishing
               </Button>
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 onClick={() => popoverState.onOpenChange(false)}
               >
