@@ -51,7 +51,6 @@ export function DiscussionsPageContent({
   contentMaxWidth,
 }: DiscussionsPageContentProps) {
   const route = useNavRoute()
-  const discussionsRoute = (route.key === 'discussions' ? route : undefined)!
   const scrollRef = useScrollRestoration({
     scrollId: `discussions-page-${docId.id}-${openComment || 'all'}-${
       targetBlockId || ''
@@ -117,8 +116,8 @@ export function DiscussionsPageContent({
       headerRight={
         showOpenInPanel ? (
           <OpenInPanelButton
-            id={discussionsRoute.id}
-            panelRoute={{key: 'discussions', id: discussionsRoute.id}}
+            id={docId}
+            panelRoute={{key: 'discussions', id: docId}}
           />
         ) : undefined
       }
