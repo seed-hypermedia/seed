@@ -11,4 +11,4 @@ echo "3. Clean up when complete"
 echo ""
 
 # Run Lighthouse with automatic app launching
-yarn test --lighthouse 
+pnpm test --lighthouse 
