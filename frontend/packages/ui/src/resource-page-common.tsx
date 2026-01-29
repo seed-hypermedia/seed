@@ -13,6 +13,7 @@ import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
+import {useMedia} from './use-media'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
 import {
   PageDeleted,
@@ -208,8 +209,18 @@ function PageWrapper({
   document?: HMDocument
   children: React.ReactNode
 }) {
+  // Mobile: let content flow naturally (document scroll)
+  // Desktop: fixed height container (element scroll via ScrollArea in children)
+  const media = useMedia()
+  const isMobile = media.xs
+
   return (
-    <div className={cn('flex h-full flex-col')}>
+    <div className={cn(
+      'flex flex-col',
+      // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
+      // On mobile: natural height for document scrolling
+      isMobile ? 'min-h-dvh' : 'h-dvh',
+    )}>
       <SiteHeader
         siteHomeId={siteHomeId}
         docId={docId}
@@ -283,56 +294,76 @@ function DocumentBody({
     showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
   })
 
+  // Use document scroll on mobile, element scroll on desktop
+  const media = useMedia()
+  const isMobile = media.xs
+
+  const content = (
+    <>
+      <DocumentCover cover={document.metadata?.cover} />
+
+      <div
+        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+        style={{maxWidth: contentMaxWidth}}
+      >
+        {!isHomeDoc && (
+          <DocumentHeader
+            docId={docId}
+            docMetadata={document.metadata}
+            authors={[]}
+            updateTime={document.updateTime}
+          />
+        )}
+      </div>
+
+      {/* Sentinel element - also provides top spacing before tools */}
+      <div ref={toolsSentinelRef} className="h-3" />
+
+      {/* DocumentTools - sticky with compact padding */}
+      <div
+        className={cn(
+          'dark:bg-background sticky top-0 z-10 bg-white py-1',
+          isToolsSticky ? 'shadow-md' : 'shadow-none',
+          'transition-shadow',
+        )}
+      >
+        <DocumentTools
+          id={docId}
+          activeTab={activeView}
+          commentsCount={interactionSummary.data?.comments || 0}
+          directoryCount={directory.data?.length}
+        />
+      </div>
+
+      {/* Main content based on activeView */}
+      <MainContent
+        docId={docId}
+        document={document}
+        activeView={activeView}
+        contentMaxWidth={contentMaxWidth}
+        wrapperProps={wrapperProps}
+        sidebarProps={sidebarProps}
+        mainContentProps={mainContentProps}
+        showSidebars={showSidebars}
+        discussionsParams={discussionsParams}
+      />
+    </>
+  )
+
+  // Mobile: use document scroll (no ScrollArea, content flows naturally)
+  // Desktop: use element scroll (ScrollArea contains content)
+  if (isMobile) {
+    return (
+      <div className="relative flex flex-1 flex-col" ref={elementRef}>
+        {content}
+      </div>
+    )
+  }
+
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
       <ScrollArea className="flex-1">
-        <DocumentCover cover={document.metadata?.cover} />
-
-        <div
-          className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-          style={{maxWidth: contentMaxWidth}}
-        >
-          {!isHomeDoc && (
-            <DocumentHeader
-              docId={docId}
-              docMetadata={document.metadata}
-              authors={[]}
-              updateTime={document.updateTime}
-            />
-          )}
-        </div>
-
-        {/* Sentinel element - also provides top spacing before tools */}
-        <div ref={toolsSentinelRef} className="h-3" />
-
-        {/* DocumentTools - sticky with compact padding, direct child of scroll area */}
-        <div
-          className={cn(
-            'dark:bg-background sticky top-0 z-10 bg-white py-1',
-            isToolsSticky ? 'shadow-md' : 'shadow-none',
-            'transition-shadow',
-          )}
-        >
-          <DocumentTools
-            id={docId}
-            activeTab={activeView}
-            commentsCount={interactionSummary.data?.comments || 0}
-            directoryCount={directory.data?.length}
-          />
-        </div>
-
-        {/* Main content based on activeView */}
-        <MainContent
-          docId={docId}
-          document={document}
-          activeView={activeView}
-          contentMaxWidth={contentMaxWidth}
-          wrapperProps={wrapperProps}
-          sidebarProps={sidebarProps}
-          mainContentProps={mainContentProps}
-          showSidebars={showSidebars}
-          discussionsParams={discussionsParams}
-        />
+        {content}
       </ScrollArea>
     </div>
   )
