@@ -315,8 +315,10 @@ export default function PublishDraftButton() {
             <div className="flex flex-col gap-2">
               <p className="text-lg font-medium">You are publishing</p>
               {documentUrl && (
-                <div className="flex items-center gap-2">
-                  <Document size={16} color="currentColor" />
+                <div className="flex items-center gap-1">
+                  <span className="shrink-0">
+                    <Document size={16} color="currentColor" />
+                  </span>
                   <span
                     className="text-sm"
                     style={{
