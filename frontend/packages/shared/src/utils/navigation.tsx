@@ -1,7 +1,8 @@
 import {Buffer} from 'buffer'
-import {createContext, useContext} from 'react'
+import {createContext, useCallback, useContext} from 'react'
 import {UnpackedHypermediaId} from '../hm-types'
 import {defaultRoute, NavRoute} from '../routes'
+import {UniversalAppContext} from '../routing'
 import {useStream, useStreamSelector} from '../use-stream'
 import {hmId} from './entity-id-url'
 import {StateStream} from './stream'
@@ -200,18 +201,29 @@ export function useNavigationDispatch() {
   return nav.dispatch
 }
 
-export function useNavigate() {
+/**
+ * Unified navigation hook that works on both web and desktop.
+ * On web, it syncs with the browser URL via openRoute from UniversalAppContext.
+ * On desktop, it dispatches to navigation state.
+ *
+ * @param mode - 'push' adds to history, 'replace' replaces current entry
+ */
+export function useNavigate(mode: 'push' | 'replace' = 'push') {
+  const context = useContext(UniversalAppContext)
   const dispatch = useNavigationDispatch()
-  return (route: NavRoute) => {
-    dispatch({type: 'push', route})
-  }
-}
 
-export function useReplace() {
-  const dispatch = useNavigationDispatch()
-  return (route: NavRoute) => {
-    dispatch({type: 'replace', route})
-  }
+  return useCallback(
+    (route: NavRoute) => {
+      // Use openRoute from context if available (handles URL sync on web)
+      if (context?.openRoute) {
+        context.openRoute(route, mode === 'replace')
+      } else {
+        // Fallback to direct dispatch (shouldn't happen in normal usage)
+        dispatch({type: mode, route})
+      }
+    },
+    [context, dispatch, mode],
+  )
 }
 
 export type NavMode = 'push' | 'replace' | 'spawn' | 'backplace'
