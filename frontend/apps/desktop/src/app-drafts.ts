@@ -5,6 +5,7 @@ import {
   HMDraftContent,
   HMDraftContentSchema,
   HMListedDraft,
+  HMListedDraftReadSchema,
   HMListedDraftSchema,
   HMMetadata,
   HMNavigationItemSchema,
@@ -115,18 +116,30 @@ export async function initDrafts() {
         }
       }
     }
-    const indexedDraft: HMListedDraft = {
+    const locationUid = isNewChild ? draftHmId?.uid : undefined
+    const locationPath = isNewChild
+      ? draftHmId?.path?.slice(0, -1) || []
+      : undefined
+
+    // Skip invalid legacy drafts that have neither locationUid nor editUid
+    if (!editUid && !locationUid) {
+      console.warn(
+        `Skipping invalid legacy draft: ${oldDraftPath} (no location or edit)`,
+      )
+      oldDraftsToRm.push(oldDraftPath)
+      return
+    }
+
+    const indexedDraft = {
       id: newDraftId,
-      locationUid: isNewChild ? draftHmId?.uid : undefined,
-      locationPath: isNewChild
-        ? draftHmId?.path?.slice(0, -1) || []
-        : undefined,
+      locationUid,
+      locationPath,
       editUid,
       editPath,
       metadata: metadata || {},
       lastUpdateTime: lastUpdateTime || Date.now(),
       visibility: visibility || 'PUBLIC',
-    }
+    } as HMListedDraft
     const newDraft = {
       ...restDraft,
       deps,
@@ -181,8 +194,21 @@ export async function initDrafts() {
   } else {
     // draftIndexPath exits!
     const draftIndexJSON = await fs.readFile(draftIndexPath, 'utf-8')
-    draftIndex = z.array(HMListedDraftSchema).parse(
-      JSON.parse(draftIndexJSON).map((item: any) => {
+    const rawDrafts = JSON.parse(draftIndexJSON) as any[]
+
+    // Warn about legacy drafts without location (they'll be treated as first publish)
+    rawDrafts.forEach((item) => {
+      if (!item.editUid && !item.locationUid) {
+        console.warn(
+          `Legacy draft without location: ${item.id} - will prompt for location on publish`,
+        )
+      }
+    })
+
+    // Use looser schema for reading (no refinement) to preserve legacy drafts
+    // Type assertion: legacy drafts may not satisfy strict HMListedDraft but publish UI handles it
+    draftIndex = z.array(HMListedDraftReadSchema).parse(
+      rawDrafts.map((item: any) => {
         return {
           ...item,
           metadata: fixDraftMetadata(item.metadata || {}),
@@ -194,7 +220,7 @@ export async function initDrafts() {
             : undefined,
         }
       }),
-    )
+    ) as HMListedDraft[]
   }
 }
 
@@ -288,22 +314,25 @@ export const draftsApi = t.router({
         throw Error('[DRAFT]: Draft Index not initialized')
       }
 
+      if (!input.editUid && !input.locationUid) {
+        throw Error('[DRAFT]: Either editUid or locationUid must be provided')
+      }
+
       const draftId = input.id || nanoid(10)
       const draftPath = join(draftsDir, `${draftId}.json`)
 
-      draftIndex = [
-        ...draftIndex.filter((d) => d.id !== draftId),
-        {
-          id: draftId,
-          locationUid: input.locationUid,
-          locationPath: input.locationPath,
-          editUid: input.editUid,
-          editPath: input.editPath,
-          metadata: input.metadata,
-          lastUpdateTime: Date.now(),
-          visibility: input.visibility,
-        },
-      ]
+      const newDraft = {
+        id: draftId,
+        locationUid: input.locationUid,
+        locationPath: input.locationPath,
+        editUid: input.editUid,
+        editPath: input.editPath,
+        metadata: input.metadata,
+        lastUpdateTime: Date.now(),
+        visibility: input.visibility,
+      } as HMListedDraft
+
+      draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]
       await saveDraftIndex()
       const draft: HMDraftContent = {
         content: input.content,
