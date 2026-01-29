@@ -11,7 +11,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
@@ -29,6 +29,8 @@ import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
+import {MobileInteractionBar} from './mobile-interaction-bar'
+import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
 import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
@@ -65,13 +67,48 @@ export interface CommentEditorProps {
   autoFocus?: boolean
 }
 
+/** Mobile-specific configuration for the ResourcePage */
+export interface MobileConfig {
+  /** Current user account (null if not logged in) */
+  account?: {
+    id: UnpackedHypermediaId
+    metadata?: {name?: string; icon?: string}
+  } | null
+  /** Callback for avatar click (e.g., to open account creation) */
+  onAvatarClick?: () => void
+  /** Additional content to render (e.g., account creation dialog) */
+  extraContent?: ReactNode
+}
+
 export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  /** Mobile-specific configuration (web only) */
+  mobileConfig?: MobileConfig
 }
 
-export function ResourcePage({docId, CommentEditor}: ResourcePageProps) {
+/** Get panel title for display */
+function getPanelTitle(panelKey: string | null): string {
+  switch (panelKey) {
+    case 'activity':
+      return 'Activity'
+    case 'discussions':
+      return 'Discussions'
+    case 'directory':
+      return 'Directory'
+    case 'collaborators':
+      return 'Collaborators'
+    default:
+      return 'Panel'
+  }
+}
+
+export function ResourcePage({
+  docId,
+  CommentEditor,
+  mobileConfig,
+}: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
     subscribed: true,
@@ -202,6 +239,7 @@ export function ResourcePage({docId, CommentEditor}: ResourcePageProps) {
         docId={docId}
         document={document}
         CommentEditor={CommentEditor}
+        mobileConfig={mobileConfig}
       />
     </PageWrapper>
   )
@@ -311,10 +349,12 @@ function DocumentBody({
   docId,
   document,
   CommentEditor,
+  mobileConfig,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  mobileConfig?: MobileConfig
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -342,6 +382,9 @@ function DocumentBody({
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
   const toolsSentinelRef = useRef<HTMLDivElement>(null)
+
+  // Mobile panel state
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   useEffect(() => {
     const sentinel = toolsSentinelRef.current
@@ -543,12 +586,48 @@ function DocumentBody({
     }
   }
 
-  // Mobile: use document scroll (no panels, content flows naturally)
+  // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
-      <div className="relative flex flex-1 flex-col" ref={elementRef}>
-        {mainPageContent}
-      </div>
+      <>
+        <div
+          className="relative flex flex-1 flex-col pb-16"
+          ref={elementRef}
+        >
+          {mainPageContent}
+        </div>
+
+        {/* Mobile bottom bar */}
+        {mobileConfig && (
+          <MobileInteractionBar
+            docId={docId}
+            commentsCount={interactionSummary.data?.comments || 0}
+            onCommentsClick={() => setMobilePanelOpen(true)}
+            account={mobileConfig.account}
+            onAvatarClick={mobileConfig.onAvatarClick}
+            extraContent={mobileConfig.extraContent}
+          />
+        )}
+
+        {/* Mobile panel sheet */}
+        <MobilePanelSheet
+          isOpen={mobilePanelOpen}
+          title={getPanelTitle('discussions')}
+          onClose={() => setMobilePanelOpen(false)}
+        >
+          <DiscussionsPageContent
+            docId={docId}
+            showTitle={false}
+            showOpenInPanel={false}
+            contentMaxWidth={contentMaxWidth}
+            commentEditor={
+              CommentEditor ? (
+                <CommentEditor docId={docId} autoFocus />
+              ) : undefined
+            }
+          />
+        </MobilePanelSheet>
+      </>
     )
   }
 
