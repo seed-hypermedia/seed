@@ -133,30 +133,30 @@ export default function PublishDraftButton() {
   // Track if location is available (not already taken)
   const isLocationAvailable = useRef(true)
 
+  // Track the document name we used for initialization
+  const initializedWithName = useRef<string | null>(null)
+
   // Initialize editable location when signingAccountId becomes available
   useEffect(() => {
-    if (!isFirstPublish || editableLocation) return
+    if (!isFirstPublish) return
     if (!signingAccountId) return
+
+    const docName = draft.data?.metadata.name
+    // Skip if we already initialized with this exact name (or no name)
+    if (initializedWithName.current === (docName || '')) return
 
     // For first publish, use the draft's location if available, otherwise use the signing account
     const baseUid = defaultLocationId?.uid || signingAccountId
     const basePath = defaultLocationId?.path || []
-    const docName = pathNameify(
-      draft.data?.metadata.name || 'Untitled Document',
-    )
+    const pathifiedName = pathNameify(docName || 'Untitled Document')
 
+    initializedWithName.current = docName || ''
     setEditableLocation(
       hmId(baseUid, {
-        path: [...basePath, docName],
+        path: [...basePath, pathifiedName],
       }),
     )
-  }, [
-    isFirstPublish,
-    signingAccountId,
-    defaultLocationId,
-    draft.data?.metadata.name,
-    editableLocation,
-  ])
+  }, [isFirstPublish, signingAccountId, defaultLocationId, draft.data?.metadata.name])
 
   // Use editable location for first publish, otherwise use editId
   const locationId = isFirstPublish ? editableLocation : editId
