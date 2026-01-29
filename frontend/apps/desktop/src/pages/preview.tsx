@@ -20,13 +20,35 @@ import {cn} from '@shm/ui/utils'
 import {useCallback, useMemo} from 'react'
 
 // Convert flat EditorBlock array to tree HMBlockNode array
+// Gracefully handles unsupported block types by rendering them as paragraphs with a message
 function editorBlocksToBlockNodes(editorBlocks: EditorBlock[]): HMBlockNode[] {
-  return editorBlocks.map((block) => ({
-    block: editorBlockToHMBlock(block),
-    children: block.children
-      ? editorBlocksToBlockNodes(block.children)
-      : undefined,
-  }))
+  return editorBlocks
+    .map((block) => {
+      try {
+        return {
+          block: editorBlockToHMBlock(block),
+          children: block.children
+            ? editorBlocksToBlockNodes(block.children)
+            : undefined,
+        }
+      } catch (error) {
+        // Return a fallback paragraph block for unsupported types
+        console.warn(`Preview: Unsupported block type "${block.type}"`, error)
+        return {
+          block: {
+            id: block.id,
+            type: 'Paragraph' as const,
+            text: `[Unsupported block type: ${block.type}]`,
+            annotations: [],
+            attributes: {},
+          },
+          children: block.children
+            ? editorBlocksToBlockNodes(block.children)
+            : undefined,
+        }
+      }
+    })
+    .filter(Boolean) as HMBlockNode[]
 }
 
 export default function PreviewPage() {
