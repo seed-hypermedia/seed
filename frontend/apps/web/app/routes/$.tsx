@@ -1,4 +1,5 @@
 import {useFullRender} from '@/cache-policy'
+import {WebCommenting} from '@/client-lazy'
 import {FeedPage} from '@/feed'
 import {
   createInstrumentationContext,
@@ -23,7 +24,6 @@ import {
   hmId,
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
-  PanelQueryKey,
   VIEW_TERMS,
   ViewRouteKey,
 } from '@shm/shared'
@@ -35,7 +35,7 @@ import {SizableText} from '@shm/ui/text'
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: PanelQueryKey | null
+  panelParam?: string | null // Supports extended format like "discussions:BLOCKID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -220,7 +220,7 @@ export const loader = async ({
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
   const feed = url.searchParams.get('feed') === 'true'
-  const panelParam = url.searchParams.get('panel') as PanelQueryKey | null
+  const panelParam = url.searchParams.get('panel')
 
   const serviceConfig = await instrument(ctx, 'getConfig', () =>
     getConfig(hostname),
@@ -315,7 +315,7 @@ export default function UnifiedDocumentPage() {
       dehydratedState={data.dehydratedState}
       initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
     >
-      <WebResourcePage docId={data.id} />
+      <WebResourcePage docId={data.id} CommentEditor={WebCommenting} />
     </WebSiteProvider>
   )
 }

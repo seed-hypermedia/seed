@@ -1,4 +1,5 @@
 import {
+  BlockRange,
   DocumentPanelRoute,
   HMDocument,
   hmId,
@@ -8,9 +9,15 @@ import {
 import {useDirectory, useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
+import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {useEffect, useRef, useState} from 'react'
-import {BlocksContent, BlocksContentProvider} from './blocks-content'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {
+  BlockRangeSelectOptions,
+  BlocksContent,
+  BlocksContentProvider,
+} from './blocks-content'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {ReadOnlyCollaboratorsContent} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
@@ -52,11 +59,19 @@ function getActiveView(routeKey: string): ActiveView {
   }
 }
 
-export interface ResourcePageProps {
+export interface CommentEditorProps {
   docId: UnpackedHypermediaId
+  quotingBlockId?: string
+  autoFocus?: boolean
 }
 
-export function ResourcePage({docId}: ResourcePageProps) {
+export interface ResourcePageProps {
+  docId: UnpackedHypermediaId
+  /** Factory to create comment editor - platform-specific (web vs desktop) */
+  CommentEditor?: React.ComponentType<CommentEditorProps>
+}
+
+export function ResourcePage({docId, CommentEditor}: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
     subscribed: true,
@@ -183,7 +198,11 @@ export function ResourcePage({docId}: ResourcePageProps) {
       headerData={headerData}
       document={document}
     >
-      <DocumentBody docId={docId} document={document} />
+      <DocumentBody
+        docId={docId}
+        document={document}
+        CommentEditor={CommentEditor}
+      />
     </PageWrapper>
   )
 }
@@ -291,9 +310,11 @@ function PageWrapper({
 function DocumentBody({
   docId,
   document,
+  CommentEditor,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  CommentEditor?: React.ComponentType<CommentEditorProps>
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -359,6 +380,91 @@ function DocumentBody({
   const media = useMedia()
   const isMobile = media.xs
 
+  // Block tools handlers
+  const blockCitations = useMemo(
+    () => interactionSummary.data?.blocks || null,
+    [interactionSummary.data?.blocks],
+  )
+
+  const handleBlockCitationClick = useCallback(
+    (blockId?: string | null) => {
+      if (route.key !== 'document' && route.key !== 'feed') return
+      navigate({
+        ...route,
+        id: {
+          ...route.id,
+          blockRef: blockId || null,
+          blockRange: null,
+        },
+        panel: {
+          key: 'discussions',
+          id: route.id,
+          blockId: blockId || undefined,
+        },
+      })
+    },
+    [route, navigate],
+  )
+
+  const handleBlockCommentClick = useCallback(
+    (
+      blockId?: string | null,
+      blockRangeInput?: BlockRange | undefined,
+      _startCommentingNow?: boolean,
+    ) => {
+      if (route.key !== 'document' && route.key !== 'feed') return
+      if (!blockId) return
+      // Validate blockRange has proper structure
+      const blockRange =
+        blockRangeInput &&
+        'start' in blockRangeInput &&
+        'end' in blockRangeInput
+          ? blockRangeInput
+          : null
+      navigate({
+        ...route,
+        id: {
+          ...route.id,
+          blockRef: blockId,
+          blockRange,
+        },
+        panel: {
+          key: 'discussions',
+          id: route.id,
+          targetBlockId: blockId,
+          blockRange,
+          autoFocus: true,
+        },
+      })
+    },
+    [route, navigate],
+  )
+
+  // Block select handler (for copy block link)
+  const handleBlockSelect = useCallback(
+    (blockId: string, opts?: BlockRangeSelectOptions) => {
+      if (route.key !== 'document' && route.key !== 'feed') return
+      const shouldCopy = opts?.copyToClipboard !== false
+      if (blockId && shouldCopy) {
+        // Create route with block reference
+        const blockRoute = {
+          ...route,
+          id: {
+            ...route.id,
+            blockRef: blockId,
+            blockRange:
+              opts && 'start' in opts && 'end' in opts
+                ? {start: opts.start, end: opts.end}
+                : null,
+          },
+        }
+        const url = routeToUrl(blockRoute)
+        copyUrlToClipboardWithFeedback(url, 'Block')
+      }
+    },
+    [route],
+  )
+
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
@@ -408,6 +514,11 @@ function DocumentBody({
         mainContentProps={mainContentProps}
         showSidebars={showSidebars}
         discussionsParams={discussionsParams}
+        blockCitations={blockCitations}
+        onBlockCitationClick={handleBlockCitationClick}
+        onBlockCommentClick={handleBlockCommentClick}
+        onBlockSelect={handleBlockSelect}
+        CommentEditor={CommentEditor}
       />
     </>
   )
@@ -448,6 +559,7 @@ function DocumentBody({
         panelRoute={panelRoute!}
         docId={docId}
         contentMaxWidth={contentMaxWidth}
+        CommentEditor={CommentEditor}
       />
     </ScrollArea>
   ) : null
@@ -479,10 +591,12 @@ function PanelContentRenderer({
   panelRoute,
   docId,
   contentMaxWidth,
+  CommentEditor,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
   contentMaxWidth: number
+  CommentEditor?: React.ComponentType<CommentEditorProps>
 }) {
   switch (panelRoute.key) {
     case 'activity':
@@ -503,6 +617,16 @@ function PanelContentRenderer({
           showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
           openComment={panelRoute.openComment}
+          targetBlockId={panelRoute.targetBlockId}
+          commentEditor={
+            CommentEditor ? (
+              <CommentEditor
+                docId={docId}
+                quotingBlockId={panelRoute.targetBlockId}
+                autoFocus
+              />
+            ) : undefined
+          }
         />
       )
     case 'directory':
@@ -534,6 +658,11 @@ function MainContent({
   mainContentProps,
   showSidebars,
   discussionsParams,
+  blockCitations,
+  onBlockCitationClick,
+  onBlockCommentClick,
+  onBlockSelect,
+  CommentEditor,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -549,6 +678,15 @@ function MainContent({
     blockId?: string
     blockRange?: import('@shm/shared').BlockRange | null
   }
+  blockCitations?: Record<string, {citations: number; comments: number}> | null
+  onBlockCitationClick?: (blockId?: string | null) => void
+  onBlockCommentClick?: (
+    blockId?: string | null,
+    blockRange?: BlockRange | undefined,
+    startCommentingNow?: boolean,
+  ) => void
+  onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  CommentEditor?: React.ComponentType<CommentEditorProps>
 }) {
   switch (activeView) {
     case 'directory':
@@ -602,6 +740,14 @@ function MainContent({
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}
+          commentEditor={
+            CommentEditor ? (
+              <CommentEditor
+                docId={docId}
+                quotingBlockId={discussionsParams?.targetBlockId}
+              />
+            ) : undefined
+          }
         />
       )
 
@@ -614,7 +760,13 @@ function MainContent({
           )}
 
           <div {...mainContentProps}>
-            <BlocksContentProvider resourceId={docId}>
+            <BlocksContentProvider
+              resourceId={docId}
+              blockCitations={blockCitations}
+              onBlockCitationClick={onBlockCitationClick}
+              onBlockCommentClick={onBlockCommentClick}
+              onBlockSelect={onBlockSelect}
+            >
               <BlocksContent blocks={document.content} />
             </BlocksContentProvider>
           </div>

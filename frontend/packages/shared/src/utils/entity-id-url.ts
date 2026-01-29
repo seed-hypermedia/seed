@@ -168,22 +168,32 @@ function getRouteViewTerm(route: NavRoute): string | null {
 }
 
 /**
- * Extract panel key from route for URL query param
+ * Extract panel param from route for URL query param
+ * For discussions with targetBlockId, returns "discussions:BLOCKID"
  */
-function getRoutePanelParam(route: NavRoute): PanelQueryKey | null {
+function getRoutePanelParam(route: NavRoute): string | null {
+  let panel: {key: string; targetBlockId?: string} | null | undefined = null
+
   if (route.key === 'document' && route.panel) {
-    return route.panel.key as PanelQueryKey
-  }
-  if (
+    panel = route.panel
+  } else if (
     (route.key === 'activity' ||
       route.key === 'discussions' ||
       route.key === 'collaborators' ||
       route.key === 'directory') &&
     route.panel
   ) {
-    return route.panel.key as PanelQueryKey
+    panel = route.panel
   }
-  return null
+
+  if (!panel) return null
+
+  // Encode targetBlockId into discussions panel param
+  if (panel.key === 'discussions' && panel.targetBlockId) {
+    return `discussions:${panel.targetBlockId}`
+  }
+
+  return panel.key as PanelQueryKey
 }
 /**
  * Get the comment ID from a route if viewing a specific comment
@@ -284,7 +294,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
     viewTerm?: string | null
-    panel?: PanelQueryKey | null
+    panel?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -326,7 +336,7 @@ function getHMQueryString({
   feed?: boolean
   version?: string | null
   latest?: boolean | null
-  panel?: PanelQueryKey | null
+  panel?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -514,7 +524,7 @@ export function idToUrl(
   opts?: {
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
-    panel?: PanelQueryKey | null
+    panel?: string | null
   },
 ) {
   return createWebHMUrl(hmId.uid, {
