@@ -1,5 +1,6 @@
 ---
-description: Review Git Working Directory
+name: review-git-workdir
+description: Review Git working directory.
 ---
 
 Do the code review of the current state of the git working directory. Use `git status` command to see changed files.

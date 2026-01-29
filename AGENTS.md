@@ -34,3 +34,7 @@ Here's a non-exhaustive list of extra rule files. Read them in full when working
 - `proto/**` — @proto/AGENTS.md.
 
 When you learn any new context that is generalized enough to be useful in the future for you, suggest updates to this or others AGENTS.md files.
+
+## Skills
+
+You've got agent skills. Read them from `.claude/skills`.
