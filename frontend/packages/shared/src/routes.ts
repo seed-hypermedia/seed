@@ -5,7 +5,7 @@ import {
   UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from './hm-types'
-import type {ViewRouteKey} from './utils/entity-id-url'
+import type {PanelQueryKey, ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -290,13 +290,38 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
 }
 
 /**
- * Convert docId + viewTerm into a NavRoute
+ * Create a DocumentPanelRoute from a panel key
+ */
+function createPanelRoute(
+  panelParam: PanelQueryKey,
+  docId: UnpackedHypermediaId,
+): DocumentPanelRoute {
+  switch (panelParam) {
+    case 'activity':
+      return {key: 'activity', id: docId}
+    case 'discussions':
+      return {key: 'discussions', id: docId}
+    case 'directory':
+      return {key: 'directory', id: docId}
+    case 'collaborators':
+      return {key: 'collaborators', id: docId}
+    case 'options':
+      return {key: 'options'}
+  }
+}
+
+/**
+ * Convert docId + viewTerm + panelParam into a NavRoute
  * Used by web to initialize navigation context from URL
  */
 export function createDocumentNavRoute(
   docId: UnpackedHypermediaId,
   viewTerm?: ViewRouteKey | null,
+  panelParam?: PanelQueryKey | null,
 ): NavRoute {
+  // Create properly typed panel route if panelParam provided
+  const panel = panelParam ? createPanelRoute(panelParam, docId) : null
+
   switch (viewTerm) {
     case 'activity':
       return {key: 'activity', id: docId}
@@ -307,6 +332,6 @@ export function createDocumentNavRoute(
     case 'collaborators':
       return {key: 'collaborators', id: docId}
     default:
-      return {key: 'document', id: docId}
+      return {key: 'document', id: docId, panel}
   }
 }

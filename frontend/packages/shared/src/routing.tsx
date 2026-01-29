@@ -236,6 +236,10 @@ export function routeToHref(
     })
     href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
+    // Extract panel key for URL query param
+    const panelKey = docRoute.panel?.key as
+      | import('./utils/entity-id-url').PanelQueryKey
+      | undefined
     href = options?.hmUrlHref
       ? hmIdToURL(docId)
       : idToUrl(
@@ -243,6 +247,7 @@ export function routeToHref(
           {
             originHomeId: options?.originHomeId,
             feed: docRoute.key === 'feed',
+            panel: panelKey,
           },
         )
   }
