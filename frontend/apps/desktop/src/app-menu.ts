@@ -29,7 +29,17 @@ export function createAppMenu() {
           label: 'Search / Open',
           accelerator: 'CmdOrCtrl+k',
           click: () => {
-            dispatchFocusedWindowAppEvent({type: 'open_launcher'})
+            dispatchFocusedWindowAppEvent({
+              type: 'focus_omnibar',
+              mode: 'search',
+            })
+          },
+        },
+        {
+          label: 'Focus Address Bar',
+          accelerator: 'CmdOrCtrl+l',
+          click: () => {
+            dispatchFocusedWindowAppEvent({type: 'focus_omnibar', mode: 'url'})
           },
         },
         {type: 'separator'},

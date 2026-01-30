@@ -8,9 +8,9 @@ import {TitleBarProps} from './titlebar'
 import {
   NavigationButtons,
   NavMenuButton,
+  Omnibar,
   PageActionButtons,
 } from './titlebar-common'
-import {TitlebarTitleSearch} from './titlebar-search'
 import './titlebar-windows-linux.css'
 import {SystemMenu} from './windows-linux-titlebar'
 
@@ -46,7 +46,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
           <NavigationButtons />
         </div>
       }
-      title={<TitlebarTitleSearch />}
+      title={<Omnibar />}
     />
   )
 }

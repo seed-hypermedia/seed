@@ -6,6 +6,7 @@ export type AppWindowEvent =
   | {type: 'forward'}
   | {type: 'trigger_database_reindex'}
   | {type: 'open_launcher'}
+  | {type: 'focus_omnibar'; mode: 'url' | 'search'}
   | {type: 'find_in_page'}
   | {type: 'discover'}
   | {type: 'toggle_sidebar'}

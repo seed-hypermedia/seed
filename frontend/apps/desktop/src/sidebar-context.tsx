@@ -155,7 +155,7 @@ export function useSidebarWidth() {
   const sidebarWidth = useStream(sidebarContext.sidebarWidth)
 
   const minWidth = useMemo(() => {
-    return `calc(${sidebarWidth}vw - 36px)`
+    return `calc(${sidebarWidth}vw)`
   }, [sidebarWidth])
 
   return minWidth

@@ -89,10 +89,10 @@ export function TitleContent({
 
   if (route.key === 'contacts') {
     return (
-      <>
+      <span className="flex items-center gap-2">
         <Contact className="size-4" />
         <TitleText {...titleProps}>Contacts</TitleText>
-      </>
+      </span>
     )
   }
   if (route.key === 'directory') {
@@ -135,10 +135,10 @@ export function TitleContent({
   }
   if (route.key === 'favorites') {
     return (
-      <>
+      <span className="flex items-center gap-2">
         <Star className="size-4" />
         <TitleText {...titleProps}>Favorites</TitleText>
-      </>
+      </span>
     )
   }
   if (route.key === 'library') {
@@ -151,10 +151,10 @@ export function TitleContent({
   }
   if (route.key === 'drafts') {
     return (
-      <>
+      <span className="flex items-center gap-2">
         <File className="size-4" />
         <TitleText {...titleProps}>Drafts</TitleText>
-      </>
+      </span>
     )
   }
   if (route.key === 'contact') {
@@ -312,8 +312,13 @@ function BreadcrumbTitle({
         activeContent && blockId
           ? findContentBlock(activeContent, blockId)
           : null
+      const blockText =
+        (blockNode?.block && getBlockText(blockNode?.block)) || 'Block'
+      // Limit block text to 50 characters
+      const truncatedBlockText =
+        blockText.length > 50 ? blockText.slice(0, 50) + '...' : blockText
       crumbs.push({
-        name: (blockNode?.block && getBlockText(blockNode?.block)) || 'Block',
+        name: truncatedBlockText,
         id: null,
         crumbKey: `content`,
       })
@@ -792,32 +797,18 @@ function BreadcrumbItem({
       {draft ? <DraftBadge className="flex-shrink-0" /> : null}
     </div>
   ) : (
-    <TitleTextButton
+    <TitleText
       ref={observerRef}
-      onClick={() => {
-        if (details.id) navigate({key: 'document', id: details.id})
-      }}
       className={cn('no-window-drag font-normal', maxWidth ? 'truncate' : '')}
       style={textStyle}
       {...highlighter(details.id)}
     >
       {details.name}
-    </TitleTextButton>
+    </TitleText>
   )
   return (
     <div className={cn('no-window-drag', isActive ? 'min-w-0 flex-1' : '')}>
-      <HoverCard>
-        <HoverCardTrigger>{content}</HoverCardTrigger>
-        {draft ? null : (
-          <HoverCardContent
-            side="bottom"
-            align="start"
-            className="w-full max-w-lg p-1"
-          >
-            <PathItemCard details={details} homeMetadata={homeMetadata} />
-          </HoverCardContent>
-        )}
-      </HoverCard>
+      {content}
     </div>
   )
 }
@@ -956,11 +947,6 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     }
   }, [draft.data, route.locationUid, route.locationPath])
 
-  useWindowTitleSetter(async () => {
-    if (draft.data?.metadata?.name) return `Draft: ${draft.data.metadata.name}`
-    return 'Draft'
-  }, [draft.data?.metadata?.name])
-
   const editId = useMemo(() => {
     const eid = draftEditId(draft.data)
     if (eid) return eid
@@ -971,6 +957,21 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
     }
     return undefined
   }, [draft.data, route.editUid, route.editPath])
+
+  // Fetch the document being edited to get its name when draft data isn't available yet
+  const editDocument = useResource(editId)
+  const editDocName =
+    editDocument.data?.type === 'document'
+      ? getDocumentTitle(editDocument.data.document)
+      : undefined
+
+  // Use draft name if available, otherwise use the document name being edited
+  const displayName = draft.data?.metadata?.name || editDocName
+
+  useWindowTitleSetter(async () => {
+    if (displayName) return `Draft: ${displayName}`
+    return 'Draft'
+  }, [displayName])
 
   // For private drafts, we only show the account root since the path is a random nanoid.
   const isPrivate =
@@ -994,8 +995,8 @@ function DraftTitle({route}: {route: DraftRoute; size?: string}) {
         entityId={editId}
         panel={route.panel}
         hideControls
-        draftName={draft.data?.metadata?.name}
-        replaceLastItem={!!draft.data?.metadata?.name}
+        draftName={displayName}
+        replaceLastItem={!!displayName}
         draft
         isNewDraft={!draft.data?.deps?.length}
       />
