@@ -244,8 +244,8 @@ describe('documentHasSelfQuery', () => {
     expect(documentHasSelfQuery(doc, documentId)).toBe(true)
   })
 
-  it('returns true when query includes self (matching space and path)', () => {
-    // Note: hmIdPathToEntityQueryPath returns paths with leading slash
+  it('returns true when query includes self (matching space and path with leading slash)', () => {
+    // hmIdPathToEntityQueryPath returns paths with leading slash
     const doc = createDocument([
       {
         block: {
@@ -257,6 +257,27 @@ describe('documentHasSelfQuery', () => {
             columnCount: 1,
             query: {
               includes: [{space: 'doc-uid', path: '/my/document', mode: 'Children'}],
+            },
+          },
+        },
+      },
+    ] as HMBlockNode[])
+    expect(documentHasSelfQuery(doc, documentId)).toBe(true)
+  })
+
+  it('returns true when query includes self (matching space and path without leading slash)', () => {
+    // fillEmptyQueryBlocks stores paths without leading slash
+    const doc = createDocument([
+      {
+        block: {
+          id: 'q1',
+          type: 'Query',
+          attributes: {
+            style: 'Card',
+            banner: false,
+            columnCount: 1,
+            query: {
+              includes: [{space: 'doc-uid', path: 'my/document', mode: 'Children'}],
             },
           },
         },

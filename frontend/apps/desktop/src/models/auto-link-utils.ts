@@ -64,7 +64,11 @@ export function documentHasSelfQuery(
   document: HMDocument,
   documentId: UnpackedHypermediaId,
 ): boolean {
-  const documentPath = hmIdPathToEntityQueryPath(documentId.path)
+  // hmIdPathToEntityQueryPath returns "/my/document" with leading slash
+  // but Query blocks may store paths as "my/document" without leading slash
+  // We normalize both to compare correctly
+  const documentPathWithSlash = hmIdPathToEntityQueryPath(documentId.path)
+  const documentPathWithoutSlash = documentId.path?.join('/') || ''
 
   function searchBlocks(nodes: HMBlockNode[]): boolean {
     for (const node of nodes) {
@@ -74,7 +78,11 @@ export function documentHasSelfQuery(
           for (const inc of query.includes) {
             // Self-referential if space is empty or matches document
             const isSpaceMatch = !inc.space || inc.space === documentId.uid
-            const isPathMatch = !inc.path || inc.path === documentPath
+            // Path can be stored with or without leading slash
+            const isPathMatch =
+              !inc.path ||
+              inc.path === documentPathWithSlash ||
+              inc.path === documentPathWithoutSlash
             if (isSpaceMatch && isPathMatch) return true
           }
         }
