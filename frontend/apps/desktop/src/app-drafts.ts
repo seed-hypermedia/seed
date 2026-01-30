@@ -1,4 +1,4 @@
-import {hmIdPathToEntityQueryPath} from '@shm/shared'
+import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
 import {
   HMDocumentMetadataSchema,
   HMDraft,
@@ -270,6 +270,21 @@ export const draftsApi = t.router({
             editId: d.editUid ? hmId(d.editUid, {path: d.editPath}) : undefined,
           })) || []
       )
+    }),
+  findByEdit: t.procedure
+    .input(
+      z.object({
+        editUid: z.string(),
+        editPath: z.array(z.string()),
+      }),
+    )
+    .query(({input}): HMListedDraft | null => {
+      const found = draftIndex?.find(
+        (d) =>
+          d.editUid === input.editUid &&
+          pathMatches(d.editPath || [], input.editPath),
+      )
+      return found || null
     }),
   get: t.procedure
     .input(z.string().optional())

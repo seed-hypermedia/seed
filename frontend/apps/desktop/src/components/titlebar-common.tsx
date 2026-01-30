@@ -48,7 +48,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
-import {DraftBadge} from '@shm/ui/draft-badge'
 import {
   ArrowRight,
   Back,
@@ -65,7 +64,6 @@ import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {usePopoverState} from '@shm/ui/use-popover-state'
 import {cn} from '@shm/ui/utils'
 import {
   ArrowLeftFromLine,
@@ -82,7 +80,6 @@ import {
   ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -881,7 +878,7 @@ export function Omnibar() {
     return (
       <div
         className={cn(
-          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full rounded-md border-2 pl-2',
+          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border-2 pl-2',
           'hover:border-border hover:bg-muted/50',
           'transition-colors',
         )}
