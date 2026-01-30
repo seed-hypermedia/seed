@@ -1097,7 +1097,10 @@ export function usePushResource() {
 // ============================================================================
 
 // Re-export utility functions from auto-link-utils.ts for easier testing
-export {documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-utils'
+export {
+  documentContainsLinkToChild,
+  documentHasSelfQuery,
+} from './auto-link-utils'
 
 /**
  * Add an embed link to a parent draft file

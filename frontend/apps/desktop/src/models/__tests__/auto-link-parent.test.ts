@@ -256,7 +256,9 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [{space: 'doc-uid', path: '/my/document', mode: 'Children'}],
+              includes: [
+                {space: 'doc-uid', path: '/my/document', mode: 'Children'},
+              ],
             },
           },
         },
@@ -277,7 +279,9 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [{space: 'doc-uid', path: 'my/document', mode: 'Children'}],
+              includes: [
+                {space: 'doc-uid', path: 'my/document', mode: 'Children'},
+              ],
             },
           },
         },
@@ -297,7 +301,9 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [{space: 'other-uid', path: 'some/path', mode: 'Children'}],
+              includes: [
+                {space: 'other-uid', path: 'some/path', mode: 'Children'},
+              ],
             },
           },
         },
@@ -317,7 +323,9 @@ describe('documentHasSelfQuery', () => {
             banner: false,
             columnCount: 1,
             query: {
-              includes: [{space: 'doc-uid', path: 'other/path', mode: 'Children'}],
+              includes: [
+                {space: 'doc-uid', path: 'other/path', mode: 'Children'},
+              ],
             },
           },
         },
