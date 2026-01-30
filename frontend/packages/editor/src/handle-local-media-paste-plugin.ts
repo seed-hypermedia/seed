@@ -19,7 +19,10 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         const items = Array.from(event.clipboardData?.items || [])
         const files = Array.from(event.clipboardData?.files || [])
 
-        if (items.length === 0 && files.length === 0) return false
+        if (items.length === 0 && files.length === 0) {
+          console.log('No items or files in clipboard')
+          return false
+        }
 
         const insertPos =
           view.state.selection.$anchor.parent.type.name !== 'image' &&
@@ -32,14 +35,22 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
 
         // Try to find images from the clipboard items
         for (const item of items) {
+          console.log('Checking clipboard item:', item.type)
           if (item.type.startsWith('image/')) {
             const img = item.getAsFile()
             if (img) {
+              console.log('Got image file from clipboard item')
               hasProcessed = true
               processImage(img, view, insertPos, blockNoteEditor)
               return true
+            } else {
+              console.warn('getAsFile() returned null for image item')
             }
           }
+        }
+
+        if (!hasProcessed) {
+          console.log('No direct image items found, will check HTML content')
         }
 
         // If no images found, check if any items have representation as images
@@ -168,6 +179,7 @@ const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
           }
         }
 
+        console.log('Paste handler finished - no media was processed')
         return false
       },
     },
@@ -212,6 +224,7 @@ function processImage(
           console.error('Error processing pasted image:', error)
         })
     } else {
+      console.warn('Using legacy binary storage (no handleFileAttachment)')
       // Fallback to legacy binary storage if handleFileAttachment not available
       const displayReader = new FileReader()
       const binaryReader = new FileReader()
@@ -239,9 +252,11 @@ function processImage(
 
       displayReader.onerror = (error) => {
         console.error('Error reading pasted image as data URL:', error)
+        alert(`Failed to read image: ${error}`)
       }
       binaryReader.onerror = (error) => {
         console.error('Error reading pasted image as binary:', error)
+        alert(`Failed to read image data: ${error}`)
       }
 
       displayReader.readAsDataURL(img)

@@ -607,20 +607,28 @@ export function CommentEditor({
 
     const {blobs, resultCIDs} = await prepareAttachments(binariesToUpload)
 
-    // Update blocks with IPFS URLs
+    // Update blocks with IPFS URLs and clean up temporary properties
     blocksWithAttachments.forEach((block) => {
       const index = blockToIndexMap.get(block)
       if (index !== undefined) {
         // @ts-expect-error
         block.props.url = `ipfs://${resultCIDs[index]}`
-        // Clean up temporary properties
+      } else {
+        // Clear the block if failed to retrieve blob from IndexedDB. This avoids publishing corrupt image.
+        console.error(
+          `Cannot publish block ${block.id} - media not found in IndexedDB`,
+        )
         // @ts-expect-error
-        delete block.props.fileBinary
-        // @ts-expect-error
-        delete block.props.mediaRef
-        // @ts-expect-error
-        delete block.props.displaySrc
+        block.props.url = ''
       }
+
+      // Clean up temporary properties
+      // @ts-expect-error
+      delete block.props.fileBinary
+      // @ts-expect-error
+      delete block.props.mediaRef
+      // @ts-expect-error
+      delete block.props.displaySrc
     })
 
     const blocks = serverBlockNodesFromEditorBlocks(editor, editorBlocks)

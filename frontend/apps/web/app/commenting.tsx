@@ -315,6 +315,11 @@ export default function WebCommenting({
             try {
               const {getDraftMedia} = await import('./draft-media-db')
               const mediaData = await getDraftMedia(draftId, mediaId)
+              if (!mediaData) {
+                console.warn(
+                  `Media not found in IndexedDB: ${draftId}/${mediaId}`,
+                )
+              }
               return mediaData?.blob || null
             } catch (error) {
               console.error('Failed to get draft media blob:', error)
@@ -531,10 +536,22 @@ async function handleFileAttachment(
         },
       }
     } catch (error) {
-      console.error(
-        'Failed to store in IndexedDB, falling back to binary:',
-        error,
+      // Enhanced error logging to diagnose iOS Safari issues
+      const errorName = error instanceof Error ? error.name : 'Unknown'
+      const errorMsg = error instanceof Error ? error.message : String(error)
+
+      console.warn(
+        `IndexedDB storage failed (${errorName}), falling back to binary:`,
+        errorMsg,
       )
+
+      // Log specific Safari issues
+      if (errorName === 'QuotaExceededError') {
+        console.warn('Storage quota exceeded. Consider clearing old drafts.')
+      } else if (errorName === 'SecurityError') {
+        console.warn('Private browsing or cross-origin restriction detected.')
+      }
+
       // Fall through to legacy behavior
     }
   }
