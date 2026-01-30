@@ -95,6 +95,7 @@ export async function startMainDaemon(): Promise<{
   const daemonEnv = {
     ...process.env,
     SENTRY_RELEASE: VERSION,
+    LLAMA_LOG: 'error',
   }
 
   // log.info('Daemon with env:', daemonEnv)

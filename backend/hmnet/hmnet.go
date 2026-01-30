@@ -331,7 +331,7 @@ func (n *Node) Start(ctx context.Context) (err error) {
 				case <-t.C:
 					for pid, next := range localPeers {
 						if time.Now().After(next) {
-							go n.storeRemotePeers(pid)
+							go func(pid peer.ID) { _ = n.storeRemotePeers(pid) }(pid)
 						}
 					}
 					t.Reset(15 * time.Second)
