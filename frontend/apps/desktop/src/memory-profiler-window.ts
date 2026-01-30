@@ -2,7 +2,7 @@
  * Memory Profiler Window
  *
  * A dedicated window for real-time memory leak detection during manual testing.
- * Run with: MEMORY_PROFILER=1 yarn desktop
+ * Run with: MEMORY_PROFILER=1 pnpm desktop
  *
  * Features:
  * - Real-time heap and resource tracking

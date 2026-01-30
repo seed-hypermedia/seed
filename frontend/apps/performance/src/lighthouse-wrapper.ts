@@ -356,7 +356,7 @@ export async function runLighthouse(url: string, options: any): Promise<any> {
       );
       console.error(`\nTo resolve this:`);
       console.error(
-        `- Make sure your dev server is running (yarn dev / npm run dev)`
+        `- Make sure your dev server is running (pnpm dev)`
       );
       console.error(`- Verify the URL works in a regular browser window`);
       console.error(

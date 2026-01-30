@@ -7,7 +7,7 @@
  * - Hydration mismatches between server and client
  * - Runtime errors during React initialization
  *
- * Run `yarn test:install-browsers` first to install Chromium.
+ * Run `pnpm test:install-browsers` first to install Chromium.
  * Tests are skipped if browser cannot be launched (CI without browsers).
  */
 

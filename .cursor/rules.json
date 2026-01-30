@@ -2,7 +2,7 @@
   "commands": {
     "web:test": {
       "description": "Run web tests",
-      "command": "yarn web:test run ${testFile}",
+      "command": "pnpm web:test run ${testFile}",
       "variables": {
         "testFile": {
           "type": "string",

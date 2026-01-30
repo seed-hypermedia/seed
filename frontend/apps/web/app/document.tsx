@@ -1233,10 +1233,11 @@ function WebDocumentOutline({
 }
 
 function PanelError({error, resetErrorBoundary}: FallbackProps) {
+  const message = error instanceof Error ? error.message : String(error)
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 self-stretch bg-red-100 p-3 align-middle">
       <h3 className="text-xl font-bold text-red-800">Oops, we hit an error!</h3>
-      <p className="text-red-600">{error.message}</p>
+      <p className="text-red-600">{message}</p>
       <Button onClick={resetErrorBoundary} variant="destructive">
         Retry
       </Button>

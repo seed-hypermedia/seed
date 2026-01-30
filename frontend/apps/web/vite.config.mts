@@ -30,7 +30,23 @@ export default defineConfig(({isSsrBuild}) => {
     // },
     build: {minify: false, sourcemap: true},
     ssr: {
-      noExternal: ['react-icons', '@shm/editor'],
+      // Bundle all workspace packages and common dependencies for proper SSR with pnpm
+      noExternal: [
+        'react-icons',
+        '@shm/editor',
+        '@shm/shared',
+        '@shm/ui',
+        '@yudiel/react-qr-scanner',
+        // Match all @radix-ui packages
+        /^@radix-ui\//,
+        // Other packages that may have ESM/SSR issues
+        'sonner',
+        'class-variance-authority',
+        'clsx',
+        'tailwind-merge',
+        'lucide-react',
+        'vaul',
+      ],
     },
     define: isSsrBuild
       ? {}
