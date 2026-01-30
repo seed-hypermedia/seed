@@ -128,10 +128,6 @@ def main():
             os.environ["REACT_PROFILER"] = "1"
             args = [a for a in args if a != "--profiler"]
 
-        run("pnpm format:write")
-        run("pnpm typecheck")
-        run("pnpm test")
-
         env_prefix = "VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL=https://host.seed.hyper.media"
         if os.environ.get("REACT_PROFILER"):
             env_prefix = f"REACT_PROFILER=1 {env_prefix}"
