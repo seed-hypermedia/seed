@@ -144,6 +144,7 @@ func (client *LlamaCppClient) LoadModel(ctx context.Context, _ string, _ bool, t
 	ret.ContextSize = 512 // Hardcoded for now as llama-go does not expose context size yet
 
 	// Warm up both contexts to avoid cold-start latency on first real call.
+	// Yes, this is an ancient hack, ... but it works.
 	if _, err := client.embeddingContext.GetEmbeddingsBatch([]string{"warmup"}); err != nil {
 		return ret, fmt.Errorf("failed to warm up embedding context: %v", err)
 	}
@@ -175,10 +176,6 @@ func (client *LlamaCppClient) RetrieveSingle(ctx context.Context, input string) 
 // The model must be loaded via LoadModel before calling Embed.
 // Thread-safe: uses mutex to prevent concurrent access to embeddingContext.
 func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]float32, error) {
-	startTime := time.Now()
-	defer func() {
-		fmt.Println("llamacpp.go: Embed duration:", time.Since(startTime))
-	}()
 	client.muEmbed.Lock() // We can't use the same context concurrently
 	defer client.muEmbed.Unlock()
 	if client.embeddingContext == nil {
@@ -202,7 +199,6 @@ func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]f
 			}
 		}
 		wasPreviousBatchFull = isBatchFull
-		fmt.Println("llamacpp.go: Before actual embedding", time.Since(startTime))
 		res, err := client.embeddingContext.GetEmbeddingsBatch(batch)
 		if err != nil {
 			return nil, fmt.Errorf("Error generating embeddings: %v\n", err)
@@ -211,10 +207,8 @@ func (client *LlamaCppClient) Embed(ctx context.Context, inputs []string) ([][]f
 		if len(res) != len(batch) {
 			return nil, fmt.Errorf("llama embeddings count mismatch: got %d want %d", len(res), len(batch))
 		}
-		fmt.Println("llamacpp.go: After actual embedding", time.Since(startTime))
 		norm := normalize(res)
 		out = append(out, norm...)
-		fmt.Println("llamacpp.go: After normalization", time.Since(startTime))
 	}
 	return out, nil
 }

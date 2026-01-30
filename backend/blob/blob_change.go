@@ -510,7 +510,6 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				}
 				if content == "" {
 					continue
-					//fmt.Println("WARNING: empty content for block", blk, "in change", sb.CID, "with id", id, "and genesis", sb.GenesisBlob.Hash().String())
 				} else if err := dbFTSInsertOrReplace(ictx.conn, content, "document", id, blk, sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}

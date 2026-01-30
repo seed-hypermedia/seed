@@ -340,10 +340,6 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
 // Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
 func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32) (SearchResultMap, error) {
-	start := time.Now()
-	defer func() {
-		fmt.Println("embedding.go: SemanticSearch duration:", time.Since(start))
-	}()
 	if limit <= 0 {
 		limit = 20
 	}
@@ -363,7 +359,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	if e.queryPrefix != "" {
 		queryText = e.queryPrefix + query
 	}
-	fmt.Println("embedding.go: Before embedding: ", time.Since(start))
 	embedding, err := e.backend.RetrieveSingle(ctx, queryText)
 	if err != nil {
 		return nil, fmt.Errorf("failed to embed query: %w", err)
@@ -371,7 +366,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	if len(embedding) != e.dimensions {
 		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), e.dimensions)
 	}
-	fmt.Println("embedding.go: After embedding: ", time.Since(start))
 	queryEmbedding := quantizeEmbedding(embedding)
 
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
@@ -404,7 +398,6 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	if threshold <= 0 {
 		threshold = -0.1 // there could be distances slightly above 1.0 due to quantization errors
 	}
-	fmt.Println("embedding.go: Before search: ", time.Since(start))
 	maxDistance := 1 - float64(threshold)
 	ret := make(map[int64]float32)
 	if err := sqlitex.Exec(conn, qEmbeddingsSearch(), func(stmt *sqlite.Stmt) error {

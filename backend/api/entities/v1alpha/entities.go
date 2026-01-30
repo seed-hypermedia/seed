@@ -492,10 +492,6 @@ type MovedResource struct {
 
 // SearchEntities implements the Fuzzy search of entpb.
 func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesRequest) (*entpb.SearchEntitiesResponse, error) {
-	start := time.Now()
-	defer func() {
-		fmt.Println("entities.go: SearchEntities duration:", time.Since(start))
-	}()
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -567,8 +563,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	// Prepare variables for semantic/hybrid search
 	query := cleanQuery
 
-	fmt.Println("entities.go: Initial setup duration:", time.Since(start))
-
 	winners := llm.SearchResultMap{}
 	const semanticThreshold = 0.3 // Less than this, the results are not relevant enough. Tested with paraphrase-multilingual-MiniLM-L12-v2 model showed that 0.3 is a good threshold.
 	switch in.SearchType {
@@ -620,8 +614,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
-	fmt.Println("entities.go: After search duration:", time.Since(start))
-
 	winnerIDsJSON, err := json.Marshal(winners.Keys())
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal winner IDs: %w", err)
@@ -715,7 +707,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
-	fmt.Println("entities.go: After getByID duration:", time.Since(start))
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -738,16 +729,10 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			uniqueBodyMatches = append(uniqueBodyMatches, bm)
 		}
 	}
-	//fmt.Println("unique results:", len(uniqueResults), "out of", len(searchResults))
 	bodyMatches = uniqueBodyMatches
 	searchResults = uniqueResults
 
-	//after := time.Now()
-	//elapsed := after.Sub(before)
-	//fmt.Printf("qGetFTS took %.3f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entpb.Entity{}
-	fmt.Println("entities.go: BeforeParents Elapsed time:", time.Since(start))
-
 	// Pre-fetch all parent metadata in a single query instead of per-result.
 	parentTitleMap := make(map[string]string) // iri -> title
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
@@ -785,7 +770,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	var movedResources []MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	fmt.Println("entities.go: BeforeMovedBlocks Elapsed time:", time.Since(start))
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
@@ -825,7 +809,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 		}
 	}
-	fmt.Println("entities.go: BeforeUnrelated Elapsed time:", time.Since(start))
 	startParents := time.Now()
 	totalGetParentsTime := time.Duration(0)
 	totalDeletedTime := time.Duration(0)
@@ -888,24 +871,14 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
 				})
 				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
-					//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 					return nil, err
 				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
 					relatedFound = true
-					//fmt.Println("Found related change:", currentChange, "BlockID:", searchResults[match.Index].blockID)
 				}
 				if !relatedFound && !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
-					//fmt.Println("Found unrelated change:", latestUnrelated, "for:", searchResults[match.Index])
 					latestUnrelated.version = searchResults[match.Index].latestVersion
 				}
-				/*
-					if iter == prevIter {
-						fmt.Println("No iteration", searchResults[match.Index].contentType, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].blockID, searchResults[match.Index].blobID)
-					}
-					fmt.Println("Latest: ", searchResults[match.Index].latestVersion)
-					fmt.Println("Latest unrelated: ", latestUnrelated.version)
-					fmt.Println("Params: ", searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
-				*/
+
 			}
 			searchResults[match.Index].version = latestUnrelated.version
 			searchResults[match.Index].blobID = latestUnrelated.blobID
@@ -936,7 +909,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				}, searchResults[match.Index].commentKey.authorID, searchResults[match.Index].commentKey.tsid)
 			})
 			if err != nil {
-				//fmt.Println("Error getting latest block change:", err, "blockID:", searchResults[match.Index].blockID, "genesisBlobID:", searchResults[match.Index].genesisBlobID, "rowID:", searchResults[match.Index].rowID)
 				return nil, err
 			}
 			totalCommentsTime += time.Since(startParents)
@@ -951,7 +923,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	}
 	//after = time.Now()
-	fmt.Println("entities.go: BeforeSortingElapsed time:", time.Since(start))
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
 	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
 	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
