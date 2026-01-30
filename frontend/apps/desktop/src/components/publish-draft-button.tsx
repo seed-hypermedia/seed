@@ -5,7 +5,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
-import {UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -31,7 +31,7 @@ import {
   PopoverTrigger,
 } from '@shm/ui/components/popover'
 import {CopyUrlField} from '@shm/ui/copy-url-field'
-import {AlertCircle, Check, Document, Pencil, Share} from '@shm/ui/icons'
+import {AlertCircle, Check, Document, Pencil, Share, X} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
@@ -39,17 +39,25 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {usePopoverState} from '@shm/ui/use-popover-state'
-import {useMutation} from '@tanstack/react-query'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   HTMLAttributes,
   PropsWithChildren,
+  ReactNode,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
 import {useDraft} from '../models/accounts'
-import {usePublishResource, usePushResource} from '../models/documents'
+import {
+  addLinkToParentDraft,
+  documentContainsLinkToChild,
+  documentHasSelfQuery,
+  publishLinkToParentDocument,
+  usePublishResource,
+  usePushResource,
+} from '../models/documents'
 import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
@@ -78,42 +86,6 @@ export default function PublishDraftButton() {
           version: draft.data?.deps[0] || null,
         }
       : undefined,
-    {
-      onSuccess: (resultDoc, input) => {
-        if (pushOnPublish.data === 'never') return
-        const {draft} = input
-        const [setPushStatus, pushStatus] =
-          writeableStateStream<PushResourceStatus | null>(null)
-        if (draft.id && resultDoc.version) {
-          const resultPath = entityQueryPathToHmIdPath(resultDoc.path)
-          const publishPromise = pushResource(
-            hmId(resultDoc.account, {
-              path: resultPath,
-              version: resultDoc.version,
-            }),
-            undefined,
-            setPushStatus,
-          )
-          toast.promise(publishPromise, {
-            loading: (
-              <PublishedToast pushStatus={pushStatus} status="loading" />
-            ),
-            success: (
-              <PublishedToast pushStatus={pushStatus} status="success" />
-            ),
-            error: (err) => (
-              <PublishedToast
-                pushStatus={pushStatus}
-                status="error"
-                errorMessage={err.message}
-              />
-            ),
-          })
-        } else {
-          toast.error('Failed to publish')
-        }
-      },
-    },
   )
 
   const firstPublishDialog = useFirstPublishDialog()
@@ -132,6 +104,83 @@ export default function PublishDraftButton() {
 
   // Track if location is available (not already taken)
   const isLocationAvailable = useRef(true)
+
+  // Parent auto-link state for first publish
+  type ParentPublishInfo = {
+    parentId: UnpackedHypermediaId
+    parentDocument: HMDocument | null
+    hasDraft: boolean
+    draftId?: string
+    willAddLink: boolean
+    optedOut: boolean
+  }
+  const [parentPublishInfo, setParentPublishInfo] =
+    useState<ParentPublishInfo | null>(null)
+
+  // Compute parent ID from the destination location
+  const parentId = useMemo(() => {
+    if (!isFirstPublish) return null
+    const destLocation = editableLocation
+    if (!destLocation) return null
+    // Parent path is everything except the last segment
+    const parentPath = destLocation.path?.slice(0, -1) || []
+    return hmId(destLocation.uid, {path: parentPath})
+  }, [isFirstPublish, editableLocation])
+
+  // Fetch parent document resource
+  const {data: parentResource, refetch: refetchParentResource} = useResource(
+    parentId
+      ? hmId(parentId.uid, {path: parentId.path, latest: true})
+      : undefined,
+    {staleTime: 0}, // Always fetch fresh data
+  )
+  const parentDocument =
+    parentResource?.type === 'document' ? parentResource.document : null
+
+  // Check if parent has an existing draft
+  const {data: parentDraft, refetch: refetchParentDraft} = useQuery({
+    queryKey: [queryKeys.DRAFT, 'findByEdit', parentId?.uid, parentId?.path],
+    queryFn: () =>
+      parentId
+        ? client.drafts.findByEdit.query({
+            editUid: parentId.uid,
+            editPath: parentId.path || [],
+          })
+        : null,
+    enabled: isFirstPublish && !!parentId,
+    staleTime: 0, // Always fetch fresh data
+  })
+
+  // Compute parent publish info when dependencies change
+  useEffect(() => {
+    if (!isFirstPublish || !parentId || !editableLocation) {
+      setParentPublishInfo(null)
+      return
+    }
+
+    // Check if we should auto-link
+    let willAddLink = true
+
+    if (parentDocument) {
+      // Skip if link already exists
+      if (documentContainsLinkToChild(parentDocument, editableLocation)) {
+        willAddLink = false
+      }
+      // Skip if parent has self-referential query
+      if (documentHasSelfQuery(parentDocument, parentId)) {
+        willAddLink = false
+      }
+    }
+
+    setParentPublishInfo((prev) => ({
+      parentId,
+      parentDocument,
+      hasDraft: !!parentDraft,
+      draftId: parentDraft?.id,
+      willAddLink,
+      optedOut: prev?.optedOut ?? false, // Preserve opt-out state
+    }))
+  }, [isFirstPublish, parentId, editableLocation, parentDocument, parentDraft])
 
   // Track initialization params to avoid redundant updates
   const initializedWith = useRef<{
@@ -225,7 +274,7 @@ export default function PublishDraftButton() {
       throw new Error('Draft not loaded')
     }
 
-    function handlePublish(
+    async function handlePublish(
       destinationId: UnpackedHypermediaId,
       accountId: string,
     ) {
@@ -233,46 +282,134 @@ export default function PublishDraftButton() {
         toast.error('Draft not loaded')
         throw new Error('Draft not loaded')
       }
-      publish
-        .mutateAsync({
-          draft: draft.data,
-          destinationId,
-          accountId,
-        })
-        .then(async (res) => {
-          const resultDocId = hmId(res.account, {
-            path: entityQueryPathToHmIdPath(res.path),
-            latest: true,
-          })
-          if (resultDocId && draftId)
-            await deleteDraft
-              .mutateAsync(draftId)
-              .catch((e) => {
-                console.error('Failed to delete draft', e)
-              })
-              .then(() => {
-                invalidateQueries([queryKeys.DRAFT]) // todo, invalidate the specific draft id
-                invalidateQueries([queryKeys.DRAFTS_LIST])
-                invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
-              })
-          if (resultDocId) {
-            const hasAlreadyPrompted =
-              await client.prompting.getPromptedKey.query(
-                `account-email-notifs-${resultDocId.uid}`,
-              )
+
+      // Step 1: Publish the child document
+      const res = await publish.mutateAsync({
+        draft: draft.data,
+        destinationId,
+        accountId,
+      })
+
+      const resultPath = entityQueryPathToHmIdPath(res.path)
+      const childResultId = hmId(res.account, {
+        path: resultPath,
+        version: res.version,
+      })
+      const resultDocId = hmId(res.account, {
+        path: resultPath,
+        latest: true,
+      })
+
+      // Step 2: Handle parent auto-link BEFORE anything else
+      let parentResultDoc: HMDocument | null = null
+      const shouldAddLinkToParent =
+        parentPublishInfo?.willAddLink && !parentPublishInfo.optedOut
+
+      if (shouldAddLinkToParent && accountId) {
+        try {
+          const navigateToParent = () => {
             navigate({
               key: 'document',
-              panel:
-                route.key == 'draft' && route.panel?.key == 'activity'
-                  ? route.panel
-                  : null,
-              id: resultDocId,
-              immediatelyPromptNotifs: !hasAlreadyPrompted,
+              id: hmId(parentPublishInfo.parentId.uid, {
+                path: parentPublishInfo.parentId.path,
+                latest: true,
+              }),
             })
-          } else {
-            console.error(`can't navigate to document`)
           }
+
+          if (parentPublishInfo.hasDraft && parentPublishInfo.draftId) {
+            // Add to draft - no push needed for parent
+            await addLinkToParentDraft(parentPublishInfo.draftId, childResultId)
+            // Show success toast for draft update
+            toast.success(
+              <ParentUpdateToast
+                message="Link added to parent draft"
+                onViewParent={navigateToParent}
+              />,
+            )
+          } else if (parentPublishInfo.parentDocument) {
+            // Publish to parent document
+            parentResultDoc = await publishLinkToParentDocument(
+              parentPublishInfo.parentId,
+              parentPublishInfo.parentDocument,
+              childResultId,
+              accountId,
+            )
+            // Show success toast for parent publish
+            toast.success(
+              <ParentUpdateToast
+                message="Parent document updated"
+                onViewParent={navigateToParent}
+              />,
+            )
+          }
+        } catch (error) {
+          console.error('Failed to add link to parent:', error)
+          toast.error('Published document, but failed to add link to parent')
+        }
+      }
+
+      // Step 3: Delete the draft
+      if (resultDocId && draftId) {
+        await deleteDraft.mutateAsync(draftId).catch((e) => {
+          console.error('Failed to delete draft', e)
         })
+        invalidateQueries([queryKeys.DRAFT])
+        invalidateQueries([queryKeys.DRAFTS_LIST])
+        invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+      }
+
+      // Step 4: Navigate to the published document
+      if (resultDocId) {
+        const hasAlreadyPrompted = await client.prompting.getPromptedKey.query(
+          `account-email-notifs-${resultDocId.uid}`,
+        )
+        navigate({
+          key: 'document',
+          panel:
+            route.key == 'draft' && route.panel?.key == 'activity'
+              ? route.panel
+              : null,
+          id: resultDocId,
+          immediatelyPromptNotifs: !hasAlreadyPrompted,
+        })
+      }
+
+      // Step 5: Handle push workflow (in background, after navigation)
+      if (pushOnPublish.data !== 'never' && res.version) {
+        const [setPushStatus, pushStatus] =
+          writeableStateStream<PushResourceStatus | null>(null)
+
+        // Push child document
+        const childPushPromise = pushResource(
+          childResultId,
+          undefined,
+          setPushStatus,
+        )
+
+        // Push parent document if we published changes to it
+        if (parentResultDoc) {
+          const parentResultId = hmId(parentResultDoc.account, {
+            path: entityQueryPathToHmIdPath(parentResultDoc.path),
+            version: parentResultDoc.version,
+          })
+          pushResource(parentResultId).catch((err) => {
+            console.error('Failed to push parent document:', err)
+          })
+        }
+
+        toast.promise(childPushPromise, {
+          loading: <PublishedToast pushStatus={pushStatus} status="loading" />,
+          success: <PublishedToast pushStatus={pushStatus} status="success" />,
+          error: (err) => (
+            <PublishedToast
+              pushStatus={pushStatus}
+              status="error"
+              errorMessage={err.message}
+            />
+          ),
+        })
+      }
     }
 
     if (editId && signingAccountId) {
@@ -297,7 +434,14 @@ export default function PublishDraftButton() {
     }
   }
 
-  const popoverState = usePopoverState()
+  // Refetch parent data when popover opens to handle edge case where
+  // parent state changes between creating the draft and publishing
+  const popoverState = usePopoverState(false, (isOpen) => {
+    if (isOpen && isFirstPublish && parentId) {
+      refetchParentResource()
+      refetchParentDraft()
+    }
+  })
 
   return (
     <>
@@ -329,24 +473,34 @@ export default function PublishDraftButton() {
             {/* You are publishing section */}
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">You are publishing</p>
+
+              {/* Parent document first (if auto-linking is possible) */}
+              {parentPublishInfo?.willAddLink && parentUrl && (
+                <PublishItem
+                  url={parentUrl}
+                  icon={<Document size={12} color="currentColor" />}
+                  label={
+                    parentPublishInfo.optedOut
+                      ? '(skipped)'
+                      : parentPublishInfo.hasDraft
+                      ? '(adding link to draft)'
+                      : '(adding link)'
+                  }
+                  disabled={parentPublishInfo.optedOut}
+                  onToggle={() =>
+                    setParentPublishInfo((prev) =>
+                      prev ? {...prev, optedOut: !prev.optedOut} : null,
+                    )
+                  }
+                />
+              )}
+
+              {/* Child document (current) - always shown */}
               {documentUrl && (
-                <div className="flex items-center gap-1">
-                  <span className="shrink-0">
-                    <Document size={12} color="currentColor" />
-                  </span>
-                  <span
-                    className="text-xs"
-                    style={{
-                      direction: 'rtl',
-                      textAlign: 'left',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {documentUrl}
-                  </span>
-                </div>
+                <PublishItem
+                  url={documentUrl}
+                  icon={<Document size={12} color="currentColor" />}
+                />
               )}
             </div>
 
@@ -588,4 +742,79 @@ function SaveIndicatorStatus() {
   }
 
   return null
+}
+
+function PublishItem({
+  url,
+  icon,
+  label,
+  disabled,
+  onToggle,
+}: {
+  url: string
+  icon: ReactNode
+  label?: string
+  disabled?: boolean
+  onToggle?: () => void
+}) {
+  return (
+    <div
+      className={`group flex items-center gap-1 ${
+        disabled ? 'opacity-50' : ''
+      }`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span
+        className={`flex-1 text-xs ${disabled ? 'line-through' : ''}`}
+        style={{
+          direction: 'rtl',
+          textAlign: 'left',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {url}
+      </span>
+      {label && (
+        <span className="text-muted-foreground shrink-0 text-xs">{label}</span>
+      )}
+      {onToggle && (
+        <Tooltip content={disabled ? 'Add link to parent' : "Don't add link"}>
+          <Button
+            size="iconSm"
+            variant="ghost"
+            className={`ml-auto shrink-0 ${
+              disabled ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+            onClick={onToggle}
+          >
+            {disabled ? <Check size={12} /> : <X size={12} />}
+          </Button>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
+function ParentUpdateToast({
+  message,
+  onViewParent,
+}: {
+  message: string
+  onViewParent: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span>{message}</span>
+      <Button
+        size="xs"
+        variant="link"
+        className="h-auto p-0"
+        onClick={onViewParent}
+      >
+        View parent
+      </Button>
+    </div>
+  )
 }

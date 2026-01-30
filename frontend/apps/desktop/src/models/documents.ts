@@ -18,7 +18,9 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {
+  Block,
   CreateDocumentChangeRequest,
+  DocumentChange,
   ResourceVisibility,
 } from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {AnnounceBlobsProgress} from '@shm/shared/client/.generated/p2p/v1alpha/syncing_pb'
@@ -60,6 +62,7 @@ import {
   createWebHMUrl,
   hmId,
   hmIdToURL,
+  packHmId,
   unpackHmId,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -1087,6 +1090,144 @@ export function usePushResource() {
 
     return true
   }
+}
+
+// ============================================================================
+// Auto-link child to parent on first publish
+// ============================================================================
+
+// Re-export utility functions from auto-link-utils.ts for easier testing
+export {documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-utils'
+
+/**
+ * Add an embed link to a parent draft file
+ * TODO: If user discards this draft later, the auto-link will be lost.
+ * Discuss with team whether we should warn user or handle this differently.
+ */
+export async function addLinkToParentDraft(
+  parentDraftId: string,
+  childId: UnpackedHypermediaId,
+): Promise<void> {
+  const draft = await client.drafts.get.query(parentDraftId)
+  if (!draft) {
+    throw new Error(`Draft ${parentDraftId} not found`)
+  }
+
+  // Create new embed block in editor format
+  const newBlock = {
+    id: nanoid(10),
+    type: 'embed',
+    props: {
+      url: packHmId(childId),
+      view: 'Card',
+      defaultOpen: 'false',
+    },
+    content: [],
+    children: [],
+  }
+
+  // Append block to end of draft content
+  const updatedContent = [...(draft.content || []), newBlock]
+
+  // Write back to draft
+  await client.drafts.write.mutate({
+    id: draft.id,
+    locationUid: draft.locationUid,
+    locationPath: draft.locationPath,
+    editUid: draft.editUid,
+    editPath: draft.editPath,
+    metadata: draft.metadata,
+    content: updatedContent,
+    deps: draft.deps,
+    navigation: draft.navigation,
+    visibility: draft.visibility,
+  })
+
+  // Invalidate draft queries to refresh any open editors
+  invalidateQueries([queryKeys.DRAFT, parentDraftId])
+}
+
+/**
+ * Publish an embed link to a parent document (when parent has no draft)
+ */
+export async function publishLinkToParentDocument(
+  parentId: UnpackedHypermediaId,
+  parentDocument: HMDocument,
+  childId: UnpackedHypermediaId,
+  signingKeyName: string,
+): Promise<HMDocument> {
+  // Find the last root-level block in parent document
+  const rootBlocks = parentDocument.content || []
+  const lastBlock = rootBlocks[rootBlocks.length - 1]
+  const lastBlockId = lastBlock?.block?.id || ''
+
+  // Generate new block ID
+  const newBlockId = nanoid(10)
+
+  // Create the embed block in HM format
+  const embedBlock = {
+    id: newBlockId,
+    type: 'Embed',
+    link: packHmId(childId),
+    attributes: {view: 'Card'},
+  }
+
+  // Create DocumentChange operations: MoveBlock then ReplaceBlock
+  const changes: DocumentChange[] = [
+    new DocumentChange({
+      op: {
+        case: 'moveBlock',
+        value: {
+          blockId: newBlockId,
+          parent: '', // root level
+          leftSibling: lastBlockId, // after the last existing block
+        },
+      },
+    }),
+    new DocumentChange({
+      op: {
+        case: 'replaceBlock',
+        value: Block.fromJson(embedBlock),
+      },
+    }),
+  ]
+
+  // Check if signing account has write access (same as child publish)
+  let capabilityId = ''
+  if (signingKeyName !== parentId.uid) {
+    const capabilities = await grpcClient.accessControl.listCapabilities({
+      account: parentId.uid,
+      path: hmIdPathToEntityQueryPath(parentId.path || []),
+    })
+    const capability = capabilities.capabilities.find(
+      (cap) => cap.delegate === signingKeyName,
+    )
+    if (!capability) {
+      throw new Error(
+        'Could not find capability for signing account to update parent document',
+      )
+    }
+    capabilityId = capability.id
+  }
+
+  const req: PartialMessage<CreateDocumentChangeRequest> = {
+    signingKeyName,
+    account: parentId.uid,
+    baseVersion: parentDocument.version,
+    path: hmIdPathToEntityQueryPath(parentId.path || []),
+    changes,
+    capability: capabilityId,
+    visibility: ResourceVisibility.UNSPECIFIED, // preserve existing visibility
+  }
+
+  const publishedDoc = await grpcClient.documents.createDocumentChange(req)
+  const resultDoc: HMDocument = prepareHMDocument(publishedDoc)
+
+  // Invalidate parent document queries
+  invalidateQueries([queryKeys.ENTITY, parentId.id])
+  invalidateQueries([queryKeys.RESOLVED_ENTITY, parentId.id])
+
+  return resultDoc
 }
 
 export function useListSite(id?: UnpackedHypermediaId) {
