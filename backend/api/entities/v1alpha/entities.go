@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -491,10 +492,10 @@ type MovedResource struct {
 
 // SearchEntities implements the Fuzzy search of entpb.
 func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesRequest) (*entpb.SearchEntitiesResponse, error) {
-	//start := time.Now()
-	//defer func() {
-	//	fmt.Println("SearchEntities duration:", time.Since(start))
-	//}()
+	start := time.Now()
+	defer func() {
+		fmt.Println("entities.go: SearchEntities duration:", time.Since(start))
+	}()
 	type value struct {
 		Value string `json:"v"`
 	}
@@ -557,39 +558,44 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	if in.ContextSize < 2 {
 		in.ContextSize = 48
 	}
-	//fmt.Println("context size:", in.ContextSize)
+
 	var iriGlob string = "hm://" + in.AccountUid + "*"
 	contextBefore := int(math.Ceil(float64(in.ContextSize) / 2.0))
 	contextAfter := int(in.ContextSize) - contextBefore
 	var numResults int = 0
-	//before := time.Now()
-	//fmt.Println("BeforeFTS Elapsed time:", time.Since(start))
 
 	// Prepare variables for semantic/hybrid search
 	query := cleanQuery
 
-	//fmt.Println("Initial setup duration:", time.Since(start))
+	fmt.Println("entities.go: Initial setup duration:", time.Since(start))
 
 	winners := llm.SearchResultMap{}
 	const semanticThreshold = 0.3 // Less than this, the results are not relevant enough. Tested with paraphrase-multilingual-MiniLM-L12-v2 model showed that 0.3 is a good threshold.
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
-		// Hybrid search: blend semantic + keyword with RRF
-		// Get semantic results
-		semanticResults, err := srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold)
-		if err != nil {
-			return nil, fmt.Errorf("semantic search failed: %w", err)
+		// Hybrid search: run semantic + keyword concurrently, blend with RRF
+		var semanticResults, keywordResults llm.SearchResultMap
+		var semanticErr, keywordErr error
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold)
+		}()
+		go func() {
+			defer wg.Done()
+			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				var err error
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob)
+				return err
+			})
+		}()
+		wg.Wait()
+		if semanticErr != nil {
+			return nil, fmt.Errorf("semantic search failed: %w", semanticErr)
 		}
-
-		// Get keyword results
-		var keywordResults llm.SearchResultMap
-		err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			var err error
-			keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob)
-			return err
-		})
-		if err != nil {
-			return nil, fmt.Errorf("keyword search failed: %w", err)
+		if keywordErr != nil {
+			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
 		}
 
 		// Blend results with RRF
@@ -614,7 +620,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 	}
-	//fmt.Println("After search duration:", time.Since(start))
+	fmt.Println("entities.go: After search duration:", time.Since(start))
 
 	winnerIDsJSON, err := json.Marshal(winners.Keys())
 	if err != nil {
@@ -709,7 +715,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}); err != nil {
 		return nil, err
 	}
-	//fmt.Println("After getByID duration:", time.Since(start))
+	fmt.Println("entities.go: After getByID duration:", time.Since(start))
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
 	var uniqueBodyMatches []fuzzy.Match
@@ -740,38 +746,33 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	//elapsed := after.Sub(before)
 	//fmt.Printf("qGetFTS took %.3f s and returned %d results\n", elapsed.Seconds(), len(bodyMatches))
 	matchingEntities := []*entpb.Entity{}
-	//fmt.Println("BeforeParents Elapsed time:", time.Since(start))
-	getParentsFcn := func(match fuzzy.Match) ([]string, error) {
-		parents := make(map[string]interface{})
-		breadcrum := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
-		var root string
-		for i, _ := range breadcrum {
-			parents["hm://"+strings.Join(breadcrum[:i+1], "/")] = nil
-			if i == 0 {
-				root = "hm://" + strings.Join(breadcrum[:i+1], "") + "*"
+	fmt.Println("entities.go: BeforeParents Elapsed time:", time.Since(start))
+
+	// Pre-fetch all parent metadata in a single query instead of per-result.
+	parentTitleMap := make(map[string]string) // iri -> title
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
+			var t title
+			if err := json.Unmarshal(stmt.ColumnBytes(0), &t); err != nil {
+				return nil
+			}
+			parentTitleMap[stmt.ColumnText(1)] = t.Name.Value
+			return nil
+		}, iriGlob)
+	}); err != nil {
+		return nil, err
+	}
+
+	getParentsFcn := func(match fuzzy.Match) []string {
+		breadcrumb := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
+		var parentTitles []string
+		for i := range breadcrumb {
+			parentIRI := "hm://" + strings.Join(breadcrumb[:i+1], "/")
+			if t, ok := parentTitleMap[parentIRI]; ok && t != match.Str {
+				parentTitles = append(parentTitles, t)
 			}
 		}
-		var parentTitles []string
-		if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
-				var title title
-				iri := stmt.ColumnText(1)
-				if _, ok := parents[iri]; !ok {
-					return nil
-				}
-				if err := json.Unmarshal(stmt.ColumnBytes(0), &title); err != nil {
-					return nil
-				}
-				if title.Name.Value == match.Str {
-					return nil
-				}
-				parentTitles = append(parentTitles, title.Name.Value)
-				return nil
-			}, root)
-		}); err != nil {
-			return nil, err
-		}
-		return parentTitles, nil
+		return parentTitles
 	}
 	totalLatestBlockTime := time.Duration(0)
 	timesCalled, timesCalled2 := 0, 0
@@ -784,7 +785,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	var movedResources []MovedResource
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
-	//fmt.Println("BeforeMovedBlocks Elapsed time:", time.Since(start))
+	fmt.Println("entities.go: BeforeMovedBlocks Elapsed time:", time.Since(start))
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
 			var heads []head
@@ -824,7 +825,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 		}
 	}
-	//fmt.Println("BeforeUnrelated Elapsed time:", time.Since(start))
+	fmt.Println("entities.go: BeforeUnrelated Elapsed time:", time.Since(start))
 	startParents := time.Now()
 	totalGetParentsTime := time.Duration(0)
 	totalDeletedTime := time.Duration(0)
@@ -834,16 +835,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	for _, match := range bodyMatches {
 		totalGetParentsTime += time.Since(startParents)
 		startParents = time.Now()
-		var err error
 		if searchResults[match.Index].isDeleted {
 			// Skip deleted resources
 			totalDeletedTime += time.Since(startParents)
 			continue
 		}
 		if searchResults[match.Index].contentType != "contact" {
-			if searchResults[match.Index].parentTitles, err = getParentsFcn(match); err != nil {
-				return nil, err
-			}
+			searchResults[match.Index].parentTitles = getParentsFcn(match)
 		}
 
 		offsets := make([]int64, len(match.MatchedIndexes))
@@ -953,7 +951,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	}
 	//after = time.Now()
-	//fmt.Println("BeforeSortingElapsed time:", time.Since(start))
+	fmt.Println("entities.go: BeforeSortingElapsed time:", time.Since(start))
 	//fmt.Printf("getParentsFcn took %.3f s\n", totalGetParentsTime.Seconds())
 	//fmt.Printf("totalDeletedTime took %.3f s\n", totalDeletedTime.Seconds())
 	//fmt.Printf("totalNonCommentsTime took %.3f s\n", totalNonCommentsTime.Seconds())
@@ -961,7 +959,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	//fmt.Printf("qGetLatestBlockChange took %.3f s and was called %d times and iterated over %d records\n", totalLatestBlockTime.Seconds(), timesCalled, iter)
 	slices.SortFunc(finalResults, orderBySimilarity)
-	//sort.Slice(matchingEntities, func)
 	for _, match := range finalResults {
 		matchingEntities = append(matchingEntities, &entpb.Entity{
 			DocId:       match.docID,

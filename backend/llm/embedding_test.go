@@ -26,8 +26,9 @@ import (
 type fakeEmbeddingBackend struct {
 	mu sync.Mutex
 
-	loadCalls  int
-	embedCalls int
+	loadCalls          int
+	embedCalls         int
+	retrieveSingleCalls int
 
 	embedInputs [][]string
 
@@ -59,6 +60,9 @@ func (b *fakeEmbeddingBackend) LoadModel(ctx context.Context, model string, forc
 
 func (b *fakeEmbeddingBackend) RetrieveSingle(ctx context.Context, input string) ([]float32, error) {
 	_ = ctx
+	b.mu.Lock()
+	b.retrieveSingleCalls++
+	b.mu.Unlock()
 	embedding := make([]float32, 384)
 	embedding[0] = float32(len([]rune(input)))
 	return embedding, nil
@@ -97,6 +101,12 @@ func (b *fakeEmbeddingBackend) getEmbedCalls() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.embedCalls
+}
+
+func (b *fakeEmbeddingBackend) getRetrieveSingleCalls() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.retrieveSingleCalls
 }
 
 func (b *fakeEmbeddingBackend) getEmbedInputs() [][]string {
@@ -800,8 +810,8 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, results)
 
-		// Should have called embed for the query
-		require.GreaterOrEqual(t, backend.getEmbedCalls(), 1)
+		// Should have called RetrieveSingle for the query
+		require.GreaterOrEqual(t, backend.getRetrieveSingleCalls(), 1)
 	})
 
 	t.Run("search with content type filter", func(t *testing.T) {
