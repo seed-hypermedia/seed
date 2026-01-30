@@ -36,26 +36,58 @@ import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
-import {useDeferredValue, useEffect, useMemo, useRef, useState} from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
-export function SearchInput({
-  onClose,
-  onSelect,
-  allowWebURL,
-}: {
-  onClose?: () => void
-  allowWebURL?: boolean
-  onSelect: ({
-    id,
-    route,
-    webUrl,
-  }: {
-    id?: UnpackedHypermediaId
-    route?: NavRoute
-    webUrl?: string
-  }) => void
-}) {
-  const [search, setSearch] = useState('')
+export interface SearchInputHandle {
+  handleArrowUp: () => void
+  handleArrowDown: () => void
+  handleEnter: () => void
+}
+
+export const SearchInput = forwardRef<
+  SearchInputHandle,
+  {
+    onClose?: () => void
+    allowWebURL?: boolean
+    onSelect: ({
+      id,
+      route,
+      webUrl,
+    }: {
+      id?: UnpackedHypermediaId
+      route?: NavRoute
+      webUrl?: string
+    }) => void
+    /** When provided, use this value instead of internal state */
+    externalSearch?: string
+    /** Callback when search changes (for controlled mode) */
+    onExternalSearchChange?: (value: string) => void
+    /** Hide the input field (for when input is rendered externally) */
+    hideInput?: boolean
+  }
+>(function SearchInput(
+  {
+    onClose,
+    onSelect,
+    allowWebURL,
+    externalSearch,
+    onExternalSearchChange,
+    hideInput = false,
+  },
+  ref,
+) {
+  const [internalSearch, setInternalSearch] = useState('')
+  const search = externalSearch !== undefined ? externalSearch : internalSearch
+  const setSearch = onExternalSearchChange || setInternalSearch
   const deferredSearch = useDeferredValue(search)
   const isSearchPending = search !== deferredSearch
 
@@ -205,6 +237,35 @@ export function SearchInput({
     ? recentItems
     : [...(queryItem ? [queryItem] : []), ...searchItems]
 
+  // Expose keyboard handlers via ref
+  const handleArrowUp = useCallback(() => {
+    setFocusedIndex(
+      (prev) => (prev - 1 + activeItems.length) % activeItems.length,
+    )
+  }, [activeItems.length])
+
+  const handleArrowDown = useCallback(() => {
+    setFocusedIndex((prev) => (prev + 1) % activeItems.length)
+  }, [activeItems.length])
+
+  const handleEnter = useCallback(() => {
+    const item = activeItems[focusedIndex]
+    if (item) {
+      onClose?.()
+      item.onSelect?.()
+    }
+  }, [activeItems, focusedIndex, onClose])
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      handleArrowUp,
+      handleArrowDown,
+      handleEnter,
+    }),
+    [handleArrowUp, handleArrowDown, handleEnter],
+  )
+
   console.log(
     `🔍 Search="${search}" | Deferred="${deferredSearch}" | isPending=${isSearchPending} | isRecents=${isDisplayingRecents} | results=${
       searchResults.data?.entities?.length || 0
@@ -284,6 +345,17 @@ export function SearchInput({
     </>
   )
 
+  // When hideInput is true, just render the results without the input wrapper
+  if (hideInput) {
+    return (
+      <div className="flex h-full w-full flex-col gap-2">
+        <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">
+          {content || <p>working...</p>}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <SearchInputUI
       searchResults={activeItems || []}
@@ -316,7 +388,7 @@ export function SearchInput({
       {content || <p>working...</p>}
     </SearchInputUI>
   )
-}
+})
 
 /**
  * Apply view term to a resolved route (e.g., /:directory -> open Directory page)

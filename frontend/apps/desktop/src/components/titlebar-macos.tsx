@@ -4,9 +4,9 @@ import {TitleBarProps} from './titlebar'
 import {
   NavMenuButton,
   NavigationButtons,
+  Omnibar,
   PageActionButtons,
 } from './titlebar-common'
-import {TitlebarTitleSearch} from './titlebar-search'
 
 export default function TitleBarMacos(props: TitleBarProps) {
   const {clean, cleanTitle, ...restProps} = props
@@ -42,7 +42,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
           </div>
         </div>
         <div className="flex flex-1 items-center gap-2 overflow-x-hidden px-2">
-          <TitlebarTitleSearch />
+          <Omnibar />
         </div>
         <div className="flex-basis-0 window-drag flex min-w-min items-center justify-end">
           <PageActionButtons {...restProps} />

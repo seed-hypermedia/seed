@@ -12,20 +12,43 @@ import {useHostSession} from '@/models/host'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import {hostnameStripProtocol} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {DocumentRoute, FeedRoute} from '@shm/shared/routes'
-import {useStream} from '@shm/shared/use-stream'
-import {displayHostname, hmId, latestId} from '@shm/shared/utils/entity-id-url'
+import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
+  DocumentRoute,
+  DraftRoute,
+  FeedRoute,
+  NavRoute,
+} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
+import {
+  createSiteUrl,
+  createWebHMUrl,
+  displayHostname,
+  extractViewTermFromUrl,
+  hmId,
+  latestId,
+  unpackHmId,
+  viewTermToRouteKey,
+} from '@shm/shared/utils/entity-id-url'
+import {
+  appRouteOfId,
   useNavRoute,
   useNavigationDispatch,
   useNavigationState,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@shm/ui/components/popover'
+import {DraftBadge} from '@shm/ui/draft-badge'
 import {
   ArrowRight,
   Back,
@@ -42,6 +65,8 @@ import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {usePopoverState} from '@shm/ui/use-popover-state'
+import {cn} from '@shm/ui/utils'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
@@ -49,9 +74,19 @@ import {
   ForwardIcon,
   GitFork,
   Import,
+  Lock,
   PanelLeft,
+  Search,
 } from 'lucide-react'
-import {ReactNode, useContext, useRef} from 'react'
+import {
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {BranchDialog} from './branch-dialog'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
@@ -60,8 +95,10 @@ import {
   useRemoveSiteDialog,
   useSeedHostDialog,
 } from './publish-site'
+import {SearchInput, SearchInputHandle} from './search-input'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
+import {TitleContent} from './titlebar-title'
 
 export function DocOptionsButton({
   onPublishSite,
@@ -479,5 +516,470 @@ export function TitlebarTitle() {
       />
       {/* @ts-expect-error */}
     </View>
+  )
+}
+
+// =============================================================================
+// OMNIBAR COMPONENT
+// =============================================================================
+
+type OmnibarMode = 'idle' | 'focused' | 'search'
+
+/**
+ * Get view term suffix for route (e.g., /:discussions, /:activity)
+ */
+function getViewTermForRoute(route: NavRoute): string | null {
+  // First-class view routes
+  if (route.key === 'activity') return '/:activity'
+  if (route.key === 'discussions') return '/:discussions'
+  if (route.key === 'collaborators') return '/:collaborators'
+  if (route.key === 'directory') return '/:directory'
+
+  // Document routes with panel
+  if (route.key === 'document' && route.panel) {
+    const panelKey = route.panel.key
+    if (panelKey === 'activity') return '/:activity'
+    if (panelKey === 'discussions') return '/:discussions'
+    if (panelKey === 'collaborators') return '/:collaborators'
+    if (panelKey === 'directory') return '/:directory'
+  }
+
+  return null
+}
+
+/**
+ * Hook to construct displayable URL from current route
+ * Priority: siteUrl > gatewayUrl (never hm://)
+ * Includes view term suffix for panel routes (e.g., /:discussions)
+ */
+function useCurrentRouteUrl(): string | null {
+  const route = useNavRoute()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+
+  // Get account entity to check for siteUrl
+  const routeId = getRouteId(route)
+  const accountEntity = useResource(routeId ? hmId(routeId.uid) : null)
+  const siteHostname =
+    accountEntity.data?.type === 'document'
+      ? accountEntity.data.document?.metadata?.siteUrl
+      : null
+
+  return useMemo(() => {
+    if (!routeId) return null
+
+    // Get view term suffix if applicable
+    const viewTerm = getViewTermForRoute(route)
+
+    let baseUrl: string
+    // Use siteUrl if available, otherwise gateway URL
+    if (siteHostname) {
+      baseUrl = createSiteUrl({
+        hostname: siteHostname,
+        path: routeId.path,
+        version: routeId.version,
+        latest: routeId.latest ?? undefined,
+        blockRef: routeId.blockRef,
+        blockRange: routeId.blockRange,
+      })
+    } else {
+      baseUrl = createWebHMUrl(routeId.uid, {
+        hostname: gwUrl,
+        path: routeId.path,
+        version: routeId.version,
+        latest: routeId.latest ?? undefined,
+        blockRef: routeId.blockRef,
+        blockRange: routeId.blockRange,
+      })
+    }
+
+    // Append view term before query string if present
+    if (viewTerm) {
+      const queryIndex = baseUrl.indexOf('?')
+      if (queryIndex !== -1) {
+        return (
+          baseUrl.slice(0, queryIndex) + viewTerm + baseUrl.slice(queryIndex)
+        )
+      }
+      const hashIndex = baseUrl.indexOf('#')
+      if (hashIndex !== -1) {
+        return baseUrl.slice(0, hashIndex) + viewTerm + baseUrl.slice(hashIndex)
+      }
+      return baseUrl + viewTerm
+    }
+
+    return baseUrl
+  }, [routeId, route, siteHostname, gwUrl])
+}
+
+/**
+ * Extract ID from route if applicable
+ */
+function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
+  if (
+    route.key === 'document' ||
+    route.key === 'feed' ||
+    route.key === 'activity' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'discussions'
+  ) {
+    return route.id
+  }
+  return null
+}
+
+/**
+ * Check if route is a draft route
+ */
+function isDraftRoute(route: NavRoute): route is DraftRoute {
+  return route.key === 'draft'
+}
+
+/**
+ * Check if current route has a document that can show URL
+ */
+function isUrlDisplayableRoute(route: NavRoute): boolean {
+  return (
+    route.key === 'document' ||
+    route.key === 'feed' ||
+    route.key === 'activity' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'discussions'
+  )
+}
+
+/**
+ * Hook to manage omnibar state machine
+ */
+function useOmnibarState(currentUrl: string | null) {
+  const [mode, setMode] = useState<OmnibarMode>('idle')
+  const [inputValue, setInputValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const focus = useCallback(
+    (selectAll: boolean = true) => {
+      if (currentUrl) {
+        setInputValue(currentUrl)
+        setMode('focused')
+        // Select all text after a tick
+        setTimeout(() => {
+          if (inputRef.current && selectAll) {
+            inputRef.current.select()
+          }
+        }, 0)
+      } else {
+        setInputValue('')
+        setMode('search')
+      }
+    },
+    [currentUrl],
+  )
+
+  const focusSearch = useCallback(() => {
+    setInputValue('')
+    setMode('search')
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 0)
+  }, [])
+
+  const blur = useCallback(() => {
+    setMode('idle')
+    setInputValue('')
+  }, [])
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      setInputValue(value)
+      // If user clears URL content and starts typing non-URL text, switch to search
+      if (mode === 'focused' && value !== currentUrl) {
+        // Check if it looks like a URL
+        const looksLikeUrl =
+          value.startsWith('http://') ||
+          value.startsWith('https://') ||
+          value.startsWith('hm://') ||
+          (value.includes('.') && !value.includes(' '))
+
+        if (!looksLikeUrl && value.length > 0) {
+          setMode('search')
+        }
+      }
+    },
+    [mode, currentUrl],
+  )
+
+  return {
+    mode,
+    setMode,
+    inputValue,
+    setInputValue,
+    inputRef,
+    focus,
+    focusSearch,
+    blur,
+    handleInputChange,
+  }
+}
+
+/**
+ * Main Omnibar component - browser-like address/search bar
+ */
+export function Omnibar() {
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const currentUrl = useCurrentRouteUrl()
+  const publishSite = usePublishSite()
+  const searchInputRef = useRef<SearchInputHandle>(null)
+
+  const {
+    mode,
+    inputValue,
+    inputRef,
+    focus,
+    focusSearch,
+    blur,
+    handleInputChange,
+  } = useOmnibarState(currentUrl)
+
+  // Listen for keyboard shortcuts
+  useListenAppEvent('focus_omnibar', (event) => {
+    if (event.mode === 'url') {
+      focus(true)
+    } else {
+      focusSearch()
+    }
+  })
+
+  // Also listen for legacy open_launcher event
+  useListenAppEvent('open_launcher', () => {
+    focusSearch()
+  })
+
+  // Handle URL navigation - returns true if navigation was synchronous
+  const handleUrlNavigation = useCallback(
+    async (url: string): Promise<boolean> => {
+      // Extract view term (e.g., /:activity) from URL before processing
+      const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(url)
+      const routeKey = viewTermToRouteKey(viewTerm)
+
+      // Helper to apply view term to route
+      const applyViewTerm = (route: NavRoute): NavRoute => {
+        if (!routeKey) return route
+        if (route.key === 'document') {
+          // Return first-class page route instead of document
+          return {key: routeKey, id: route.id}
+        }
+        return route
+      }
+
+      // First try to parse as hm:// URL (synchronous)
+      const unpacked = unpackHmId(cleanUrl)
+      if (unpacked) {
+        const navRoute = appRouteOfId(unpacked)
+        if (navRoute) {
+          navigate(applyViewTerm(navRoute))
+          return true
+        }
+      }
+
+      // If it looks like an HTTP URL, try to resolve it (async)
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        try {
+          const result = await resolveHypermediaUrl(cleanUrl)
+          if (result?.hmId) {
+            const navRoute = appRouteOfId(result.hmId)
+            if (navRoute) {
+              navigate(applyViewTerm(navRoute))
+              return true
+            }
+          }
+        } catch (error) {
+          console.error('Failed to resolve URL:', error)
+        }
+      }
+      return false
+    },
+    [navigate],
+  )
+
+  // Handle keyboard events
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        blur()
+      } else if (e.key === 'Enter') {
+        if (mode === 'focused') {
+          e.preventDefault()
+          const url = inputValue.trim()
+          if (url) {
+            // Check if it's an HTTP URL that needs async resolution
+            const isHttpUrl =
+              url.startsWith('http://') || url.startsWith('https://')
+            const unpacked = unpackHmId(url)
+
+            if (unpacked) {
+              // Sync navigation - blur immediately
+              handleUrlNavigation(url)
+              blur()
+            } else if (isHttpUrl) {
+              // Async resolution - blur after navigation completes
+              handleUrlNavigation(url).then(() => blur())
+            } else {
+              blur()
+            }
+          } else {
+            blur()
+          }
+        } else if (mode === 'search') {
+          e.preventDefault()
+          searchInputRef.current?.handleEnter()
+        }
+      } else if (e.key === 'ArrowUp' && mode === 'search') {
+        e.preventDefault()
+        searchInputRef.current?.handleArrowUp()
+      } else if (e.key === 'ArrowDown' && mode === 'search') {
+        e.preventDefault()
+        searchInputRef.current?.handleArrowDown()
+      }
+    },
+    [blur, mode, inputValue, handleUrlNavigation],
+  )
+
+  // Handle click on idle state to focus
+  const handleContainerClick = useCallback(() => {
+    if (mode === 'idle') {
+      focus(true)
+    }
+  }, [mode, focus])
+
+  // Handle blur for focused URL mode only
+  const handleInputBlur = useCallback(() => {
+    // Small delay to allow clicks to register
+    setTimeout(() => {
+      if (mode === 'focused') {
+        blur()
+      }
+    }, 150)
+  }, [mode, blur])
+
+  const isDraft = isDraftRoute(route)
+  const isPrivate = isDraft && route.visibility === 'PRIVATE'
+
+  // Render indicators on the right (draft badge is handled by TitleContent/BreadcrumbTitle)
+  const indicators = isPrivate ? (
+    <div className="flex shrink-0 items-center gap-1 px-2">
+      <div className="bg-muted text-muted-foreground flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+        <Lock className="size-3" />
+        <span>Private</span>
+      </div>
+    </div>
+  ) : null
+
+  // Idle state - show breadcrumbs with smaller text
+  if (mode === 'idle') {
+    return (
+      <div
+        className={cn(
+          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full rounded-md border-2 pl-2',
+          'hover:border-border hover:bg-muted/50',
+          'transition-colors',
+        )}
+        onClick={handleContainerClick}
+      >
+        {/* <Search className="text-muted-foreground size-3.5 shrink-0" /> */}
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+          <div className="min-w-0 flex-1 truncate text-xs">
+            <TitleContent size="$3" onPublishSite={publishSite.open} />
+          </div>
+          {indicators}
+        </div>
+        {publishSite.content}
+      </div>
+    )
+  }
+
+  // Focused URL state - show editable URL input
+  if (mode === 'focused') {
+    return (
+      <div
+        className={cn(
+          'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
+          'border-primary bg-background',
+          'focus-within:ring-primary focus-within:ring-1',
+        )}
+      >
+        <Search className="text-muted-foreground size-3.5 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleInputBlur}
+          className={cn(
+            'min-w-0 flex-1 truncate border-none bg-transparent text-xs outline-none',
+            'placeholder:text-muted-foreground',
+          )}
+          autoFocus
+        />
+        {indicators}
+      </div>
+    )
+  }
+
+  // Search state - input in titlebar, results in dropdown
+  return (
+    <Popover open={true} onOpenChange={(open) => !open && blur()}>
+      <PopoverTrigger asChild>
+        <div
+          className={cn(
+            'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
+            'border-primary bg-background',
+            'focus-within:ring-primary focus-within:ring-1',
+          )}
+        >
+          <Search className="text-muted-foreground size-3.5 shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              'min-w-0 flex-1 truncate border-none bg-transparent text-xs outline-none',
+              'placeholder:text-muted-foreground',
+            )}
+            placeholder="Search documents..."
+            autoFocus
+          />
+          {indicators}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        className="no-window-drag w-[var(--radix-popover-trigger-width)] min-w-[400px] border-0 bg-transparent p-0 shadow-none"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="dark:bg-background border-border max-h-[280px] overflow-hidden rounded-md border bg-white p-2 shadow-2xl">
+          <SearchInput
+            ref={searchInputRef}
+            onClose={blur}
+            externalSearch={inputValue}
+            onExternalSearchChange={handleInputChange}
+            hideInput={true}
+            onSelect={({id, route: selectedRoute}) => {
+              if (selectedRoute) {
+                navigate(selectedRoute)
+              } else if (id) {
+                toast.error('Failed to open selected item: ' + id)
+              }
+              blur()
+            }}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
