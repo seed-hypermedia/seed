@@ -46,7 +46,8 @@
     "landing": "pnpm --filter @shm/landing dev",
     "landing:build": "pnpm --filter @shm/landing build",
     "landing:preview": "pnpm --filter @shm/landing preview",
-    "landing:perf": "pnpm --filter @shm/perf-web start --url http://localhost:4173 --app landing"
+    "landing:perf": "pnpm --filter @shm/perf-web start --url http://localhost:4173 --app landing",
+    "cli:publish": "cd frontend/apps/cli && node -e \"const p=require('./package.json');const v=p.version.split('-alpha.');p.version=v[0]+'-alpha.'+(parseInt(v[1]||0)+1);require('fs').writeFileSync('./package.json',JSON.stringify(p,null,2)+'\\n')\" && pnpm build && npm publish --registry https://registry.npmjs.org --access public --ignore-scripts"
   },
   "repository": "github:mintterhypermedia/mintter",
   "packageManager": "pnpm@9.15.0",
