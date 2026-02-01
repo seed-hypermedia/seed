@@ -111,6 +111,20 @@ def main():
 
         return run("pnpm desktop", args=args)
 
+    @cmd(cmds, "run-desktop-fixture", "Run desktop app against test fixture data.")
+    def run_desktop_fixture(args):
+        run("plz build //:pnpm")
+
+        if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            run("plz build //backend:seed-daemon")
+
+        # Point entire desktop userData to fixture directory
+        fixture_dir = os.path.abspath("test-fixtures/desktop")
+        os.environ["SEED_FIXTURE_DATA_DIR"] = fixture_dir
+        os.environ["SEED_P2P_TESTNET_NAME"] = "fixture"
+
+        return run("pnpm desktop", args=args)
+
     @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. Use --profiler to enable React Profiler.")
     def build_desktop(args):
         # run("node scripts/cleanup-desktop.js")

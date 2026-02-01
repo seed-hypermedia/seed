@@ -1,0 +1,5 @@
+# Ignore everything except daemon data
+*
+!.gitignore
+!daemon/
+!daemon/**

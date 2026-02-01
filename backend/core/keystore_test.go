@@ -71,3 +71,61 @@ func removeKeys(ctx context.Context, ks KeyStore) error {
 	}
 	return nil
 }
+
+func TestFileKeyStore(t *testing.T) {
+	dir := t.TempDir()
+	ks, err := NewFileKeyStore(dir)
+	require.NoError(t, err)
+
+	kp, err := GenerateKeyPair(Ed25519, rand.Reader)
+	require.NoError(t, err)
+
+	kp2, err := GenerateKeyPair(Ed25519, rand.Reader)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Initially empty
+	keys, err := ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 0)
+
+	// Get non-existent key
+	_, err = ks.GetKey(ctx, "keyName")
+	require.Error(t, err)
+
+	// Store and retrieve
+	require.NoError(t, ks.StoreKey(ctx, "keyName", kp))
+	key, err := ks.GetKey(ctx, "keyName")
+	require.NoError(t, err)
+	require.Equal(t, kp.Principal(), key.Principal())
+
+	// Can't store duplicate
+	require.Error(t, ks.StoreKey(ctx, "keyName", kp2))
+
+	// Store another
+	require.NoError(t, ks.StoreKey(ctx, "anotherKey", kp2))
+	keys, err = ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+
+	// Rename
+	require.NoError(t, ks.ChangeKeyName(ctx, "keyName", "renamedKey"))
+	_, err = ks.GetKey(ctx, "keyName")
+	require.Error(t, err)
+	key, err = ks.GetKey(ctx, "renamedKey")
+	require.NoError(t, err)
+	require.Equal(t, kp.Principal(), key.Principal())
+
+	// Delete
+	require.NoError(t, ks.DeleteKey(ctx, "renamedKey"))
+	keys, err = ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+
+	// Delete all
+	require.NoError(t, ks.DeleteAllKeys(ctx))
+	keys, err = ks.ListKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 0)
+}

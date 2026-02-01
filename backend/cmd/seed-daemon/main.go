@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -85,11 +86,21 @@ func main() {
 			defer sentry.Flush(2 * time.Second)
 		}
 
-		keyStoreEnvironment := cfg.P2P.TestnetName
-		if keyStoreEnvironment == "" {
-			keyStoreEnvironment = "main"
+		var ks core.KeyStore
+		if cfg.Base.KeystoreDir != "" {
+			var err error
+			ks, err = core.NewFileKeyStore(cfg.Base.KeystoreDir)
+			if err != nil {
+				return fmt.Errorf("failed to create file keystore: %w", err)
+			}
+			log.Info("UsingFileKeyStore", zap.String("dir", cfg.Base.KeystoreDir))
+		} else {
+			keyStoreEnvironment := cfg.P2P.TestnetName
+			if keyStoreEnvironment == "" {
+				keyStoreEnvironment = "main"
+			}
+			ks = core.NewOSKeyStore(keyStoreEnvironment)
 		}
-		ks := core.NewOSKeyStore(keyStoreEnvironment)
 
 		dir, err := storage.Open(cfg.Base.DataDir, nil, ks, cfg.LogLevel)
 		if err != nil {

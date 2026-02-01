@@ -33,14 +33,16 @@ const baseDaemonArguments = [
 
   '-log-level=debug',
 
-  '-data-dir',
-  `${userDataPath}/daemon`,
-
   '-syncing.smart=true',
 
   '-syncing.no-sync-back=true',
 
   lndhubFlags,
+
+  // Daemon data is always at {userDataPath}/daemon
+  // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR
+  '-data-dir',
+  `${userDataPath}/daemon`,
 ]
 
 // Embedding-specific flags
@@ -116,6 +118,10 @@ export async function startMainDaemon(embeddingEnabled: boolean = false): Promis
   }
 
   const args = buildDaemonArguments(embeddingEnabled)
+  // Use file-based keystore in fixture mode
+  if (process.env.SEED_FIXTURE_DATA_DIR) {
+    args.push('-keystore-dir', `${userDataPath}/daemon/keys`)
+  }
   log.info('Starting daemon with arguments:', {args, embeddingEnabled})
 
   const daemonProcess = spawn(goDaemonExecutablePath, args, {
@@ -295,6 +301,10 @@ export async function restartDaemonWithEmbedding(embeddingEnabled: boolean): Pro
   }
 
   const args = buildDaemonArguments(embeddingEnabled)
+  // Use file-based keystore in fixture mode
+  if (process.env.SEED_FIXTURE_DATA_DIR) {
+    args.push('-keystore-dir', `${userDataPath}/daemon/keys`)
+  }
   log.info('Restarting daemon with arguments:', {args, embeddingEnabled})
 
   const daemonProcess = spawn(goDaemonExecutablePath, args, {
