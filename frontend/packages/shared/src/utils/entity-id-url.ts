@@ -463,8 +463,14 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     return null
   }
   const version = parsed.query.v || null
-  const latest = parsed.query.l === null || parsed.query.l === '' || !version
   const fragment = parseFragment(parsed.fragment)
+
+  // When blockRef is present, version takes precedence over latest
+  // because the block only exists in a specific version
+  const hasBlockRef = !!fragment?.blockId
+  const latest = hasBlockRef
+    ? false
+    : parsed.query.l === null || parsed.query.l === '' || !version
 
   let blockRange = null
   if (fragment) {

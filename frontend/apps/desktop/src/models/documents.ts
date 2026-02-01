@@ -498,13 +498,16 @@ export function useDraftEditor() {
           ? editHomeEntity.data.document
           : undefined
       const siteHomeUrl = siteHomeDoc?.metadata?.siteUrl
+      // When copying a block link, include the version to ensure
+      // the block can be found in the correct document version
       return createWebHMUrl(editId.uid, {
         path: editId.path,
         hostname: siteHomeUrl || gwUrl.get(),
         blockRef: blockId,
+        version: blockId ? editDocument?.version : undefined,
       })
     }
-  }, [editId, editHomeEntity.data])
+  }, [editId, editHomeEntity.data, editDocument?.version])
   // editor props
   // const [writeEditorStream] = useRef(writeableStateStream<any>(null)).current
   const experiments = useExperiments()

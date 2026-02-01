@@ -426,6 +426,7 @@ async function prepareComment(
   const {blockNodes, blobs} = await getContent(prepareAttachments)
 
   // If quotingBlockId is provided, wrap content in an embed block like desktop version
+  // Include version to ensure we reference the specific version containing the block
   const publishContent = commentMeta.quotingBlockId
     ? [
         {
@@ -441,6 +442,7 @@ async function prepareComment(
             link: packHmId({
               ...commentMeta.docId,
               blockRef: commentMeta.quotingBlockId,
+              version: commentMeta.docVersion,
             }),
           },
           children: blockNodes,

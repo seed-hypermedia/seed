@@ -21,7 +21,9 @@ describe('unpackHmId', () => {
       latest: true,
     })
   })
-  test('unpacks hm://foo#bar', () => {
+  test('unpacks hm://foo#bar - blockRef forces latest=false', () => {
+    // When blockRef is present, latest should be false because
+    // the block only exists in a specific version
     expect(unpackHmId('hm://foo#bar')).toEqual({
       id: 'hm://foo',
       scheme: 'hm',
@@ -33,7 +35,7 @@ describe('unpackHmId', () => {
       },
       blockRef: 'bar',
       path: [],
-      latest: true,
+      latest: false,
     })
   })
   test('unpacks hm://foo?v=bar', () => {
@@ -64,7 +66,7 @@ describe('unpackHmId', () => {
         latest: false,
       })
     })
-    test('unpacks http://foobar.com/hm/1#block', () => {
+    test('unpacks http://foobar.com/hm/1#block - blockRef forces latest=false', () => {
       expect(unpackHmId('http://foobar.com/hm/1#block')).toEqual({
         scheme: 'http',
         hostname: 'foobar.com',
@@ -73,7 +75,7 @@ describe('unpackHmId', () => {
         blockRange: {
           expanded: false,
         },
-        latest: true,
+        latest: false,
         blockRef: 'block',
         id: 'hm://1',
         path: [],
@@ -143,6 +145,114 @@ describe('hmId', () => {
       blockRef: null,
       blockRange: null,
       path: ['def', 'a', 'b'],
+    })
+  })
+})
+
+describe('unpackHmId - blockRef and version precedence', () => {
+  test('blockRef with ?l param - blockRef takes precedence, latest=false', () => {
+    // When blockRef is present, ?l should be ignored because
+    // the block only exists in a specific version
+    const result = unpackHmId('hm://uid?l#blockId')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: null,
+      blockRange: {
+        expanded: false,
+      },
+      blockRef: 'blockId',
+      path: [],
+      latest: false, // blockRef forces latest=false
+    })
+  })
+
+  test('blockRef with ?v param - version is preserved, latest=false', () => {
+    const result = unpackHmId('hm://uid?v=abc123#blockId')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: 'abc123',
+      blockRange: {
+        expanded: false,
+      },
+      blockRef: 'blockId',
+      path: [],
+      latest: false, // version is specified, so latest=false
+    })
+  })
+
+  test('blockRef with both ?l and ?v params - version takes precedence', () => {
+    // When both ?l and ?v are present with blockRef, version wins
+    const result = unpackHmId('hm://uid?l&v=abc123#blockId')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: 'abc123',
+      blockRange: {
+        expanded: false,
+      },
+      blockRef: 'blockId',
+      path: [],
+      latest: false, // blockRef forces latest=false regardless of ?l
+    })
+  })
+
+  test('no blockRef with ?l param - latest=true', () => {
+    const result = unpackHmId('hm://uid?l')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: null,
+      blockRange: null,
+      blockRef: null,
+      path: [],
+      latest: true, // no blockRef, so ?l is respected
+    })
+  })
+
+  test('expanded blockRef also forces latest=false', () => {
+    // parseFragment expects 8-character block IDs
+    const result = unpackHmId('hm://uid?l#XK6l8B4d+')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: null,
+      blockRange: {
+        expanded: true,
+      },
+      blockRef: 'XK6l8B4d',
+      path: [],
+      latest: false,
+    })
+  })
+
+  test('blockRef with range also forces latest=false', () => {
+    // parseFragment expects 8-character block IDs
+    const result = unpackHmId('hm://uid?l#XK6l8B4d[21:41]')
+    expect(result).toEqual({
+      id: 'hm://uid',
+      scheme: 'hm',
+      hostname: null,
+      uid: 'uid',
+      version: null,
+      blockRange: {
+        start: 21,
+        end: 41,
+      },
+      blockRef: 'XK6l8B4d',
+      path: [],
+      latest: false,
     })
   })
 })
