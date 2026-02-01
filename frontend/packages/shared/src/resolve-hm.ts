@@ -11,10 +11,8 @@ export async function resolveHypermediaUrl(url: string) {
     const parsedUrl = new URL(url)
     const hasVersion = parsedUrl.searchParams.has('v')
     const hasLatest = parsedUrl.searchParams.has('l')
-    // latest is true if ?l is present OR if no version is specified
-    latest = hasLatest || !hasVersion
 
-    // Extract blockRef and blockRange from fragment
+    // Extract blockRef and blockRange from fragment first
     if (parsedUrl.hash) {
       const fragment = parseFragment(parsedUrl.hash.slice(1))
       if (fragment) {
@@ -26,6 +24,10 @@ export async function resolveHypermediaUrl(url: string) {
         }
       }
     }
+
+    // When blockRef is present, version takes precedence over latest
+    // because the block only exists in a specific version
+    latest = blockRef ? false : hasLatest || !hasVersion
   } catch {
     // If URL parsing fails, continue with defaults
   }
@@ -50,9 +52,16 @@ export async function resolveHypermediaUrl(url: string) {
     const type = response.headers.get('x-hypermedia-type')
     if (id) {
       const hmId = unpackHmId(id)
+      // When blockRef is present, ensure version is included in hmId
+      // so it gets packed correctly when creating links
+      const resolvedVersion = blockRef
+        ? version ?? hmId?.version ?? null
+        : hmId?.version ?? null
       return {
         id,
-        hmId: hmId ? {...hmId, latest, blockRef, blockRange} : null,
+        hmId: hmId
+          ? {...hmId, version: resolvedVersion, latest, blockRef, blockRange}
+          : null,
         version,
         title,
         target,

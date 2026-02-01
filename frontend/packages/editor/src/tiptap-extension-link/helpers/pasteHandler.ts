@@ -247,14 +247,25 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           let tr = view.state.tr
 
           let pos = tr.selection.from
-          const normalizedHmUrl = packHmId(hmId(unpackedHmId.uid, unpackedHmId))
           if (options.grpcClient) {
             fetchEntityTitle(
               unpackedHmId,
               options.grpcClient,
               unpackedHmId.blockRef,
             )
-              .then(({title}) => {
+              .then(({title, version}) => {
+                // When blockRef is present, use the fetched version to ensure
+                // we reference the specific version containing the block
+                const resolvedVersion =
+                  unpackedHmId.blockRef && !unpackedHmId.version
+                    ? version
+                    : unpackedHmId.version
+                const normalizedHmUrl = packHmId(
+                  hmId(unpackedHmId.uid, {
+                    ...unpackedHmId,
+                    version: resolvedVersion,
+                  }),
+                )
                 if (title) {
                   view.dispatch(
                     tr.insertText(title, pos).addMark(
@@ -305,6 +316,10 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 }
               })
               .catch((err) => {
+                // Fallback: use original URL without resolved version
+                const normalizedHmUrl = packHmId(
+                  hmId(unpackedHmId.uid, unpackedHmId),
+                )
                 view.dispatch(
                   tr.insertText(normalizedHmUrl, pos).addMark(
                     pos,
@@ -844,6 +859,7 @@ async function fetchEntityTitle(
   const document = await grpcClient.documents.getDocument({
     account: hmId.uid,
     path: hmIdPathToEntityQueryPath(hmId.path),
+    version: hmId.version || undefined,
   })
   const doc = document
   let title
@@ -866,8 +882,11 @@ async function fetchEntityTitle(
       ),
     })
   }
+  // Return version from document - important when blockRef is present
+  // to ensure we reference the specific version containing the block
   return {
     title,
+    version: doc.version || null,
   }
   // } else if (hmId.type == 'c') {
   //   try {

@@ -138,6 +138,13 @@ function _CommentBox(props: {
       content: BlockNode[]
       signingKeyName: string
     }) => {
+      // When quoting a block, include the version to ensure we reference
+      // the specific version containing the block
+      const targetDoc =
+        targetEntity.data?.type === 'document'
+          ? targetEntity.data.document
+          : undefined
+      const targetVersion = targetDoc?.version
       const publishContent = quotingBlockId
         ? [
             new BlockNode({
@@ -150,7 +157,11 @@ function _CommentBox(props: {
                   view: 'Content',
                 } as any,
                 annotations: [],
-                link: packHmId({...docId, blockRef: quotingBlockId}),
+                link: packHmId({
+                  ...docId,
+                  blockRef: quotingBlockId,
+                  version: targetVersion || docId.version,
+                }),
               },
               children: content,
             }),
