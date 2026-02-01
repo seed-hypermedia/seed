@@ -55,8 +55,8 @@ export async function resolveHypermediaUrl(url: string) {
       // When blockRef is present, ensure version is included in hmId
       // so it gets packed correctly when creating links
       const resolvedVersion = blockRef
-        ? (version ?? hmId?.version ?? null)
-        : (hmId?.version ?? null)
+        ? version ?? hmId?.version ?? null
+        : hmId?.version ?? null
       return {
         id,
         hmId: hmId
