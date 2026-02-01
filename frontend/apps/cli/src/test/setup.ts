@@ -4,7 +4,7 @@
  */
 
 import {spawn, execSync, type ChildProcess} from 'child_process'
-import {mkdtempSync, rmSync, existsSync, cpSync} from 'fs'
+import {mkdtempSync, rmSync, existsSync, cpSync, writeFileSync} from 'fs'
 import {tmpdir} from 'os'
 import {join} from 'path'
 
@@ -42,6 +42,11 @@ export type TestContext = {
   dataDir: string
   daemon: ChildProcess | null
   cleanup: () => Promise<void>
+}
+
+export type FullTestContext = TestContext & {
+  webServerUrl: string
+  webServer: ChildProcess | null
 }
 
 export type TestConfig = {
@@ -341,4 +346,222 @@ export async function runCli(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Wait for web server to be ready by polling the root
+ */
+async function waitForWebServer(url: string, timeoutMs = 60000): Promise<void> {
+  const start = Date.now()
+  let lastError: Error | null = null
+
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url)
+      if (res.ok || res.status === 404) {
+        // Server is responding
+        return
+      }
+      lastError = new Error(`HTTP ${res.status}`)
+    } catch (e) {
+      lastError = e as Error
+    }
+    await sleep(1000)
+  }
+
+  throw new Error(`Web server failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`)
+}
+
+/**
+ * Start daemon with fixture data AND web server for full integration testing
+ */
+export async function startFullIntegrationWithFixture(config: TestConfig = {}): Promise<FullTestContext> {
+  const testnetName = 'fixture'
+  const basePort = getRandomPort()
+  const httpPort = config.httpPort || basePort
+  const grpcPort = config.grpcPort || basePort + 1
+  const p2pPort = config.p2pPort || basePort + 2
+  const webServerPort = basePort + 3
+
+  const repoRoot = findRepoRoot()
+  const fixtureSource = join(repoRoot, 'test-fixtures/desktop/daemon')
+
+  if (!existsSync(fixtureSource)) {
+    throw new Error(`Fixture not found: ${fixtureSource}`)
+  }
+
+  // Copy fixture to temp directory
+  const dataDir = mkdtempSync(join(tmpdir(), 'seed-cli-fixture-'))
+  cpSync(fixtureSource, dataDir, {recursive: true})
+
+  console.log(`[test] Starting full integration with fixture data`)
+  console.log(`[test] Data dir: ${dataDir}`)
+  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}, web=${webServerPort}`)
+
+  const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
+  const keystoreDir = join(dataDir, 'keys')
+
+  const goBinary = findExecutable('go')
+  console.log(`[test] Go binary: ${goBinary}`)
+
+  // Start daemon
+  const daemon = spawn(
+    '/bin/sh',
+    [
+      '-c',
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${keystoreDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn`,
+    ],
+    {
+      env: {
+        ...process.env,
+        SEED_P2P_TESTNET_NAME: testnetName,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+
+  const daemonUrl = `http://localhost:${httpPort}`
+
+  daemon.stdout?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[daemon:stdout] ${line}`)
+    }
+  })
+
+  daemon.stderr?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[daemon:stderr] ${line}`)
+    }
+  })
+
+  daemon.on('exit', (code, signal) => {
+    console.log(`[daemon] Process exited with code ${code}, signal ${signal}`)
+  })
+
+  daemon.on('error', (err) => {
+    console.log(`[daemon] Process error: ${err.message}`)
+  })
+
+  try {
+    await waitForDaemon(daemonUrl)
+    console.log(`[test] Daemon ready at ${daemonUrl}`)
+  } catch (error) {
+    daemon.kill()
+    rmSync(dataDir, {recursive: true, force: true})
+    throw error
+  }
+
+  // Start web server
+  const webPath = join(repoRoot, 'frontend/apps/web')
+  const webServerUrl = `http://localhost:${webServerPort}`
+
+  console.log(`[test] Starting web server at ${webServerUrl}`)
+
+  // Create config.json in web app directory for testing (if it doesn't exist)
+  const webConfigPath = join(webPath, 'config.json')
+  const hadConfig = existsSync(webConfigPath)
+  if (!hadConfig) {
+    writeFileSync(webConfigPath, JSON.stringify({}))
+    console.log(`[test] Created temporary config.json at ${webConfigPath}`)
+  }
+
+  // Find pnpm in mise installs or use npx as fallback
+  let pnpmBinary = findExecutable('pnpm')
+  if (!pnpmBinary || pnpmBinary === 'pnpm') {
+    // Check mise installs
+    const misePnpm = join(process.env.HOME || '', '.local/share/mise/installs/pnpm/9.15.0/pnpm')
+    if (existsSync(misePnpm)) {
+      pnpmBinary = misePnpm
+    }
+  }
+  console.log(`[test] pnpm binary: ${pnpmBinary}`)
+
+  const webServer = spawn(
+    '/bin/sh',
+    [
+      '-c',
+      `cd "${webPath}" && "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
+    ],
+    {
+      env: {
+        ...process.env,
+        DAEMON_HTTP_URL: `http://localhost:${httpPort}`,
+        DAEMON_HTTP_PORT: String(httpPort),
+        DAEMON_FILE_URL: `http://localhost:${httpPort}/ipfs`,
+        NODE_ENV: 'development',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+
+  webServer.stdout?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[web:stdout] ${line}`)
+    }
+  })
+
+  webServer.stderr?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[web:stderr] ${line}`)
+    }
+  })
+
+  webServer.on('exit', (code, signal) => {
+    console.log(`[web] Process exited with code ${code}, signal ${signal}`)
+  })
+
+  webServer.on('error', (err) => {
+    console.log(`[web] Process error: ${err.message}`)
+  })
+
+  try {
+    await waitForWebServer(webServerUrl)
+    console.log(`[test] Web server ready at ${webServerUrl}`)
+  } catch (error) {
+    daemon.kill()
+    webServer.kill()
+    rmSync(dataDir, {recursive: true, force: true})
+    throw error
+  }
+
+  const cleanup = async () => {
+    console.log('[test] Cleaning up full integration test...')
+    if (webServer && !webServer.killed) {
+      webServer.kill('SIGTERM')
+      await sleep(500)
+      if (!webServer.killed) {
+        webServer.kill('SIGKILL')
+      }
+    }
+    if (daemon && !daemon.killed) {
+      daemon.kill('SIGTERM')
+      await sleep(1000)
+      if (!daemon.killed) {
+        daemon.kill('SIGKILL')
+      }
+    }
+    if (existsSync(dataDir)) {
+      rmSync(dataDir, {recursive: true, force: true})
+    }
+    // Remove config.json if we created it
+    if (!hadConfig && existsSync(webConfigPath)) {
+      rmSync(webConfigPath)
+      console.log(`[test] Removed temporary config.json`)
+    }
+    console.log('[test] Cleanup complete')
+  }
+
+  return {
+    testnetName,
+    daemonUrl,
+    dataDir,
+    daemon,
+    webServerUrl,
+    webServer,
+    cleanup,
+  }
 }
