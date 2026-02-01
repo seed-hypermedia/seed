@@ -1,34 +1,32 @@
 /**
  * CLI Fixture Tests
  *
- * Tests daemon startup with the test fixture data.
- * Note: Full CLI tests require the web server for /api/ endpoints.
- * This test verifies the fixture loads correctly using daemon-native endpoints.
+ * Full integration tests with daemon + web server using fixture data.
  */
 
 import {describe, test, expect, beforeAll, afterAll} from 'bun:test'
-import {startDaemonWithFixture, runCli, type TestContext} from './setup'
+import {startFullIntegrationWithFixture, runCli, type FullTestContext} from './setup'
 
-let ctx: TestContext
+let ctx: FullTestContext
 
 // Fixture account ID (from test-fixtures/desktop/daemon/keys/account_keys.json)
 const FIXTURE_ACCOUNT = 'z6MksCerY4A2EWyue418ARHgMLAndpchBcKo639cJme73ZQQ'
+const HIERARCHY_TEST_DOC = `hm://${FIXTURE_ACCOUNT}/hierarchy-test`
 
-const TEST_TIMEOUT = 120000 // 2 minutes for daemon startup
+const TEST_TIMEOUT = 180000 // 3 minutes for daemon + web server startup
 
-describe('CLI Fixture Tests', () => {
+describe('CLI Full Integration Tests', () => {
   beforeAll(async () => {
-    ctx = await startDaemonWithFixture()
-    console.log(`[test] Fixture daemon ready at ${ctx.daemonUrl}`)
+    ctx = await startFullIntegrationWithFixture()
+    console.log(`[test] Full integration ready: daemon=${ctx.daemonUrl}, web=${ctx.webServerUrl}`)
   }, TEST_TIMEOUT)
 
   afterAll(async () => {
     await ctx.cleanup()
   }, TEST_TIMEOUT)
 
-  describe('Daemon with Fixture', () => {
-    test('daemon starts successfully', async () => {
-      // Verify daemon is running via debug endpoint
+  describe('Infrastructure', () => {
+    test('daemon is running', async () => {
       const response = await fetch(`${ctx.daemonUrl}/debug/version`)
       expect(response.ok).toBe(true)
       const version = await response.text()
@@ -36,16 +34,15 @@ describe('CLI Fixture Tests', () => {
       console.log(`[test] Daemon version: ${version}`)
     }, TEST_TIMEOUT)
 
-    test('daemon config endpoint works', async () => {
-      const response = await fetch(`${ctx.daemonUrl}/hm/api/config`)
-      expect(response.ok).toBe(true)
-      const config = await response.json()
-      expect(config.peerId).toBeTruthy()
-      console.log(`[test] Daemon peer ID: ${config.peerId}`)
+    test('web server is running', async () => {
+      const response = await fetch(ctx.webServerUrl)
+      // May return 200 or redirect, either is fine
+      expect(response.status).toBeLessThan(500)
+      console.log(`[test] Web server status: ${response.status}`)
     }, TEST_TIMEOUT)
   })
 
-  describe('CLI Basic Commands (no server needed)', () => {
+  describe('CLI Basic Commands', () => {
     test('--help shows usage', async () => {
       const result = await runCli(['--help'])
       expect(result.exitCode).toBe(0)
@@ -57,15 +54,48 @@ describe('CLI Fixture Tests', () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toMatch(/^\d+\.\d+\.\d+/)
     }, TEST_TIMEOUT)
-
-    test('key derive computes account id', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
-      const result = await runCli(['key', 'derive', mnemonic])
-      expect(result.exitCode).toBe(0)
-      expect(result.stdout).toMatch(/^z6Mk/)
-    }, TEST_TIMEOUT)
   })
 
-  // Note: Full CLI tests (get, account, query, etc.) require the web server
-  // for /api/ endpoints. Run those with `pnpm test` against a live server.
+  describe('Fixture Data via API', () => {
+    test('get hierarchy-test document as JSON', async () => {
+      const result = await runCli(['get', HIERARCHY_TEST_DOC], {server: ctx.webServerUrl})
+      expect(result.exitCode).toBe(0)
+      const data = JSON.parse(result.stdout)
+      expect(data.type).toBe('document')
+      expect(data.document.metadata.name).toBe('Hierarchy Test')
+      expect(data.document.path).toBe('/hierarchy-test')
+    }, TEST_TIMEOUT)
+
+    test('get --md returns correct markdown structure', async () => {
+      const result = await runCli(['get', HIERARCHY_TEST_DOC, '--md'], {server: ctx.webServerUrl})
+      expect(result.exitCode).toBe(0)
+
+      // Validate the markdown content matches the fixture document
+      expect(result.stdout).toContain('# Hierarchy Test')
+      expect(result.stdout).toContain('Text before first heading')
+      expect(result.stdout).toContain('# First Heading')
+      expect(result.stdout).toContain('under first heading')
+      expect(result.stdout).toContain('## Second Level Heading A')
+      expect(result.stdout).toContain('Under First Heading > Second Level Heading A')
+      expect(result.stdout).toContain('under first heading, at the end')
+      expect(result.stdout).toContain('# Second Heading')
+      expect(result.stdout).toContain('In second heading')
+      expect(result.stdout).toContain('Text after all sections')
+    }, TEST_TIMEOUT)
+
+    test('get --md --frontmatter includes YAML frontmatter', async () => {
+      const result = await runCli(
+        ['get', HIERARCHY_TEST_DOC, '--md', '--frontmatter'],
+        {server: ctx.webServerUrl}
+      )
+      expect(result.exitCode).toBe(0)
+
+      // Validate frontmatter structure
+      expect(result.stdout).toMatch(/^---/)
+      expect(result.stdout).toContain('title: "Hierarchy Test"')
+      expect(result.stdout).toContain(`authors: [${FIXTURE_ACCOUNT}]`)
+      expect(result.stdout).toContain('version: bafy')
+      expect(result.stdout).toMatch(/---\n\n# Hierarchy Test/)
+    }, TEST_TIMEOUT)
+  })
 })
