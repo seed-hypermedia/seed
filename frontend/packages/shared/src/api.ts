@@ -3,9 +3,9 @@ import {Account, AccountParams} from './api-account'
 import {Comment} from './api-comment'
 import {AccountContacts} from './api-account-contacts'
 import {ListEvents} from './api-activity'
-import {ListCapabilities} from './api-capabilities'
-import {ListChanges} from './api-changes'
-import {ListCitations} from './api-citations'
+import {ListCapabilities, ListCapabilitiesParams} from './api-capabilities'
+import {ListChanges, ListChangesParams} from './api-changes'
+import {ListCitations, ListCitationsParams} from './api-citations'
 import {
   GetCommentReplyCount,
   ListComments,
@@ -52,4 +52,7 @@ export const APIParams: {
   Account: AccountParams,
   Resource: ResourceParams,
   ResourceMetadata: ResourceMetadataParams,
+  ListCitations: ListCitationsParams,
+  ListChanges: ListChangesParams,
+  ListCapabilities: ListCapabilitiesParams,
 }

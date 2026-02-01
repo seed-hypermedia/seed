@@ -1,7 +1,8 @@
-import {HMRequestImplementation} from './api-types'
+import {HMRequestImplementation, HMRequestParams} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
 import {HMListChangesRequest} from './hm-types'
+import {packHmId, unpackHmId} from './utils'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 
 export const ListChanges: HMRequestImplementation<HMListChangesRequest> = {
@@ -32,5 +33,16 @@ export const ListChanges: HMRequestImplementation<HMListChangesRequest> = {
       ),
       latestVersion: latestDoc.version,
     }
+  },
+}
+
+export const ListChangesParams: HMRequestParams<HMListChangesRequest> = {
+  inputToParams: (input) => ({targetId: packHmId(input.targetId)}),
+  paramsToInput: (params) => {
+    const targetId = unpackHmId(params.targetId)
+    if (!targetId) {
+      throw new Error(`Invalid targetId query param: ${params.targetId}`)
+    }
+    return {targetId}
   },
 }
