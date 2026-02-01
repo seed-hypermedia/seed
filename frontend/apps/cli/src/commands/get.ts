@@ -22,12 +22,19 @@ export function registerGetCommand(program: Command) {
       const format = getOutputFormat(globalOpts)
 
       try {
-        let result
+        // Handle metadata-only request separately
         if (options.metadata) {
-          result = await client.getResourceMetadata(id)
-        } else {
-          result = await client.getResource(id)
+          const result = await client.getResourceMetadata(id)
+          if (globalOpts.quiet || options.quiet) {
+            console.log(result.metadata?.name || result.id.id)
+          } else {
+            console.log(formatOutput(result, format))
+          }
+          return
         }
+
+        // Full resource fetch
+        const result = await client.getResource(id)
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
