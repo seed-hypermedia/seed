@@ -33,14 +33,16 @@ const baseDaemonArguments = [
 
   '-log-level=debug',
 
-  '-data-dir',
-  `${userDataPath}/daemon`,
-
   '-syncing.smart=true',
 
   '-syncing.no-sync-back=true',
 
   lndhubFlags,
+
+  // Daemon data is always at {userDataPath}/daemon.
+  // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR.
+  '-data-dir',
+  `${userDataPath}/daemon`,
 ]
 
 // Embedding-specific flags
@@ -56,14 +58,23 @@ const embeddingFlags = [
 
 // Build daemon arguments based on embedding setting
 function buildDaemonArguments(embeddingEnabled: boolean): string[] {
-  if (embeddingEnabled) {
-    return [...baseDaemonArguments, ...embeddingFlags]
-  }
-  return [...baseDaemonArguments]
-}
+  const args = [...baseDaemonArguments]
 
-// For backwards compatibility during initial startup
-const daemonArguments = baseDaemonArguments
+  // Use file-based keystore in fixture mode.
+  if (process.env.SEED_FIXTURE_DATA_DIR) {
+    args.push('-keystore-dir', `${userDataPath}/daemon/keys`)
+  }
+
+  if (embeddingEnabled) {
+    args.push(...embeddingFlags)
+  }
+
+  // SENTRY_DSN must come last - it's not a flag, and Go's flag parser
+  // stops at the first non-flag argument.
+  args.push(`SENTRY_DSN=${__SENTRY_DSN__}`)
+
+  return args
+}
 
 // Store daemon process reference for restart capability
 let currentDaemonProcess: ChildProcess | null = null
