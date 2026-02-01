@@ -261,16 +261,17 @@ async function resolveQuery(
   }
 
   try {
+    type SortTerm = 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime'
     const attrs = block.attributes as Record<string, unknown> | undefined
     const queryConfig = attrs?.query as {
       includes?: Array<{space: string; path?: string; mode?: string}>
-      sort?: Array<{term: string; reverse?: boolean}>
+      sort?: Array<{term: SortTerm; reverse?: boolean}>
       limit?: number
     } | undefined
 
     // Handle both old (flat) and new (nested query) formats
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
-    let sort: Array<{term: string; reverse?: boolean}> | undefined
+    let sort: Array<{term: SortTerm; reverse?: boolean}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
