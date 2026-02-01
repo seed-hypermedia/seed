@@ -23,28 +23,42 @@ const lndhubFlags =
     ? '-lndhub.mainnet=true'
     : '-lndhub.mainnet=false'
 
-const daemonArguments = [
-  '-http.port',
-  String(DAEMON_HTTP_PORT),
+function buildDaemonArguments() {
+  const args = [
+    '-http.port',
+    String(DAEMON_HTTP_PORT),
 
-  '-grpc.port',
-  String(DAEMON_GRPC_PORT),
+    '-grpc.port',
+    String(DAEMON_GRPC_PORT),
 
-  '-p2p.port',
-  String(P2P_PORT),
+    '-p2p.port',
+    String(P2P_PORT),
 
-  '-log-level=debug',
+    '-log-level=debug',
 
-  '-data-dir',
-  `${userDataPath}/daemon`,
+    '-syncing.smart=true',
 
-  '-syncing.smart=true',
+    '-syncing.no-sync-back=true',
 
-  '-syncing.no-sync-back=true',
+    lndhubFlags,
 
-  lndhubFlags,
-  `SENTRY_DSN=${__SENTRY_DSN__}`,
-]
+    // Daemon data is always at {userDataPath}/daemon
+    // In fixture mode, userDataPath is set via SEED_FIXTURE_DATA_DIR
+    '-data-dir',
+    `${userDataPath}/daemon`,
+  ]
+
+  // Use file-based keystore in fixture mode
+  if (process.env.SEED_FIXTURE_DATA_DIR) {
+    args.push('-keystore-dir', `${userDataPath}/daemon/keys`)
+  }
+
+  // SENTRY_DSN must come last - it's not a flag, and Go's flag parser
+  // stops at the first non-flag argument
+  args.push(`SENTRY_DSN=${__SENTRY_DSN__}`)
+
+  return args
+}
 
 type ReadyState = {t: 'ready'}
 type ErrorState = {t: 'error'; message: string}
@@ -97,8 +111,8 @@ export async function startMainDaemon(): Promise<{
     SENTRY_RELEASE: VERSION,
   }
 
-  // log.info('Daemon with env:', daemonEnv)
-  // log.info('Daemon with arguments:', daemonArguments)
+  const daemonArguments = buildDaemonArguments()
+  log.debug('Daemon arguments:', daemonArguments)
 
   const daemonProcess = spawn(goDaemonExecutablePath, daemonArguments, {
     // daemon env
