@@ -4,9 +4,23 @@
  */
 
 import {spawn, execSync, type ChildProcess} from 'child_process'
-import {mkdtempSync, rmSync, existsSync} from 'fs'
+import {mkdtempSync, rmSync, existsSync, cpSync} from 'fs'
 import {tmpdir} from 'os'
 import {join} from 'path'
+
+/**
+ * Find repo root by looking for backend directory
+ */
+function findRepoRoot(): string {
+  let repoRoot = process.cwd()
+  while (!existsSync(join(repoRoot, 'backend')) && repoRoot !== '/') {
+    repoRoot = join(repoRoot, '..')
+  }
+  if (!existsSync(join(repoRoot, 'backend'))) {
+    throw new Error('Could not find repo root')
+  }
+  return repoRoot
+}
 
 /**
  * Find an executable in PATH
@@ -95,18 +109,8 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
   console.log(`[test] Data dir: ${dataDir}`)
   console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`)
 
-  // Find repo root by looking for backend directory
-  let repoRoot = process.cwd()
-  while (!existsSync(join(repoRoot, 'backend')) && repoRoot !== '/') {
-    repoRoot = join(repoRoot, '..')
-  }
+  const repoRoot = findRepoRoot()
   const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
-
-  if (!existsSync(daemonPath)) {
-    throw new Error(`Daemon path not found: ${daemonPath}`)
-  }
-
-  console.log(`[test] Daemon path: ${daemonPath}`)
 
   // Find go binary
   const goBinary = findExecutable('go')
@@ -165,6 +169,110 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
 
   const cleanup = async () => {
     console.log('[test] Cleaning up...')
+    if (daemon && !daemon.killed) {
+      daemon.kill('SIGTERM')
+      await sleep(1000)
+      if (!daemon.killed) {
+        daemon.kill('SIGKILL')
+      }
+    }
+    if (existsSync(dataDir)) {
+      rmSync(dataDir, {recursive: true, force: true})
+    }
+    console.log('[test] Cleanup complete')
+  }
+
+  return {
+    testnetName,
+    daemonUrl,
+    dataDir,
+    daemon,
+    cleanup,
+  }
+}
+
+/**
+ * Start daemon with test fixture data
+ * Copies fixture to temp dir to avoid modifying original
+ */
+export async function startDaemonWithFixture(config: TestConfig = {}): Promise<TestContext> {
+  const testnetName = 'fixture'
+  const basePort = getRandomPort()
+  const httpPort = config.httpPort || basePort
+  const grpcPort = config.grpcPort || basePort + 1
+  const p2pPort = config.p2pPort || basePort + 2
+
+  const repoRoot = findRepoRoot()
+  const fixtureSource = join(repoRoot, 'test-fixtures/desktop/daemon')
+
+  if (!existsSync(fixtureSource)) {
+    throw new Error(`Fixture not found: ${fixtureSource}`)
+  }
+
+  // Copy fixture to temp directory
+  const dataDir = mkdtempSync(join(tmpdir(), 'seed-cli-fixture-'))
+  cpSync(fixtureSource, dataDir, {recursive: true})
+
+  console.log(`[test] Starting daemon with fixture data`)
+  console.log(`[test] Data dir: ${dataDir}`)
+  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`)
+
+  const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
+  const keystoreDir = join(dataDir, 'keys')
+
+  const goBinary = findExecutable('go')
+  console.log(`[test] Go binary: ${goBinary}`)
+
+  const daemon = spawn(
+    '/bin/sh',
+    [
+      '-c',
+      `cd "${daemonPath}" && "${goBinary}" run . -data-dir="${dataDir}" -keystore-dir="${keystoreDir}" -http.port=${httpPort} -grpc.port=${grpcPort} -p2p.port=${p2pPort} -log-level=warn`,
+    ],
+    {
+      env: {
+        ...process.env,
+        SEED_P2P_TESTNET_NAME: testnetName,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+
+  const daemonUrl = `http://localhost:${httpPort}`
+
+  daemon.stdout?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[daemon:stdout] ${line}`)
+    }
+  })
+
+  daemon.stderr?.on('data', (data) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[daemon:stderr] ${line}`)
+    }
+  })
+
+  daemon.on('exit', (code, signal) => {
+    console.log(`[daemon] Process exited with code ${code}, signal ${signal}`)
+  })
+
+  daemon.on('error', (err) => {
+    console.log(`[daemon] Process error: ${err.message}`)
+  })
+
+  try {
+    await waitForDaemon(daemonUrl)
+    console.log(`[test] Daemon ready at ${daemonUrl}`)
+  } catch (error) {
+    daemon.kill()
+    rmSync(dataDir, {recursive: true, force: true})
+    throw error
+  }
+
+  const cleanup = async () => {
+    console.log('[test] Cleaning up fixture test...')
     if (daemon && !daemon.killed) {
       daemon.kill('SIGTERM')
       await sleep(1000)
