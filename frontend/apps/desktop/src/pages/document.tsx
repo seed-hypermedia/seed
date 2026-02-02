@@ -792,7 +792,7 @@ function _MainDocumentPage({
               'mx-auto flex w-full flex-col px-4',
               isHomeDoc && 'mt-6',
             )}
-            style={{maxWidth: contentMaxWidth}}
+            style={{maxWidth: contentMaxWidth + 24}}
           >
             {isHomeDoc ? (
               <SizableText size="4xl" weight="bold">
