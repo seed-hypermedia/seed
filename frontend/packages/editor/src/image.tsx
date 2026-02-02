@@ -1,4 +1,4 @@
-import {useFileUrl} from '@shm/ui/get-file-url'
+import {useImageUrl} from '@shm/ui/get-file-url'
 import {ResizeHandle} from '@shm/ui/resize-handle'
 import {useEffect, useRef, useState} from 'react'
 import {RiImage2Line} from 'react-icons/ri'
@@ -183,7 +183,7 @@ const display = ({
   setSelected,
   assign,
 }: DisplayComponentProps) => {
-  const getFileUrl = useFileUrl()
+  const getImageUrl = useImageUrl()
 
   useEffect(() => {
     // @ts-ignore
@@ -270,7 +270,7 @@ const display = ({
       }
       // Handle IPFS URLs
       if (url.startsWith('ipfs://')) {
-        return getFileUrl(url)
+        return getImageUrl(url)
       }
       // Handle other URLs
       return url
