@@ -290,4 +290,27 @@ describe('parseFragment', () => {
       expanded: false,
     })
   })
+
+  test('parses variable-length blockId with expanded suffix', () => {
+    // Block IDs can be longer than 8 chars
+    expect(parseFragment('UyXozrafan+')).toEqual({
+      blockId: 'UyXozrafan',
+      expanded: true,
+    })
+  })
+
+  test('parses variable-length blockId with range suffix', () => {
+    expect(parseFragment('UyXozrafan[10:20]')).toEqual({
+      blockId: 'UyXozrafan',
+      start: 10,
+      end: 20,
+    })
+  })
+
+  test('parses variable-length blockId without suffix', () => {
+    expect(parseFragment('UyXozrafan')).toEqual({
+      blockId: 'UyXozrafan',
+      expanded: false,
+    })
+  })
 })
