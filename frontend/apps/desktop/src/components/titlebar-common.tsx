@@ -879,8 +879,9 @@ export function Omnibar() {
       <div
         className={cn(
           'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border-2 pl-2',
-          'hover:border-border hover:bg-muted/50',
+          'hover:border-primary/50 bg-white dark:bg-black',
           'transition-colors',
+          'max-w-xl',
         )}
         onClick={handleContainerClick}
       >
@@ -902,8 +903,9 @@ export function Omnibar() {
       <div
         className={cn(
           'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
-          'border-primary bg-background',
+          'border-primary bg-white dark:bg-black',
           'focus-within:ring-primary focus-within:ring-1',
+          'max-w-xl',
         )}
       >
         <Search className="text-muted-foreground size-3.5 shrink-0" />
@@ -915,7 +917,7 @@ export function Omnibar() {
           onKeyDown={handleKeyDown}
           onBlur={handleInputBlur}
           className={cn(
-            'min-w-0 flex-1 truncate border-none bg-transparent text-xs outline-none',
+            'min-w-0 flex-1 truncate border-none! bg-transparent text-xs outline-none',
             'placeholder:text-muted-foreground',
           )}
           autoFocus
@@ -932,8 +934,9 @@ export function Omnibar() {
         <div
           className={cn(
             'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
-            'border-primary bg-background',
+            'border-primary bg-white dark:bg-black',
             'focus-within:ring-primary focus-within:ring-1',
+            'max-w-xl',
           )}
         >
           <Search className="text-muted-foreground size-3.5 shrink-0" />
@@ -944,7 +947,7 @@ export function Omnibar() {
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             className={cn(
-              'min-w-0 flex-1 truncate border-none bg-transparent text-xs outline-none',
+              'min-w-0 flex-1 truncate border-none! bg-transparent text-xs outline-none',
               'placeholder:text-muted-foreground',
             )}
             placeholder="Search documents..."
