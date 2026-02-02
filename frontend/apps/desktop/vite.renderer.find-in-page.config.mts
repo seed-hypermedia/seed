@@ -1,7 +1,7 @@
 import {sentryVitePlugin} from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 
-import react from '@vitejs/plugin-react'
+import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
 
@@ -30,12 +30,30 @@ export default defineConfig(({command, mode}) => {
         },
       },
     },
-    plugins: [tsConfigPaths(), react(), tailwindcss()],
+    plugins: [
+      tsConfigPaths({
+        root: '../../',
+      }),
+      tailwindcss(),
+    ],
     resolve: {
       extensions,
-    },
-    alias: {
-      'react-native': 'react-native-web',
+      dedupe: [
+        '@shm/shared',
+        '@shm/shared/*',
+        '@shm/editor',
+        '@shm/editor/*',
+        '@shm/ui',
+        '@shm/ui/*',
+        'react',
+        'react-dom',
+      ],
+      alias: {
+        '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
+        '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
+        '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
+        'react-native': 'react-native-web',
+      },
     },
     optimizeDeps: {
       esbuildOptions: {

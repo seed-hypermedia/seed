@@ -1,1 +1,1 @@
-import './find-in-page.jsx'
+import './find-in-page'
