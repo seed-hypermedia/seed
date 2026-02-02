@@ -124,6 +124,13 @@ export function broadcastUseDarkColors() {
       : settingsTheme === 'dark'
   allWindows.forEach((window) => {
     window.webContents.send('darkMode', darkColors)
+    // Also send to find-in-page view if it exists
+    const findView = window.contentView.children[0] as
+      | WebContentsView
+      | undefined
+    if (findView) {
+      findView.webContents.send('darkMode', darkColors)
+    }
   })
 }
 
@@ -695,21 +702,45 @@ export function createAppWindow(
 
         info(`== ~ globalShortcut.register ~ findInPageView:`)
 
+        // Get current dark mode state
+        const darkColors = shouldUseDarkColors()
+
         if (!findInPageView) {
           info('[CMD+F]: no view present')
           createFindView(focusedWindow)
+          // Get the newly created view and show it after it loads
+          findInPageView = focusedWindow.contentView.children[0] as
+            | WebContentsView
+            | undefined
+          if (findInPageView) {
+            findInPageView.webContents.once('did-finish-load', () => {
+              // Send dark mode state to the view
+              findInPageView?.webContents.send('darkMode', darkColors)
+              findInPageView?.setBounds({
+                ...findInPageView.getBounds(),
+                y: 20,
+              })
+              setTimeout(() => {
+                findInPageView?.webContents.focus()
+                findInPageView?.webContents.send('appWindowEvent', {
+                  type: 'find_in_page',
+                })
+              }, 10)
+            })
+          }
         } else {
           info('[CMD+F]: view present', {bounds: findInPageView.getBounds()})
+          // Send dark mode state to the view
+          findInPageView.webContents.send('darkMode', darkColors)
           findInPageView.setBounds({
             ...findInPageView.getBounds(),
             y: 20,
           })
           setTimeout(() => {
             findInPageView?.webContents.focus()
-            findInPageView?.webContents.send(
-              'appWindowEvent',
-              'find_in_page_focus',
-            )
+            findInPageView?.webContents.send('appWindowEvent', {
+              type: 'find_in_page',
+            })
           }, 10)
         }
       }
@@ -809,14 +840,33 @@ function createFindView(win: BrowserWindow) {
     height: 100,
   })
 
+  // Log errors from the find view
+  findView.webContents.on(
+    'did-fail-load',
+    (event, errorCode, errorDescription) => {
+      warn('[FIND-VIEW]: Failed to load', {errorCode, errorDescription})
+    },
+  )
+  findView.webContents.on('console-message', (event, level, message) => {
+    info('[FIND-VIEW console]:', {level, message})
+  })
+
+  info('[FIND-VIEW]: Loading find view', {
+    devServerUrl: FIND_IN_PAGE_VITE_DEV_SERVER_URL,
+    viteName: FIND_IN_PAGE_VITE_NAME,
+  })
+
   if (FIND_IN_PAGE_VITE_DEV_SERVER_URL) {
-    findView.webContents.loadURL(
-      `${FIND_IN_PAGE_VITE_DEV_SERVER_URL}/find.html`,
-    )
+    const url = `${FIND_IN_PAGE_VITE_DEV_SERVER_URL}/find.html`
+    info('[FIND-VIEW]: Loading URL', {url})
+    findView.webContents.loadURL(url)
   } else {
-    findView.webContents.loadFile(
-      path.join(__dirname, `../renderer/${FIND_IN_PAGE_VITE_NAME}/find.html`),
+    const filePath = path.join(
+      __dirname,
+      `../renderer/${FIND_IN_PAGE_VITE_NAME}/find.html`,
     )
+    info('[FIND-VIEW]: Loading file', {filePath})
+    findView.webContents.loadFile(filePath)
   }
 }
 
