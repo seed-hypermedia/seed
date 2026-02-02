@@ -5,9 +5,9 @@ import {Star, StarFull} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {ComponentProps} from 'react'
-import {useFavorite} from '../models/favorites'
+import {useBookmark} from '../models/bookmarks'
 
-function RemoveFavoriteButton({
+function RemoveBookmarkButton({
   onClick,
   active,
 }: {
@@ -16,7 +16,7 @@ function RemoveFavoriteButton({
 }) {
   const {hover, ...hoverProps} = useHover()
   return (
-    <Tooltip content="Remove from Favorites">
+    <Tooltip content="Remove from Bookmarks">
       <Button
         size="icon"
         variant={active ? 'default' : 'ghost'}
@@ -30,7 +30,7 @@ function RemoveFavoriteButton({
   )
 }
 
-export function FavoriteButton({
+export function BookmarkButton({
   id,
   hideUntilItemHover,
   active,
@@ -39,20 +39,20 @@ export function FavoriteButton({
   hideUntilItemHover?: boolean
   active?: boolean
 }) {
-  const favorite = useFavorite(id)
-  if (favorite.isFavorited) {
+  const bookmark = useBookmark(id)
+  if (bookmark.isBookmarked) {
     return (
-      <RemoveFavoriteButton
+      <RemoveBookmarkButton
         active={active}
         onClick={(e) => {
           e.stopPropagation()
-          favorite.removeFavorite()
+          bookmark.removeBookmark()
         }}
       />
     )
   }
   return (
-    <Tooltip content="Add To Favorites">
+    <Tooltip content="Add To Bookmarks">
       <Button
         size="icon"
         variant={active ? 'default' : 'ghost'}
@@ -63,7 +63,7 @@ export function FavoriteButton({
         )}
         onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
           e.stopPropagation()
-          favorite.addFavorite()
+          bookmark.addBookmark()
         }}
       >
         <Star className="stroke-foreground text-foreground size-4 dark:stroke-white dark:text-white" />
@@ -72,14 +72,14 @@ export function FavoriteButton({
   )
 }
 
-export function useFavoriteMenuItem(url: string | null) {
-  const favorite = useFavorite(url)
+export function useBookmarkMenuItem(url: string | null) {
+  const bookmark = useBookmark(url)
   return {
-    key: 'toggleFavorite',
-    label: favorite.isFavorited ? 'Remove from Favorites' : 'Add to Favorites',
+    key: 'toggleBookmark',
+    label: bookmark.isBookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks',
     icon: <Star className="size-4 stroke-white" />,
     onClick: () => {
-      favorite.isFavorited ? favorite.removeFavorite() : favorite.addFavorite()
+      bookmark.isBookmarked ? bookmark.removeBookmark() : bookmark.addBookmark()
     },
   }
 }

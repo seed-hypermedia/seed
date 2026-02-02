@@ -1,4 +1,4 @@
-import {FavoriteButton} from '@/components/favoriting'
+import {BookmarkButton} from '@/components/bookmarking'
 
 import {LibraryData, LibraryDependentData} from '@/models/library'
 import {useNavigate} from '@/utils/useNavigate'
@@ -193,7 +193,7 @@ export function LibraryListItem({
       </div>
       <div className="flex items-center gap-3">
         {isUnpublished ? null : (
-          <FavoriteButton id={entry.id} hideUntilItemHover />
+          <BookmarkButton id={entry.id} hideUntilItemHover />
         )}
 
         <LibraryEntryTime entry={entry} />
