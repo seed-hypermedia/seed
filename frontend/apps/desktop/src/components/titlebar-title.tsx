@@ -56,9 +56,9 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
+import {BookmarkButton} from './bookmarking'
 import {CopyReferenceButton} from './copy-reference-button'
 import {NewSubDocumentButton} from './document-accessory'
-import {BookmarkButton} from './bookmarking'
 import {DNSInstructions} from './publish-site'
 import {DocOptionsButton} from './titlebar-common'
 import {useWindowTitleSetter} from './window-title'
@@ -787,7 +787,7 @@ function BreadcrumbItem({
 
   let content = isActive ? (
     <div
-      className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden"
+      className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden pr-2"
       style={textStyle}
       {...highlighter(details.id)}
     >
