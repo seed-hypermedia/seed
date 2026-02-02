@@ -1,4 +1,4 @@
-import {FavoriteButton} from '@/components/favoriting'
+import {BookmarkButton} from '@/components/bookmarking'
 import {
   useAllAccountsWithContacts,
   useContact,
@@ -180,7 +180,7 @@ function ContactListItem({
         {savedContact ? savedContact.name : getMetadataName(account.metadata)}
       </span>
 
-      <FavoriteButton active={active} hideUntilItemHover id={id} />
+      <BookmarkButton active={active} hideUntilItemHover id={id} />
 
       <ShieldCheck
         className={cn(

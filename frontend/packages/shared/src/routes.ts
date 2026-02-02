@@ -165,10 +165,10 @@ export const previewRouteSchema = z.object({
 })
 export type PreviewRoute = z.infer<typeof previewRouteSchema>
 
-export const favoritesSchema = z.object({
-  key: z.literal('favorites'),
+export const bookmarksSchema = z.object({
+  key: z.literal('bookmarks'),
 })
-export type FavoritesRoute = z.infer<typeof favoritesSchema>
+export type BookmarksRoute = z.infer<typeof bookmarksSchema>
 
 export const draftsSchema = z.object({
   key: z.literal('drafts'),
@@ -193,7 +193,7 @@ export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 export const libraryRouteSchema = z.object({
   key: z.literal('library'),
   expandedIds: z.array(z.string()).optional(),
-  displayMode: z.enum(['all', 'subscribed', 'favorites']).optional(),
+  displayMode: z.enum(['all', 'subscribed', 'bookmarks']).optional(),
   grouping: z.enum(['site', 'none']).optional(),
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
@@ -208,7 +208,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRouteSchema,
   draftRebaseRouteSchema,
   previewRouteSchema,
-  favoritesSchema,
+  bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,
   feedRouteSchema,

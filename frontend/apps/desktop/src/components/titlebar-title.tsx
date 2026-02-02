@@ -58,7 +58,7 @@ import {useMemo, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {CopyReferenceButton} from './copy-reference-button'
 import {NewSubDocumentButton} from './document-accessory'
-import {FavoriteButton} from './favoriting'
+import {BookmarkButton} from './bookmarking'
 import {DNSInstructions} from './publish-site'
 import {DocOptionsButton} from './titlebar-common'
 import {useWindowTitleSetter} from './window-title'
@@ -80,7 +80,7 @@ export function TitleContent({
   }
   useWindowTitleSetter(async () => {
     if (route.key === 'contacts') return 'Contacts'
-    if (route.key === 'favorites') return 'Favorites'
+    if (route.key === 'bookmarks') return 'Bookmarks'
     if (route.key === 'library') return 'Library'
     if (route.key === 'drafts') return 'Drafts'
     // document, draft, contact, directory are handled in the child components which have the relevant data!
@@ -133,11 +133,11 @@ export function TitleContent({
       />
     )
   }
-  if (route.key === 'favorites') {
+  if (route.key === 'bookmarks') {
     return (
       <span className="flex items-center gap-2">
         <Star className="size-4" />
-        <TitleText {...titleProps}>Favorites</TitleText>
+        <TitleText {...titleProps}>Bookmarks</TitleText>
       </span>
     )
   }
@@ -379,7 +379,7 @@ function BreadcrumbTitle({
     const containerWidth = widthInfo.current.container
     if (!containerWidth) return
 
-    // 83 is the measured width of the controls like favorite, copy link, options dropdown.
+    // 83 is the measured width of the controls like bookmark, copy link, options dropdown.
     const availableContainerWidth = containerWidth - 83
     const spacerWidth = 15
     const ellipsisWidth = 20
@@ -567,7 +567,7 @@ function BreadcrumbTitle({
       {!hideControls ? (
         <div className="flex shrink-0 items-center justify-start">
           <PendingDomain id={entityId} />
-          <FavoriteButton id={entityId} />
+          <BookmarkButton id={entityId} />
           <CopyReferenceButton
             docId={entityId}
             isBlockFocused={false} // TODO: learn why isBlockFocused is needed

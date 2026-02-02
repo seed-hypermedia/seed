@@ -1,6 +1,6 @@
 import {useComments} from '@/models/comments'
 import {useContactList, useSelectedAccountContacts} from '@/models/contacts'
-import {useFavorites} from '@/models/favorites'
+import {useBookmarks} from '@/models/bookmarks'
 import {useSubscribedDocuments} from '@/models/library'
 import {useListSubscriptions} from '@/models/subscription'
 import {useSelectedAccountId} from '@/selected-account'
@@ -86,7 +86,7 @@ export function MainAppSidebar() {
       <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
 
       <SubscriptionsSection />
-      <FavoritesSection />
+      <BookmarksSection />
     </GenericSidebarContainer>
   )
 }
@@ -132,35 +132,35 @@ function SidebarSection({
   )
 }
 
-function FavoritesSection() {
-  const favorites = useFavorites()
+function BookmarksSection() {
+  const bookmarks = useBookmarks()
   const contacts = useSelectedAccountContacts()
-  const favoriteEntities = useResources(favorites || [])
+  const bookmarkEntities = useResources(bookmarks || [])
   const route = useNavRoute()
-  if (!favoriteEntities.length) return null
+  if (!bookmarkEntities.length) return null
   return (
-    <SidebarSection title="Favorites">
-      {favoriteEntities?.map((favorite) => {
-        if (!favorite.data) return null
-        if (favorite.data.type === 'error') {
+    <SidebarSection title="Bookmarks">
+      {bookmarkEntities?.map((bookmark) => {
+        if (!bookmark.data) return null
+        if (bookmark.data.type === 'error') {
           return (
             <ErrorListItem
-              key={favorite.data.id.id}
-              id={favorite.data.id}
+              key={bookmark.data.id.id}
+              id={bookmark.data.id}
               active={
-                route.key === 'document' && route.id.id === favorite.data.id.id
+                route.key === 'document' && route.id.id === bookmark.data.id.id
               }
             />
           )
         }
-        if (favorite.data.type !== 'document') return null
-        const {id, document} = favorite.data
+        if (bookmark.data.type !== 'document') return null
+        const {id, document} = bookmark.data
         const metadata = id.path?.length
           ? document?.metadata
           : getContactMetadata(id.uid, document?.metadata, contacts.data)
         if (!metadata) return null
         return (
-          <FavoriteListItem
+          <BookmarkListItem
             key={id.id}
             id={id}
             metadata={metadata}
@@ -194,7 +194,7 @@ function ErrorListItem({
   )
 }
 
-function FavoriteListItem({
+function BookmarkListItem({
   id,
   metadata,
   active,
