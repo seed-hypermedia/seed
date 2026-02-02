@@ -38,7 +38,11 @@ export function useBookmark(id?: UnpackedHypermediaId) {
     },
   })
   if (!id)
-    return {isBookmarked: false, removeBookmark: () => {}, addBookmark: () => {}}
+    return {
+      isBookmarked: false,
+      removeBookmark: () => {},
+      addBookmark: () => {},
+    }
   const isBookmarked = bookmarks?.some(
     (bookmark) => bookmark && bookmark.id === id.id,
   )

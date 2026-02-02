@@ -28,9 +28,11 @@ function migrateFromFavorites(): void {
 
 function loadBookmarks(): BookmarksState {
   migrateFromFavorites()
-  return (appStore.get(BOOKMARKS_STORAGE_KEY) as BookmarksState) || {
-    bookmarks: [],
-  }
+  return (
+    (appStore.get(BOOKMARKS_STORAGE_KEY) as BookmarksState) || {
+      bookmarks: [],
+    }
+  )
 }
 
 let state: BookmarksState = loadBookmarks()
