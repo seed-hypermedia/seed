@@ -4,13 +4,13 @@ import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
-import {getSlashMenuItems} from '@/slash-menu-items'
 import {client} from '@/trpc'
 import {PartialMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
+import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {
   getCommentTargetId,
   getParentPaths,
@@ -580,7 +580,7 @@ export function useDraftEditor() {
     onMentionsQuery,
     importWebFile: importWebFile.mutateAsync,
     blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems({showNostr, docId: editId}),
+    getSlashMenuItems: () => getSlashMenuItems(),
     _tiptapOptions: {
       extensions: [
         Extension.create({
