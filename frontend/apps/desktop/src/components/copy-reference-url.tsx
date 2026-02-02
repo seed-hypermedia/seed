@@ -32,7 +32,6 @@ export function useCopyReferenceUrl(
       hostname,
       originHomeId,
     })
-    console.log('== url', url)
     copyTextToClipboard(url)
     if (pushOnCopy.data === 'never') {
       return
