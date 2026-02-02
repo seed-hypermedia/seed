@@ -8,7 +8,12 @@ import {SlashMenuProps} from './SlashMenuPositioner'
 export function DefaultSlashMenu<BSchema extends BlockSchema>(
   props: SlashMenuProps<BSchema>,
 ) {
-  const {classes} = createStyles({root: {}})(undefined, {
+  const {classes} = createStyles({
+    root: {
+      maxHeight: 300,
+      overflowY: 'auto',
+    },
+  })(undefined, {
     name: 'SlashMenu',
   })
   const renderedItems: any[] = []

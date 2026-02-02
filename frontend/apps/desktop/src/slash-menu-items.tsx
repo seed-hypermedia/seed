@@ -24,7 +24,7 @@ import {
 import {HMBlockSchema} from './editor'
 
 export function getSlashMenuItems({
-  showNostr = true,
+  showNostr = false,
   showQuery = true,
   docId,
 }: {
@@ -245,7 +245,7 @@ export function getSlashMenuItems({
       view.dispatch(state.tr.scrollIntoView())
     },
   })
-  if (showNostr) {
+  if (false) {
     slashMenuItems.push({
       name: 'Nostr',
       aliases: ['nostr', 'note', 'event'],
