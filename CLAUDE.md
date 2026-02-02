@@ -124,3 +124,17 @@ The codebase follows a monorepo structure using pnpm workspaces:
 - The desktop app uses Electron Forge for building and packaging
 - Web app uses Remix with server-side rendering
 - P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for production network
+
+## Before Pushing Code
+
+If there's code changed inside `frontend/*`, always ensure the following before pushing:
+
+1. **Type checking passes:**
+   ```bash
+   pnpm typecheck
+   ```
+
+2. **Code is formatted:**
+   ```bash
+   pnpm format:write
+   ```
