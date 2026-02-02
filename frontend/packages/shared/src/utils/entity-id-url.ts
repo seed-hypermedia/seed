@@ -613,7 +613,8 @@ export function extractBlockRangeOfUrl(
 
 export function parseFragment(input: string | null): ParsedFragment | null {
   if (!input) return null
-  const regex = /^(\S{8})((\+)|\[(\d+)\:(\d+)\])?$/
+  // Match blockId (any chars except + or [) followed by optional suffix
+  const regex = /^([^\+\[]+)((\+)|\[(\d+)\:(\d+)\])?$/
   const match = input.match(regex)
   if (match) {
     const blockId = match[1] || ''
