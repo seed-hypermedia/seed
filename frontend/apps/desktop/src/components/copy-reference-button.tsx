@@ -57,6 +57,12 @@ export function useDocumentUrl({
         path: docId.path,
         latest,
       })
+  // Get document version for block links
+  const docVersion =
+    docEntity.data?.type === 'document'
+      ? docEntity.data.document?.version
+      : undefined
+
   return {
     url,
     label: siteHostname
@@ -64,9 +70,22 @@ export function useDocumentUrl({
       : 'Public' + (latest ? ' Latest' : ' Exact Version'),
     content: copyDialogContent,
     onCopy: (blockId: string | undefined, blockRange?: BlockRange | null) => {
-      const focusBlockId = isBlockFocused ? docId.blockRef : null
-      // Always include panel in URL via ?panel= query param for cross-platform sharing
-      onCopyReference(route)
+      // When blockId provided, include it in the route along with version
+      // (version needed because block only exists in specific version)
+      if (route.key === 'document' && blockId) {
+        const routeWithBlock = {
+          ...route,
+          id: {
+            ...route.id,
+            blockRef: blockId,
+            blockRange: blockRange ?? null,
+            version: docVersion ?? route.id.version,
+          },
+        }
+        onCopyReference(routeWithBlock)
+      } else {
+        onCopyReference(route)
+      }
     },
   }
 }
