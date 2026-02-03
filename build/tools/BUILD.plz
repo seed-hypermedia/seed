@@ -95,3 +95,7 @@ mise_binary(
 mise_binary(
     name = "md5sum"
 )
+
+mise_binary(
+    name = "cmake"
+)
