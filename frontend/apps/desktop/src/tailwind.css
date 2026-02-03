@@ -280,3 +280,8 @@
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* Ensure scrollbar appears above sticky content */
+[data-slot='scroll-area-scrollbar'] {
+  z-index: 50;
+}
