@@ -1,9 +1,7 @@
 import {getDocumentTitle} from '@shm/shared/content'
 import {GRPCClient} from '@shm/shared/grpc-client'
 import {
-  HMDocument,
   HMDocumentMetadataSchema,
-  HMResourceVisibilitySchema,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
@@ -195,6 +193,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           textContent.trim().startsWith(matches[0].href)
             ? matches[0]
             : null
+
         const unpackedHmId =
           isHypermediaScheme(textContent) ||
           isPublicGatewayLink(textContent, options.gwUrl)
@@ -239,7 +238,13 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           (mark) => mark.type.name === options.type.name,
         )
 
-        if (firstChildIsText && firstChildContainsLinkMark) {
+        // If transformPasted already added a link mark, skip further processing
+        // unless we have a link that might need special handling (twitter, instagram, video, etc)
+        if (
+          firstChildIsText &&
+          firstChildContainsLinkMark &&
+          !(link && selection.empty && !unpackedHmId)
+        ) {
           return false
         }
 
@@ -348,7 +353,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           }
         }
 
-        // Check if the link is hm link
+        // Check if the link is hm link or web URL
         if (selection.empty && link && !unpackedHmId) {
           let tr = view.state.tr
           if (!tr.selection.empty) tr.deleteSelection()
@@ -427,201 +432,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
           return true
         }
 
-        if (link && selection.empty) {
-          let tr = view.state.tr
-          if (!tr.selection.empty) tr.deleteSelection()
-
-          const [mediaCase, fileName] = checkMediaUrl(link.href)
-
-          const pos = selection.$from.pos
-
-          view.dispatch(
-            tr.insertText(link.href, pos).addMark(
-              pos,
-              pos + link.href.length,
-              options.editor.schema.mark('link', {
-                href: link.href,
-              }),
-            ),
-          )
-
-          view.dispatch(
-            view.state.tr.scrollIntoView().setMeta(linkMenuPluginKey, {
-              activate: true,
-              link: link.href,
-              items: getLinkMenuItems({
-                isLoading: true,
-                gwUrl: options.gwUrl,
-              }),
-            }),
-          )
-
-          switch (mediaCase) {
-            case 'image':
-              view.dispatch(
-                view.state.tr.setMeta(linkMenuPluginKey, {
-                  link: link.href,
-                  items: getLinkMenuItems({
-                    isLoading: false,
-                    media: 'image',
-                    fileName: fileName,
-                    gwUrl: options.gwUrl,
-                  }),
-                }),
-              )
-              break
-            case 'file':
-              view.dispatch(
-                view.state.tr.setMeta(linkMenuPluginKey, {
-                  link: link.href,
-                  items: getLinkMenuItems({
-                    isLoading: false,
-                    media: 'file',
-                    fileName: fileName,
-                    gwUrl: options.gwUrl,
-                  }),
-                }),
-              )
-              break
-            case 'video':
-              view.dispatch(
-                view.state.tr.setMeta(linkMenuPluginKey, {
-                  link: link.href,
-                  items: getLinkMenuItems({
-                    isLoading: false,
-                    media: 'video',
-                    sourceUrl: link.href,
-                    fileName: fileName,
-                    gwUrl: options.gwUrl,
-                  }),
-                }),
-              )
-              break
-            case 'twitter':
-              view.dispatch(
-                view.state.tr.setMeta(linkMenuPluginKey, {
-                  link: link.href,
-                  items: getLinkMenuItems({
-                    isLoading: false,
-                    media: 'twitter',
-                    sourceUrl: link.href,
-                    fileName: fileName,
-                    gwUrl: options.gwUrl,
-                  }),
-                }),
-              )
-              break
-            case 'instagram':
-              view.dispatch(
-                view.state.tr.setMeta(linkMenuPluginKey, {
-                  link: link.href,
-                  items: getLinkMenuItems({
-                    isLoading: false,
-                    media: 'instagram',
-                    sourceUrl: link.href,
-                    fileName: fileName,
-                    gwUrl: options.gwUrl,
-                  }),
-                }),
-              )
-              break
-            case 'web':
-              {
-                const metaPromise = resolveHypermediaUrl(link.href)
-                  .then((linkMetaResult) => {
-                    if (!linkMetaResult?.hmId) return false
-                    const fullHmUrl = packHmId(linkMetaResult.hmId)
-                    const currentPos =
-                      view.state.selection.$from.pos - link.href.length
-
-                    if (linkMetaResult.title) {
-                      view.dispatch(
-                        view.state.tr
-                          .deleteRange(
-                            currentPos,
-                            currentPos + link.href.length,
-                          )
-                          .insertText(linkMetaResult.title, currentPos)
-                          .addMark(
-                            currentPos,
-                            currentPos + linkMetaResult.title.length,
-                            options.editor.schema.mark('link', {
-                              href: fullHmUrl,
-                            }),
-                          ),
-                      )
-                    }
-
-                    view.dispatch(
-                      view.state.tr.setMeta(linkMenuPluginKey, {
-                        link: fullHmUrl,
-                        items: getLinkMenuItems({
-                          hmId: linkMetaResult.hmId,
-                          isLoading: false,
-                          sourceUrl: fullHmUrl,
-                          title: linkMetaResult.title,
-                          gwUrl: options.gwUrl,
-                        }),
-                      }),
-                    )
-                    return true
-                  })
-                  .catch((err) => {
-                    console.log('ERROR FETCHING web link')
-                    console.log(err)
-                  })
-                const mediaPromise = Promise.resolve(false)
-                // const mediaPromise = options
-                //   .checkWebUrl(link.href)
-                //   .then((response) => {
-                //     if (response && response.contentType) {
-                //       let type = response.contentType.split("/")[0];
-                //       if (type === "application") type = "file";
-                //       if (["image", "video", "file"].includes(type)) {
-                //         view.dispatch(
-                //           view.state.tr.setMeta(linkMenuPluginKey, {
-                //             link: link.href,
-                //             items: getLinkMenuItems({
-                //               isLoading: false,
-                //               media: type,
-                //               sourceUrl: link.href,
-                //               gwUrl: options.gwUrl,
-                //             }),
-                //           })
-                //         );
-                //         return true;
-                //       }
-                //     }
-                //   })
-                //   .catch((err) => {
-                //     console.log(err);
-                //   });
-                Promise.all([metaPromise, mediaPromise])
-                  .then((results) => {
-                    const [embedResult, mediaResult] = results
-                    if (!embedResult && !mediaResult) {
-                      view.dispatch(
-                        view.state.tr.setMeta(linkMenuPluginKey, {
-                          items: getLinkMenuItems({
-                            isLoading: false,
-                            sourceUrl: link.href,
-                            gwUrl: options.gwUrl,
-                          }),
-                        }),
-                      )
-                    }
-                  })
-                  .catch((err) => {
-                    console.log(err)
-                  })
-              }
-              break
-            default:
-              break
-          }
-          return true
-        }
-
         return false
       },
     },
@@ -633,15 +443,15 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
     const matchResult = url.match(/[^/\\&\?]+\.\w{3,4}(?=([\?&].*$|$))/)
     if (matchResult) {
       const extensionArray = matchResult[0].split('.')
-      const extension = extensionArray[extensionArray.length - 1]
-      // @ts-expect-error
-      if (['png', 'jpg', 'jpeg'].includes(extension)) return [1, matchResult[0]]
-      // @ts-ignore
-      else if (['pdf', 'xml', 'csv'].includes(extension))
+      const extension = extensionArray[extensionArray.length - 1]?.toLowerCase()
+
+      if (extension && ['png', 'jpg', 'jpeg'].includes(extension)) {
+        return ['image', matchResult[0]]
+      } else if (extension && ['pdf', 'xml', 'csv'].includes(extension)) {
         return ['file', matchResult[0]]
-      // @ts-ignore
-      else if (['mp4', 'webm', 'ogg'].includes(extension))
+      } else if (extension && ['mp4', 'webm', 'ogg'].includes(extension)) {
         return ['video', matchResult[0]]
+      }
     } else if (
       ['youtu.be', 'youtube', 'vimeo'].some((value) => url.includes(value))
     ) {
@@ -651,6 +461,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
     } else if (['instagram'].some((value) => url.includes(value))) {
       return ['instagram', '']
     }
+
     return ['web', '']
   }
 
