@@ -71,6 +71,7 @@ type MachineContext = {
 type MachineEvents =
   | {type: 'SELECT'}
   | {type: 'CREATE_COMMENT'}
+  | {type: 'CLEAR_SELECTION'}
   | {type: 'COMMENT_CANCEL'}
   | {type: 'COMMENT_SUBMIT'}
   | {type: 'MOUSEDOWN'}
@@ -158,6 +159,10 @@ const rangeSelectionMachine = setup({
               action: ['clearContext'],
             },
             CREATE_COMMENT: {
+              target: '#Range Selection.idle',
+              actions: ['clearContext'],
+            },
+            CLEAR_SELECTION: {
               target: '#Range Selection.idle',
               actions: ['clearContext'],
             },
@@ -407,10 +412,17 @@ export function useRangeSelection(documentContent?: Array<HMBlockNode>): {
           wrapper.current.contains(selection.anchorNode) &&
           wrapper.current.contains(selection.focusNode)
         ) {
-          actor.send({type: 'SELECT'})
+          // Check if the selection is empty
+          if (selection.toString().length === 0) {
+            // Selection was cleared, return to idle
+            actor.send({type: 'CLEAR_SELECTION'})
+          } else {
+            actor.send({type: 'SELECT'})
+          }
         } else {
+          // Selection moved outside wrapper, return to idle
+          actor.send({type: 'CLEAR_SELECTION'})
         }
-      } else {
       }
     }
 
