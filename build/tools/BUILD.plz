@@ -80,8 +80,21 @@ EOF
         visibility = ["PUBLIC"],
     )
 
-mise_binary(                                                                                                                                                                                             
-    name = "cmake"                                                                                                                                                                                       
+# Custom cmake wrapper - uses version directly to avoid mise.toml trust issues
+build_rule(
+    name = "cmake",
+    outs = ["cmake"],
+    binary = True,
+    cmd = """
+cat > $OUT <<'EOF'
+#!/bin/sh
+# Ignore workspace config to avoid trust issues in Please sandbox
+export MISE_IGNORED_CONFIG_PATHS="$WORKSPACE"
+exec $SEED_MISE_BIN x cmake@3.31.6 -- cmake "$@"
+EOF
+""",
+    output_is_complete = True,
+    visibility = ["PUBLIC"],
 )
 
 mise_binary(
