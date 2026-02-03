@@ -80,6 +80,10 @@ EOF
         visibility = ["PUBLIC"],
     )
 
+mise_binary(                                                                                                                                                                                             
+    name = "cmake"                                                                                                                                                                                       
+)
+
 mise_binary(
     name = "go"
 )
@@ -94,8 +98,4 @@ mise_binary(
 
 mise_binary(
     name = "md5sum"
-)
-
-mise_binary(
-    name = "cmake"
 )
