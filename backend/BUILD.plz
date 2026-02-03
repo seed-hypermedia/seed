@@ -22,6 +22,24 @@ genrule(
     ],
     cmd = """
 set -e
+
+# Use system cmake if available, otherwise download directly (bypasses mise)
+if ! command -v cmake >/dev/null 2>&1; then
+    CMAKE_VERSION="3.31.6"
+    CMAKE_DIR="$TMP_DIR/cmake"
+    if [ "$OS" = "darwin" ]; then
+        CMAKE_URL="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-macos-universal.tar.gz"
+        CMAKE_BIN="cmake-${CMAKE_VERSION}-macos-universal/CMake.app/Contents/bin"
+    else
+        CMAKE_URL="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz"
+        CMAKE_BIN="cmake-${CMAKE_VERSION}-linux-x86_64/bin"
+    fi
+    mkdir -p "$CMAKE_DIR"
+    echo "Downloading cmake ${CMAKE_VERSION}..."
+    curl -fsSL "$CMAKE_URL" | tar -xz -C "$CMAKE_DIR"
+    export PATH="$CMAKE_DIR/$CMAKE_BIN:$PATH"
+fi
+
 cd backend/util/llama-go
 export LIBRARY_PATH=$(pwd)
 export C_INCLUDE_PATH=$(pwd)
@@ -56,9 +74,6 @@ fi
 echo "llama.cpp build completed successfully"
     """,
     building_description = "Building llama.cpp bindings...",
-    tools = {
-        "cmake": ["//build/tools:cmake"],
-    },
     env = {
         "OS": CONFIG.TARGET_OS,
     },
