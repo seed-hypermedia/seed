@@ -118,6 +118,9 @@ export function DocNavigationDraftLoader({
   //   return undefined
   // }, [route, draftQuery.data])
 
+  // Determine if we're editing an existing document or creating a new one
+  const isEditingExistingDoc = route.editUid || draftQuery?.data?.editUid
+
   const entity = useResource(id)
   const draft = draftQuery?.data
   const metadata =
@@ -131,7 +134,9 @@ export function DocNavigationDraftLoader({
   const siteList = useListSite(id)
   const siteListQuery =
     siteList?.data && id ? {in: hmId(id.uid), results: siteList.data} : null
-  const embeds = useDocumentEmbeds(document)
+
+  // Only load embeds from the document if we're editing an existing document
+  const embeds = isEditingExistingDoc ? useDocumentEmbeds(document) : []
 
   // Force re-render when editor content changes
   const [updateCounter, setUpdateCounter] = useState(0)
@@ -146,7 +151,7 @@ export function DocNavigationDraftLoader({
     }
   }, [editor])
 
-  // Use editor's current blocks if available, otherwise fallback to saved draft content
+  // Generate outline from draft content
   const draftOutline = useMemo(() => {
     if (editor?.topLevelBlocks) {
       return getDraftNodesOutline(editor.topLevelBlocks, id, embeds)
@@ -155,14 +160,20 @@ export function DocNavigationDraftLoader({
     return getDraftNodesOutline(draft.content, id, embeds)
   }, [id, draft, embeds, editor, updateCounter])
 
-  // Generate document outline as fallback
-  const documentOutline = useMemo(() => {
+  // For new drafts only use draft outline
+  // For existing docs, fallback to document outline if draft has no outline
+  const outline = useMemo(() => {
+    if (draftOutline.length > 0) {
+      return draftOutline
+    }
+
+    if (!isEditingExistingDoc) {
+      return draftOutline
+    }
+
     if (!document?.content || !id || !embeds) return []
     return getNodesOutline(document.content, id, embeds)
-  }, [document, id, embeds])
-
-  // Use draft outline if available, otherwise use document outline
-  const outline = draftOutline.length > 0 ? draftOutline : documentOutline
+  }, [draftOutline, isEditingExistingDoc, document, id, embeds])
 
   if (!outline.length) return null
 
