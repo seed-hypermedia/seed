@@ -494,7 +494,10 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="relative flex flex-1 flex-col overflow-hidden pt-12"
         >
-          <div className="bg-background absolute top-4 right-4 z-11 flex items-center rounded-sm p-1 shadow-sm">
+          <div
+            className="bg-background absolute top-4 right-4 z-11 flex items-center rounded-sm p-1 shadow-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
             <DraftActionButtons route={route} />
           </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
