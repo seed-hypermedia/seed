@@ -1,7 +1,9 @@
+import {getMetadataName, useRouteLink} from '@shm/shared'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
   HMListedDraft,
+  HMMetadata,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
@@ -12,8 +14,10 @@ import {normalizeDate} from '@shm/shared/utils/date'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder, Search} from 'lucide-react'
 import {ChangeEvent, ReactNode, useMemo, useState} from 'react'
+import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
+import {DraftBadge} from './draft-badge'
 import {DocumentSmallListItem, getSiteNavDirectory} from './navigation'
 import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
@@ -186,13 +190,22 @@ export function useDirectoryData(docId: UnpackedHypermediaId) {
 }
 
 /** Directory item with activity data */
-export type DirectoryItemWithActivity = HMDocumentInfo & {
-  draftId?: string
-  isPublished: boolean
-}
+export type DirectoryItemWithActivity =
+  | (HMDocumentInfo & {
+      draftId?: string
+      isPublished: true
+    })
+  | {
+      draftId: string
+      isPublished: false
+      id: UnpackedHypermediaId
+      metadata: HMMetadata
+      sortTime: Date
+    }
 
 /** Get the most recent activity time for sorting */
 function getActivityTime(item: DirectoryItemWithActivity): number {
+  if (!item.isPublished) return item.sortTime?.getTime() || 0
   const activity = item.activitySummary
   if (!activity) return item.sortTime?.getTime() || 0
 
@@ -209,8 +222,6 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
   })
 
   const items = useMemo(() => {
-    if (!directory) return []
-
     const draftsArray = Array.isArray(drafts) ? drafts : []
     const editIds = new Map<string, string>()
     draftsArray.forEach((draft: HMListedDraft) => {
@@ -222,25 +233,41 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
     })
 
     // Map published items with draft info
-    const publishedItems: DirectoryItemWithActivity[] = directory.map(
+    const publishedItems: DirectoryItemWithActivity[] = (directory ?? []).map(
       (item) => ({
         ...item,
         draftId: editIds.get(item.id.id),
-        isPublished: true,
+        isPublished: true as const,
       }),
     )
 
-    // Sort by activity time (most recent first)
-    publishedItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
+    // Add unpublished drafts (new docs not yet published) that belong to this directory
+    const unpublishedDraftItems: DirectoryItemWithActivity[] = draftsArray
+      // @ts-expect-error locationId exists on drafts
+      .filter((draft) => draft.locationId && draft.locationId.id === docId.id)
+      .map((draft) => ({
+        draftId: draft.id,
+        isPublished: false as const,
+        id: docId,
+        metadata: draft.metadata,
+        sortTime: new Date(draft.lastUpdateTime),
+      }))
 
-    return publishedItems
-  }, [directory, drafts])
+    const allItems = [...publishedItems, ...unpublishedDraftItems]
+
+    // Sort by activity time (most recent first)
+    allItems.sort((a, b) => getActivityTime(b) - getActivityTime(a))
+
+    return allItems
+  }, [directory, drafts, docId.id])
 
   // Collect all author uids for fetching metadata
   const authorUids = useMemo(() => {
     const uids = new Set<string>()
     items.forEach((item) => {
-      item.authors?.forEach((uid) => uids.add(uid))
+      if (item.isPublished && 'authors' in item) {
+        item.authors?.forEach((uid) => uids.add(uid))
+      }
     })
     return Array.from(uids)
   }, [items])
@@ -265,13 +292,48 @@ export function DirectoryListViewWithActivity({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      {items.map((item) => (
-        <DocumentListItem
-          key={item.id.id}
-          item={item}
-          accountsMetadata={accountsMetadata}
-        />
-      ))}
+      {items.map((item) =>
+        item.isPublished ? (
+          <DocumentListItem
+            key={item.id.id}
+            item={item}
+            draftId={item.draftId}
+            accountsMetadata={accountsMetadata}
+          />
+        ) : (
+          <DraftListItem
+            key={item.draftId}
+            draftId={item.draftId}
+            metadata={item.metadata}
+          />
+        ),
+      )}
     </div>
+  )
+}
+
+function DraftListItem({
+  draftId,
+  metadata,
+}: {
+  draftId: string
+  metadata: HMMetadata
+}) {
+  const linkProps = useRouteLink({key: 'draft', id: draftId})
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      className="h-auto w-full items-center justify-start border-none bg-transparent bg-white px-4 py-2 shadow-sm hover:shadow-md dark:bg-black"
+    >
+      <a {...linkProps}>
+        <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
+          <SizableText className="truncate text-left font-sans">
+            {getMetadataName(metadata)}
+          </SizableText>
+          <DraftBadge />
+        </div>
+      </a>
+    </Button>
   )
 }
