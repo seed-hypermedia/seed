@@ -1,36 +1,36 @@
-import { AccessoryLayout } from '@/components/accessory-sidebar'
-import { AddCollaboratorForm } from '@/components/collaborators-panel'
-import { CommentBox, triggerCommentDraftFocus } from '@/components/commenting'
-import { useDocumentUrl } from '@/components/copy-reference-button'
-import { CreateDocumentButton } from '@/components/create-doc-button'
-import { DocNavigation } from '@/components/doc-navigation'
+import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {AddCollaboratorForm} from '@/components/collaborators-panel'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
+import {useDocumentUrl} from '@/components/copy-reference-button'
+import {CreateDocumentButton} from '@/components/create-doc-button'
+import {DocNavigation} from '@/components/doc-navigation'
 import {
   useCanCreateSubDocument,
   useDocumentSelection,
 } from '@/components/document-accessory'
-import { NotifSettingsDialog } from '@/components/email-notifs-dialog'
-import { editPopoverEvents } from '@/components/onboarding'
+import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
+import {editPopoverEvents} from '@/components/onboarding'
 import {
   roleCanWrite,
   useAllDocumentCapabilities,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import { useDocumentCitations } from '@/models/citations'
-import { useContactsMetadata } from '@/models/contacts'
+import {useDocumentCitations} from '@/models/citations'
+import {useContactsMetadata} from '@/models/contacts'
 import {
   useDocumentEmbeds,
   useDocumentRead,
   usePushResource,
   useSiteNavigationItems,
 } from '@/models/documents'
-import { useExistingDraft } from '@/models/drafts'
-import { useNotifyServiceHost } from '@/models/gateway-settings'
-import { useChildrenActivity } from '@/models/library'
-import { useSelectedAccount } from '@/selected-account'
-import { client } from '@/trpc'
-import { useHackyAuthorsSubscriptions } from '@/use-hacky-authors-subscriptions'
-import { useNavigate } from '@/utils/useNavigate'
-import { useListenAppEvent } from '@/utils/window-events'
+import {useExistingDraft} from '@/models/drafts'
+import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {useChildrenActivity} from '@/models/library'
+import {useSelectedAccount} from '@/selected-account'
+import {client} from '@/trpc'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
+import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
 import '@shm/editor/editor.css'
 import {
   ActivityRoute,
@@ -55,49 +55,49 @@ import {
   isRouteEqualToCommentTarget,
   useDeleteComment,
 } from '@shm/shared/comments-service-provider'
-import { useAccount, useResource, useResources } from '@shm/shared/models/entity'
-import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
+import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
-import { useNavRoute } from '@shm/shared/utils/navigation'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
   BlocksContentProvider,
 } from '@shm/ui/blocks-content'
-import { Button } from '@shm/ui/button'
-import { ReadOnlyCollaboratorsContent } from '@shm/ui/collaborators-page'
-import { useDeleteCommentDialog } from '@shm/ui/comments'
+import {Button} from '@shm/ui/button'
+import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
+import {useDeleteCommentDialog} from '@shm/ui/comments'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
-import { ScrollArea } from '@shm/ui/components/scroll-area'
-import { Container, panelContainerStyles } from '@shm/ui/container'
-import { DirectoryPageContent } from '@shm/ui/directory-page'
-import { DiscussionsPageContent } from '@shm/ui/discussions-page'
-import { DocumentCover } from '@shm/ui/document-cover'
-import { DocumentHeader } from '@shm/ui/document-header'
-import { DocumentTools } from '@shm/ui/document-tools'
-import { Feed } from '@shm/ui/feed'
-import { useDocumentLayout } from '@shm/ui/layout'
-import { OpenInPanelButton } from '@shm/ui/open-in-panel'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {Container, panelContainerStyles} from '@shm/ui/container'
+import {DirectoryPageContent} from '@shm/ui/directory-page'
+import {DiscussionsPageContent} from '@shm/ui/discussions-page'
+import {DocumentCover} from '@shm/ui/document-cover'
+import {DocumentHeader} from '@shm/ui/document-header'
+import {DocumentTools} from '@shm/ui/document-tools'
+import {Feed} from '@shm/ui/feed'
+import {useDocumentLayout} from '@shm/ui/layout'
+import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {
   PageDeleted,
   PageDiscovery,
   PageNotFound,
   PageRedirected,
 } from '@shm/ui/page-message-states'
-import { SiteHeader } from '@shm/ui/site-header'
-import { SizableText } from '@shm/ui/text'
-import { toast } from '@shm/ui/toast'
-import { Tooltip } from '@shm/ui/tooltip'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { useBlockScroll } from '@shm/ui/use-block-scroll'
-import { cn } from '@shm/ui/utils'
-import { useMutation } from '@tanstack/react-query'
-import { Pencil } from 'lucide-react'
-import { nanoid } from 'nanoid'
+import {SiteHeader} from '@shm/ui/site-header'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {useBlockScroll} from '@shm/ui/use-block-scroll'
+import {cn} from '@shm/ui/utils'
+import {useMutation} from '@tanstack/react-query'
+import {Pencil} from 'lucide-react'
+import {nanoid} from 'nanoid'
 import React, {
   ReactNode,
   useCallback,
