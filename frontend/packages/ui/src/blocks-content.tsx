@@ -816,6 +816,7 @@ export function BlockNodeContent({
         'blocknode-content',
         isHighlight ? 'bg-brand-12' : 'bg-transparent',
         hover && !isHighlight && 'bg-background',
+        isEmbed && 'my-2',
       )}
       style={{
         borderRadius: layoutUnit / 4,
