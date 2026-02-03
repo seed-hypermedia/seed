@@ -744,7 +744,7 @@ function _MainDocumentPage({
         onScrollParamSet={onScrollParamSet}
         route={route}
       />
-      <div className="relative flex h-full flex-col" ref={elementRef}>
+      <div className="relative flex h-full flex-col pb-12" ref={elementRef}>
         {/* Floating edit buttons - hidden when DocumentTools is sticky */}
         {activeMainPanel == 'content' && !isToolsSticky ? (
           <div
