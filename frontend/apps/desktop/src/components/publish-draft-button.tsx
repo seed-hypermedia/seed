@@ -4,6 +4,11 @@ import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
+import {
+  computePublishPath,
+  shouldAutoLinkParent,
+  validatePublishPath,
+} from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
@@ -52,8 +57,6 @@ import {
 import {useDraft} from '../models/accounts'
 import {
   addLinkToParentDraft,
-  documentContainsLinkToChild,
-  documentHasSelfQuery,
   publishLinkToParentDocument,
   usePublishResource,
   usePushResource,
@@ -95,6 +98,8 @@ export default function PublishDraftButton() {
 
   // Determine if this is an edit (existing doc) or first publish (new doc)
   const isFirstPublish = !editId
+  const isPrivate =
+    draftRoute.visibility === 'PRIVATE' || draft.data?.visibility === 'PRIVATE'
   const defaultLocationId = draftLocationId(draft.data)
 
   // For first publish, we need editable location state
@@ -158,19 +163,12 @@ export default function PublishDraftButton() {
       return
     }
 
-    // Check if we should auto-link
-    let willAddLink = true
-
-    if (parentDocument) {
-      // Skip if link already exists
-      if (documentContainsLinkToChild(parentDocument, editableLocation)) {
-        willAddLink = false
-      }
-      // Skip if parent has self-referential query
-      if (documentHasSelfQuery(parentDocument, parentId)) {
-        willAddLink = false
-      }
-    }
+    const willAddLink = shouldAutoLinkParent(
+      !!isPrivate,
+      parentDocument,
+      editableLocation,
+      parentId,
+    )
 
     setParentPublishInfo((prev) => ({
       parentId,
@@ -180,7 +178,14 @@ export default function PublishDraftButton() {
       willAddLink,
       optedOut: prev?.optedOut ?? false, // Preserve opt-out state
     }))
-  }, [isFirstPublish, parentId, editableLocation, parentDocument, parentDraft])
+  }, [
+    isFirstPublish,
+    isPrivate,
+    parentId,
+    editableLocation,
+    parentDocument,
+    parentDraft,
+  ])
 
   // Track initialization params to avoid redundant updates
   const initializedWith = useRef<{
@@ -207,12 +212,11 @@ export default function PublishDraftButton() {
     // For first publish, use the draft's location if available, otherwise use the signing account
     const baseUid = locationUid || signingAccountId
     const basePath = defaultLocationId?.path || []
-    const pathifiedName = pathNameify(docName || 'Untitled Document')
 
     initializedWith.current = {name: docName, locationUid}
     setEditableLocation(
       hmId(baseUid, {
-        path: [...basePath, pathifiedName],
+        path: computePublishPath(!!isPrivate, basePath, docName),
       }),
     )
   }, [
@@ -421,11 +425,13 @@ export default function PublishDraftButton() {
         toast.error('This location is unavailable. Create a new path name.')
         return
       }
-      const pathInvalid = validatePath(
-        hmIdPathToEntityQueryPath(editableLocation.path),
+      const pathError = validatePublishPath(
+        !!isPrivate,
+        editableLocation.path,
+        validatePath,
       )
-      if (pathInvalid) {
-        toast.error(pathInvalid.error)
+      if (pathError) {
+        toast.error(pathError)
         return
       }
       handlePublish(editableLocation, signingAccountId)
