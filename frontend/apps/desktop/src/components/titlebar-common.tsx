@@ -698,7 +698,7 @@ function useOmnibarState(currentUrl: string | null) {
           value.startsWith('hm://') ||
           (value.includes('.') && !value.includes(' '))
 
-        if (!looksLikeUrl && value.length > 0) {
+        if (!looksLikeUrl) {
           setMode('search')
         }
       }
