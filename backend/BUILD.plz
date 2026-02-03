@@ -56,6 +56,9 @@ fi
 echo "llama.cpp build completed successfully"
     """,
     building_description = "Building llama.cpp bindings...",
+    tools = {
+        "cmake": ["//build/tools:cmake"],
+    },
     env = {
         "OS": CONFIG.TARGET_OS,
     },
