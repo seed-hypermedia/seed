@@ -19,7 +19,6 @@ export function DocumentTools({
   existingDraft,
 }: {
   id: UnpackedHypermediaId
-  /** Which tab is currently active in the main content area */
   activeTab?:
     | 'draft'
     | 'content'

@@ -8,6 +8,7 @@ import {useSelectedAccount} from '@/selected-account'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {DocSelectionOption} from '@shm/shared/routes'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {PanelContent} from '@shm/ui/accessories'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {Feed} from '@shm/ui/feed'
@@ -226,15 +227,16 @@ export function useDocumentSelection({
     selectionUI = (
       <>
         {deleteCommentDialogContent}
-        <Feed
-          size="sm"
-          filterResource={docId?.id}
-          currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={activityFilterEventType || []}
-          onCommentDelete={onCommentDelete}
-          targetDomain={targetDomain}
-          scrollRef={activityScrollRef}
-        />
+        <PanelContent>
+          <Feed
+            size="sm"
+            filterResource={docId?.id}
+            currentAccount={selectedAccount?.id.uid || ''}
+            filterEventType={activityFilterEventType || []}
+            onCommentDelete={onCommentDelete}
+            targetDomain={targetDomain}
+          />
+        </PanelContent>
       </>
     )
   } else if (panelKey === 'contacts') {
@@ -248,7 +250,6 @@ export function useDocumentSelection({
           filterEventType={['Contact', 'Profile']}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
-          scrollRef={contactsScrollRef}
         />
       </>
     )

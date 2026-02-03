@@ -54,6 +54,7 @@ export function ActivityPageContent({
       title={showTitle ? 'Activity' : undefined}
       centered
       contentMaxWidth={contentMaxWidth}
+      scrollRef={scrollRef}
       headerRight={
         showOpenInPanel ? (
           <OpenInPanelButton
@@ -69,7 +70,6 @@ export function ActivityPageContent({
         filterResource={docId.id}
         currentAccount={currentAccountId || ''}
         filterEventType={filterEventType}
-        scrollRef={scrollRef}
       />
     </PageLayout>
   )

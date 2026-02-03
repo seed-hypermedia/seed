@@ -1829,20 +1829,16 @@ export function BlockEmbedComments({
       hideBorder
       openOnClick={openOnClick}
     >
-      <Discussions
-        commentEditor={
-          CommentEditor ? (
-            <div
-              onClick={(e) => {
-                e.stopPropagation()
-              }}
-            >
-              <CommentEditor docId={id} />
-            </div>
-          ) : null
-        }
-        targetId={id}
-      />
+      {CommentEditor ? (
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          <CommentEditor docId={id} />
+        </div>
+      ) : null}
+      <Discussions targetId={id} />
     </EmbedWrapper>
   )
 }

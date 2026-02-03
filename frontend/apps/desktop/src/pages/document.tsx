@@ -58,7 +58,7 @@ import {
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import '@shm/shared/styles/document.css'
-import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
@@ -94,7 +94,6 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useBlockScroll} from '@shm/ui/use-block-scroll'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {Pencil} from 'lucide-react'
@@ -508,31 +507,6 @@ function _MainDocumentPage({
 
   const interactionSummary = useInteractionSummary(docId)
 
-  // Scroll restoration for activity feed
-  const activityScrollRef = useScrollRestoration({
-    scrollId: `activity-page-${id.id}`,
-    getStorageKey: () => getRouteKey(route),
-    debug: false,
-  })
-
-  // Reset scroll when filter changes (activity page)
-  useEffect(() => {
-    if (
-      activityScrollRef.current &&
-      route.key === 'activity' &&
-      route.filterEventType
-    ) {
-      const viewport = activityScrollRef.current.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
-      if (viewport) {
-        viewport.scrollTo({top: 0, behavior: 'instant'})
-      }
-    }
-  }, [
-    route.key === 'activity' ? (route as ActivityRoute).filterEventType : null,
-  ])
-
   const existingDraft = useExistingDraft(route)
 
   // @ts-ignore
@@ -671,7 +645,6 @@ function _MainDocumentPage({
               filterResource={id.id}
               currentAccount={selectedAccount?.id.uid || ''}
               filterEventType={activityRoute.filterEventType || []}
-              scrollRef={activityScrollRef}
             />
           </div>
         )

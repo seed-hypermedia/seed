@@ -2,9 +2,9 @@ import {hmId, UnpackedHypermediaId, ViewRouteKey} from '@shm/shared'
 import {supportedLanguages} from '@shm/shared/language-packs'
 import {useAccount} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {Discussions} from '@shm/ui/comments'
 import {panelContainerStyles} from '@shm/ui/container'
-import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {
   DirectoryEmpty,
   DirectoryListView,
@@ -167,8 +167,8 @@ function WebDiscussionsContent({
 }) {
   return (
     <PageLayout title="Discussions" centered>
+      <WebCommenting docId={docId} />
       <Discussions
-        commentEditor={<WebCommenting docId={docId} />}
         targetId={docId}
         currentAccountId={currentAccountId}
         centered

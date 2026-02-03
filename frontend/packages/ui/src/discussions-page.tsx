@@ -1,12 +1,11 @@
 import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
-import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {MessageSquare} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {OpenInPanelButton} from './open-in-panel'
 import {PageLayout} from './page-layout'
 import {SizableText} from './text'
-import {useScrollRestoration} from './use-scroll-restoration'
 
 export interface DiscussionsPageContentProps {
   docId: UnpackedHypermediaId
@@ -52,13 +51,6 @@ export function DiscussionsPageContent({
 }: DiscussionsPageContentProps) {
   const route = useNavRoute()
   const discussionsRoute = (route.key === 'discussions' ? route : undefined)!
-  const scrollRef = useScrollRestoration({
-    scrollId: `discussions-page-${docId.id}-${openComment || 'all'}-${
-      targetBlockId || ''
-    }`,
-    getStorageKey: () => getRouteKey(route),
-    debug: false,
-  })
 
   // Determine which view to show
   let content: ReactNode
@@ -75,7 +67,6 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
-        scrollRef={scrollRef}
         centered
       />
     )
@@ -88,7 +79,6 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
-        scrollRef={scrollRef}
         selection={
           blockId ? {blockId, blockRange: blockRange || undefined} : undefined
         }
@@ -97,15 +87,16 @@ export function DiscussionsPageContent({
     )
   } else {
     content = (
-      <Discussions
-        commentEditor={commentEditor}
-        targetId={docId}
-        targetDomain={targetDomain}
-        currentAccountId={currentAccountId}
-        onCommentDelete={onCommentDelete}
-        scrollRef={scrollRef}
-        centered
-      />
+      <>
+        {commentEditor}
+        <Discussions
+          targetId={docId}
+          targetDomain={targetDomain}
+          currentAccountId={currentAccountId}
+          onCommentDelete={onCommentDelete}
+          centered
+        />
+      </>
     )
   }
 

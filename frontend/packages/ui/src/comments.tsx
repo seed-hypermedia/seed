@@ -76,7 +76,6 @@ export function CommentDiscussions({
   currentAccountId,
   onCommentDelete,
   selection,
-  scrollRef: externalScrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
@@ -90,35 +89,12 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
-  scrollRef?: React.Ref<HTMLDivElement>
   /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
-  const internalScrollRef = useRef<HTMLDivElement>(null)
-  const scrollRef = (externalScrollRef ||
-    internalScrollRef) as React.RefObject<HTMLDivElement>
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
-  const [bottomPadding, setBottomPadding] = useState<number>(400)
   const parentsRef = useRef<HTMLDivElement>(null)
-
-  // Reset scroll and parent visibility when commentId changes
-  useEffect(() => {
-    if (!commentId) return
-
-    // Reset state when switching to a different comment
-    setShowParents(false)
-
-    // Reset scroll position to top
-    if (scrollRef.current) {
-      const viewport = scrollRef.current.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
-      if (viewport) {
-        viewport.scrollTop = 0
-      }
-    }
-  }, [commentId])
 
   if (!commentId) return null
 
@@ -177,55 +153,6 @@ export function CommentDiscussions({
     return () => clearTimeout(timer)
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
 
-  // Adjust scroll position when parents are shown
-  useLayoutEffect(() => {
-    if (!showParents || !parentsRef.current || !scrollRef.current) return
-
-    // Measure parent height and adjust scroll
-    const parentHeight = parentsRef.current.offsetHeight
-    const viewport = scrollRef.current.querySelector(
-      '[data-slot="scroll-area-viewport"]',
-    ) as HTMLElement
-
-    if (viewport) {
-      // Scroll down by parent height to keep focused comment in view
-      viewport.scrollTop = parentHeight + 8
-    }
-  }, [showParents, commentId]) // Added commentId to re-run on comment change
-
-  // Calculate bottom padding based on viewport height
-  useLayoutEffect(() => {
-    if (!scrollRef.current) return
-
-    const calculatePadding = () => {
-      const viewport = scrollRef.current?.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
-      if (viewport) {
-        // Get viewport height and calculate padding
-        // We want enough padding so the focused comment can be scrolled to the top
-        const viewportHeight = viewport.clientHeight
-        // Add some extra padding to ensure smooth scrolling
-        const padding = Math.max(viewportHeight * 0.75, 300)
-        setBottomPadding(padding)
-      }
-    }
-
-    // Calculate initially
-    calculatePadding()
-
-    // Recalculate on resize
-    const resizeObserver = new ResizeObserver(calculatePadding)
-    const viewport = scrollRef.current.querySelector(
-      '[data-slot="scroll-area-viewport"]',
-    ) as HTMLElement
-    if (viewport) {
-      resizeObserver.observe(viewport)
-    }
-
-    return () => resizeObserver.disconnect()
-  }, [scrollRef.current])
-
   if (commentsService.error) {
     return (
       <SelectionContent centered={centered}>
@@ -265,11 +192,7 @@ export function CommentDiscussions({
   const hasParents = parentThread?.thread && parentThread.thread.length > 1
 
   return (
-    <SelectionContent
-      scrollRef={scrollRef}
-      bottomPadding={bottomPadding}
-      centered={centered}
-    >
+    <SelectionContent centered={centered}>
       {/* Render parent thread above focused comment when ready */}
       {hasParents && showParents && (
         <div ref={parentsRef}>
@@ -358,21 +281,16 @@ export function CommentDiscussions({
 export function Discussions({
   targetId,
   commentId,
-  commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  scrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.Ref<HTMLDivElement>
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
@@ -458,15 +376,7 @@ export function Discussions({
       )
   }
 
-  return (
-    <SelectionContent
-      header={commentEditor}
-      scrollRef={scrollRef}
-      centered={centered}
-    >
-      {panelContent}
-    </SelectionContent>
-  )
+  return <SelectionContent centered={centered}>{panelContent}</SelectionContent>
 }
 
 export function BlockDiscussions({
@@ -475,7 +385,6 @@ export function BlockDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  scrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
@@ -483,8 +392,6 @@ export function BlockDiscussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.Ref<HTMLDivElement>
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
@@ -569,7 +476,7 @@ export function BlockDiscussions({
   }
 
   return (
-    <SelectionContent scrollRef={scrollRef} centered={centered}>
+    <SelectionContent centered={centered}>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>

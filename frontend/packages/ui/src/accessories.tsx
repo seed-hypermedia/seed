@@ -30,11 +30,27 @@ export function SelectionBackButton({
   )
 }
 
+export function PanelContent({
+  children,
+  header,
+}: {
+  children: React.ReactNode
+  header?: React.ReactNode
+}) {
+  return (
+    <div className="flex h-full flex-1 flex-col overflow-hidden">
+      {header ? (
+        <div className="border-border border-b p-4">{header}</div>
+      ) : null}
+      <ScrollArea className="">{children}</ScrollArea>
+    </div>
+  )
+}
+
 export function SelectionContent({
   children,
   footer,
   header,
-  scrollRef,
   bottomPadding,
   centered,
   ...props
@@ -42,9 +58,7 @@ export function SelectionContent({
   children?: React.ReactNode
   footer?: React.ReactNode
   header?: React.ReactNode
-  scrollRef?: React.Ref<HTMLDivElement>
   bottomPadding?: number | string
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const content = (
@@ -57,32 +71,27 @@ export function SelectionContent({
   )
 
   return (
-    <div
-      className="scroll-area-full-height flex h-full flex-1 flex-col overflow-hidden"
-      {...props}
-    >
-      <ScrollArea ref={scrollRef}>
-        {header ? (
-          <div
-            className={cn(
-              'border-border max-h-1/2 border-b p-4',
-              centered && 'mx-auto w-full max-w-[calc(85ch+1em)]',
-            )}
-          >
-            {header}
-          </div>
-        ) : null}
-        {centered ? (
-          <div className="mx-auto w-full max-w-[calc(85ch+1em)] px-4">
-            {content}
-          </div>
-        ) : (
-          content
-        )}
-      </ScrollArea>
+    <div className="flex h-full flex-1 flex-col overflow-hidden" {...props}>
+      {header ? (
+        <div
+          className={cn(
+            'border-border max-h-1/2 border-b p-4',
+            centered && 'mx-auto w-full max-w-[calc(85ch+1em)]',
+          )}
+        >
+          {header}
+        </div>
+      ) : null}
+      {centered ? (
+        <div className="mx-auto w-full max-w-[calc(85ch+1em)] px-4">
+          {content}
+        </div>
+      ) : (
+        content
+      )}
       {footer ? (
         <div className="border-border bg-background m-2 max-h-1/2 rounded-md border py-2 dark:bg-black">
-          <ScrollArea>{footer}</ScrollArea>
+          {footer}
         </div>
       ) : null}
     </div>

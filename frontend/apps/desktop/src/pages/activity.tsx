@@ -153,7 +153,6 @@ function _ActivityContent({
           filterResource={id.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={route.filterEventType || []}
-          scrollRef={scrollRef}
         />
       </PageLayout>
     </div>

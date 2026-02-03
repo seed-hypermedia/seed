@@ -1,3 +1,4 @@
+import {ScrollArea} from '@radix-ui/react-scroll-area'
 import {ReactNode} from 'react'
 import {Text} from './text'
 
@@ -11,14 +12,14 @@ export function PageLayout({
   children,
   centered = false,
   contentMaxWidth,
+  scrollRef,
 }: {
   title?: string
   headerRight?: ReactNode
   children: ReactNode
-  /** When true, constrains content width and centers it (like feed page) */
   centered?: boolean
-  /** Custom max width for centered content. If not provided, uses default. */
   contentMaxWidth?: number
+  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const hasHeader = title || headerRight
   const maxWidthStyle = contentMaxWidth
@@ -46,8 +47,10 @@ export function PageLayout({
           </div>
         </div>
       )}
-      {/* Scrollable content */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ScrollArea
+        className="min-h-0 flex-1 overflow-auto pb-16"
+        ref={scrollRef}
+      >
         {centered ? (
           <div
             className={`mx-auto w-full px-4 ${maxWidthClass}`}
@@ -58,7 +61,7 @@ export function PageLayout({
         ) : (
           children
         )}
-      </div>
+      </ScrollArea>
     </div>
   )
 }
