@@ -31,7 +31,7 @@
     "desktop:make": "pnpm --filter @shm/desktop make",
     "desktop:package": "pnpm --filter @shm/desktop package",
     "desktop:test:package": "pnpm --filter @shm/desktop package:test",
-    "desktop:publish": "pnpm --filter @shm/desktop publish",
+    "desktop:publish": "pnpm --filter @shm/desktop run publish",
     "desktop:test": "pnpm --filter @shm/desktop test",
     "desktop:test:only": "pnpm --filter @shm/desktop test:only",
     "desktop:test:unit": "pnpm --filter @shm/desktop test:unit",
