@@ -1,3 +1,0 @@
-# Frontend Gateway
-
-WIP
