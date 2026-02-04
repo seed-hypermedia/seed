@@ -71,6 +71,7 @@
       "electron",
       "esbuild",
       "fs-xattr",
+      "macos-alias",
       "sharp"
     ],
     "overrides": {
