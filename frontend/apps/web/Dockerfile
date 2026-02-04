@@ -11,7 +11,6 @@ RUN apk add --no-cache libc6-compat
 COPY . .
 
 
-ENV NODE_ENV production
 RUN rm -rf ./frontend/apps/desktop
 RUN rm -rf ./frontend/apps/performance
 RUN rm -rf ./frontend/apps/perf-web
@@ -44,7 +43,8 @@ USER seed-web
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV NODE_ENV=production
+ENV PORT=3000
 
 WORKDIR /app/frontend/apps/web
 
