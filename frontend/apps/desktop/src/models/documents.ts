@@ -89,6 +89,7 @@ import {useEffect, useMemo, useRef} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
+import {computeDraftRoute} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
@@ -1388,29 +1389,17 @@ export function useCreateDraft(
 ) {
   const navigate = useNavigate('push')
   const selectedAccountId = useSelectedAccountId()
-  const route = useNavRoute()
 
   return ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
-    const id = nanoid(10)
-
-    if (visibility === 'PRIVATE' && selectedAccountId) {
-      // Private documents: random nanoid path at root level, unchangeable.
-      const privatePath = nanoid(21)
-      navigate({
-        key: 'draft',
-        id,
-        locationUid: selectedAccountId,
-        locationPath: [privatePath],
-        visibility: 'PRIVATE',
-      })
-    } else {
-      navigate({
-        key: 'draft',
-        id,
-        ...draftParams,
-        visibility: visibility ?? undefined,
-      })
-    }
+    const route = computeDraftRoute(
+      visibility,
+      draftParams,
+      selectedAccountId ?? undefined,
+      () => nanoid(10),
+      () => nanoid(21),
+    )
+    if (!route) return
+    navigate(route)
   }
 }
 

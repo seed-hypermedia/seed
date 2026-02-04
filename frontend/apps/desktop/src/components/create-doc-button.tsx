@@ -4,7 +4,6 @@ import {
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {useSelectedAccount} from '@/selected-account'
 import {UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {
@@ -55,8 +54,10 @@ function ImportMenuItem({
 
 export function CreateDocumentButton({
   locationId,
+  siteUrl,
 }: {
   locationId?: UnpackedHypermediaId
+  siteUrl?: string
 }) {
   const capability = useSelectedAccountCapability(locationId)
   const canEdit = roleCanWrite(capability?.role)
@@ -66,13 +67,8 @@ export function CreateDocumentButton({
     locationUid: locationId?.uid,
   })
   const myAccountIds = useMyAccountIds()
-  const selectedAccount = useSelectedAccount()
   const publishSite = usePublishSite()
 
-  const siteUrl =
-    selectedAccount?.type === 'document'
-      ? selectedAccount.document?.metadata?.siteUrl
-      : undefined
   const hasSiteUrl = Boolean(siteUrl)
 
   if (!myAccountIds.data?.length) return null
@@ -136,8 +132,8 @@ export function CreateDocumentButton({
                             size="sm"
                             variant="brand"
                             onClick={() => {
-                              if (selectedAccount?.id) {
-                                publishSite.open({id: selectedAccount.id})
+                              if (locationId) {
+                                publishSite.open({id: locationId})
                               }
                             }}
                           >

@@ -1,5 +1,6 @@
 import {
   HMDocument,
+  HMResourceVisibility,
   UnpackedHypermediaId,
   hmIdPathToEntityQueryPath,
 } from '@shm/shared'
@@ -61,4 +62,64 @@ export function shouldAutoLinkParent(
   }
 
   return true
+}
+
+/**
+ * Compute the draft route params for creating a new document.
+ * Private docs use the current location uid (falling back to selectedAccountId)
+ * with a random path. Public docs use draftParams as-is.
+ * Returns null if a private doc is requested but no locationUid is available.
+ */
+export function computeDraftRoute(
+  visibility: HMResourceVisibility | undefined,
+  draftParams: {
+    locationUid?: string
+    locationPath?: string[]
+    editUid?: string
+    editPath?: string[]
+    deps?: string[]
+  },
+  selectedAccountId: string | undefined,
+  generateId: () => string,
+  generatePath: () => string,
+):
+  | {
+      key: 'draft'
+      id: string
+      locationUid: string
+      locationPath: string[]
+      visibility: 'PRIVATE'
+    }
+  | {
+      key: 'draft'
+      id: string
+      locationUid?: string
+      locationPath?: string[]
+      editUid?: string
+      editPath?: string[]
+      deps?: string[]
+      visibility?: HMResourceVisibility
+    }
+  | null {
+  const id = generateId()
+
+  if (visibility === 'PRIVATE') {
+    const locationUid = draftParams.locationUid || selectedAccountId
+    if (!locationUid) return null
+    const privatePath = generatePath()
+    return {
+      key: 'draft',
+      id,
+      locationUid,
+      locationPath: [privatePath],
+      visibility: 'PRIVATE',
+    }
+  }
+
+  return {
+    key: 'draft',
+    id,
+    ...draftParams,
+    visibility: visibility ?? undefined,
+  }
 }

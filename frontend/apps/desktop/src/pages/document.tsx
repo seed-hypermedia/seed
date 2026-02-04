@@ -589,7 +589,10 @@ function _MainDocumentPage({
                 )}
               >
                 <EditDocButton />
-                <CreateDocumentButton locationId={id} />
+                <CreateDocumentButton
+                  locationId={id}
+                  siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
+                />
               </div>
             ) : (
               <OpenInPanelButton
@@ -754,7 +757,10 @@ function _MainDocumentPage({
             )}
           >
             <EditDocButton />
-            <CreateDocumentButton locationId={id} />
+            <CreateDocumentButton
+              locationId={id}
+              siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
+            />
           </div>
         ) : null}
         <ScrollArea>
