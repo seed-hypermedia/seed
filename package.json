@@ -70,6 +70,7 @@
       "better-sqlite3",
       "electron",
       "esbuild",
+      "fs-xattr",
       "sharp"
     ],
     "overrides": {
