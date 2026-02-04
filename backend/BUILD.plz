@@ -47,7 +47,7 @@ elif [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" != "darwin" ]; then
 else
     # CPU-only build: explicitly disable ALL GPU backends
     echo "Building llama.cpp (CPU-only)..."
-    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF"
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF"
     make libbinding.a || { echo "ERROR: llama.cpp CPU build failed"; exit 1; }
     # Create stubs for GPU libraries (not used in CPU-only build)
     touch libggml-vulkan.a
