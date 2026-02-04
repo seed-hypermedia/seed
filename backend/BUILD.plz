@@ -101,6 +101,7 @@ cd $WORKSPACE
 LLAMA_GO_PATH=$TMP_DIR/backend/backend/util/llama-go
 
 export CGO_ENABLED=1
+export CGO_CXXFLAGS="-std=c++17"
 export LIBRARY_PATH=$LLAMA_GO_PATH
 export C_INCLUDE_PATH=$LLAMA_GO_PATH
 
