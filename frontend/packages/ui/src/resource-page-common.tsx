@@ -2,6 +2,7 @@ import {
   BlockRange,
   DocumentPanelRoute,
   HMDocument,
+  HMExistingDraft,
   hmId,
   UnpackedHypermediaId,
   unpackHmId,
@@ -93,6 +94,10 @@ export interface ResourcePageProps {
   CommentEditor?: React.ComponentType<CommentEditorProps>
   /** Mobile-specific configuration (web only) */
   mobileConfig?: MobileConfig
+  /** Edit/create action buttons - platform-specific (desktop only) */
+  editActions?: ReactNode
+  /** Existing draft info for showing draft indicator in toolbar */
+  existingDraft?: HMExistingDraft | false
 }
 
 /** Get panel title for display */
@@ -115,6 +120,8 @@ export function ResourcePage({
   docId,
   CommentEditor,
   mobileConfig,
+  editActions,
+  existingDraft,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -247,6 +254,8 @@ export function ResourcePage({
         document={document}
         CommentEditor={CommentEditor}
         mobileConfig={mobileConfig}
+        editActions={editActions}
+        existingDraft={existingDraft}
       />
     </PageWrapper>
   )
@@ -357,11 +366,15 @@ function DocumentBody({
   document,
   CommentEditor,
   mobileConfig,
+  editActions,
+  existingDraft,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   CommentEditor?: React.ComponentType<CommentEditorProps>
   mobileConfig?: MobileConfig
+  editActions?: ReactNode
+  existingDraft?: HMExistingDraft | false
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -518,6 +531,18 @@ function DocumentBody({
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
+      {/* Floating edit buttons - visible when DocumentTools is NOT sticky */}
+      {activeView === 'content' && editActions && !isMobile ? (
+        <div
+          className={cn(
+            'bg-background absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm p-1 shadow-sm transition-opacity',
+            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+          )}
+        >
+          {editActions}
+        </div>
+      ) : null}
+
       <DocumentCover cover={document.metadata?.cover} />
 
       <div
@@ -548,8 +573,26 @@ function DocumentBody({
         <DocumentTools
           id={docId}
           activeTab={activeView}
+          existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
           directoryCount={directory.data?.length}
+          rightActions={
+            activeView === 'content' && editActions ? (
+              <div
+                className={cn(
+                  'flex items-center gap-1 p-1 transition-opacity',
+                  isToolsSticky ? 'opacity-100' : 'opacity-0',
+                )}
+              >
+                {editActions}
+              </div>
+            ) : activeView !== 'content' ? (
+              <OpenInPanelButton
+                id={docId}
+                panelRoute={{key: activeView, id: docId}}
+              />
+            ) : undefined
+          }
         />
       </div>
 
