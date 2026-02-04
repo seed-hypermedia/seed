@@ -581,7 +581,7 @@ export function useDraftEditor() {
     onMentionsQuery,
     importWebFile: importWebFile.mutateAsync,
     blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems(),
+    getSlashMenuItems: () => getSlashMenuItems({docId: editId ?? locationId}),
     _tiptapOptions: {
       extensions: [
         Extension.create({
