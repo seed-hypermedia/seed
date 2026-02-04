@@ -25,10 +25,12 @@ export default function DesktopResourcePage() {
   if (!docId) throw new Error('No document ID in route')
 
   return (
-    <ResourcePage
-      docId={docId}
-      CommentEditor={CommentBox}
-      mobileConfig={mobileConfig}
-    />
+    <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
+      <ResourcePage
+        docId={docId}
+        CommentEditor={CommentBox}
+        mobileConfig={mobileConfig}
+      />
+    </div>
   )
 }

@@ -11,19 +11,24 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   BlockRangeSelectOptions,
   BlocksContent,
   BlocksContentProvider,
 } from './blocks-content'
-import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {ReadOnlyCollaboratorsContent} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
+import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
-import {OpenInPanelButton} from './open-in-panel'
-import {PageLayout} from './page-layout'
 import {DocumentCover} from './document-cover'
 import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
@@ -32,6 +37,8 @@ import {useDocumentLayout} from './layout'
 import {MobileInteractionBar} from './mobile-interaction-bar'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
+import {OpenInPanelButton} from './open-in-panel'
+import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {SiteHeader} from './site-header'
@@ -322,7 +329,7 @@ function PageWrapper({
   return (
     <div
       className={cn(
-        'flex flex-col',
+        'flex max-h-full flex-col',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
         // On mobile: natural height for document scrolling
         isMobile ? 'min-h-dvh' : 'h-dvh',
@@ -590,10 +597,7 @@ function DocumentBody({
   if (isMobile) {
     return (
       <>
-        <div
-          className="relative flex flex-1 flex-col pb-16"
-          ref={elementRef}
-        >
+        <div className="relative flex flex-1 flex-col pb-16" ref={elementRef}>
           {mainPageContent}
         </div>
 
