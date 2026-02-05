@@ -11,6 +11,7 @@ GitFunctions = true
 [build]
 PassUnsafeEnv = "WORKSPACE" ; This is expected to be set via direnv to point to the absolute path to the workspace. Needed to do some nasty but useful workarounds.
 PassUnsafeEnv = "SEED_MISE_BIN"
+PassUnsafeEnv = "SEED_USE_GPU" ; Internal: set by ./dev --gpu flag. Do not set manually.
 ExitOnError = true
 Path = "/bin:/usr/bin"
 
@@ -23,4 +24,4 @@ DirClean = true
 [buildconfig]
 go-tool = //build/tools:go
 md5sum-tool = //build/tools:md5sum
-pnpm-tool = //build/tools:pnpm
+yarn-tool = //build/tools:yarn
