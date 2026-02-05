@@ -3030,3 +3030,179 @@ func pullDocument(t *testing.T, app *App, account, path, wantVersion string) {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
+
+func TestSearchEntitiesFilters(t *testing.T) {
+	t.Parallel()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	aliceAccount := aliceIdentity.Account.PublicKey.String()
+
+	// Create documents with distinct, searchable content at different paths.
+	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home Page"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Welcome to my page"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Honda rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Honda reliability is legendary"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/cars/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Toyota rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Toyota durability is unmatched"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/bikes/yamaha",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Yamaha rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Yamaha speed is unreal"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("IriFilterSubtree", func(t *testing.T) {
+		// Search with iri_filter scoped to /cars/* — must only return honda and toyota.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "rocks",
+			IncludeBody: true,
+			IriFilter:   "hm://" + aliceAccount + "/cars/*",
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results under /cars/*")
+		for _, e := range res.Entities {
+			require.Contains(t, e.Id, "/cars/", "all results must be under /cars/ subtree")
+		}
+	})
+
+	t.Run("IriFilterInvalid", func(t *testing.T) {
+		// Invalid pattern must return error.
+		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:     "rocks",
+			IriFilter: "not-hm://injection; DROP TABLE fts",
+		})
+		require.Error(t, err, "invalid iri_filter must be rejected")
+	})
+
+	t.Run("DeprecatedAccountUidFallback", func(t *testing.T) {
+		// Empty iri_filter + account_uid set must still work (legacy).
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      "rocks",
+			AccountUid: aliceAccount,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results for the account")
+	})
+
+	t.Run("ContentTypeFilterExplicit", func(t *testing.T) {
+		// content_type_filters = [TITLE] must only return title matches.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:              "rocks",
+			IncludeBody:        true,
+			ContentTypeFilters: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return title results")
+		for _, e := range res.Entities {
+			require.Equal(t, "title", e.Type, "must only return title results when filter is explicit")
+		}
+	})
+
+	t.Run("ContentTypeLegacyWithBody", func(t *testing.T) {
+		// Empty content_type_filters + include_body=true must search body content.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "reliability",
+			IncludeBody: true,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must find body content with include_body")
+	})
+
+	t.Run("ContentTypeTitleOnlyDefault", func(t *testing.T) {
+		// Empty content_type_filters + include_body=false must only search titles.
+		// "reliability" is only in the body → no results.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query: "reliability",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 0, "must not find body content without include_body")
+	})
+
+	t.Run("AuthorityWeightInvalid", func(t *testing.T) {
+		// authority_weight > 1 must be rejected.
+		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:           "rocks",
+			AuthorityWeight: 1.5,
+		})
+		require.Error(t, err, "authority_weight > 1 must be rejected")
+	})
+
+	t.Run("AuthorityWeightZero", func(t *testing.T) {
+		// authority_weight = 0 (default) must work normally.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query: "rocks",
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results with default authority_weight")
+	})
+
+	t.Run("AuthorityWeightValid", func(t *testing.T) {
+		// authority_weight within range must not error.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:           "rocks",
+			AuthorityWeight: 0.3,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results with valid authority_weight")
+	})
+}
