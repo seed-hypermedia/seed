@@ -747,7 +747,7 @@ var qEmbeddableTotalCount = dqb.Str(`
 `)
 
 var qAlreadyEmbeddedCount = dqb.Str(`
-	SELECT COUNT(*) FROM embeddings;
+	SELECT COUNT(DISTINCT fts_id) FROM embeddings;
 `)
 
 var qEmbeddingsInsert = dqb.Str(`
