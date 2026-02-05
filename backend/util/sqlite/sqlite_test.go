@@ -152,7 +152,7 @@ func TestEarlyInterrupt(t *testing.T) {
 
 	cancel()
 
-	stmt, err = c.Prepare("INSERT INTO bartable (foo1, foo2) VALUES ($f1, $f2);")
+	_, err = c.Prepare("INSERT INTO bartable (foo1, foo2) VALUES ($f1, $f2);")
 	if err == nil {
 		t.Fatal("Prepare err=nil, want prepare to fail")
 	}

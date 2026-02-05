@@ -4,11 +4,14 @@ package config
 import (
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"seed/backend/ipfs"
 	"seed/backend/util/must"
 	"strings"
 	"time"
+
+	"seed/backend/llm"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -58,6 +61,7 @@ type Config struct {
 	HTTP    HTTP
 	GRPC    GRPC
 	P2P     P2P
+	LLM     LLM
 	Lndhub  Lndhub
 	Syncing Syncing
 	Debug   Debug
@@ -74,6 +78,7 @@ func (c *Config) BindFlags(fs *flag.FlagSet) {
 	c.HTTP.BindFlags(fs)
 	c.GRPC.BindFlags(fs)
 	c.P2P.BindFlags(fs)
+	c.LLM.BindFlags(fs)
 	c.Lndhub.BindFlags(fs)
 	c.Syncing.BindFlags(fs)
 	c.Debug.BindFlags(fs)
@@ -86,6 +91,7 @@ func Default() Config {
 		HTTP:    HTTP{}.Default(),
 		GRPC:    GRPC{}.Default(),
 		P2P:     P2P{}.Default(),
+		LLM:     LLM{}.Default(),
 		Lndhub:  Lndhub{}.Default(),
 		Syncing: Syncing{}.Default(),
 		Debug:   Debug{}.Default(),
@@ -135,6 +141,35 @@ func newAddrsFlag(val []multiaddr.Multiaddr, p *[]multiaddr.Multiaddr) flag.Valu
 	return (*addrsFlag)(p)
 }
 
+type urlFlag url.URL
+
+func (al *urlFlag) String() string {
+	if al == nil {
+		return ""
+	}
+
+	return (*url.URL)(al).String()
+}
+
+func (al *urlFlag) Set(s string) error {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return fmt.Errorf("URL flag value cannot be empty")
+	}
+	parsedURL, err := url.Parse(trimmed)
+	if err != nil {
+		return err
+	}
+
+	*al = urlFlag(*parsedURL)
+	return nil
+}
+
+func newURLFlag(val url.URL, p *url.URL) flag.Value {
+	*p = val
+	return (*urlFlag)(p)
+}
+
 // HTTP configuration.
 type HTTP struct {
 	Port int
@@ -165,6 +200,84 @@ func (c GRPC) Default() GRPC {
 // BindFlags binds the flags to the given FlagSet.
 func (c *GRPC) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "grpc.port", c.Port, "Port for the gRPC server")
+}
+
+// Embedder configures the embedding indexer.
+type Embedder struct {
+	// PeriodicInterval is the period between each indexing run. Default is 1 minute.
+	PeriodicInterval time.Duration
+	// SleepBetweenPasses is the time to sleep between passes when indexing.
+	SleepBetweenPasses time.Duration
+	// IndexPassSize is the number of FTS rows to keep in memory per pass. Default is 100.
+	IndexPassSize int
+	// Model is the LLM model to use for embeddings.
+	Model string
+	// DocumentPrefix is the prefix to add to document texts before embedding.
+	DocumentPrefix string
+	// QueryPrefix is the prefix to add to query texts before embedding.
+	QueryPrefix string
+	// Enabled indicates whether the embedder is enabled.
+	Enabled bool
+}
+
+// BackendCfg configures the LLM backend connection.
+type BackendCfg struct {
+	// URL is the base URL of the Ollama server.
+	// It could be an HTTP URL or a file URL depending on the backend.
+	URL url.URL
+
+	// SleepBetweenBatches is the time to wait between embedding batches.
+	SleepBetweenBatches time.Duration
+
+	// BatchSize is the number of inputs to process in a single batch.
+	BatchSize int
+}
+
+// Backend wraps the backend configuration.
+type Backend struct {
+	Cfg BackendCfg
+}
+
+// LLM configuration.
+type LLM struct {
+	Backend   Backend
+	Embedding Embedder
+}
+
+// Default returns the default LLM configuration.
+func (c LLM) Default() LLM {
+	return LLM{
+		Backend: Backend{
+			Cfg: BackendCfg{
+				URL:                 url.URL{}, // empty = use embedded llamacpp model
+				SleepBetweenBatches: 750 * time.Millisecond,
+				BatchSize:           16,
+			},
+		},
+		Embedding: Embedder{
+			PeriodicInterval:   llm.DefaultEmbeddingRunInterval,
+			SleepBetweenPasses: llm.DefaultEmbeddingSleepBetweenPasses,
+			IndexPassSize:      llm.DefaultEmbeddingIndexPassSize,
+			Model:              llm.DefaultEmbeddingModel,
+			DocumentPrefix:     "",
+			QueryPrefix:        "",
+			Enabled:            false,
+		},
+	}
+}
+
+// BindFlags binds the flags to the given FlagSet.
+func (c *LLM) BindFlags(fs *flag.FlagSet) {
+	fs.Var(newURLFlag(c.Backend.Cfg.URL, &c.Backend.Cfg.URL), "llm.backend.url", "Empty = embedded model, or Ollama URL (http://localhost:11434), or file URL (file:///path/to.gguf)")
+	fs.DurationVar(&c.Backend.Cfg.SleepBetweenBatches, "llm.backend.sleep-between-batches", c.Backend.Cfg.SleepBetweenBatches, "Wait time between embedding batches")
+	fs.IntVar(&c.Backend.Cfg.BatchSize, "llm.backend.batch-size", c.Backend.Cfg.BatchSize, "How many FTS rows to scan at once")
+	fs.DurationVar(&c.Embedding.PeriodicInterval, "llm.embedding.periodic-interval", c.Embedding.PeriodicInterval, "Interval between embedding runs")
+	fs.DurationVar(&c.Embedding.SleepBetweenPasses, "llm.embedding.sleep-between-pass", c.Embedding.SleepBetweenPasses, "Wait time between embedding passes")
+	fs.IntVar(&c.Embedding.IndexPassSize, "llm.embedding.index-pass-size", c.Embedding.IndexPassSize, "How many FTS rows to scan at once")
+	fs.StringVar(&c.Embedding.Model, "llm.embedding.model", c.Embedding.Model, "Embedding model to use. Only applicable for Ollama backend")
+	fs.StringVar(&c.Embedding.DocumentPrefix, "llm.embedding.document-prefix", c.Embedding.DocumentPrefix, "Prefix to add to document texts before embedding")
+	fs.StringVar(&c.Embedding.QueryPrefix, "llm.embedding.query-prefix", c.Embedding.QueryPrefix, "Prefix to add to query texts before embedding")
+	fs.BoolVar(&c.Embedding.Enabled, "llm.embedding.enabled", c.Embedding.Enabled, "Whether the embedding indexer is enabled")
 }
 
 // Lndhub related config.

@@ -73,7 +73,7 @@ func fillSession(t *testing.T) (*sqlite.Conn, *sqlite.Session) {
 		t.Fatal(err)
 	}
 	for i := int64(2); i < 100; i++ {
-		stmt.Reset()
+		_ = stmt.Reset()
 		stmt.BindInt64(1, i)
 		stmt.BindText(2, "column2")
 		stmt.BindText(3, "column3")

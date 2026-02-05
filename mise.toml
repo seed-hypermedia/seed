@@ -6,7 +6,61 @@ go = "1.25.4"
 "go:github.com/thought-machine/please/src" = {"version" = "648d330599c4a96e46ec7aa9bca5839119b04a4c", postinstall = "mv $MISE_TOOL_INSTALL_PATH/bin/src $MISE_TOOL_INSTALL_PATH/bin/plz"}
 node = "22.2.0"
 protoc = "24.4"
-pnpm = "9.15.0"
+cmake = "3.31.6"
+golangci-lint = "2.8.0"
+yarn = "4.12.0"
 
 [settings]
 experimental = true
+
+[env]
+_.file = ".env"
+
+# System packages needed for GPU-accelerated llama.cpp build (./dev --gpu):
+#
+# Linux (Vulkan backend):
+#   Fedora/RHEL: sudo dnf install vulkan-headers vulkan-loader-devel glslang gcc-c++
+#   Ubuntu/Debian: sudo apt install libvulkan-dev vulkan-tools glslc g++
+#
+# macOS (Metal backend):
+#   Metal framework is built-in with Xcode Command Line Tools
+#   Install Xcode Command Line Tools: xcode-select --install
+#   No additional packages required - Metal is part of the macOS SDK
+
+[tasks.ensure-model]
+run = '''
+MODEL="backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+if [ ! -f "$MODEL" ]; then
+  mkdir -p "$(dirname "$MODEL")"
+  echo "Downloading GGUF embedding model..."
+  curl -fSL --progress-bar -o "$MODEL" \
+    "https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+fi
+'''
+hide = true
+
+[tasks.check-gpu]
+description = "Check if GPU acceleration dependencies are installed for your platform"
+run = '''
+if [ "$(uname -s)" = "Darwin" ]; then
+  echo "✓ macOS: Metal support is built-in"
+else
+  if ! command -v glslc >/dev/null 2>&1; then
+    echo "✗ Vulkan shader compiler (glslc) not found"
+    echo "  Install: sudo apt install glslc"
+    exit 1
+  fi
+  if ! pkg-config --exists vulkan 2>/dev/null; then
+    echo "✗ Vulkan SDK not found"
+    echo "  Install: sudo dnf install vulkan-headers vulkan-loader-devel  # Fedora/RHEL"
+    echo "  Install: sudo apt install libvulkan-dev                       # Ubuntu/Debian"
+    exit 1
+  fi
+  echo "✓ Vulkan SDK installed"
+fi
+echo ""
+echo "To build with GPU acceleration: ./dev run-backend --gpu"
+'''
+
+[hooks]
+enter = "mise run ensure-model"

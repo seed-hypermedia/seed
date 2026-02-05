@@ -1,25 +1,124 @@
 subinclude("//build/rules/go:defs", "//build/rules/codegen:defs")
 
-# Builds the seed-daemon binary. It depends on all the non-test
-# Go files inside the `backend` directory.
-go_binary(
+# Build llama.cpp bindings before compiling Go code
+genrule(
+    name = "llama-cpp",
+    srcs = glob(["util/llama-go/**/*"], exclude=[
+        "util/llama-go/.git/**",
+        "util/llama-go/build/**",
+        "util/llama-go/**/*.a",
+        "util/llama-go/**/*.o",
+    ]),
+    outs = [
+        "backend/util/llama-go/libbinding.a",
+        "backend/util/llama-go/libcommon.a",
+        "backend/util/llama-go/libllama.a",
+        "backend/util/llama-go/libggml.a",
+        "backend/util/llama-go/libggml-cpu.a",
+        "backend/util/llama-go/libggml-base.a",
+        "backend/util/llama-go/libggml-vulkan.a",
+        "backend/util/llama-go/libggml-metal.a",
+        "backend/util/llama-go/ggml-metal.metal",
+    ],
+    cmd = """
+set -e
+cd backend/util/llama-go
+export LIBRARY_PATH=$(pwd)
+export C_INCLUDE_PATH=$(pwd)
+# GPU library compilation (still needs SEED_USE_GPU for C++ build type)
+if [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" = "darwin" ]; then
+    export BUILD_TYPE=metal
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
+    echo "Building llama.cpp with Metal GPU acceleration..."
+    make libbinding.a || { echo "ERROR: llama.cpp Metal build failed"; exit 1; }
+    # Copy Metal shader (required for runtime)
+    cp build/bin/ggml-metal.metal .
+    # Create stub for Vulkan (not used on macOS)
+    touch libggml-vulkan.a
+elif [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" != "darwin" ]; then
+    export BUILD_TYPE=vulkan
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
+    echo "Building llama.cpp with Vulkan GPU acceleration..."
+    make libbinding.a || { echo "ERROR: llama.cpp Vulkan build failed"; exit 1; }
+    # Create stubs for Metal (not used on Linux/Windows)
+    touch libggml-metal.a
+    touch ggml-metal.metal
+else
+    # CPU-only build: explicitly disable ALL GPU backends
+    echo "Building llama.cpp (CPU-only)..."
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF"
+    make libbinding.a || { echo "ERROR: llama.cpp CPU build failed"; exit 1; }
+    # Create stubs for GPU libraries (not used in CPU-only build)
+    touch libggml-vulkan.a
+    touch libggml-metal.a
+    touch ggml-metal.metal
+fi
+echo "llama.cpp build completed successfully"
+    """,
+    building_description = "Building llama.cpp bindings...",
+    env = {
+        "OS": CONFIG.TARGET_OS,
+    },
+    visibility = ["//backend/..."],
+)
+
+# Builds the seed-daemon binary with llama.cpp CGO flags
+genrule(
     name = "seed-daemon",
     srcs = glob(
         [
             "**/*.go",
             "**/*.c",
             "**/*.h",
+            "**/*.cpp",
+            "**/*.hpp",
         ],
         exclude = ["**/*_test.go"],
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
         "//backend/wallet/walletsql:go_library",
+        ":llama-cpp",
+        "//:gomod",
     ],
-    out = "seed-daemon-" + target_platform_triple(),
-    cgo = True,
-    gomod = "//:gomod",
-    package = "./cmd/seed-daemon",
+    outs = ["seed-daemon-" + target_platform_triple()],
+    cmd = """
+set -e
+TMPDIR=/tmp
+HOME=$(eval echo ~$(whoami))
+
+# Work from the actual workspace, not the temp build directory
+cd $WORKSPACE
+
+# Libraries from llama-cpp dependency are placed in TMP_DIR by Please
+# The outs from llama-cpp are declared as "backend/util/llama-go/*.a"
+# Since llama-cpp is in the backend package, outputs go to:
+# $TMP_DIR/backend/backend/util/llama-go/
+LLAMA_GO_PATH=$TMP_DIR/backend/backend/util/llama-go
+
+export CGO_ENABLED=1
+export LIBRARY_PATH=$LLAMA_GO_PATH
+export C_INCLUDE_PATH=$LLAMA_GO_PATH
+
+# GPU support: pass -tags gpu, platform-specific files set correct CGO flags
+BUILD_TAGS=""
+if [ "${SEED_USE_GPU:-}" = "true" ]; then
+    BUILD_TAGS="-tags gpu"
+fi
+
+echo "Looking for llama libraries in: $LLAMA_GO_PATH"
+ls -la $LLAMA_GO_PATH/*.a || echo "No .a files found!"
+
+$TOOLS_GO build $BUILD_TAGS -trimpath -o $OUT ./backend/cmd/seed-daemon
+    """,
+    binary = True,
+    building_description = "Building seed-daemon with llama.cpp...",
+    tools = {
+        "go": [CONFIG.GO_TOOL],
+    },
+    env = {
+        "OS": CONFIG.TARGET_OS,
+    },
     visibility = ["PUBLIC"],
 )
 
