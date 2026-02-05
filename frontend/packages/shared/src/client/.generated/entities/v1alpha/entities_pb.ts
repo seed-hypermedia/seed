@@ -946,6 +946,21 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   authorityWeight = 0;
 
+  /**
+   * Optional. Maximum number of results per page.
+   * When 0 (default), all results are returned (backwards compatible).
+   *
+   * @generated from field: int32 page_size = 10;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Token from a previous SearchEntitiesResponse to get the next page.
+   *
+   * @generated from field: string page_token = 11;
+   */
+  pageToken = "";
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -963,6 +978,8 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 7, name: "iri_filter", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "content_type_filters", kind: "enum", T: proto3.getEnumType(ContentTypeFilter), repeated: true },
     { no: 9, name: "authority_weight", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
+    { no: 10, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 11, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {
