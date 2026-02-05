@@ -17,6 +17,7 @@ import (
 	"seed/backend/hlc"
 	"seed/backend/hmnet/syncing"
 	"seed/backend/llm"
+	"seed/backend/util/apiutil"
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"slices"
@@ -1142,7 +1143,37 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		})
 	}
 
-	return &entpb.SearchEntitiesResponse{Entities: matchingEntities}, nil
+	// Paginate if page_size is set. When 0, return everything (backwards compatible).
+	var nextPageToken string
+	if in.PageSize > 0 {
+		var cursor struct {
+			Offset int `json:"o"`
+		}
+		if in.PageToken != "" {
+			if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid page_token: %v", err)
+			}
+		}
+		if cursor.Offset >= len(matchingEntities) {
+			matchingEntities = nil
+		} else {
+			end := cursor.Offset + int(in.PageSize)
+			if end < len(matchingEntities) {
+				nextCursor := struct {
+					Offset int `json:"o"`
+				}{Offset: end}
+				nextPageToken = apiutil.EncodePageToken(nextCursor, nil)
+				matchingEntities = matchingEntities[cursor.Offset:end]
+			} else {
+				matchingEntities = matchingEntities[cursor.Offset:]
+			}
+		}
+	}
+
+	return &entpb.SearchEntitiesResponse{
+		Entities:      matchingEntities,
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
 func orderByTitle(a, b fullDataSearchResult) int {

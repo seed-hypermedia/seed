@@ -314,6 +314,13 @@ message SearchEntitiesRequest {
   // 0 (default) disables authority scoring. Higher values increase citation influence.
   // Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
   float authority_weight = 9;
+
+  // Optional. Maximum number of results per page.
+  // When 0 (default), all results are returned (backwards compatible).
+  int32 page_size = 10;
+
+  // Optional. Token from a previous SearchEntitiesResponse to get the next page.
+  string page_token = 11;
 }
 
 // A list of entities matching the request.

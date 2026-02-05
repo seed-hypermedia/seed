@@ -1064,8 +1064,13 @@ type SearchEntitiesRequest struct {
 	// 0 (default) disables authority scoring. Higher values increase citation influence.
 	// Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
 	AuthorityWeight float32 `protobuf:"fixed32,9,opt,name=authority_weight,json=authorityWeight,proto3" json:"authority_weight,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Optional. Maximum number of results per page.
+	// When 0 (default), all results are returned (backwards compatible).
+	PageSize int32 `protobuf:"varint,10,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optional. Token from a previous SearchEntitiesResponse to get the next page.
+	PageToken     string `protobuf:"bytes,11,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchEntitiesRequest) Reset() {
@@ -1160,6 +1165,20 @@ func (x *SearchEntitiesRequest) GetAuthorityWeight() float32 {
 		return x.AuthorityWeight
 	}
 	return 0
+}
+
+func (x *SearchEntitiesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *SearchEntitiesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
 }
 
 // A list of entities matching the request.
@@ -1838,7 +1857,7 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xb8\x03\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xf4\x03\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
 	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
@@ -1851,7 +1870,11 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\n" +
 	"iri_filter\x18\a \x01(\tR\tiriFilter\x12^\n" +
 	"\x14content_type_filters\x18\b \x03(\x0e2,.com.seed.entities.v1alpha.ContentTypeFilterR\x12contentTypeFilters\x12)\n" +
-	"\x10authority_weight\x18\t \x01(\x02R\x0fauthorityWeight\"\x7f\n" +
+	"\x10authority_weight\x18\t \x01(\x02R\x0fauthorityWeight\x12\x1b\n" +
+	"\tpage_size\x18\n" +
+	" \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\v \x01(\tR\tpageToken\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
