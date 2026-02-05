@@ -61,16 +61,13 @@ SQLITE_EXTENSION_INIT1
 #define LONGDOUBLE_TYPE long double
 #endif
 
-#ifndef _WIN32
-#ifndef __EMSCRIPTEN__
-#ifndef __COSMOPOLITAN__
-#ifndef __wasi__
+// u_int*_t types are BSD-isms available on glibc but not on musl (Alpine).
+// Since uint*_t are already provided by <stdint.h> (included via sqlite3.h),
+// these re-typedefs are only needed on glibc where u_int*_t exists.
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(__COSMOPOLITAN__) && !defined(__wasi__) && defined(__GLIBC__)
 typedef u_int8_t uint8_t;
 typedef u_int16_t uint16_t;
 typedef u_int64_t uint64_t;
-#endif
-#endif
-#endif
 #endif
 
 typedef int8_t i8;
