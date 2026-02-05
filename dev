@@ -54,7 +54,7 @@ def setup_gpu_build(gpu_enabled: bool):
     with open(GPU_CONFIG_FILE, "w") as f:
         f.write(current_gpu)
 
-    # Set env var for BUILD.plz (internal implementation detail)
+    # Set env var for BUILD.plz
     if gpu_enabled:
         os.environ["SEED_USE_GPU"] = "true"
     elif "SEED_USE_GPU" in os.environ:

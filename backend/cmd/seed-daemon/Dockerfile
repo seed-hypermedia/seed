@@ -7,18 +7,19 @@ ARG COMMIT_HASH
 ARG BRANCH
 ARG DATE
 COPY go.mod go.sum ./
+COPY backend/util/llama-go/go.mod backend/util/llama-go/go.sum ./backend/util/llama-go/
 RUN go mod download
 COPY backend ./backend
 COPY monitoring ./monitoring
 
-# Install build dependencies for llama.cpp (CPU-only build for server)
-RUN apk add build-base cmake g++ linux-headers vulkan-headers vulkan-loader-dev shaderc
+# Install build dependencies for llama.cpp (CPU-only build for Docker)
+RUN apk add build-base cmake g++ linux-headers
 
-# Build llama.cpp with CPU-only support (no GPU for server environments)
+# Build llama.cpp (CPU-only, no GPU acceleration in Docker containers)
 WORKDIR /code/backend/util/llama-go
-RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
 
-# Build seed-daemon with llama.cpp support
+# Build seed-daemon with llama.cpp support (CPU backend)
 WORKDIR /code
 ENV LIBRARY_PATH=/code/backend/util/llama-go
 ENV C_INCLUDE_PATH=/code/backend/util/llama-go
