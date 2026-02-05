@@ -221,8 +221,14 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		return nil, err
 	}
 
+	// Convert typed nil to untyped nil for proper interface nil check downstream.
+	var lightEmbedder embeddings.LightEmbedder
+	if embedder != nil {
+		lightEmbedder = embedder
+	}
+
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr, embedder)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, dlink, a.taskMgr, lightEmbedder)
 	if err != nil {
 		return nil, err
 	}
