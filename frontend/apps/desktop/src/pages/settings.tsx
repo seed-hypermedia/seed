@@ -281,11 +281,101 @@ export function DeveloperSettings() {
   const writeExperiments = useWriteExperiments()
   const enabledDevTools = experiments?.developerTools
   const enabledPubContentDevMenu = experiments?.pubContentDevMenu
+  const embeddingEnabled = experiments?.embeddingEnabled
+  const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
+  const [pendingEmbeddingState, setPendingEmbeddingState] = useState(false)
+  const restartDaemon = useMutation({
+    mutationFn: (enabled: boolean) =>
+      client.restartDaemonWithEmbedding.mutate({embeddingEnabled: enabled}),
+    onSuccess: () => {
+      toast.success(
+        pendingEmbeddingState
+          ? 'Embedding enabled. Daemon restarted.'
+          : 'Embedding disabled. Daemon restarted.',
+      )
+    },
+    onError: (error: unknown) => {
+      toast.error('Failed to restart daemon: ' + String(error))
+    },
+  })
   const openDraftLogs = useMutation({
     mutationFn: () => client.diagnosis.openDraftLogFolder.mutate(),
   })
+
+  function handleEmbeddingToggle() {
+    const newState = !embeddingEnabled
+    setPendingEmbeddingState(newState)
+    setShowEmbeddingConfirm(true)
+  }
+
+  function confirmEmbeddingChange() {
+    setShowEmbeddingConfirm(false)
+    writeExperiments.mutate({embeddingEnabled: pendingEmbeddingState})
+    restartDaemon.mutate(pendingEmbeddingState)
+  }
+
   return (
     <>
+      <SettingsSection title="Embedding / AI Features">
+        <SizableText>
+          Enable AI-powered document embeddings for semantic search and related
+          content features. This will restart the background service.
+        </SizableText>
+        <div className="flex justify-between">
+          {embeddingEnabled ? <EnabledTag /> : <div />}
+          <Button
+            size="sm"
+            variant={embeddingEnabled ? 'destructive' : 'default'}
+            onClick={handleEmbeddingToggle}
+            disabled={restartDaemon.isLoading}
+          >
+            {restartDaemon.isLoading ? (
+              <>
+                <Spinner size="small" className="mr-2" />
+                Restarting...
+              </>
+            ) : embeddingEnabled ? (
+              'Disable Embedding'
+            ) : (
+              'Enable Embedding'
+            )}
+          </Button>
+        </div>
+      </SettingsSection>
+      <AlertDialog
+        open={showEmbeddingConfirm}
+        onOpenChange={setShowEmbeddingConfirm}
+      >
+        <AlertDialogPortal>
+          <AlertDialogContent className="max-w-[500px] gap-4">
+            <AlertDialogTitle className="text-xl font-bold">
+              {pendingEmbeddingState
+                ? 'Enable Embedding?'
+                : 'Disable Embedding?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEmbeddingState
+                ? 'This will restart the background service with AI embedding features enabled. The app may be briefly unresponsive during restart.'
+                : 'This will restart the background service with AI embedding features disabled. The app may be briefly unresponsive during restart.'}
+            </AlertDialogDescription>
+            <div className="flex justify-end gap-3">
+              <AlertDialogCancel asChild>
+                <Button variant="ghost">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant={pendingEmbeddingState ? 'default' : 'destructive'}
+                  onClick={confirmEmbeddingChange}
+                >
+                  {pendingEmbeddingState
+                    ? 'Enable & Restart'
+                    : 'Disable & Restart'}
+                </Button>
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialogPortal>
+      </AlertDialog>
       <SettingsSection title="Developer Tools">
         <SizableText>
           Adds features across the app for helping diagnose issues. Mostly
