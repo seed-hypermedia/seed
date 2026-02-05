@@ -170,7 +170,6 @@ ifeq ($(BUILD_TYPE),metal)
 	EXTRA_LIBS=
 	CGO_LDFLAGS+="-framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders"
 	CMAKE_ARGS+=-DGGML_METAL=ON
-	EXTRA_TARGETS+=llama.cpp/ggml-metal.o
 endif
 
 ifeq ($(BUILD_TYPE),vulkan)
@@ -225,9 +224,6 @@ llama.cpp/ggml-cuda.o: llama.cpp/ggml.o
 llama.cpp/ggml-opencl.o: llama.cpp/ggml.o
 	cd build && cp -rf CMakeFiles/ggml.dir/ggml-opencl.cpp.o ../llama.cpp/ggml-opencl.o
 
-llama.cpp/ggml-metal.o: llama.cpp/ggml.o
-	cd build && cp -rf CMakeFiles/ggml.dir/ggml-metal.m.o ../llama.cpp/ggml-metal.o
-
 llama.cpp/k_quants.o: llama.cpp/ggml.o
 	cd build && cp -rf ggml/src/CMakeFiles/ggml-base.dir/ggml-quants.c.o ../llama.cpp/k_quants.o
 
@@ -263,6 +259,9 @@ ifeq ($(BUILD_TYPE),openblas)
 endif
 ifeq ($(BUILD_TYPE),vulkan)
 	cp build/ggml/src/ggml-vulkan/libggml-vulkan.a .
+endif
+ifeq ($(BUILD_TYPE),metal)
+	cp build/ggml/src/ggml-metal/libggml-metal.a .
 endif
 else
 	@echo "Copying shared libraries..."
