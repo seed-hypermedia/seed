@@ -265,9 +265,17 @@ enum SearchType {
   SEARCH_HYBRID = 2;
 }
 
+// Content type to filter search results by.
+enum ContentTypeFilter {
+  CONTENT_TYPE_TITLE = 0;
+  CONTENT_TYPE_DOCUMENT = 1;
+  CONTENT_TYPE_COMMENT = 2;
+  CONTENT_TYPE_CONTACT = 3;
+}
+
 // Request to search entities.
 message SearchEntitiesRequest {
-  // Query to find. We Ssupport wildcards and phrases.
+  // Query to find. We support wildcards and phrases.
   // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
 
@@ -281,9 +289,8 @@ message SearchEntitiesRequest {
   // Default is 48 runes.
   int32 context_size = 3;
 
-  // Optional. The account uid to filter the search by.
-  // If not set, the search will be performed across all accounts.
-  string account_uid = 4;
+  // Deprecated. Use iri_filter instead.
+  string account_uid = 4 [deprecated = true];
 
   // Optional. The account uid the user is logged in with.
   // This is used to filter out contacts that the user doesn't have access to.
@@ -293,6 +300,20 @@ message SearchEntitiesRequest {
   // Optional. Type of search to perform. Could be keyword, semantic or hybrid.
   // if not set, keyword search is used.
   SearchType search_type = 6;
+
+  // Optional. hm:// URL with optional GLOB wildcards to scope search.
+  // Examples: "hm://<account>/cars/honda" (single doc), "hm://<account>/cars/*" (subtree).
+  // When empty, falls back to account_uid if set, otherwise matches all.
+  string iri_filter = 7;
+
+  // Optional. Fine-grained content type selection. Overrides include_body when set.
+  // When empty, legacy behavior (title + body types based on include_body).
+  repeated ContentTypeFilter content_type_filters = 8;
+
+  // Optional. Authority weight for citation-based ranking. Range [0, 1].
+  // 0 (default) disables authority scoring. Higher values increase citation influence.
+  // Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
+  float authority_weight = 9;
 }
 
 // A list of entities matching the request.
