@@ -17,19 +17,58 @@ jobs:
   # Use the reusable parallel test workflow
   frontend-tests:
     uses: ./.github/workflows/test-frontend-parallel.yml
-    
+
   backend-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-v1
+
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf \
+              https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.25.4"
-      - run: go test --count 1 ./backend/...
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++
+
+      - name: Build llama.cpp (CPU-only)
+        run: |
+          cd backend/util/llama-go
+          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+
+      - name: Run tests
+        run: go test --count 1 ./backend/...
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
+
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
-      - run: go test --count 1 -race ./backend/...
+      - name: Run tests with race detector
+        run: go test --count 1 -race ./backend/...
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+          LLAMA_LOG: error
   generate-docker-images:
     runs-on: ubuntu-latest
     needs: [frontend-tests, backend-tests]

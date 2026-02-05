@@ -71,30 +71,70 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-v1
+
+      - name: Download GGUF model (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf \
+              https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf
+          fi
+
+      - name: Download GGUF model (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: pwsh
+        run: |
+          $modelPath = "backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+          if (-not (Test-Path $modelPath)) {
+            New-Item -ItemType Directory -Force -Path "backend/llm/backends/llamacpp/models"
+            Invoke-WebRequest -Uri "https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf" -OutFile $modelPath
+          }
+
       - uses: ./.github/actions/ci-setup
         with:
           matrix-os: ${{ matrix.config.os }}
           # matrix-target: ${{ matrix.config.daemon_name }}
           # matrix-arch: ${{ matrix.config.arch }}
 
-      - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-2025'
+      - name: Build Backend (Linux)
+        if: matrix.config.os == 'ubuntu-latest'
         run: |
           mkdir -p plz-out/bin/backend
-          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Build Backend (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          mkdir -p plz-out/bin/backend
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+        env:
+          GOARCH: ${{ matrix.config.goarch }}
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
         if: startsWith(matrix.config.os, 'windows')
         run: |
           mkdir -p plz-out/bin/backend
-          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: "windows"
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')

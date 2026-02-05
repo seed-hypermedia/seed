@@ -80,10 +80,12 @@ jobs:
       - name: Build Backend (Unix)
         run: |
           mkdir -p plz-out/bin/backend
-          go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+          go build -tags gpu -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
         env:
           GOARCH: amd64
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Set temporal version in package.json
         run: |
