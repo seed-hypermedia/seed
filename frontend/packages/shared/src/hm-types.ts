@@ -1471,6 +1471,7 @@ export const HMSearchInputSchema = z.object({
   includeBody: z.boolean().optional(),
   contextSize: z.number().optional(),
   perspectiveAccountUid: z.string().optional(),
+  searchType: z.number().optional(),
 })
 export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
 
