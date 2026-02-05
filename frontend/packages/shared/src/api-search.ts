@@ -8,14 +8,21 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
     grpcClient: GRPCClient,
     input: HMSearchInput,
   ): Promise<HMSearchPayload> {
-    const {query, accountUid, includeBody, contextSize, perspectiveAccountUid} =
-      input
+    const {
+      query,
+      accountUid,
+      includeBody,
+      contextSize,
+      perspectiveAccountUid,
+      searchType,
+    } = input
     const result = await grpcClient.entities.searchEntities({
       query,
       includeBody,
       contextSize,
       accountUid,
       loggedAccountUid: perspectiveAccountUid,
+      searchType,
     })
     return {
       searchQuery: query,
