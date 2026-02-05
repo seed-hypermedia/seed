@@ -1055,7 +1055,7 @@ function EditDocButton() {
   const [popoverVisible, setPopoverVisible] = useState(false)
 
   useEffect(() => {
-    editPopoverEvents.subscribe((visible) => {
+    return editPopoverEvents.subscribe((visible) => {
       setPopoverVisible(visible)
     })
   }, [])

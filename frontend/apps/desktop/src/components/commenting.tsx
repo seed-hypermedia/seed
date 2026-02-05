@@ -75,6 +75,15 @@ function _CommentBox(props: {
   const isDeletingDraft = useRef(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
 
+  // Clean up save timeout on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const commentDraftQueryKey = [
     queryKeys.COMMENT_DRAFT,
     docId.id,

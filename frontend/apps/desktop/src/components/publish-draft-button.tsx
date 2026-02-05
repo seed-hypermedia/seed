@@ -702,7 +702,7 @@ function SaveIndicatorStatus() {
   const [status, setStatus] = useState('idle' as DraftStatus)
 
   useEffect(() => {
-    draftStatus.subscribe((current) => {
+    return draftStatus.subscribe((current) => {
       if (current == 'saved') {
         setTimeout(() => {
           setStatus('idle')

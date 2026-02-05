@@ -45,6 +45,9 @@ const INVALIDATION_DEBOUNCE_MS = 100
 // Page size for fetching activity events
 const ACTIVITY_PAGE_SIZE = 30
 
+// Max entries for lastKnownVersions to prevent unbounded memory growth
+const MAX_KNOWN_VERSIONS = 500
+
 export type ResourceSubscription = {
   id: UnpackedHypermediaId
   recursive?: boolean
@@ -524,7 +527,16 @@ async function runDiscovery(
   )
 
   if (shouldInvalidate) {
-    // Update tracked version
+    // Update tracked version with eviction to prevent unbounded growth
+    if (state.lastKnownVersions.size >= MAX_KNOWN_VERSIONS) {
+      // Evict oldest entries (first 20% of max)
+      const toDelete = Math.floor(MAX_KNOWN_VERSIONS * 0.2)
+      const keys = state.lastKnownVersions.keys()
+      for (let i = 0; i < toDelete; i++) {
+        const key = keys.next().value
+        if (key) state.lastKnownVersions.delete(key)
+      }
+    }
     state.lastKnownVersions.set(id.id, newVersion)
 
     console.log(`[Discovery] Invalidating queries for ${id.id}`)
@@ -698,6 +710,9 @@ export function subscribe(sub: ResourceSubscription): () => void {
       const subState = state.subscriptions.get(key)
       subState?.unsubscribe()
       state.subscriptions.delete(key)
+
+      // Clean up discovery stream to prevent memory leak
+      state.discoveryStreams.delete(sub.id.id)
 
       if (state.subscriptions.size === 0) {
         stopActivityPolling()

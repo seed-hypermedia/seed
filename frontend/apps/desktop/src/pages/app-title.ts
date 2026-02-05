@@ -32,7 +32,7 @@ export function useShowTitle(key: TitlebatKeys) {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    showTitleEvent.subscribe((value) => {
+    return showTitleEvent.subscribe((value) => {
       setShow(value == key)
     })
   }, [])

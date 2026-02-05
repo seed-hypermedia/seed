@@ -253,10 +253,11 @@ export function removeSubscribedEntity(sub: EntitySubscription) {
         entitySubscriptions[key]?.unsubscribe()
         delete entitySubscriptions[key]
 
-        // Also cleanup discovery state subscription
+        // Also cleanup discovery state subscription AND delete from map to prevent memory leak
         if (sub.id) {
           const discoveryStreamEntry = discoveryStreams.get(sub.id.id)
           discoveryStreamEntry?.unsubscribe?.()
+          discoveryStreams.delete(sub.id.id) // CRITICAL: delete to free memory
         }
       }
     }, 300)
