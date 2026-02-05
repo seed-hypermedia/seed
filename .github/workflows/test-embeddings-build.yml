@@ -89,6 +89,25 @@ jobs:
           BUILD_TYPE=${{ matrix.config.build_type }} CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
           ls -la *.a
 
+      - name: Download GGUF model (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf \
+              https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf
+          fi
+
+      - name: Download GGUF model (Windows)
+        if: matrix.config.os == 'windows-2025'
+        shell: powershell
+        run: |
+          $modelPath = "backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+          if (!(Test-Path $modelPath)) {
+            New-Item -ItemType Directory -Force -Path "backend/llm/backends/llamacpp/models"
+            Invoke-WebRequest -Uri "https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf" -OutFile $modelPath
+          }
+
       - name: Build seed-daemon (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
