@@ -2,7 +2,6 @@ import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
 import {MessageSquare} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
-import {OpenInPanelButton} from './open-in-panel'
 import {PageLayout} from './page-layout'
 import {SizableText} from './text'
 
@@ -101,14 +100,6 @@ export function DiscussionsPageContent({
       title={showTitle ? 'Discussions' : undefined}
       centered
       contentMaxWidth={contentMaxWidth}
-      headerRight={
-        showOpenInPanel ? (
-          <OpenInPanelButton
-            id={docId}
-            panelRoute={{key: 'discussions', id: docId}}
-          />
-        ) : undefined
-      }
     >
       {deleteCommentDialogContent}
       {content}

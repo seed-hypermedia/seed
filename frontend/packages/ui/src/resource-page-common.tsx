@@ -821,24 +821,12 @@ function MainContent({
           docId={docId}
           showTitle={false}
           contentMaxWidth={contentMaxWidth}
-          headerRight={
-            <OpenInPanelButton
-              id={docId}
-              panelRoute={{key: 'directory', id: docId}}
-            />
-          }
         />
       )
 
     case 'collaborators':
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
-          <div className="flex justify-end px-4 pb-2">
-            <OpenInPanelButton
-              id={docId}
-              panelRoute={{key: 'collaborators', id: docId}}
-            />
-          </div>
           <ReadOnlyCollaboratorsContent docId={docId} />
         </PageLayout>
       )
@@ -846,12 +834,6 @@ function MainContent({
     case 'activity':
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
-          <div className="flex justify-end px-4 pb-2">
-            <OpenInPanelButton
-              id={docId}
-              panelRoute={{key: 'activity', id: docId}}
-            />
-          </div>
           <Feed size="md" centered filterResource={docId.id} />
         </PageLayout>
       )
