@@ -20,7 +20,6 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/errutil"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -456,18 +455,6 @@ JOIN resources doc ON doc.iri = je.value
 LEFT JOIN author_scores s ON s.author_id = doc.owner
 `)
 
-// Batched cosine distance between pairs of FTS row embeddings.
-// Takes a JSON array of objects like [{"a":rowid1,"b":rowid2},...].
-// JOINs on embeddings naturally skip pairs where either embedding is missing.
-var qBatchEmbeddingDistance = dqb.Str(`
-SELECT
-	je.key,
-	vec_distance_cosine(e1.multilingual_minilm_l12_v2, e2.multilingual_minilm_l12_v2)
-FROM json_each(?) je
-JOIN embeddings e1 ON e1.fts_id = CAST(json_extract(je.value, '$.a') AS INTEGER)
-JOIN embeddings e2 ON e2.fts_id = CAST(json_extract(je.value, '$.b') AS INTEGER)
-`)
-
 // buildRankMap creates a map from IRI to 1-based rank, sorted by score desc.
 func buildRankMap(results []fullDataSearchResult, scoreFn func(fullDataSearchResult) int) map[string]int {
 	type entry struct {
@@ -593,125 +580,6 @@ func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
 	}
 
 	return sorted, sortedMatches, nil
-}
-
-// rowPair represents a pair of indices into the results slice for embedding distance comparison.
-type rowPair struct{ a, b int }
-
-// batchEmbeddingDistances fetches cosine distances for all given pairs in a single SQL query.
-// Returns a map from rowPair to distance. Pairs with missing embeddings are omitted.
-// Errors are swallowed so callers fall back gracefully.
-func batchEmbeddingDistances(ctx context.Context, db *sqlitex.Pool,
-	results []fullDataSearchResult, pairs []rowPair,
-) map[rowPair]float32 {
-	if len(pairs) == 0 || db == nil {
-		return nil
-	}
-
-	type jsonPair struct {
-		A int64 `json:"a"`
-		B int64 `json:"b"`
-	}
-	jp := make([]jsonPair, len(pairs))
-	for i, p := range pairs {
-		jp[i] = jsonPair{A: results[p.a].rowID, B: results[p.b].rowID}
-	}
-	pairsJSON, err := json.Marshal(jp)
-	if err != nil {
-		return nil
-	}
-
-	distances := make(map[rowPair]float32)
-	_ = db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qBatchEmbeddingDistance(), func(stmt *sqlite.Stmt) error {
-			idx := stmt.ColumnInt(0)
-			dist := float32(stmt.ColumnFloat(1))
-			if idx >= 0 && idx < len(pairs) {
-				distances[pairs[idx]] = dist
-			}
-			return nil
-		}, string(pairsJSON))
-	})
-
-	return distances
-}
-
-const semanticSimilarityThreshold float32 = 0.9
-
-// semanticDedup collapses near-identical cross-version results using embedding distance.
-// Groups results by iri|blockID|contentType, keeps newest, discards older versions
-// that are semantically similar (distance < threshold). Falls back to rawContent
-// comparison when embeddings are missing.
-func semanticDedup(ctx context.Context, db *sqlitex.Pool,
-	results []fullDataSearchResult, bodyMatches []fuzzy.Match,
-) ([]fullDataSearchResult, []fuzzy.Match) {
-	type groupKey struct{ iri, blockID, contentType string }
-	groups := map[groupKey][]int{}
-	for i, r := range results {
-		k := groupKey{r.iri, r.blockID, r.contentType}
-		groups[k] = append(groups[k], i)
-	}
-
-	// Collect all intra-group pairs for batch distance query.
-	var pairs []rowPair
-	for _, indices := range groups {
-		if len(indices) <= 1 {
-			continue
-		}
-		// Sort by versionTime desc (newest first).
-		sort.Slice(indices, func(a, b int) bool {
-			return results[indices[a]].versionTime.AsTime().After(
-				results[indices[b]].versionTime.AsTime())
-		})
-		for i := 0; i < len(indices); i++ {
-			for j := i + 1; j < len(indices); j++ {
-				pairs = append(pairs, rowPair{indices[i], indices[j]})
-			}
-		}
-	}
-
-	// Batch fetch embedding distances (1 SQL query total).
-	distances := batchEmbeddingDistances(ctx, db, results, pairs)
-
-	// Walk groups and decide what to keep.
-	keepSet := map[int]bool{}
-	for _, indices := range groups {
-		if len(indices) == 1 {
-			keepSet[indices[0]] = true
-			continue
-		}
-		// indices are already sorted newest-first from the loop above.
-		keepSet[indices[0]] = true
-		keptIdx := indices[0]
-		for _, idx := range indices[1:] {
-			similar := false
-			if dist, ok := distances[rowPair{keptIdx, idx}]; ok {
-				similarity := max(float32(0), 1-dist)
-				similar = similarity >= semanticSimilarityThreshold
-			} else {
-				// Embeddings missing — fall back to rawContent comparison.
-				similar = results[keptIdx].rawContent == results[idx].rawContent
-			}
-			if !similar {
-				// Meaningful drift — keep this older version.
-				keepSet[idx] = true
-				keptIdx = idx
-			}
-		}
-	}
-
-	// Build filtered slices preserving original order.
-	var filtered []fullDataSearchResult
-	var filteredMatches []fuzzy.Match
-	for i := range results {
-		if keepSet[i] {
-			bm := bodyMatches[i]
-			bm.Index = len(filtered)
-			filtered = append(filtered, results[i])
-			filteredMatches = append(filteredMatches, bm)
-		}
-	}
-	return filtered, filteredMatches
 }
 
 var qIsDeletedComment = dqb.Str(`
@@ -1062,11 +930,6 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		if err != nil {
 			return nil, fmt.Errorf("authority ranking failed: %w", err)
 		}
-	}
-
-	// Semantic dedup for non-keyword searches.
-	if in.SearchType != entpb.SearchType_SEARCH_KEYWORD {
-		searchResults, bodyMatches = semanticDedup(ctx, srv.db, searchResults, bodyMatches)
 	}
 
 	matchingEntities := []*entpb.Entity{}

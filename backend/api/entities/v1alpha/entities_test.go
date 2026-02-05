@@ -3,9 +3,7 @@ package entities
 import (
 	"testing"
 
-	"github.com/sahilm/fuzzy"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestIsValidIriFilter(t *testing.T) {
@@ -62,68 +60,4 @@ func TestBuildRankMap(t *testing.T) {
 	require.Equal(t, 2, ranks["hm://a/doc3"], "doc3 has score 30 so must be rank 2")
 	require.Equal(t, 3, ranks["hm://a/doc1"], "doc1 has lowest score (10) so must be rank 3")
 	require.Len(t, ranks, 3, "must have 3 unique IRIs")
-}
-
-func TestSemanticDedup_SingleResults(t *testing.T) {
-	t.Parallel()
-
-	// Groups of 1 must all be kept.
-	results := []fullDataSearchResult{
-		{iri: "hm://a/doc1", blockID: "b1", contentType: "document", rawContent: "hello", versionTime: timestamppb.Now(), rowID: 1},
-		{iri: "hm://a/doc2", blockID: "b1", contentType: "document", rawContent: "world", versionTime: timestamppb.Now(), rowID: 2},
-	}
-	matches := []fuzzy.Match{
-		{Str: "hello", Index: 0},
-		{Str: "world", Index: 1},
-	}
-
-	// No DB needed — groups of 1 bypass embedding queries.
-	filtered, filteredMatches := semanticDedup(t.Context(), nil, results, matches)
-	require.Len(t, filtered, 2, "must keep both results when they are in different groups")
-	require.Len(t, filteredMatches, 2)
-}
-
-func TestSemanticDedup_ExactDuplicateContent(t *testing.T) {
-	t.Parallel()
-
-	now := timestamppb.Now()
-	earlier := timestamppb.New(now.AsTime().Add(-1))
-
-	// Same iri|blockID|contentType, same rawContent → older must be discarded.
-	results := []fullDataSearchResult{
-		{iri: "hm://a/doc1", blockID: "b1", contentType: "document", rawContent: "same text", versionTime: now, rowID: 1},
-		{iri: "hm://a/doc1", blockID: "b1", contentType: "document", rawContent: "same text", versionTime: earlier, rowID: 2},
-	}
-	matches := []fuzzy.Match{
-		{Str: "same text", Index: 0},
-		{Str: "same text", Index: 1},
-	}
-
-	// No DB — embeddings missing means rawContent comparison is used as fallback.
-	filtered, filteredMatches := semanticDedup(t.Context(), nil, results, matches)
-	require.Len(t, filtered, 1, "must collapse exact duplicates to newest")
-	require.Equal(t, now, filtered[0].versionTime, "must keep the newest version")
-	require.Len(t, filteredMatches, 1)
-}
-
-func TestSemanticDedup_DifferentContent_NoEmbeddings(t *testing.T) {
-	t.Parallel()
-
-	now := timestamppb.Now()
-	earlier := timestamppb.New(now.AsTime().Add(-1))
-
-	// Same iri|blockID|contentType, different rawContent, no embeddings → both kept.
-	results := []fullDataSearchResult{
-		{iri: "hm://a/doc1", blockID: "b1", contentType: "document", rawContent: "version two text", versionTime: now, rowID: 1},
-		{iri: "hm://a/doc1", blockID: "b1", contentType: "document", rawContent: "version one text", versionTime: earlier, rowID: 2},
-	}
-	matches := []fuzzy.Match{
-		{Str: "version two text", Index: 0},
-		{Str: "version one text", Index: 1},
-	}
-
-	// No DB — embeddings missing so rawContent comparison applies. Different content → keep both.
-	filtered, filteredMatches := semanticDedup(t.Context(), nil, results, matches)
-	require.Len(t, filtered, 2, "must keep both when content differs and no embeddings")
-	require.Len(t, filteredMatches, 2)
 }
