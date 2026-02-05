@@ -754,6 +754,12 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 
 	winners := llm.SearchResultMap{}
 	const semanticThreshold = 0.3 // Less than this, the results are not relevant enough. Tested with paraphrase-multilingual-MiniLM-L12-v2 model showed that 0.3 is a good threshold.
+
+	// Check if semantic search is requested but embedder is not available.
+	if srv.embedder == nil && (in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC) {
+		return nil, status.Errorf(codes.Unavailable, "semantic search is not available: embedding service is disabled")
+	}
+
 	switch in.SearchType {
 	case entpb.SearchType_SEARCH_HYBRID:
 		// Hybrid search: run semantic + keyword concurrently, blend with RRF

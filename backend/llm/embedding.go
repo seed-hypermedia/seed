@@ -417,29 +417,28 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 }
 
 func (e *Embedder) runOnce(ctx context.Context) error {
-	/*
-		e.logger.Info("starting embedding indexing run")
-		startTime := time.Now()
-		defer func() {
-			e.logger.Info("embedding indexing run completed", zap.Duration("Elapsed time in seconds", time.Since(startTime)))
-		}()
-	*/
-
 	conn, release, err := e.pool.Conn(ctx)
 	if err != nil {
 		return err
 	}
 
-	totalPending, err := countPending(conn)
+	totalEmbeddable, err := countTotalEmbeddable(conn)
+	if err != nil {
+		release()
+		return err
+	}
+
+	alreadyEmbedded, err := countAlreadyEmbedded(conn)
 	if err != nil {
 		release()
 		return err
 	}
 	release()
+
 	if e.taskMgr.GlobalState() != daemonpb.State_ACTIVE {
 		return fmt.Errorf("daemon must be fully active to run embedding indexing. Current state: %s", e.taskMgr.GlobalState().String())
 	}
-	if _, err := e.taskMgr.AddTask(taskID, daemonpb.TaskName_EMBEDDING, taskDescription, totalPending); err != nil {
+	if _, err := e.taskMgr.AddTask(taskID, daemonpb.TaskName_EMBEDDING, taskDescription, totalEmbeddable); err != nil {
 		if errors.Is(err, taskmanager.ErrTaskExists) {
 			return fmt.Errorf("another embedding indexing task is already running")
 		}
@@ -450,7 +449,9 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 			e.logger.Warn("failed to delete embedding task", zap.Error(err))
 		}
 	}()
-	var processed int64
+
+	processed := alreadyEmbedded
+	_, _ = e.taskMgr.UpdateProgress(taskID, totalEmbeddable, processed)
 	for {
 		conn, release, err := e.pool.Conn(ctx)
 		if err != nil {
@@ -491,7 +492,7 @@ func (e *Embedder) runOnce(ctx context.Context) error {
 		}
 		release()
 
-		_, _ = e.taskMgr.UpdateProgress(taskID, totalPending, processed)
+		_, _ = e.taskMgr.UpdateProgress(taskID, totalEmbeddable, processed)
 		time.Sleep(e.SleepBetweenPasses)
 	}
 
@@ -616,16 +617,26 @@ func (e *Embedder) embedTexts(ctx context.Context, inputs []embeddingInput, pctO
 	return outputs, nil
 }
 
-func countPending(conn *sqlite.Conn) (int64, error) {
+func countTotalEmbeddable(conn *sqlite.Conn) (int64, error) {
 	var total int64
-	if err := sqlitex.Exec(conn, qEmbeddingsPendingCount(), func(stmt *sqlite.Stmt) error {
+	if err := sqlitex.Exec(conn, qEmbeddableTotalCount(), func(stmt *sqlite.Stmt) error {
 		total = stmt.ColumnInt64(0)
 		return nil
 	}); err != nil {
 		return 0, err
 	}
-
 	return total, nil
+}
+
+func countAlreadyEmbedded(conn *sqlite.Conn) (int64, error) {
+	var count int64
+	if err := sqlitex.Exec(conn, qAlreadyEmbeddedCount(), func(stmt *sqlite.Stmt) error {
+		count = stmt.ColumnInt64(0)
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func fetchPending(conn *sqlite.Conn, limit int) ([]embeddingInput, error) {
@@ -729,16 +740,14 @@ var qEmbeddingsPending = dqb.Str(`
 	LIMIT ?;
 `)
 
-var qEmbeddingsPendingCount = dqb.Str(`
-	WITH pending AS (
-		SELECT rowid
-		FROM fts
-		WHERE type IN ('title', 'document', 'comment')
-			AND length(raw_content) > 3
-		EXCEPT
-		SELECT fts_id FROM embeddings
-	)
-	SELECT COUNT(*) FROM pending;
+var qEmbeddableTotalCount = dqb.Str(`
+	SELECT COUNT(*) FROM fts
+	WHERE type IN ('title', 'document', 'comment')
+		AND length(raw_content) > 3;
+`)
+
+var qAlreadyEmbeddedCount = dqb.Str(`
+	SELECT COUNT(*) FROM embeddings;
 `)
 
 var qEmbeddingsInsert = dqb.Str(`
