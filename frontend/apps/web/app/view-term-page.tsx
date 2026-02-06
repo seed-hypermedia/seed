@@ -5,11 +5,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {Discussions} from '@shm/ui/comments'
 import {panelContainerStyles} from '@shm/ui/container'
-import {
-  DirectoryEmpty,
-  DirectoryListView,
-  useDirectoryData,
-} from '@shm/ui/directory-page'
+import {DirectoryPageContent, useDirectoryData} from '@shm/ui/directory-page'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {PageLayout} from '@shm/ui/page-layout'
 import {Spinner} from '@shm/ui/spinner'
@@ -177,27 +173,6 @@ function WebDiscussionsContent({
   )
 }
 
-// Web-specific directory content (doesn't depend on useNavRoute)
 function WebDirectoryContent({docId}: {docId: UnpackedHypermediaId}) {
-  const {directoryItems, isInitialLoading} = useDirectoryData(docId)
-
-  if (isInitialLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-8">
-        <Spinner className="size-8" />
-      </div>
-    )
-  }
-
-  return (
-    <PageLayout title="Directory" centered>
-      <div className="p-6">
-        {directoryItems.length === 0 ? (
-          <DirectoryEmpty />
-        ) : (
-          <DirectoryListView items={directoryItems} />
-        )}
-      </div>
-    </PageLayout>
-  )
+  return <DirectoryPageContent docId={docId} showTitle={false} />
 }

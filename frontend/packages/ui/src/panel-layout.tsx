@@ -8,7 +8,6 @@ import {
   PanelResizeHandle,
 } from 'react-resizable-panels'
 import {Button} from './button'
-import {panelContainerStyles} from './container'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
 import {cn} from './utils'
@@ -102,7 +101,7 @@ export function PanelLayout({
         autoSaveId="resource-panel"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50} className="p-0.5 pr-1">
+        <Panel id="main" minSize={50}>
           <div className="h-full rounded-lg">{children}</div>
         </Panel>
 
@@ -116,14 +115,11 @@ export function PanelLayout({
               minSize={20}
               defaultSize={panelWidth || 20}
               onResize={onPanelWidthChange}
-              className="p-0.5 pl-1"
+              className="border-l"
             >
               <div className="h-full rounded-lg">
                 <div
-                  className={cn(
-                    panelContainerStyles,
-                    'dark:bg-background flex flex-col bg-white',
-                  )}
+                  className={cn('dark:bg-background flex flex-col bg-white')}
                 >
                   <div className="border-border border-b px-5 py-3">
                     <div className="flex items-center justify-between gap-2">

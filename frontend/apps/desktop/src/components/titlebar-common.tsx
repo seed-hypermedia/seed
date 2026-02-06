@@ -41,7 +41,6 @@ import {
   useNavigationDispatch,
   useNavigationState,
   useNavRoute,
-  useRouteDocId,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -85,7 +84,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import {BookmarkButton} from './bookmarking'
 import {BranchDialog} from './branch-dialog'
+import {CopyReferenceButton} from './copy-reference-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
 import {
@@ -96,7 +97,27 @@ import {
 import {SearchInput, SearchInputHandle} from './search-input'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
-import {TitleContent} from './titlebar-title'
+
+// Route keys that have an id and support DocOptionsButton
+const DOC_OPTIONS_ROUTE_KEYS = [
+  'document',
+  'feed',
+  'activity',
+  'discussions',
+  'directory',
+  'collaborators',
+] as const
+
+type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
+
+function isDocOptionsRoute(
+  route: NavRoute,
+): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
+  return (
+    DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) &&
+    'id' in route
+  )
+}
 
 export function DocOptionsButton({
   onPublishSite,
@@ -106,12 +127,13 @@ export function DocOptionsButton({
     step?: 'seed-host-custom-domain'
   }) => void
 }) {
-  const id = useRouteDocId()
-  if (!id)
+  const route = useNavRoute()
+  const dispatch = useNavigationDispatch()
+  if (!isDocOptionsRoute(route))
     throw new Error(
       'DocOptionsButton must be used within a route that has an id',
     )
-  const dispatch = useNavigationDispatch()
+  const id = route.id
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
@@ -144,7 +166,6 @@ export function DocOptionsButton({
   const pendingDomain = useHostSession().pendingDomains?.find(
     (pending) => !!id && pending.siteUid === id.uid,
   )
-  const route = useNavRoute()
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -524,6 +545,26 @@ export function TitlebarTitle() {
 
 type OmnibarMode = 'idle' | 'focused' | 'search'
 
+/** Label for non-document routes */
+function getRouteLabel(route: NavRoute): string | null {
+  switch (route.key) {
+    case 'library':
+      return 'Library'
+    case 'drafts':
+      return 'Drafts'
+    case 'contacts':
+      return 'Contacts'
+    case 'bookmarks':
+      return 'Bookmarks'
+    case 'settings':
+      return 'Settings'
+    case 'draft':
+      return 'Draft'
+    default:
+      return null
+  }
+}
+
 /**
  * Hook to construct displayable URL from current route
  * Priority: siteUrl > gatewayUrl (never hm://)
@@ -668,7 +709,6 @@ function useOmnibarState(currentUrl: string | null) {
  */
 export function Omnibar() {
   const route = useNavRoute()
-  const routeId = useRouteDocId()
   const navigate = useNavigate()
   const currentUrl = useCurrentRouteUrl()
   const publishSite = usePublishSite()
@@ -823,8 +863,11 @@ export function Omnibar() {
 
   const isDraft = isDraftRoute(route)
   const isPrivate = isDraft && route.visibility === 'PRIVATE'
+  const routeLabel = getRouteLabel(route)
+  const displayText = currentUrl || routeLabel || ''
+  const routeId = getRouteId(route)
 
-  // Render indicators on the right (draft badge is handled by TitleContent/BreadcrumbTitle)
+  // Render indicators on the right
   const indicators = isPrivate ? (
     <div className="flex shrink-0 items-center gap-1 px-2">
       <div className="bg-muted text-muted-foreground flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
@@ -834,32 +877,38 @@ export function Omnibar() {
     </div>
   ) : null
 
-  // Idle state - show breadcrumbs with smaller text
+  // Idle state - show URL
   if (mode === 'idle') {
     return (
       <div
         className={cn(
-          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border-2 pl-2',
+          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border pl-2',
           'hover:border-primary/50 bg-white dark:bg-black',
           'transition-colors',
           'max-w-xl',
         )}
         onClick={handleContainerClick}
       >
-        {/* <Search className="text-muted-foreground size-3.5 shrink-0" /> */}
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <div className="min-w-0 flex-1 truncate text-xs">
-            <TitleContent
-              size="$3"
-              extraButtons={
-                routeId ? (
-                  <DocOptionsButton onPublishSite={publishSite.open} />
-                ) : null
-              }
-            />
-          </div>
+          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+            {displayText}
+          </span>
           {indicators}
         </div>
+        {routeId ? (
+          <div
+            className="flex shrink-0 items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BookmarkButton id={routeId} />
+            <CopyReferenceButton
+              docId={routeId}
+              isBlockFocused={false}
+              latest
+            />
+            <DocOptionsButton onPublishSite={publishSite.open} />
+          </div>
+        ) : null}
         {publishSite.content}
       </div>
     )

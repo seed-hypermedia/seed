@@ -7,9 +7,14 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -385,6 +390,24 @@ function DocumentBody({
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
+  // Breadcrumbs: fetch parent documents for non-home docs
+  const breadcrumbIds = useMemo(() => {
+    if (isHomeDoc) return []
+    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
+  }, [docId.uid, docId.path, isHomeDoc])
+
+  const breadcrumbResults = useResources(breadcrumbIds)
+
+  const breadcrumbs = useMemo(() => {
+    if (isHomeDoc) return undefined
+    return breadcrumbIds.map((id, i) => {
+      const data = breadcrumbResults[i]?.data
+      const metadata =
+        data?.type === 'document' ? data.document?.metadata || {} : {}
+      return {id, metadata}
+    })
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
+
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
   const toolsSentinelRef = useRef<HTMLDivElement>(null)
@@ -521,7 +544,7 @@ function DocumentBody({
       {activeView === 'content' && editActions && !isMobile ? (
         <div
           className={cn(
-            'bg-background absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm p-1 shadow-sm transition-opacity',
+            'absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
             isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
         >
@@ -541,6 +564,7 @@ function DocumentBody({
             docMetadata={document.metadata}
             authors={[]}
             updateTime={document.updateTime}
+            breadcrumbs={breadcrumbs}
           />
         )}
       </div>
@@ -566,7 +590,7 @@ function DocumentBody({
             activeView === 'content' && editActions ? (
               <div
                 className={cn(
-                  'flex items-center gap-1 p-1 transition-opacity',
+                  'flex items-center gap-1 transition-opacity',
                   isToolsSticky ? 'opacity-100' : 'opacity-0',
                 )}
               >
@@ -816,6 +840,7 @@ function MainContent({
         <DiscussionsPageContent
           docId={docId}
           showTitle={false}
+          showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
           openComment={discussionsParams?.openComment}
           targetBlockId={discussionsParams?.targetBlockId}

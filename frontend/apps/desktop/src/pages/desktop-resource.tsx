@@ -1,20 +1,37 @@
+import {useAppContext} from '@/app-context'
+import {BranchDialog} from '@/components/branch-dialog'
 import {CommentBox} from '@/components/commenting'
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CreateDocumentButton} from '@/components/create-doc-button'
+import {useDeleteDialog} from '@/components/delete-dialog'
+import {MoveDialog} from '@/components/move-dialog'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
+import {useMyAccountIds} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
-import {useResource} from '@shm/shared/models/entity'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {hmId} from '@shm/shared'
-import {Button} from '@shm/ui/button'
-import {ResourcePage} from '@shm/ui/resource-page-common'
-import {Tooltip} from '@shm/ui/tooltip'
-import {cn} from '@shm/ui/utils'
-import {Pencil} from 'lucide-react'
-import {nanoid} from 'nanoid'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
+import {hmId} from '@shm/shared'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {HMBlockNode} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
+import {displayHostname} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
+import {Button} from '@shm/ui/button'
+import {Download, Link, Trash} from '@shm/ui/icons'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {ResourcePage} from '@shm/ui/resource-page-common'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {nanoid} from 'nanoid'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
@@ -37,9 +54,11 @@ export default function DesktopResourcePage() {
   const docId = route.id
   if (!docId) throw new Error('No document ID in route')
 
+  const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
   const capability = useSelectedAccountCapability(docId)
   const canEdit = roleCanWrite(capability?.role)
+  const myAccountIds = useMyAccountIds()
 
   // Get site URL for CreateDocumentButton
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
@@ -48,13 +67,130 @@ export default function DesktopResourcePage() {
       ? siteHomeResource.data.document?.metadata?.siteUrl
       : undefined
 
+  // Hooks for options dropdown
+  const resource = useResource(docId)
+  const doc =
+    resource.data?.type === 'document' ? resource.data.document : undefined
+  const {exportDocument, openDirectory} = useAppContext()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
+  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+    siteUrl || gwUrl,
+    siteUrl ? hmId(docId.uid) : undefined,
+  )
+  const deleteEntity = useDeleteDialog()
+  const branchDialog = useAppDialog(BranchDialog)
+  const moveDialog = useAppDialog(MoveDialog)
+
+  const menuItems: MenuItemType[] = []
+
+  if (canEdit && myAccountIds.data?.length && docId.path?.length) {
+    menuItems.push({
+      key: 'move',
+      label: 'Move Document',
+      icon: <ForwardIcon className="size-4" />,
+      onClick: () => moveDialog.open({id: docId}),
+    })
+  }
+
+  if (siteUrl) {
+    menuItems.push({
+      key: 'link-site',
+      label: `Copy ${displayHostname(siteUrl)} Link`,
+      icon: <Link className="size-4" />,
+      onClick: () => onCopySiteUrl(route),
+    })
+  }
+
+  menuItems.push({
+    key: 'link',
+    label: `Copy ${displayHostname(gwUrl)} Link`,
+    icon: <Link className="size-4" />,
+    onClick: () => onCopyGateway(route),
+  })
+
+  menuItems.push({
+    key: 'export',
+    label: 'Export Document',
+    icon: <Download className="size-4" />,
+    onClick: async () => {
+      if (!doc) return
+      const title = doc?.metadata.name || 'document'
+      const blocks: HMBlockNode[] | undefined = doc?.content || undefined
+      const editorBlocks = hmBlocksToEditorContent(blocks, {
+        childrenType: 'Group',
+      })
+      const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks, doc)
+      const {markdownContent, mediaFiles} = markdownWithFiles
+      exportDocument(title, markdownContent, mediaFiles)
+        .then((res) => {
+          toast.success(
+            <div className="flex max-w-[700px] flex-col gap-1.5">
+              <SizableText className="text-wrap break-all">
+                Successfully exported document &quot;{title}&quot; to:{' '}
+                <b>{`${res}`}</b>.
+              </SizableText>
+              <SizableText
+                className="text-current underline"
+                onClick={() => {
+                  // @ts-expect-error
+                  openDirectory(res)
+                }}
+              >
+                Show directory
+              </SizableText>
+            </div>,
+          )
+        })
+        .catch((err) => {
+          toast.error(err)
+        })
+    },
+  })
+
+  if (myAccountIds.data?.length) {
+    menuItems.push({
+      key: 'branch',
+      label: 'Create Document Branch',
+      icon: <GitFork className="size-4" />,
+      onClick: () => branchDialog.open(docId),
+    })
+  }
+
+  if (canEdit && docId.path?.length) {
+    menuItems.push({
+      key: 'delete',
+      label: 'Delete Document',
+      icon: <Trash className="size-4" />,
+      onClick: () => {
+        deleteEntity.open({
+          id: docId,
+          onSuccess: () => {
+            dispatch({
+              type: 'backplace',
+              route: {
+                key: 'document',
+                id: hmId(docId.uid, {
+                  path: docId.path?.slice(0, -1),
+                }),
+              } as any,
+            })
+          },
+        })
+      },
+    })
+  }
+
   const editActions = canEdit ? (
     <>
+      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
         <Button
           size="sm"
-          variant={existingDraft ? undefined : 'ghost'}
-          className={cn(existingDraft && 'bg-yellow-200')}
+          variant="outline"
+          className={cn(
+            existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black',
+          )}
           onClick={() => {
             if (existingDraft) {
               navigate({
@@ -79,6 +215,11 @@ export default function DesktopResourcePage() {
         </Button>
       </Tooltip>
       <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+      {copyGatewayContent}
+      {copySiteUrlContent}
+      {deleteEntity.content}
+      {branchDialog.content}
+      {moveDialog.content}
     </>
   ) : null
 
