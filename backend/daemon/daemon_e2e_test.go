@@ -3401,6 +3401,72 @@ func TestSearchVersionConsistency(t *testing.T) {
 	require.NoError(t, err)
 	_ = d3 // d3.Version is the latest for doc2.
 
+	// ===== DOCUMENT 3 SETUP: /multi-block-commit-test =====
+	// This document tests a bug where multiple blocks modified in the same commit
+	// can cause version corruption in search results.
+	//
+	// M1: Create 3 blocks
+	//   b1="zulu unique content", b2="yankee other stuff", b3="xray more things"
+	// M2: Modify ALL 3 blocks in ONE commit (including deleting b1's content)
+	//   b1="" (deletion), b2="yankee modified", b3="xray modified"
+	//
+	// The bug: When searching for "zulu" (deleted in M2), the version lookup
+	// iterates through M2's changes. It updates latestUnrelated for b2 and b3
+	// changes (same commit, different blocks) BEFORE detecting that b1 was also
+	// modified. This causes the returned version to be M2's instead of M1's.
+
+	// M1: Create document with 3 blocks.
+	m1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/multi-block-commit-test",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Multi Block Commit Test"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b3", Parent: "", LeftSibling: "b2"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "zulu unique content"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "yankee other stuff"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "xray more things"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// M2: Modify ALL 3 blocks in ONE commit (b1 content deleted, b2 and b3 modified).
+	m2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/multi-block-commit-test",
+		SigningKeyName: "main",
+		BaseVersion:    m1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "yankee modified"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "xray modified"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_ = m2 // m2.Version is the latest for doc3.
+
 	// expectedResult describes what we expect for a search result.
 	type expectedResult struct {
 		contentSubstr string // Substring that must appear in content.
@@ -3624,6 +3690,102 @@ func TestSearchVersionConsistency(t *testing.T) {
 			require.Contains(t, e.Content, "beta giraffe")
 			_, isLatest := parseEntityVersion(e.Id)
 			require.False(t, isLatest, "superseded content 'beta giraffe' must NOT have &l marker")
+		})
+
+		t.Run("SearchMultiBlockCommit_VersionBlobIdConsistency", func(t *testing.T) {
+			// This test reproduces a bug where multiple blocks modified in the same commit
+			// causes the version in the URL to differ from the blobId.
+			//
+			// When searching for "zulu" (content deleted in M2):
+			// - blobId should be M1's blob (where content existed)
+			// - version in URL should ALSO be M1's version
+			// - Bug: version in URL was incorrectly showing M2's version
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "zulu",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "zulu unique content")
+
+			version, isLatest := parseEntityVersion(e.Id)
+			require.False(t, isLatest, "deleted content must NOT have &l marker")
+
+			// CRITICAL: blobId must match the version in the URL.
+			// This is the bug we're testing - when multiple blocks are modified in the
+			// same commit, the version lookup incorrectly picks up the version from
+			// a sibling block's change instead of keeping the original version.
+			require.Equal(t, e.BlobId, version,
+				"blobId (%s) must match version in URL (%s) - version mismatch indicates bug in multi-block commit handling",
+				e.BlobId, version)
+		})
+
+		t.Run("SearchMultiBlockCommit_DeletionDoesNotCorruptVersion", func(t *testing.T) {
+			// When content is deleted in a commit that also modifies other blocks,
+			// the search result for the deleted content must show the pre-deletion version,
+			// not the deletion commit's version.
+			//
+			// Timeline:
+			// M1: b1="zulu unique content" (version X)
+			// M2: b1="" (deleted), b2 and b3 also modified (version Y)
+			//
+			// Search "zulu" should return version X, not version Y.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "zulu",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+
+			e := res.Entities[0]
+
+			// The version should be M1's version (where content existed),
+			// NOT M2's version (where content was deleted).
+			version, _ := parseEntityVersion(e.Id)
+
+			// blobId points to the blob where content was indexed (M1).
+			// If version != blobId, it means we incorrectly picked up M2's version.
+			require.Equal(t, e.BlobId, version,
+				"deleted content must show pre-deletion version, not deletion commit version")
+		})
+
+		t.Run("SearchMultiBlockCommit_BlockOrderingDoesNotAffectResult", func(t *testing.T) {
+			// Test that the order in which blocks are processed doesn't affect the result.
+			// Search for content in different blocks that were all modified in M2.
+			//
+			// "yankee" exists in both M1 and M2:
+			// - M1: b2="yankee other stuff" -> should show M1 version (no &l, modified in M2)
+			// - M2: b2="yankee modified" -> should show M2 version (has &l)
+			//
+			// Both results must have consistent blobId/version.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "yankee",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 2, "must return 2 results for 'yankee' (M1 and M2 versions)")
+
+			for _, e := range res.Entities {
+				version, _ := parseEntityVersion(e.Id)
+				require.Equal(t, e.BlobId, version,
+					"blobId (%s) must match version in URL (%s) for content: %s",
+					e.BlobId, version, e.Content)
+			}
+
+			// Verify we have one with &l and one without.
+			latestCount := 0
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+				if isLatest {
+					latestCount++
+					require.Contains(t, e.Content, "yankee modified", "latest version must be M2's content")
+				} else {
+					require.Contains(t, e.Content, "yankee other stuff", "non-latest must be M1's content")
+				}
+			}
+			require.Equal(t, 1, latestCount, "exactly one result should have &l marker")
 		})
 	})
 
