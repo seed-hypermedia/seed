@@ -18,7 +18,7 @@ import {HoverCard, HoverCardContent, HoverCardTrigger} from './/hover-card'
 import {ButtonProps} from './button'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
-import {SmallCollapsableListItem, SmallListItem} from './list-item'
+import {SmallListItem} from './list-item'
 import {PrivateBadge} from './private-badge'
 import {useMedia} from './use-media'
 import {usePopoverState} from './use-popover-state'
@@ -27,8 +27,6 @@ import {cn} from './utils'
 export function DocumentSmallListItem({
   metadata,
   id,
-  indented,
-  items,
   active,
   onClick,
   draftId,
@@ -37,8 +35,6 @@ export function DocumentSmallListItem({
 }: {
   metadata?: HMMetadata
   id?: UnpackedHypermediaId
-  indented?: number
-  items?: null | ReactNode
   active?: boolean
   onClick?: ButtonProps['onClick']
   draftId?: string | null | undefined
@@ -63,28 +59,6 @@ export function DocumentSmallListItem({
 
   const privateBadge = isPrivate ? <PrivateBadge size="sm" /> : null
 
-  if (items)
-    return (
-      <SmallCollapsableListItem
-        bold
-        color={color}
-        key={draftId || id?.id}
-        title={getMetadataName(metadata)}
-        icon={icon}
-        indented={indented}
-        active={active}
-        {...linkProps}
-        onClick={(e) => {
-          // @ts-expect-error
-          onClick?.()
-          linkProps.onClick?.(e)
-        }}
-        isDraft={!!draftId}
-        accessory={privateBadge}
-      >
-        {items}
-      </SmallCollapsableListItem>
-    )
   return (
     <SmallListItem
       multiline
@@ -94,7 +68,6 @@ export function DocumentSmallListItem({
       title={getMetadataName(metadata)}
       {...highlight(id)}
       icon={icon}
-      indented={indented}
       active={active}
       isDraft={!!draftId}
       accessory={privateBadge}
