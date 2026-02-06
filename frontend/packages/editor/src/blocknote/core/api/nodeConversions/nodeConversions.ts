@@ -204,6 +204,85 @@ export function blockToNode<BSchema extends BlockSchema>(
 }
 
 /**
+ * Converts a BlockNote block to a listContainer node.
+ */
+export function blockToListContainer<BSchema extends BlockSchema>(
+  block: PartialBlock<BSchema>,
+  schema: Schema,
+) {
+  let id = block.id
+
+  if (id === undefined) {
+    id = UniqueID.options.generateID()
+  }
+
+  let type = block.type
+
+  if (type === undefined) {
+    type = 'paragraph'
+  }
+
+  let contentNode: Node
+
+  if (!block.content) {
+    // @ts-ignore
+    contentNode = schema.nodes[type].create(block.props)
+  } else if (typeof block.content === 'string') {
+    // @ts-ignore
+    contentNode = schema.nodes[type].create(
+      block.props,
+      schema.text(block.content),
+    )
+  } else {
+    let nodes: Node[] = []
+    // No hard break nodes inside code blocks
+    if (block.type === 'code-block' && block.content.length) {
+      // @ts-ignore
+      const textNode = schema.text(block.content[0].text || '')
+      nodes.push(textNode)
+    } else nodes = inlineContentToNodes(block.content, schema)
+    // @ts-ignore
+    contentNode = schema.nodes[type].create(block.props, nodes)
+  }
+
+  const children: Node[] = []
+
+  if (block.children) {
+    for (const child of block.children) {
+      children.push(blockToListContainer(child, schema))
+    }
+  }
+
+  let childGroupNode: Node | null = null
+  if (children.length > 0) {
+    // Determine if we should use listGroup based on childrenType
+    const childrenType = (block.props as any)?.childrenType
+    if (childrenType === 'Ordered' || childrenType === 'Unordered') {
+      // @ts-ignore
+      childGroupNode = schema.nodes['listGroup'].create(
+        {listType: childrenType},
+        children,
+      )
+    } else {
+      // @ts-ignore
+      childGroupNode = schema.nodes['blockGroup'].create(
+        {listType: childrenType || 'Group'},
+        children,
+      )
+    }
+  }
+
+  // @ts-ignore
+  return schema.nodes['listContainer'].create(
+    {
+      id: id,
+      ...block.props,
+    },
+    childGroupNode ? [contentNode, childGroupNode] : contentNode,
+  )
+}
+
+/**
  * Converts an internal (prosemirror) content node to a BlockNote InlineContent array.
  */
 function contentNodeToInlineContent(contentNode: Node) {
@@ -395,9 +474,12 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   blockSchema: BSchema,
   blockCache?: WeakMap<Node, Block<BSchema>>,
 ): Block<BSchema> {
-  if (node.type.name !== 'blockContainer') {
+  if (
+    node.type.name !== 'blockContainer' &&
+    node.type.name !== 'listContainer'
+  ) {
     throw Error(
-      'Node must be of type blockContainer, but is of type' +
+      'Node must be of type blockContainer or listContainer, but is of type ' +
         node.type.name +
         '.',
     )
@@ -455,7 +537,7 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     }
   }
 
-  if (node.lastChild!.attrs.listType) {
+  if (node.childCount === 2 && node.lastChild!.attrs.listType) {
     const {listType, listLevel, start} = node.lastChild!.attrs
     props['childrenType'] = listType
     props['listLevel'] = listLevel
@@ -465,14 +547,20 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   const content = contentNodeToInlineContent(node.firstChild!)
 
   const children: Block<BSchema>[] = []
-  for (
-    let i = 0;
-    i < (node.childCount === 2 ? node.lastChild!.childCount : 0);
-    i++
-  ) {
-    children.push(
-      nodeToBlock(node.lastChild!.child(i), blockSchema, blockCache),
-    )
+
+  // Handle both blockGroup and listGroup children
+  if (node.childCount === 2) {
+    const childGroupNode = node.lastChild!
+    if (
+      childGroupNode.type.name === 'blockGroup' ||
+      childGroupNode.type.name === 'listGroup'
+    ) {
+      for (let i = 0; i < childGroupNode.childCount; i++) {
+        children.push(
+          nodeToBlock(childGroupNode.child(i), blockSchema, blockCache),
+        )
+      }
+    }
   }
 
   const block: Block<BSchema> = {
