@@ -74,17 +74,23 @@ runs:
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
       run: |
+        $ErrorActionPreference = "Stop"
+
         cd backend/util/llama-go
+        Write-Host "Working directory: $(Get-Location)"
 
         # Build llama.cpp with CMake using MSVC
+        Write-Host "=== Running CMake configure ==="
         cmake -B build -S llama.cpp `
           -DGGML_VULKAN=ON `
           -DBUILD_SHARED_LIBS=OFF `
           -DLLAMA_CURL=OFF `
           -DCMAKE_BUILD_TYPE=Release
 
+        Write-Host "=== Running CMake build ==="
         cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
 
+        Write-Host "=== Copying static libraries ==="
         # Copy static libraries with Unix-style naming for CGO compatibility
         # CGO looks for lib<name>.a files, so we rename .lib to .a
         Copy-Item build/src/Release/llama.lib -Destination libllama.a
@@ -95,20 +101,37 @@ runs:
         Copy-Item build/common/Release/common.lib -Destination libcommon.a
 
         # Copy Vulkan SDK library for linking
-        # CGO needs this in the local directory since VULKAN_SDK lib path isn't in linker search path
-        Copy-Item "$env:VULKAN_SDK\Lib\vulkan-1.lib" -Destination libvulkan-1.a
+        Write-Host "=== Copying Vulkan SDK library ==="
+        Write-Host "VULKAN_SDK = $env:VULKAN_SDK"
+        $vulkanLibPath = "$env:VULKAN_SDK\Lib\vulkan-1.lib"
+        Write-Host "Looking for: $vulkanLibPath"
+        if (Test-Path $vulkanLibPath) {
+          Write-Host "Found vulkan-1.lib, copying..."
+          Copy-Item $vulkanLibPath -Destination libvulkan-1.a
+        } else {
+          Write-Host "ERROR: vulkan-1.lib not found at $vulkanLibPath"
+          Write-Host "Listing Vulkan SDK directory:"
+          if (Test-Path $env:VULKAN_SDK) {
+            Get-ChildItem -Recurse $env:VULKAN_SDK -Include "*.lib" | Select-Object -First 20
+          } else {
+            Write-Host "VULKAN_SDK directory does not exist!"
+          }
+          exit 1
+        }
 
         # Note: We do NOT create libbinding.a on Windows.
         # CGO compiles wrapper.cpp directly, so linking libbinding.a would cause
         # "multiple definition" errors for symbols like llama_wrapper_init_logging.
 
-        # Verify all libraries exist
+        Write-Host "=== Verifying all libraries ==="
         $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a")
         foreach ($lib in $libs) {
           if (!(Test-Path $lib)) {
             Write-Error "Missing library: $lib"
             exit 1
           }
+          $size = (Get-Item $lib).Length
+          Write-Host "  $lib - $size bytes"
         }
         Write-Host "All libraries built successfully"
 
@@ -161,8 +184,18 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
+    - name: Debug - After cache setup
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: Write-Host "=== Cache setup completed ==="
+
     - name: Install pnpm
       uses: pnpm/action-setup@v4
+
+    - name: Debug - After pnpm setup
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: Write-Host "=== pnpm setup completed ==="
 
     - name: Install Node.js 20
       uses: actions/setup-node@v4
@@ -170,6 +203,16 @@ runs:
         node-version: 20
         cache: "pnpm"
 
+    - name: Debug - After node setup
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: Write-Host "=== Node.js setup completed ==="
+
     - name: Install Frontend Dependencies
       run: pnpm install --frozen-lockfile
       shell: bash
+
+    - name: Debug - ci-setup complete
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: Write-Host "=== ci-setup action completed successfully ==="
