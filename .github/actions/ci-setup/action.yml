@@ -72,95 +72,86 @@ runs:
 
     - name: "Build llama.cpp (Windows)"
       if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
+      shell: bash
       run: |
-        Write-Host "=== START: Build llama.cpp (Windows) ==="
-        Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
-        Write-Host "Current directory: $(Get-Location)"
+        set -e
+        echo "=== START: Build llama.cpp (Windows) ==="
+        echo "Using MinGW toolchain for ABI compatibility with CGO"
 
         cd backend/util/llama-go
-        Write-Host "Changed to: $(Get-Location)"
+        echo "Changed to: $(pwd)"
 
-        # Build llama.cpp with CMake using MSVC
+        # Verify MinGW is available
+        echo "=== Checking MinGW toolchain ==="
+        which gcc && gcc --version | head -1
+        which g++ && g++ --version | head -1
+
+        # Build llama.cpp with CMake using MinGW
+        # Use MinGW Makefiles generator for compatibility with CGO's MinGW linker
         # Disable tools/tests/examples/server to only build core libraries
-        Write-Host "=== Running CMake configure ==="
-        cmake -B build -S llama.cpp -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DCMAKE_BUILD_TYPE=Release
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "ERROR: CMake configure failed with exit code $LASTEXITCODE"
-          exit 1
-        }
-        Write-Host "CMake configure succeeded"
+        echo "=== Running CMake configure with MinGW ==="
+        cmake -G "MinGW Makefiles" -B build -S llama.cpp \
+          -DGGML_VULKAN=ON \
+          -DBUILD_SHARED_LIBS=OFF \
+          -DLLAMA_CURL=OFF \
+          -DLLAMA_BUILD_TESTS=OFF \
+          -DLLAMA_BUILD_TOOLS=OFF \
+          -DLLAMA_BUILD_EXAMPLES=OFF \
+          -DLLAMA_BUILD_SERVER=OFF \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=gcc \
+          -DCMAKE_CXX_COMPILER=g++
+        echo "CMake configure succeeded"
 
-        # Build with --verbose flag (temporary for debugging)
-        Write-Host "=== Running CMake build ==="
-        cmake --build build --config Release --verbose -j $env:NUMBER_OF_PROCESSORS
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "ERROR: CMake build failed with exit code $LASTEXITCODE"
-          exit 1
-        }
-        Write-Host "CMake build succeeded"
+        echo "=== Running CMake build ==="
+        cmake --build build --config Release -j $(nproc)
+        echo "CMake build succeeded"
 
-        Write-Host "=== Copying static libraries ==="
-        # Copy static libraries with Unix-style naming for CGO compatibility
-        # CGO looks for lib<name>.a files, so we rename .lib to .a
-        Copy-Item build/src/Release/llama.lib -Destination libllama.a
-        Write-Host "  Copied llama.lib"
-        Copy-Item build/ggml/src/Release/ggml.lib -Destination libggml.a
-        Write-Host "  Copied ggml.lib"
-        Copy-Item build/ggml/src/Release/ggml-base.lib -Destination libggml-base.a
-        Write-Host "  Copied ggml-base.lib"
-        Copy-Item build/ggml/src/Release/ggml-cpu.lib -Destination libggml-cpu.a
-        Write-Host "  Copied ggml-cpu.lib"
-        Copy-Item build/ggml/src/ggml-vulkan/Release/ggml-vulkan.lib -Destination libggml-vulkan.a
-        Write-Host "  Copied ggml-vulkan.lib"
-        Copy-Item build/common/Release/common.lib -Destination libcommon.a
-        Write-Host "  Copied common.lib"
+        echo "=== Copying static libraries ==="
+        # MinGW produces .a files directly in build directories (no Release subdirectory)
+        cp build/src/libllama.a ./libllama.a
+        echo "  Copied libllama.a"
+        cp build/ggml/src/libggml.a ./libggml.a
+        echo "  Copied libggml.a"
+        cp build/ggml/src/libggml-base.a ./libggml-base.a
+        echo "  Copied libggml-base.a"
+        cp build/ggml/src/libggml-cpu.a ./libggml-cpu.a
+        echo "  Copied libggml-cpu.a"
+        cp build/ggml/src/ggml-vulkan/libggml-vulkan.a ./libggml-vulkan.a
+        echo "  Copied libggml-vulkan.a"
+        cp build/common/libcommon.a ./libcommon.a
+        echo "  Copied libcommon.a"
 
         # Copy Vulkan SDK library for linking
-        Write-Host "=== Copying Vulkan SDK library ==="
-        Write-Host "VULKAN_SDK = $env:VULKAN_SDK"
-        $vulkanLibPath = "$env:VULKAN_SDK\Lib\vulkan-1.lib"
-        Write-Host "Looking for: $vulkanLibPath"
-        if (Test-Path $vulkanLibPath) {
-          Write-Host "Found vulkan-1.lib, copying..."
-          Copy-Item $vulkanLibPath -Destination libvulkan-1.a
-          Write-Host "  Copied vulkan-1.lib"
-        } else {
-          Write-Host "ERROR: vulkan-1.lib not found at $vulkanLibPath"
-          Write-Host "Listing Vulkan SDK directory:"
-          if (Test-Path $env:VULKAN_SDK) {
-            Get-ChildItem -Recurse $env:VULKAN_SDK -Include "*.lib" | Select-Object -First 20
-          } else {
-            Write-Host "VULKAN_SDK directory does not exist!"
-          }
+        echo "=== Copying Vulkan SDK library ==="
+        echo "VULKAN_SDK = $VULKAN_SDK"
+        if [ -f "$VULKAN_SDK/Lib/vulkan-1.lib" ]; then
+          echo "Found vulkan-1.lib, copying..."
+          cp "$VULKAN_SDK/Lib/vulkan-1.lib" ./libvulkan-1.a
+          echo "  Copied vulkan-1.lib as libvulkan-1.a"
+        else
+          echo "ERROR: vulkan-1.lib not found at $VULKAN_SDK/Lib/vulkan-1.lib"
+          ls -la "$VULKAN_SDK/Lib/" | head -20 || echo "Cannot list Vulkan SDK Lib directory"
           exit 1
-        }
+        fi
 
         # Note: We do NOT create libbinding.a on Windows.
         # CGO compiles wrapper.cpp directly, so linking libbinding.a would cause
         # "multiple definition" errors for symbols like llama_wrapper_init_logging.
 
-        Write-Host "=== Verifying all libraries ==="
-        $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a")
-        $allFound = $true
-        foreach ($lib in $libs) {
-          if (!(Test-Path $lib)) {
-            Write-Host "ERROR: Missing library: $lib"
-            $allFound = $false
-          } else {
-            $size = (Get-Item $lib).Length
-            Write-Host "  $lib - $size bytes"
-          }
-        }
+        echo "=== Verifying all libraries ==="
+        for lib in libllama.a libggml.a libggml-base.a libggml-cpu.a libggml-vulkan.a libcommon.a libvulkan-1.a; do
+          if [ -f "$lib" ]; then
+            size=$(stat -c%s "$lib" 2>/dev/null || stat -f%z "$lib" 2>/dev/null || echo "unknown")
+            echo "  $lib - $size bytes"
+          else
+            echo "ERROR: Missing library: $lib"
+            exit 1
+          fi
+        done
 
-        if (-not $allFound) {
-          Write-Host "ERROR: Some libraries are missing!"
-          exit 1
-        }
-
-        Write-Host "All libraries built successfully"
-        Write-Host "=== END: Build llama.cpp (Windows) - SUCCESS ==="
-        exit 0
+        echo "All libraries built successfully"
+        echo "=== END: Build llama.cpp (Windows) - SUCCESS ==="
 
     # Additional packages for Flatpak building
 
@@ -200,18 +191,9 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
-    - name: Debug - Before cache setup (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: About to run Setup cache Windows ==="
-        Write-Host "Current directory: $(Get-Location)"
-        exit 0
-
     - name: Setup cache Windows
       uses: actions/cache@v3
       if: inputs.matrix-os == 'windows-2025'
-      continue-on-error: true
       with:
         path: |
           ~\AppData\Local\go-build
@@ -220,74 +202,15 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
-    - name: Debug - After cache setup (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: Cache setup completed (or skipped with error) ==="
-        exit 0
-
-    - name: Debug - Before pnpm (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: About to run Install pnpm ==="
-        exit 0
-
     - name: Install pnpm
       uses: pnpm/action-setup@v4
-      continue-on-error: true
-
-    - name: Debug - After pnpm setup (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: pnpm setup completed (or failed) ==="
-        Write-Host "pnpm version: $(pnpm --version 2>&1)"
-        exit 0
-
-    - name: Debug - Before Node.js (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: About to run Install Node.js 20 ==="
-        exit 0
 
     - name: Install Node.js 20
       uses: actions/setup-node@v4
-      continue-on-error: true
       with:
         node-version: 20
         cache: "pnpm"
 
-    - name: Debug - After node setup (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: Node.js setup completed (or failed) ==="
-        Write-Host "node version: $(node --version 2>&1)"
-        Write-Host "npm version: $(npm --version 2>&1)"
-        exit 0
-
-    - name: Debug - Before pnpm install (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: About to run pnpm install ==="
-        exit 0
-
     - name: Install Frontend Dependencies
-      continue-on-error: true
-      run: |
-        echo "=== TRACE: Running pnpm install --frozen-lockfile ==="
-        pnpm install --frozen-lockfile
-        echo "=== TRACE: pnpm install completed with exit code $? ==="
+      run: pnpm install --frozen-lockfile
       shell: bash
-
-    - name: Debug - ci-setup complete (Windows)
-      if: inputs.matrix-os == 'windows-2025'
-      shell: powershell
-      run: |
-        Write-Host "=== TRACE: ci-setup action completed successfully ==="
-        Write-Host "=== END OF CI-SETUP ==="
-        exit 0
