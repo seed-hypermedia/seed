@@ -35,7 +35,6 @@ import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {useDocumentLayout} from './layout'
-import {MobileInteractionBar} from './mobile-interaction-bar'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
@@ -75,29 +74,16 @@ export interface CommentEditorProps {
   autoFocus?: boolean
 }
 
-/** Mobile-specific configuration for the ResourcePage */
-export interface MobileConfig {
-  /** Current user account (null if not logged in) */
-  account?: {
-    id: UnpackedHypermediaId
-    metadata?: {name?: string; icon?: string}
-  } | null
-  /** Callback for avatar click (e.g., to open account creation) */
-  onAvatarClick?: () => void
-  /** Additional content to render (e.g., account creation dialog) */
-  extraContent?: ReactNode
-}
-
 export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  /** Mobile-specific configuration (web only) */
-  mobileConfig?: MobileConfig
   /** Edit/create action buttons - platform-specific (desktop only) */
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+
+  floatingButtons?: ReactNode
 }
 
 /** Get panel title for display */
@@ -119,9 +105,9 @@ function getPanelTitle(panelKey: string | null): string {
 export function ResourcePage({
   docId,
   CommentEditor,
-  mobileConfig,
   editActions,
   existingDraft,
+  floatingButtons,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -253,9 +239,9 @@ export function ResourcePage({
         docId={docId}
         document={document}
         CommentEditor={CommentEditor}
-        mobileConfig={mobileConfig}
         editActions={editActions}
         existingDraft={existingDraft}
+        floatingButtons={floatingButtons}
       />
     </PageWrapper>
   )
@@ -365,16 +351,16 @@ function DocumentBody({
   docId,
   document,
   CommentEditor,
-  mobileConfig,
   editActions,
   existingDraft,
+  floatingButtons,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  mobileConfig?: MobileConfig
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
+  floatingButtons?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -586,7 +572,7 @@ function DocumentBody({
               >
                 {editActions}
               </div>
-            ) : activeView !== 'content' ? (
+            ) : activeView !== 'content' && !isMobile ? (
               <OpenInPanelButton
                 id={docId}
                 panelRoute={{key: activeView, id: docId}}
@@ -643,20 +629,7 @@ function DocumentBody({
         <div className="relative flex flex-1 flex-col pb-16" ref={elementRef}>
           {mainPageContent}
         </div>
-
-        {/* Mobile bottom bar */}
-        {mobileConfig && (
-          <MobileInteractionBar
-            docId={docId}
-            commentsCount={interactionSummary.data?.comments || 0}
-            onCommentsClick={() => setMobilePanelOpen(true)}
-            account={mobileConfig.account}
-            onAvatarClick={mobileConfig.onAvatarClick}
-            extraContent={mobileConfig.extraContent}
-          />
-        )}
-
-        {/* Mobile panel sheet */}
+        {floatingButtons}
         <MobilePanelSheet
           isOpen={mobilePanelOpen}
           title={getPanelTitle('discussions')}

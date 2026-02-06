@@ -2,8 +2,8 @@ import {WebCommenting} from '@/client-lazy'
 import type {SiteDocumentPayload} from '@/loaders'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {WebSiteProvider} from '@/providers'
-import {useMobileConfig} from '@/use-mobile-config'
 import {unwrap} from '@/wrapping'
+import {WebResourcePage} from '@/web-resource-page'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
 import {
@@ -11,7 +11,6 @@ import {
   UnpackedHypermediaId,
   ViewRouteKey,
 } from '@shm/shared'
-import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({
@@ -75,14 +74,7 @@ export default function IndexPage() {
 
 /** Inner component that can use hooks after providers are mounted */
 function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
-  const mobileConfig = useMobileConfig()
-  return (
-    <WebResourcePage
-      docId={docId}
-      CommentEditor={WebCommenting}
-      mobileConfig={mobileConfig}
-    />
-  )
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
 }
 
 export const meta = metaFn
