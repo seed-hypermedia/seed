@@ -53,7 +53,8 @@ ifeq ($(UNAME_S),Linux)
 endif
 ifeq ($(UNAME_S),Darwin)
 	CFLAGS   += -pthread
-	CXXFLAGS += -pthread
+	CXXFLAGS += -pthread -stdlib=libc++
+	LDFLAGS  += -stdlib=libc++
 endif
 ifeq ($(UNAME_S),FreeBSD)
 	CFLAGS   += -pthread
