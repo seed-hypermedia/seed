@@ -406,12 +406,18 @@ func blendSearchResults(semanticResults, keywordResults llm.SearchResultMap, lim
 		resultList = append(resultList, llm.SearchResult{Score: combinedScore, RowID: br.result.RowID})
 	}
 
-	// Sort by combined score
+	// Sort by combined score with RowID as tie-breaker for deterministic ordering.
 	slices.SortFunc(resultList, func(a, b llm.SearchResult) int {
 		if a.Score < b.Score {
 			return 1
 		} else if a.Score > b.Score {
 			return -1
+		}
+		// Tie-breaker: sort by RowID for deterministic ordering.
+		if a.RowID < b.RowID {
+			return -1
+		} else if a.RowID > b.RowID {
+			return 1
 		}
 		return 0
 	})

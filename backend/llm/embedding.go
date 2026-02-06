@@ -248,12 +248,13 @@ type SearchResult struct {
 	Score float32
 }
 
-// Keys returns an unordered list of rowIDs in the SearchResultMap.
+// Keys returns a sorted list of rowIDs in the SearchResultMap for deterministic ordering.
 func (sr SearchResultMap) Keys() []int64 {
-	keys := []int64{}
+	keys := make([]int64, 0, len(sr))
 	for k := range sr {
 		keys = append(keys, k)
 	}
+	slices.Sort(keys)
 	return keys
 }
 
@@ -298,6 +299,7 @@ func (sr SearchResultMap) Min() SearchResult {
 
 // ToList converts the SearchResultMap to a sorted list of SearchResult.
 // If desc is true, the list is sorted in descending order of Score.
+// Uses RowID as tie-breaker for deterministic ordering when scores are equal.
 func (sr SearchResultMap) ToList(desc bool) SearchResultList {
 	results := make([]SearchResult, 0, len(sr))
 	for id, score := range sr {
@@ -311,7 +313,15 @@ func (sr SearchResultMap) ToList(desc bool) SearchResultList {
 			case a.Score < b.Score:
 				return 1
 			default:
-				return 0
+				// Tie-breaker: sort by RowID for deterministic ordering.
+				switch {
+				case a.RowID < b.RowID:
+					return -1
+				case a.RowID > b.RowID:
+					return 1
+				default:
+					return 0
+				}
 			}
 		}
 		switch {
@@ -320,7 +330,15 @@ func (sr SearchResultMap) ToList(desc bool) SearchResultList {
 		case a.Score > b.Score:
 			return 1
 		default:
-			return 0
+			// Tie-breaker: sort by RowID for deterministic ordering.
+			switch {
+			case a.RowID < b.RowID:
+				return -1
+			case a.RowID > b.RowID:
+				return 1
+			default:
+				return 0
+			}
 		}
 	})
 	return results
