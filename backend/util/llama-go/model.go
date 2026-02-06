@@ -12,7 +12,8 @@ import (
 #cgo CPPFLAGS: -I./llama.cpp -I./ -I./llama.cpp/ggml/include -I./llama.cpp/include -I./llama.cpp/common -I./llama.cpp/vendor
 #cgo CXXFLAGS: -std=c++17 -I./llama.cpp -I./ -I./llama.cpp/ggml/include -I./llama.cpp/include -I./llama.cpp/common -I./llama.cpp/vendor
 #cgo darwin CXXFLAGS: -stdlib=libc++
-#cgo LDFLAGS: -L./ -lbinding -lcommon -lllama -lggml -lggml-cpu -lggml-base -lstdc++ -lm
+#cgo !windows LDFLAGS: -L./ -lbinding -lcommon -lllama -lggml -lggml-cpu -lggml-base -lstdc++ -lm
+#cgo windows LDFLAGS: -L./ -lcommon -lllama -lggml -lggml-cpu -lggml-base -lstdc++ -lm
 #cgo linux LDFLAGS: -lgomp
 #cgo darwin LDFLAGS: -framework Accelerate -stdlib=libc++
 #include "wrapper.h"
