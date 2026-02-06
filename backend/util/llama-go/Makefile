@@ -263,6 +263,7 @@ ifeq ($(BUILD_TYPE),vulkan)
 endif
 ifeq ($(BUILD_TYPE),metal)
 	cp build/ggml/src/ggml-metal/libggml-metal.a .
+	cp build/ggml/src/ggml-blas/libggml-blas.a .
 endif
 else
 	@echo "Copying shared libraries..."

@@ -5,6 +5,6 @@
 package llama
 
 /*
-#cgo LDFLAGS: -L./ -framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders
+#cgo LDFLAGS: -L./ -lggml-metal -lggml-blas -framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders
 */
 import "C"
