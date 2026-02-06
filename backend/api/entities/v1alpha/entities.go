@@ -161,12 +161,15 @@ func progressToProto(prog *syncing.Progress) *entpb.DiscoveryProgress {
 
 var qGetLatestBlockChange = dqb.Str(`
 SELECT
-  blob_id,
+  fts_index.blob_id,
   version,
   block_id,
   ts,
-  type
-  from fts_index
+  type,
+  b.codec,
+  b.multihash
+  FROM fts_index
+  JOIN blobs b ON b.id = fts_index.blob_id
   WHERE genesis_blob = :genesisBlobID
   AND ts >= :Ts
   AND type IN ('title', 'document', 'meta')
@@ -563,6 +566,7 @@ func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
 	}
 
 	// Re-sort results and bodyMatches together by new score.
+	// Use rowID as tie-breaker for deterministic ordering when scores are equal.
 	indices := make([]int, len(results))
 	for i := range indices {
 		indices[i] = i
@@ -572,6 +576,13 @@ func applyAuthorityRanking(ctx context.Context, db *sqlitex.Pool,
 			return -1
 		}
 		if results[a].score < results[b].score {
+			return 1
+		}
+		// Tie-breaker: sort by rowID for deterministic ordering.
+		if results[a].rowID < results[b].rowID {
+			return -1
+		}
+		if results[a].rowID > results[b].rowID {
 			return 1
 		}
 		return 0
@@ -638,6 +649,7 @@ type fullDataSearchResult struct {
 	version       string
 	versionTime   *timestamppb.Timestamp
 	latestVersion string
+	latestBlobCID string // CID of the latest blob (first head), used for version upgrade.
 	commentKey    commentIdentifier
 	isDeleted     bool
 	score         float32
@@ -868,6 +880,9 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				cids[i] = cid.NewCidV1(h.Codec, mhBinary)
 			}
 			res.latestVersion = docmodel.NewVersion(cids...).String()
+			if len(cids) > 0 {
+				res.latestBlobCID = cids[0].String()
+			}
 
 			ts := hlc.Timestamp(stmt.ColumnInt64(14) * 1000).Time()
 			res.versionTime = timestamppb.New(ts)
@@ -1046,15 +1061,47 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 		id := searchResults[match.Index].iri
 
+		// Version Upgrade Heuristic:
+		//
+		// Search results are indexed at specific versions (when content was added/modified).
+		// To provide useful deep links, we upgrade versions to show the "best" version:
+		//
+		// 1. If the indexed version IS already in the document's latest version, keep it
+		//    and mark with "&l" (latest) suffix.
+		//
+		// 2. If the indexed version is NOT the latest:
+		//    a. Query for all changes after the indexed version (qGetLatestBlockChange).
+		//    b. Iterate through changes in chronological order:
+		//       - If the SAME BLOCK (same type + blockID) was modified, stop iteration.
+		//         This means the content has changed, so keep the original version.
+		//       - Otherwise, track this change as the latest "unrelated" change.
+		//    c. If no same-block change was found (relatedFound=false):
+		//       - Upgrade to the latest unrelated change's version (content still exists).
+		//       - If that's still not the document's latest, upgrade to latest version.
+		//    d. If same-block change WAS found (relatedFound=true):
+		//       - Keep the original indexed version (content may have changed).
+		//
+		// Special cases:
+		// - Titles have empty blockID, so any title change triggers "same block" detection.
+		// - Multi-block commits: Multiple blocks modified in same commit share a version.
+		//   We must check for same-block BEFORE updating latestUnrelated to avoid
+		//   incorrectly using a sibling block's version from the same commit.
+		//
+		// Fields updated: version, blobID, blobCID, versionTime.
+		// The "&l" suffix is added later if the final version is in latestVersion.
 		if searchResults[match.Index].version != "" && searchResults[match.Index].contentType != "comment" {
 			startLatestBlockTime := time.Now()
+
+			// Change tracks version info during the upgrade heuristic iteration.
 			type Change struct {
 				blobID  int64
+				blobCID string
 				version string
 				ts      *timestamppb.Timestamp
 			}
 			latestUnrelated := Change{
 				blobID:  searchResults[match.Index].blobID,
+				blobCID: searchResults[match.Index].blobCID,
 				version: searchResults[match.Index].version,
 				ts:      searchResults[match.Index].versionTime,
 			}
@@ -1072,6 +1119,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 						changeType := stmt.ColumnText(4)
 						currentChange := Change{
 							blobID:  stmt.ColumnInt64(0),
+							blobCID: cid.NewCidV1(uint64(stmt.ColumnInt64(5)), stmt.ColumnBytesUnsafe(6)).String(),
 							version: stmt.ColumnText(1),
 							ts:      timestamppb.New(ts),
 						}
@@ -1087,14 +1135,23 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 				} else if err != nil && errors.Is(err, errSameBlockChangeDetected) {
 					relatedFound = true
 				}
+				// If the latest unrelated change is still not the document's latest version,
+				// upgrade to the document's latest version and use the latest blob CID.
 				if !relatedFound && !slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), latestUnrelated.version) {
 					latestUnrelated.version = searchResults[match.Index].latestVersion
+					latestUnrelated.blobCID = searchResults[match.Index].latestBlobCID
 				}
 
+				// Only update version if no same-block change was detected.
+				// When relatedFound is true, the block was modified after the indexed version,
+				// so we keep the original version (where the content existed).
+				if !relatedFound {
+					searchResults[match.Index].version = latestUnrelated.version
+					searchResults[match.Index].blobID = latestUnrelated.blobID
+					searchResults[match.Index].blobCID = latestUnrelated.blobCID
+					searchResults[match.Index].versionTime = latestUnrelated.ts
+				}
 			}
-			searchResults[match.Index].version = latestUnrelated.version
-			searchResults[match.Index].blobID = latestUnrelated.blobID
-			searchResults[match.Index].versionTime = latestUnrelated.ts
 			totalLatestBlockTime += time.Since(startLatestBlockTime)
 			if slices.Contains(strings.Split(searchResults[match.Index].latestVersion, "."), searchResults[match.Index].version) {
 				searchResults[match.Index].version += "&l"
