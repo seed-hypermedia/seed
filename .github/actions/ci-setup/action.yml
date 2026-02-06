@@ -94,17 +94,16 @@ runs:
         Copy-Item build/ggml/src/ggml-vulkan/Release/ggml-vulkan.lib -Destination libggml-vulkan.a
         Copy-Item build/common/Release/common.lib -Destination libcommon.a
 
-        # Find Visual Studio installation
-        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        $vsPath = & $vsWhere -latest -property installationPath
-        $vcvarsPath = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+        # Copy Vulkan SDK library for linking
+        # CGO needs this in the local directory since VULKAN_SDK lib path isn't in linker search path
+        Copy-Item "$env:VULKAN_SDK\Lib\vulkan-1.lib" -Destination libvulkan-1.a
 
-        # Compile wrapper.cpp to wrapper.obj using MSVC cl.exe
-        # Then create libbinding.a (static library) from wrapper.obj
-        cmd /c "`"$vcvarsPath`" && cl.exe /c /EHsc /std:c++17 /O2 /DNDEBUG /I./llama.cpp /I./ /I./llama.cpp/ggml/include /I./llama.cpp/include /I./llama.cpp/common /I./llama.cpp/vendor /Fowrapper.obj wrapper.cpp && lib.exe /OUT:libbinding.a wrapper.obj"
+        # Note: We do NOT create libbinding.a on Windows.
+        # CGO compiles wrapper.cpp directly, so linking libbinding.a would cause
+        # "multiple definition" errors for symbols like llama_wrapper_init_logging.
 
         # Verify all libraries exist
-        $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libbinding.a")
+        $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a")
         foreach ($lib in $libs) {
           if (!(Test-Path $lib)) {
             Write-Error "Missing library: $lib"
