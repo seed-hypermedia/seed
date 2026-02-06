@@ -107,29 +107,19 @@ runs:
         cmake --build build --config Release -j $(nproc)
         echo "CMake build succeeded"
 
-        echo "=== DEBUG: Listing build directory structure ==="
-        echo "--- All .a files ---"
-        find build -name "*.a" -type f 2>/dev/null | sort
-        echo "--- build/src/ contents ---"
-        ls -la build/src/ 2>/dev/null || echo "build/src/ not found"
-        echo "--- build/ggml/ contents ---"
-        ls -laR build/ggml/ 2>/dev/null | head -100 || echo "build/ggml/ not found"
-        echo "--- build/common/ contents ---"
-        ls -la build/common/ 2>/dev/null || echo "build/common/ not found"
-        echo "=== END DEBUG ==="
-
         echo "=== Copying static libraries ==="
-        # MinGW produces .a files directly in build directories (no Release subdirectory)
+        # MinGW produces .a files in build directories
+        # Note: ggml libraries don't have 'lib' prefix in MinGW build
         cp build/src/libllama.a ./libllama.a
         echo "  Copied libllama.a"
-        cp build/ggml/src/libggml.a ./libggml.a
-        echo "  Copied libggml.a"
-        cp build/ggml/src/libggml-base.a ./libggml-base.a
-        echo "  Copied libggml-base.a"
-        cp build/ggml/src/libggml-cpu.a ./libggml-cpu.a
-        echo "  Copied libggml-cpu.a"
-        cp build/ggml/src/ggml-vulkan/libggml-vulkan.a ./libggml-vulkan.a
-        echo "  Copied libggml-vulkan.a"
+        cp build/ggml/src/ggml.a ./libggml.a
+        echo "  Copied ggml.a -> libggml.a"
+        cp build/ggml/src/ggml-base.a ./libggml-base.a
+        echo "  Copied ggml-base.a -> libggml-base.a"
+        cp build/ggml/src/ggml-cpu.a ./libggml-cpu.a
+        echo "  Copied ggml-cpu.a -> libggml-cpu.a"
+        cp build/ggml/src/ggml-vulkan/ggml-vulkan.a ./libggml-vulkan.a
+        echo "  Copied ggml-vulkan.a -> libggml-vulkan.a"
         cp build/common/libcommon.a ./libcommon.a
         echo "  Copied libcommon.a"
 
