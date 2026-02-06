@@ -39,6 +39,12 @@ func (idx *Index) ResolveSiteURL(ctx context.Context, siteURL string) (peer.Addr
 	return idx.sitePeerResolver.getAddrInfo(ctx, siteURL)
 }
 
+// ResolveSiteConfig resolves a site URL to its full config using the cache.
+// This includes the registered account ID if available.
+func (idx *Index) ResolveSiteConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
+	return idx.sitePeerResolver.getConfig(ctx, siteURL)
+}
+
 // CanPeerAccessCID checks if a peer can access a specific CID.
 // This method has the signature required by bitswap.WithPeerBlockRequestFilter.
 // Access is granted if:
