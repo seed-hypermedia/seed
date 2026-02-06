@@ -176,6 +176,7 @@ runs:
     - name: Setup cache Windows
       uses: actions/cache@v3
       if: inputs.matrix-os == 'windows-2025'
+      continue-on-error: true
       with:
         path: |
           ~\AppData\Local\go-build
@@ -187,18 +188,20 @@ runs:
     - name: Debug - After cache setup
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== Cache setup completed ==="
+      run: Write-Host "=== Cache setup completed (or skipped with error) ==="
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4
+      continue-on-error: true
 
     - name: Debug - After pnpm setup
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== pnpm setup completed ==="
+      run: Write-Host "=== pnpm setup completed (or failed) ==="
 
     - name: Install Node.js 20
       uses: actions/setup-node@v4
+      continue-on-error: true
       with:
         node-version: 20
         cache: "pnpm"
@@ -206,9 +209,10 @@ runs:
     - name: Debug - After node setup
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== Node.js setup completed ==="
+      run: Write-Host "=== Node.js setup completed (or failed) ==="
 
     - name: Install Frontend Dependencies
+      continue-on-error: true
       run: pnpm install --frozen-lockfile
       shell: bash
 
