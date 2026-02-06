@@ -21,7 +21,10 @@ const TEST_UID = 'z6MkkBQP6c9TQ5JsYJNyemvg1dU3s3AwprWRm8DZHL9VabQY'
 const TEST_VERSION = 'test-version-123'
 
 // Helper to wrap component in required providers
-function withProviders(queryClient: QueryClient, component: React.ReactElement) {
+function withProviders(
+  queryClient: QueryClient,
+  component: React.ReactElement,
+) {
   return createElement(
     QueryClientProvider,
     {client: queryClient},
@@ -56,7 +59,8 @@ vi.mock('@shm/shared', async (importOriginal) => {
         path: [],
         version: null,
       },
-      getOptimizedImageUrl: (cid: string) => `http://localhost:58001/hm/api/image/${cid}`,
+      getOptimizedImageUrl: (cid: string) =>
+        `http://localhost:58001/hm/api/image/${cid}`,
       ipfsFileUrl: 'http://localhost:58001/ipfs',
       openUrl: () => {},
       openRoute: () => {},
@@ -148,7 +152,10 @@ function createDocumentResource(
 }
 
 // Set up QueryClient with prefetched data (simulates SSR hydration)
-function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMDocument) {
+function createHydratedQueryClient(
+  docId: ReturnType<typeof hmId>,
+  document: HMDocument,
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {staleTime: Infinity},
@@ -163,7 +170,10 @@ function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMD
   // Also prefetch the home document for the header
   const homeId = hmId(docId.uid, {latest: true})
   const homeQueryKey = [queryKeys.ENTITY, homeId.id, homeId.version]
-  queryClient.setQueryData(homeQueryKey, createDocumentResource(document, homeId))
+  queryClient.setQueryData(
+    homeQueryKey,
+    createDocumentResource(document, homeId),
+  )
 
   return queryClient
 }
@@ -187,10 +197,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
     // Render to string (simulates SSR)
     const html = renderToString(
-      withProviders(
-        queryClient,
-        createElement(ResourcePage, {docId}),
-      ),
+      withProviders(queryClient, createElement(ResourcePage, {docId})),
     )
 
     // Verify document content is present in SSR output
@@ -215,10 +222,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
     // Render to string without hydrated data
     const html = renderToString(
-      withProviders(
-        queryClient,
-        createElement(ResourcePage, {docId}),
-      ),
+      withProviders(queryClient, createElement(ResourcePage, {docId})),
     )
 
     // Without hydrated data, spinner should be shown during SSR
@@ -238,10 +242,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
     // Render WebResourcePage to string
     const html = renderToString(
-      withProviders(
-        queryClient,
-        createElement(WebResourcePage, {docId}),
-      ),
+      withProviders(queryClient, createElement(WebResourcePage, {docId})),
     )
 
     // Verify document content passes through

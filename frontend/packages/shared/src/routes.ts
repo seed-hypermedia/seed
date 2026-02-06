@@ -291,16 +291,24 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
 
 /**
  * Create a DocumentPanelRoute from a panel param string
- * Supports extended format like "discussions:BLOCKID" for block-specific discussions
+ * Supports extended formats:
+ * - "comment/COMMENT_ID" for specific comment open in panel
+ * - "discussions/BLOCKID" for block-specific discussions
  */
 function createPanelRoute(
   panelParam: string,
   docId: UnpackedHypermediaId,
 ): DocumentPanelRoute {
-  // Check for discussions:BLOCKID format
-  if (panelParam.startsWith('discussions:')) {
-    const targetBlockId = panelParam.slice('discussions:'.length)
-    return {key: 'discussions', id: docId, targetBlockId}
+  // Check for comment/COMMENT_ID format (most specific)
+  if (panelParam.startsWith('comment/')) {
+    const openComment = panelParam.slice('comment/'.length)
+    return {key: 'discussions' as const, id: docId, openComment}
+  }
+
+  // Check for discussions/BLOCKID format
+  if (panelParam.startsWith('discussions/')) {
+    const targetBlockId = panelParam.slice('discussions/'.length)
+    return {key: 'discussions' as const, id: docId, targetBlockId}
   }
 
   switch (panelParam) {
@@ -323,7 +331,7 @@ function createPanelRoute(
 /**
  * Convert docId + viewTerm + panelParam into a NavRoute
  * Used by web to initialize navigation context from URL
- * panelParam supports extended format like "discussions:BLOCKID"
+ * panelParam supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
  */
 export function createDocumentNavRoute(
   docId: UnpackedHypermediaId,

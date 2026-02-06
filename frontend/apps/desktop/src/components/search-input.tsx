@@ -12,7 +12,7 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
-import {NavRoute} from '@shm/shared/routes'
+import {createDocumentNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
   isHypermediaScheme,
@@ -474,7 +474,16 @@ function useURLHandler() {
           },
         }
       } else if (result.hmId) {
-        route = appRouteOfId({...result.hmId, ...idFragment})
+        // Check for panel query param and use createDocumentNavRoute if present
+        if (result.panel) {
+          route = createDocumentNavRoute(
+            {...result.hmId, ...idFragment},
+            null,
+            result.panel,
+          )
+        } else {
+          route = appRouteOfId({...result.hmId, ...idFragment})
+        }
       }
       if (route) return applyViewTermToRoute(route, routeKey)
       toast.error('Failed to open this hypermedia content')

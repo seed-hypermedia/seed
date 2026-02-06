@@ -37,7 +37,7 @@ import {SizableText} from '@shm/ui/text'
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: string | null // Supports extended format like "discussions:BLOCKID"
+  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -315,7 +315,11 @@ export default function UnifiedDocumentPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+      )}
     >
       <InnerResourcePage docId={data.id} />
     </WebSiteProvider>

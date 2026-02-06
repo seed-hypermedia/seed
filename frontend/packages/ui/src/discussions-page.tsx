@@ -43,7 +43,7 @@ export function DiscussionsPageContent({
   currentAccountId,
   onCommentDelete,
   deleteCommentDialogContent,
-  showOpenInPanel = true,
+  showOpenInPanel: _showOpenInPanel = true,
   showTitle = true,
   contentMaxWidth,
 }: DiscussionsPageContentProps) {

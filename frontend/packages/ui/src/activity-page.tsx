@@ -1,12 +1,10 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Clock} from 'lucide-react'
 import {ReactNode, Ref} from 'react'
 import {Feed} from './feed'
 import {OpenInPanelButton} from './open-in-panel'
 import {PageLayout} from './page-layout'
 import {SizableText} from './text'
-import {useScrollRestoration} from './use-scroll-restoration'
 
 export interface ActivityPageContentProps {
   docId: UnpackedHypermediaId
@@ -33,28 +31,17 @@ export function ActivityPageContent({
   docId,
   filterEventType = [],
   currentAccountId,
-  scrollRef: externalScrollRef,
+  scrollRef: _externalScrollRef,
   showOpenInPanel = true,
   showTitle = true,
   contentMaxWidth,
   size = 'md',
 }: ActivityPageContentProps) {
-  const route = useNavRoute()
-
-  // Use external scroll ref if provided, otherwise create internal one
-  const internalScrollRef = useScrollRestoration({
-    scrollId: `activity-page-${docId.id}`,
-    getStorageKey: () => getRouteKey(route),
-    debug: false,
-  })
-  const scrollRef = externalScrollRef || internalScrollRef
-
   return (
     <PageLayout
       title={showTitle ? 'Activity' : undefined}
       centered
       contentMaxWidth={contentMaxWidth}
-      scrollRef={scrollRef}
       headerRight={
         showOpenInPanel ? (
           <OpenInPanelButton
