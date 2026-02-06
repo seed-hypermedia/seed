@@ -74,31 +74,49 @@ runs:
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
       run: |
-        $ErrorActionPreference = "Stop"
+        Write-Host "=== START: Build llama.cpp (Windows) ==="
+        Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+        Write-Host "Current directory: $(Get-Location)"
+
+        # Don't use ErrorActionPreference=Stop as it can cause issues with cmake warnings
 
         cd backend/util/llama-go
-        Write-Host "Working directory: $(Get-Location)"
+        Write-Host "Changed to: $(Get-Location)"
 
         # Build llama.cpp with CMake using MSVC
         Write-Host "=== Running CMake configure ==="
-        cmake -B build -S llama.cpp `
-          -DGGML_VULKAN=ON `
-          -DBUILD_SHARED_LIBS=OFF `
-          -DLLAMA_CURL=OFF `
-          -DCMAKE_BUILD_TYPE=Release
+        cmake -B build -S llama.cpp -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+        $cmakeConfigResult = $LASTEXITCODE
+        Write-Host "CMake configure exit code: $cmakeConfigResult"
+        if ($cmakeConfigResult -ne 0) {
+          Write-Host "ERROR: CMake configure failed"
+          exit 1
+        }
 
         Write-Host "=== Running CMake build ==="
         cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+        $cmakeBuildResult = $LASTEXITCODE
+        Write-Host "CMake build exit code: $cmakeBuildResult"
+        if ($cmakeBuildResult -ne 0) {
+          Write-Host "ERROR: CMake build failed"
+          exit 1
+        }
 
         Write-Host "=== Copying static libraries ==="
         # Copy static libraries with Unix-style naming for CGO compatibility
         # CGO looks for lib<name>.a files, so we rename .lib to .a
         Copy-Item build/src/Release/llama.lib -Destination libllama.a
+        Write-Host "  Copied llama.lib"
         Copy-Item build/ggml/src/Release/ggml.lib -Destination libggml.a
+        Write-Host "  Copied ggml.lib"
         Copy-Item build/ggml/src/Release/ggml-base.lib -Destination libggml-base.a
+        Write-Host "  Copied ggml-base.lib"
         Copy-Item build/ggml/src/Release/ggml-cpu.lib -Destination libggml-cpu.a
+        Write-Host "  Copied ggml-cpu.lib"
         Copy-Item build/ggml/src/ggml-vulkan/Release/ggml-vulkan.lib -Destination libggml-vulkan.a
+        Write-Host "  Copied ggml-vulkan.lib"
         Copy-Item build/common/Release/common.lib -Destination libcommon.a
+        Write-Host "  Copied common.lib"
 
         # Copy Vulkan SDK library for linking
         Write-Host "=== Copying Vulkan SDK library ==="
@@ -108,6 +126,7 @@ runs:
         if (Test-Path $vulkanLibPath) {
           Write-Host "Found vulkan-1.lib, copying..."
           Copy-Item $vulkanLibPath -Destination libvulkan-1.a
+          Write-Host "  Copied vulkan-1.lib"
         } else {
           Write-Host "ERROR: vulkan-1.lib not found at $vulkanLibPath"
           Write-Host "Listing Vulkan SDK directory:"
@@ -125,15 +144,25 @@ runs:
 
         Write-Host "=== Verifying all libraries ==="
         $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a")
+        $allFound = $true
         foreach ($lib in $libs) {
           if (!(Test-Path $lib)) {
-            Write-Error "Missing library: $lib"
-            exit 1
+            Write-Host "ERROR: Missing library: $lib"
+            $allFound = $false
+          } else {
+            $size = (Get-Item $lib).Length
+            Write-Host "  $lib - $size bytes"
           }
-          $size = (Get-Item $lib).Length
-          Write-Host "  $lib - $size bytes"
         }
+
+        if (-not $allFound) {
+          Write-Host "ERROR: Some libraries are missing!"
+          exit 1
+        }
+
         Write-Host "All libraries built successfully"
+        Write-Host "=== END: Build llama.cpp (Windows) - SUCCESS ==="
+        exit 0
 
     # Additional packages for Flatpak building
 
@@ -173,6 +202,14 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
+    - name: Debug - Before cache setup (Windows)
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: |
+        Write-Host "=== TRACE: About to run Setup cache Windows ==="
+        Write-Host "Current directory: $(Get-Location)"
+        exit 0
+
     - name: Setup cache Windows
       uses: actions/cache@v3
       if: inputs.matrix-os == 'windows-2025'
@@ -185,19 +222,38 @@ runs:
         restore-keys: |
           ${{ inputs.matrix-os }}-go-
 
-    - name: Debug - After cache setup
+    - name: Debug - After cache setup (Windows)
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== Cache setup completed (or skipped with error) ==="
+      run: |
+        Write-Host "=== TRACE: Cache setup completed (or skipped with error) ==="
+        exit 0
+
+    - name: Debug - Before pnpm (Windows)
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: |
+        Write-Host "=== TRACE: About to run Install pnpm ==="
+        exit 0
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4
       continue-on-error: true
 
-    - name: Debug - After pnpm setup
+    - name: Debug - After pnpm setup (Windows)
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== pnpm setup completed (or failed) ==="
+      run: |
+        Write-Host "=== TRACE: pnpm setup completed (or failed) ==="
+        Write-Host "pnpm version: $(pnpm --version 2>&1)"
+        exit 0
+
+    - name: Debug - Before Node.js (Windows)
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: |
+        Write-Host "=== TRACE: About to run Install Node.js 20 ==="
+        exit 0
 
     - name: Install Node.js 20
       uses: actions/setup-node@v4
@@ -206,17 +262,34 @@ runs:
         node-version: 20
         cache: "pnpm"
 
-    - name: Debug - After node setup
+    - name: Debug - After node setup (Windows)
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== Node.js setup completed (or failed) ==="
+      run: |
+        Write-Host "=== TRACE: Node.js setup completed (or failed) ==="
+        Write-Host "node version: $(node --version 2>&1)"
+        Write-Host "npm version: $(npm --version 2>&1)"
+        exit 0
+
+    - name: Debug - Before pnpm install (Windows)
+      if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
+      run: |
+        Write-Host "=== TRACE: About to run pnpm install ==="
+        exit 0
 
     - name: Install Frontend Dependencies
       continue-on-error: true
-      run: pnpm install --frozen-lockfile
+      run: |
+        echo "=== TRACE: Running pnpm install --frozen-lockfile ==="
+        pnpm install --frozen-lockfile
+        echo "=== TRACE: pnpm install completed with exit code $? ==="
       shell: bash
 
-    - name: Debug - ci-setup complete
+    - name: Debug - ci-setup complete (Windows)
       if: inputs.matrix-os == 'windows-2025'
       shell: powershell
-      run: Write-Host "=== ci-setup action completed successfully ==="
+      run: |
+        Write-Host "=== TRACE: ci-setup action completed successfully ==="
+        Write-Host "=== END OF CI-SETUP ==="
+        exit 0
