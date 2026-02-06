@@ -72,12 +72,46 @@ runs:
 
     - name: "Build llama.cpp (Windows)"
       if: inputs.matrix-os == 'windows-2025'
+      shell: powershell
       run: |
         cd backend/util/llama-go
-        $env:BUILD_TYPE = "vulkan"
-        $env:CMAKE_ARGS = "-DBUILD_SHARED_LIBS=OFF"
-        make libbinding.a
-      shell: powershell
+
+        # Build llama.cpp with CMake using MSVC
+        cmake -B build -S llama.cpp `
+          -DGGML_VULKAN=ON `
+          -DBUILD_SHARED_LIBS=OFF `
+          -DLLAMA_CURL=OFF `
+          -DCMAKE_BUILD_TYPE=Release
+
+        cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+
+        # Copy static libraries with Unix-style naming for CGO compatibility
+        # CGO looks for lib<name>.a files, so we rename .lib to .a
+        Copy-Item build/src/Release/llama.lib -Destination libllama.a
+        Copy-Item build/ggml/src/Release/ggml.lib -Destination libggml.a
+        Copy-Item build/ggml/src/Release/ggml-base.lib -Destination libggml-base.a
+        Copy-Item build/ggml/src/Release/ggml-cpu.lib -Destination libggml-cpu.a
+        Copy-Item build/ggml/src/ggml-vulkan/Release/ggml-vulkan.lib -Destination libggml-vulkan.a
+        Copy-Item build/common/Release/common.lib -Destination libcommon.a
+
+        # Find Visual Studio installation
+        $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $vsPath = & $vsWhere -latest -property installationPath
+        $vcvarsPath = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+
+        # Compile wrapper.cpp to wrapper.obj using MSVC cl.exe
+        # Then create libbinding.a (static library) from wrapper.obj
+        cmd /c "`"$vcvarsPath`" && cl.exe /c /EHsc /std:c++17 /O2 /DNDEBUG /I./llama.cpp /I./ /I./llama.cpp/ggml/include /I./llama.cpp/include /I./llama.cpp/common /I./llama.cpp/vendor /Fowrapper.obj wrapper.cpp && lib.exe /OUT:libbinding.a wrapper.obj"
+
+        # Verify all libraries exist
+        $libs = @("libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libbinding.a")
+        foreach ($lib in $libs) {
+          if (!(Test-Path $lib)) {
+            Write-Error "Missing library: $lib"
+            exit 1
+          }
+        }
+        Write-Host "All libraries built successfully"
 
     # Additional packages for Flatpak building
 
