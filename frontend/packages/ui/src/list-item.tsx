@@ -1,12 +1,6 @@
 import {unpackHmId} from '@shm/shared'
 import {ArrowDownRight, ChevronDown, ChevronRight} from 'lucide-react'
-import {
-  ComponentProps,
-  createElement,
-  isValidElement,
-  ReactNode,
-  useState,
-} from 'react'
+import {ComponentProps, ReactNode, useState} from 'react'
 import {Button, ButtonProps} from './button'
 import {DraftBadge} from './draft-badge'
 import {useHighlighter} from './highlight-context'
@@ -34,24 +28,6 @@ export function FocusButton({
         <ArrowDownRight className="size-3" />
       </Button>
     </Tooltip>
-  )
-}
-
-export function SmallCollapsableListItem({
-  children,
-  ...props
-}: ComponentProps<typeof SmallListItem>) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const displayChildren = isCollapsed ? null : children
-  return (
-    <>
-      <SmallListItem
-        isCollapsed={isCollapsed}
-        onSetCollapsed={setIsCollapsed}
-        {...props}
-      />
-      {displayChildren}
-    </>
   )
 }
 
@@ -98,7 +74,7 @@ export function SmallListItem({
   return (
     <Button
       className={cn(
-        'user-select-none group h-auto min-h-8 w-full px-2 text-left outline-none',
+        'user-select-none group h-auto min-h-8 w-full text-left outline-none',
         active && 'bg-accent text-accent-foreground',
         multiline && 'whitespace-normal!',
         props.className,
@@ -111,19 +87,8 @@ export function SmallListItem({
       {...props}
     >
       <div className="flex flex-1 items-center gap-2 overflow-hidden p-1">
-        {isValidElement(icon) ? (
-          <div className="pt-0.5">{icon}</div>
-        ) : icon ? (
-          <div className="size-4 flex-none shrink-0 pt-0.5">
-            {/* @ts-expect-error */}
-            {createElement(icon, {
-              size: 18,
-              color: color || 'currentColor',
-            })}
-          </div>
-        ) : null}
+        {icon}
         {children}
-
         {title || isDraft || accessory ? (
           <div className="flex flex-1 items-center gap-1.5 overflow-hidden">
             <SizableText

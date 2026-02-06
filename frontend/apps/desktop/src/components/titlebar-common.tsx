@@ -38,9 +38,10 @@ import {
 } from '@shm/shared/utils/entity-id-url'
 import {
   appRouteOfId,
-  useNavRoute,
   useNavigationDispatch,
   useNavigationState,
+  useNavRoute,
+  useRouteDocId,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -105,19 +106,19 @@ export function DocOptionsButton({
     step?: 'seed-host-custom-domain'
   }) => void
 }) {
-  const route = useNavRoute()
-  const dispatch = useNavigationDispatch()
-  if (route.key !== 'document' && route.key !== 'feed')
+  const id = useRouteDocId()
+  if (!id)
     throw new Error(
-      'DocOptionsButton can only be rendered on publication route',
+      'DocOptionsButton must be used within a route that has an id',
     )
+  const dispatch = useNavigationDispatch()
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const resource = useResource(route.id)
+  const resource = useResource(id)
   const doc =
     resource.data?.type === 'document' ? resource.data.document : undefined
-  const rootEntity = useResource(hmId(route.id.uid))
+  const rootEntity = useResource(hmId(id?.uid))
   const rootDocument =
     rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
   const siteUrl = rootDocument?.metadata.siteUrl
@@ -126,7 +127,7 @@ export function DocOptionsButton({
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
-    siteUrl ? hmId(route.id.uid) : undefined,
+    siteUrl ? hmId(id?.uid) : undefined,
   )
   // const  {
   //   ...route.id,
@@ -134,15 +135,16 @@ export function DocOptionsButton({
   //   version: doc?.version || null,
   // }
   const removeSite = useRemoveSiteDialog()
-  const capability = useSelectedAccountCapability(route.id)
+  const capability = useSelectedAccountCapability(id || undefined)
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find(
-    (pending) => pending.siteUid === route.id.uid,
+    (pending) => !!id && pending.siteUid === id.uid,
   )
+  const route = useNavRoute()
   const menuItems: MenuItemType[] = [
     {
       key: 'link',
@@ -207,21 +209,21 @@ export function DocOptionsButton({
       },
     })
   }
-  if (doc && canEditDoc && route.id.path?.length) {
+  if (doc && canEditDoc && id?.path?.length) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
       icon: <Trash className="size-4" />,
       onClick: () => {
         deleteEntity.open({
-          id: route.id,
+          id: id,
           onSuccess: () => {
             dispatch({
               type: 'backplace',
               route: {
                 key: 'document',
-                id: hmId(route.id.uid, {
-                  path: route.id.path?.slice(0, -1),
+                id: hmId(id.uid, {
+                  path: id.path?.slice(0, -1),
                 }),
               } as any,
             })
@@ -230,7 +232,7 @@ export function DocOptionsButton({
       },
     })
   }
-  if (!route.id.path?.length && canEditDoc) {
+  if (!!id && !id?.path?.length && canEditDoc) {
     if (doc?.metadata?.siteUrl) {
       const siteHost = hostnameStripProtocol(doc?.metadata?.siteUrl)
       const gwHost = hostnameStripProtocol(gwUrl)
@@ -240,7 +242,7 @@ export function DocOptionsButton({
           label: 'Publish Custom Domain',
           icon: <UploadCloud className="size-4" />,
           onClick: () => {
-            onPublishSite({id: route.id, step: 'seed-host-custom-domain'})
+            onPublishSite({id: id, step: 'seed-host-custom-domain'})
           },
         })
       }
@@ -250,7 +252,7 @@ export function DocOptionsButton({
         icon: <CloudOff className="size-4" />,
         color: '$red10',
         onClick: () => {
-          removeSite.open(route.id)
+          removeSite.open(id)
         },
       })
     } else
@@ -259,16 +261,16 @@ export function DocOptionsButton({
         label: 'Publish Site to Domain',
         icon: <UploadCloud className="size-4" />,
         onClick: () => {
-          onPublishSite({id: route.id})
+          onPublishSite({id})
         },
       })
   }
   const createDraft = useCreateDraft({
-    locationUid: route.id.uid,
-    locationPath: route.id.path || undefined,
+    locationUid: id?.uid,
+    locationPath: id?.path || undefined,
   })
   const importDialog = useImportDialog()
-  const importing = useImporting(route.id)
+  const importing = useImporting(id)
   if (canEditDoc) {
     menuItems.push({
       key: 'create-draft',
@@ -291,25 +293,25 @@ export function DocOptionsButton({
     })
   }
 
-  if (myAccountIds.data?.length) {
+  if (id && myAccountIds.data?.length) {
     menuItems.push({
       key: 'branch',
       label: 'Create Document Branch',
       icon: <GitFork className="size-4" />,
       onClick: () => {
-        branchDialog.open(route.id)
+        branchDialog.open(id)
       },
     })
   }
 
-  if (canEditDoc && myAccountIds.data?.length && route.id.path?.length) {
+  if (canEditDoc && myAccountIds.data?.length && id?.path?.length) {
     menuItems.push({
       key: 'move',
       label: 'Move Document',
       icon: <ForwardIcon className="size-4" />,
       onClick: () => {
         moveDialog.open({
-          id: route.id,
+          id,
         })
       },
     })
@@ -666,6 +668,7 @@ function useOmnibarState(currentUrl: string | null) {
  */
 export function Omnibar() {
   const route = useNavRoute()
+  const routeId = useRouteDocId()
   const navigate = useNavigate()
   const currentUrl = useCurrentRouteUrl()
   const publishSite = usePublishSite()
@@ -846,7 +849,14 @@ export function Omnibar() {
         {/* <Search className="text-muted-foreground size-3.5 shrink-0" /> */}
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
           <div className="min-w-0 flex-1 truncate text-xs">
-            <TitleContent size="$3" onPublishSite={publishSite.open} />
+            <TitleContent
+              size="$3"
+              extraButtons={
+                routeId ? (
+                  <DocOptionsButton onPublishSite={publishSite.open} />
+                ) : null
+              }
+            />
           </div>
           {indicators}
         </div>

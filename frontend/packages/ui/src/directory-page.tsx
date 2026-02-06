@@ -18,7 +18,7 @@ import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
 import {DraftBadge} from './draft-badge'
-import {DocumentSmallListItem, getSiteNavDirectory} from './navigation'
+import {getSiteNavDirectory} from './navigation'
 import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -140,23 +140,6 @@ function DirectoryNoResults({searchQuery}: {searchQuery: string}) {
 }
 
 export type DirectoryItem = ReturnType<typeof getSiteNavDirectory>[number]
-
-export function DirectoryListView({items}: {items: DirectoryItem[]}) {
-  return (
-    <div className="flex flex-col gap-2">
-      {items.map((item) => (
-        <DocumentSmallListItem
-          key={item.id?.path?.join('/') || item.id?.id || item.draftId}
-          metadata={item.metadata}
-          id={item.id}
-          draftId={item.draftId}
-          isPublished={item.isPublished}
-          visibility={item.visibility}
-        />
-      ))}
-    </div>
-  )
-}
 
 export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
   return (
