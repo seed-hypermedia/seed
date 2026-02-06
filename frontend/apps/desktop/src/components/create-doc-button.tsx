@@ -84,7 +84,7 @@ export function CreateDocumentButton({
               <Button variant="default" size="sm" className="justify-center">
                 <Add className="size-4" />
                 <span className="truncate">New</span>
-                <ChevronDown size={14} className="ml-1 opacity-60" />
+                {/* <ChevronDown size={14} className="ml-1 opacity-60" /> */}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

@@ -181,7 +181,7 @@ function Breadcrumbs({
       {first ? (
         <div className="flex items-center gap-1">
           <Home className="size-3" />
-          <BreadcrumbLink id={first.id} metadata={first.metadata} />
+          {/* <BreadcrumbLink id={first.id} metadata={first.metadata} /> */}
         </div>
       ) : null}
       {rest.flatMap((crumb) => {

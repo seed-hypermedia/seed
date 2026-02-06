@@ -1,6 +1,6 @@
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {Clock} from 'lucide-react'
-import {ReactNode, Ref} from 'react'
+import {ReactNode} from 'react'
 import {Feed} from './feed'
 import {OpenInPanelButton} from './open-in-panel'
 import {PageLayout} from './page-layout'
@@ -11,8 +11,6 @@ export interface ActivityPageContentProps {
   filterEventType?: string[]
   currentAccountId?: string
   commentEditor?: ReactNode
-  /** External scroll ref for scroll restoration */
-  scrollRef?: Ref<HTMLDivElement>
   /** Whether to show the "Open in Panel" button. Defaults to true. */
   showOpenInPanel?: boolean
   /** Whether to show the title. Defaults to true. */
@@ -31,7 +29,6 @@ export function ActivityPageContent({
   docId,
   filterEventType = [],
   currentAccountId,
-  scrollRef: _externalScrollRef,
   showOpenInPanel = true,
   showTitle = true,
   contentMaxWidth,
