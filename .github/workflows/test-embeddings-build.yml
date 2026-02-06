@@ -21,19 +21,15 @@ jobs:
         config:
           - os: ubuntu-latest
             name: linux-x64
-            build_type: vulkan
             daemon_name: x86_64-unknown-linux-gnu
-          - os: macos-14
+          - os: macos-15-large
             name: macos-x64
-            build_type: metal
             daemon_name: x86_64-apple-darwin
-          - os: macos-latest
+          - os: macos-15-xlarge
             name: macos-arm64
-            build_type: metal
             daemon_name: aarch64-apple-darwin
           - os: windows-2025
             name: windows-x64
-            build_type: vulkan
             daemon_name: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.config.os }}
@@ -43,51 +39,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Cache GGUF model
+        uses: actions/cache@v4
         with:
-          go-version: "1.25.4"
-
-      - name: Install build dependencies (Linux)
-        if: matrix.config.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ libvulkan-dev glslc libgomp1
-
-      - name: Install build dependencies (macOS)
-        if: startsWith(matrix.config.os, 'macos')
-        run: |
-          brew install cmake
-
-      - name: Install build dependencies (Windows)
-        if: matrix.config.os == 'windows-2025'
-        run: |
-          choco install vulkan-sdk -y
-          choco install cmake -y
-          choco install mingw -y
-        shell: powershell
-
-      - name: Build llama.cpp (Linux)
-        if: matrix.config.os == 'ubuntu-latest'
-        run: |
-          cd backend/util/llama-go
-          BUILD_TYPE=${{ matrix.config.build_type }} CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
-          ls -la *.a
-
-      - name: Build llama.cpp (macOS)
-        if: startsWith(matrix.config.os, 'macos')
-        run: |
-          cd backend/util/llama-go
-          BUILD_TYPE=${{ matrix.config.build_type }} CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
-          ls -la *.a
-
-      - name: Build llama.cpp (Windows)
-        if: matrix.config.os == 'windows-2025'
-        shell: bash
-        run: |
-          cd backend/util/llama-go
-          BUILD_TYPE=${{ matrix.config.build_type }} CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
-          ls -la *.a
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-v1
 
       - name: Download GGUF model (Unix)
         if: matrix.config.os != 'windows-2025'
@@ -108,6 +64,10 @@ jobs:
             Invoke-WebRequest -Uri "https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf" -OutFile $modelPath
           }
 
+      - uses: ./.github/actions/ci-setup
+        with:
+          matrix-os: ${{ matrix.config.os }}
+
       - name: Build seed-daemon (Unix)
         if: matrix.config.os != 'windows-2025'
         run: |
@@ -120,10 +80,10 @@ jobs:
 
       - name: Build seed-daemon (Windows)
         if: matrix.config.os == 'windows-2025'
+        shell: bash
         run: |
           go build -tags gpu -o seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
           ls -la seed-daemon-*
-        shell: bash
         env:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
