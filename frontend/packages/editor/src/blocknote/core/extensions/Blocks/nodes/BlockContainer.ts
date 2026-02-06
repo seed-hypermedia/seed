@@ -191,21 +191,21 @@ export const BlockContainer = Node.create<{
 }>({
   name: 'blockContainer',
   group: 'blockGroupChild block',
-  // A block always contains content, and optionally a blockGroup which contains nested blocks
-  content: 'blockContent blockGroup?',
+  // A block always contains content, and optionally a blockGroup or listGroup which contains nested blocks
+  content: 'blockContent (blockGroup | listGroup)?',
   // Ensures content-specific keyboard handlers trigger first.
   priority: 50,
   defining: true,
 
   parseHTML() {
     return [
-      {
-        tag: 'li',
-        priority: 300,
-        getAttrs: (element) => {
-          return null
-        },
-      },
+      // {
+      //   tag: 'li',
+      //   priority: 300,
+      //   getAttrs: (element) => {
+      //     return null
+      //   },
+      // },
       {
         tag: 'div',
         getAttrs: (element) => {

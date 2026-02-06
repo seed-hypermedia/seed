@@ -134,38 +134,39 @@ export const BlockGroup = Node.create<{
       }),
     ]
   },
+
   parseHTML() {
     return [
-      {
-        tag: 'ul',
-        attrs: {listType: 'Unordered'},
-        getAttrs: (element) => {
-          if (typeof element == 'string') {
-            return false
-          }
-          return {
-            listType: 'Unordered',
-          }
-          // return false
-        },
-        priority: 200,
-      },
-      {
-        tag: 'ol',
-        attrs: {listType: 'Ordered'},
-        getAttrs: (element) => {
-          if (typeof element == 'string') {
-            return false
-          }
+      // {
+      //   tag: 'ul',
+      //   attrs: {listType: 'Unordered'},
+      //   getAttrs: (element) => {
+      //     if (typeof element == 'string') {
+      //       return false
+      //     }
+      //     return {
+      //       listType: 'Unordered',
+      //     }
+      //     // return false
+      //   },
+      //   priority: 200,
+      // },
+      // {
+      //   tag: 'ol',
+      //   attrs: {listType: 'Ordered'},
+      //   getAttrs: (element) => {
+      //     if (typeof element == 'string') {
+      //       return false
+      //     }
 
-          return {
-            listType: 'Ordered',
-            // start: element.getAttribute('start'),
-          }
-          // return false
-        },
-        priority: 200,
-      },
+      //     return {
+      //       listType: 'Ordered',
+      //       // start: element.getAttribute('start'),
+      //     }
+      //     // return false
+      //   },
+      //   priority: 200,
+      // },
       {
         tag: 'blockquote',
         attrs: {listType: 'Blockquote'},

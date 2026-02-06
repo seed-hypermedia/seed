@@ -63,6 +63,33 @@ NESTED BLOCKS
   transition: all 0.2s 0.1s;
 }
 
+/* LIST GROUP STYLES */
+[data-node-type='listGroup'] {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0;
+  padding-inline-start: 1em;
+}
+
+[data-node-type='listGroup'][data-list-type='Unordered'] {
+  margin-left: 0;
+  list-style-type: disc;
+}
+
+[data-node-type='listGroup'][data-list-type='Ordered'] {
+  margin-left: 0;
+  list-style-type: decimal;
+}
+
+[data-node-type='listContainer'] {
+  display: list-item !important;
+}
+
+/* Nested list groups */
+[data-node-type='listGroup'] [data-node-type='listGroup'] {
+  margin-left: 1.5em;
+}
+
 .blockGroup[data-list-type='Blockquote'] {
   border-left: 3px solid var(--border);
   padding-left: 15px;

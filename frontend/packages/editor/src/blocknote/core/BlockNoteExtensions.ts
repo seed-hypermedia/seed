@@ -19,7 +19,13 @@ import {createInlineEmbedNode} from '../../mentions-plugin'
 import {debugPlugin} from '../../prosemirror-debugger'
 import Link from '../../tiptap-extension-link'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
-import {BlockContainer, BlockGroup, Doc} from './extensions/Blocks'
+import {
+  BlockContainer,
+  BlockGroup,
+  Doc,
+  ListContainer,
+  ListGroup,
+} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
 import {CustomBlockSerializerExtension} from './extensions/Blocks/api/serialization'
 import blockStyles from './extensions/Blocks/nodes/Block.module.css'
@@ -103,6 +109,12 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     // nodes
     Doc,
     BlockGroup.configure({
+      domAttributes: opts.domAttributes,
+    }),
+    ListGroup.configure({
+      domAttributes: opts.domAttributes,
+    }),
+    ListContainer.configure({
       domAttributes: opts.domAttributes,
     }),
     ...Object.values(opts.blockSchema).map((blockSpec) => {
