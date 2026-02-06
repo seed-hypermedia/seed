@@ -11,7 +11,7 @@ type SingleBlockInfo = {
 export type BlockInfo = {
   /**
    * The outer node that represents a BlockNote block. This is the node that has the ID.
-   * It will be of type BlockContainer.
+   * It will be of type BlockContainer or ListContainer.
    */
   block: SingleBlockInfo
   /**
@@ -20,7 +20,7 @@ export type BlockInfo = {
    */
   blockContentType: string
   /**
-   * The Prosemirror node that holds block.children. For blockContainers, this is the blockGroup node, if it exists.
+   * The Prosemirror node that holds block.children. For blockContainers, this is the blockGroup or listGroup node, if it exists.
    */
   childContainer?: SingleBlockInfo
   /**
@@ -140,7 +140,7 @@ export function getBlockInfoWithManualOffset(
         beforePos: blockContentBeforePos,
         afterPos: blockContentAfterPos,
       }
-    } else if (node.type.name === 'blockGroup') {
+    } else if (node.type.name === 'blockGroup' || node.type.name === 'listGroup') {
       const blockGroupNode = node
       const blockGroupBeforePos = blockBeforePos + offset + 1
       const blockGroupAfterPos = blockGroupBeforePos + node.nodeSize

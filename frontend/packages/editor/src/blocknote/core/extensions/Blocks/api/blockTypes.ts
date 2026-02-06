@@ -9,6 +9,8 @@ export type BlockNoteDOMElement =
   | 'editor'
   | 'blockContainer'
   | 'blockGroup'
+  | 'listGroup'
+  | 'listContainer'
   | 'blockContent'
   | 'inlineContent'
 
