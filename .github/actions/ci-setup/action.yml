@@ -75,21 +75,9 @@ runs:
       shell: bash
       run: |
         set -e
-        echo "=== START: Build llama.cpp (Windows) ==="
-        echo "Using MinGW toolchain for ABI compatibility with CGO"
-
         cd backend/util/llama-go
-        echo "Changed to: $(pwd)"
 
-        # Verify MinGW is available
-        echo "=== Checking MinGW toolchain ==="
-        which gcc && gcc --version | head -1
-        which g++ && g++ --version | head -1
-
-        # Build llama.cpp with CMake using MinGW
-        # Use MinGW Makefiles generator for compatibility with CGO's MinGW linker
-        # Disable tools/tests/examples/server to only build core libraries
-        echo "=== Running CMake configure with MinGW ==="
+        # Build llama.cpp with CMake using MinGW for ABI compatibility with CGO
         cmake -G "MinGW Makefiles" -B build -S llama.cpp \
           -DGGML_VULKAN=ON \
           -DBUILD_SHARED_LIBS=OFF \
@@ -101,58 +89,23 @@ runs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_C_COMPILER=gcc \
           -DCMAKE_CXX_COMPILER=g++
-        echo "CMake configure succeeded"
 
-        echo "=== Running CMake build ==="
         cmake --build build --config Release -j $(nproc)
-        echo "CMake build succeeded"
 
-        echo "=== Copying static libraries ==="
-        # MinGW produces .a files in build directories
-        # Note: ggml libraries don't have 'lib' prefix in MinGW build
+        # Copy static libraries (MinGW output paths differ from MSVC)
         cp build/src/libllama.a ./libllama.a
-        echo "  Copied libllama.a"
         cp build/ggml/src/ggml.a ./libggml.a
-        echo "  Copied ggml.a -> libggml.a"
         cp build/ggml/src/ggml-base.a ./libggml-base.a
-        echo "  Copied ggml-base.a -> libggml-base.a"
         cp build/ggml/src/ggml-cpu.a ./libggml-cpu.a
-        echo "  Copied ggml-cpu.a -> libggml-cpu.a"
         cp build/ggml/src/ggml-vulkan/ggml-vulkan.a ./libggml-vulkan.a
-        echo "  Copied ggml-vulkan.a -> libggml-vulkan.a"
         cp build/common/libcommon.a ./libcommon.a
-        echo "  Copied libcommon.a"
+        cp "$VULKAN_SDK/Lib/vulkan-1.lib" ./libvulkan-1.a
 
-        # Copy Vulkan SDK library for linking
-        echo "=== Copying Vulkan SDK library ==="
-        echo "VULKAN_SDK = $VULKAN_SDK"
-        if [ -f "$VULKAN_SDK/Lib/vulkan-1.lib" ]; then
-          echo "Found vulkan-1.lib, copying..."
-          cp "$VULKAN_SDK/Lib/vulkan-1.lib" ./libvulkan-1.a
-          echo "  Copied vulkan-1.lib as libvulkan-1.a"
-        else
-          echo "ERROR: vulkan-1.lib not found at $VULKAN_SDK/Lib/vulkan-1.lib"
-          ls -la "$VULKAN_SDK/Lib/" | head -20 || echo "Cannot list Vulkan SDK Lib directory"
-          exit 1
-        fi
-
-        # Note: We do NOT create libbinding.a on Windows.
-        # CGO compiles wrapper.cpp directly, so linking libbinding.a would cause
-        # "multiple definition" errors for symbols like llama_wrapper_init_logging.
-
-        echo "=== Verifying all libraries ==="
+        # Verify all libraries exist
         for lib in libllama.a libggml.a libggml-base.a libggml-cpu.a libggml-vulkan.a libcommon.a libvulkan-1.a; do
-          if [ -f "$lib" ]; then
-            size=$(stat -c%s "$lib" 2>/dev/null || stat -f%z "$lib" 2>/dev/null || echo "unknown")
-            echo "  $lib - $size bytes"
-          else
-            echo "ERROR: Missing library: $lib"
-            exit 1
-          fi
+          [ -f "$lib" ] || { echo "ERROR: Missing $lib"; exit 1; }
         done
-
-        echo "All libraries built successfully"
-        echo "=== END: Build llama.cpp (Windows) - SUCCESS ==="
+        echo "All llama.cpp libraries built successfully"
 
     # Additional packages for Flatpak building
 
