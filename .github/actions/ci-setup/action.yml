@@ -84,37 +84,21 @@ runs:
         # Build llama.cpp with CMake using MSVC
         # Disable tools/tests/examples/server to only build core libraries
         Write-Host "=== Running CMake configure ==="
-        $cmakeConfigOutput = cmake -B build -S llama.cpp `
-          -DGGML_VULKAN=ON `
-          -DBUILD_SHARED_LIBS=OFF `
-          -DLLAMA_CURL=OFF `
-          -DLLAMA_BUILD_TESTS=OFF `
-          -DLLAMA_BUILD_TOOLS=OFF `
-          -DLLAMA_BUILD_EXAMPLES=OFF `
-          -DLLAMA_BUILD_SERVER=OFF `
-          -DCMAKE_BUILD_TYPE=Release 2>&1
-        $cmakeConfigResult = $LASTEXITCODE
-        Write-Host "CMake configure output:"
-        Write-Host $cmakeConfigOutput
-        Write-Host "CMake configure exit code: $cmakeConfigResult"
-        if ($cmakeConfigResult -ne 0) {
-          Write-Host "ERROR: CMake configure failed"
+        cmake -B build -S llama.cpp -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DCMAKE_BUILD_TYPE=Release
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: CMake configure failed with exit code $LASTEXITCODE"
           exit 1
         }
+        Write-Host "CMake configure succeeded"
 
         # Build with --verbose flag (temporary for debugging)
         Write-Host "=== Running CMake build ==="
-        $cmakeBuildOutput = cmake --build build --config Release --verbose -j $env:NUMBER_OF_PROCESSORS 2>&1
-        $cmakeBuildResult = $LASTEXITCODE
-        Write-Host "CMake build output:"
-        Write-Host $cmakeBuildOutput
-        Write-Host "CMake build exit code: $cmakeBuildResult"
-        if ($cmakeBuildResult -ne 0) {
-          Write-Host "ERROR: CMake build failed"
-          Write-Host "=== Full build output for debugging ==="
-          Write-Host $cmakeBuildOutput
+        cmake --build build --config Release --verbose -j $env:NUMBER_OF_PROCESSORS
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: CMake build failed with exit code $LASTEXITCODE"
           exit 1
         }
+        Write-Host "CMake build succeeded"
 
         Write-Host "=== Copying static libraries ==="
         # Copy static libraries with Unix-style naming for CGO compatibility
