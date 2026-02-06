@@ -953,6 +953,42 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		if in.AuthorityWeight > 1 {
 			return nil, status.Errorf(codes.InvalidArgument, "authority_weight must be between 0 and 1")
 		}
+
+		// Sort results by score before authority ranking.
+		// applyAuthorityRanking uses position as textRank, so results must be sorted by
+		// text relevance first. Use rowID as tie-breaker for deterministic ordering.
+		indices := make([]int, len(searchResults))
+		for i := range indices {
+			indices[i] = i
+		}
+		slices.SortFunc(indices, func(a, b int) int {
+			if searchResults[a].score > searchResults[b].score {
+				return -1
+			}
+			if searchResults[a].score < searchResults[b].score {
+				return 1
+			}
+			if searchResults[a].rowID < searchResults[b].rowID {
+				return -1
+			}
+			if searchResults[a].rowID > searchResults[b].rowID {
+				return 1
+			}
+			return 0
+		})
+
+		// Reorder searchResults and bodyMatches according to sorted indices.
+		sortedResults := make([]fullDataSearchResult, len(searchResults))
+		sortedMatches := make([]fuzzy.Match, len(bodyMatches))
+		for newIdx, oldIdx := range indices {
+			sortedResults[newIdx] = searchResults[oldIdx]
+			bm := bodyMatches[oldIdx]
+			bm.Index = newIdx
+			sortedMatches[newIdx] = bm
+		}
+		searchResults = sortedResults
+		bodyMatches = sortedMatches
+
 		var err error
 		searchResults, bodyMatches, err = applyAuthorityRanking(ctx, srv.db, searchResults, bodyMatches, in.AuthorityWeight)
 		if err != nil {
