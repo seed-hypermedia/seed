@@ -46,9 +46,7 @@ export function IconForm({
       })
   }
 
-  const iconImage = (
-    <UIAvatar label={label} id={id} url={url} size={size} color="$brand12" />
-  )
+  const iconImage = <UIAvatar label={label} id={id} url={url} size={size} />
   if (!onIconUpload) return iconImage
   return (
     <div

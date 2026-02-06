@@ -13,8 +13,8 @@ import {NoSitePage, NotRegisteredPage} from '@/not-registered'
 import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
-import {useMobileConfig} from '@/use-mobile-config'
 import {unwrap, type Wrapped} from '@/wrapping'
+import {WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
@@ -31,7 +31,6 @@ import {
 } from '@shm/shared'
 import {useTx} from '@shm/shared/translation'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {SizableText} from '@shm/ui/text'
 
 // Extended payload with view term and panel param for page routing
@@ -328,14 +327,7 @@ export default function UnifiedDocumentPage() {
 
 /** Inner component that can use hooks after providers are mounted */
 function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
-  const mobileConfig = useMobileConfig()
-  return (
-    <WebResourcePage
-      docId={docId}
-      CommentEditor={WebCommenting}
-      mobileConfig={mobileConfig}
-    />
-  )
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
 }
 
 export function DaemonErrorPage(props: GRPCError) {

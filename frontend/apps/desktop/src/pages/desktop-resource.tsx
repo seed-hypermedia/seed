@@ -1,6 +1,5 @@
 import {CommentBox} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
-import {useDesktopMobileConfig} from '@/hooks/use-mobile-config'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
@@ -19,7 +18,6 @@ import {useNavigate} from '@/utils/useNavigate'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
-  const mobileConfig = useDesktopMobileConfig()
   const navigate = useNavigate()
 
   // Only handle document-related routes
@@ -89,7 +87,6 @@ export default function DesktopResourcePage() {
       <ResourcePage
         docId={docId}
         CommentEditor={CommentBox}
-        mobileConfig={mobileConfig}
         editActions={editActions}
         existingDraft={existingDraft}
       />

@@ -60,7 +60,7 @@ function _HMIcon({
       label={name || ''}
       url={icon ? imageUrl(icon, 'S') : undefined}
       className={cn(
-        'flex-none',
+        'flex-none bg-white',
         // We want home documents and profiles to have round icons,
         // and normal documents to have square icons.
         // This should help differentiate between "people" and "documents".

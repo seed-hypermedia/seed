@@ -1,7 +1,7 @@
+import * as jdenticon from 'jdenticon'
 import {memo, useEffect, useRef} from 'react'
 import {SizableText} from './text'
 import {cn} from './utils'
-import * as jdenticon from 'jdenticon'
 
 jdenticon.configure({
   hues: [151],
@@ -44,7 +44,6 @@ const Identicon = memo((props: {value: string; size: number}) => {
 
 export type UIAvatarProps = {
   size?: number
-  color?: string
   label?: string
   onPress?: () => void
   className?: string
@@ -59,7 +58,6 @@ export function UIAvatar({
   id,
   label,
   size = 20,
-  color,
   onPress,
   className,
 }: UIAvatarProps) {
@@ -76,7 +74,6 @@ export function UIAvatar({
       style={{
         width: size,
         height: size,
-        backgroundColor: url || !color ? 'var(--color1)' : color,
       }}
       onClick={onPress}
     >

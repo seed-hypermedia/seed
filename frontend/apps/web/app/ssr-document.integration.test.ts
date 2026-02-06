@@ -231,7 +231,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
 
   it('should render content through WebResourcePage when cache is hydrated', async () => {
     // Import after mocks are set up
-    const {WebResourcePage} = await import('@shm/ui/web-resource-page')
+    const {WebResourcePage} = await import('@/web-resource-page')
 
     const testContent = 'WebResourcePage SSR hydration test content'
     const testDocument = createTestDocument(testContent)

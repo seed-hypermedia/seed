@@ -49,7 +49,7 @@ export function SiteHeader({
   docId,
   items,
   homeNavigationItems,
-  directoryItems,
+  directoryItems: _directoryItems,
   isCenterLayout = false,
   document,
   draftMetadata,
