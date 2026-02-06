@@ -78,27 +78,41 @@ runs:
         Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
         Write-Host "Current directory: $(Get-Location)"
 
-        # Don't use ErrorActionPreference=Stop as it can cause issues with cmake warnings
-
         cd backend/util/llama-go
         Write-Host "Changed to: $(Get-Location)"
 
         # Build llama.cpp with CMake using MSVC
+        # Disable tools/tests/examples/server to only build core libraries
         Write-Host "=== Running CMake configure ==="
-        cmake -B build -S llama.cpp -DGGML_VULKAN=ON -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release
+        $cmakeConfigOutput = cmake -B build -S llama.cpp `
+          -DGGML_VULKAN=ON `
+          -DBUILD_SHARED_LIBS=OFF `
+          -DLLAMA_CURL=OFF `
+          -DLLAMA_BUILD_TESTS=OFF `
+          -DLLAMA_BUILD_TOOLS=OFF `
+          -DLLAMA_BUILD_EXAMPLES=OFF `
+          -DLLAMA_BUILD_SERVER=OFF `
+          -DCMAKE_BUILD_TYPE=Release 2>&1
         $cmakeConfigResult = $LASTEXITCODE
+        Write-Host "CMake configure output:"
+        Write-Host $cmakeConfigOutput
         Write-Host "CMake configure exit code: $cmakeConfigResult"
         if ($cmakeConfigResult -ne 0) {
           Write-Host "ERROR: CMake configure failed"
           exit 1
         }
 
+        # Build with --verbose flag (temporary for debugging)
         Write-Host "=== Running CMake build ==="
-        cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
+        $cmakeBuildOutput = cmake --build build --config Release --verbose -j $env:NUMBER_OF_PROCESSORS 2>&1
         $cmakeBuildResult = $LASTEXITCODE
+        Write-Host "CMake build output:"
+        Write-Host $cmakeBuildOutput
         Write-Host "CMake build exit code: $cmakeBuildResult"
         if ($cmakeBuildResult -ne 0) {
           Write-Host "ERROR: CMake build failed"
+          Write-Host "=== Full build output for debugging ==="
+          Write-Host $cmakeBuildOutput
           exit 1
         }
 
