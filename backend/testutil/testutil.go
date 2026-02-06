@@ -3,8 +3,12 @@ package testutil
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	regular_sync "sync"
 	"testing"
 	"unicode"
 	"unicode/utf8"
@@ -213,4 +217,136 @@ func Manual(t *testing.T) {
 	}
 
 	t.Skip("manual test is skipped")
+}
+
+type mockEmbedRequest struct {
+	Model string   `json:"model"`
+	Input []string `json:"input"`
+}
+
+type mockPullRequest struct {
+	Model  string `json:"model"`
+	Stream *bool  `json:"stream"`
+}
+
+// MockOllamaServer is a test double for an Ollama HTTP server.
+type MockOllamaServer struct {
+	Server *httptest.Server
+
+	Mu regular_sync.Mutex
+
+	BatchSizes     []int
+	LoadedModels   []string
+	SeenEmbeddings int
+	ShowRequests   int
+	EmbedRequests  int
+	embeddingDims  int
+	contextSize    int
+
+	FirstEmbedOnce regular_sync.Once
+	FirstEmbedDone chan struct{}
+}
+
+// MockOllamaServerOption configures MockOllamaServer.
+type MockOllamaServerOption func(*MockOllamaServer)
+
+// WithMockOllamaEmbeddingDims sets the embedding dimensions for the mock server.
+func WithMockOllamaEmbeddingDims(dims int) MockOllamaServerOption {
+	return func(s *MockOllamaServer) {
+		if dims > 0 {
+			s.embeddingDims = dims
+		}
+	}
+}
+
+// WithMockOllamaContextSize sets the context size for the mock server.
+func WithMockOllamaContextSize(size int) MockOllamaServerOption {
+	return func(s *MockOllamaServer) {
+		if size > 0 {
+			s.contextSize = size
+		}
+	}
+}
+
+// NewMockOllamaServer creates a new mock Ollama HTTP server for testing.
+func NewMockOllamaServer(t *testing.T, opts ...MockOllamaServerOption) *MockOllamaServer {
+	t.Helper()
+
+	s := &MockOllamaServer{
+		embeddingDims:  384,
+		contextSize:    2048,
+		FirstEmbedDone: make(chan struct{}),
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/pull":
+			var request mockPullRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			require.NotEmpty(t, request.Model)
+			require.NotNil(t, request.Stream)
+			require.False(t, *request.Stream)
+
+			s.Mu.Lock()
+			s.LoadedModels = append(s.LoadedModels, request.Model)
+			s.Mu.Unlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"status": "success"}))
+		case "/api/show":
+			var request mockPullRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			require.NotEmpty(t, request.Model)
+
+			s.Mu.Lock()
+			s.ShowRequests++
+			embeddingDims := s.embeddingDims
+			contextSize := s.contextSize
+			s.Mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"model_info": map[string]any{
+					"gemma3.embedding_length": embeddingDims,
+					"gemma3.context_length":   contextSize,
+				},
+				"capabilities": []string{"embedding"},
+			}))
+		case "/api/embed":
+			var request mockEmbedRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			require.NotEmpty(t, request.Model)
+
+			s.Mu.Lock()
+			s.EmbedRequests++
+			s.BatchSizes = append(s.BatchSizes, len(request.Input))
+			embeddingDims := s.embeddingDims
+			s.Mu.Unlock()
+			response := make([][]float32, 0, len(request.Input))
+			for _, input := range request.Input {
+				vec := make([]float32, embeddingDims)
+				if embeddingDims > 0 {
+					vec[0] = float32(len(input))
+				}
+				response = append(response, vec)
+			}
+
+			s.Mu.Lock()
+			s.SeenEmbeddings += len(response)
+			s.Mu.Unlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"embeddings": response}))
+
+			s.FirstEmbedOnce.Do(func() {
+				close(s.FirstEmbedDone)
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	return s
 }

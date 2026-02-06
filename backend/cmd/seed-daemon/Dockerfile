@@ -1,14 +1,28 @@
 # Build from the root with `docker build . -f ./backend/cmd/seed-daemon/Dockerfile`.
+
+
 FROM golang:1.25.4-alpine AS builder
 WORKDIR /code
 ARG COMMIT_HASH
 ARG BRANCH
 ARG DATE
 COPY go.mod go.sum ./
+COPY backend/util/llama-go/go.mod backend/util/llama-go/go.sum ./backend/util/llama-go/
 RUN go mod download
 COPY backend ./backend
 COPY monitoring ./monitoring
-RUN apk add build-base
+
+# Install build dependencies for llama.cpp (CPU-only build for Docker)
+RUN apk add build-base cmake g++ linux-headers
+
+# Build llama.cpp (CPU-only, no GPU acceleration in Docker containers)
+WORKDIR /code/backend/util/llama-go
+RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+
+# Build seed-daemon with llama.cpp support (CPU backend)
+WORKDIR /code
+ENV LIBRARY_PATH=/code/backend/util/llama-go
+ENV C_INCLUDE_PATH=/code/backend/util/llama-go
 RUN go install -ldflags="-X 'seed/backend/daemon.commit=$COMMIT_HASH' -X 'seed/backend/daemon.branch=$BRANCH' -X 'seed/backend/daemon.date=$DATE'" ./backend/cmd/seed-daemon/
 
 FROM alpine:latest
@@ -18,4 +32,5 @@ COPY --from=builder /code/monitoring/grafana /monitoring/grafana
 COPY --from=builder /code/monitoring/prometheus /monitoring/prometheus
 EXPOSE 55000 55001 55002
 ENV SEED_PUBLIC_ONLY=true
+ENV LLAMA_LOG=error
 CMD ["/usr/local/bin/seed-daemon"]

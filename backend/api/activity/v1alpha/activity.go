@@ -258,9 +258,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	refsJson := "[" + strings.Join(refIDs, ",") + "]"
 	var versions = map[int64]string{}
 	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-
 		if err := sqlitex.ExecTransient(conn, qGetChangesFromRefs(), func(stmt *sqlite.Stmt) error {
-
 			mhBinary, err := hex.DecodeString(stmt.ColumnText(0))
 			if err != nil {
 				return err

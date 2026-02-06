@@ -23,7 +23,7 @@ func TestSetAuthorizer(t *testing.T) {
 		lastAction = info.Action
 		return authResult
 	})
-	c.SetAuthorizer(auth)
+	_ = c.SetAuthorizer(auth)
 
 	t.Run("Allowed", func(t *testing.T) {
 		authResult = 0
@@ -31,7 +31,7 @@ func TestSetAuthorizer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		stmt.Finalize()
+		_ = stmt.Finalize()
 		if lastAction != sqlite.SQLITE_SELECT {
 			t.Errorf("action = %q; want SQLITE_SELECT", lastAction)
 		}
@@ -41,7 +41,7 @@ func TestSetAuthorizer(t *testing.T) {
 		authResult = sqlite.SQLITE_DENY
 		stmt, _, err := c.PrepareTransient("SELECT 1;")
 		if err == nil {
-			stmt.Finalize()
+			_ = stmt.Finalize()
 			t.Fatal("PrepareTransient did not return an error")
 		}
 		if got, want := sqlite.ErrCode(err), sqlite.SQLITE_AUTH; got != want {

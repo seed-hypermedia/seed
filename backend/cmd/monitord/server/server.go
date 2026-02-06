@@ -90,7 +90,7 @@ func (s *Srv) Start(numPings int, scanPeriod time.Duration, peerTimeout time.Dur
 	s.ticker = time.NewTicker(scanPeriod)
 	s.numPings = numPings
 	s.templateFile = templateFile
-	go s.httpServer.ListenAndServe()
+	go func() { _ = s.httpServer.ListenAndServe() }()
 
 	go s.scan(peerTimeout)
 }

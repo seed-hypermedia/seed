@@ -1,0 +1,16 @@
+diff --git a/resources/spec.ejs b/resources/spec.ejs
+index e07a8a3dac52b7ac5e165d203bc26d0ac336c6ec..112ec7dab91ae8c98cec935c42d631a311bf7044 100644
+--- a/resources/spec.ejs
++++ b/resources/spec.ejs
+@@ -23,6 +23,11 @@ print('\n\n\n') }
+ 
+ 
+ %>%install
++# RPM 6.x creates BUILD/<name>-<version>-build subdirectory, older versions use BUILD directly
++# This check ensures compatibility with both RPM 4.x/5.x (Ubuntu CI) and RPM 6.x (Fedora 43+)
++if [ -d "%{_topdir}/BUILD/usr" ]; then
++  cd %{_topdir}/BUILD
++fi
+ mkdir -p %{buildroot}/usr/
+ cp <%= process.platform === 'darwin' ? '-R' : '-r' %> usr/* %{buildroot}/usr/
+ 
