@@ -26,7 +26,7 @@ export function MobilePanelSheet({
       className={cn(
         'bg-background fixed inset-0 z-50 flex h-dvh max-h-dvh flex-1 flex-col overflow-hidden',
         'transition-transform duration-200 ease-[cubic-bezier(0,1,0.15,1)]',
-        isOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none',
+        isOpen ? 'translate-y-0' : 'pointer-events-none translate-y-full',
       )}
     >
       {/* Header */}

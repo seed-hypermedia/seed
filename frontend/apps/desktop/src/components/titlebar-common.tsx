@@ -20,6 +20,7 @@ import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
+  createDocumentNavRoute,
   DocumentRoute,
   DraftRoute,
   FeedRoute,
@@ -27,12 +28,11 @@ import {
 } from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {
-  createSiteUrl,
-  createWebHMUrl,
   displayHostname,
   extractViewTermFromUrl,
   hmId,
   latestId,
+  routeToUrl,
   unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
@@ -523,31 +523,9 @@ export function TitlebarTitle() {
 type OmnibarMode = 'idle' | 'focused' | 'search'
 
 /**
- * Get view term suffix for route (e.g., /:discussions, /:activity)
- */
-function getViewTermForRoute(route: NavRoute): string | null {
-  // First-class view routes
-  if (route.key === 'activity') return '/:activity'
-  if (route.key === 'discussions') return '/:discussions'
-  if (route.key === 'collaborators') return '/:collaborators'
-  if (route.key === 'directory') return '/:directory'
-
-  // Document routes with panel
-  if (route.key === 'document' && route.panel) {
-    const panelKey = route.panel.key
-    if (panelKey === 'activity') return '/:activity'
-    if (panelKey === 'discussions') return '/:discussions'
-    if (panelKey === 'collaborators') return '/:collaborators'
-    if (panelKey === 'directory') return '/:directory'
-  }
-
-  return null
-}
-
-/**
  * Hook to construct displayable URL from current route
  * Priority: siteUrl > gatewayUrl (never hm://)
- * Includes view term suffix for panel routes (e.g., /:discussions)
+ * Uses routeToUrl which handles panels via ?panel= query params
  */
 function useCurrentRouteUrl(): string | null {
   const route = useNavRoute()
@@ -564,47 +542,11 @@ function useCurrentRouteUrl(): string | null {
   return useMemo(() => {
     if (!routeId) return null
 
-    // Get view term suffix if applicable
-    const viewTerm = getViewTermForRoute(route)
-
-    let baseUrl: string
-    // Use siteUrl if available, otherwise gateway URL
-    if (siteHostname) {
-      baseUrl = createSiteUrl({
-        hostname: siteHostname,
-        path: routeId.path,
-        version: routeId.version,
-        latest: routeId.latest ?? undefined,
-        blockRef: routeId.blockRef,
-        blockRange: routeId.blockRange,
-      })
-    } else {
-      baseUrl = createWebHMUrl(routeId.uid, {
-        hostname: gwUrl,
-        path: routeId.path,
-        version: routeId.version,
-        latest: routeId.latest ?? undefined,
-        blockRef: routeId.blockRef,
-        blockRange: routeId.blockRange,
-      })
-    }
-
-    // Append view term before query string if present
-    if (viewTerm) {
-      const queryIndex = baseUrl.indexOf('?')
-      if (queryIndex !== -1) {
-        return (
-          baseUrl.slice(0, queryIndex) + viewTerm + baseUrl.slice(queryIndex)
-        )
-      }
-      const hashIndex = baseUrl.indexOf('#')
-      if (hashIndex !== -1) {
-        return baseUrl.slice(0, hashIndex) + viewTerm + baseUrl.slice(hashIndex)
-      }
-      return baseUrl + viewTerm
-    }
-
-    return baseUrl
+    // Use routeToUrl which handles panels correctly via query params
+    return routeToUrl(route, {
+      hostname: siteHostname || gwUrl,
+      originHomeId: siteHostname ? hmId(routeId.uid) : undefined,
+    })
   }, [routeId, route, siteHostname, gwUrl])
 }
 
@@ -773,7 +715,19 @@ export function Omnibar() {
       // First try to parse as hm:// URL (synchronous)
       const unpacked = unpackHmId(cleanUrl)
       if (unpacked) {
-        const navRoute = appRouteOfId(unpacked)
+        // Extract panel param from URL if present
+        let panel: string | null = null
+        try {
+          const urlObj = new URL(cleanUrl)
+          panel = urlObj.searchParams.get('panel')
+        } catch {
+          // hm:// URLs might not parse as standard URLs, try manual extraction
+          const panelMatch = cleanUrl.match(/[?&]panel=([^&]+)/)
+          if (panelMatch) panel = decodeURIComponent(panelMatch[1])
+        }
+        const navRoute = panel
+          ? createDocumentNavRoute(unpacked, null, panel)
+          : appRouteOfId(unpacked)
         if (navRoute) {
           navigate(applyViewTerm(navRoute))
           return true
@@ -785,9 +739,13 @@ export function Omnibar() {
         try {
           const result = await resolveHypermediaUrl(cleanUrl)
           if (result?.hmId) {
-            const navRoute = appRouteOfId(result.hmId)
+            // Use createDocumentNavRoute if panel param is present to preserve panel state
+            const navRoute = result.panel
+              ? createDocumentNavRoute(result.hmId, null, result.panel)
+              : appRouteOfId(result.hmId)
             if (navRoute) {
-              navigate(applyViewTerm(navRoute))
+              const finalRoute = applyViewTerm(navRoute)
+              navigate(finalRoute)
               return true
             }
           }

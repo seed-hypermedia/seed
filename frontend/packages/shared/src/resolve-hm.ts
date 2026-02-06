@@ -7,10 +7,12 @@ export async function resolveHypermediaUrl(url: string) {
   let blockRef: string | null = null
   let blockRange: {start: number; end: number} | {expanded: boolean} | null =
     null
+  let panel: string | null = null
   try {
     const parsedUrl = new URL(url)
     const hasVersion = parsedUrl.searchParams.has('v')
     const hasLatest = parsedUrl.searchParams.has('l')
+    panel = parsedUrl.searchParams.get('panel')
 
     // Extract blockRef and blockRange from fragment first
     if (parsedUrl.hash) {
@@ -67,6 +69,7 @@ export async function resolveHypermediaUrl(url: string) {
         target,
         authors,
         type,
+        panel,
       }
     }
     return null

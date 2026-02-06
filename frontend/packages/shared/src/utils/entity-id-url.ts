@@ -158,21 +158,22 @@ export function createOSProtocolUrl({
 
   return res
 }
-function getRouteViewTerm(route: NavRoute): string | null {
-  // For first-class page routes, return their view term
-  if (route.key === 'activity') return ':activity'
-  if (route.key === 'discussions') return ':discussions'
-  if (route.key === 'collaborators') return ':collaborators'
-  if (route.key === 'directory') return ':directory'
-  return null
-}
-
 /**
  * Extract panel param from route for URL query param
- * For discussions with targetBlockId, returns "discussions:BLOCKID"
+ * Supports:
+ * - "comment/COMMENT_ID" for specific comment open in panel
+ * - "discussions/BLOCKID" for block-specific discussions
+ * - "discussions", "activity", etc. for general panels
  */
 function getRoutePanelParam(route: NavRoute): string | null {
-  let panel: {key: string; targetBlockId?: string} | null | undefined = null
+  let panel:
+    | {
+        key: string
+        targetBlockId?: string
+        openComment?: string
+      }
+    | null
+    | undefined = null
 
   if (route.key === 'document' && route.panel) {
     panel = route.panel
@@ -188,34 +189,17 @@ function getRoutePanelParam(route: NavRoute): string | null {
 
   if (!panel) return null
 
-  // Encode targetBlockId into discussions panel param
+  // Priority 1: Encode openComment - most specific
+  if (panel.key === 'discussions' && panel.openComment) {
+    return `comment/${panel.openComment}`
+  }
+
+  // Priority 2: Encode targetBlockId into discussions panel param
   if (panel.key === 'discussions' && panel.targetBlockId) {
-    return `discussions:${panel.targetBlockId}`
+    return `discussions/${panel.targetBlockId}`
   }
 
   return panel.key as PanelQueryKey
-}
-/**
- * Get the comment ID from a route if viewing a specific comment
- */
-function getRouteCommentId(
-  route: NavRoute,
-): {uid: string; path: string[]} | null {
-  // Check discussions page route
-  if (route.key === 'discussions' && route.openComment) {
-    const [uid, ...path] = route.openComment.split('/')
-    if (uid && path.length) return {uid, path}
-  }
-  // Check document with discussions panel
-  if (
-    route.key === 'document' &&
-    route.panel?.key === 'discussions' &&
-    route.panel.openComment
-  ) {
-    const [uid, ...path] = route.panel.openComment.split('/')
-    if (uid && path.length) return {uid, path}
-  }
-  return null
 }
 
 export function routeToUrl(
@@ -225,16 +209,6 @@ export function routeToUrl(
     originHomeId?: UnpackedHypermediaId | undefined
   },
 ) {
-  // Check if viewing a specific comment - generate comment URL instead
-  const commentId = getRouteCommentId(route)
-  if (commentId) {
-    return createWebHMUrl(commentId.uid, {
-      path: commentId.path,
-      hostname: opts?.hostname,
-      originHomeId: opts?.originHomeId,
-    })
-  }
-
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'document') {
@@ -242,7 +216,6 @@ export function routeToUrl(
       ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
-      viewTerm: getRouteViewTerm(route),
       panel: panelParam,
     })
     return url
@@ -260,12 +233,18 @@ export function routeToUrl(
     route.key === 'collaborators' ||
     route.key === 'discussions'
   ) {
+    // First-class page routes generate URLs with ?panel= query param
+    // This ensures URLs work correctly on web (document view with panel open)
+    // For discussions with openComment, include it in the panel param
+    let effectivePanelParam = panelParam || route.key
+    if (route.key === 'discussions' && route.openComment) {
+      effectivePanelParam = `comment/${route.openComment}`
+    }
     return createWebHMUrl(route.id.uid, {
       ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
-      viewTerm: getRouteViewTerm(route),
-      panel: panelParam,
+      panel: effectivePanelParam,
     })
   }
   return 'TODO'

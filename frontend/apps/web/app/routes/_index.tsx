@@ -6,7 +6,11 @@ import {useMobileConfig} from '@/use-mobile-config'
 import {unwrap} from '@/wrapping'
 import {Code} from '@connectrpc/connect'
 import {Params, useLoaderData} from '@remix-run/react'
-import {createDocumentNavRoute, UnpackedHypermediaId, ViewRouteKey} from '@shm/shared'
+import {
+  createDocumentNavRoute,
+  UnpackedHypermediaId,
+  ViewRouteKey,
+} from '@shm/shared'
 import {WebResourcePage} from '@shm/ui/web-resource-page'
 import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
@@ -25,7 +29,7 @@ export const loader = async ({
 
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: string | null // Supports extended format like "discussions:BLOCKID"
+  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -58,7 +62,11 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam)}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+      )}
     >
       <InnerResourcePage docId={data.id} />
     </WebSiteProvider>
