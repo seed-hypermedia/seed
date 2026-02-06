@@ -1074,7 +1074,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 						}
 						latestUnrelated = currentChange
 						return nil
-					}, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].genesisBlobID, searchResults[match.Index].rowID)
+					}, searchResults[match.Index].genesisBlobID, searchResults[match.Index].versionTime.Seconds*1_000+int64(searchResults[match.Index].versionTime.Nanos)/1_000_000, searchResults[match.Index].rowID)
 				})
 				if err != nil && !errors.Is(err, errSameBlockChangeDetected) {
 					return nil, err
