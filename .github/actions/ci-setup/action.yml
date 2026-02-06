@@ -48,9 +48,13 @@ runs:
 
     - name: "Install Vulkan SDK (Windows)"
       if: inputs.matrix-os == 'windows-2025'
-      run: |
-        choco install vulkan-sdk -y
       shell: powershell
+      run: |
+        $vulkanVersion = "1.4.313.2"
+        curl.exe -o $env:RUNNER_TEMP/VulkanSDK-Installer.exe -L "https://sdk.lunarg.com/sdk/download/$vulkanVersion/windows/vulkansdk-windows-X64-$vulkanVersion.exe"
+        & "$env:RUNNER_TEMP\VulkanSDK-Installer.exe" --accept-licenses --default-answer --confirm-command install
+        Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion"
+        Add-Content $env:GITHUB_PATH "C:\VulkanSDK\$vulkanVersion\Bin"
 
     - name: "Build llama.cpp (Linux)"
       if: inputs.matrix-os == 'ubuntu-latest'
