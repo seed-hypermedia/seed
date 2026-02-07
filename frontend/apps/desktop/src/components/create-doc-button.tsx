@@ -41,6 +41,7 @@ function ImportMenuItem({
       onImportDirectory: importing.importDirectory,
       onImportLatexFile: importing.importLatexFile,
       onImportLatexDirectory: importing.importLatexDirectory,
+      onImportWordPress: importing.importWordPress,
     })
   }
 

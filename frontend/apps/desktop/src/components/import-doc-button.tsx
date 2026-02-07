@@ -51,6 +51,7 @@ import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {z} from 'zod'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
+import {useWXRImportDialog} from './wxr-import-dialog'
 
 export function useImportDialog() {
   return useAppDialog(ImportDialog)
@@ -65,7 +66,7 @@ export function ImportDialog({
     onImportDirectory: () => void
     onImportLatexFile: () => void
     onImportLatexDirectory: () => void
-    // onImportWebSite: () => void
+    onImportWordPress?: () => void
   }
   onClose: () => void
 }) {
@@ -121,6 +122,19 @@ export function ImportDialog({
           <Folder className="size-3" />
           Import LaTeX Directory
         </Button>
+        {input.onImportWordPress && (
+          <Button
+            className="border-border border"
+            variant="ghost"
+            onClick={() => {
+              onClose()
+              input.onImportWordPress?.()
+            }}
+          >
+            <File className="size-3" />
+            Import WordPress Export (WXR)
+          </Button>
+        )}
       </div>
     </>
   )
@@ -138,6 +152,7 @@ export function ImportDropdownButton({
     importDirectory,
     importLatexFile,
     importLatexDirectory,
+    importWordPress,
     content,
   } = useImporting(id)
 
@@ -169,6 +184,12 @@ export function ImportDropdownButton({
             label: 'Import LaTeX Folder',
             onClick: () => importLatexDirectory(),
             icon: <FolderInput className="size-4" />,
+          },
+          {
+            key: 'wordpress',
+            label: 'Import WordPress Export (WXR)',
+            onClick: () => importWordPress(),
+            icon: <FileInput className="size-4" />,
           },
         ]}
       />
@@ -286,6 +307,7 @@ export function useImporting(parentId: UnpackedHypermediaId) {
   }
 
   const webImporting = useWebImporting()
+  const wxrImporting = useWXRImportDialog()
 
   // Wrapper to handle LaTeX file import
   function startLatexImport(
@@ -325,10 +347,12 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     importLatexFile: () => startLatexImport(openLatexFiles),
     importLatexDirectory: () => startLatexImport(openLatexDirectories),
     importWebSite: () => webImporting.open({destinationId: parentId}),
+    importWordPress: () => wxrImporting.open({destinationId: parentId}),
     content: (
       <>
         {importDialog.content}
         {webImporting.content}
+        {wxrImporting.content}
       </>
     ),
   }
