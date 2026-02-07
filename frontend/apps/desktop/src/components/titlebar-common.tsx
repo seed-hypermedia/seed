@@ -250,6 +250,7 @@ export function DocOptionsButton({
           onImportLatexFile: importing.importLatexFile,
           onImportLatexDirectory: importing.importLatexDirectory,
           onImportWebSite: importing.importWebSite,
+          onImportWordPress: importing.importWordPress,
         })
       },
     })

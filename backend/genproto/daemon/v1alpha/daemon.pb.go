@@ -238,7 +238,11 @@ type RegisterKeyRequest struct {
 	Passphrase string `protobuf:"bytes,2,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
 	// Required. Private name/label for the signing key, to easily identify keys when they are more than one.
 	// Name must be unique across all the registered keys.
-	Name          string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// Optional. If true, the key is stored in memory only and will not persist across daemon restarts.
+	// Ephemeral keys are useful for temporary operations like bulk imports where many keys are generated
+	// but don't need to pollute the user's permanent keyring.
+	Ephemeral     bool `protobuf:"varint,4,opt,name=ephemeral,proto3" json:"ephemeral,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -292,6 +296,13 @@ func (x *RegisterKeyRequest) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *RegisterKeyRequest) GetEphemeral() bool {
+	if x != nil {
+		return x.Ephemeral
+	}
+	return false
 }
 
 // Request to get basic information about the running daemon.
@@ -1382,13 +1393,14 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\n" +
 	"word_count\x18\x01 \x01(\x05R\twordCount\"1\n" +
 	"\x13GenMnemonicResponse\x12\x1a\n" +
-	"\bmnemonic\x18\x01 \x03(\tR\bmnemonic\"d\n" +
+	"\bmnemonic\x18\x01 \x03(\tR\bmnemonic\"\x82\x01\n" +
 	"\x12RegisterKeyRequest\x12\x1a\n" +
 	"\bmnemonic\x18\x01 \x03(\tR\bmnemonic\x12\x1e\n" +
 	"\n" +
 	"passphrase\x18\x02 \x01(\tR\n" +
 	"passphrase\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"\x10\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1c\n" +
+	"\tephemeral\x18\x04 \x01(\bR\tephemeral\"\x10\n" +
 	"\x0eGetInfoRequest\"\x12\n" +
 	"\x10ForceSyncRequest\"\x15\n" +
 	"\x13ForceReindexRequest\"\x16\n" +
