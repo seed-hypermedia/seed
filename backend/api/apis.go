@@ -9,6 +9,7 @@ import (
 	payments "seed/backend/api/payments/v1alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
+	"seed/backend/core"
 	taskmanager "seed/backend/daemon/taskmanager"
 	"seed/backend/devicelink"
 	p2p "seed/backend/genproto/p2p/v1alpha"
@@ -54,14 +55,22 @@ func New(
 ) Server {
 	db := repo.DB()
 	proxy := &p2pProxy{node: node}
+
+	// Create shared ephemeral key store for temporary keys (e.g., WXR import).
+	ephemeralKeys := core.NewMemoryKeyStore()
+
+	// Create composite key store: ephemeral keys checked first, then persistent.
+	// This allows Documents and Payments APIs to find keys registered as ephemeral.
+	compositeKeys := core.NewCompositeKeyStore(ephemeralKeys, repo.KeyStore())
+
 	return Server{
 		Activity:    activity,
-		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr),
+		Daemon:      daemon.NewServer(repo, node, idx, dlink, taskMgr, daemon.WithEphemeralKeys(ephemeralKeys)),
 		Networking:  networking.NewServer(node, db, logging.New("seed/networking", LogLevel)),
 		Entities:    entities.NewServer(db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: documentsv3.NewServer(cfg, repo.KeyStore(), idx, db, logging.New("seed/documents", LogLevel), node),
 		Syncing:     sync,
-		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
+		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, compositeKeys, isMainnet),
 		P2PProxy:    proxy,
 	}
 }

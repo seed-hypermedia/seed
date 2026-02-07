@@ -551,6 +551,9 @@ export const HMDocumentMetadataSchema = z.object({
       headerLayout: z.union([z.literal('Center'), z.literal('')]).optional(),
     })
     .optional(),
+  // Import taxonomy fields (comma-separated values from external sources like WordPress)
+  importCategories: z.string().optional(),
+  importTags: z.string().optional(),
 })
 
 export function hmMetadataJsonCorrection(metadata: any): any {

@@ -54,19 +54,38 @@ type Server struct {
 	mu sync.Mutex
 
 	taskMgr *taskmanager.TaskManager
+
+	// ephemeralKeys stores keys that should not persist across daemon restarts.
+	// Used for temporary operations like bulk imports.
+	ephemeralKeys core.KeyStore
+}
+
+// Option configures a Server.
+type Option func(*Server)
+
+// WithEphemeralKeys sets the ephemeral key store for the server.
+// If not provided, a new in-memory store is created.
+func WithEphemeralKeys(ks core.KeyStore) Option {
+	return func(s *Server) {
+		s.ephemeralKeys = ks
+	}
 }
 
 // NewServer creates a new Server.
-func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager) *Server {
-	return &Server{
-		store:     store,
-		startTime: time.Now(),
-		// wallet:        w, // TODO(hm24): Put the wallet back.
-		p2p:     n,
-		blocks:  idx,
-		dlink:   dlink,
-		taskMgr: taskMgr,
+func NewServer(store *storage.Store, n Node, idx *blob.Index, dlink *devicelink.Service, taskMgr *taskmanager.TaskManager, opts ...Option) *Server {
+	srv := &Server{
+		store:         store,
+		startTime:     time.Now(),
+		p2p:           n,
+		blocks:        idx,
+		dlink:         dlink,
+		taskMgr:       taskMgr,
+		ephemeralKeys: core.NewMemoryKeyStore(),
 	}
+	for _, opt := range opts {
+		opt(srv)
+	}
+	return srv
 }
 
 // RegisterServer registers the server with the gRPC server.
@@ -103,7 +122,7 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 		req.Name = acc.PublicKey.String()
 	}
 
-	if err := srv.RegisterAccount(ctx, req.Name, acc); err != nil {
+	if err := srv.registerAccount(ctx, req.Name, acc, req.Ephemeral); err != nil {
 		return nil, err
 	}
 
@@ -116,23 +135,41 @@ func (srv *Server) RegisterKey(ctx context.Context, req *daemon.RegisterKeyReque
 
 // DeleteKey implement the corresponding gRPC method.
 func (srv *Server) DeleteKey(ctx context.Context, req *daemon.DeleteKeyRequest) (*emptypb.Empty, error) {
+	// Try ephemeral store first, then persistent store.
+	if _, err := srv.ephemeralKeys.GetKey(ctx, req.Name); err == nil {
+		return &emptypb.Empty{}, srv.ephemeralKeys.DeleteKey(ctx, req.Name)
+	}
 	return &emptypb.Empty{}, srv.store.KeyStore().DeleteKey(ctx, req.Name)
 }
 
 // DeleteAllKeys implement the corresponding gRPC method.
 func (srv *Server) DeleteAllKeys(ctx context.Context, req *daemon.DeleteAllKeysRequest) (*emptypb.Empty, error) {
+	// Clear both ephemeral and persistent stores.
+	if err := srv.ephemeralKeys.DeleteAllKeys(ctx); err != nil {
+		return nil, err
+	}
 	return &emptypb.Empty{}, srv.store.KeyStore().DeleteAllKeys(ctx)
 }
 
 // ListKeys implement the corresponding gRPC method.
 func (srv *Server) ListKeys(ctx context.Context, req *daemon.ListKeysRequest) (*daemon.ListKeysResponse, error) {
 	out := &daemon.ListKeysResponse{}
-	keys, err := srv.store.KeyStore().ListKeys(ctx)
+
+	// List keys from persistent store.
+	persistentKeys, err := srv.store.KeyStore().ListKeys(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list keys: %w", err)
+		return nil, fmt.Errorf("failed to list persistent keys: %w", err)
 	}
-	out.Keys = make([]*daemon.NamedKey, len(keys))
-	for i, key := range keys {
+
+	// List keys from ephemeral store.
+	ephemeralKeys, err := srv.ephemeralKeys.ListKeys(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ephemeral keys: %w", err)
+	}
+
+	allKeys := append(persistentKeys, ephemeralKeys...)
+	out.Keys = make([]*daemon.NamedKey, len(allKeys))
+	for i, key := range allKeys {
 		out.Keys[i] = &daemon.NamedKey{
 			Name:      key.Name,
 			PublicKey: key.PublicKey.String(),
@@ -144,11 +181,17 @@ func (srv *Server) ListKeys(ctx context.Context, req *daemon.ListKeysRequest) (*
 
 // UpdateKey implement the corresponding gRPC method.
 func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) (*daemon.NamedKey, error) {
-	if err := srv.store.KeyStore().ChangeKeyName(ctx, req.CurrentName, req.NewName); err != nil {
+	// Check ephemeral store first, then persistent store.
+	ks := srv.store.KeyStore()
+	if _, err := srv.ephemeralKeys.GetKey(ctx, req.CurrentName); err == nil {
+		ks = srv.ephemeralKeys
+	}
+
+	if err := ks.ChangeKeyName(ctx, req.CurrentName, req.NewName); err != nil {
 		return &daemon.NamedKey{}, err
 	}
 
-	kp, err := srv.store.KeyStore().GetKey(ctx, req.NewName)
+	kp, err := ks.GetKey(ctx, req.NewName)
 	if err != nil {
 		return &daemon.NamedKey{}, err
 	}
@@ -160,17 +203,35 @@ func (srv *Server) UpdateKey(ctx context.Context, req *daemon.UpdateKeyRequest) 
 	}, nil
 }
 
-// RegisterAccount stores the keypair in the key store.
+// RegisterAccount stores the keypair in the persistent key store.
 func (srv *Server) RegisterAccount(ctx context.Context, name string, kp *core.KeyPair) error {
-	if kp, err := srv.store.KeyStore().GetKey(ctx, name); err == nil || kp != nil {
+	return srv.registerAccount(ctx, name, kp, false)
+}
+
+// registerAccount stores the keypair in either the ephemeral or persistent key store.
+func (srv *Server) registerAccount(ctx context.Context, name string, kp *core.KeyPair, ephemeral bool) error {
+	ks := srv.store.KeyStore()
+	if ephemeral {
+		ks = srv.ephemeralKeys
+	}
+
+	if existing, err := ks.GetKey(ctx, name); err == nil || existing != nil {
 		return status.Errorf(codes.AlreadyExists, "key with name %s already exists: %v", name, err)
 	}
 
-	if err := srv.store.KeyStore().StoreKey(ctx, name, kp); err != nil {
+	if err := ks.StoreKey(ctx, name, kp); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// getKey retrieves a key by name, checking ephemeral store first, then persistent store.
+func (srv *Server) getKey(ctx context.Context, name string) (*core.KeyPair, error) {
+	if kp, err := srv.ephemeralKeys.GetKey(ctx, name); err == nil {
+		return kp, nil
+	}
+	return srv.store.KeyStore().GetKey(ctx, name)
 }
 
 // GetInfo implements the corresponding gRPC method.
@@ -299,7 +360,7 @@ func (srv *Server) SignData(ctx context.Context, in *daemon.SignDataRequest) (*d
 		return nil, status.Errorf(codes.InvalidArgument, "data to sign is required")
 	}
 
-	keyPair, err := srv.store.KeyStore().GetKey(ctx, in.SigningKeyName)
+	keyPair, err := srv.getKey(ctx, in.SigningKeyName)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "key %s: %v", in.SigningKeyName, err)
 	}

@@ -15,6 +15,14 @@ import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
+import {parseWXR} from './wxr-parser'
+import {
+  cancelWXRImport,
+  getImportStatus,
+  hasActiveImport,
+  resumeWXRImport,
+  startWXRImport,
+} from './wxr-import'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -275,6 +283,59 @@ export const webImportingApi = t.router({
       }
     }
     return null
+  }),
+
+  // WXR (WordPress Export) Import procedures.
+  wxrParseFile: t.procedure.input(z.string()).mutation(async ({input}) => {
+    const result = parseWXR(input)
+    return {
+      siteTitle: result.siteTitle,
+      siteUrl: result.siteUrl,
+      authorCount: result.authors.length,
+      postCount: result.posts.length,
+      pageCount: result.pages.length,
+      authors: result.authors.map((a) => ({
+        login: a.login,
+        displayName: a.displayName,
+        email: a.email,
+      })),
+    }
+  }),
+
+  wxrStartImport: t.procedure
+    .input(
+      z.object({
+        wxrContent: z.string(),
+        destinationUid: z.string(),
+        destinationPath: z.array(z.string()),
+        publisherKeyName: z.string(),
+        mode: z.enum(['ghostwritten', 'authored']),
+        password: z.string().optional(),
+        overwriteExisting: z.boolean().optional().default(false),
+      }),
+    )
+    .mutation(async ({input}) => {
+      const importId = await startWXRImport(input)
+      return {importId}
+    }),
+
+  wxrResumeImport: t.procedure
+    .input(z.object({password: z.string().optional()}))
+    .mutation(async ({input}) => {
+      await resumeWXRImport(input.password)
+      return {success: true}
+    }),
+
+  wxrCancelImport: t.procedure.mutation(async () => {
+    cancelWXRImport()
+    return {success: true}
+  }),
+
+  wxrGetStatus: t.procedure.query(async () => {
+    return {
+      hasActiveImport: hasActiveImport(),
+      status: getImportStatus(),
+    }
   }),
 })
 
