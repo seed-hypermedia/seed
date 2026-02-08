@@ -29,6 +29,7 @@ import {
 } from './instrumentation.server'
 import {resolveResource} from './loaders'
 import {logDebug} from './logger'
+import {documentToMarkdown} from './markdown.server'
 import {ParsedRequest, parseRequest} from './request'
 import {
   applyConfigSubscriptions,
@@ -263,6 +264,115 @@ function uriEncodedAuthors(authors: string[]) {
   return authors.map((author) => encodeURIComponent(`hm://${author}`)).join(',')
 }
 
+/**
+ * Handle requests with .md extension - return raw markdown
+ * This enables bots and agents to easily consume SHM content without
+ * installing CLI tools or parsing HTML/React.
+ *
+ * Usage: GET https://hyper.media/hm/z6Mk.../path.md
+ * Returns: text/markdown with the document content
+ */
+async function handleMarkdownRequest(
+  parsedRequest: ParsedRequest,
+  hostname: string
+): Promise<Response> {
+  const {url, pathParts} = parsedRequest
+
+  try {
+    // Strip .md extension from the last path part
+    const lastPart = pathParts[pathParts.length - 1]
+    const strippedPath = [...pathParts.slice(0, -1)]
+    if (lastPart && lastPart.endsWith('.md')) {
+      strippedPath.push(lastPart.slice(0, -3))
+    }
+
+    // Get service config to resolve account
+    const serviceConfig = await getConfig(hostname)
+    const originAccountId = serviceConfig?.registeredAccountUid
+
+    // Build the resource ID
+    let resourceId: ReturnType<typeof hmId> | null = null
+    const version = url.searchParams.get('v')
+    const latest = url.searchParams.get('l') === ''
+
+    if (strippedPath.length === 0) {
+      if (originAccountId) {
+        resourceId = hmId(originAccountId, {path: [], version, latest})
+      }
+    } else if (strippedPath[0] === 'hm') {
+      resourceId = hmId(strippedPath[1], {
+        path: strippedPath.slice(2),
+        version,
+        latest,
+      })
+    } else if (originAccountId) {
+      resourceId = hmId(originAccountId, {path: strippedPath, version, latest})
+    }
+
+    if (!resourceId) {
+      return new Response('# Not Found\n\nCould not resolve resource ID.', {
+        status: 404,
+        headers: {'Content-Type': 'text/markdown; charset=utf-8'},
+      })
+    }
+
+    // Fetch the resource
+    const resource = await resolveResource(resourceId)
+
+    if (resource.type === 'document') {
+      const md = documentToMarkdown(resource.document, {
+        includeMetadata: true,
+        includeFrontmatter: url.searchParams.has('frontmatter'),
+      })
+
+      return new Response(md, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'X-Hypermedia-Id': encodeURIComponent(resourceId.id),
+          'X-Hypermedia-Version': resource.document.version,
+          'X-Hypermedia-Type': 'Document',
+          'Cache-Control': 'public, max-age=60',
+        },
+      })
+    } else if (resource.type === 'comment') {
+      // For comments, create a simple markdown response
+      const content = resource.comment.content || []
+      const fakeDoc = {
+        content,
+        metadata: {},
+        version: resource.comment.version,
+        authors: [resource.comment.author],
+      } as any
+
+      const md = documentToMarkdown(fakeDoc, {includeMetadata: false})
+
+      return new Response(md, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'X-Hypermedia-Id': encodeURIComponent(resourceId.id),
+          'X-Hypermedia-Type': 'Comment',
+        },
+      })
+    }
+
+    return new Response('# Not Found\n\nResource type not supported.', {
+      status: 404,
+      headers: {'Content-Type': 'text/markdown; charset=utf-8'},
+    })
+  } catch (e) {
+    console.error('Error handling markdown request:', e)
+    return new Response(
+      `# Error\n\nFailed to load resource: ${(e as Error).message}`,
+      {
+        status: 500,
+        headers: {'Content-Type': 'text/markdown; charset=utf-8'},
+      }
+    )
+  }
+}
+
 async function handleOptionsRequest(request: Request) {
   const parsedRequest = parseRequest(request)
   const {hostname} = parsedRequest
@@ -353,6 +463,12 @@ export default async function handleRequest(
       status: 404,
     })
   }
+
+  // Handle .md extension requests - return raw markdown for bots/agents
+  if (url.pathname.endsWith('.md')) {
+    return await handleMarkdownRequest(parsedRequest, hostname)
+  }
+
   if (url.pathname.startsWith('/hm/embed/')) {
     // allowed to embed anywhere
   } else {
