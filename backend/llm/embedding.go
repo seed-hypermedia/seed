@@ -43,7 +43,50 @@ const (
 	minRunInterval      = 5 * time.Second
 
 	kvEmbeddingModelChecksumKey = "embedding_model_checksum"
+
+	// unreliableEmbeddingThreshold is the cosine similarity threshold above which a query
+	// embedding is considered unreliable (too similar to gibberish).
+	// The granite-embedding-107m-multilingual model produces higher base similarities across
+	// all queries (~0.55-0.70), so 0.85 catches only true nonsense strings.
+	unreliableEmbeddingThreshold = 0.85
 )
+
+// ErrUnreliableEmbedding is returned when the query embedding is detected as unreliable.
+// This happens when rare/unknown single words produce embeddings highly similar to gibberish,
+// making semantic search results meaningless. Callers should fall back to keyword search.
+var ErrUnreliableEmbedding = errors.New("query embedding is unreliable for semantic search")
+
+// gibberishEmbedding is a precomputed quantized embedding for the nonsense string "asdadadsasda"
+// using the granite-embedding-107m-multilingual model. This embedding is used to detect queries
+// that produce unreliable embeddings (too similar to gibberish). When detected, semantic search
+// results should be skipped in favor of keyword search.
+// WARNING: This embedding is model-specific and MUST be recomputed if the embedding model changes.
+var gibberishEmbedding = []int8{
+	23, -5, 15, 26, 11, 4, 16, 20, 31, -11, -23, 15, 10, 17, 5, -2,
+	-2, 7, 37, -11, -2, -4, 35, 45, -67, 19, 1, 17, 18, 5, -1, 24,
+	18, -47, -16, 33, 44, 22, 10, 12, 2, 32, 22, 16, -8, 9, 9, 12,
+	8, -48, -1, 11, 2, 0, -10, 21, 2, 22, -2, -7, 4, 22, 17, 61,
+	8, -41, -2, 1, 22, -15, 24, 1, 15, 19, 6, 51, -5, 15, 16, 34,
+	6, -8, 0, 9, 45, 64, 13, 3, 31, 15, 27, -40, 1, 7, -3, 1,
+	-104, 19, 5, 15, 4, 4, 7, 24, 12, 8, 48, 25, 16, 11, 50, -11,
+	25, -8, -3, 32, 12, 36, 11, -22, 20, 15, 2, 28, -6, 6, -2, 36,
+	-11, 10, -9, 18, 26, -5, 8, -15, 27, -2, -127, -20, 1, 12, 31, 28,
+	-42, 36, 17, 30, 12, -19, 22, 19, 12, 9, 19, -1, 39, 16, 10, 10,
+	-7, 1, 10, 8, 9, -11, 7, 50, -7, 12, 0, 21, 7, 13, 2, 38,
+	3, 13, 33, 31, -25, 1, 18, -21, -39, 16, -28, -57, 28, 31, 7, 41,
+	11, 30, 2, 3, 26, 82, 10, 4, 1, 2, 7, 5, 5, 24, 31, 20,
+	2, 11, 18, 15, 1, 0, -3, 4, 8, 9, 33, -16, 19, 13, 24, 11,
+	30, 9, 7, -15, 23, -27, 7, 23, 6, -12, -2, -67, 20, 29, 4, 23,
+	15, -11, 18, 10, 15, -2, 22, 10, 15, 21, 29, -3, 28, -30, 12, 54,
+	34, -4, 20, -1, 9, 7, 6, 40, 33, -4, 39, 6, -5, 0, 5, -4,
+	-3, 35, 22, 4, 64, 19, -6, 33, 12, -23, 14, 3, 22, 15, -3, 14,
+	32, -26, -12, -2, 3, 22, 28, 16, 31, 17, 26, 18, 23, -9, 20, 42,
+	123, 25, -2, 2, 31, -13, -5, 0, 6, 2, 32, 8, -43, 10, 20, 24,
+	8, 37, 30, -1, -16, 16, -28, 11, 18, 6, -1, -18, -31, 27, -27, 26,
+	-22, 35, -15, 22, 26, 13, 4, 12, 12, 31, -60, 14, 13, 20, -3, 17,
+	39, -81, 12, 13, 2, -31, 37, 22, -48, -6, 23, 8, 15, -5, 20, -16,
+	-3, 4, 52, -54, 19, 2, -11, 37, -8, 3, 26, 25, 10, 14, -41, 33,
+}
 
 // LightEmbedder defines a minimal interface for semantic search.
 // Returns the top limit results matching the query.
@@ -389,6 +432,12 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		return nil, fmt.Errorf("embedding dimension mismatch: got %d want %d", len(embedding), e.dimensions)
 	}
 	queryEmbedding := quantizeEmbedding(embedding)
+
+	// Detect unreliable embeddings by checking similarity to gibberish.
+	// Rare/unknown single words produce degenerate embeddings that are highly similar to nonsense.
+	if sim := cosineSimilarityInt8(queryEmbedding, gibberishEmbedding); sim > unreliableEmbeddingThreshold {
+		return nil, ErrUnreliableEmbedding
+	}
 
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment interface{}
 	supportedType := false
@@ -741,6 +790,25 @@ func quantizeEmbedding(input []float32) []int8 {
 		}
 	}
 	return quantized
+}
+
+// cosineSimilarityInt8 computes cosine similarity between two int8 vectors.
+// Returns a value in [-1, 1], with 1 being identical direction.
+func cosineSimilarityInt8(a, b []int8) float32 {
+	if len(a) != len(b) || len(a) == 0 {
+		return 0
+	}
+	var dot, normA, normB int64
+	for i := range a {
+		ai, bi := int64(a[i]), int64(b[i])
+		dot += ai * bi
+		normA += ai * ai
+		normB += bi * bi
+	}
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+	return float32(float64(dot) / (math.Sqrt(float64(normA)) * math.Sqrt(float64(normB))))
 }
 
 var qEmbeddingsPending = dqb.Str(`
