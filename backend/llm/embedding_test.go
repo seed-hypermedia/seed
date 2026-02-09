@@ -26,8 +26,8 @@ import (
 type fakeEmbeddingBackend struct {
 	mu sync.Mutex
 
-	loadCalls          int
-	embedCalls         int
+	loadCalls           int
+	embedCalls          int
 	retrieveSingleCalls int
 
 	embedInputs [][]string
@@ -499,13 +499,25 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// At least the top result should be tech-related
+		// At least the top result should be tech-related (IDs 1-4)
 		topResult := results.Max()
-		require.Greater(t, topResult.Score, float32(0.69), "Top result should have a high similarity score: %.4f", topResult.Score)
 		require.GreaterOrEqual(t, topResult.RowID, int64(1), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
 		require.LessOrEqual(t, topResult.RowID, int64(4), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
-		bottomResult := results.Min()
-		require.Less(t, bottomResult.Score, float32(0.01), "Bottom result should have a poor score: %.4f", bottomResult.Score)
+
+		// Tech content (IDs 1-4) should rank higher than non-tech content (IDs 5-12)
+		sortedResults := results.ToList(true)
+		techScores := make([]float32, 0)
+		nonTechScores := make([]float32, 0)
+		for _, r := range sortedResults {
+			if r.RowID >= 1 && r.RowID <= 4 {
+				techScores = append(techScores, r.Score)
+			} else {
+				nonTechScores = append(nonTechScores, r.Score)
+			}
+		}
+		require.NotEmpty(t, techScores, "Should have tech results")
+		require.NotEmpty(t, nonTechScores, "Should have non-tech results")
+		require.Greater(t, techScores[0], nonTechScores[0], "Best tech result should beat best non-tech result")
 	})
 
 	t.Run("Spanish ML query finds tech content", func(t *testing.T) {
@@ -518,13 +530,10 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// At least the top result should be tech-related
+		// At least the top result should be tech-related (IDs 1-4)
 		topResult := results.Max()
-		require.Greater(t, topResult.Score, float32(0.65), "Top result should have a solid score: %.4f", topResult.Score)
 		require.GreaterOrEqual(t, topResult.RowID, int64(1), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
 		require.LessOrEqual(t, topResult.RowID, int64(4), "Top result should be in the AI/Tech bucket: %d", topResult.RowID)
-		bottomResult := results.Min()
-		require.Less(t, bottomResult.Score, float32(0.018), "Bottom result should have a poor score: %.4f", bottomResult.Score)
 	})
 
 	t.Run("Food query finds cooking content", func(t *testing.T) {
@@ -537,13 +546,10 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// Top result should be about food
+		// Top result should be about food (IDs 5-8)
 		topResult := results.Max()
-		require.Greater(t, topResult.Score, float32(0.79), "Top result should have a high similarity score: %s", topResult.Score)
 		require.GreaterOrEqual(t, topResult.RowID, int64(5), "Top result should be in the food bucket: %d", topResult.RowID)
 		require.LessOrEqual(t, topResult.RowID, int64(8), "Top result should be in the food bucket: %d", topResult.RowID)
-		bottomResult := results.Min()
-		require.Less(t, bottomResult.Score, float32(0.01), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Spanish food query finds cooking content", func(t *testing.T) {
@@ -556,13 +562,10 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// Top result should be about food
+		// Top result should be about food (IDs 5-8)
 		topResult := results.Max()
-		require.Greater(t, topResult.Score, float32(0.8), "Top result should have a solid score: %s", topResult.Score)
 		require.GreaterOrEqual(t, topResult.RowID, int64(5), "Top result should be in the food bucket: %d", topResult.RowID)
 		require.LessOrEqual(t, topResult.RowID, int64(8), "Top result should be in the food bucket: %d", topResult.RowID)
-		bottomResult := results.Min()
-		require.Less(t, bottomResult.Score, float32(0.001), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Pets query finds animal content", func(t *testing.T) {
@@ -575,13 +578,10 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 			t.Logf("  %d. [%.4f] %s", ftsRowid, score, "")
 		}
 
-		// Top result should be about animals
+		// Top result should be about animals (IDs 9-12)
 		topResult := results.Max()
-		require.Greater(t, topResult.Score, float32(0.63), "Top result should have a high similarity score: %s", topResult.Score)
 		require.GreaterOrEqual(t, topResult.RowID, int64(9), "Top result should be in the animals bucket: %d", topResult.RowID)
 		require.LessOrEqual(t, topResult.RowID, int64(12), "Top result should be in the animals bucket: %d", topResult.RowID)
-		bottomResult := results.Min()
-		require.Less(t, bottomResult.Score, float32(0.025), "Bottom result should have a poor score: %s", bottomResult.Score)
 	})
 
 	t.Run("Cross-language similarity works", func(t *testing.T) {
@@ -608,15 +608,15 @@ func TestEmbedder_SemanticSearch_Manual(t *testing.T) {
 		topResultEn := resultsEn.Max()
 		topResultEs := resultsEs.Max()
 
-		// Dogs are in IDs 9-10, so top result should be in animals bucket
+		// Dogs are in IDs 9-10, so top result should be in animals bucket (9-12)
 		require.GreaterOrEqual(t, topResultEn.RowID, int64(9), "English query top result should be about animals")
 		require.LessOrEqual(t, topResultEn.RowID, int64(12), "English query top result should be about animals")
 		require.GreaterOrEqual(t, topResultEs.RowID, int64(9), "Spanish query top result should be about animals")
 		require.LessOrEqual(t, topResultEs.RowID, int64(12), "Spanish query top result should be about animals")
 
-		// Both should have good scores
-		require.Greater(t, topResultEn.Score, float32(0.81), "English query should have solid score")
-		require.Greater(t, topResultEs.Score, float32(0.84), "Spanish query should have solid score")
+		// Both should have decent scores (above 0.6)
+		require.Greater(t, topResultEn.Score, float32(0.6), "English query should have decent score")
+		require.Greater(t, topResultEs.Score, float32(0.6), "Spanish query should have decent score")
 	})
 
 	t.Run("Content type filtering works with real embeddings", func(t *testing.T) {
@@ -946,5 +946,181 @@ func TestEmbedder_SemanticSearch(t *testing.T) {
 		}
 
 		t.Logf("Perfect match threshold (1.0) returned %d results", len(results))
+	})
+}
+
+func TestEmbedder_SemanticRanking(t *testing.T) {
+	// This test verifies that the embedding model correctly ranks relevant content
+	// higher than irrelevant content for various query types including tricky words
+	// like gendered terms and rare proper nouns.
+	ctx := t.Context()
+
+	backend, err := llamacpp.NewClient(url.URL{}, llamacpp.WithBatchSize(10))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.CloseModel(ctx) })
+
+	// Load the model before running tests.
+	_, err = backend.LoadModel(ctx, "embedded", false, nil)
+	require.NoError(t, err)
+
+	// cosineSimilarity computes similarity between two float32 vectors.
+	cosineSimilarity := func(a, b []float32) float32 {
+		if len(a) != len(b) || len(a) == 0 {
+			return 0
+		}
+		var dot, normA, normB float64
+		for i := range a {
+			dot += float64(a[i]) * float64(b[i])
+			normA += float64(a[i]) * float64(a[i])
+			normB += float64(b[i]) * float64(b[i])
+		}
+		if normA == 0 || normB == 0 {
+			return 0
+		}
+		return float32(dot / (math.Sqrt(normA) * math.Sqrt(normB)))
+	}
+
+	// rankingTest defines a test case for semantic ranking.
+	type rankingTest struct {
+		query      string
+		relevant   string
+		irrelevant string
+	}
+
+	// English semantic ranking tests - includes tricky gendered terms and rare proper nouns.
+	englishTests := []rankingTest{
+		// Gendered terms - these were broken in the old model.
+		{"male", "Male and female differences in biology", "Software development practices"},
+		{"female", "Female athletes compete in sports", "Bitcoin cryptocurrency trading"},
+		{"sex", "Sexual reproduction in mammals", "Cloud computing infrastructure"},
+		{"gender", "Gender studies and social research", "Machine learning algorithms"},
+		{"man", "The man walked to the store", "Quantum physics theories"},
+		{"woman", "The woman won the competition", "Database optimization techniques"},
+		// Rare proper nouns.
+		{"engelbart", "Douglas Engelbart invented the computer mouse", "Italian pizza recipes"},
+		{"dijkstra", "Dijkstra's algorithm finds shortest paths", "French cooking techniques"},
+		{"turing", "Alan Turing was a brilliant mathematician", "Spanish guitar music"},
+		// Common words (baseline).
+		{"bitcoin", "Bitcoin is a decentralized digital currency", "Dogs are loyal companions"},
+		{"music", "Classical music and jazz compositions", "Software development practices"},
+		{"technology", "Technology is advancing rapidly in AI", "Italian cooking recipes"},
+		{"dogs", "Dogs are loyal and friendly pets", "Quantum physics theories"},
+	}
+
+	// Spanish semantic ranking tests.
+	spanishTests := []rankingTest{
+		// Gendered terms in Spanish.
+		{"masculino", "Diferencias entre masculino y femenino en biología", "Desarrollo de software"},
+		{"femenino", "Atletas femeninas compiten en deportes", "Comercio de criptomonedas"},
+		{"sexo", "Reproducción sexual en mamíferos", "Infraestructura de computación"},
+		{"género", "Estudios de género e investigación social", "Algoritmos de aprendizaje"},
+		{"hombre", "El hombre caminó a la tienda", "Teorías de física cuántica"},
+		{"mujer", "La mujer ganó la competencia", "Técnicas de optimización"},
+		// Common words in Spanish.
+		{"bitcoin", "Bitcoin es una moneda digital descentralizada", "Los perros son compañeros leales"},
+		{"música", "Música clásica y composiciones de jazz", "Prácticas de desarrollo de software"},
+		{"tecnología", "La tecnología avanza rápidamente en IA", "Recetas de cocina italiana"},
+		{"perros", "Los perros son mascotas leales y amigables", "Teorías de física cuántica"},
+	}
+
+	// Cross-language tests: English query -> Spanish content.
+	crossLangEnEsTests := []rankingTest{
+		{"male", "Diferencias entre masculino y femenino", "Recetas de cocina italiana"},
+		{"female", "Atletas femeninas en competición", "Bitcoin y criptomonedas"},
+		{"music", "La música clásica es hermosa", "Desarrollo de software moderno"},
+		{"technology", "La tecnología está avanzando rápidamente", "Recetas de pasta italiana"},
+		{"dogs", "Los perros son compañeros leales", "Algoritmos de inteligencia artificial"},
+		{"bitcoin", "Bitcoin es una moneda digital", "La música clásica es relajante"},
+	}
+
+	// Cross-language tests: Spanish query -> English content.
+	crossLangEsEnTests := []rankingTest{
+		{"masculino", "Male and female biological differences", "Italian cooking recipes"},
+		{"femenino", "Female athletes in competition", "Bitcoin cryptocurrency"},
+		{"música", "Classical music is beautiful", "Software development practices"},
+		{"tecnología", "Technology is advancing rapidly", "Italian pasta recipes"},
+		{"perros", "Dogs are loyal companions", "Artificial intelligence algorithms"},
+	}
+
+	runRankingTests := func(t *testing.T, tests []rankingTest) {
+		t.Helper()
+		for _, tc := range tests {
+			tc := tc
+			t.Run(tc.query, func(t *testing.T) {
+				queryEmb, err := backend.RetrieveSingle(ctx, tc.query)
+				require.NoError(t, err, "failed to embed query")
+
+				relEmb, err := backend.RetrieveSingle(ctx, tc.relevant)
+				require.NoError(t, err, "failed to embed relevant content")
+
+				irrEmb, err := backend.RetrieveSingle(ctx, tc.irrelevant)
+				require.NoError(t, err, "failed to embed irrelevant content")
+
+				relSim := cosineSimilarity(queryEmb, relEmb)
+				irrSim := cosineSimilarity(queryEmb, irrEmb)
+
+				t.Logf("query=%q relevant=%.4f irrelevant=%.4f", tc.query, relSim, irrSim)
+				require.Greater(t, relSim, irrSim,
+					"relevant content must rank higher than irrelevant: rel=%.4f, irr=%.4f",
+					relSim, irrSim)
+			})
+		}
+	}
+
+	t.Run("English semantic ranking", func(t *testing.T) {
+		runRankingTests(t, englishTests)
+	})
+
+	t.Run("Spanish semantic ranking", func(t *testing.T) {
+		runRankingTests(t, spanishTests)
+	})
+
+	t.Run("Cross-language EN->ES ranking", func(t *testing.T) {
+		runRankingTests(t, crossLangEnEsTests)
+	})
+
+	t.Run("Cross-language ES->EN ranking", func(t *testing.T) {
+		runRankingTests(t, crossLangEsEnTests)
+	})
+}
+
+func TestCosineSimilarityInt8(t *testing.T) {
+	t.Run("identical vectors have similarity 1", func(t *testing.T) {
+		v := []int8{10, 20, 30, 40, 50}
+		sim := cosineSimilarityInt8(v, v)
+		require.InDelta(t, 1.0, sim, 0.0001)
+	})
+
+	t.Run("opposite vectors have similarity -1", func(t *testing.T) {
+		v1 := []int8{10, 20, 30}
+		v2 := []int8{-10, -20, -30}
+		sim := cosineSimilarityInt8(v1, v2)
+		require.InDelta(t, -1.0, sim, 0.0001)
+	})
+
+	t.Run("orthogonal vectors have similarity 0", func(t *testing.T) {
+		v1 := []int8{10, 0, 0}
+		v2 := []int8{0, 10, 0}
+		sim := cosineSimilarityInt8(v1, v2)
+		require.InDelta(t, 0.0, sim, 0.0001)
+	})
+
+	t.Run("different length vectors return 0", func(t *testing.T) {
+		v1 := []int8{10, 20, 30}
+		v2 := []int8{10, 20}
+		sim := cosineSimilarityInt8(v1, v2)
+		require.Equal(t, float32(0), sim)
+	})
+
+	t.Run("empty vectors return 0", func(t *testing.T) {
+		sim := cosineSimilarityInt8([]int8{}, []int8{})
+		require.Equal(t, float32(0), sim)
+	})
+
+	t.Run("zero vector returns 0", func(t *testing.T) {
+		v1 := []int8{0, 0, 0}
+		v2 := []int8{10, 20, 30}
+		sim := cosineSimilarityInt8(v1, v2)
+		require.Equal(t, float32(0), sim)
 	})
 }

@@ -771,7 +771,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	query := cleanQuery
 
 	winners := llm.SearchResultMap{}
-	const semanticThreshold = 0.3 // Less than this, the results are not relevant enough. Tested with paraphrase-multilingual-MiniLM-L12-v2 model showed that 0.3 is a good threshold.
+	const semanticThreshold = 0.55 // Minimum similarity for relevant results with granite-embedding-107m-multilingual model.
 
 	// Check if semantic search is requested but embedder is not available.
 	if srv.embedder == nil && (in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC) {
@@ -798,22 +798,34 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			})
 		}()
 		wg.Wait()
-		if semanticErr != nil {
-			return nil, fmt.Errorf("semantic search failed: %w", semanticErr)
-		}
 		if keywordErr != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", keywordErr)
 		}
 
-		// Blend results with RRF
-		winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2)
+		// Handle semantic search errors.
+		if semanticErr != nil {
+			if errors.Is(semanticErr, llm.ErrUnreliableEmbedding) {
+				// Query embedding is unreliable (rare/unknown word). Fall back to keyword-only results.
+				winners = keywordResults
+			} else {
+				return nil, fmt.Errorf("semantic search failed: %w", semanticErr)
+			}
+		} else {
+			// Blend results with RRF.
+			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2)
+		}
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
-		// Semantic-only search
+		// Semantic-only search.
 		var err error
 		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold)
 		if err != nil {
-			return nil, fmt.Errorf("semantic search failed: %w", err)
+			if errors.Is(err, llm.ErrUnreliableEmbedding) {
+				// Query embedding is unreliable. Return empty results for semantic-only search.
+				winners = llm.SearchResultMap{}
+			} else {
+				return nil, fmt.Errorf("semantic search failed: %w", err)
+			}
 		}
 
 	default:

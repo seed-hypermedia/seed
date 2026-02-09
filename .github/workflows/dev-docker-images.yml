@@ -33,7 +33,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: backend/llm/backends/llamacpp/models/*.gguf
-          key: gguf-model-v2
+          key: gguf-model-granite-v1
           enableCrossOsArchive: true
 
       - name: Download GGUF model

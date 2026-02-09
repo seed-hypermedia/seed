@@ -25,7 +25,7 @@ import (
 //go:embed models/*.gguf
 var embeddedModels embed.FS
 
-const embeddedModelPath = "models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+const embeddedModelPath = "models/granite-embedding-107m-multilingual-Q8_0.gguf"
 
 // writeEmbeddedModelToTempFile extracts the embedded GGUF model to a temp file
 // and returns its path. Caller is responsible for cleanup.
