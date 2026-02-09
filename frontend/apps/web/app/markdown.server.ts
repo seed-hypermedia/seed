@@ -4,9 +4,10 @@
  */
 
 import type {BlockNode, Block, Annotation, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {hmId, parseHMUrl} from '@shm/shared'
+import {hmId, parseHMUrl, packHmId} from '@shm/shared'
 import {grpcClient} from './client.server'
 import {resolveResource} from './loaders'
+import {serverUniversalClient} from './server-universal-client'
 
 export type MarkdownOptions = {
   includeMetadata?: boolean
@@ -74,6 +75,9 @@ export async function documentToMarkdown(
     lines.push('')
   }
 
+  // Pre-warm caches: collect all embed/query URLs and resolve in parallel
+  await prewarmEmbedCache(doc.content || [])
+
   // Content blocks
   for (const node of doc.content || []) {
     const blockMd = await blockNodeToMarkdown(node, 0)
@@ -83,6 +87,79 @@ export async function documentToMarkdown(
   }
 
   return lines.join('\n')
+}
+
+/**
+ * Pre-warm the embed content cache by resolving all embeds in parallel.
+ * This avoids sequential fetches during markdown generation.
+ */
+async function prewarmEmbedCache(content: BlockNode[]): Promise<void> {
+  const embedUrls = new Set<string>()
+  const accountIds = new Set<string>()
+
+  function collectUrls(nodes: BlockNode[]) {
+    for (const node of nodes) {
+      const block = node.block
+      if (block.type === 'Embed' && block.link && !embedContentCache.has(block.link)) {
+        embedUrls.add(block.link)
+      }
+      // Collect mention account IDs from annotations
+      if (block.annotations) {
+        for (const ann of block.annotations) {
+          if (ann.type === 'Link' && ann.link) {
+            const parsed = parseHMUrl(ann.link)
+            if (parsed?.uid && (!parsed.path || parsed.path.length === 0) && !accountNameCache.has(parsed.uid)) {
+              accountIds.add(parsed.uid)
+            }
+          }
+        }
+      }
+      if (node.children) collectUrls(node.children)
+    }
+  }
+
+  collectUrls(content)
+
+  // Resolve all embeds and account names in parallel
+  const embedPromises = [...embedUrls].map(async (url) => {
+    try {
+      const parsed = parseHMUrl(url)
+      if (!parsed) return
+      const resourceId = hmId(parsed.uid, {
+        path: parsed.path,
+        version: parsed.version,
+        latest: parsed.latest,
+        blockRef: parsed.blockRef,
+      })
+      const resource = await resolveResource(resourceId)
+      if (resource.type === 'document' && resource.document) {
+        let content = ''
+        if (parsed.blockRef) {
+          const targetBlock = findBlockById(resource.document.content || [], parsed.blockRef)
+          if (targetBlock) content = targetBlock.text || ''
+        } else {
+          content = resource.document.metadata?.name || resource.document.content?.[0]?.block?.text || ''
+        }
+        const result = content
+          ? `> ${content.split('\n').join('\n> ')}`
+          : `> [Embed: ${url}](${url})`
+        embedContentCache.set(url, result)
+      }
+    } catch (e) {
+      embedContentCache.set(url, `> [Embed: ${url}](${url})`)
+    }
+  })
+
+  const accountPromises = [...accountIds].map(async (uid) => {
+    try {
+      const account = await grpcClient.documents.getAccount({ id: uid })
+      accountNameCache.set(uid, account.metadata?.name || uid.slice(0, 8) + '...')
+    } catch {
+      accountNameCache.set(uid, uid.slice(0, 8) + '...')
+    }
+  })
+
+  await Promise.all([...embedPromises, ...accountPromises])
 }
 
 /**
@@ -259,28 +336,40 @@ async function resolveEmbedBlock(block: Block, indent: string): Promise<string> 
 
 /**
  * Resolve a query block by executing the query and generating a list of links
- * TODO: Full implementation would need query execution logic
  */
-async function resolveQueryBlock(block: Block, indent: string): Promise<string> {
+async function resolveQueryBlock(block: Block, ind: string): Promise<string> {
   try {
-    // Extract query information
-    const queryText = block.text || ''
-    const queryAttrs = block.attributes || {}
-    
-    // For now, return a descriptive comment showing the query
-    // In a full implementation, this would:
-    // 1. Parse the query text/attributes
-    // 2. Execute the query against the document index
-    // 3. Format results as a list of markdown links
-    
-    if (queryText.trim()) {
-      return indent + `<!-- Query: "${queryText}" -->\n${indent}<!-- TODO: Execute query and generate links -->`
-    } else {
-      return indent + `<!-- Empty query block -->`
+    const queryData = (block.attributes as any)?.query
+    if (!queryData?.includes?.length) {
+      return ind + `<!-- Empty query block -->`
     }
+
+    // Execute the query using the server universal client
+    const result = await serverUniversalClient.request('Query', {
+      includes: queryData.includes,
+      sort: queryData.sort,
+      limit: queryData.limit,
+    })
+
+    if (!result || !('results' in result) || !result.results?.length) {
+      return ind + `<!-- Query returned no results -->`
+    }
+
+    // Format results as a markdown list of links
+    const lines: string[] = []
+    for (const doc of result.results) {
+      const title = doc.metadata?.name || doc.path?.[doc.path.length - 1] || 'Untitled'
+      const hmUrl = doc.id ? packHmId(doc.id) : ''
+      if (hmUrl) {
+        lines.push(`${ind}- [${title}](${hmUrl})`)
+      } else {
+        lines.push(`${ind}- ${title}`)
+      }
+    }
+    return lines.join('\n')
   } catch (e) {
     console.error('Failed to resolve query:', block, e)
-    return indent + `<!-- Query block error -->`
+    return ind + `<!-- Query block error -->`
   }
 }
 
