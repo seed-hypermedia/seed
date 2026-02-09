@@ -4,6 +4,7 @@ import {
   HMDocument,
   HMExistingDraft,
   hmId,
+  NavRoute,
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
@@ -39,6 +40,7 @@ import {DocumentCover} from './document-cover'
 import {DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
+import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
@@ -50,6 +52,12 @@ import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+
+/** Extract panel route from a view route, stripping top-level-only fields */
+function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
+  const {panel, width, ...params} = route as any
+  return params as DocumentPanelRoute
+}
 
 export type ActiveView =
   | 'content'
@@ -537,6 +545,18 @@ function DocumentBody({
     [route],
   )
 
+  // Activity filter change handler (main page)
+  const handleMainActivityFilterChange = (filter: {
+    filterEventType?: string[]
+  }) => {
+    if (route.key === 'activity') {
+      navigate({
+        ...route,
+        filterEventType: filter.filterEventType,
+      })
+    }
+  }
+
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
@@ -599,7 +619,11 @@ function DocumentBody({
             ) : activeView !== 'content' && !isMobile ? (
               <OpenInPanelButton
                 id={docId}
-                panelRoute={{key: activeView, id: docId}}
+                panelRoute={
+                  route.key === activeView
+                    ? extractPanelRoute(route)
+                    : {key: activeView, id: docId}
+                }
               />
             ) : undefined
           }
@@ -617,6 +641,10 @@ function DocumentBody({
         mainContentProps={mainContentProps}
         showSidebars={showSidebars}
         discussionsParams={discussionsParams}
+        activityFilterEventType={
+          route.key === 'activity' ? route.filterEventType : undefined
+        }
+        onActivityFilterChange={handleMainActivityFilterChange}
         blockCitations={blockCitations}
         onBlockCitationClick={handleBlockCitationClick}
         onBlockCommentClick={handleBlockCommentClick}
@@ -633,7 +661,7 @@ function DocumentBody({
     }
   }
 
-  // Activity filter change handler
+  // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
     if (
       (route.key === 'document' || route.key === 'feed') &&
@@ -781,6 +809,8 @@ function MainContent({
   mainContentProps,
   showSidebars,
   discussionsParams,
+  activityFilterEventType,
+  onActivityFilterChange,
   blockCitations,
   onBlockCitationClick,
   onBlockCommentClick,
@@ -801,6 +831,8 @@ function MainContent({
     blockId?: string
     blockRange?: import('@shm/shared').BlockRange | null
   }
+  activityFilterEventType?: string[]
+  onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
   blockCitations?: Record<string, {citations: number; comments: number}> | null
   onBlockCitationClick?: (blockId?: string | null) => void
   onBlockCommentClick?: (
@@ -831,7 +863,16 @@ function MainContent({
     case 'activity':
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
-          <Feed size="md" centered filterResource={docId.id} />
+          <FeedFilters
+            filterEventType={activityFilterEventType}
+            onFilterChange={onActivityFilterChange}
+          />
+          <Feed
+            size="md"
+            centered
+            filterResource={docId.id}
+            filterEventType={activityFilterEventType || []}
+          />
         </PageLayout>
       )
 

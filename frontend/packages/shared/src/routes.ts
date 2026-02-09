@@ -5,6 +5,7 @@ import {
   UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from './hm-types'
+import {activitySlugToFilter} from './utils/entity-id-url'
 import type {ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
@@ -305,6 +306,13 @@ function createPanelRoute(
     return {key: 'discussions' as const, id: docId, openComment}
   }
 
+  // Check for activity/<filter-slug> format
+  if (panelParam.startsWith('activity/')) {
+    const slug = panelParam.slice('activity/'.length)
+    const filterEventType = activitySlugToFilter(slug)
+    return {key: 'activity', id: docId, filterEventType}
+  }
+
   // Check for discussions/BLOCKID format
   if (panelParam.startsWith('discussions/')) {
     const targetBlockId = panelParam.slice('discussions/'.length)
@@ -342,8 +350,16 @@ export function createDocumentNavRoute(
   const panel = panelParam ? createPanelRoute(panelParam, docId) : null
 
   switch (viewTerm) {
-    case 'activity':
-      return {key: 'activity', id: docId}
+    case 'activity': {
+      // When activity is the main view, parse filter slug from panelParam
+      // URL format: /:activity?panel=activity/versions -> panelParam="activity/versions"
+      let filterEventType: string[] | undefined
+      if (panelParam?.startsWith('activity/')) {
+        const slug = panelParam.slice('activity/'.length)
+        filterEventType = activitySlugToFilter(slug)
+      }
+      return {key: 'activity', id: docId, filterEventType}
+    }
     case 'discussions':
       return {key: 'discussions', id: docId}
     case 'directory':

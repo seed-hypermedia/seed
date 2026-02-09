@@ -48,8 +48,21 @@ type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
 function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
+  activityFilter?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
+
+  // Check for :activity/<slug> pattern (second-to-last + last)
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]
+    if (secondToLast === ':activity') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'activity',
+        activityFilter: pathParts[pathParts.length - 1],
+      }
+    }
+  }
 
   const lastPart = pathParts[pathParts.length - 1]
   const viewTermMatch = VIEW_TERMS.find((term) => lastPart === term)
@@ -242,25 +255,35 @@ export const loader = async ({
 
   let documentId
   let viewTerm: ViewRouteKey | null = null
+  // Merge activity filter slug from path into panelParam for createDocumentNavRoute
+  let effectivePanelParam = panelParam
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
-    const {path: cleanPath, viewTerm: extractedViewTerm} =
-      extractViewTermFromPath(pathParts.slice(2))
-    viewTerm = extractedViewTerm
+    const extracted = extractViewTermFromPath(pathParts.slice(2))
+    viewTerm = extracted.viewTerm
+    if (extracted.activityFilter) {
+      effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
     documentId = hmId(pathParts[1], {
-      path: cleanPath,
+      path: extracted.path,
       version,
       latest,
     })
   } else {
     // Site document (regular path)
     const rawPath = params['*'] ? params['*'].split('/').filter(Boolean) : []
-    const {path: cleanPath, viewTerm: extractedViewTerm} =
-      extractViewTermFromPath(rawPath)
-    viewTerm = extractedViewTerm
-    documentId = hmId(registeredAccountUid, {path: cleanPath, version, latest})
+    const extracted = extractViewTermFromPath(rawPath)
+    viewTerm = extracted.viewTerm
+    if (extracted.activityFilter) {
+      effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    documentId = hmId(registeredAccountUid, {
+      path: extracted.path,
+      version,
+      latest,
+    })
   }
 
   const result = await instrument(ctx, 'loadSiteResource', () =>
@@ -268,7 +291,7 @@ export const loader = async ({
       prefersLanguages: parsedRequest.prefersLanguages,
       feed,
       viewTerm,
-      panelParam,
+      panelParam: effectivePanelParam,
       instrumentationCtx: ctx,
     }),
   )

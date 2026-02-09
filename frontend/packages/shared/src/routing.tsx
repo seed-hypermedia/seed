@@ -5,7 +5,14 @@ import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {hmId, hmIdToURL, idToUrl, unpackHmId} from './utils'
+import {
+  activityFilterToSlug,
+  getRoutePanelParam,
+  hmId,
+  hmIdToURL,
+  idToUrl,
+  unpackHmId,
+} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -203,8 +210,12 @@ export function routeToHref(
       }`
     }
     // Add view term - need a / separator between path and view term
-    const viewTerm = `:${route.key}`
-    // If basePath is empty, use "/:viewTerm", otherwise use "basePath/:viewTerm"
+    let viewTerm = `:${route.key}`
+    // Append activity filter slug to view term path
+    if (route.key === 'activity') {
+      const filterSlug = activityFilterToSlug(route.filterEventType)
+      if (filterSlug) viewTerm += `/${filterSlug}`
+    }
     return basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
   }
 
@@ -219,37 +230,38 @@ export function routeToHref(
       : route.key == 'document' || route.key == 'feed'
       ? route.id
       : null
-  const activeCommentSelection =
-    docRoute?.panel?.key == 'discussions' ? docRoute.panel : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
-  } else if (activeCommentSelection && activeCommentSelection.openComment) {
-    const activeCommentId = activeCommentSelection.openComment
-    const [accountUid, commentTsid] = activeCommentId.split('/')
-    if (!accountUid || !commentTsid) return undefined
-    const commentId = hmId(accountUid, {
-      path: [commentTsid],
-      blockRef: activeCommentSelection.id?.blockRef,
-      blockRange: activeCommentSelection.id?.blockRange,
-      hostname: options?.origin,
-    })
-    href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
-    // Extract panel key for URL query param
-    const panelKey = docRoute.panel?.key as
-      | import('./utils/entity-id-url').PanelQueryKey
-      | undefined
-    href = options?.hmUrlHref
-      ? hmIdToURL(docId)
-      : idToUrl(
-          {...docId, hostname: null},
-          {
-            originHomeId: options?.originHomeId,
-            feed: docRoute.key === 'feed',
-            panel: panelKey,
-          },
-        )
+    const panelParam = getRoutePanelParam(docRoute)
+    // Comment panel with openComment gets a dedicated comment URL
+    if (
+      panelParam?.startsWith('comment/') &&
+      docRoute.panel?.key === 'discussions' &&
+      docRoute.panel.openComment
+    ) {
+      const [accountUid, commentTsid] = docRoute.panel.openComment.split('/')
+      if (!accountUid || !commentTsid) return undefined
+      const commentId = hmId(accountUid, {
+        path: [commentTsid],
+        blockRef: docRoute.panel.id?.blockRef,
+        blockRange: docRoute.panel.id?.blockRange,
+        hostname: options?.origin,
+      })
+      href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
+    } else {
+      href = options?.hmUrlHref
+        ? hmIdToURL(docId)
+        : idToUrl(
+            {...docId, hostname: null},
+            {
+              originHomeId: options?.originHomeId,
+              feed: docRoute.key === 'feed',
+              panel: panelParam,
+            },
+          )
+    }
   }
   return href
 }

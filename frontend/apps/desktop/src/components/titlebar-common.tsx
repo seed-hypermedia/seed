@@ -28,6 +28,7 @@ import {
 } from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {
+  activitySlugToFilter,
   displayHostname,
   extractViewTermFromUrl,
   hmId,
@@ -742,15 +743,26 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(url)
+      const {
+        url: cleanUrl,
+        viewTerm,
+        activityFilter,
+      } = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
       const applyViewTerm = (route: NavRoute): NavRoute => {
         if (!routeKey) return route
         if (route.key === 'document') {
-          // Return first-class page route instead of document
-          return {key: routeKey, id: route.id}
+          const viewRoute: NavRoute = {key: routeKey, id: route.id}
+          if (
+            routeKey === 'activity' &&
+            activityFilter &&
+            viewRoute.key === 'activity'
+          ) {
+            viewRoute.filterEventType = activitySlugToFilter(activityFilter)
+          }
+          return viewRoute
         }
         return route
       }

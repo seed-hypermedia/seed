@@ -4,6 +4,34 @@ import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
 
+/**
+ * Activity filter slug <-> filterEventType mapping for URL encoding
+ */
+export const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
+  comments: ['Comment'],
+  versions: ['Ref'],
+  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+}
+
+export function activityFilterToSlug(
+  filterEventType?: string[],
+): string | null {
+  if (!filterEventType?.length) return null
+  for (const [slug, types] of Object.entries(ACTIVITY_FILTER_SLUGS)) {
+    if (
+      types.length === filterEventType.length &&
+      types.every((t, i) => t === filterEventType[i])
+    ) {
+      return slug
+    }
+  }
+  return null
+}
+
+export function activitySlugToFilter(slug: string): string[] | undefined {
+  return ACTIVITY_FILTER_SLUGS[slug]
+}
+
 // View terms for URL paths (e.g., /:activity, /:directory)
 export const VIEW_TERMS = [
   ':activity',
@@ -35,7 +63,19 @@ export type PanelQueryKey =
 export function extractViewTermFromUrl(url: string): {
   url: string
   viewTerm: ViewTerm | null
+  activityFilter?: string
 } {
+  // Check for :activity/<slug> pattern first
+  const activitySlugPattern = /\/\:activity\/([a-z]+)(?=[?#]|$)/
+  const activitySlugMatch = url.match(activitySlugPattern)
+  if (activitySlugMatch) {
+    return {
+      url: url.replace(activitySlugMatch[0], ''),
+      viewTerm: ':activity',
+      activityFilter: activitySlugMatch[1],
+    }
+  }
+
   for (const term of VIEW_TERMS) {
     // Match term at end of path (before query/fragment)
     const termPattern = new RegExp(`/${term.replace(':', '\\:')}(?=[?#]|$)`)
@@ -165,7 +205,7 @@ export function createOSProtocolUrl({
  * - "discussions/BLOCKID" for block-specific discussions
  * - "discussions", "activity", etc. for general panels
  */
-function getRoutePanelParam(route: NavRoute): string | null {
+export function getRoutePanelParam(route: NavRoute): string | null {
   let panel:
     | {
         key: string
@@ -197,6 +237,14 @@ function getRoutePanelParam(route: NavRoute): string | null {
   // Priority 2: Encode targetBlockId into discussions panel param
   if (panel.key === 'discussions' && panel.targetBlockId) {
     return `discussions/${panel.targetBlockId}`
+  }
+
+  // Encode activity filter slug into panel param
+  if (panel.key === 'activity') {
+    const filterSlug = activityFilterToSlug(
+      (panel as {filterEventType?: string[]}).filterEventType,
+    )
+    if (filterSlug) return `activity/${filterSlug}`
   }
 
   return panel.key as PanelQueryKey
@@ -233,17 +281,29 @@ export function routeToUrl(
     route.key === 'collaborators' ||
     route.key === 'discussions'
   ) {
-    // First-class page routes generate URLs with ?panel= query param
-    // This ensures URLs work correctly on web (document view with panel open)
+    // View-term routes use /:viewTerm in the path
+    let viewTermPath = `:${route.key}`
+    // Append activity filter slug to view term path
+    if (route.key === 'activity') {
+      const filterSlug = activityFilterToSlug(route.filterEventType)
+      if (filterSlug) {
+        viewTermPath = `:activity/${filterSlug}`
+      }
+    }
     // For discussions with openComment, include it in the panel param
-    let effectivePanelParam = panelParam || route.key
-    if (route.key === 'discussions' && route.openComment) {
+    let effectivePanelParam = panelParam
+    if (
+      !effectivePanelParam &&
+      route.key === 'discussions' &&
+      route.openComment
+    ) {
       effectivePanelParam = `comment/${route.openComment}`
     }
     return createWebHMUrl(route.id.uid, {
       ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
+      viewTerm: viewTermPath,
       panel: effectivePanelParam,
     })
   }
