@@ -1,26 +1,26 @@
-import {useAppContext} from '@/app-context'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
-import {useDeleteDialog} from '@/components/delete-dialog'
+import { useAppContext } from '@/app-context'
+import { useCopyReferenceUrl } from '@/components/copy-reference-url'
+import { useDeleteDialog } from '@/components/delete-dialog'
 import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
-import {useDraft} from '@/models/accounts'
-import {useMyAccountIds} from '@/models/daemon'
-import {useCreateDraft} from '@/models/documents'
-import {useGatewayUrl} from '@/models/gateway-settings'
-import {useHostSession} from '@/models/host'
-import {SidebarContext} from '@/sidebar-context'
-import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
-import {pathNameify} from '@/utils/path'
-import {useNavigate} from '@/utils/useNavigate'
-import {useListenAppEvent} from '@/utils/window-events'
-import {hostnameStripProtocol} from '@shm/shared'
-import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
-import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
+import { useDraft } from '@/models/accounts'
+import { useMyAccountIds } from '@/models/daemon'
+import { useCreateDraft } from '@/models/documents'
+import { useGatewayUrl } from '@/models/gateway-settings'
+import { useHostSession } from '@/models/host'
+import { SidebarContext } from '@/sidebar-context'
+import { convertBlocksToMarkdown } from '@/utils/blocks-to-markdown'
+import { pathNameify } from '@/utils/path'
+import { useNavigate } from '@/utils/useNavigate'
+import { useListenAppEvent } from '@/utils/window-events'
+import { hostnameStripProtocol } from '@shm/shared'
+import { hmBlocksToEditorContent } from '@shm/shared/client/hmblock-to-editorblock'
+import { DEFAULT_GATEWAY_URL } from '@shm/shared/constants'
+import { HMBlockNode, UnpackedHypermediaId } from '@shm/shared/hm-types'
+import { useResource } from '@shm/shared/models/entity'
+import { resolveHypermediaUrl } from '@shm/shared/resolve-hm'
 import {
   createDocumentNavRoute,
   DocumentRoute,
@@ -28,7 +28,7 @@ import {
   FeedRoute,
   NavRoute,
 } from '@shm/shared/routes'
-import {useStream} from '@shm/shared/use-stream'
+import { useStream } from '@shm/shared/use-stream'
 import {
   activitySlugToFilter,
   createWebHMUrl,
@@ -46,7 +46,7 @@ import {
   useNavigationState,
   useNavRoute,
 } from '@shm/shared/utils/navigation'
-import {Button} from '@shm/ui/button'
+import { Button } from '@shm/ui/button'
 import {
   Popover,
   PopoverContent,
@@ -62,13 +62,13 @@ import {
   Trash,
   UploadCloud,
 } from '@shm/ui/icons'
-import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
-import {SizableText} from '@shm/ui/text'
-import {TitlebarSection} from '@shm/ui/titlebar'
-import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
-import {cn} from '@shm/ui/utils'
+import { MenuItemType, OptionsDropdown } from '@shm/ui/options-dropdown'
+import { SizableText } from '@shm/ui/text'
+import { TitlebarSection } from '@shm/ui/titlebar'
+import { toast } from '@shm/ui/toast'
+import { Tooltip } from '@shm/ui/tooltip'
+import { useAppDialog } from '@shm/ui/universal-dialog'
+import { cn } from '@shm/ui/utils'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
@@ -88,19 +88,19 @@ import {
   useRef,
   useState,
 } from 'react'
-import {BookmarkButton} from './bookmarking'
-import {BranchDialog} from './branch-dialog'
-import {CopyReferenceButton} from './copy-reference-button'
-import {useImportDialog, useImporting} from './import-doc-button'
-import {MoveDialog} from './move-dialog'
+import { BookmarkButton } from './bookmarking'
+import { BranchDialog } from './branch-dialog'
+import { CopyReferenceButton } from './copy-reference-button'
+import { useImportDialog, useImporting } from './import-doc-button'
+import { MoveDialog } from './move-dialog'
 import {
   usePublishSite,
   useRemoveSiteDialog,
   useSeedHostDialog,
 } from './publish-site'
-import {SearchInput, SearchInputHandle} from './search-input'
-import {SubscriptionButton} from './subscription'
-import {TitleBarProps} from './titlebar'
+import { SearchInput, SearchInputHandle } from './search-input'
+import { SubscriptionButton } from './subscription'
+import { TitleBarProps } from './titlebar'
 
 // Route keys that have an id and support DocOptionsButton
 const DOC_OPTIONS_ROUTE_KEYS = [
