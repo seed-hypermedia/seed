@@ -52,13 +52,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake g++
 
-      - name: Build llama.cpp (CPU-only)
+      - name: Build llama.cpp (CPU-only for tests)
         run: |
           cd backend/util/llama-go
+          # Tests run without GPU hardware, so we build CPU-only
           CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
 
       - name: Run tests
-        run: go test --count 1 ./backend/...
+        run: go test -tags cpu --count 1 ./backend/...
         env:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
@@ -68,7 +69,7 @@ jobs:
       # Run tests again with the race-detector.
       # Using the same job to reuse the build cache.
       - name: Run tests with race detector
-        run: go test --count 1 -race ./backend/...
+        run: go test -tags cpu --count 1 -race ./backend/...
         env:
           CGO_ENABLED: 1
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go

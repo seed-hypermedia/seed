@@ -80,7 +80,8 @@ jobs:
       - name: Build Backend (Unix)
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags gpu -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+          # GPU is enabled by default (no -tags needed)
+          go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
         env:
           GOARCH: amd64
           CGO_ENABLED: 1
