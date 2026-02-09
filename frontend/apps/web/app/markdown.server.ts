@@ -372,29 +372,34 @@ async function getAnnotationMarker(
       return type === 'open' ? '<u>' : '</u>'
     case 'Link':
       if (type === 'open') {
+        // Check if this is a mention (hm:// link to an account with no path)
+        if (ann.link) {
+          const parsed = parseHMUrl(ann.link)
+          if (parsed?.uid && (!parsed.path || parsed.path.length === 0)) {
+            try {
+              const name = await resolveAccountName(parsed.uid)
+              return `[@${name}](${ann.link})`
+            } catch (e) {
+              // fallback to link syntax
+            }
+          }
+        }
         return '['
       } else {
+        // If we already emitted the full mention markdown in 'open', skip close
+        if (ann.link) {
+          const parsed = parseHMUrl(ann.link)
+          if (parsed?.uid && (!parsed.path || parsed.path.length === 0)) {
+            return ''
+          }
+        }
         return `](${ann.link || ''})`
       }
     case 'Embed':
       if (type === 'open') {
-        // Resolve the account name for the mention
-        if (ann.link) {
-          try {
-            const parsed = parseHMUrl(ann.link)
-            if (parsed?.uid) {
-              const name = await resolveAccountName(parsed.uid)
-              // Return just the resolved name without link syntax for mentions
-              return `@${name}`
-            }
-          } catch (e) {
-            console.error('Failed to resolve mention name:', ann.link, e)
-          }
-        }
-        return `@`
+        return '['
       } else {
-        // For closing, we don't want the link syntax for mentions
-        return ''
+        return `](${ann.link || ''})`
       }
     default:
       return ''
