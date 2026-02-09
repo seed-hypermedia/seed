@@ -8,6 +8,7 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
+import {parseFragment} from '@shm/shared/utils/entity-id-url'
 import {
   useDirectory,
   useResource,
@@ -50,6 +51,7 @@ import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 
@@ -394,6 +396,34 @@ function DocumentBody({
         }
       : undefined
 
+  // Extract blockRef from route for scroll-to-block and highlighting
+  const routeBlockRef =
+    'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
+  const {scrollToBlock} = useBlockScroll(routeBlockRef)
+
+  // On mount, sync URL hash (#blockId) into route if not already present
+  const replaceRoute = useNavigate('replace')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (routeBlockRef) return // already have blockRef from route
+    const hash = window.location.hash
+    if (!hash) return
+    const fragment = parseFragment(hash.substring(1))
+    if (!fragment?.blockId) return
+    if (route.key !== 'document' && route.key !== 'feed') return
+    replaceRoute({
+      ...route,
+      id: {
+        ...route.id,
+        blockRef: fragment.blockId,
+        blockRange:
+          'start' in fragment && 'end' in fragment
+            ? {start: fragment.start, end: fragment.end}
+            : null,
+      },
+    })
+  }, []) // only on mount
+
   const isHomeDoc = !docId.path?.length
   const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
@@ -520,29 +550,34 @@ function DocumentBody({
     [route, navigate],
   )
 
-  // Block select handler (for copy block link)
+  // Block select handler (copy block link + navigate to update URL)
   const handleBlockSelect = useCallback(
     (blockId: string, opts?: BlockRangeSelectOptions) => {
       if (route.key !== 'document' && route.key !== 'feed') return
+      const blockRange =
+        opts && 'start' in opts && 'end' in opts
+          ? {start: opts.start, end: opts.end}
+          : null
+      const blockRoute = {
+        ...route,
+        id: {
+          ...route.id,
+          blockRef: blockId,
+          blockRange,
+        },
+      }
       const shouldCopy = opts?.copyToClipboard !== false
       if (blockId && shouldCopy) {
-        // Create route with block reference
-        const blockRoute = {
-          ...route,
-          id: {
-            ...route.id,
-            blockRef: blockId,
-            blockRange:
-              opts && 'start' in opts && 'end' in opts
-                ? {start: opts.start, end: opts.end}
-                : null,
-          },
-        }
         const url = routeToUrl(blockRoute)
         copyUrlToClipboardWithFeedback(url, 'Block')
       }
+      // Navigate to update route with blockRef (unless explicitly copy-only)
+      if (opts?.copyToClipboard !== true) {
+        scrollToBlock(blockId)
+        navigate(blockRoute)
+      }
     },
-    [route],
+    [route, navigate, scrollToBlock],
   )
 
   // Activity filter change handler (main page)
@@ -633,6 +668,9 @@ function DocumentBody({
       {/* Main content based on activeView */}
       <MainContent
         docId={docId}
+        resourceId={
+          'id' in route && typeof route.id === 'object' ? route.id : docId
+        }
         document={document}
         activeView={activeView}
         contentMaxWidth={contentMaxWidth}
@@ -769,6 +807,8 @@ function PanelContentRenderer({
           contentMaxWidth={contentMaxWidth}
           openComment={panelRoute.openComment}
           targetBlockId={panelRoute.targetBlockId}
+          blockId={panelRoute.blockId}
+          blockRange={panelRoute.blockRange}
           commentEditor={
             CommentEditor ? (
               <CommentEditor
@@ -801,6 +841,7 @@ function PanelContentRenderer({
 
 function MainContent({
   docId,
+  resourceId,
   document,
   activeView,
   contentMaxWidth,
@@ -818,6 +859,7 @@ function MainContent({
   CommentEditor,
 }: {
   docId: UnpackedHypermediaId
+  resourceId: UnpackedHypermediaId
   document: HMDocument
   activeView: ActiveView
   contentMaxWidth: number
@@ -908,7 +950,7 @@ function MainContent({
 
           <div {...mainContentProps}>
             <BlocksContentProvider
-              resourceId={docId}
+              resourceId={resourceId}
               blockCitations={blockCitations}
               onBlockCitationClick={onBlockCitationClick}
               onBlockCommentClick={onBlockCommentClick}

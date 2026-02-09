@@ -811,7 +811,13 @@ export function CommentContent({
           currentRoute.key === 'activity' || currentRoute.key === 'discussions'
         navigate(
           useFullPageNavigation
-            ? {key: 'discussions', id: idWithBlock, openComment: comment.id}
+            ? {
+                key: 'discussions',
+                id: idWithBlock,
+                openComment: comment.id,
+                blockId: blockId || undefined,
+                blockRange,
+              }
             : {
                 key: 'document',
                 id: targetId,
@@ -819,6 +825,8 @@ export function CommentContent({
                   key: 'discussions',
                   id: idWithBlock,
                   openComment: comment.id,
+                  blockId: blockId || undefined,
+                  blockRange,
                 },
               },
         )
