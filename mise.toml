@@ -29,12 +29,27 @@ _.file = ".env"
 
 [tasks.ensure-model]
 run = '''
-MODEL="backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+MODEL="backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf"
 if [ ! -f "$MODEL" ]; then
   mkdir -p "$(dirname "$MODEL")"
   echo "Downloading GGUF embedding model..."
   curl -fSL --progress-bar -o "$MODEL" \
-    "https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf"
+    "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+fi
+'''
+hide = true
+
+[tasks.ensure-llama-libs]
+run = '''
+LLAMA_GO_DIR="backend/util/llama-go"
+if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
+  echo "Building llama.cpp libraries (CPU-only, this may take a few minutes)..."
+  cd "$LLAMA_GO_DIR"
+  CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+  # Create stubs for GPU libraries (not used in CPU-only build, but needed for linking).
+  touch libggml-vulkan.a
+  touch libggml-metal.a
+  echo "llama.cpp libraries built successfully."
 fi
 '''
 hide = true
@@ -63,4 +78,4 @@ echo "To build with GPU acceleration: ./dev run-backend --gpu"
 '''
 
 [hooks]
-enter = "mise run ensure-model"
+enter = "mise run ensure-model && mise run ensure-llama-libs"

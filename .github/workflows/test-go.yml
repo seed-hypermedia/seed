@@ -31,15 +31,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: backend/llm/backends/llamacpp/models/*.gguf
-          key: gguf-model-v2
+          key: gguf-model-granite-v1
           enableCrossOsArchive: true
 
       - name: Download GGUF model
         run: |
-          if [ ! -f backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf ]; then
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
             mkdir -p backend/llm/backends/llamacpp/models
-            curl -fSL -o backend/llm/backends/llamacpp/models/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf \
-              https://seedllmmodels.s3.us-east-1.amazonaws.com/embedding/paraphrase-multilingual-MiniLM-L12-118M-v2-Q8_0.gguf
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
           fi
 
       - name: Set up Go
