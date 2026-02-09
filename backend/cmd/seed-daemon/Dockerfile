@@ -12,21 +12,21 @@ RUN go mod download
 COPY backend ./backend
 COPY monitoring ./monitoring
 
-# Install build dependencies for llama.cpp (CPU-only build for Docker)
-RUN apk add build-base cmake g++ linux-headers
+# Install build dependencies for llama.cpp with Vulkan GPU support.
+RUN apk add build-base cmake g++ linux-headers vulkan-headers vulkan-loader-dev shaderc
 
-# Build llama.cpp (CPU-only, no GPU acceleration in Docker containers)
+# Build llama.cpp with Vulkan GPU support (falls back to CPU at runtime if no GPU available).
 WORKDIR /code/backend/util/llama-go
-RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
 
-# Build seed-daemon with llama.cpp support (CPU backend)
+# Build seed-daemon with llama.cpp support.
 WORKDIR /code
 ENV LIBRARY_PATH=/code/backend/util/llama-go
 ENV C_INCLUDE_PATH=/code/backend/util/llama-go
 RUN go install -ldflags="-X 'seed/backend/daemon.commit=$COMMIT_HASH' -X 'seed/backend/daemon.branch=$BRANCH' -X 'seed/backend/daemon.date=$DATE'" ./backend/cmd/seed-daemon/
 
 FROM alpine:latest
-RUN apk add rsync
+RUN apk add --no-cache rsync vulkan-loader
 COPY --from=builder /go/bin/seed-daemon /usr/local/bin/seed-daemon
 COPY --from=builder /code/monitoring/grafana /monitoring/grafana
 COPY --from=builder /code/monitoring/prometheus /monitoring/prometheus

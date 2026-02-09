@@ -1,0 +1,79 @@
+name: Test GPU Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/util/llama-go/**"
+      - "backend/cmd/seed-daemon/**"
+      - "backend/cmd/seed-daemon/Dockerfile"
+      - ".github/actions/ci-setup/**"
+      - ".github/workflows/test-gpu-build.yml"
+  pull_request:
+    paths:
+      - "backend/util/llama-go/**"
+      - "backend/cmd/seed-daemon/**"
+      - "backend/cmd/seed-daemon/Dockerfile"
+      - ".github/actions/ci-setup/**"
+      - ".github/workflows/test-gpu-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            name: linux-x64
+            daemon_name: x86_64-unknown-linux-gnu
+          - os: macos-15-large
+            name: macos-x64
+            daemon_name: x86_64-apple-darwin
+          - os: macos-15-xlarge
+            name: macos-arm64
+            daemon_name: aarch64-apple-darwin
+          - os: windows-2025
+            name: windows-x64
+            daemon_name: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.config.os }}
+    name: Build ${{ matrix.config.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/ci-setup
+        with:
+          matrix-os: ${{ matrix.config.os }}
+
+      - name: Build seed-daemon (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: |
+          go build -o seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          ls -la seed-daemon-*
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Build seed-daemon (Windows)
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          go build -o seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          ls -la seed-daemon-*
+        env:
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Verify binary
+        run: |
+          echo "Build successful for ${{ matrix.config.name }}"
+          file seed-daemon-* || true
