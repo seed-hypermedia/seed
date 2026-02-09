@@ -19,6 +19,11 @@ export type MarkdownOptions = {
 const accountNameCache = new Map<string, string>()
 
 /**
+ * Cache for resolved embed content to avoid repeated fetches
+ */
+const embedContentCache = new Map<string, string>()
+
+/**
  * Resolve account display name from account ID
  */
 async function resolveAccountName(accountId: string): Promise<string> {
@@ -185,11 +190,18 @@ async function resolveEmbedBlock(block: Block, indent: string): Promise<string> 
     return indent + `> [Embed: No URL]`
   }
   
+  // Check cache first for performance
+  if (embedContentCache.has(block.link)) {
+    return indent + embedContentCache.get(block.link)!
+  }
+  
   try {
     // Parse the embed URL to get the resource ID
     const parsed = parseHMUrl(block.link)
     if (!parsed) {
-      return indent + `> [Embed: ${block.link}](${block.link})`
+      const result = `> [Embed: ${block.link}](${block.link})`
+      embedContentCache.set(block.link, result)
+      return indent + result
     }
     
     // Use the existing resolveResource function for consistency
@@ -203,7 +215,9 @@ async function resolveEmbedBlock(block: Block, indent: string): Promise<string> 
     const resource = await resolveResource(resourceId)
     
     if (resource.type !== 'document' || !resource.document) {
-      return indent + `> [Embed: ${block.link}](${block.link})`
+      const result = `> [Embed: ${block.link}](${block.link})`
+      embedContentCache.set(block.link, result)
+      return indent + result
     }
     
     // Extract relevant content based on blockRef if present
@@ -224,31 +238,49 @@ async function resolveEmbedBlock(block: Block, indent: string): Promise<string> 
       }
     }
     
+    let result: string
     if (content) {
       // Format as blockquote with proper indentation
-      return indent + `> ${content.split('\n').join('\n' + indent + '> ')}`
+      result = `> ${content.split('\n').join('\n> ')}`
     } else {
-      return indent + `> [Embed: ${block.link}](${block.link})`
+      result = `> [Embed: ${block.link}](${block.link})`
     }
+    
+    embedContentCache.set(block.link, result)
+    return indent + result
     
   } catch (e) {
     console.error('Failed to resolve embed:', block.link, e)
-    return indent + `> [Embed: ${block.link}](${block.link})`
+    const result = `> [Embed: ${block.link}](${block.link})`
+    embedContentCache.set(block.link, result)
+    return indent + result
   }
 }
 
 /**
  * Resolve a query block by executing the query and generating a list of links
+ * TODO: Full implementation would need query execution logic
  */
 async function resolveQueryBlock(block: Block, indent: string): Promise<string> {
   try {
-    // For now, return a placeholder since query implementation is complex
-    // This would need the actual query execution logic from the frontend
-    const queryText = block.text || 'query'
-    return indent + `<!-- Query: ${queryText} -->`
+    // Extract query information
+    const queryText = block.text || ''
+    const queryAttrs = block.attributes || {}
+    
+    // For now, return a descriptive comment showing the query
+    // In a full implementation, this would:
+    // 1. Parse the query text/attributes
+    // 2. Execute the query against the document index
+    // 3. Format results as a list of markdown links
+    
+    if (queryText.trim()) {
+      return indent + `<!-- Query: "${queryText}" -->\n${indent}<!-- TODO: Execute query and generate links -->`
+    } else {
+      return indent + `<!-- Empty query block -->`
+    }
   } catch (e) {
     console.error('Failed to resolve query:', block, e)
-    return indent + `<!-- Query block -->`
+    return indent + `<!-- Query block error -->`
   }
 }
 
@@ -352,15 +384,17 @@ async function getAnnotationMarker(
             const parsed = parseHMUrl(ann.link)
             if (parsed?.uid) {
               const name = await resolveAccountName(parsed.uid)
+              // Return just the resolved name without link syntax for mentions
               return `@${name}`
             }
           } catch (e) {
             console.error('Failed to resolve mention name:', ann.link, e)
           }
         }
-        return `[@`
+        return `@`
       } else {
-        return `](${ann.link || ''})`
+        // For closing, we don't want the link syntax for mentions
+        return ''
       }
     default:
       return ''
