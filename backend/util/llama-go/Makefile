@@ -217,6 +217,16 @@ llama.cpp/ggml-alloc.o: llama.cpp/ggml.o
 
 llama.cpp/ggml.o:
 	mkdir -p build
+	@# Force reconfigure if CMake cache exists but has different settings
+	@if [ -f build/CMakeCache.txt ]; then \
+		cache_vulkan=$$(grep -q "GGML_VULKAN:BOOL=ON" build/CMakeCache.txt && echo "ON" || echo "OFF"); \
+		want_vulkan=$$(echo "$(CMAKE_ARGS)" | grep -q "DGGML_VULKAN=ON" && echo "ON" || echo "OFF"); \
+		if [ "$$cache_vulkan" != "$$want_vulkan" ]; then \
+			echo "CMake cache GGML_VULKAN mismatch (cache=$$cache_vulkan, want=$$want_vulkan), forcing reconfigure..."; \
+			rm -rf build; \
+			mkdir -p build; \
+		fi; \
+	fi
 	cd build && CC="$(CC)" CXX="$(CXX)" cmake ../llama.cpp $(CMAKE_ARGS) -DLLAMA_CURL=OFF && VERBOSE=1 cmake --build . --config Release -j 8 --target ggml llama && cp -rf ggml/src/CMakeFiles/ggml-base.dir/ggml.c.o ../llama.cpp/ggml.o
 
 llama.cpp/ggml-cuda.o: llama.cpp/ggml.o
@@ -240,12 +250,23 @@ llama.cpp/sampling.o: llama.cpp/ggml.o
 llama.cpp/log.o: llama.cpp/ggml.o
 	$(CXX) $(CXXFLAGS) -I./llama.cpp -I./llama.cpp/common -I./llama.cpp/ggml/include -I./llama.cpp/include llama.cpp/common/log.cpp -o llama.cpp/log.o -c $(LDFLAGS)
 
-wrapper.o:
+wrapper.o: llama.cpp/ggml.o
 	$(CXX) $(CXXFLAGS) -I./llama.cpp -I./llama.cpp/common -I./llama.cpp/ggml/include -I./llama.cpp/include wrapper.cpp -o wrapper.o -c $(LDFLAGS)
 
 # All Go bindings are now handled through wrapper.cpp
 
 libbinding.a: llama.cpp/ggml.o wrapper.o $(EXTRA_TARGETS)
+	@# Verify CMake cache matches expected configuration, rebuild if not
+	@if [ -f build/CMakeCache.txt ]; then \
+		cache_vulkan=$$(grep -q "GGML_VULKAN:BOOL=ON" build/CMakeCache.txt && echo "ON" || echo "OFF"); \
+		want_vulkan=$$(echo "$(CMAKE_ARGS)" | grep -q "DGGML_VULKAN=ON" && echo "ON" || echo "OFF"); \
+		if [ "$$cache_vulkan" != "$$want_vulkan" ]; then \
+			echo "CMake cache GGML_VULKAN mismatch (cache=$$cache_vulkan, want=$$want_vulkan), forcing full rebuild..."; \
+			rm -rf build llama.cpp/*.o *.o; \
+			$(MAKE) llama.cpp/ggml.o; \
+			$(MAKE) wrapper.o; \
+		fi; \
+	fi
 	cd build && cmake --build . --target common -j 8
 	ar crs libbinding.a wrapper.o $(EXTRA_TARGETS)
 	cp build/common/libcommon.a .
