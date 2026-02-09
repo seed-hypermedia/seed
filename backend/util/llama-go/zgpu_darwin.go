@@ -1,7 +1,7 @@
-//go:build gpu
+// GPU support is enabled by default. Pass -tags cpu to build without GPU acceleration.
+//go:build !cpu
 
-// Always include Metal LDFLAGS on Darwin since libggml.a is compiled with Metal support.
-// The linker needs these even for non-GPU test runs.
+// Include Metal LDFLAGS on Darwin for GPU acceleration.
 package llama
 
 /*

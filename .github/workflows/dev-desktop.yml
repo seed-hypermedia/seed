@@ -86,7 +86,8 @@ jobs:
         if: matrix.config.os != 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          # GPU is enabled by default (no -tags needed)
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
@@ -97,7 +98,8 @@ jobs:
         if: matrix.config.os == 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
-          go build -tags gpu -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          # GPU is enabled by default (no -tags needed)
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: "windows"
           GOARCH: ${{ matrix.config.goarch }}
