@@ -39,18 +39,6 @@ fi
 '''
 hide = true
 
-[tasks.ensure-reranker-model]
-run = '''
-MODEL="backend/llm/backends/llamacpp/models/jina-reranker-v1-tiny-en-Q8_0.gguf"
-if [ ! -f "$MODEL" ]; then
-  mkdir -p "$(dirname "$MODEL")"
-  echo "Downloading GGUF reranker model..."
-  curl -fSL --progress-bar -o "$MODEL" \
-    "https://huggingface.co/gpustack/jina-reranker-v1-tiny-en-GGUF/resolve/main/jina-reranker-v1-tiny-en-Q8_0.gguf?download=true"
-fi
-'''
-hide = true
-
 [tasks.ensure-llama-libs]
 run = '''
 LLAMA_GO_DIR="backend/util/llama-go"
@@ -90,4 +78,4 @@ echo "To build with GPU acceleration: ./dev run-backend --gpu"
 '''
 
 [hooks]
-enter = "mise run ensure-model && mise run ensure-reranker-model && mise run ensure-llama-libs"
+enter = "mise run ensure-model && mise run ensure-llama-libs"
