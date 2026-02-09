@@ -8,7 +8,6 @@ import type {UniversalClient} from './universal-client'
 import {
   activityFilterToSlug,
   getRoutePanelParam,
-  hmId,
   hmIdToURL,
   idToUrl,
   unpackHmId,
@@ -183,21 +182,6 @@ export function routeToHref(
       route.key === 'directory' ||
       route.key === 'collaborators')
   ) {
-    // For discussions routes with openComment, generate a comment URL
-    if (route.key === 'discussions' && route.openComment) {
-      const activeCommentId = route.openComment
-      const [accountUid, commentTsid] = activeCommentId.split('/')
-      if (accountUid && commentTsid) {
-        const commentId = hmId(accountUid, {
-          path: [commentTsid],
-          blockRef: route.id.blockRef,
-          blockRange: route.id.blockRange,
-          hostname: options?.origin,
-        })
-        return options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
-      }
-    }
-
     const docId = route.id
     // Build path with view term
     let basePath = ''
@@ -216,7 +200,8 @@ export function routeToHref(
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTerm += `/${filterSlug}`
     }
-    return basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    return href
   }
 
   const docRoute =
@@ -235,33 +220,16 @@ export function routeToHref(
     href = route
   } else if (docRoute && docId) {
     const panelParam = getRoutePanelParam(docRoute)
-    // Comment panel with openComment gets a dedicated comment URL
-    if (
-      panelParam?.startsWith('comment/') &&
-      docRoute.panel?.key === 'discussions' &&
-      docRoute.panel.openComment
-    ) {
-      const [accountUid, commentTsid] = docRoute.panel.openComment.split('/')
-      if (!accountUid || !commentTsid) return undefined
-      const commentId = hmId(accountUid, {
-        path: [commentTsid],
-        blockRef: docRoute.panel.id?.blockRef,
-        blockRange: docRoute.panel.id?.blockRange,
-        hostname: options?.origin,
-      })
-      href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
-    } else {
-      href = options?.hmUrlHref
-        ? hmIdToURL(docId)
-        : idToUrl(
-            {...docId, hostname: null},
-            {
-              originHomeId: options?.originHomeId,
-              feed: docRoute.key === 'feed',
-              panel: panelParam,
-            },
-          )
-    }
+    href = options?.hmUrlHref
+      ? hmIdToURL(docId)
+      : idToUrl(
+          {...docId, hostname: null},
+          {
+            originHomeId: options?.originHomeId,
+            feed: docRoute.key === 'feed',
+            panel: panelParam,
+          },
+        )
   }
   return href
 }

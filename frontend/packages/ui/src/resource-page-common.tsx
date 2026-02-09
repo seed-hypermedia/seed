@@ -1,6 +1,7 @@
 import {
   BlockRange,
   DocumentPanelRoute,
+  HMComment,
   HMDocument,
   HMExistingDraft,
   hmId,
@@ -8,7 +9,10 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {parseFragment} from '@shm/shared/utils/entity-id-url'
+import {
+  getCommentTargetId,
+  parseFragment,
+} from '@shm/shared/utils/entity-id-url'
 import {
   useDirectory,
   useResource,
@@ -229,6 +233,17 @@ export function ResourcePage({
     )
   }
 
+  // Handle comment - render target document's discussions view with comment open
+  if (resource.data.type === 'comment') {
+    return (
+      <CommentResourcePage
+        comment={resource.data.comment}
+        commentId={docId}
+        CommentEditor={CommentEditor}
+      />
+    )
+  }
+
   // Success: render document
   if (resource.data.type !== 'document') {
     return (
@@ -259,6 +274,187 @@ export function ResourcePage({
         floatingButtons={floatingButtons}
       />
     </PageWrapper>
+  )
+}
+
+/** Renders the target document's discussions view when the route points to a comment entity */
+function CommentResourcePage({
+  comment,
+  commentId,
+  CommentEditor,
+}: {
+  comment: HMComment
+  commentId: UnpackedHypermediaId
+  CommentEditor?: React.ComponentType<CommentEditorProps>
+}) {
+  const targetDocId = getCommentTargetId(comment)
+
+  // Load target document's site header
+  const siteHomeId = targetDocId ? hmId(targetDocId.uid) : hmId(commentId.uid)
+  const siteHomeResource = useResource(siteHomeId, {subscribed: true})
+  const homeDirectory = useDirectory(siteHomeId)
+  const siteHomeDocument =
+    siteHomeResource.data?.type === 'document'
+      ? siteHomeResource.data.document
+      : null
+  const headerData = computeHeaderData(
+    siteHomeId,
+    siteHomeDocument,
+    homeDirectory.data,
+  )
+
+  // Load target document
+  const targetResource = useResource(targetDocId, {
+    subscribed: true,
+    recursive: true,
+  })
+
+  if (!targetDocId) {
+    return (
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={commentId}
+        headerData={headerData}
+      >
+        <PageNotFound />
+      </PageWrapper>
+    )
+  }
+
+  if (targetResource.isInitialLoading) {
+    return (
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={targetDocId}
+        headerData={headerData}
+      >
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner />
+        </div>
+      </PageWrapper>
+    )
+  }
+
+  if (targetResource.data?.type !== 'document') {
+    return (
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={targetDocId}
+        headerData={headerData}
+      >
+        <PageNotFound />
+      </PageWrapper>
+    )
+  }
+
+  const document = targetResource.data.document
+  const isHomeDoc = !targetDocId.path?.length
+
+  return (
+    <PageWrapper
+      siteHomeId={siteHomeId}
+      docId={targetDocId}
+      headerData={headerData}
+      document={document}
+    >
+      <CommentPageBody
+        docId={targetDocId}
+        document={document}
+        isHomeDoc={isHomeDoc}
+        openComment={comment.id}
+        CommentEditor={CommentEditor}
+      />
+    </PageWrapper>
+  )
+}
+
+/** Simplified body for comment pages: target doc header + discussions tab */
+function CommentPageBody({
+  docId,
+  document,
+  isHomeDoc,
+  openComment,
+  CommentEditor,
+}: {
+  docId: UnpackedHypermediaId
+  document: HMDocument
+  isHomeDoc: boolean
+  openComment: string
+  CommentEditor?: React.ComponentType<CommentEditorProps>
+}) {
+  const directory = useDirectory(docId)
+  const interactionSummary = useInteractionSummary(docId)
+
+  const breadcrumbIds = useMemo(() => {
+    if (isHomeDoc) return []
+    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
+  }, [docId.uid, docId.path, isHomeDoc])
+
+  const breadcrumbResults = useResources(breadcrumbIds)
+  const breadcrumbs = useMemo(() => {
+    if (isHomeDoc) return undefined
+    return breadcrumbIds.map((id, i) => {
+      const data = breadcrumbResults[i]?.data
+      const metadata =
+        data?.type === 'document' ? data.document?.metadata || {} : {}
+      return {id, metadata}
+    })
+  }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
+
+  const {contentMaxWidth} = useDocumentLayout({
+    contentWidth: document.metadata?.contentWidth,
+    showSidebars: false,
+  })
+  const media = useMedia()
+  const isMobile = media.xs
+
+  return (
+    <>
+      <DocumentCover cover={document.metadata?.cover} />
+      <div
+        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
+        style={{maxWidth: contentMaxWidth}}
+      >
+        {!isHomeDoc && (
+          <DocumentHeader
+            docId={docId}
+            docMetadata={document.metadata}
+            authors={[]}
+            updateTime={document.updateTime}
+            breadcrumbs={breadcrumbs}
+          />
+        )}
+      </div>
+      <div className="h-3" />
+      <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
+        <DocumentTools
+          id={docId}
+          activeTab="discussions"
+          commentsCount={interactionSummary.data?.comments || 0}
+          directoryCount={directory.data?.length}
+          rightActions={
+            !isMobile ? (
+              <OpenInPanelButton
+                id={docId}
+                panelRoute={{
+                  key: 'discussions',
+                  id: docId,
+                  openComment,
+                }}
+              />
+            ) : undefined
+          }
+        />
+      </div>
+      <DiscussionsPageContent
+        docId={docId}
+        openComment={openComment}
+        contentMaxWidth={contentMaxWidth}
+        commentEditor={
+          CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined
+        }
+      />
+    </>
   )
 }
 

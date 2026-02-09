@@ -491,10 +491,11 @@ async function loadResourcePayload(
     document: HMDocument
     latestDocument?: HMDocument | null
     comment?: HMComment
+    commentId?: UnpackedHypermediaId
   },
   ctx?: InstrumentationContext,
 ): Promise<WebResourcePayload> {
-  const {document, latestDocument, comment} = payload
+  const {document, latestDocument, comment, commentId} = payload
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
@@ -504,6 +505,14 @@ async function loadResourcePayload(
 
   // Single prefetch phase - use finalId so query keys match on client
   await prefetchResourceData(finalId, document, prefetchCtx, ctx)
+
+  // For comments, also prefetch the comment resource so useResource(commentId) has data
+  if (commentId) {
+    const client = serverUniversalClient
+    await prefetchCtx.queryClient.prefetchQuery(
+      queryResource(client, commentId),
+    )
+  }
 
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
@@ -518,7 +527,8 @@ async function loadResourcePayload(
     comment,
     accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
-    id: finalId,
+    // For comments, return the comment's own ID so the client route uses it
+    id: commentId || finalId,
     breadcrumbs,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),
@@ -553,6 +563,7 @@ export async function loadResource(
   )
   if (resource.type === 'comment') {
     const comment = resource.comment
+    const commentId = resource.id
     const targetDocId = getCommentTargetId(comment)
     if (!targetDocId) throw new Error('targetDocId not found')
     const document = await instrument(
@@ -566,6 +577,7 @@ export async function loadResource(
       {
         document,
         comment,
+        commentId,
       },
       ctx,
     )
