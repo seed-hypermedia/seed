@@ -26,8 +26,17 @@ cd backend/util/llama-go
 export LIBRARY_PATH=$(pwd)
 export C_INCLUDE_PATH=$(pwd)
 export PATH="$(dirname $TOOLS_CMAKE):$PATH"
-# GPU library compilation (still needs SEED_USE_GPU for C++ build type)
-if [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" = "darwin" ]; then
+# GPU is the default. CPU-only build requires SEED_CPU_ONLY=true
+if [ "${SEED_CPU_ONLY:-}" = "true" ]; then
+    # CPU-only build: explicitly disable ALL GPU backends
+    echo "Building llama.cpp (CPU-only)..."
+    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF"
+    make libbinding.a || { echo "ERROR: llama.cpp CPU build failed"; exit 1; }
+    # Create stubs for GPU libraries (not used in CPU-only build)
+    touch libggml-vulkan.a
+    touch libggml-metal.a
+    touch ggml-metal.metal
+elif [ "$OS" = "darwin" ]; then
     export BUILD_TYPE=metal
     export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
     echo "Building llama.cpp with Metal GPU acceleration..."
@@ -36,21 +45,12 @@ if [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" = "darwin" ]; then
     cp build/bin/ggml-metal.metal .
     # Create stub for Vulkan (not used on macOS)
     touch libggml-vulkan.a
-elif [ "${SEED_USE_GPU:-}" = "true" ] && [ "$OS" != "darwin" ]; then
+else
     export BUILD_TYPE=vulkan
     export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF"
     echo "Building llama.cpp with Vulkan GPU acceleration..."
     make libbinding.a || { echo "ERROR: llama.cpp Vulkan build failed"; exit 1; }
     # Create stubs for Metal (not used on Linux/Windows)
-    touch libggml-metal.a
-    touch ggml-metal.metal
-else
-    # CPU-only build: explicitly disable ALL GPU backends
-    echo "Building llama.cpp (CPU-only)..."
-    export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF"
-    make libbinding.a || { echo "ERROR: llama.cpp CPU build failed"; exit 1; }
-    # Create stubs for GPU libraries (not used in CPU-only build)
-    touch libggml-vulkan.a
     touch libggml-metal.a
     touch ggml-metal.metal
 fi
@@ -105,10 +105,10 @@ export CGO_CXXFLAGS="-std=c++17"
 export LIBRARY_PATH=$LLAMA_GO_PATH
 export C_INCLUDE_PATH=$LLAMA_GO_PATH
 
-# GPU support: pass -tags gpu, platform-specific files set correct CGO flags
+# GPU is the default (no tags needed). CPU-only build requires SEED_CPU_ONLY=true
 BUILD_TAGS=""
-if [ "${SEED_USE_GPU:-}" = "true" ]; then
-    BUILD_TAGS="-tags gpu"
+if [ "${SEED_CPU_ONLY:-}" = "true" ]; then
+    BUILD_TAGS="-tags cpu"
 fi
 
 echo "Looking for llama libraries in: $LLAMA_GO_PATH"

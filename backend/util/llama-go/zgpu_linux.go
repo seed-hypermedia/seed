@@ -1,7 +1,7 @@
-//go:build gpu
+// GPU support is enabled by default. Pass -tags cpu to build without GPU acceleration.
+//go:build !cpu
 
-// Always include Vulkan LDFLAGS on Linux since libggml.a is compiled with Vulkan support.
-// The linker needs these even for non-GPU test runs.
+// Include Vulkan LDFLAGS on Linux for GPU acceleration.
 package llama
 
 /*
