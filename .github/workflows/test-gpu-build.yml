@@ -48,6 +48,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        shell: bash
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
       - uses: ./.github/actions/ci-setup
         with:
           matrix-os: ${{ matrix.config.os }}
