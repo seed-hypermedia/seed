@@ -3,7 +3,10 @@
  * Enables HTTP GET with .md extension to return raw markdown
  */
 
-import type {BlockNode, Block, Annotation, HMDocument} from '@shm/shared/hm-types'
+import type {BlockNode, Block, Annotation, HMDocument, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {hmId, parseHMUrl} from '@shm/shared'
+import {grpcClient} from './client.server'
+import {resolveResource} from './loaders'
 
 export type MarkdownOptions = {
   includeMetadata?: boolean
@@ -11,12 +14,42 @@ export type MarkdownOptions = {
 }
 
 /**
+ * Cache for resolved account names to avoid repeated lookups
+ */
+const accountNameCache = new Map<string, string>()
+
+/**
+ * Resolve account display name from account ID
+ */
+async function resolveAccountName(accountId: string): Promise<string> {
+  if (accountNameCache.has(accountId)) {
+    return accountNameCache.get(accountId)!
+  }
+  
+  try {
+    const account = await grpcClient.documents.getAccount({
+      id: accountId,
+    })
+    
+    const name = account.metadata?.name || accountId.slice(0, 8) + '...'
+    accountNameCache.set(accountId, name)
+    return name
+  } catch (e) {
+    console.error('Failed to resolve account name for', accountId, e)
+    // Fallback to shortened account ID
+    const fallbackName = accountId.slice(0, 8) + '...'
+    accountNameCache.set(accountId, fallbackName)
+    return fallbackName
+  }
+}
+
+/**
  * Convert a document to markdown
  */
-export function documentToMarkdown(
+export async function documentToMarkdown(
   doc: HMDocument,
   options?: MarkdownOptions
-): string {
+): Promise<string> {
   const lines: string[] = []
 
   // Optional frontmatter
@@ -38,7 +71,7 @@ export function documentToMarkdown(
 
   // Content blocks
   for (const node of doc.content || []) {
-    const blockMd = blockNodeToMarkdown(node, 0)
+    const blockMd = await blockNodeToMarkdown(node, 0)
     if (blockMd) {
       lines.push(blockMd)
     }
@@ -50,20 +83,20 @@ export function documentToMarkdown(
 /**
  * Convert a block node (with children) to markdown
  */
-function blockNodeToMarkdown(
+async function blockNodeToMarkdown(
   node: BlockNode,
   depth: number
-): string {
+): Promise<string> {
   const block = node.block
   const children = node.children || []
 
-  let result = blockToMarkdown(block, depth)
+  let result = await blockToMarkdown(block, depth)
 
   // Handle children based on childrenType
   const childrenType = block.attributes?.childrenType as string | undefined
 
   for (const child of children) {
-    const childMd = blockNodeToMarkdown(child, depth + 1)
+    const childMd = await blockNodeToMarkdown(child, depth + 1)
     if (childMd) {
       if (childrenType === 'Ordered') {
         result += '\n' + indent(depth + 1) + '1. ' + childMd.trim()
@@ -83,21 +116,21 @@ function blockNodeToMarkdown(
 /**
  * Convert a single block to markdown
  */
-function blockToMarkdown(
+async function blockToMarkdown(
   block: Block,
   depth: number
-): string {
+): Promise<string> {
   const ind = indent(depth)
 
   switch (block.type) {
     case 'Paragraph':
-      return ind + applyAnnotations(block.text || '', block.annotations)
+      return ind + await applyAnnotations(block.text || '', block.annotations)
 
     case 'Heading':
       // Use depth to determine heading level (max h6)
       const level = Math.min(depth + 1, 6)
       const hashes = '#'.repeat(level)
-      return `${hashes} ${applyAnnotations(block.text || '', block.annotations)}`
+      return `${hashes} ${await applyAnnotations(block.text || '', block.annotations)}`
 
     case 'Code':
       const lang = (block.attributes?.language as string) || ''
@@ -121,7 +154,7 @@ function blockToMarkdown(
       return ind + `[${fileName}](${fileUrl})`
 
     case 'Embed':
-      return ind + `> [Embed: ${block.link}](${block.link})`
+      return await resolveEmbedBlock(block, ind)
 
     case 'WebEmbed':
       return ind + `[Web Embed](${block.link})`
@@ -131,7 +164,7 @@ function blockToMarkdown(
       return ind + `[${buttonText}](${block.link})`
 
     case 'Query':
-      return ind + `<!-- Query block -->`
+      return await resolveQueryBlock(block, ind)
 
     case 'Nostr':
       return ind + `[Nostr: ${block.link}](${block.link})`
@@ -145,12 +178,104 @@ function blockToMarkdown(
 }
 
 /**
+ * Resolve an embed block by loading the target document and inlining content
+ */
+async function resolveEmbedBlock(block: Block, indent: string): Promise<string> {
+  if (!block.link) {
+    return indent + `> [Embed: No URL]`
+  }
+  
+  try {
+    // Parse the embed URL to get the resource ID
+    const parsed = parseHMUrl(block.link)
+    if (!parsed) {
+      return indent + `> [Embed: ${block.link}](${block.link})`
+    }
+    
+    // Use the existing resolveResource function for consistency
+    const resourceId = hmId(parsed.uid, {
+      path: parsed.path,
+      version: parsed.version,
+      latest: parsed.latest,
+      blockRef: parsed.blockRef,
+    })
+    
+    const resource = await resolveResource(resourceId)
+    
+    if (resource.type !== 'document' || !resource.document) {
+      return indent + `> [Embed: ${block.link}](${block.link})`
+    }
+    
+    // Extract relevant content based on blockRef if present
+    let content = ''
+    if (parsed.blockRef) {
+      // Find the specific block referenced
+      const targetBlock = findBlockById(resource.document.content || [], parsed.blockRef)
+      if (targetBlock) {
+        content = targetBlock.text || ''
+      }
+    } else {
+      // Use the document title or first block
+      const title = resource.document.metadata?.name
+      if (title) {
+        content = title
+      } else if (resource.document.content?.[0]?.block?.text) {
+        content = resource.document.content[0].block.text
+      }
+    }
+    
+    if (content) {
+      // Format as blockquote with proper indentation
+      return indent + `> ${content.split('\n').join('\n' + indent + '> ')}`
+    } else {
+      return indent + `> [Embed: ${block.link}](${block.link})`
+    }
+    
+  } catch (e) {
+    console.error('Failed to resolve embed:', block.link, e)
+    return indent + `> [Embed: ${block.link}](${block.link})`
+  }
+}
+
+/**
+ * Resolve a query block by executing the query and generating a list of links
+ */
+async function resolveQueryBlock(block: Block, indent: string): Promise<string> {
+  try {
+    // For now, return a placeholder since query implementation is complex
+    // This would need the actual query execution logic from the frontend
+    const queryText = block.text || 'query'
+    return indent + `<!-- Query: ${queryText} -->`
+  } catch (e) {
+    console.error('Failed to resolve query:', block, e)
+    return indent + `<!-- Query block -->`
+  }
+}
+
+/**
+ * Helper function to find a block by ID in a document's content
+ */
+function findBlockById(content: any[], blockId: string): any | null {
+  for (const node of content) {
+    if (node.block?.id === blockId) {
+      return node.block
+    }
+    // Recursively search children
+    if (node.children) {
+      const found = findBlockById(node.children, blockId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
  * Apply text annotations (bold, italic, links, etc.)
  */
-function applyAnnotations(
+async function applyAnnotations(
   text: string,
   annotations: Annotation[] | undefined
-): string {
+): Promise<string> {
   if (!annotations || annotations.length === 0) {
     return text
   }
@@ -184,7 +309,7 @@ function applyAnnotations(
   for (const marker of markers) {
     result += text.slice(lastPos, marker.pos)
     lastPos = marker.pos
-    result += getAnnotationMarker(marker.annotation, marker.type)
+    result += await getAnnotationMarker(marker.annotation, marker.type)
   }
 
   result += text.slice(lastPos)
@@ -198,10 +323,10 @@ function applyAnnotations(
 /**
  * Get markdown marker for annotation
  */
-function getAnnotationMarker(
+async function getAnnotationMarker(
   ann: Annotation,
   type: 'open' | 'close'
-): string {
+): Promise<string> {
   switch (ann.type) {
     case 'Bold':
       return '**'
@@ -221,6 +346,18 @@ function getAnnotationMarker(
       }
     case 'Embed':
       if (type === 'open') {
+        // Resolve the account name for the mention
+        if (ann.link) {
+          try {
+            const parsed = parseHMUrl(ann.link)
+            if (parsed?.uid) {
+              const name = await resolveAccountName(parsed.uid)
+              return `@${name}`
+            }
+          } catch (e) {
+            console.error('Failed to resolve mention name:', ann.link, e)
+          }
+        }
         return `[@`
       } else {
         return `](${ann.link || ''})`

@@ -320,7 +320,7 @@ async function handleMarkdownRequest(
     const resource = await resolveResource(resourceId)
 
     if (resource.type === 'document') {
-      const md = documentToMarkdown(resource.document, {
+      const md = await documentToMarkdown(resource.document, {
         includeMetadata: true,
         includeFrontmatter: url.searchParams.has('frontmatter'),
       })
@@ -345,7 +345,7 @@ async function handleMarkdownRequest(
         authors: [resource.comment.author],
       } as any
 
-      const md = documentToMarkdown(fakeDoc, {includeMetadata: false})
+      const md = await documentToMarkdown(fakeDoc, {includeMetadata: false})
 
       return new Response(md, {
         status: 200,

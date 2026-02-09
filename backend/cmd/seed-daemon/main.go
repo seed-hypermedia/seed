@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -89,7 +90,12 @@ func main() {
 		if keyStoreEnvironment == "" {
 			keyStoreEnvironment = "main"
 		}
-		ks := core.NewOSKeyStore(keyStoreEnvironment)
+		var ks core.KeyStore
+		if os.Getenv("SEED_FILE_KEYSTORE") == "1" {
+			ks = core.NewFileKeyStore(filepath.Join(cfg.Base.DataDir, "keys.json"))
+		} else {
+			ks = core.NewOSKeyStore(keyStoreEnvironment)
+		}
 
 		dir, err := storage.Open(cfg.Base.DataDir, nil, ks, cfg.LogLevel)
 		if err != nil {
