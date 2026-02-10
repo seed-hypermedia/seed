@@ -1,5 +1,5 @@
-import {NavRoute, UnpackedHypermediaId, useOpenRoute} from '@shm/shared'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {NavRoute, UnpackedHypermediaId} from '@shm/shared'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {HTMLAttributes, PropsWithChildren, useMemo} from 'react'
 import {blockStyles} from './blocks-content'
@@ -29,7 +29,7 @@ export function EmbedWrapper({
     openOnClick?: boolean
   } & Omit<HTMLAttributes<HTMLDivElement>, 'id'>
 >) {
-  const openRoute = useOpenRoute()
+  const navigate = useNavigate()
   const highlight = useHighlighter()
   const currentRoute = useNavRoute()
 
@@ -81,10 +81,8 @@ export function EmbedWrapper({
               if (hasSelection) {
                 return
               }
-              if (openRoute) {
-                e.preventDefault()
-                openRoute(effectiveRoute)
-              }
+              e.preventDefault()
+              navigate(effectiveRoute)
             }
           : undefined
       }

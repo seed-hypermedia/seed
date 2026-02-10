@@ -1,10 +1,9 @@
-import {ScrollArea} from '@radix-ui/react-scroll-area'
 import {ReactNode} from 'react'
 import {Text} from './text'
 
 /**
  * Consistent layout wrapper for full-page content (activity, discussions, directory, etc.)
- * Ensures proper scroll behavior with fixed header and scrollable content area.
+ * Parent component (ResourcePage) handles scrolling - this just provides layout structure.
  */
 export function PageLayout({
   title,
@@ -12,14 +11,12 @@ export function PageLayout({
   children,
   centered = false,
   contentMaxWidth,
-  scrollRef,
 }: {
   title?: string
   headerRight?: ReactNode
   children: ReactNode
   centered?: boolean
   contentMaxWidth?: number
-  scrollRef?: React.Ref<HTMLDivElement>
 }) {
   const hasHeader = title || headerRight
   const maxWidthStyle = contentMaxWidth
@@ -28,8 +25,8 @@ export function PageLayout({
   const maxWidthClass = contentMaxWidth ? '' : 'max-w-[calc(85ch+1em)]'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Fixed header */}
+    <div className="flex flex-1 flex-col">
+      {/* Header */}
       {hasHeader && (
         <div className="shrink-0">
           <div
@@ -47,10 +44,8 @@ export function PageLayout({
           </div>
         </div>
       )}
-      <ScrollArea
-        className="min-h-0 flex-1 overflow-auto pb-16"
-        ref={scrollRef}
-      >
+      {/* Content - no scroll, parent handles it */}
+      <div className="flex-1">
         {centered ? (
           <div
             className={`mx-auto w-full px-4 ${maxWidthClass}`}
@@ -61,7 +56,7 @@ export function PageLayout({
         ) : (
           children
         )}
-      </ScrollArea>
+      </div>
     </div>
   )
 }

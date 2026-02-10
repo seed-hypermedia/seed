@@ -1,0 +1,316 @@
+import {useAppContext} from '@/app-context'
+import {BranchDialog} from '@/components/branch-dialog'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
+import {useCopyReferenceUrl} from '@/components/copy-reference-url'
+import {CreateDocumentButton} from '@/components/create-doc-button'
+import {useDeleteDialog} from '@/components/delete-dialog'
+import {MoveDialog} from '@/components/move-dialog'
+import {
+  roleCanWrite,
+  useSelectedAccountCapability,
+} from '@/models/access-control'
+import {useMyAccountIds} from '@/models/daemon'
+import {useExistingDraft} from '@/models/drafts'
+import {useGatewayUrl} from '@/models/gateway-settings'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
+import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import {useNavigate} from '@/utils/useNavigate'
+import {hmId} from '@shm/shared'
+import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
+import {displayHostname} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
+import {Button} from '@shm/ui/button'
+import {Download, Link, Trash} from '@shm/ui/icons'
+import {MenuItemType} from '@shm/ui/options-dropdown'
+import {ResourcePage} from '@shm/ui/resource-page-common'
+import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
+import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {nanoid} from 'nanoid'
+import {useCallback} from 'react'
+
+export default function DesktopResourcePage() {
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const replace = useNavigate('replace')
+
+  // Only handle document-related routes
+  const supportedKeys = [
+    'document',
+    'feed',
+    'directory',
+    'collaborators',
+    'activity',
+    'discussions',
+  ]
+  if (!supportedKeys.includes(route.key)) {
+    throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
+  }
+
+  // @ts-expect-error - route.id exists on all supported route types
+  const docId = route.id
+  if (!docId) throw new Error('No document ID in route')
+
+  const dispatch = useNavigationDispatch()
+  const existingDraft = useExistingDraft(route)
+  const capability = useSelectedAccountCapability(docId)
+  const canEdit = roleCanWrite(capability?.role)
+  const myAccountIds = useMyAccountIds()
+
+  // Get site URL for CreateDocumentButton
+  const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
+  const siteUrl =
+    siteHomeResource.data?.type === 'document'
+      ? siteHomeResource.data.document?.metadata?.siteUrl
+      : undefined
+
+  // Hooks for options dropdown
+  const resource = useResource(docId)
+  const doc =
+    resource.data?.type === 'document' ? resource.data.document : undefined
+  const {exportDocument, openDirectory} = useAppContext()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
+  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+    siteUrl || gwUrl,
+    siteUrl ? hmId(docId.uid) : undefined,
+  )
+  const deleteEntity = useDeleteDialog()
+  const branchDialog = useAppDialog(BranchDialog)
+  const moveDialog = useAppDialog(MoveDialog)
+
+  const menuItems: MenuItemType[] = []
+
+  if (canEdit && myAccountIds.data?.length && docId.path?.length) {
+    menuItems.push({
+      key: 'move',
+      label: 'Move Document',
+      icon: <ForwardIcon className="size-4" />,
+      onClick: () => moveDialog.open({id: docId}),
+    })
+  }
+
+  if (siteUrl) {
+    menuItems.push({
+      key: 'link-site',
+      label: `Copy ${displayHostname(siteUrl)} Link`,
+      icon: <Link className="size-4" />,
+      onClick: () => onCopySiteUrl(route),
+    })
+  }
+
+  menuItems.push({
+    key: 'link',
+    label: `Copy ${displayHostname(gwUrl)} Link`,
+    icon: <Link className="size-4" />,
+    onClick: () => onCopyGateway(route),
+  })
+
+  menuItems.push({
+    key: 'export',
+    label: 'Export Document',
+    icon: <Download className="size-4" />,
+    onClick: async () => {
+      if (!doc) return
+      const title = doc?.metadata.name || 'document'
+      const blocks: HMBlockNode[] | undefined = doc?.content || undefined
+      const editorBlocks = hmBlocksToEditorContent(blocks, {
+        childrenType: 'Group',
+      })
+      const markdownWithFiles = await convertBlocksToMarkdown(editorBlocks, doc)
+      const {markdownContent, mediaFiles} = markdownWithFiles
+      exportDocument(title, markdownContent, mediaFiles)
+        .then((res) => {
+          toast.success(
+            <div className="flex max-w-[700px] flex-col gap-1.5">
+              <SizableText className="text-wrap break-all">
+                Successfully exported document &quot;{title}&quot; to:{' '}
+                <b>{`${res}`}</b>.
+              </SizableText>
+              <SizableText
+                className="text-current underline"
+                onClick={() => {
+                  // @ts-expect-error
+                  openDirectory(res)
+                }}
+              >
+                Show directory
+              </SizableText>
+            </div>,
+          )
+        })
+        .catch((err) => {
+          toast.error(err)
+        })
+    },
+  })
+
+  if (myAccountIds.data?.length) {
+    menuItems.push({
+      key: 'branch',
+      label: 'Create Document Branch',
+      icon: <GitFork className="size-4" />,
+      onClick: () => branchDialog.open(docId),
+    })
+  }
+
+  if (canEdit && docId.path?.length) {
+    menuItems.push({
+      key: 'delete',
+      label: 'Delete Document',
+      icon: <Trash className="size-4" />,
+      onClick: () => {
+        deleteEntity.open({
+          id: docId,
+          onSuccess: () => {
+            dispatch({
+              type: 'backplace',
+              route: {
+                key: 'document',
+                id: hmId(docId.uid, {
+                  path: docId.path?.slice(0, -1),
+                }),
+              } as any,
+            })
+          },
+        })
+      },
+    })
+  }
+
+  const editActions = canEdit ? (
+    <>
+      <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn(
+            existingDraft ? 'bg-yellow-200' : 'bg-background dark:bg-black',
+          )}
+          onClick={() => {
+            if (existingDraft) {
+              navigate({
+                key: 'draft',
+                id: existingDraft.id,
+                panel: null,
+              })
+            } else {
+              navigate({
+                key: 'draft',
+                id: nanoid(10),
+                editUid: docId.uid,
+                editPath: docId.path || [],
+                deps: docId.version ? [docId.version] : undefined,
+                panel: null,
+              })
+            }
+          }}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      </Tooltip>
+      <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+    </>
+  ) : null
+
+  const onReplyClick = useCallback(
+    (replyComment: HMComment) => {
+      const targetRoute = isRouteEqualToCommentTarget({
+        id: docId,
+        comment: replyComment,
+      })
+      if (targetRoute) {
+        navigate({
+          key: 'document',
+          id: targetRoute,
+          panel: {
+            key: 'discussions',
+            id: targetRoute,
+            openComment: replyComment.id,
+            isReplying: true,
+          },
+        })
+      } else if (route.key === 'discussions') {
+        // Already viewing discussions in main — update in place
+        replace({...route, openComment: replyComment.id, isReplying: true})
+      } else {
+        replace({
+          ...route,
+          panel: {
+            key: 'discussions',
+            id: docId,
+            openComment: replyComment.id,
+            isReplying: true,
+          },
+        } as any)
+      }
+      triggerCommentDraftFocus(docId.id, replyComment.id)
+    },
+    [route, docId, navigate, replace],
+  )
+
+  const onReplyCountClick = useCallback(
+    (replyComment: HMComment) => {
+      const targetRoute = isRouteEqualToCommentTarget({
+        id: docId,
+        comment: replyComment,
+      })
+      if (targetRoute) {
+        navigate({
+          key: 'document',
+          id: targetRoute,
+          panel: {
+            key: 'discussions',
+            id: targetRoute,
+            openComment: replyComment.id,
+          },
+        })
+      } else if (route.key === 'discussions') {
+        replace({...route, openComment: replyComment.id})
+      } else {
+        replace({
+          ...route,
+          panel: {
+            key: 'discussions',
+            id: docId,
+            openComment: replyComment.id,
+          },
+        } as any)
+      }
+    },
+    [route, docId, navigate, replace],
+  )
+
+  return (
+    <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
+      <CommentsProvider
+        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
+      >
+        <ResourcePage
+          docId={docId}
+          CommentEditor={CommentBox}
+          optionsMenuItems={menuItems}
+          editActions={editActions}
+          existingDraft={existingDraft}
+        />
+      </CommentsProvider>
+      {copyGatewayContent}
+      {copySiteUrlContent}
+      {deleteEntity.content}
+      {branchDialog.content}
+      {moveDialog.content}
+    </div>
+  )
+}

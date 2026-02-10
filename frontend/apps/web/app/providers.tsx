@@ -212,6 +212,7 @@ export function WebSiteProvider(props: {
   origin?: string
   prefersLanguages?: (keyof typeof languagePacks)[]
   dehydratedState?: DehydratedState
+  initialRoute?: NavRoute
 }) {
   const navigate = useNavigate()
   const client = useQueryClient()
@@ -229,11 +230,11 @@ export function WebSiteProvider(props: {
     return undefined
   }, [props.prefersLanguages])
 
-  // Create navigation context
+  // Create navigation context with initial route from URL
   const navigation = useMemo(() => {
     const initialNav: NavState = {
       sidebarLocked: false,
-      routes: [defaultRoute],
+      routes: [props.initialRoute ?? defaultRoute],
       routeIndex: 0,
       lastAction: 'replace',
     }

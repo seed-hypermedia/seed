@@ -5,12 +5,14 @@ import {
   roleCanWrite,
   useSelectedAccountCapability,
 } from '@/models/access-control'
+import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {SidebarContext} from '@/sidebar-context'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {hostnameStripProtocol} from '@shm/shared'
@@ -20,6 +22,7 @@ import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {resolveHypermediaUrl} from '@shm/shared/resolve-hm'
 import {
+  createDocumentNavRoute,
   DocumentRoute,
   DraftRoute,
   FeedRoute,
@@ -27,20 +30,21 @@ import {
 } from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {
-  createSiteUrl,
+  activitySlugToFilter,
   createWebHMUrl,
   displayHostname,
   extractViewTermFromUrl,
   hmId,
   latestId,
+  routeToUrl,
   unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
 import {
   appRouteOfId,
-  useNavRoute,
   useNavigationDispatch,
   useNavigationState,
+  useNavRoute,
 } from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -84,7 +88,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import {BookmarkButton} from './bookmarking'
 import {BranchDialog} from './branch-dialog'
+import {CopyReferenceButton} from './copy-reference-button'
 import {useImportDialog, useImporting} from './import-doc-button'
 import {MoveDialog} from './move-dialog'
 import {
@@ -95,7 +101,27 @@ import {
 import {SearchInput, SearchInputHandle} from './search-input'
 import {SubscriptionButton} from './subscription'
 import {TitleBarProps} from './titlebar'
-import {TitleContent} from './titlebar-title'
+
+// Route keys that have an id and support DocOptionsButton
+const DOC_OPTIONS_ROUTE_KEYS = [
+  'document',
+  'feed',
+  'activity',
+  'discussions',
+  'directory',
+  'collaborators',
+] as const
+
+type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
+
+function isDocOptionsRoute(
+  route: NavRoute,
+): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
+  return (
+    DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) &&
+    'id' in route
+  )
+}
 
 export function DocOptionsButton({
   onPublishSite,
@@ -107,17 +133,18 @@ export function DocOptionsButton({
 }) {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
-  if (route.key !== 'document' && route.key !== 'feed')
+  if (!isDocOptionsRoute(route))
     throw new Error(
-      'DocOptionsButton can only be rendered on publication route',
+      'DocOptionsButton must be used within a route that has an id',
     )
+  const id = route.id
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const resource = useResource(route.id)
+  const resource = useResource(id)
   const doc =
     resource.data?.type === 'document' ? resource.data.document : undefined
-  const rootEntity = useResource(hmId(route.id.uid))
+  const rootEntity = useResource(hmId(id?.uid))
   const rootDocument =
     rootEntity.data?.type === 'document' ? rootEntity.data.document : undefined
   const siteUrl = rootDocument?.metadata.siteUrl
@@ -126,7 +153,7 @@ export function DocOptionsButton({
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
   const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
-    siteUrl ? hmId(route.id.uid) : undefined,
+    siteUrl ? hmId(id?.uid) : undefined,
   )
   // const  {
   //   ...route.id,
@@ -134,14 +161,14 @@ export function DocOptionsButton({
   //   version: doc?.version || null,
   // }
   const removeSite = useRemoveSiteDialog()
-  const capability = useSelectedAccountCapability(route.id)
+  const capability = useSelectedAccountCapability(id || undefined)
   const canEditDoc = roleCanWrite(capability?.role)
   const seedHostDialog = useSeedHostDialog()
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
   const myAccountIds = useMyAccountIds()
   const pendingDomain = useHostSession().pendingDomains?.find(
-    (pending) => pending.siteUid === route.id.uid,
+    (pending) => !!id && pending.siteUid === id.uid,
   )
   const menuItems: MenuItemType[] = [
     {
@@ -207,21 +234,21 @@ export function DocOptionsButton({
       },
     })
   }
-  if (doc && canEditDoc && route.id.path?.length) {
+  if (doc && canEditDoc && id?.path?.length) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
       icon: <Trash className="size-4" />,
       onClick: () => {
         deleteEntity.open({
-          id: route.id,
+          id: id,
           onSuccess: () => {
             dispatch({
               type: 'backplace',
               route: {
                 key: 'document',
-                id: hmId(route.id.uid, {
-                  path: route.id.path?.slice(0, -1),
+                id: hmId(id.uid, {
+                  path: id.path?.slice(0, -1),
                 }),
               } as any,
             })
@@ -230,7 +257,7 @@ export function DocOptionsButton({
       },
     })
   }
-  if (!route.id.path?.length && canEditDoc) {
+  if (!!id && !id?.path?.length && canEditDoc) {
     if (doc?.metadata?.siteUrl) {
       const siteHost = hostnameStripProtocol(doc?.metadata?.siteUrl)
       const gwHost = hostnameStripProtocol(gwUrl)
@@ -240,7 +267,7 @@ export function DocOptionsButton({
           label: 'Publish Custom Domain',
           icon: <UploadCloud className="size-4" />,
           onClick: () => {
-            onPublishSite({id: route.id, step: 'seed-host-custom-domain'})
+            onPublishSite({id: id, step: 'seed-host-custom-domain'})
           },
         })
       }
@@ -250,7 +277,7 @@ export function DocOptionsButton({
         icon: <CloudOff className="size-4" />,
         color: '$red10',
         onClick: () => {
-          removeSite.open(route.id)
+          removeSite.open(id)
         },
       })
     } else
@@ -259,16 +286,16 @@ export function DocOptionsButton({
         label: 'Publish Site to Domain',
         icon: <UploadCloud className="size-4" />,
         onClick: () => {
-          onPublishSite({id: route.id})
+          onPublishSite({id})
         },
       })
   }
   const createDraft = useCreateDraft({
-    locationUid: route.id.uid,
-    locationPath: route.id.path || undefined,
+    locationUid: id?.uid,
+    locationPath: id?.path || undefined,
   })
   const importDialog = useImportDialog()
-  const importing = useImporting(route.id)
+  const importing = useImporting(id)
   if (canEditDoc) {
     menuItems.push({
       key: 'create-draft',
@@ -291,25 +318,25 @@ export function DocOptionsButton({
     })
   }
 
-  if (myAccountIds.data?.length) {
+  if (id && myAccountIds.data?.length) {
     menuItems.push({
       key: 'branch',
       label: 'Create Document Branch',
       icon: <GitFork className="size-4" />,
       onClick: () => {
-        branchDialog.open(route.id)
+        branchDialog.open(id)
       },
     })
   }
 
-  if (canEditDoc && myAccountIds.data?.length && route.id.path?.length) {
+  if (canEditDoc && myAccountIds.data?.length && id?.path?.length) {
     menuItems.push({
       key: 'move',
       label: 'Move Document',
       icon: <ForwardIcon className="size-4" />,
       onClick: () => {
         moveDialog.open({
-          id: route.id,
+          id,
         })
       },
     })
@@ -522,90 +549,123 @@ export function TitlebarTitle() {
 
 type OmnibarMode = 'idle' | 'focused' | 'search'
 
-/**
- * Get view term suffix for route (e.g., /:discussions, /:activity)
- */
-function getViewTermForRoute(route: NavRoute): string | null {
-  // First-class view routes
-  if (route.key === 'activity') return '/:activity'
-  if (route.key === 'discussions') return '/:discussions'
-  if (route.key === 'collaborators') return '/:collaborators'
-  if (route.key === 'directory') return '/:directory'
-
-  // Document routes with panel
-  if (route.key === 'document' && route.panel) {
-    const panelKey = route.panel.key
-    if (panelKey === 'activity') return '/:activity'
-    if (panelKey === 'discussions') return '/:discussions'
-    if (panelKey === 'collaborators') return '/:collaborators'
-    if (panelKey === 'directory') return '/:directory'
+/** Label for non-document routes */
+function getRouteLabel(route: NavRoute): string | null {
+  switch (route.key) {
+    case 'library':
+      return 'Library'
+    case 'drafts':
+      return 'Drafts'
+    case 'contacts':
+      return 'Contacts'
+    case 'bookmarks':
+      return 'Bookmarks'
+    case 'settings':
+      return 'Settings'
+    case 'draft':
+      return 'Draft'
+    case 'preview':
+      return 'Preview'
+    default:
+      return null
   }
-
-  return null
 }
 
 /**
  * Hook to construct displayable URL from current route
  * Priority: siteUrl > gatewayUrl (never hm://)
- * Includes view term suffix for panel routes (e.g., /:discussions)
+ * Returns displayUrl (always shown) and copyableUrl (null for new doc drafts)
  */
-function useCurrentRouteUrl(): string | null {
+function useCurrentRouteUrl(): {
+  displayUrl: string | null
+  copyableUrl: string | null
+} {
   const route = useNavRoute()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
 
   // Get account entity to check for siteUrl
   const routeId = getRouteId(route)
-  const accountEntity = useResource(routeId ? hmId(routeId.uid) : null)
+
+  // For draft/preview routes, fetch draft data
+  const draftId =
+    route.key === 'draft'
+      ? route.id
+      : route.key === 'preview'
+      ? route.draftId
+      : undefined
+  const draft = useDraft(draftId)
+  const draftData = draft.data
+
+  // Resolve uid for siteUrl lookup: route > draft data
+  const draftEditUid =
+    (route.key === 'draft' ? route.editUid : undefined) || draftData?.editUid
+  const draftLocationUid =
+    (route.key === 'draft' ? route.locationUid : undefined) ||
+    draftData?.locationUid
+  const draftUid = draftEditUid || draftLocationUid
+  const lookupUid = routeId?.uid || draftUid
+  const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
   const siteHostname =
     accountEntity.data?.type === 'document'
       ? accountEntity.data.document?.metadata?.siteUrl
       : null
 
+  const draftTitle = draftData?.metadata?.name
+
   return useMemo(() => {
-    if (!routeId) return null
+    // Handle draft/preview routes (routeToUrl doesn't support them)
+    if (route.key === 'draft' || route.key === 'preview') {
+      const hostname = siteHostname || gwUrl
+      // Resolve edit/location from route or draft data
+      const editUid =
+        (route.key === 'draft' ? route.editUid : undefined) ||
+        draftData?.editUid
+      const editPath =
+        (route.key === 'draft' ? route.editPath : undefined) ||
+        draftData?.editPath
+      const locationUid =
+        (route.key === 'draft' ? route.locationUid : undefined) ||
+        draftData?.locationUid
+      const locationPath =
+        (route.key === 'draft' ? route.locationPath : undefined) ||
+        draftData?.locationPath
 
-    // Get view term suffix if applicable
-    const viewTerm = getViewTermForRoute(route)
-
-    let baseUrl: string
-    // Use siteUrl if available, otherwise gateway URL
-    if (siteHostname) {
-      baseUrl = createSiteUrl({
-        hostname: siteHostname,
-        path: routeId.path,
-        version: routeId.version,
-        latest: routeId.latest ?? undefined,
-        blockRef: routeId.blockRef,
-        blockRange: routeId.blockRange,
-      })
-    } else {
-      baseUrl = createWebHMUrl(routeId.uid, {
-        hostname: gwUrl,
-        path: routeId.path,
-        version: routeId.version,
-        latest: routeId.latest ?? undefined,
-        blockRef: routeId.blockRef,
-        blockRange: routeId.blockRange,
-      })
+      if (editUid) {
+        // Editing existing doc - show the doc's URL, copyable
+        const url = createWebHMUrl(editUid, {
+          path: editPath,
+          hostname,
+          originHomeId: siteHostname ? hmId(editUid) : undefined,
+        })
+        return {displayUrl: url, copyableUrl: url}
+      }
+      if (locationUid) {
+        // New doc - use pathemified title or fallback to draft ID, NOT copyable
+        const draftRouteId = route.key === 'draft' ? route.id : route.draftId
+        const pathSegment = draftTitle?.trim()
+          ? pathNameify(draftTitle)
+          : draftRouteId
+        const newPath = [...(locationPath || []), pathSegment]
+        const url = createWebHMUrl(locationUid, {
+          path: newPath,
+          hostname,
+          originHomeId: siteHostname ? hmId(locationUid) : undefined,
+        })
+        return {displayUrl: url, copyableUrl: null}
+      }
+      return {displayUrl: null, copyableUrl: null}
     }
 
-    // Append view term before query string if present
-    if (viewTerm) {
-      const queryIndex = baseUrl.indexOf('?')
-      if (queryIndex !== -1) {
-        return (
-          baseUrl.slice(0, queryIndex) + viewTerm + baseUrl.slice(queryIndex)
-        )
-      }
-      const hashIndex = baseUrl.indexOf('#')
-      if (hashIndex !== -1) {
-        return baseUrl.slice(0, hashIndex) + viewTerm + baseUrl.slice(hashIndex)
-      }
-      return baseUrl + viewTerm
+    if (routeId) {
+      const url = routeToUrl(route, {
+        hostname: siteHostname || gwUrl,
+        originHomeId: siteHostname ? hmId(routeId.uid) : undefined,
+      })
+      return {displayUrl: url, copyableUrl: url}
     }
 
-    return baseUrl
-  }, [routeId, route, siteHostname, gwUrl])
+    return {displayUrl: null, copyableUrl: null}
+  }, [routeId, route, siteHostname, gwUrl, draftTitle, draftData])
 }
 
 /**
@@ -621,6 +681,10 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'discussions'
   ) {
     return route.id
+  }
+  // Draft editing existing doc - return the doc's ID for bookmark/copy buttons
+  if (route.key === 'draft' && route.editUid) {
+    return hmId(route.editUid, {path: route.editPath})
   }
   return null
 }
@@ -725,7 +789,7 @@ function useOmnibarState(currentUrl: string | null) {
 export function Omnibar() {
   const route = useNavRoute()
   const navigate = useNavigate()
-  const currentUrl = useCurrentRouteUrl()
+  const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const publishSite = usePublishSite()
   const searchInputRef = useRef<SearchInputHandle>(null)
 
@@ -737,7 +801,7 @@ export function Omnibar() {
     focusSearch,
     blur,
     handleInputChange,
-  } = useOmnibarState(currentUrl)
+  } = useOmnibarState(copyableUrl)
 
   // Listen for keyboard shortcuts
   useListenAppEvent('focus_omnibar', (event) => {
@@ -757,15 +821,26 @@ export function Omnibar() {
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
       // Extract view term (e.g., /:activity) from URL before processing
-      const {url: cleanUrl, viewTerm} = extractViewTermFromUrl(url)
+      const {
+        url: cleanUrl,
+        viewTerm,
+        activityFilter,
+      } = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
       const applyViewTerm = (route: NavRoute): NavRoute => {
         if (!routeKey) return route
         if (route.key === 'document') {
-          // Return first-class page route instead of document
-          return {key: routeKey, id: route.id}
+          const viewRoute: NavRoute = {key: routeKey, id: route.id}
+          if (
+            routeKey === 'activity' &&
+            activityFilter &&
+            viewRoute.key === 'activity'
+          ) {
+            viewRoute.filterEventType = activitySlugToFilter(activityFilter)
+          }
+          return viewRoute
         }
         return route
       }
@@ -773,7 +848,19 @@ export function Omnibar() {
       // First try to parse as hm:// URL (synchronous)
       const unpacked = unpackHmId(cleanUrl)
       if (unpacked) {
-        const navRoute = appRouteOfId(unpacked)
+        // Extract panel param from URL if present
+        let panel: string | null = null
+        try {
+          const urlObj = new URL(cleanUrl)
+          panel = urlObj.searchParams.get('panel')
+        } catch {
+          // hm:// URLs might not parse as standard URLs, try manual extraction
+          const panelMatch = cleanUrl.match(/[?&]panel=([^&]+)/)
+          if (panelMatch) panel = decodeURIComponent(panelMatch[1])
+        }
+        const navRoute = panel
+          ? createDocumentNavRoute(unpacked, null, panel)
+          : appRouteOfId(unpacked)
         if (navRoute) {
           navigate(applyViewTerm(navRoute))
           return true
@@ -785,9 +872,13 @@ export function Omnibar() {
         try {
           const result = await resolveHypermediaUrl(cleanUrl)
           if (result?.hmId) {
-            const navRoute = appRouteOfId(result.hmId)
+            // Use createDocumentNavRoute if panel param is present to preserve panel state
+            const navRoute = result.panel
+              ? createDocumentNavRoute(result.hmId, null, result.panel)
+              : appRouteOfId(result.hmId)
             if (navRoute) {
-              navigate(applyViewTerm(navRoute))
+              const finalRoute = applyViewTerm(navRoute)
+              navigate(finalRoute)
               return true
             }
           }
@@ -862,8 +953,11 @@ export function Omnibar() {
 
   const isDraft = isDraftRoute(route)
   const isPrivate = isDraft && route.visibility === 'PRIVATE'
+  const routeLabel = getRouteLabel(route)
+  const displayText = displayUrl || routeLabel || ''
+  const routeId = getRouteId(route)
 
-  // Render indicators on the right (draft badge is handled by TitleContent/BreadcrumbTitle)
+  // Render indicators on the right
   const indicators = isPrivate ? (
     <div className="flex shrink-0 items-center gap-1 px-2">
       <div className="bg-muted text-muted-foreground flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
@@ -873,25 +967,39 @@ export function Omnibar() {
     </div>
   ) : null
 
-  // Idle state - show breadcrumbs with smaller text
+  // Idle state - show URL
   if (mode === 'idle') {
     return (
       <div
         className={cn(
-          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border-2 pl-2',
+          'no-window-drag border-border flex min-w-0 flex-1 cursor-text items-center gap-2 overflow-hidden rounded-full border pl-2',
           'hover:border-primary/50 bg-white dark:bg-black',
           'transition-colors',
           'max-w-xl',
+          routeId ? 'py-0' : 'py-1',
         )}
         onClick={handleContainerClick}
       >
-        {/* <Search className="text-muted-foreground size-3.5 shrink-0" /> */}
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <div className="min-w-0 flex-1 truncate text-xs">
-            <TitleContent size="$3" onPublishSite={publishSite.open} />
-          </div>
+          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+            {displayText}
+          </span>
           {indicators}
         </div>
+        {routeId ? (
+          <div
+            className="flex shrink-0 items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BookmarkButton id={routeId} />
+            <CopyReferenceButton
+              docId={routeId}
+              isBlockFocused={false}
+              latest
+            />
+            {/* <DocOptionsButton onPublishSite={publishSite.open} /> */}
+          </div>
+        ) : null}
         {publishSite.content}
       </div>
     )

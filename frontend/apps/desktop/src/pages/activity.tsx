@@ -17,6 +17,7 @@ import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {panelContainerStyles} from '@shm/ui/container'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
+import {FeedFilters} from '@shm/ui/feed-filters'
 import {OpenInPanelButton} from '@shm/ui/open-in-panel'
 import {PageLayout} from '@shm/ui/page-layout'
 import {
@@ -144,9 +145,22 @@ function _ActivityContent({
         title="Activity"
         centered
         headerRight={
-          <OpenInPanelButton id={id} panelRoute={{key: 'activity', id}} />
+          <OpenInPanelButton
+            id={id}
+            panelRoute={{
+              key: 'activity',
+              id,
+              filterEventType: route.filterEventType,
+            }}
+          />
         }
       >
+        <FeedFilters
+          filterEventType={route.filterEventType}
+          onFilterChange={({filterEventType}: {filterEventType?: string[]}) => {
+            replace({...route, filterEventType})
+          }}
+        />
         <Feed
           size="md"
           centered

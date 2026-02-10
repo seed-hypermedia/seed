@@ -1,15 +1,17 @@
-import {Params, useLoaderData} from '@remix-run/react'
-import {loader as loaderFn, meta as metaFn} from './$'
-import {FeedPage} from '@/feed'
-import {ViewTermPage} from '@/view-term-page'
-import {unwrap} from '@/wrapping'
+import {WebCommenting} from '@/client-lazy'
 import type {SiteDocumentPayload} from '@/loaders'
-import {NotRegisteredPage} from '@/not-registered'
-import {NoSitePage} from '@/not-registered'
-import {DocumentPage} from '@/document'
-import {DaemonErrorPage} from './$'
+import {NoSitePage, NotRegisteredPage} from '@/not-registered'
+import {WebSiteProvider} from '@/providers'
+import {unwrap} from '@/wrapping'
+import {WebResourcePage} from '@/web-resource-page'
 import {Code} from '@connectrpc/connect'
-import {ViewRouteKey} from '@shm/shared'
+import {Params, useLoaderData} from '@remix-run/react'
+import {
+  createDocumentNavRoute,
+  UnpackedHypermediaId,
+  ViewRouteKey,
+} from '@shm/shared'
+import {DaemonErrorPage, loader as loaderFn, meta as metaFn} from './$'
 
 export const loader = async ({
   params,
@@ -26,6 +28,7 @@ export const loader = async ({
 
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
+  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -51,13 +54,27 @@ export default function IndexPage() {
     )
   }
 
-  // Show feed page if feed param is present
-  if (data.feed) {
-    return <FeedPage {...data} />
-  }
+  // Render unified ResourcePage with WebSiteProvider for navigation context
+  return (
+    <WebSiteProvider
+      origin={data.origin}
+      originHomeId={data.originHomeId}
+      siteHost={data.siteHost}
+      dehydratedState={data.dehydratedState}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+      )}
+    >
+      <InnerResourcePage docId={data.id} />
+    </WebSiteProvider>
+  )
+}
 
-  // Pass viewTerm to DocumentPage - it will open the corresponding panel
-  return <DocumentPage {...data} viewTerm={data.viewTerm} />
+/** Inner component that can use hooks after providers are mounted */
+function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
 }
 
 export const meta = metaFn

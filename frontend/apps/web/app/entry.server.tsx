@@ -367,6 +367,9 @@ export default async function handleRequest(
       status: 404,
     })
   }
+  if (url.pathname.startsWith('/.well-known/')) {
+    return new Response('Not Found', {status: 404})
+  }
   if (
     parsedRequest.pathParts.length > 1 &&
     parsedRequest.pathParts.find((part) => part === '') == ''

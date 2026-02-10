@@ -17,7 +17,6 @@ import {
   UnpackedHypermediaId,
   useCommentGroups,
   useCommentParents,
-  useOpenRoute,
   useRouteLink,
 } from '@shm/shared'
 
@@ -33,7 +32,7 @@ import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
@@ -766,7 +765,8 @@ export function CommentContent({
   openOnClick?: boolean
   onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
 }) {
-  const openRoute = useOpenRoute()
+  const navigate = useNavigate()
+  const replaceNavigate = useNavigate('replace')
   const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
   const targetHomeDoc =
@@ -803,26 +803,53 @@ export function CommentContent({
       if (onBlockSelectProp) {
         onBlockSelectProp(blockId, blockRange)
       } else {
-        const idWithBlock = {
-          ...targetId,
-          blockRef: blockId || null,
-          blockRange: blockRange || null,
-        }
-        const useFullPageNavigation =
-          currentRoute.key === 'activity' || currentRoute.key === 'discussions'
-        openRoute(
-          useFullPageNavigation
-            ? {key: 'discussions', id: idWithBlock, openComment: comment.id}
-            : {
-                key: 'document',
-                id: targetId,
-                panel: {
+        const commentEntityId = commentIdToHmId(comment.id)
+        // Detect comment main view: route is document with the comment entity ID
+        const isCommentMainView =
+          currentRoute.key === 'document' &&
+          currentRoute.id.uid === commentEntityId.uid &&
+          currentRoute.id.path?.join('/') === commentEntityId.path?.join('/')
+        if (isCommentMainView) {
+          // Stay in place, highlight block, update URL fragment
+          replaceNavigate({
+            key: 'document',
+            id: {
+              ...commentEntityId,
+              blockRef: blockId || null,
+              blockRange: blockRange || null,
+            },
+          })
+        } else {
+          const idWithBlock = {
+            ...targetId,
+            blockRef: blockId || null,
+            blockRange: blockRange || null,
+          }
+          const useFullPageNavigation =
+            currentRoute.key === 'activity' ||
+            currentRoute.key === 'discussions'
+          navigate(
+            useFullPageNavigation
+              ? {
                   key: 'discussions',
                   id: idWithBlock,
                   openComment: comment.id,
+                  blockId: blockId || undefined,
+                  blockRange,
+                }
+              : {
+                  key: 'document',
+                  id: targetId,
+                  panel: {
+                    key: 'discussions',
+                    id: idWithBlock,
+                    openComment: comment.id,
+                    blockId: blockId || undefined,
+                    blockRange,
+                  },
                 },
-              },
-        )
+          )
+        }
       }
       return true
     }
@@ -859,8 +886,9 @@ function CommentDate({comment}: {comment: HMComment}) {
   const currentRoute = useNavRoute()
   const useFullPageNavigation =
     currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  const commentEntityId = commentIdToHmId(comment.id)
   const destRoute: NavRoute = useFullPageNavigation
-    ? {key: 'discussions', id: targetId!, openComment: comment.id}
+    ? {key: 'document', id: commentEntityId}
     : {
         key: 'document',
         id: targetId!,

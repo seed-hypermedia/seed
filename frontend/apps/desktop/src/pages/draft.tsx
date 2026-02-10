@@ -1,6 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
-import DiscardDraftButton from '@/components/discard-draft-button'
+import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentSelection} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
@@ -46,14 +46,16 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -492,10 +494,10 @@ function DocumentEditor({
           // @ts-expect-error
           onDrop={onDrop}
           onClick={handleFocusAtMousePos}
-          className="relative flex flex-1 flex-col overflow-hidden pt-12"
+          className="relative flex flex-1 flex-col overflow-hidden"
         >
           <div
-            className="bg-background absolute top-4 right-4 z-11 flex items-center rounded-sm p-1 shadow-sm"
+            className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <DraftActionButtons route={route} />
@@ -512,7 +514,7 @@ function DocumentEditor({
             />
             <div
               ref={elementRef}
-              className="draft-editor relative w-full flex-1"
+              className="draft-editor relative w-full flex-1 pt-12"
             >
               {/* Title section - centered */}
 
@@ -1066,6 +1068,7 @@ function applyInputResize(target: HTMLTextAreaElement) {
 function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const replace = useNavigate('replace')
+  const dispatch = useNavigationDispatch()
   const draftId = route.id
   const draft = useDraft(draftId)
   const editId = draftEditId(draft.data)
@@ -1074,6 +1077,28 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     editId || locationId,
     'writer',
   )
+  const deleteDialog = useDeleteDraftDialog()
+
+  const menuItems: MenuItemType[] = [
+    {
+      key: 'delete-draft',
+      label: 'Delete Draft',
+      icon: <Trash className="size-4" />,
+      onClick: () => {
+        if (draftId) {
+          deleteDialog.open({
+            draftId,
+            onSuccess: () => {
+              dispatch({type: 'closeBack'})
+            },
+          })
+        } else {
+          dispatch({type: 'closeBack'})
+        }
+      },
+    },
+  ]
+
   if (!selectedAccount?.id) return null
   if ((editId || locationId) && !editIdWriteCap)
     return (
@@ -1090,6 +1115,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
   return (
     <div className="animate flex items-center gap-1">
+      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
+      {deleteDialog.content}
       <PublishDraftButton key="publish-draft" />
       {draft.data ? (
         <Tooltip content="Preview Document">
@@ -1107,8 +1134,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
-
-      <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button
           onClick={() => {

@@ -1,15 +1,9 @@
-import {useAppContext} from '@/app-context'
-import {
-  roleCanWrite,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
-import {useGatewayUrlStream} from '@/models/gateway-settings'
-import {useHostSession} from '@/models/host'
 import {
   BreadcrumbIconKey,
   BreadcrumbItem,
   useRouteBreadcrumbs,
 } from '@/hooks/use-route-breadcrumbs'
+import {useHostSession} from '@/models/host'
 import {useSizeObserver} from '@/utils/use-size-observer'
 import {useNavigate} from '@/utils/useNavigate'
 import {
@@ -17,19 +11,16 @@ import {
   hostnameStripProtocol,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {useDirectoryWithDrafts, useResource} from '@shm/shared/models/entity'
-import {useStream} from '@shm/shared/use-stream'
+import {useResource} from '@shm/shared/models/entity'
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@shm/ui//hover-card'
 import {Button} from '@shm/ui/button'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {DraftBadge} from '@shm/ui/draft-badge'
 import {useHighlighter} from '@shm/ui/highlight-context'
-import {AlertCircle, Contact, Copy, File, Star, X} from '@shm/ui/icons'
-import {DocumentSmallListItem, getSiteNavDirectory} from '@shm/ui/navigation'
+import {AlertCircle, Contact, File, Star, X} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, TextProps} from '@shm/ui/text'
 import {TitleText, TitleTextButton} from '@shm/ui/titlebar'
@@ -39,9 +30,7 @@ import {ReactNode, useRef, useState} from 'react'
 import {AiOutlineEllipsis} from 'react-icons/ai'
 import {BookmarkButton} from './bookmarking'
 import {CopyReferenceButton} from './copy-reference-button'
-import {NewSubDocumentButton} from './document-accessory'
 import {DNSInstructions} from './publish-site'
-import {DocOptionsButton} from './titlebar-common'
 import {useWindowTitleSetter} from './window-title'
 
 function BreadcrumbIcon({icon}: {icon: BreadcrumbIconKey}): ReactNode {
@@ -53,11 +42,11 @@ function BreadcrumbIcon({icon}: {icon: BreadcrumbIconKey}): ReactNode {
 
 export function TitleContent({
   size = '$4',
-  onPublishSite,
+  extraButtons,
 }: {
   // @ts-expect-error
   size?: FontSizeTokens
-  onPublishSite: (input: {id: UnpackedHypermediaId}) => void
+  extraButtons?: ReactNode
 }) {
   const breadcrumbs = useRouteBreadcrumbs()
   const navigate = useNavigate()
@@ -140,7 +129,7 @@ export function TitleContent({
         isLatest={breadcrumbs.isLatest}
         isDraft={breadcrumbs.isDraft}
         hideControls={breadcrumbs.hideControls}
-        onPublishSite={onPublishSite}
+        extraButtons={extraButtons}
       />
     )
   }
@@ -154,14 +143,14 @@ function BreadcrumbTitleView({
   isLatest,
   isDraft,
   hideControls = false,
-  onPublishSite,
+  extraButtons,
 }: {
   items: BreadcrumbItem[]
   entityId: UnpackedHypermediaId
   isLatest: boolean
   isDraft: boolean
   hideControls?: boolean
-  onPublishSite?: (input: {id: UnpackedHypermediaId}) => void
+  extraButtons?: ReactNode
 }) {
   const homeMetadata = undefined // homeMetadata is only used in PathItemCard which isn't rendered inline
   const [collapsedCount, setCollapsedCount] = useState(0)
@@ -359,9 +348,7 @@ function BreadcrumbTitleView({
             isBlockFocused={false} // TODO: learn why isBlockFocused is needed
             latest={isLatest}
           />
-          {onPublishSite ? (
-            <DocOptionsButton onPublishSite={onPublishSite} />
-          ) : null}
+          {extraButtons}
         </div>
       ) : null}
     </div>
@@ -595,125 +582,6 @@ function BreadcrumbItemView({
   return (
     <div className={cn('no-window-drag', isActive ? 'min-w-0 flex-1' : '')}>
       {content}
-    </div>
-  )
-}
-
-function PathItemCard({
-  details,
-  homeMetadata,
-}: {
-  details: BreadcrumbItem
-  homeMetadata: HMMetadata | undefined
-}) {
-  const docId = details.id ?? undefined
-  const {directory, drafts} = useDirectoryWithDrafts(docId, {mode: 'Children'})
-  const capability = useSelectedAccountCapability(docId)
-  const canEditDoc = roleCanWrite(capability?.role)
-  if (!docId) return null
-  const directoryItems = getSiteNavDirectory({
-    id: docId,
-    directory,
-    drafts,
-  })
-  return (
-    <div className="flex max-h-[500px] max-w-lg flex-col justify-start gap-2 overflow-hidden p-2">
-      <URLCardSection homeMetadata={homeMetadata} crumbDetails={details} />
-      {directoryItems?.length ? (
-        <>
-          <ScrollArea className="flex-1 overflow-y-auto py-0">
-            <div className="space-y-1">
-              {directoryItems?.map((item) => {
-                return (
-                  <DocumentSmallListItem
-                    key={
-                      item.id?.path?.join('/') || item.id?.id || item.draftId
-                    }
-                    metadata={item.metadata}
-                    id={item.id}
-                    draftId={item.draftId}
-                    isPublished={item.isPublished}
-                    visibility={item.visibility}
-                  />
-                )
-              })}
-            </div>
-          </ScrollArea>
-        </>
-      ) : null}
-
-      {canEditDoc ? (
-        <div className="flex justify-start">
-          <NewSubDocumentButton
-            size="xs"
-            locationId={docId}
-            importDropdown={false}
-          />
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function URLCardSection({
-  homeMetadata,
-  crumbDetails,
-}: {
-  homeMetadata: HMMetadata | undefined
-  crumbDetails: BreadcrumbItem
-}) {
-  const docId = crumbDetails.id ?? undefined
-  const gwUrlStream = useGatewayUrlStream()
-  const gwUrl = useStream(gwUrlStream)
-  const siteBaseUrlWithProtocol =
-    homeMetadata?.siteUrl || `${gwUrl || ''}/hm/${docId?.uid}`
-  const siteBaseUrl = hostnameStripProtocol(siteBaseUrlWithProtocol)
-  const {externalOpen} = useAppContext()
-  const path = docId?.path || []
-  if (!docId) return null
-  return (
-    <div>
-      <div className="flex items-stretch rounded-md border">
-        <Button
-          size="xs"
-          className="flex-1 justify-start overflow-hidden border-none text-left hover:cursor-pointer"
-          onClick={() => {
-            const url = siteBaseUrlWithProtocol + '/' + path.join('/')
-            externalOpen(url)
-          }}
-        >
-          <span className="text-muted-foreground truncate text-xs">
-            {siteBaseUrl}
-
-            {path &&
-              path.map((p, index) => (
-                <span key={`${p}-${index}`}>{`/${p}`}</span>
-              ))}
-          </span>
-        </Button>
-
-        <CopyReferenceButton
-          docId={docId}
-          isBlockFocused={false}
-          latest
-          copyIcon={Copy}
-        />
-      </div>
-    </div>
-  )
-}
-
-export function Title({
-  size,
-  onPublishSite,
-}: {
-  // @ts-expect-error
-  size?: FontSizeTokens
-  onPublishSite: (input: {id: UnpackedHypermediaId}) => void
-}) {
-  return (
-    <div className="flex max-w-full min-w-64 flex-1 items-center gap-2 self-stretch overflow-hidden">
-      <TitleContent size={size} onPublishSite={onPublishSite} />
     </div>
   )
 }

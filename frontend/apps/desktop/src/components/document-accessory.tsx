@@ -153,7 +153,12 @@ export function useDocumentSelection({
   // Extract panel info from routes that have panels
   let panelKey: string | undefined
   let discussionsPanel:
-    | {key: 'discussions'; id?: UnpackedHypermediaId; openComment?: string}
+    | {
+        key: 'discussions'
+        id?: UnpackedHypermediaId
+        openComment?: string
+        targetBlockId?: string
+      }
     | undefined
   let activityAutoFocus: boolean | undefined
   let activityFilterEventType: string[] | undefined

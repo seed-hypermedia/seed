@@ -35,8 +35,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@shm/ui/components/popover'
-import {CopyUrlField} from '@shm/ui/copy-url-field'
-import {AlertCircle, Check, Document, Pencil, Share, X} from '@shm/ui/icons'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {AlertCircle, Check, Copy, Document, Share} from '@shm/ui/icons'
 import {PublishedToast, PushResourceStatus} from '@shm/ui/push-toast'
 import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
@@ -48,7 +48,6 @@ import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   HTMLAttributes,
   PropsWithChildren,
-  ReactNode,
   useEffect,
   useMemo,
   useRef,
@@ -105,7 +104,6 @@ export default function PublishDraftButton() {
   // For first publish, we need editable location state
   const [editableLocation, setEditableLocation] =
     useState<UnpackedHypermediaId | null>(null)
-  const [isEditingPath, setIsEditingPath] = useState(false)
 
   // Track if location is available (not already taken)
   const isLocationAvailable = useRef(true)
@@ -117,7 +115,6 @@ export default function PublishDraftButton() {
     hasDraft: boolean
     draftId?: string
     willAddLink: boolean
-    optedOut: boolean
   }
   const [parentPublishInfo, setParentPublishInfo] =
     useState<ParentPublishInfo | null>(null)
@@ -170,14 +167,13 @@ export default function PublishDraftButton() {
       parentId,
     )
 
-    setParentPublishInfo((prev) => ({
+    setParentPublishInfo({
       parentId,
       parentDocument,
       hasDraft: !!parentDraft,
       draftId: parentDraft?.id,
       willAddLink,
-      optedOut: prev?.optedOut ?? false, // Preserve opt-out state
-    }))
+    })
   }, [
     isFirstPublish,
     isPrivate,
@@ -306,8 +302,7 @@ export default function PublishDraftButton() {
 
       // Step 2: Handle parent auto-link BEFORE anything else
       let parentResultDoc: HMDocument | null = null
-      const shouldAddLinkToParent =
-        parentPublishInfo?.willAddLink && !parentPublishInfo.optedOut
+      const shouldAddLinkToParent = parentPublishInfo?.willAddLink
 
       if (shouldAddLinkToParent && accountId) {
         try {
@@ -475,115 +470,112 @@ export default function PublishDraftButton() {
             ;(e.currentTarget as HTMLElement)?.focus()
           }}
         >
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            {/* Header - first publish only */}
+            {isFirstPublish && (
+              <p className="text-base font-semibold">Ready to publish?</p>
+            )}
+
             {/* You are publishing section */}
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">You are publishing</p>
-
-              {/* Parent document first (if auto-linking is possible) */}
-              {parentPublishInfo?.willAddLink && parentUrl && (
-                <PublishItem
-                  url={parentUrl}
-                  icon={<Document size={12} color="currentColor" />}
-                  label={
-                    parentPublishInfo.optedOut
-                      ? '(skipped)'
-                      : parentPublishInfo.hasDraft
-                      ? '(adding link to draft)'
-                      : '(adding link)'
-                  }
-                  disabled={parentPublishInfo.optedOut}
-                  onToggle={() =>
-                    setParentPublishInfo((prev) =>
-                      prev ? {...prev, optedOut: !prev.optedOut} : null,
-                    )
-                  }
-                />
-              )}
-
-              {/* Child document (current) - always shown */}
-              {documentUrl && (
-                <PublishItem
-                  url={documentUrl}
-                  icon={<Document size={12} color="currentColor" />}
-                />
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0">
+                  <Document size={12} color="currentColor" />
+                </span>
+                <span className="truncate text-sm">
+                  {draft.data?.metadata.name || 'Untitled'}
+                </span>
+              </div>
+              {isFirstPublish && (
+                <p className="text-muted-foreground text-xs">
+                  Publishing means your document will be public and live on the
+                  URL below.
+                </p>
               )}
             </div>
 
             <Separator />
 
-            {/* Your page will be available at section */}
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">
-                  Your page will be available at
-                </p>
-                {isFirstPublish && editableLocation && (
-                  <Tooltip
-                    content={isEditingPath ? 'Done editing' : 'Edit path'}
+            {/* Your document will be available at section */}
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">
+                Your document will be available at
+              </p>
+              {documentUrl ? (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-muted-foreground min-w-0 flex-1 text-xs"
+                    style={{
+                      direction: 'rtl',
+                      textAlign: 'left',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
                   >
+                    {documentUrl}
+                  </span>
+                  <Tooltip content="Copy URL">
                     <Button
                       size="iconSm"
                       variant="ghost"
-                      onClick={() => setIsEditingPath(!isEditingPath)}
+                      className="shrink-0"
+                      onClick={() => {
+                        copyTextToClipboard(documentUrl).then(() => {
+                          toast.success('Copied document URL')
+                        })
+                      }}
                     >
-                      <Pencil size={14} />
+                      <Copy size={14} />
                     </Button>
                   </Tooltip>
-                )}
-              </div>
-              {/* Parent URL shown above input */}
-              {parentUrl && (
-                <span className="text-muted-foreground truncate text-xs">
-                  {parentUrl.endsWith('/') ? parentUrl : `${parentUrl}/`}
-                </span>
-              )}
-              {isEditingPath && isFirstPublish && editableLocation ? (
-                <Input
-                  value={editablePath}
-                  onChange={(e) => {
-                    if (!editableLocation) return
-                    const newPath = [
-                      ...(editableLocation.path?.slice(0, -1) || []),
-                      pathNameify(e.target.value),
-                    ]
-                    setEditableLocation(
-                      hmId(editableLocation.uid, {path: newPath}),
-                    )
-                  }}
-                  onKeyDown={(e) => {
-                    // ENTER toggles edit state
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      setIsEditingPath(false)
-                    }
-                    // Cmd/Ctrl+A selects all text in input, prevents global select-all
-                    if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-                      e.stopPropagation()
-                      ;(e.target as HTMLInputElement).select()
-                    }
-                  }}
-                  placeholder="document-path"
-                  className="h-8 text-xs"
-                  autoFocus
-                />
-              ) : documentUrl ? (
-                <CopyUrlField size="sm" url={documentUrl} label="Document" />
+                </div>
               ) : (
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                   <Spinner className="size-3" />
                   <span>Loading...</span>
                 </div>
               )}
+              {/* Permalink editor - first publish only */}
+              {isFirstPublish && editableLocation && (
+                <div className="flex flex-col gap-1">
+                  <p className="text-muted-foreground text-xs">
+                    Edit your permalink
+                  </p>
+                  <Input
+                    value={`/${editablePath}`}
+                    onChange={(e) => {
+                      if (!editableLocation) return
+                      const raw = e.target.value.replace(/^\//, '')
+                      const newPath = [
+                        ...(editableLocation.path?.slice(0, -1) || []),
+                        pathNameify(raw),
+                      ]
+                      setEditableLocation(
+                        hmId(editableLocation.uid, {path: newPath}),
+                      )
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+                        e.stopPropagation()
+                        ;(e.target as HTMLInputElement).select()
+                      }
+                    }}
+                    placeholder="/document-path"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              )}
             </div>
+
             <Separator />
             <div className="flex flex-col gap-1">
-              {/* Action buttons */}
-              <Button size="xs" variant="default" onClick={handlePublishPress}>
+              <Button size="sm" variant="default" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 onClick={() => {
                   client.createAppWindow.mutate({
@@ -597,7 +589,7 @@ export default function PublishDraftButton() {
                 Preview: View before publishing
               </Button>
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 onClick={() => popoverState.onOpenChange(false)}
               >
@@ -748,59 +740,6 @@ function SaveIndicatorStatus() {
   }
 
   return null
-}
-
-function PublishItem({
-  url,
-  icon,
-  label,
-  disabled,
-  onToggle,
-}: {
-  url: string
-  icon: ReactNode
-  label?: string
-  disabled?: boolean
-  onToggle?: () => void
-}) {
-  return (
-    <div
-      className={`group flex items-center gap-1 ${
-        disabled ? 'opacity-50' : ''
-      }`}
-    >
-      <span className="shrink-0">{icon}</span>
-      <span
-        className={`flex-1 text-xs ${disabled ? 'line-through' : ''}`}
-        style={{
-          direction: 'rtl',
-          textAlign: 'left',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {url}
-      </span>
-      {label && (
-        <span className="text-muted-foreground shrink-0 text-xs">{label}</span>
-      )}
-      {onToggle && (
-        <Tooltip content={disabled ? 'Add link to parent' : "Don't add link"}>
-          <Button
-            size="iconSm"
-            variant="ghost"
-            className={`ml-auto shrink-0 ${
-              disabled ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-            }`}
-            onClick={onToggle}
-          >
-            {disabled ? <Check size={12} /> : <X size={12} />}
-          </Button>
-        </Tooltip>
-      )}
-    </div>
-  )
 }
 
 function ParentUpdateToast({
