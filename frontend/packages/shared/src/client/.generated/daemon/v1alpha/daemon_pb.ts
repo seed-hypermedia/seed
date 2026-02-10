@@ -196,15 +196,6 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
    */
   name = "";
 
-  /**
-   * Optional. If true, the key is stored in memory only and will not persist across daemon restarts.
-   * Ephemeral keys are useful for temporary operations like bulk imports where many keys are generated
-   * but don't need to pollute the user's permanent keyring.
-   *
-   * @generated from field: bool ephemeral = 4;
-   */
-  ephemeral = false;
-
   constructor(data?: PartialMessage<RegisterKeyRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -216,7 +207,6 @@ export class RegisterKeyRequest extends Message<RegisterKeyRequest> {
     { no: 1, name: "mnemonic", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 2, name: "passphrase", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "ephemeral", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegisterKeyRequest {
