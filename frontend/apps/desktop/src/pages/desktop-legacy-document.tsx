@@ -576,11 +576,14 @@ function _MainDocumentPage({
       >
         <DocumentTools
           id={id}
-          activeTab={activeMainPanel}
+          activeTab={
+            activeMainPanel === 'activity' || activeMainPanel === 'directory'
+              ? undefined
+              : activeMainPanel
+          }
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
           collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
-          directoryCount={directory.data?.length}
           rightActions={
             activeMainPanel == 'content' ? (
               <div

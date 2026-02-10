@@ -2,10 +2,10 @@ import {DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {HMExistingDraft, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Folder, MessageSquare, Newspaper, Users} from 'lucide-react'
+import {MessageSquare, Newspaper, Users} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Button, ButtonProps} from './button'
-import {HistoryIcon, IconComponent} from './icons'
+import {IconComponent} from './icons'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -14,26 +14,26 @@ export function DocumentTools({
   activeTab,
   commentsCount = 0,
   collabsCount = 0,
-  directoryCount = 0,
   rightActions,
   existingDraft,
   currentPanel,
+  layoutProps,
 }: {
   id: UnpackedHypermediaId
-  activeTab?:
-    | 'draft'
-    | 'content'
-    | 'activity'
-    | 'discussions'
-    | 'collaborators'
-    | 'directory'
+  activeTab?: 'draft' | 'content' | 'discussions' | 'collaborators'
   commentsCount?: number
   collabsCount?: number
-  directoryCount?: number
   rightActions?: React.ReactNode
   existingDraft?: HMExistingDraft | false
   /** Current panel route — tabs preserve this when navigating */
   currentPanel?: DocumentPanelRoute | null
+  /** When provided, renders tabs in the same three-segment layout as main content */
+  layoutProps?: {
+    wrapperProps: React.HTMLAttributes<HTMLDivElement>
+    sidebarProps: React.HTMLAttributes<HTMLDivElement>
+    mainContentProps: React.HTMLAttributes<HTMLDivElement>
+    showSidebars: boolean
+  }
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -82,6 +82,9 @@ export function DocumentTools({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const panelFor = (): any => currentPanel || undefined
 
+  // Strip blockRef/blockRange for non-content tabs
+  const idWithoutBlock = {...id, blockRef: null, blockRange: null}
+
   const documentRoute: NavRoute = {
     key: 'document',
     id,
@@ -115,11 +118,12 @@ export function DocumentTools({
       // bg: existingDraft ? 'bg-yellow-200' : undefined,
     },
     {
-      label: 'Activity',
-      tooltip: 'Open Document Activity',
-      icon: HistoryIcon,
-      active: activeTab == 'activity',
-      route: {key: 'activity', id: id, panel: panelFor()},
+      label: 'People',
+      tooltip: 'Open Document Collaborators',
+      icon: Users,
+      active: activeTab == 'collaborators',
+      count: collabsCount,
+      route: {key: 'collaborators', id: idWithoutBlock, panel: panelFor()},
     },
     {
       label: 'Comments',
@@ -127,55 +131,17 @@ export function DocumentTools({
       icon: MessageSquare,
       active: activeTab == 'discussions',
       count: commentsCount,
-      route: {key: 'discussions', id: id, panel: panelFor()},
-    },
-    {
-      label: 'Collaborators',
-      tooltip: 'Open Document Collaborators',
-      icon: Users,
-      active: activeTab == 'collaborators',
-      count: collabsCount,
-      route: {key: 'collaborators', id: id, panel: panelFor()},
-    },
-    {
-      label: 'Directory',
-      tooltip: 'Open Directory',
-      icon: Folder,
-      active: activeTab == 'directory',
-      count: directoryCount,
-      route: {key: 'directory', id: id, panel: panelFor()},
+      route: {key: 'discussions', id: idWithoutBlock, panel: panelFor()},
     },
   ]
-  return (
-    <div className="flex w-full shrink-0">
-      {/* Left spacer to balance the right actions */}
-      {rightActions ? (
-        <div style={{maxWidth: rightActionsWidth}} className="w-full shrink" />
-      ) : null}
+  const tabButtons = (
+    <>
+      {/* Hidden measurement container with labels always visible */}
       <div
-        ref={containerRef}
-        className="flex flex-1 items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
+        ref={measureRef}
+        className="pointer-events-none absolute flex items-center gap-2 opacity-0 md:gap-4"
+        aria-hidden="true"
       >
-        {/* Hidden measurement container with labels always visible */}
-        <div
-          ref={measureRef}
-          className="pointer-events-none absolute flex items-center justify-center gap-2 opacity-0 md:gap-4"
-          aria-hidden="true"
-        >
-          {buttons.map((button) => (
-            <ToolLink
-              key={button.label}
-              active={button.active}
-              route={button.route}
-              label={button.label}
-              tooltip={button.tooltip}
-              icon={button.icon}
-              count={button.count}
-              bg={button.bg}
-              showLabel
-            />
-          ))}
-        </div>
         {buttons.map((button) => (
           <ToolLink
             key={button.label}
@@ -186,9 +152,72 @@ export function DocumentTools({
             icon={button.icon}
             count={button.count}
             bg={button.bg}
-            showLabel={showLabels}
+            showLabel
           />
         ))}
+      </div>
+      {buttons.map((button) => (
+        <ToolLink
+          key={button.label}
+          active={button.active}
+          route={button.route}
+          label={button.label}
+          tooltip={button.tooltip}
+          icon={button.icon}
+          count={button.count}
+          bg={button.bg}
+          showLabel={showLabels}
+        />
+      ))}
+    </>
+  )
+
+  if (layoutProps) {
+    const {wrapperProps, sidebarProps, mainContentProps} = layoutProps
+    return (
+      <div className="flex w-full shrink-0">
+        <div
+          {...wrapperProps}
+          className={cn(wrapperProps.className, 'flex flex-1 items-center')}
+          style={wrapperProps.style}
+        >
+          <div {...sidebarProps} />
+          <div
+            {...mainContentProps}
+            ref={containerRef}
+            className={cn(
+              mainContentProps.className,
+              'flex items-center gap-2 p-1 md:gap-4 md:p-2',
+            )}
+          >
+            {tabButtons}
+          </div>
+          <div
+            {...sidebarProps}
+            className={cn(sidebarProps.className, 'flex items-center !p-0')}
+          >
+            {rightActions ? (
+              <div ref={rightActionsRef} className="flex shrink-0 items-center">
+                {rightActions}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex w-full shrink-0">
+      {/* Left spacer to balance the right actions */}
+      {rightActions ? (
+        <div style={{maxWidth: rightActionsWidth}} className="w-full shrink" />
+      ) : null}
+      <div
+        ref={containerRef}
+        className="flex flex-1 items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
+      >
+        {tabButtons}
       </div>
       {rightActions ? (
         <div ref={rightActionsRef} className="flex shrink-0 items-center px-4">
