@@ -3,6 +3,7 @@
  * Parses WordPress export files and extracts authors, posts, and media.
  */
 import * as cheerio from 'cheerio'
+import {normalizeAuthorLogin} from './wxr-import-utils'
 
 export interface WXRAuthor {
   login: string
@@ -65,7 +66,9 @@ export function parseWXR(xml: string): WXRParseResult {
     const tagName = getTagName(el)
     if (tagName === 'wp:author' || tagName === 'author') {
       const $el = $(el)
-      const login = getChildText($, $el, 'wp:author_login')
+      const login = normalizeAuthorLogin(
+        getChildText($, $el, 'wp:author_login'),
+      )
       if (login) {
         authors.push({
           login,
@@ -95,10 +98,11 @@ export function parseWXR(xml: string): WXRParseResult {
     const excerpt = getChildText($, $item, 'excerpt:encoded') || ''
     const status =
       (getChildText($, $item, 'wp:status') as WXRPost['status']) || 'publish'
-    const authorLogin =
+    const authorLogin = normalizeAuthorLogin(
       getChildText($, $item, 'dc:creator') ||
-      getChildText($, $item, 'creator') ||
-      ''
+        getChildText($, $item, 'creator') ||
+        '',
+    )
     const pubDate = $item.children('pubDate').text().trim() || undefined
     const postDate = getChildText($, $item, 'wp:post_date') || undefined
     const postDateGmt = getChildText($, $item, 'wp:post_date_gmt') || undefined

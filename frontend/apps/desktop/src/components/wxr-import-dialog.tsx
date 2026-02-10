@@ -57,6 +57,12 @@ function WXRImportDialog({
     postCount: number
     pageCount: number
     authors: Array<{login: string; displayName: string; email: string}>
+    authoredFallbackAuthors: Array<{
+      login: string
+      displayName: string
+      email: string
+      reason: 'missing_email' | 'missing_author_profile'
+    }>
   } | null>(null)
   const [importMode, setImportMode] = useState<'ghostwritten' | 'authored'>(
     'ghostwritten',
@@ -159,6 +165,7 @@ function WXRImportDialog({
           accounts={accounts}
           selectedAccount={selectedAccount}
           setSelectedAccount={setSelectedAccount}
+          authoredFallbackAuthors={parseResult?.authoredFallbackAuthors || []}
           onStart={handleStartImport}
           onBack={() => {
             setPassword('')
@@ -238,6 +245,12 @@ function PreviewStep({
     postCount: number
     pageCount: number
     authors: Array<{login: string; displayName: string; email: string}>
+    authoredFallbackAuthors: Array<{
+      login: string
+      displayName: string
+      email: string
+      reason: 'missing_email' | 'missing_author_profile'
+    }>
   }
   onContinue: () => void
   onBack: () => void
@@ -310,6 +323,7 @@ function OptionsStep({
   accounts,
   selectedAccount,
   setSelectedAccount,
+  authoredFallbackAuthors,
   onStart,
   onBack,
   isLoading,
@@ -325,10 +339,24 @@ function OptionsStep({
   accounts: any[]
   selectedAccount: string | null
   setSelectedAccount: (account: string) => void
+  authoredFallbackAuthors: Array<{
+    login: string
+    displayName: string
+    email: string
+    reason: 'missing_email' | 'missing_author_profile'
+  }>
   onStart: () => void
   onBack: () => void
   isLoading: boolean
 }) {
+  const [showFallbackAuthors, setShowFallbackAuthors] = useState(
+    () => authoredFallbackAuthors.length <= 2,
+  )
+
+  useEffect(() => {
+    setShowFallbackAuthors(authoredFallbackAuthors.length <= 2)
+  }, [authoredFallbackAuthors.length])
+
   const passwordsMatch = password === confirmPassword
   const showPasswordError =
     importMode === 'authored' && confirmPassword.length > 0 && !passwordsMatch
@@ -406,13 +434,14 @@ function OptionsStep({
                 value="authored"
                 id="mode-authored"
                 className="mt-0.5"
+                disabled
               />
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="mode-authored" className="cursor-pointer">
+              <div className="flex flex-col gap-1 opacity-50">
+                <Label htmlFor="mode-authored" className="cursor-not-allowed">
                   Authored
                 </Label>
                 <span className="text-muted-foreground text-xs">
-                  Generate keys for each author (requires password)
+                  Generate keys for each author (temporarily unavailable)
                 </span>
               </div>
             </div>
@@ -446,6 +475,40 @@ function OptionsStep({
               <SizableText size="xs" color="destructive">
                 Passwords do not match
               </SizableText>
+            )}
+
+            {authoredFallbackAuthors.length > 0 && (
+              <div className="bg-muted/30 border-border rounded-md border p-3">
+                <SizableText size="xs" weight="bold">
+                  Some writers are missing author profile metadata.
+                </SizableText>
+                <SizableText size="xs" color="muted">
+                  These posts will be publisher-signed and keep writer credit
+                  via displayAuthor.
+                </SizableText>
+                <button
+                  type="button"
+                  className="text-muted-foreground mt-2 text-left text-xs underline underline-offset-2"
+                  onClick={() =>
+                    setShowFallbackAuthors((expanded) => !expanded)
+                  }
+                >
+                  {showFallbackAuthors ? 'Hide' : 'Show'} affected writers (
+                  {authoredFallbackAuthors.length})
+                </button>
+                {showFallbackAuthors && (
+                  <div className="mt-2 space-y-1">
+                    {authoredFallbackAuthors.map((author) => (
+                      <SizableText key={author.login} size="xs" color="muted">
+                        {author.displayName} ({author.login}) -{' '}
+                        {author.reason === 'missing_email'
+                          ? 'missing email'
+                          : 'missing author profile'}
+                      </SizableText>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -544,6 +607,27 @@ function CompleteStep({
   onClose: () => void
   results: ImportResults | null
 }) {
+  const {data: statusData} = useQuery({
+    queryKey: ['WXR_IMPORT_STATUS'],
+    queryFn: () => client.webImporting.wxrGetStatus.query(),
+  })
+  const canExportAuthorKeys = !!statusData?.canExportAuthorKeys
+
+  const exportAuthorKeysMutation = useMutation({
+    mutationFn: () => client.webImporting.wxrExportAuthorKeys.mutate({}),
+    onSuccess: (result) => {
+      if (!result.saved) return
+      toast.success(`Author keys exported to ${result.filePath}`)
+    },
+    onError: (error) => {
+      toast.error(
+        `Failed to export author keys file: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      )
+    },
+  })
+
   const hasSkipped = results && results.skipped.length > 0
   const hasFailed = results && results.failed.length > 0
   const allSuccessful = !hasSkipped && !hasFailed
@@ -630,9 +714,26 @@ function CompleteStep({
         )}
       </div>
 
-      <Button onClick={onClose} className="w-full">
-        Done
-      </Button>
+      <div className="flex gap-2">
+        {canExportAuthorKeys && (
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => exportAuthorKeysMutation.mutate()}
+            disabled={exportAuthorKeysMutation.isLoading}
+          >
+            {exportAuthorKeysMutation.isLoading
+              ? 'Exporting...'
+              : 'Export Author Keys'}
+          </Button>
+        )}
+        <Button
+          onClick={onClose}
+          className={canExportAuthorKeys ? 'flex-1' : 'w-full'}
+        >
+          Done
+        </Button>
+      </div>
     </div>
   )
 }
