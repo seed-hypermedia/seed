@@ -480,6 +480,7 @@ function _MainDocumentPage({
   const docId =
     resource.data?.type === 'document' ? resource.data.id : undefined
   const metadata = document?.metadata
+  const isPrivateDoc = document?.visibility === 'PRIVATE'
   // IMPORTANT: Always call hooks at the top level, before any early returns
   // This ensures hooks are called in the same order on every render
   const isHomeDoc = !id.path?.length
@@ -589,10 +590,12 @@ function _MainDocumentPage({
                 )}
               >
                 <EditDocButton />
-                <CreateDocumentButton
-                  locationId={id}
-                  siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
-                />
+                {!isPrivateDoc && (
+                  <CreateDocumentButton
+                    locationId={id}
+                    siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
+                  />
+                )}
               </div>
             ) : (
               <OpenInPanelButton
@@ -618,7 +621,7 @@ function _MainDocumentPage({
             // header={
             //   canCreate ? <NewSubDocumentButton locationId={id} /> : undefined
             // }
-            canCreate={canCreate}
+            canCreate={canCreate && !isPrivateDoc}
             showTitle={false}
             contentMaxWidth={contentMaxWidth}
           />
@@ -757,10 +760,12 @@ function _MainDocumentPage({
             )}
           >
             <EditDocButton />
-            <CreateDocumentButton
-              locationId={id}
-              siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
-            />
+            {!isPrivateDoc && (
+              <CreateDocumentButton
+                locationId={id}
+                siteUrl={siteHomeEntityData?.document?.metadata?.siteUrl}
+              />
+            )}
           </div>
         ) : null}
         <ScrollArea>
