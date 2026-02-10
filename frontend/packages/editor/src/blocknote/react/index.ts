@@ -1,12 +1,9 @@
-// TODO: review directories
 export * from './BlockNoteTheme'
 export * from './BlockNoteView'
 export * from './defaultThemes'
 
-export * from './FormattingToolbar/components/DefaultButtons/ColorStyleButton'
 export * from './FormattingToolbar/components/DefaultButtons/CreateLinkButton'
 export * from './FormattingToolbar/components/DefaultButtons/NestBlockButtons'
-export * from './FormattingToolbar/components/DefaultButtons/TextAlignButton'
 export * from './FormattingToolbar/components/DefaultButtons/ToggledStyleButton'
 export * from './FormattingToolbar/components/DefaultDropdowns/BlockTypeDropdown'
 export * from './FormattingToolbar/components/DefaultFormattingToolbar'
@@ -21,7 +18,6 @@ export * from './SideMenu/components/SideMenu'
 export * from './SideMenu/components/SideMenuButton'
 export * from './SideMenu/components/SideMenuPositioner'
 
-export * from './SideMenu/components/DragHandleMenu/DefaultButtons/BlockColorsButton'
 export * from './SideMenu/components/DragHandleMenu/DefaultButtons/RemoveBlockButton'
 export * from './SideMenu/components/DragHandleMenu/DefaultDragHandleMenu'
 export * from './SideMenu/components/DragHandleMenu/DragHandleMenu'

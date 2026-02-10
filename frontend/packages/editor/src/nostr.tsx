@@ -345,7 +345,6 @@ function NostrForm({
     try {
       return validateEvent(event) && verifySignature(event)
     } catch (e) {
-      console.log(JSON.stringify(e))
       return false
     }
   }

@@ -139,7 +139,6 @@ var turnIntoItems = [
       block: Block<HMBlockSchema>
       editor: BlockNoteEditor<HMBlockSchema>
     }) => {
-      console.log(block)
       editor.focus()
       editor.updateBlock(block, {
         type: 'heading',

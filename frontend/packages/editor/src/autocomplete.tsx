@@ -331,8 +331,6 @@ function AutocompletePopupInner(
       .then((results: InlineMentionsResult) => {
         if (!isActive) return
 
-        console.log('~~ MENTIONS RESULTS', results)
-
         setSuggestions((prev) => ({
           ...prev,
           ...results,

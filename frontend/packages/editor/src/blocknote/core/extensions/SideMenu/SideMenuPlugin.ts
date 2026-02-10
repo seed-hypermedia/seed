@@ -72,8 +72,6 @@ function blockPositionFromCoords(
 ) {
   const block = getDraggableBlockFromCoords(coords, view)
 
-  console.log('blockPositionFromCoords', block, coords)
-
   if (block && block.node.nodeType === 1) {
     // TODO: this uses undocumented PM APIs? do we need this / let's add docs?
     const docView = (view as any).docView
@@ -340,7 +338,6 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
       evt.dataTransfer = event.dataTransfer
       evt.preventDefault = () => event.preventDefault()
       evt.synthetic = true // prevent recursion
-      console.log('dispatch fake drop', evt)
       this.pmView.dom.dispatchEvent(evt)
     }
   }
@@ -564,7 +561,6 @@ export class SideMenuView<BSchema extends BlockSchema> implements PluginView {
     if (contentNode.node.textContent.length !== 0) {
       const newBlockInsertionPos = block.afterPos
       const newBlockContentPos = newBlockInsertionPos + 2
-      console.log('here????')
       this.editor._tiptapEditor
         .chain()
         .BNCreateBlock(newBlockInsertionPos)

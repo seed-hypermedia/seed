@@ -425,7 +425,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               }
             })
             .catch((err) => {
-              console.log('Error checking for hypermedia site:', err)
               handleWebUrl(view, link, options)
             })
 
@@ -585,8 +584,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             return true
           })
           .catch((err) => {
-            console.log('ERROR FETCHING web link')
-            console.log(err)
           })
         metaPromise
           .then((embedResult) => {
@@ -603,7 +600,6 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             }
           })
           .catch((err) => {
-            console.log(err)
           })
         break
       }

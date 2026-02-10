@@ -41,7 +41,6 @@ export const DragExtension = Extension.create<DragOptions>({
               const data = event.dataTransfer
 
               if (data) {
-                console.log(data)
                 const files: File[] = []
 
                 if (data.files.length) {
@@ -195,8 +194,6 @@ async function handleDragMedia(file: File) {
       size: file.size.toString(),
     } as FileType['props']
   } catch (error) {
-    // @ts-expect-error
-    console.log(error.message)
     toast.error('Failed to upload file.')
   }
 }

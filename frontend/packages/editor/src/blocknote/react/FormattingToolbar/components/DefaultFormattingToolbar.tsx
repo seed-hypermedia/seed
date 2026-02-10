@@ -7,8 +7,6 @@ import {
   BlockTypeDropdownItem,
 } from './DefaultDropdowns/BlockTypeDropdown'
 import {FormattingToolbarProps} from './FormattingToolbarPositioner'
-// import {TextAlignButton} from './DefaultButtons/TextAlignButton'
-// import {ColorStyleButton} from './DefaultButtons/ColorStyleButton'
 import {CreateLinkButton} from './DefaultButtons/CreateLinkButton'
 import {
   NestBlockButton,
@@ -29,12 +27,6 @@ export const DefaultFormattingToolbar = <BSchema extends BlockSchema>(
       <ToggledStyleButton editor={props.editor} toggledStyle={'underline'} />
       <ToggledStyleButton editor={props.editor} toggledStyle={'strike'} />
       <ToggledStyleButton editor={props.editor} toggledStyle={'code'} />
-
-      {/* <TextAlignButton editor={props.editor as any} textAlignment={'left'} />
-      <TextAlignButton editor={props.editor as any} textAlignment={'center'} />
-      <TextAlignButton editor={props.editor as any} textAlignment={'right'} /> */}
-
-      {/* <ColorStyleButton editor={props.editor} /> */}
 
       <NestBlockButton editor={props.editor} />
       <UnnestBlockButton editor={props.editor} />
