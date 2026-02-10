@@ -95,6 +95,35 @@ vi.mock('@shm/shared/models/search', async (importOriginal) => {
   }
 })
 
+// Mock auth module used by WebResourcePage's account button
+vi.mock('@/auth', () => ({
+  useLocalKeyPair: () => null,
+  useCreateAccount: () => ({content: null, createAccount: () => {}}),
+}))
+
+// Mock navigation hooks used by WebResourcePage
+vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  const mockNav = {
+    state: {
+      subscribe: () => () => {},
+      get: () => ({
+        routes: [{key: 'document', id: hmId(TEST_UID)}],
+        routeIndex: 0,
+      }),
+    },
+    dispatch: () => {},
+  }
+  return {
+    ...actual,
+    useNavRoute: () => ({key: 'document', id: hmId(TEST_UID)}),
+    useNavigate: () => () => {},
+    useNavigation: () => mockNav,
+    useNavigationState: () => ({routes: [{key: 'document'}], routeIndex: 0}),
+    useNavigationDispatch: () => () => {},
+  }
+})
+
 // Mock routing to provide a stub universalClient
 vi.mock('@shm/shared/routing', async (importOriginal) => {
   const actual = (await importOriginal()) as any

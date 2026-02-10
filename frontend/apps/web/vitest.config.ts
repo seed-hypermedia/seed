@@ -2,6 +2,9 @@ import {defineConfig} from 'vitest/config'
 import * as path from 'path'
 
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     testTimeout: 10000, // 10 seconds
     setupFiles: ['fake-indexeddb/auto'],
