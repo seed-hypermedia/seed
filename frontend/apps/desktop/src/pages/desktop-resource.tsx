@@ -78,6 +78,7 @@ export default function DesktopResourcePage() {
   const resource = useResource(docId)
   const doc =
     resource.data?.type === 'document' ? resource.data.document : undefined
+  const isPrivate = doc?.visibility === 'PRIVATE'
   const {exportDocument, openDirectory} = useAppContext()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
@@ -219,7 +220,9 @@ export default function DesktopResourcePage() {
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
-      <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+      {!isPrivate && (
+        <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+      )}
     </>
   ) : null
 
