@@ -120,8 +120,30 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Verify Windows daemon runtime deps
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe"
+
+          if ! command -v objdump >/dev/null 2>&1; then
+            echo "objdump not available on runner; skipping dependency check"
+            exit 0
+          fi
+
+          DLLS="$(objdump -p "$BIN" | awk '/DLL Name:/ {print $3}')"
+          echo "Windows DLL imports:"
+          echo "$DLLS"
+
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll)$'; then
+            echo "ERROR: MinGW runtime DLL dependency is still present"
+            exit 1
+          fi
 
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')
