@@ -15,20 +15,15 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
-import {validatePath} from '@shm/shared/utils/document-path'
 import {
   createSiteUrl,
   createWebHMUrl,
   hmId,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {
-  entityQueryPathToHmIdPath,
-  hmIdPathToEntityQueryPath,
-} from '@shm/shared/utils/path-api'
+import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
-import {DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {
   Popover,
@@ -42,7 +37,6 @@ import {Separator} from '@shm/ui/separator'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {useAppDialog} from '@shm/ui/universal-dialog'
 import {usePopoverState} from '@shm/ui/use-popover-state'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {
@@ -60,7 +54,6 @@ import {
   usePublishResource,
   usePushResource,
 } from '../models/documents'
-import {LocationPicker} from './location-picker'
 
 export default function PublishDraftButton() {
   const route = useNavRoute()
@@ -89,8 +82,6 @@ export default function PublishDraftButton() {
         }
       : undefined,
   )
-
-  const firstPublishDialog = useFirstPublishDialog()
 
   const signingAccount = useSelectedAccount()
   const signingAccountId = signingAccount?.id.uid
@@ -456,7 +447,10 @@ export default function PublishDraftButton() {
           }
         >
           <PopoverTrigger asChild>
-            <Button size="sm" className="px-2">
+            <Button
+              className="hover:bg-hover dark:bg-background bg-white px-2"
+              size="sm"
+            >
               <Share className="size-4" />
               Publish
             </Button>
@@ -599,80 +593,8 @@ export default function PublishDraftButton() {
           </div>
         </PopoverContent>
       </Popover>
-      {firstPublishDialog.content}
     </>
   )
-}
-
-function FirstPublishDialog({
-  input,
-  onClose,
-}: {
-  input: {
-    newDefaultName: string
-    defaultLocation: UnpackedHypermediaId | null | undefined
-    defaultAccount: string | null | undefined
-    onSelectDestination: (
-      location: UnpackedHypermediaId,
-      account: string,
-    ) => void
-  }
-  onClose: () => void
-}) {
-  const [location, setLocation] = useState<UnpackedHypermediaId | null>(
-    input.defaultLocation
-      ? hmId(input.defaultLocation.uid, {
-          path: [
-            ...(input.defaultLocation.path || []),
-            pathNameify(input.newDefaultName),
-          ],
-        })
-      : null,
-  )
-  const isAvailable = useRef(true)
-  const pathInvalid = useMemo(
-    () => location && validatePath(hmIdPathToEntityQueryPath(location.path)),
-    [location?.path],
-  )
-  const selectedAccount = useSelectedAccount()
-  if (!selectedAccount?.id.uid) return null
-  return (
-    <>
-      <DialogTitle>Publish Document</DialogTitle>
-      <LocationPicker
-        newName={input.newDefaultName}
-        location={location}
-        setLocation={setLocation}
-        account={selectedAccount?.id.uid}
-        actionLabel="publish"
-        onAvailable={(isAvail) => {
-          isAvailable.current = isAvail
-        }}
-      />
-      <Button
-        variant="default"
-        onClick={() => {
-          if (!isAvailable.current) {
-            toast.error('This location is unavailable. Create a new path name.')
-            return
-          }
-          if (pathInvalid) {
-            toast.error(pathInvalid.error)
-            return
-          }
-          if (location) {
-            input.onSelectDestination(location, selectedAccount.id.uid)
-          }
-        }}
-      >
-        Publish
-      </Button>
-    </>
-  )
-}
-
-function useFirstPublishDialog() {
-  return useAppDialog(FirstPublishDialog)
 }
 
 function StatusWrapper({

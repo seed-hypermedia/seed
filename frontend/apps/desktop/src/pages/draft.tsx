@@ -496,13 +496,13 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="relative flex flex-1 flex-col overflow-hidden"
         >
-          <div
-            className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DraftActionButtons route={route} />
-          </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
+            <div
+              className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DraftActionButtons route={route} />
+            </div>
             <DraftCover
               draftActor={actor}
               // @ts-expect-error
@@ -1115,9 +1115,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
   return (
     <div className="animate flex items-center gap-1">
-      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
-      {deleteDialog.content}
       <PublishDraftButton key="publish-draft" />
+
       {draft.data ? (
         <Tooltip content="Preview Document">
           <Button
@@ -1156,6 +1155,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           />
         </Button>
       </Tooltip>
+      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
+      {deleteDialog.content}
     </div>
   )
 }
