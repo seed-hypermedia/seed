@@ -13,6 +13,11 @@ import {FeedFilters} from './feed-filters'
 import {Text} from './text'
 import {cn} from './utils'
 
+const DEFAULT_PANEL_PX = 440
+const MAX_OPEN_PERCENT = 30
+const MAX_PANEL_PERCENT = 50
+const MIN_PANEL_PERCENT = 20
+
 export interface PanelLayoutProps {
   children: React.ReactNode
   panelContent: React.ReactNode | null
@@ -66,7 +71,7 @@ export function PanelLayout({
   const containerRef = useRef<HTMLDivElement>(null)
   const prevPanelKey = useRef<PanelSelectionOptions | null>(panelKey)
 
-  // Enforce 480px minimum when opening the accessory panel
+  // Always open panel at DEFAULT_PANEL_PX, capped at MAX_PANEL_PERCENT
   useLayoutEffect(() => {
     const isOpening = prevPanelKey.current === null && panelKey !== null
 
@@ -75,20 +80,21 @@ export function PanelLayout({
       if (container) {
         const containerWidth = container.getBoundingClientRect().width
         if (containerWidth) {
-          const storedPercent = panelWidth || 20
-          const pixelValue = (storedPercent / 100) * containerWidth
-
-          // If the stored percentage would result in less than 480px, adjust it
-          if (pixelValue < 480) {
-            const newPercent = Math.min(50, (480 / containerWidth) * 100)
-            onPanelWidthChange?.(newPercent)
-          }
+          const targetPercent = Math.min(
+            MAX_OPEN_PERCENT,
+            Math.max(
+              MIN_PANEL_PERCENT,
+              (DEFAULT_PANEL_PX / containerWidth) * 100,
+            ),
+          )
+          accessoryPanelRef.current?.resize(targetPercent)
+          onPanelWidthChange?.(targetPercent)
         }
       }
     }
 
     prevPanelKey.current = panelKey
-  }, [panelKey, panelWidth, onPanelWidthChange])
+  }, [panelKey, onPanelWidthChange])
 
   const title = getPanelTitle(panelKey)
 
@@ -101,7 +107,7 @@ export function PanelLayout({
         autoSaveId="resource-panel"
         storage={widthStorage}
       >
-        <Panel id="main" minSize={50}>
+        <Panel id="main" minSize={100 - MAX_PANEL_PERCENT}>
           <div className="h-full rounded-lg">{children}</div>
         </Panel>
 
@@ -111,9 +117,9 @@ export function PanelLayout({
             <Panel
               id="accessory"
               ref={accessoryPanelRef}
-              maxSize={50}
-              minSize={20}
-              defaultSize={panelWidth || 20}
+              maxSize={MAX_PANEL_PERCENT}
+              minSize={MIN_PANEL_PERCENT}
+              defaultSize={panelWidth || MIN_PANEL_PERCENT}
               onResize={onPanelWidthChange}
               className="border-l"
             >

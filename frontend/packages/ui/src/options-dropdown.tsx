@@ -18,7 +18,7 @@ export type MenuItemType = {
   subLabel?: string
   icon: React.ReactNode
   onClick: ButtonProps['onClick']
-  color?: string
+  variant?: 'default' | 'destructive'
 }
 
 export function OptionsDropdown({
@@ -53,7 +53,11 @@ export function OptionsDropdown({
         onOpenChange={popoverState.onOpenChange}
       >
         <DropdownMenuTrigger
-          className={cn(buttonVariants({variant: 'outline'}), 'no-window-drag')}
+          className={cn(
+            buttonVariants({variant: 'outline'}),
+            'no-window-drag',
+            'hover:bg-hover dark:bg-background bg-white',
+          )}
           style={{width: '32px', height: '32px', padding: 0}}
         >
           <MoreHorizontal className="size-4" />
@@ -68,6 +72,7 @@ export function OptionsDropdown({
                     ) : null,
                     <div key={item.key}>
                       <DropdownMenuItem
+                        variant={item.variant}
                         onClick={(e) => {
                           e.stopPropagation()
                           popoverState.onOpenChange(false)

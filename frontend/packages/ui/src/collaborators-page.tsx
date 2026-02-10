@@ -1,7 +1,7 @@
 import {HMRawCapability, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
-import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {Users} from 'lucide-react'
 import {ReactNode, useMemo} from 'react'
 import {HMIcon} from './hm-icon'
@@ -49,7 +49,7 @@ export function CollaboratorsPageContent({
         ) : undefined
       }
     >
-      <div className="p-6">{children}</div>
+      <div className="py-6">{children}</div>
     </PageLayout>
   )
 }

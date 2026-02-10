@@ -14,12 +14,13 @@ import {useAccount} from '@shm/shared/models/entity'
 import {createWebHMUrl, displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {HistoryIcon} from '@shm/ui/icons'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
-import {CircleUser} from 'lucide-react'
+import {CircleUser, Folder} from 'lucide-react'
 import {useCallback, useMemo} from 'react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
@@ -77,8 +78,28 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
           }
         },
       },
+      {
+        key: 'versions',
+        label: 'Document Versions',
+        icon: <HistoryIcon className="size-4" />,
+        onClick: () => {
+          replaceRoute({
+            key: 'document',
+            id: docId,
+            panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+          } as any)
+        },
+      },
+      {
+        key: 'directory',
+        label: 'Directory',
+        icon: <Folder className="size-4" />,
+        onClick: () => {
+          navigate({key: 'directory', id: docId})
+        },
+      },
     ],
-    [gwUrl, gatewayLink],
+    [gwUrl, gatewayLink, docId, replaceRoute, navigate],
   )
 
   const onReplyClick = useCallback(

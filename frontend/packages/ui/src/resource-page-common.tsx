@@ -1,6 +1,8 @@
 import {
   BlockRange,
   DocumentPanelRoute,
+  findContentBlock,
+  getBlockText,
   HMComment,
   HMDocument,
   HMExistingDraft,
@@ -10,10 +12,6 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {
-  getCommentTargetId,
-  parseFragment,
-} from '@shm/shared/utils/entity-id-url'
-import {
   useDirectory,
   useResource,
   useResources,
@@ -21,7 +19,11 @@ import {
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
-import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {
+  getCommentTargetId,
+  parseFragment,
+  routeToUrl,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {
   ReactNode,
@@ -42,15 +44,15 @@ import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {DocumentHeader} from './document-header'
+import {BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OpenInPanelButton} from './open-in-panel'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
@@ -106,6 +108,8 @@ export interface ResourcePageProps {
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Platform-specific collaborator form (e.g. invite form on desktop) */
+  collaboratorForm?: ReactNode
 
   floatingButtons?: ReactNode
 }
@@ -133,6 +137,7 @@ export function ResourcePage({
   editActions,
   existingDraft,
   floatingButtons,
+  collaboratorForm,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -279,6 +284,7 @@ export function ResourcePage({
         editActions={editActions}
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
+        collaboratorForm={collaboratorForm}
       />
     </PageWrapper>
   )
@@ -389,7 +395,6 @@ function CommentPageBody({
   openComment: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
 }) {
-  const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
   const breadcrumbIds = useMemo(() => {
@@ -398,14 +403,16 @@ function CommentPageBody({
   }, [docId.uid, docId.path, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
-  const breadcrumbs = useMemo(() => {
+  const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
-    return breadcrumbIds.map((id, i) => {
+    const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const data = breadcrumbResults[i]?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
       return {id, metadata}
     })
+    items.push({label: 'Comments'})
+    return items
   }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
 
   const {contentMaxWidth} = useDocumentLayout({
@@ -438,7 +445,6 @@ function CommentPageBody({
           id={docId}
           activeTab="discussions"
           commentsCount={interactionSummary.data?.comments || 0}
-          directoryCount={directory.data?.length}
           rightActions={
             !isMobile ? (
               <OpenInPanelButton
@@ -573,6 +579,7 @@ function DocumentBody({
   editActions,
   existingDraft,
   floatingButtons,
+  collaboratorForm,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -581,6 +588,7 @@ function DocumentBody({
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
+  collaboratorForm?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -641,15 +649,56 @@ function DocumentBody({
 
   const breadcrumbResults = useResources(breadcrumbIds)
 
-  const breadcrumbs = useMemo(() => {
+  const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
-    return breadcrumbIds.map((id, i) => {
+    const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const data = breadcrumbResults[i]?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
       return {id, metadata}
     })
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
+
+    // Append active panel name when not on content/draft view
+    const panelLabels: Record<string, string> = {
+      discussions: 'Comments',
+      collaborators: 'People',
+      directory: 'Directory',
+      activity: 'Activity',
+    }
+    if (activeView !== 'content' && panelLabels[activeView]) {
+      items.push({label: panelLabels[activeView]})
+    }
+
+    // Append block text when a block is focused
+    if (routeBlockRef && document.content) {
+      const blockNode = findContentBlock(document.content, routeBlockRef)
+      if (blockNode?.block) {
+        let text = getBlockText(blockNode.block)
+        const routeId =
+          'id' in route && typeof route.id === 'object' ? route.id : null
+        const blockRange = routeId?.blockRange ?? null
+        if (
+          blockRange &&
+          typeof blockRange.start === 'number' &&
+          typeof blockRange.end === 'number'
+        ) {
+          text = text.slice(blockRange.start, blockRange.end)
+        }
+        const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
+        if (truncated) items.push({label: `"${truncated}"`})
+      }
+    }
+
+    return items
+  }, [
+    isHomeDoc,
+    breadcrumbIds,
+    breadcrumbResults,
+    activeView,
+    routeBlockRef,
+    document.content,
+    route,
+  ])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -817,7 +866,7 @@ function DocumentBody({
   const mainPageContent = (
     <>
       {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-      {activeView === 'content' && actionButtons && !isMobile ? (
+      {actionButtons && !isMobile ? (
         <div
           className={cn(
             'absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
@@ -830,20 +879,47 @@ function DocumentBody({
 
       <DocumentCover cover={document.metadata?.cover} />
 
-      <div
-        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-        style={{maxWidth: contentMaxWidth}}
-      >
-        {!isHomeDoc && (
-          <DocumentHeader
-            docId={docId}
-            docMetadata={document.metadata}
-            authors={[]}
-            updateTime={document.updateTime}
-            breadcrumbs={breadcrumbs}
-          />
-        )}
-      </div>
+      {!isMobile ? (
+        <div
+          {...wrapperProps}
+          className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
+        >
+          {showSidebars && <div {...sidebarProps} />}
+          <div
+            {...mainContentProps}
+            className={cn(mainContentProps.className, 'flex flex-col')}
+          >
+            {!isHomeDoc && (
+              <DocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={[]}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+              />
+            )}
+          </div>
+          {showSidebars && <div {...sidebarProps} />}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'mx-auto flex w-full flex-col px-4',
+            isHomeDoc && 'mt-6',
+          )}
+          style={{maxWidth: contentMaxWidth}}
+        >
+          {!isHomeDoc && (
+            <DocumentHeader
+              docId={docId}
+              docMetadata={document.metadata}
+              authors={[]}
+              updateTime={document.updateTime}
+              breadcrumbs={breadcrumbs}
+            />
+          )}
+        </div>
+      )}
 
       {/* Sentinel element - also provides top spacing before tools */}
       <div ref={toolsSentinelRef} className="h-3" />
@@ -858,31 +934,51 @@ function DocumentBody({
       >
         <DocumentTools
           id={docId}
-          activeTab={activeView}
+          activeTab={
+            activeView === 'activity' || activeView === 'directory'
+              ? undefined
+              : activeView
+          }
           currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
-          directoryCount={directory.data?.length}
-          rightActions={
-            activeView === 'content' && actionButtons ? (
-              <div
-                className={cn(
-                  'flex items-center gap-1 transition-opacity',
-                  isToolsSticky ? 'opacity-100' : 'opacity-0',
-                )}
-              >
-                {actionButtons}
-              </div>
-            ) : activeView !== 'content' && !isMobile ? (
-              <OpenInPanelButton
-                id={docId}
-                panelRoute={
-                  route.key === activeView
-                    ? extractPanelRoute(route)
-                    : {key: activeView, id: docId}
+          layoutProps={
+            isMobile
+              ? undefined
+              : {
+                  wrapperProps,
+                  sidebarProps,
+                  mainContentProps,
+                  showSidebars,
                 }
-              />
-            ) : undefined
+          }
+          rightActions={
+            <div className="flex items-center gap-1 pr-2 md:pr-0">
+              {activeView !== 'content' && !isMobile && (
+                <OpenInPanelButton
+                  id={docId}
+                  panelRoute={
+                    route.key === activeView
+                      ? extractPanelRoute(route)
+                      : {key: activeView, id: docId}
+                  }
+                />
+              )}
+              {actionButtons ? (
+                <div
+                  className={cn(
+                    'flex items-center gap-1 transition-opacity',
+                    isMobile
+                      ? 'opacity-100'
+                      : isToolsSticky
+                      ? 'opacity-100'
+                      : 'opacity-0',
+                  )}
+                >
+                  {actionButtons}
+                </div>
+              ) : null}
+            </div>
           }
         />
       </div>
@@ -911,6 +1007,7 @@ function DocumentBody({
         onBlockSelect={handleBlockSelect}
         CommentEditor={CommentEditor}
         directory={directory.data}
+        collaboratorForm={collaboratorForm}
       />
     </>
   )
@@ -939,27 +1036,29 @@ function DocumentBody({
   if (isMobile) {
     return (
       <>
-        <div className="relative flex flex-1 flex-col pb-16" ref={elementRef}>
+        <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           {mainPageContent}
         </div>
         {floatingButtons}
-        <MobilePanelSheet
-          isOpen={mobilePanelOpen}
-          title={getPanelTitle('discussions')}
-          onClose={() => setMobilePanelOpen(false)}
-        >
-          <DiscussionsPageContent
-            docId={docId}
-            showTitle={false}
-            showOpenInPanel={false}
-            contentMaxWidth={contentMaxWidth}
-            commentEditor={
-              CommentEditor ? (
-                <CommentEditor docId={docId} autoFocus />
-              ) : undefined
-            }
-          />
-        </MobilePanelSheet>
+        {mobilePanelOpen && (
+          <MobilePanelSheet
+            isOpen={mobilePanelOpen}
+            title={getPanelTitle('discussions')}
+            onClose={() => setMobilePanelOpen(false)}
+          >
+            <DiscussionsPageContent
+              docId={docId}
+              showTitle={false}
+              showOpenInPanel={false}
+              contentMaxWidth={contentMaxWidth}
+              commentEditor={
+                CommentEditor ? (
+                  <CommentEditor docId={docId} autoFocus />
+                ) : undefined
+              }
+            />
+          </MobilePanelSheet>
+        )}
       </>
     )
   }
@@ -1082,6 +1181,7 @@ function MainContent({
   onBlockSelect,
   CommentEditor,
   directory,
+  collaboratorForm,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1110,13 +1210,14 @@ function MainContent({
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   CommentEditor?: React.ComponentType<CommentEditorProps>
   directory?: import('@shm/shared').HMDocumentInfo[]
+  collaboratorForm?: ReactNode
 }) {
   switch (activeView) {
     case 'directory':
       return (
         <DirectoryPageContent
           docId={docId}
-          showTitle={false}
+          showTitle
           contentMaxWidth={contentMaxWidth}
         />
       )
@@ -1124,6 +1225,7 @@ function MainContent({
     case 'collaborators':
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
+          {collaboratorForm}
           <ReadOnlyCollaboratorsContent docId={docId} />
         </PageLayout>
       )
