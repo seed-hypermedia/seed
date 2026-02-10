@@ -898,18 +898,6 @@ function DocumentBody({
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
-      {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-      {actionButtons && !isMobile ? (
-        <div
-          className={cn(
-            'absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
-            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
-          )}
-        >
-          {actionButtons}
-        </div>
-      ) : null}
-
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
@@ -1126,6 +1114,17 @@ function DocumentBody({
         }
         onFilterChange={handleFilterChange}
       >
+        {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
+        {activeView === 'content' && actionButtons && !isMobile ? (
+          <div
+            className={cn(
+              'absolute top-4 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
+              isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+            )}
+          >
+            {actionButtons}
+          </div>
+        ) : null}
         <ScrollArea className="h-full">{mainPageContent}</ScrollArea>
       </PanelLayout>
     </div>
