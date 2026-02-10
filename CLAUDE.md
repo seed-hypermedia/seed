@@ -134,11 +134,11 @@ The codebase follows a monorepo structure using pnpm workspaces:
 
 ## Important Notes
 
-- Always run `pnpm -F @shm/shared build:types` before type checking to ensure types are built
 - Tests should be run automatically when modifying code with existing test files
 - The desktop app uses Electron Forge for building and packaging
 - Web app uses Remix with server-side rendering
 - P2P networking defaults to testnet; use `SEED_P2P_TESTNET_NAME=""` for production network
+- before doing any changes to the code (specially inside the `frontend/*` folder), create a plan and ask any clarifying questions to the team to ensure consistency and avoid any potential errors up until you are 95% sure of what needs to be done.
 
 ## Before Pushing Code
 

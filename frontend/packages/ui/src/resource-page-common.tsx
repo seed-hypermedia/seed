@@ -49,6 +49,7 @@ import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, getSiteNavDirectory} from './navigation'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OpenInPanelButton} from './open-in-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
@@ -90,6 +91,7 @@ function getActiveView(routeKey: string): ActiveView {
 export interface CommentEditorProps {
   docId: UnpackedHypermediaId
   quotingBlockId?: string
+  commentId?: string
   autoFocus?: boolean
 }
 
@@ -97,6 +99,8 @@ export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  /** Menu items for the options dropdown (three dots) - always visible */
+  optionsMenuItems?: MenuItemType[]
   /** Edit/create action buttons - platform-specific (desktop only) */
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
@@ -124,6 +128,7 @@ function getPanelTitle(panelKey: string | null): string {
 export function ResourcePage({
   docId,
   CommentEditor,
+  optionsMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
@@ -269,6 +274,7 @@ export function ResourcePage({
         docId={docId}
         document={document}
         CommentEditor={CommentEditor}
+        optionsMenuItems={optionsMenuItems}
         editActions={editActions}
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
@@ -535,7 +541,7 @@ function PageWrapper({
   return (
     <div
       className={cn(
-        'flex max-h-full flex-col',
+        'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
         // On mobile: natural height for document scrolling
         isMobile ? 'min-h-dvh' : 'h-dvh',
@@ -562,6 +568,7 @@ function DocumentBody({
   docId,
   document,
   CommentEditor,
+  optionsMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
@@ -569,6 +576,7 @@ function DocumentBody({
   docId: UnpackedHypermediaId
   document: HMDocument
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  optionsMenuItems?: MenuItemType[]
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
@@ -788,18 +796,34 @@ function DocumentBody({
     }
   }
 
+  // Combined action buttons: options dropdown + edit actions
+  const hasOptions = optionsMenuItems && optionsMenuItems.length > 0
+  const hasActionButtons = hasOptions || editActions
+  const actionButtons = hasActionButtons ? (
+    <>
+      {hasOptions && (
+        <OptionsDropdown
+          menuItems={optionsMenuItems}
+          align="end"
+          side="bottom"
+        />
+      )}
+      {editActions}
+    </>
+  ) : null
+
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
-      {/* Floating edit buttons - visible when DocumentTools is NOT sticky */}
-      {activeView === 'content' && editActions && !isMobile ? (
+      {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
+      {activeView === 'content' && actionButtons && !isMobile ? (
         <div
           className={cn(
             'absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
             isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
         >
-          {editActions}
+          {actionButtons}
         </div>
       ) : null}
 
@@ -834,18 +858,19 @@ function DocumentBody({
         <DocumentTools
           id={docId}
           activeTab={activeView}
+          currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
           directoryCount={directory.data?.length}
           rightActions={
-            activeView === 'content' && editActions ? (
+            activeView === 'content' && actionButtons ? (
               <div
                 className={cn(
                   'flex items-center gap-1 transition-opacity',
                   isToolsSticky ? 'opacity-100' : 'opacity-0',
                 )}
               >
-                {editActions}
+                {actionButtons}
               </div>
             ) : activeView !== 'content' && !isMobile ? (
               <OpenInPanelButton
@@ -1010,6 +1035,7 @@ function PanelContentRenderer({
               <CommentEditor
                 docId={docId}
                 quotingBlockId={panelRoute.targetBlockId}
+                commentId={panelRoute.openComment}
                 autoFocus
               />
             ) : undefined
@@ -1130,6 +1156,7 @@ function MainContent({
               <CommentEditor
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
+                commentId={discussionsParams?.openComment}
               />
             ) : undefined
           }

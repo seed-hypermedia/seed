@@ -1,4 +1,5 @@
 import {PanelSelectionOptions} from '@shm/shared'
+import {X} from 'lucide-react'
 import {useLayoutEffect, useRef} from 'react'
 import {
   ImperativePanelGroupHandle,
@@ -11,7 +12,6 @@ import {Button} from './button'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
 import {cn} from './utils'
-import {X} from 'lucide-react'
 
 export interface PanelLayoutProps {
   children: React.ReactNode
@@ -119,7 +119,9 @@ export function PanelLayout({
             >
               <div className="h-full rounded-lg">
                 <div
-                  className={cn('dark:bg-background flex flex-col bg-white')}
+                  className={cn(
+                    'dark:bg-background flex h-full flex-col bg-white',
+                  )}
                 >
                   <div className="border-border border-b px-5 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -137,7 +139,9 @@ export function PanelLayout({
                       />
                     )}
                   </div>
-                  <div className="flex-1 overflow-hidden">{panelContent}</div>
+                  <div className="flex-1 overflow-hidden pt-4">
+                    {panelContent}
+                  </div>
                 </div>
               </div>
             </Panel>

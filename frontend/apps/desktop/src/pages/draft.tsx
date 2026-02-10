@@ -497,7 +497,7 @@ function DocumentEditor({
           className="relative flex flex-1 flex-col overflow-hidden"
         >
           <div
-            className="bg-background absolute top-4 right-4 z-11 flex items-center rounded-sm p-1 shadow-sm"
+            className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <DraftActionButtons route={route} />

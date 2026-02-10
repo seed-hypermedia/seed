@@ -84,6 +84,7 @@ export function useCommentsService(params: HMListCommentsInput) {
       }
     },
     retry: 1,
+    staleTime: 30_000,
   })
 }
 
@@ -108,6 +109,7 @@ export function useDiscussionsService(params: HMListDiscussionsInput) {
       }
     },
     retry: 1,
+    staleTime: 30_000,
   })
 }
 
@@ -130,6 +132,7 @@ export function useBlockDiscussionsService(
       }
     },
     retry: 1,
+    staleTime: 30_000,
   })
 }
 
@@ -150,10 +153,6 @@ export function isRouteEqualToCommentTarget({
   const targetRoute = hmId(`${comment.targetAccount}${comment.targetPath}`, {
     version: comment.targetVersion,
   })
-
-  console.log({id, targetRoute})
-  console.log('targetRoute.uid == id.uid', targetRoute.uid == id.uid)
-  console.log('path', targetRoute.path?.join('/') == id.path?.join('/'))
 
   if (
     targetRoute.uid == id.uid &&
@@ -204,5 +203,7 @@ export function useCommentReplyCount({id}: {id: string}) {
         id,
       }),
     retry: 1,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 }

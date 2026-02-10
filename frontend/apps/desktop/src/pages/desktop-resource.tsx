@@ -1,6 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
-import {CommentBox} from '@/components/commenting'
+import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
@@ -12,18 +12,23 @@ import {
 import {useMyAccountIds} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
+import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
 import {hmId} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
+import {
+  CommentsProvider,
+  isRouteEqualToCommentTarget,
+} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {HMBlockNode} from '@shm/shared/hm-types'
+import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Download, Link, Trash} from '@shm/ui/icons'
-import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -32,10 +37,12 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
+import {useCallback} from 'react'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
   const navigate = useNavigate()
+  const replace = useNavigate('replace')
 
   // Only handle document-related routes
   const supportedKeys = [
@@ -183,7 +190,6 @@ export default function DesktopResourcePage() {
 
   const editActions = canEdit ? (
     <>
-      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       <Tooltip content={existingDraft ? 'Resume Editing' : 'Edit'}>
         <Button
           size="sm"
@@ -211,26 +217,100 @@ export default function DesktopResourcePage() {
           }}
         >
           <Pencil className="size-4" />
-          {existingDraft ? 'Resume Editing' : 'Edit'}
         </Button>
       </Tooltip>
       <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />
+    </>
+  ) : null
+
+  const onReplyClick = useCallback(
+    (replyComment: HMComment) => {
+      const targetRoute = isRouteEqualToCommentTarget({
+        id: docId,
+        comment: replyComment,
+      })
+      if (targetRoute) {
+        navigate({
+          key: 'document',
+          id: targetRoute,
+          panel: {
+            key: 'discussions',
+            id: targetRoute,
+            openComment: replyComment.id,
+            isReplying: true,
+          },
+        })
+      } else if (route.key === 'discussions') {
+        // Already viewing discussions in main — update in place
+        replace({...route, openComment: replyComment.id, isReplying: true})
+      } else {
+        replace({
+          ...route,
+          panel: {
+            key: 'discussions',
+            id: docId,
+            openComment: replyComment.id,
+            isReplying: true,
+          },
+        } as any)
+      }
+      triggerCommentDraftFocus(docId.id, replyComment.id)
+    },
+    [route, docId, navigate, replace],
+  )
+
+  const onReplyCountClick = useCallback(
+    (replyComment: HMComment) => {
+      const targetRoute = isRouteEqualToCommentTarget({
+        id: docId,
+        comment: replyComment,
+      })
+      if (targetRoute) {
+        navigate({
+          key: 'document',
+          id: targetRoute,
+          panel: {
+            key: 'discussions',
+            id: targetRoute,
+            openComment: replyComment.id,
+          },
+        })
+      } else if (route.key === 'discussions') {
+        replace({...route, openComment: replyComment.id})
+      } else {
+        replace({
+          ...route,
+          panel: {
+            key: 'discussions',
+            id: docId,
+            openComment: replyComment.id,
+          },
+        } as any)
+      }
+    },
+    [route, docId, navigate, replace],
+  )
+
+  return (
+    <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
+      <CommentsProvider
+        useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
+        onReplyClick={onReplyClick}
+        onReplyCountClick={onReplyCountClick}
+      >
+        <ResourcePage
+          docId={docId}
+          CommentEditor={CommentBox}
+          optionsMenuItems={menuItems}
+          editActions={editActions}
+          existingDraft={existingDraft}
+        />
+      </CommentsProvider>
       {copyGatewayContent}
       {copySiteUrlContent}
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}
-    </>
-  ) : null
-
-  return (
-    <div className="h-full max-h-full overflow-hidden rounded-lg border bg-white">
-      <ResourcePage
-        docId={docId}
-        CommentEditor={CommentBox}
-        editActions={editActions}
-        existingDraft={existingDraft}
-      />
     </div>
   )
 }
