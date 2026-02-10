@@ -11,6 +11,14 @@ import {grpcClient} from './app-grpc'
 import {uploadFile} from './app-web-importing'
 import {parseWXR, WXRParseResult, WXRPost} from './wxr-parser'
 import {
+  createAuthorKeyName,
+  fallbackAuthorLogin,
+  getAuthorDisplayName,
+  isEmailUsableForAuthored,
+  normalizeAuthorLogin,
+  normalizeWXRSlug,
+} from './wxr-import-utils'
+import {
   createImportFile,
   parseImportFile,
   SeedImportData,
@@ -164,6 +172,8 @@ async function executeImport(
   const progress = onProgress || (() => {})
 
   try {
+    const authorKeyScope = `${state.destinationUid}:${data.source.siteUrl}`
+
     // Phase: Register/verify author keys (for authored mode).
     // This runs on both initial import AND resume to ensure ephemeral keys exist.
     // Ephemeral keys are stored in memory and lost on daemon restart.
@@ -174,22 +184,28 @@ async function executeImport(
         setImportState(state)
       }
 
+      const authoredEligibleLogins = Object.entries(data.authors)
+        .filter(([, author]) => isEmailUsableForAuthored(author.email))
+        .map(([login]) => login)
       progress({
         phase: 'authors',
-        total: Object.keys(data.authors).length,
+        total: authoredEligibleLogins.length,
         completed: 0,
       })
 
       // Get list of existing keys to check if ephemeral keys need re-registration.
       const existingKeys = await grpcClient.daemon.listKeys({})
-      const existingKeyNames = new Set(existingKeys.keys.map((k) => k.name))
+      const existingKeysByName = new Map(
+        existingKeys.keys.map((key) => [key.name, key]),
+      )
 
       let authorCount = 0
-      for (const [login, author] of Object.entries(data.authors)) {
-        const keyName = `wxr-import-${state.importId}-${login}`
-        const keyExists = existingKeyNames.has(keyName)
+      for (const login of authoredEligibleLogins) {
+        const author = data.authors[login]
+        const keyName = createAuthorKeyName(authorKeyScope, login)
+        const existingKey = existingKeysByName.get(keyName)
 
-        if (author.mnemonic && !keyExists) {
+        if (author.mnemonic && !existingKey) {
           // Register ephemeral key for this author (initial or re-registration after daemon restart).
           const result = await grpcClient.daemon.registerKey({
             mnemonic: author.mnemonic,
@@ -204,11 +220,13 @@ async function executeImport(
             ;(file.data as SeedImportData).authors[login] = author
             setImportFile(file)
           }
+        } else if (existingKey && !author.publicKey) {
+          author.publicKey = existingKey.publicKey
         }
         authorCount++
         progress({
           phase: 'authors',
-          total: Object.keys(data.authors).length,
+          total: authoredEligibleLogins.length,
           completed: authorCount,
           currentItem: author.displayName,
         })
@@ -236,6 +254,7 @@ async function executeImport(
 
     // Create a shared image cache for the import session.
     const imageCache = new Map<string, string>()
+    const existingWriterCapsByPath = new Map<string, Set<string>>()
 
     for (const postInfo of remainingPosts) {
       // Look up full post data from wxrPosts map.
@@ -255,24 +274,56 @@ async function executeImport(
         currentItem: postTitle,
       })
 
-      // Determine display author for ghostwritten mode.
-      const author = data.authors[postInfo.authorLogin]
-      const displayAuthor = state.isAuthored ? undefined : author?.displayName
+      const normalizedAuthorLogin =
+        normalizeAuthorLogin(postInfo.authorLogin) ||
+        fallbackAuthorLogin(postInfo.id)
+      const author = data.authors[normalizedAuthorLogin]
+      const authorDisplayName = getAuthorDisplayName(
+        normalizedAuthorLogin || fallbackAuthorLogin(postInfo.id),
+        author?.displayName,
+      )
+      const canUseAuthoredSigner =
+        state.isAuthored &&
+        !!author &&
+        isEmailUsableForAuthored(author.email) &&
+        !!author.publicKey
+
+      const displayAuthor =
+        state.isAuthored && canUseAuthoredSigner ? undefined : authorDisplayName
 
       // Determine signing key - use author's key for authored mode, publisher's key for ghostwritten.
-      const signingKeyName = state.isAuthored
-        ? `wxr-import-${state.importId}-${postInfo.authorLogin}`
+      const signingKeyName = canUseAuthoredSigner
+        ? createAuthorKeyName(authorKeyScope, normalizedAuthorLogin)
         : state.publisherKeyName
 
       // In authored mode, grant write capability to the author's ephemeral key for this specific post path.
-      if (state.isAuthored && author?.publicKey) {
-        await grpcClient.accessControl.createCapability({
-          account: state.destinationUid,
-          delegate: author.publicKey,
-          role: Role.WRITER,
-          path: hmIdPathToEntityQueryPath(postPath),
-          signingKeyName: state.publisherKeyName,
-        })
+      if (canUseAuthoredSigner && author?.publicKey) {
+        const pathQuery = hmIdPathToEntityQueryPath(postPath)
+        let delegates = existingWriterCapsByPath.get(pathQuery)
+
+        if (!delegates) {
+          const existingCaps = await grpcClient.accessControl.listCapabilities({
+            account: state.destinationUid,
+            path: pathQuery,
+          })
+          delegates = new Set(
+            existingCaps.capabilities
+              .filter((cap) => cap.role === Role.WRITER)
+              .map((cap) => cap.delegate),
+          )
+          existingWriterCapsByPath.set(pathQuery, delegates)
+        }
+
+        if (!delegates.has(author.publicKey)) {
+          await grpcClient.accessControl.createCapability({
+            account: state.destinationUid,
+            delegate: author.publicKey,
+            role: Role.WRITER,
+            path: pathQuery,
+            signingKeyName: state.publisherKeyName,
+          })
+          delegates.add(author.publicKey)
+        }
       }
 
       // Create the document.
@@ -289,7 +340,7 @@ async function executeImport(
           },
           {
             destinationUid: state.destinationUid,
-            destinationPath: state.destinationPath,
+            documentPath: postPath,
             signingKeyName,
             displayAuthor,
             imageCache,
@@ -307,7 +358,12 @@ async function executeImport(
         results.failed.push({
           path: postPath,
           title: postTitle,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error:
+            error instanceof Error
+              ? `[author=${
+                  normalizedAuthorLogin || 'unknown'
+                }][signing=${signingKeyName}] ${error.message}`
+              : 'Unknown error',
         })
         // Continue with next post instead of failing the entire import.
       }
@@ -360,32 +416,94 @@ async function createImportData(
   mode: string,
 ): Promise<SeedImportData> {
   const authors: SeedImportData['authors'] = {}
+  const allPosts = [...wxr.posts, ...wxr.pages]
+  const pagesById = new Map<number, WXRPost>()
+  const pagePathCache = new Map<number, string[]>()
 
-  // Build author entries.
+  for (const post of allPosts) {
+    if (post.type === 'page' && post.id > 0) {
+      pagesById.set(post.id, post)
+    }
+  }
+
+  const resolvePagePath = (page: WXRPost, visiting: Set<number>): string[] => {
+    const cached = pagePathCache.get(page.id)
+    if (cached) return cached
+
+    const ownSlug = normalizeWXRSlug(page.slug, page.id)
+
+    if (visiting.has(page.id)) {
+      return [ownSlug]
+    }
+
+    visiting.add(page.id)
+
+    let parentPath: string[] = []
+    if (page.parentId && page.parentId > 0) {
+      const parent = pagesById.get(page.parentId)
+      if (parent) {
+        parentPath = resolvePagePath(parent, visiting)
+      }
+    }
+
+    visiting.delete(page.id)
+
+    const resolved = [...parentPath, ownSlug]
+    pagePathCache.set(page.id, resolved)
+    return resolved
+  }
+
+  // Build author entries from declared WXR author metadata.
   for (const author of wxr.authors) {
-    authors[author.login] = {
-      displayName: author.displayName,
-      email: author.email,
-      // Generate mnemonic for authored mode.
-      mnemonic: mode === 'authored' ? await generateMnemonic() : undefined,
+    const login = normalizeAuthorLogin(author.login)
+    if (!login) continue
+
+    const email = (author.email || '').trim()
+    const displayName = getAuthorDisplayName(login, author.displayName)
+    const hasUsableEmail = isEmailUsableForAuthored(email)
+
+    authors[login] = {
+      displayName,
+      email,
+      // Generate mnemonics only for authors that can sign in authored mode.
+      mnemonic:
+        mode === 'authored' && hasUsableEmail
+          ? await generateMnemonic()
+          : undefined,
     }
   }
 
   // Build post list with paths and wxrPosts map.
   const posts: SeedImportData['posts'] = []
   const wxrPosts: SeedImportData['wxrPosts'] = {}
-  const allPosts = [...wxr.posts, ...wxr.pages]
 
   for (const post of allPosts) {
     if (post.status !== 'publish') continue
 
-    // Build path from slug.
-    const path = post.slug ? [post.slug] : [`post-${post.id}`]
+    const authorLogin =
+      normalizeAuthorLogin(post.authorLogin) || fallbackAuthorLogin(post.id)
+    const normalizedSlug = normalizeWXRSlug(post.slug, post.id)
+
+    if (!authors[authorLogin]) {
+      authors[authorLogin] = {
+        displayName: getAuthorDisplayName(authorLogin),
+        email: '',
+      }
+    }
+
+    let path: string[]
+    if (post.type === 'post') {
+      path = ['posts', normalizedSlug]
+    } else if (post.type === 'page') {
+      path = resolvePagePath(post, new Set<number>())
+    } else {
+      path = [normalizedSlug]
+    }
 
     posts.push({
       id: post.id,
       path,
-      authorLogin: post.authorLogin,
+      authorLogin,
       imported: false,
     })
 
@@ -393,7 +511,7 @@ async function createImportData(
     wxrPosts[post.id] = {
       id: post.id,
       title: post.title,
-      slug: post.slug,
+      slug: normalizedSlug,
       content: post.content,
       postDateGmt: post.postDateGmt,
       categories: post.categories,
@@ -468,7 +586,7 @@ export async function importPost(
   post: ImportablePost,
   options: {
     destinationUid: string
-    destinationPath: string[]
+    documentPath: string[]
     signingKeyName: string
     displayAuthor?: string
     imageCache: Map<string, string>
@@ -477,14 +595,14 @@ export async function importPost(
 ): Promise<ImportPostResult> {
   const {
     destinationUid,
-    destinationPath,
+    documentPath,
     signingKeyName,
     displayAuthor,
     overwriteExisting = false,
   } = options
 
   // Build the document path.
-  const docPath = [...destinationPath, post.slug || `post-${post.id}`]
+  const docPath = documentPath
   const pathString = hmIdPathToEntityQueryPath(docPath)
 
   // Check if document already exists at this path.

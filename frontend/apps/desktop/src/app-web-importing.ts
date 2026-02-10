@@ -5,17 +5,18 @@ import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {HMBlockNode} from '@shm/shared/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import * as cheerio from 'cheerio'
-import {readFile} from 'fs/promises'
+import {readFile, writeFile} from 'fs/promises'
 import http from 'http'
 import https from 'https'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
 import z from 'zod'
+import {app, dialog} from 'electron'
 import {grpcClient} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 import {PostsFile, ScrapeStatus, scrapeUrl} from './web-scraper'
-import {parseWXR} from './wxr-parser'
+import {extractUniqueAuthors, parseWXR} from './wxr-parser'
 import {
   cancelWXRImport,
   getImportStatus,
@@ -23,6 +24,12 @@ import {
   resumeWXRImport,
   startWXRImport,
 } from './wxr-import'
+import {serializeImportFile} from './wxr-crypto'
+import {getImportFile, getImportState} from './wxr-import-store'
+import {
+  isEmailUsableForAuthored,
+  normalizeAuthorLogin,
+} from './wxr-import-utils'
 
 export async function uploadFile(file: Blob | string) {
   const formData = new FormData()
@@ -288,6 +295,33 @@ export const webImportingApi = t.router({
   // WXR (WordPress Export) Import procedures.
   wxrParseFile: t.procedure.input(z.string()).mutation(async ({input}) => {
     const result = parseWXR(input)
+    const allCreators = extractUniqueAuthors([...result.posts, ...result.pages])
+    const authorByLogin = new Map(
+      result.authors.map((author) => [
+        normalizeAuthorLogin(author.login),
+        author,
+      ]),
+    )
+
+    const authoredFallbackAuthors = Array.from(allCreators)
+      .map((login) => normalizeAuthorLogin(login))
+      .filter((login) => !!login)
+      .filter((login) => {
+        const author = authorByLogin.get(login)
+        return !author || !isEmailUsableForAuthored(author.email)
+      })
+      .map((login) => {
+        const author = authorByLogin.get(login)
+        return {
+          login,
+          displayName: author?.displayName || login,
+          email: author?.email || '',
+          reason: (author ? 'missing_email' : 'missing_author_profile') as
+            | 'missing_email'
+            | 'missing_author_profile',
+        }
+      })
+
     return {
       siteTitle: result.siteTitle,
       siteUrl: result.siteUrl,
@@ -295,10 +329,11 @@ export const webImportingApi = t.router({
       postCount: result.posts.length,
       pageCount: result.pages.length,
       authors: result.authors.map((a) => ({
-        login: a.login,
+        login: normalizeAuthorLogin(a.login),
         displayName: a.displayName,
         email: a.email,
       })),
+      authoredFallbackAuthors,
     }
   }),
 
@@ -332,11 +367,47 @@ export const webImportingApi = t.router({
   }),
 
   wxrGetStatus: t.procedure.query(async () => {
+    const state = getImportState()
+    const file = getImportFile()
     return {
       hasActiveImport: hasActiveImport(),
       status: getImportStatus(),
+      canExportAuthorKeys: !!state?.isAuthored && !!file,
     }
   }),
+
+  wxrExportAuthorKeys: t.procedure
+    .input(
+      z
+        .object({
+          defaultFileName: z.string().optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({input}) => {
+      const state = getImportState()
+      const importFile = getImportFile()
+
+      if (!state?.isAuthored || !importFile) {
+        throw new Error('No authored import keys are available to export.')
+      }
+
+      const fileName =
+        input?.defaultFileName ||
+        `seed-import-authors-${state.importId.slice(0, 8)}.json`
+      const {canceled, filePath} = await dialog.showSaveDialog({
+        title: 'Export Author Keys File',
+        defaultPath: join(app.getPath('downloads'), fileName),
+        filters: [{name: 'JSON', extensions: ['json']}],
+      })
+
+      if (canceled || !filePath) {
+        return {saved: false as const}
+      }
+
+      await writeFile(filePath, serializeImportFile(importFile), 'utf8')
+      return {saved: true as const, filePath}
+    }),
 })
 
 function changesForBlockNodes(nodes: HMBlockNode[], parentId: string): DocumentChange[] {
