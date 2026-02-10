@@ -254,6 +254,65 @@ export function extractRefs(
   return refs
 }
 
+export function extractAllContentRefs(
+  children: HMBlockNode[],
+): RefDefinition[] {
+  let refs: RefDefinition[] = []
+  function walk(block: HMBlockNode) {
+    if (block.block?.type === 'Embed' && block.block.link) {
+      const refId = unpackHmId(block.block.link)
+      if (refId)
+        refs.push({
+          blockId: block.block.id,
+          link: block.block.link,
+          refId,
+        })
+    }
+    // @ts-expect-error
+    ;(block.block as any).annotations?.forEach((annotation) => {
+      if (annotation.type === 'Embed' && annotation.link) {
+        refs.push({
+          blockId: block.block.id,
+          link: annotation.link,
+          refId: unpackHmId(annotation.link),
+        })
+      }
+      if (annotation.type === 'Link' && annotation.link) {
+        const refId = unpackHmId(annotation.link)
+        if (refId) {
+          refs.push({
+            blockId: block.block.id,
+            link: annotation.link,
+            refId,
+          })
+        }
+      }
+    })
+    if (block.children) {
+      block.children.forEach(walk)
+    }
+  }
+  children.forEach(walk)
+  return refs
+}
+
+export function hasQueryBlockTargetingSelf(
+  children: HMBlockNode[],
+  parentUid: string,
+  parentPath: string[] | null,
+): boolean {
+  const queryBlocks = extractQueryBlocks(children)
+  return queryBlocks.some((qb) => {
+    const include = qb.attributes.query.includes[0]
+    if (!include) return false
+    if (include.space !== parentUid) return false
+    const includePath = entityQueryPathToHmIdPath(include.path)
+    const parentPathStr = (parentPath || []).join('/')
+    const includePathStr = (includePath || []).join('/')
+    return includePathStr === parentPathStr
+  })
+}
+
 export function extractQueryBlocks(children: HMBlockNode[]): HMBlockQuery[] {
   let queries: HMBlockQuery[] = []
   function extractQueriesFromBlock(block: HMBlockNode) {
