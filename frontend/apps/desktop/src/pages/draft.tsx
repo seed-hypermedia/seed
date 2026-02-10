@@ -1,9 +1,10 @@
-import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CoverImage} from '@/components/cover-image'
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
-import {useDocumentSelection} from '@/components/document-accessory'
+import {DiscussionsPanel} from '@/components/discussions-panel'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
+import {OptionsPanel} from '@/components/options-panel'
 import {HyperMediaEditorView} from '@/components/editor'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
@@ -55,13 +56,18 @@ import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {PanelContent} from '@shm/ui/accessories'
+import {DocumentCollaborators} from '@shm/ui/collaborators-page'
 import {Container, panelContainerStyles} from '@shm/ui/container'
+import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
+import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {HistoryIcon, Home, Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {PanelLayout} from '@shm/ui/panel-layout'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -132,32 +138,25 @@ export default function DraftPage() {
   const homeDocument =
     homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
-  const {selectionUI, selectionOptions} = useDocumentSelection({
-    docId: editId,
-    state,
-    actor,
-    isEditingHomeDoc,
-  })
+  const draftPanelOptions = [
+    'options',
+    'activity',
+    'discussions',
+    'collaborators',
+    'directory',
+  ] as const
 
   useListenAppEvent('toggle_accessory', (event) => {
-    // Navigation guard: Check if accessory exists at this index
-    const targetSelection = selectionOptions[event.index]
-
-    if (!targetSelection) {
-      // No accessory at this index, do nothing
-      return
-    }
+    const targetKey = draftPanelOptions[event.index]
+    if (!targetKey) return
     const id = route.editUid
       ? hmId(route.editUid, {path: route.editPath})
       : undefined
     if (!id) return
-    // Check if already open
-    if (panelKey === targetSelection.key) {
-      // Already open → close it
+    if (panelKey === targetKey) {
       replace({...route, panel: null})
     } else {
-      // Not open → open it
-      replace({...route, panel: {key: targetSelection.key, id}})
+      replace({...route, panel: {key: targetKey, id}})
     }
   })
 
@@ -216,127 +215,94 @@ export default function DraftPage() {
   }
 
   const headerDocId = locationId || (!!homeEntity.data && editId)
+
+  const panelContent = panelKey ? (
+    <ScrollArea className="flex-1">
+      <DraftPanelContent
+        panelKey={panelKey}
+        docId={editId}
+        state={state}
+        actor={actor}
+        isEditingHomeDoc={isEditingHomeDoc}
+        route={route}
+      />
+    </ScrollArea>
+  ) : null
+
+  const handlePanelClose = () => {
+    replace({...route, panel: null})
+  }
+
+  const handleFilterChange = (filter: {filterEventType?: string[]}) => {
+    if (route.panel?.key === 'activity') {
+      replace({
+        ...route,
+        panel: {...route.panel, filterEventType: filter.filterEventType},
+      })
+    }
+  }
+
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
-        onReplyClick={(replyComment) => {
+        onReplyClick={() => {
           toast.error('Not implemented draft CommentsProvider onReplyClick')
-          return
-          // const targetRoute = isRouteEqualToCommentTarget({
-          //   id: editId || locationId,
-          //   comment: replyComment,
-          // })
-          // if (targetRoute) {
-          //   push({
-          //     key: 'document',
-          //     id: targetRoute,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: targetRoute,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // } else {
-          //   console.log('targetRoute is the same. replacing...')
-          //   replace({
-          //     ...route,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // }
-          // triggerCommentDraftFocus(route.id, replyComment.id)
         }}
-        onReplyCountClick={(replyComment) => {
+        onReplyCountClick={() => {
           toast.error(
             'Not implemented draft CommentsProvider onReplyCountClick',
           )
-          return
-          // const targetRoute = isRouteEqualToCommentTarget({
-          //   id: editId || locationId,
-          //   comment: replyComment,
-          // })
-          // if (targetRoute) {
-          //   // comment target is not the same as the route, so we need to change the whole route
-          //   push({
-          //     key: 'document',
-          //     id: targetRoute,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // } else {
-          //   // comment target is the same as the route, so we can replace safely
-          //   replace({
-          //     ...route,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // }
         }}
       >
-        <div className="flex h-full flex-1">
-          <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
-            <div
-              className={cn(
-                panelContainerStyles,
-                'dark:bg-background flex flex-col bg-white',
-              )}
-            >
+        <div
+          className={cn(
+            panelContainerStyles,
+            'dark:bg-background flex h-full flex-col bg-white',
+          )}
+        >
+          {headerDocId ? (
+            <DraftAppHeader
+              siteHomeEntity={homeEntity.data}
+              isEditingHomeDoc={isEditingHomeDoc}
+              docId={headerDocId}
+              document={homeDocument}
+              draftMetadata={
+                isEditingHomeDoc ? state.context.metadata : undefined
+              }
+              onDocNav={(navigation) => {
+                send({
+                  type: 'change.navigation',
+                  navigation,
+                })
+              }}
+              actor={actor}
+            />
+          ) : null}
+          <PanelLayout
+            panelKey={panelKey ?? null}
+            panelContent={panelContent}
+            onPanelClose={handlePanelClose}
+            filterEventType={
+              route.panel?.key === 'activity'
+                ? route.panel.filterEventType
+                : undefined
+            }
+            onFilterChange={handleFilterChange}
+          >
+            <div className="flex h-full flex-col">
               <DraftRebaseBanner />
-              {headerDocId ? (
-                <>
-                  <DraftAppHeader
-                    siteHomeEntity={homeEntity.data}
-                    isEditingHomeDoc={isEditingHomeDoc}
-                    docId={headerDocId}
-                    document={homeDocument}
-                    draftMetadata={
-                      isEditingHomeDoc ? state.context.metadata : undefined
-                    }
-                    onDocNav={(navigation) => {
-                      send({
-                        type: 'change.navigation',
-                        navigation,
-                      })
-                    }}
-                    actor={actor}
-                  />
-                  <DocumentEditor
-                    editor={editor}
-                    state={state}
-                    actor={actor}
-                    data={data}
-                    send={send}
-                    handleFocusAtMousePos={handleFocusAtMousePos}
-                    isHomeDoc={isEditingHomeDoc}
-                  />
-                </>
-              ) : (
-                <DocumentEditor
-                  editor={editor}
-                  state={state}
-                  actor={actor}
-                  data={data}
-                  send={send}
-                  handleFocusAtMousePos={handleFocusAtMousePos}
-                  isHomeDoc={isEditingHomeDoc}
-                />
-              )}
+              <DocumentEditor
+                editor={editor}
+                state={state}
+                actor={actor}
+                data={data}
+                send={send}
+                handleFocusAtMousePos={handleFocusAtMousePos}
+                isHomeDoc={isEditingHomeDoc}
+              />
             </div>
-          </AccessoryLayout>
+          </PanelLayout>
         </div>
       </CommentsProvider>
     </ErrorBoundary>
@@ -369,6 +335,72 @@ export default function DraftPage() {
 //     </div>
 //   )
 // }
+
+function DraftPanelContent({
+  panelKey,
+  docId,
+  state,
+  actor,
+  isEditingHomeDoc,
+  route,
+}: {
+  panelKey: string
+  docId?: UnpackedHypermediaId
+  state: ReturnType<typeof useDraftEditor>['state']
+  actor: ReturnType<typeof useDraftEditor>['actor']
+  isEditingHomeDoc: boolean
+  route: DraftRoute
+}) {
+  switch (panelKey) {
+    case 'options':
+      return state?.context?.metadata && actor ? (
+        <OptionsPanel
+          draftId={route.id}
+          metadata={state.context.metadata}
+          isHomeDoc={isEditingHomeDoc}
+          onMetadata={(metadata) => {
+            if (!metadata) return
+            actor.send({type: 'change', metadata})
+          }}
+          onResetContent={() => {
+            actor.send({type: 'reset.content'})
+          }}
+        />
+      ) : null
+    case 'discussions':
+      return route.panel?.key === 'discussions' && docId ? (
+        <DiscussionsPanel
+          docId={docId}
+          selection={{...route.panel, id: route.panel.id ?? docId}}
+        />
+      ) : null
+    case 'activity':
+      return (
+        <PanelContent>
+          <Feed
+            size="sm"
+            filterResource={docId?.id}
+            filterEventType={
+              route.panel?.key === 'activity'
+                ? route.panel.filterEventType || []
+                : []
+            }
+          />
+        </PanelContent>
+      )
+    case 'collaborators':
+      return docId ? (
+        <PanelContent>
+          <AddCollaboratorForm id={docId} />
+          <DocumentCollaborators docId={docId} />
+        </PanelContent>
+      ) : null
+    case 'directory':
+      return docId ? <DirectoryPanel docId={docId} /> : null
+    default:
+      return null
+  }
+}
 
 function DocumentEditor({
   editor,

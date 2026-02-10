@@ -3,56 +3,10 @@ import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Users} from 'lucide-react'
-import {ReactNode, useMemo} from 'react'
+import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
-import {OpenInPanelButton} from './open-in-panel'
-import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
-
-export interface CollaboratorsPageContentProps {
-  docId: UnpackedHypermediaId
-  /** Content to render in the collaborators area - platform-specific */
-  children?: ReactNode
-  /** Whether to show the "Open in Panel" button. Defaults to true. */
-  showOpenInPanel?: boolean
-  /** Whether to show the title. Defaults to true. */
-  showTitle?: boolean
-  /** Custom max width for centered content */
-  contentMaxWidth?: number
-}
-
-/**
- * Full-page collaborators content component.
- * The actual collaborator management UI is platform-specific (desktop has complex
- * access control, web may have different needs), so this component provides the
- * layout shell and accepts children for the platform-specific content.
- */
-export function CollaboratorsPageContent({
-  docId,
-  children,
-  showOpenInPanel = true,
-  showTitle = true,
-  contentMaxWidth,
-}: CollaboratorsPageContentProps) {
-  return (
-    <PageLayout
-      title={showTitle ? 'Collaborators' : undefined}
-      centered
-      contentMaxWidth={contentMaxWidth}
-      headerRight={
-        showOpenInPanel ? (
-          <OpenInPanelButton
-            id={docId}
-            panelRoute={{key: 'collaborators', id: docId}}
-          />
-        ) : undefined
-      }
-    >
-      <div className="py-6">{children}</div>
-    </PageLayout>
-  )
-}
 
 export function CollaboratorsEmpty() {
   return (
@@ -286,11 +240,7 @@ function CollaboratorListItem({
 }
 
 /** Full read-only collaborators content with data fetching */
-export function ReadOnlyCollaboratorsContent({
-  docId,
-}: {
-  docId: UnpackedHypermediaId
-}) {
+export function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
   const {
     parentCapabilities,
     grantedCapabilities,

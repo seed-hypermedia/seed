@@ -38,7 +38,7 @@ import {
   BlocksContent,
   BlocksContentProvider,
 } from './blocks-content'
-import {ReadOnlyCollaboratorsContent} from './collaborators-page'
+import {DocumentCollaborators} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
@@ -472,7 +472,7 @@ function CommentPageBody({
 }
 
 // Header data computed from site home document
-interface HeaderData {
+export interface HeaderData {
   items: DocNavigationItem[]
   homeNavigationItems: DocNavigationItem[]
   directoryItems: DocNavigationItem[]
@@ -480,7 +480,7 @@ interface HeaderData {
   siteHomeDocument: HMDocument | null
 }
 
-function computeHeaderData(
+export function computeHeaderData(
   siteHomeId: UnpackedHypermediaId,
   siteHomeDocument: HMDocument | null,
   directory: ReturnType<typeof useDirectory>['data'],
@@ -527,18 +527,20 @@ function computeHeaderData(
 }
 
 // Wrapper that renders SiteHeader + content
-function PageWrapper({
+export function PageWrapper({
   siteHomeId,
   docId,
   headerData,
   document,
   children,
+  isMainFeedVisible = false,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
+  isMainFeedVisible?: boolean
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -563,7 +565,7 @@ function PageWrapper({
         isCenterLayout={headerData.isCenterLayout}
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
-        isMainFeedVisible={false}
+        isMainFeedVisible={isMainFeedVisible}
       />
       {children}
     </div>
@@ -1165,7 +1167,7 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <ReadOnlyCollaboratorsContent docId={docId} />
+          <DocumentCollaborators docId={docId} />
         </div>
       )
     default:
@@ -1237,7 +1239,7 @@ function MainContent({
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
           {collaboratorForm}
-          <ReadOnlyCollaboratorsContent docId={docId} />
+          <DocumentCollaborators docId={docId} />
         </PageLayout>
       )
 

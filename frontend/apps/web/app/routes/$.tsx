@@ -1,6 +1,5 @@
 import {useFullRender} from '@/cache-policy'
 import {WebCommenting} from '@/client-lazy'
-import {FeedPage} from '@/feed'
 import {
   createInstrumentationContext,
   instrument,
@@ -14,6 +13,7 @@ import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
+import {WebFeedPage} from '@/web-feed-page'
 import {WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -233,7 +233,6 @@ export const loader = async ({
   const {url, hostname, pathParts} = parsedRequest
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
-  const feed = url.searchParams.get('feed') === 'true'
   const panelParam = url.searchParams.get('panel')
 
   const serviceConfig = await instrument(ctx, 'getConfig', () =>
@@ -289,7 +288,6 @@ export const loader = async ({
   const result = await instrument(ctx, 'loadSiteResource', () =>
     loadSiteResource(parsedRequest, documentId, {
       prefersLanguages: parsedRequest.prefersLanguages,
-      feed,
       viewTerm,
       panelParam: effectivePanelParam,
       instrumentationCtx: ctx,
@@ -325,25 +323,26 @@ export default function UnifiedDocumentPage() {
     )
   }
 
-  // Show feed page if feed param is present
-  if (data.feed) {
-    return <FeedPage {...data} />
-  }
+  // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
+  const initialRoute = createDocumentNavRoute(
+    data.id,
+    data.viewTerm,
+    data.panelParam,
+  )
 
-  // Render unified ResourcePage with WebSiteProvider for navigation context
   return (
     <WebSiteProvider
       origin={data.origin}
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(
-        data.id,
-        data.viewTerm,
-        data.panelParam,
-      )}
+      initialRoute={initialRoute}
     >
-      <InnerResourcePage docId={data.id} />
+      {data.viewTerm === 'feed' ? (
+        <WebFeedPage docId={data.id} />
+      ) : (
+        <InnerResourcePage docId={data.id} />
+      )}
     </WebSiteProvider>
   )
 }
