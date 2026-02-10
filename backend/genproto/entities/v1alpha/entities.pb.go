@@ -1034,9 +1034,10 @@ type SearchEntitiesRequest struct {
 	// Query to find. We support wildcards and phrases.
 	// See https://sqlite.org/fts5.html#full_text_query_syntax.
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	// Whether to look into all content available or just the titles.
-	// If false, comments are not included in the search.
-	// Default is false.
+	// Deprecated, use content_type_filters instead to specify
+	// which content types to include in the search.
+	//
+	// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 	IncludeBody bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
 	// Optional. The size of the text accompanying the search match.
 	// Half of the size is before the match, and half after.
@@ -1059,7 +1060,7 @@ type SearchEntitiesRequest struct {
 	IriFilter string `protobuf:"bytes,7,opt,name=iri_filter,json=iriFilter,proto3" json:"iri_filter,omitempty"`
 	// Optional. Fine-grained content type selection. Overrides include_body when set.
 	// When empty, legacy behavior (title + body types based on include_body).
-	ContentTypeFilters []ContentTypeFilter `protobuf:"varint,8,rep,packed,name=content_type_filters,json=contentTypeFilters,proto3,enum=com.seed.entities.v1alpha.ContentTypeFilter" json:"content_type_filters,omitempty"`
+	ContentTypeFilter []ContentTypeFilter `protobuf:"varint,8,rep,packed,name=content_type_filter,json=contentTypeFilter,proto3,enum=com.seed.entities.v1alpha.ContentTypeFilter" json:"content_type_filter,omitempty"`
 	// Optional. Authority weight for citation-based ranking. Range [0, 1].
 	// 0 (default) disables authority scoring. Higher values increase citation influence.
 	// Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
@@ -1110,6 +1111,7 @@ func (x *SearchEntitiesRequest) GetQuery() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 func (x *SearchEntitiesRequest) GetIncludeBody() bool {
 	if x != nil {
 		return x.IncludeBody
@@ -1153,9 +1155,9 @@ func (x *SearchEntitiesRequest) GetIriFilter() string {
 	return ""
 }
 
-func (x *SearchEntitiesRequest) GetContentTypeFilters() []ContentTypeFilter {
+func (x *SearchEntitiesRequest) GetContentTypeFilter() []ContentTypeFilter {
 	if x != nil {
-		return x.ContentTypeFilters
+		return x.ContentTypeFilter
 	}
 	return nil
 }
@@ -1857,10 +1859,10 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xf4\x03\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xf6\x03\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
-	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12%\n" +
+	"\finclude_body\x18\x02 \x01(\bB\x02\x18\x01R\vincludeBody\x12!\n" +
 	"\fcontext_size\x18\x03 \x01(\x05R\vcontextSize\x12#\n" +
 	"\vaccount_uid\x18\x04 \x01(\tB\x02\x18\x01R\n" +
 	"accountUid\x12,\n" +
@@ -1868,8 +1870,8 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vsearch_type\x18\x06 \x01(\x0e2%.com.seed.entities.v1alpha.SearchTypeR\n" +
 	"searchType\x12\x1d\n" +
 	"\n" +
-	"iri_filter\x18\a \x01(\tR\tiriFilter\x12^\n" +
-	"\x14content_type_filters\x18\b \x03(\x0e2,.com.seed.entities.v1alpha.ContentTypeFilterR\x12contentTypeFilters\x12)\n" +
+	"iri_filter\x18\a \x01(\tR\tiriFilter\x12\\\n" +
+	"\x13content_type_filter\x18\b \x03(\x0e2,.com.seed.entities.v1alpha.ContentTypeFilterR\x11contentTypeFilter\x12)\n" +
 	"\x10authority_weight\x18\t \x01(\x02R\x0fauthorityWeight\x12\x1b\n" +
 	"\tpage_size\x18\n" +
 	" \x01(\x05R\bpageSize\x12\x1d\n" +
@@ -1996,7 +1998,7 @@ var file_entities_v1alpha_entities_proto_depIdxs = []int32{
 	24, // 8: com.seed.entities.v1alpha.Entity.version_time:type_name -> google.protobuf.Timestamp
 	24, // 9: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
 	1,  // 10: com.seed.entities.v1alpha.SearchEntitiesRequest.search_type:type_name -> com.seed.entities.v1alpha.SearchType
-	2,  // 11: com.seed.entities.v1alpha.SearchEntitiesRequest.content_type_filters:type_name -> com.seed.entities.v1alpha.ContentTypeFilter
+	2,  // 11: com.seed.entities.v1alpha.SearchEntitiesRequest.content_type_filter:type_name -> com.seed.entities.v1alpha.ContentTypeFilter
 	11, // 12: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
 	12, // 13: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
 	21, // 14: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention

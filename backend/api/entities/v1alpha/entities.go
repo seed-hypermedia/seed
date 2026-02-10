@@ -706,8 +706,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 	var bodyMatches []fuzzy.Match
 	contentTypes := map[string]bool{}
-	if len(in.ContentTypeFilters) > 0 {
-		for _, ct := range in.ContentTypeFilters {
+	if len(in.ContentTypeFilter) > 0 {
+		for _, ct := range in.ContentTypeFilter {
 			switch ct {
 			case entpb.ContentTypeFilter_CONTENT_TYPE_TITLE:
 				contentTypes["title"] = true
@@ -742,7 +742,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Problem getting logged account ID %s: %v", in.LoggedAccountUid, err)
 		}
-		// TODO: Remove auto-include of contacts once frontend uses content_type_filters explicitly.
+		// TODO: Remove auto-include of contacts once frontend uses content_type_filter explicitly.
 		contentTypes["contact"] = true
 	}
 	// Adjust results limit based on search type

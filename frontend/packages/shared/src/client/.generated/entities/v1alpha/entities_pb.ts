@@ -878,11 +878,11 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
   query = "";
 
   /**
-   * Whether to look into all content available or just the titles.
-   * If false, comments are not included in the search.
-   * Default is false.
+   * Deprecated, use content_type_filters instead to specify 
+   * which content types to include in the search.
    *
-   * @generated from field: bool include_body = 2;
+   * @generated from field: bool include_body = 2 [deprecated = true];
+   * @deprecated
    */
   includeBody = false;
 
@@ -933,9 +933,9 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    * Optional. Fine-grained content type selection. Overrides include_body when set.
    * When empty, legacy behavior (title + body types based on include_body).
    *
-   * @generated from field: repeated com.seed.entities.v1alpha.ContentTypeFilter content_type_filters = 8;
+   * @generated from field: repeated com.seed.entities.v1alpha.ContentTypeFilter content_type_filter = 8;
    */
-  contentTypeFilters: ContentTypeFilter[] = [];
+  contentTypeFilter: ContentTypeFilter[] = [];
 
   /**
    * Optional. Authority weight for citation-based ranking. Range [0, 1].
@@ -976,7 +976,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 5, name: "logged_account_uid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "search_type", kind: "enum", T: proto3.getEnumType(SearchType) },
     { no: 7, name: "iri_filter", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "content_type_filters", kind: "enum", T: proto3.getEnumType(ContentTypeFilter), repeated: true },
+    { no: 8, name: "content_type_filter", kind: "enum", T: proto3.getEnumType(ContentTypeFilter), repeated: true },
     { no: 9, name: "authority_weight", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
     { no: 10, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 11, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
