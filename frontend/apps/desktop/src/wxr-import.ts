@@ -175,8 +175,7 @@ async function executeImport(
     const authorKeyScope = `${state.destinationUid}:${data.source.siteUrl}`
 
     // Phase: Register/verify author keys (for authored mode).
-    // This runs on both initial import AND resume to ensure ephemeral keys exist.
-    // Ephemeral keys are stored in memory and lost on daemon restart.
+    // This runs on both initial import and resume to ensure keys exist.
     if (state.isAuthored) {
       const isInitialRun = state.phase === 'pending'
       if (isInitialRun) {
@@ -193,7 +192,7 @@ async function executeImport(
         completed: 0,
       })
 
-      // Get list of existing keys to check if ephemeral keys need re-registration.
+      // Get list of existing keys to check if author keys need registration.
       const existingKeys = await grpcClient.daemon.listKeys({})
       const existingKeysByName = new Map(
         existingKeys.keys.map((key) => [key.name, key]),
@@ -206,11 +205,10 @@ async function executeImport(
         const existingKey = existingKeysByName.get(keyName)
 
         if (author.mnemonic && !existingKey) {
-          // Register ephemeral key for this author (initial or re-registration after daemon restart).
+          // Register key for this author.
           const result = await grpcClient.daemon.registerKey({
             mnemonic: author.mnemonic,
             name: keyName,
-            ephemeral: true,
           })
           author.publicKey = result.publicKey
 
