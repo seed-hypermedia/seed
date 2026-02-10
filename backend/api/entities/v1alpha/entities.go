@@ -361,9 +361,18 @@ type blendedResult struct {
 }
 
 // blendSearchResults uses RRF (Reciprocal Rank Fusion) to blend semantic and keyword results.
-func blendSearchResults(semanticResults, keywordResults llm.SearchResultMap, limit int) llm.SearchResultMap {
+// For single-word queries, keyword results are weighted higher (60%) since semantic embeddings
+// are less reliable for short queries. For multi-word queries, equal weights (50/50) are used.
+func blendSearchResults(semanticResults, keywordResults llm.SearchResultMap, limit int, query string) llm.SearchResultMap {
 	const rrfK = 60
-	const semanticWeight = 0.5
+
+	// Single-word queries: favor keyword (60%) over semantic (40%).
+	// Multi-word queries: equal weight (50/50).
+	wordCount := len(strings.Fields(query))
+	semanticWeight := float32(0.5)
+	if wordCount <= 1 {
+		semanticWeight = 0.4
+	}
 
 	resultMap := make(map[int64]*blendedResult)
 	semanticResultsOrdered := semanticResults.ToList(true)
@@ -771,7 +780,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	query := cleanQuery
 
 	winners := llm.SearchResultMap{}
-	const semanticThreshold = 0.55 // Minimum similarity for relevant results with granite-embedding-107m-multilingual model.
+	const semanticThreshold = 0.45 // 0.55 Minimum similarity for relevant results with granite-embedding-107m-multilingual model.
 
 	// Check if semantic search is requested but embedder is not available.
 	if srv.embedder == nil && (in.SearchType == entpb.SearchType_SEARCH_HYBRID || in.SearchType == entpb.SearchType_SEARCH_SEMANTIC) {
@@ -812,7 +821,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 			}
 		} else {
 			// Blend results with RRF.
-			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2)
+			winners = blendSearchResults(semanticResults, keywordResults, resultsLmit*2, query)
 		}
 
 	case entpb.SearchType_SEARCH_SEMANTIC:
