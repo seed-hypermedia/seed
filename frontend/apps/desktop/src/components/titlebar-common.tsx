@@ -275,7 +275,7 @@ export function DocOptionsButton({
         key: 'publish-site',
         label: 'Remove Site from Publication',
         icon: <CloudOff className="size-4" />,
-        color: '$red10',
+        variant: 'destructive',
         onClick: () => {
           removeSite.open(id)
         },

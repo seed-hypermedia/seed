@@ -563,13 +563,16 @@ function InnerDocumentPage(
   // 'content' means the document itself, otherwise it's activity/discussions/etc
   // When viewing a comment directly (no viewTerm but comment exists), show discussions as active
   const activeView = viewTerm || (comment ? 'discussions' : 'content')
+  const activeTab =
+    activeView === 'activity' || activeView === 'directory'
+      ? undefined
+      : (activeView as 'content' | 'discussions' | 'collaborators' | undefined)
 
   const documentTools = activityEnabled ? (
     <DocumentTools
       id={id}
-      activeTab={activeView}
+      activeTab={activeTab}
       commentsCount={interactionSummary.data?.comments}
-      directoryCount={interactionSummary.data?.children}
     />
   ) : null
   return (

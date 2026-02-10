@@ -144,12 +144,11 @@ function _CollaboratorsContent({
         id={id}
         activeTab={
           route.panel
-            ? (route.panel.key as 'activity' | 'discussions' | 'directory')
+            ? (route.panel.key as 'discussions' | 'collaborators')
             : 'collaborators'
         }
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
-        directoryCount={directory.data?.length}
       />
       <PageLayout
         title="Collaborators"

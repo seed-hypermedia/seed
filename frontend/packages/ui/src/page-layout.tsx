@@ -30,7 +30,7 @@ export function PageLayout({
       {hasHeader && (
         <div className="shrink-0">
           <div
-            className={`flex items-center gap-4 px-8 py-4 ${
+            className={`flex items-center gap-4 ${
               centered ? `mx-auto w-full ${maxWidthClass}` : 'px-6'
             }`}
             style={centered ? maxWidthStyle : undefined}
@@ -48,7 +48,7 @@ export function PageLayout({
       <div className="flex-1">
         {centered ? (
           <div
-            className={`mx-auto w-full px-4 ${maxWidthClass}`}
+            className={`mx-auto w-full ${maxWidthClass}`}
             style={maxWidthStyle}
           >
             {children}

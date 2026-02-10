@@ -1,5 +1,6 @@
 import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
+import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CreateDocumentButton} from '@/components/create-doc-button'
@@ -27,7 +28,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {Download, Link, Trash} from '@shm/ui/icons'
+import {Download, HistoryIcon, Link, Trash} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -35,7 +36,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {Folder, ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback} from 'react'
 
@@ -165,11 +166,34 @@ export default function DesktopResourcePage() {
     })
   }
 
+  menuItems.push({
+    key: 'versions',
+    label: 'Document Versions',
+    icon: <HistoryIcon className="size-4" />,
+    onClick: () => {
+      replace({
+        key: 'document',
+        id: docId,
+        panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+      })
+    },
+  })
+
+  menuItems.push({
+    key: 'directory',
+    label: 'Directory',
+    icon: <Folder className="size-4" />,
+    onClick: () => {
+      navigate({key: 'directory', id: docId})
+    },
+  })
+
   if (canEdit && docId.path?.length) {
     menuItems.push({
       key: 'delete',
       label: 'Delete Document',
       icon: <Trash className="size-4" />,
+      variant: 'destructive',
       onClick: () => {
         deleteEntity.open({
           id: docId,
@@ -307,6 +331,7 @@ export default function DesktopResourcePage() {
           optionsMenuItems={menuItems}
           editActions={editActions}
           existingDraft={existingDraft}
+          collaboratorForm={<AddCollaboratorForm id={docId} />}
         />
       </CommentsProvider>
       {copyGatewayContent}
