@@ -41,18 +41,24 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
+import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Trash} from '@shm/ui/icons'
+import {Home, Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -440,6 +446,28 @@ function DocumentEditor({
     draftQuery.data?.editPath,
   ])
 
+  // Breadcrumbs: compute parent paths from editId (existing doc) or id (new doc location)
+  const breadcrumbParentIds = useMemo(() => {
+    const contextId = editId || id
+    if (!contextId) return []
+    const parentPaths = getParentPaths(contextId.path)
+    // For editId, exclude the last path (the doc itself)
+    // For locationId (id), include all (they're all parents)
+    const paths = editId ? parentPaths.slice(0, -1) : parentPaths
+    return paths.map((path) => hmId(contextId.uid, {path}))
+  }, [editId, id])
+
+  const breadcrumbEntities = useResources(breadcrumbParentIds)
+
+  const breadcrumbs = useMemo(() => {
+    return breadcrumbParentIds.map((bId, idx) => ({
+      id: bId,
+      metadata:
+        // @ts-expect-error - resource type union
+        breadcrumbEntities[idx]?.data?.document?.metadata ?? null,
+    }))
+  }, [breadcrumbParentIds, breadcrumbEntities])
+
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
@@ -532,6 +560,7 @@ function DocumentEditor({
                     showCover={showCover}
                     setShowCover={setShowCover}
                     visibility={route.visibility || data?.visibility}
+                    breadcrumbs={breadcrumbs}
                   />
                 </div>
               ) : null}
@@ -807,6 +836,7 @@ function DraftMetadataEditor({
   showCover = false,
   setShowCover,
   visibility,
+  breadcrumbs,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
@@ -814,6 +844,7 @@ function DraftMetadataEditor({
   showCover?: boolean
   setShowCover?: (show: boolean) => void
   visibility?: HMResourceVisibility
+  breadcrumbs?: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -900,6 +931,9 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <DraftBreadcrumbs breadcrumbs={breadcrumbs} />
+          ) : null}
           {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
@@ -1158,5 +1192,53 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       {deleteDialog.content}
     </div>
+  )
+}
+
+function DraftBreadcrumbs({
+  breadcrumbs,
+}: {
+  breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
+}) {
+  const [first, ...rest] = breadcrumbs
+
+  return (
+    <div className="text-muted-foreground flex flex-1 items-center gap-2">
+      {first ? (
+        <div className="flex items-center gap-1">
+          <Home className="size-3" />
+        </div>
+      ) : null}
+      {rest.flatMap((crumb) => {
+        return [
+          <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
+            /
+          </SizableText>,
+          <DraftBreadcrumbLink
+            id={crumb.id}
+            metadata={crumb.metadata}
+            key={crumb.id.id}
+          />,
+        ]
+      })}
+    </div>
+  )
+}
+
+function DraftBreadcrumbLink({
+  id,
+  metadata,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata | null
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <a
+      {...linkProps}
+      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+    >
+      {metadata?.name ?? id?.path?.at(-1) ?? '?'}
+    </a>
   )
 }
