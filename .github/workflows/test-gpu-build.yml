@@ -37,11 +37,8 @@ jobs:
       - name: Set test version
         id: set_version
         run: |
-          MAJOR=$(date -u +%Y)
-          MINOR=$(date -u +%m)
-          PATCH=$((GITHUB_RUN_NUMBER % 65535))
-          BUILD=${GITHUB_RUN_ATTEMPT}
-          VERSION="${MAJOR}.${MINOR#0}.${PATCH}.${BUILD}"
+          PATCH=$((GITHUB_RUN_NUMBER % 60000))
+          VERSION="0.0.${PATCH}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   build-backend:
