@@ -17,6 +17,10 @@ import {
   processLinkMarkdown,
   processMediaMarkdown,
 } from '@shm/editor/blocknote/core/extensions/Markdown/MarkdownToBlocks'
+import {
+  PdfToBlocks,
+  extractPdfTitle,
+} from '@shm/editor/blocknote/core/extensions/Pdf/PdfToBlocks'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
 import {HMResourceFetchResult, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
@@ -65,6 +69,8 @@ export function ImportDialog({
     onImportDirectory: () => void
     onImportLatexFile: () => void
     onImportLatexDirectory: () => void
+    onImportPdfFile: () => void
+    onImportPdfDirectory: () => void
     // onImportWebSite: () => void
   }
   onClose: () => void
@@ -121,6 +127,28 @@ export function ImportDialog({
           <Folder className="size-3" />
           Import LaTeX Directory
         </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportPdfFile()
+          }}
+        >
+          <File className="size-3" />
+          Import PDF File
+        </Button>
+        <Button
+          className="border-border border"
+          variant="ghost"
+          onClick={() => {
+            onClose()
+            input.onImportPdfDirectory()
+          }}
+        >
+          <Folder className="size-3" />
+          Import PDF Directory
+        </Button>
       </div>
     </>
   )
@@ -138,6 +166,8 @@ export function ImportDropdownButton({
     importDirectory,
     importLatexFile,
     importLatexDirectory,
+    importPdfFile,
+    importPdfDirectory,
     content,
   } = useImporting(id)
 
@@ -170,6 +200,18 @@ export function ImportDropdownButton({
             onClick: () => importLatexDirectory(),
             icon: <FolderInput className="size-4" />,
           },
+          {
+            key: 'pdf-file',
+            label: 'Import PDF File',
+            onClick: () => importPdfFile(),
+            icon: <FileInput className="size-4" />,
+          },
+          {
+            key: 'pdf-directory',
+            label: 'Import PDF Folder',
+            onClick: () => importPdfDirectory(),
+            icon: <FolderInput className="size-4" />,
+          },
         ]}
       />
 
@@ -184,6 +226,8 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     openMarkdownFiles,
     openLatexDirectories,
     openLatexFiles,
+    openPdfFiles,
+    openPdfDirectories,
   } = useAppContext()
   const accts = useMyAccountsWithWriteAccess(parentId)
   const navigate = useNavigate()
@@ -319,11 +363,43 @@ export function useImporting(parentId: UnpackedHypermediaId) {
       })
   }
 
+  function startPdfImport(
+    importFunction: (id: string) => Promise<{
+      documents: {pdfContent: ArrayBuffer; title: string; directoryPath: string}[]
+      docMap: Map<string, {name: string; path: string}>
+    }>,
+  ) {
+    importFunction(parentId.id)
+      .then(async (result) => {
+        const docs: ImportedDocument[] = result.documents.map((doc) => ({
+          pdfContent: doc.pdfContent,
+          title: doc.title,
+          directoryPath: doc.directoryPath,
+        }))
+        if (docs.length) {
+          importDialog.open({
+            documents: docs,
+            documentCount: docs.length,
+            docMap: result.docMap,
+            onSuccess: handleConfirm,
+          })
+        } else {
+          toast.error('No PDF documents found.')
+        }
+      })
+      .catch((error) => {
+        console.error('Error importing PDF documents:', error)
+        toast.error(`Import error: ${error.message || error}`)
+      })
+  }
+
   return {
     importFile: () => startImport(openMarkdownFiles),
     importDirectory: () => startImport(openMarkdownDirectories),
     importLatexFile: () => startLatexImport(openLatexFiles),
     importLatexDirectory: () => startLatexImport(openLatexDirectories),
+    importPdfFile: () => startPdfImport(openPdfFiles),
+    importPdfDirectory: () => startPdfImport(openPdfDirectories),
     importWebSite: () => webImporting.open({destinationId: parentId}),
     content: (
       <>
@@ -581,6 +657,7 @@ const ImportDocumentsWithFeedback = (
       for (const {
         markdownContent,
         latexContent,
+        pdfContent,
         title,
         directoryPath,
       } of documents) {
@@ -589,7 +666,12 @@ const ImportDocumentsWithFeedback = (
         let cover: string | undefined
         let blocks: any[]
 
-        if (latexContent) {
+        if (pdfContent) {
+          // Process PDF document
+          blocks = await PdfToBlocks(pdfContent)
+          const pdfTitle = await extractPdfTitle(pdfContent)
+          if (pdfTitle) documentTitle = pdfTitle
+        } else if (latexContent) {
           // Process LaTeX document
           const metadata = extractLatexMetadata(latexContent)
           documentTitle = metadata.title || title

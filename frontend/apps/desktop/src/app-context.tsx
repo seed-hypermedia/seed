@@ -45,6 +45,22 @@ export type AppContext = {
     }[]
     docMap: Map<string, {name: string; path: string}>
   }>
+  openPdfFiles: (accountId: string) => Promise<{
+    documents: {
+      pdfContent: ArrayBuffer
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
+  openPdfDirectories: (accountId: string) => Promise<{
+    documents: {
+      pdfContent: ArrayBuffer
+      title: string
+      directoryPath: string
+    }[]
+    docMap: Map<string, {name: string; path: string}>
+  }>
   readMediaFile: (filePath: string) => Promise<{
     filePath: string
     content: string

@@ -132,6 +132,37 @@ contextBridge.exposeInMainWorld('docImport', {
       ipcRenderer.send('open-latex-file', accountId)
     })
   },
+
+  openPdfFiles: (accountId: string) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once('pdf-files-content-response', (event, response) => {
+        if (response.success) {
+          resolve(response.result)
+        } else {
+          reject(response.error)
+        }
+      })
+
+      ipcRenderer.send('open-pdf-file', accountId)
+    })
+  },
+
+  openPdfDirectories: (accountId: string) => {
+    return new Promise((resolve, reject) => {
+      ipcRenderer.once(
+        'pdf-directories-content-response',
+        (event, response) => {
+          if (response.success) {
+            resolve(response.result)
+          } else {
+            reject(response.error)
+          }
+        },
+      )
+
+      ipcRenderer.send('open-pdf-directory', accountId)
+    })
+  },
 })
 
 contextBridge.exposeInMainWorld('docExport', {

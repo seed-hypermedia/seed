@@ -428,6 +428,14 @@ function MainApp({}: {}) {
             // @ts-ignore
             return window.docImport.openLatexDirectories(accountId)
           }}
+          openPdfFiles={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openPdfFiles(accountId)
+          }}
+          openPdfDirectories={(accountId: string) => {
+            // @ts-ignore
+            return window.docImport.openPdfDirectories(accountId)
+          }}
           readMediaFile={(filePath: string) => {
             // @ts-ignore
             return window.docImport.readMediaFile(filePath)
