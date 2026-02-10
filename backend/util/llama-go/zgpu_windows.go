@@ -7,7 +7,7 @@
 package llama
 
 /*
-#cgo LDFLAGS: -L./ -lggml-vulkan -lvulkan-1 -Wl,-Bstatic -lgomp -lwinpthread -Wl,-Bdynamic
+#cgo LDFLAGS: -L./ -lggml-vulkan -lvulkan-1 -Wl,-Bstatic -l:libgomp.a -l:libwinpthread.a -Wl,-Bdynamic
 #cgo CXXFLAGS: -std=c++17
 */
 import "C"
