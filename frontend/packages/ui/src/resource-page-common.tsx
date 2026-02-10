@@ -56,6 +56,7 @@ import {PageDeleted, PageDiscovery, PageNotFound} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
@@ -909,6 +910,7 @@ function DocumentBody({
         onBlockCommentClick={handleBlockCommentClick}
         onBlockSelect={handleBlockSelect}
         CommentEditor={CommentEditor}
+        directory={directory.data}
       />
     </>
   )
@@ -1079,6 +1081,7 @@ function MainContent({
   onBlockCommentClick,
   onBlockSelect,
   CommentEditor,
+  directory,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1106,6 +1109,7 @@ function MainContent({
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  directory?: import('@shm/shared').HMDocumentInfo[]
 }) {
   switch (activeView) {
     case 'directory':
@@ -1181,6 +1185,11 @@ function MainContent({
             >
               <BlocksContent blocks={document.content} />
             </BlocksContentProvider>
+            <UnreferencedDocuments
+              docId={docId}
+              content={document.content}
+              directory={directory}
+            />
           </div>
 
           {showSidebars && <div {...sidebarProps} />}
