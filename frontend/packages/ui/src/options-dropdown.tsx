@@ -56,7 +56,7 @@ export function OptionsDropdown({
           className={cn(
             buttonVariants({variant: 'outline'}),
             'no-window-drag',
-            'hover:bg-hover dark:bg-background bg-white',
+            'hover:bg-background bg-white dark:bg-black',
           )}
           style={{width: '32px', height: '32px', padding: 0}}
         >

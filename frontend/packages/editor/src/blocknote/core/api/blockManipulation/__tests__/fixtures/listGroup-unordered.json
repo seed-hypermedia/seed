@@ -1,0 +1,48 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "blockContainer",
+      "attrs": {
+        "id": "test-root"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Root paragraph"
+            }
+          ]
+        },
+        {
+          "type": "listGroup",
+          "attrs": {
+            "listType": "Unordered",
+            "listLevel": "1"
+          },
+          "content": [
+            {
+              "type": "listContainer",
+              "attrs": {
+                "id": "test-1"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Hello"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

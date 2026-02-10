@@ -15,7 +15,6 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
-import {validatePath} from '@shm/shared/utils/document-path'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -449,8 +448,8 @@ export default function PublishDraftButton() {
         >
           <PopoverTrigger asChild>
             <Button
-              size="sm"
               className="hover:bg-hover dark:bg-background bg-white px-2"
+              size="sm"
             >
               <Share className="size-4" />
               Publish
