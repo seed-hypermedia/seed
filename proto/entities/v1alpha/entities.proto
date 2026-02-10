@@ -279,10 +279,9 @@ message SearchEntitiesRequest {
   // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
 
-  // Whether to look into all content available or just the titles.
-  // If false, comments are not included in the search.
-  // Default is false.
-  bool include_body = 2;
+  // Deprecated, use content_type_filters instead to specify 
+  // which content types to include in the search.
+  bool include_body = 2 [deprecated = true];
 
   // Optional. The size of the text accompanying the search match.
   // Half of the size is before the match, and half after.
@@ -308,7 +307,7 @@ message SearchEntitiesRequest {
 
   // Optional. Fine-grained content type selection. Overrides include_body when set.
   // When empty, legacy behavior (title + body types based on include_body).
-  repeated ContentTypeFilter content_type_filters = 8;
+  repeated ContentTypeFilter content_type_filter = 8;
 
   // Optional. Authority weight for citation-based ranking. Range [0, 1].
   // 0 (default) disables authority scoring. Higher values increase citation influence.

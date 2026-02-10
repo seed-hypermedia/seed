@@ -3147,9 +3147,9 @@ func TestSearchEntitiesFilters(t *testing.T) {
 	t.Run("ContentTypeFilterExplicit", func(t *testing.T) {
 		// content_type_filters = [TITLE] must only return title matches.
 		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
-			Query:              "rocks",
-			IncludeBody:        true,
-			ContentTypeFilters: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
+			Query:             "rocks",
+			IncludeBody:       true,
+			ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
 		})
 		require.NoError(t, err)
 		require.Greater(t, len(res.Entities), 0, "must return title results")
@@ -3851,10 +3851,10 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// Hybrid search for "beta" should blend keyword and semantic results.
 			// Filter to document content only to avoid title matches from semantic search.
 			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
-				Query:              "beta",
-				SearchType:         entities.SearchType_SEARCH_HYBRID,
-				IncludeBody:        true,
-				ContentTypeFilters: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
+				Query:             "beta",
+				SearchType:        entities.SearchType_SEARCH_HYBRID,
+				IncludeBody:       true,
+				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
 			})
 			require.NoError(t, err)
 			require.Len(t, res.Entities, 5, "hybrid search for 'beta' must return 5 results")
@@ -3874,10 +3874,10 @@ func TestSearchVersionConsistency(t *testing.T) {
 			// Hybrid search for "elephant".
 			// Filter to document content only to avoid unrelated matches from semantic search.
 			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
-				Query:              "elephant",
-				SearchType:         entities.SearchType_SEARCH_HYBRID,
-				IncludeBody:        true,
-				ContentTypeFilters: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
+				Query:             "elephant",
+				SearchType:        entities.SearchType_SEARCH_HYBRID,
+				IncludeBody:       true,
+				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
 			})
 			require.NoError(t, err)
 			require.Len(t, res.Entities, 2, "hybrid search for 'elephant' must return 2 results")
