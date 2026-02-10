@@ -14,10 +14,11 @@ import (
 )
 
 // SiteConfigResponse is the response returned by the /hm/api/config endpoint.
-// This is used to resolve siteURL to peer.AddrInfo.
+// This is used to resolve siteURL to peer.AddrInfo and account ID.
 type SiteConfigResponse struct {
-	PeerID string                `json:"peerId"`
-	Addrs  []multiaddr.Multiaddr `json:"addrs"`
+	PeerID               string                `json:"peerId"`
+	Addrs                []multiaddr.Multiaddr `json:"addrs"`
+	RegisteredAccountUID string                `json:"registeredAccountUid,omitempty"`
 }
 
 // AddrInfo converts the [SiteConfigResponse] to a [peer.AddrInfo].
@@ -33,9 +34,9 @@ func (x SiteConfigResponse) AddrInfo() (peer.AddrInfo, error) {
 	}, nil
 }
 
-// sitePeerEntry holds cached peer address info with its expiration time.
+// sitePeerEntry holds cached site config info with its expiration time.
 type sitePeerEntry struct {
-	addrInfo  peer.AddrInfo
+	config    SiteConfigResponse
 	expiresAt time.Time
 }
 
@@ -63,28 +64,38 @@ func newSitePeerResolver(size int, ttl time.Duration) *sitePeerResolver {
 	}
 }
 
-// getAddrInfo resolves a siteURL to peer.AddrInfo, using the cache when possible.
+// getConfig resolves a siteURL to its full config, using the cache when possible.
 // It calls GET {siteURL}/hm/api/config and parses the response.
-func (c *sitePeerResolver) getAddrInfo(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
+func (c *sitePeerResolver) getConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
 	// Check cache first.
 	entry, ok := c.cache.Get(siteURL)
 	if ok && time.Now().Before(entry.expiresAt) {
-		return entry.addrInfo, nil
+		return entry.config, nil
 	}
 
 	// Cache miss or expired, fetch from siteURL.
-	addrInfo, err := c.fetchAddrInfo(ctx, siteURL)
+	config, err := c.fetchConfig(ctx, siteURL)
 	if err != nil {
-		return peer.AddrInfo{}, err
+		return SiteConfigResponse{}, err
 	}
 
 	// Store in cache.
 	c.cache.Add(siteURL, sitePeerEntry{
-		addrInfo:  addrInfo,
+		config:    config,
 		expiresAt: time.Now().Add(c.ttl),
 	})
 
-	return addrInfo, nil
+	return config, nil
+}
+
+// getAddrInfo resolves a siteURL to peer.AddrInfo, using the cache when possible.
+// It calls GET {siteURL}/hm/api/config and parses the response.
+func (c *sitePeerResolver) getAddrInfo(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
+	config, err := c.getConfig(ctx, siteURL)
+	if err != nil {
+		return peer.AddrInfo{}, err
+	}
+	return config.AddrInfo()
 }
 
 // getPeerID resolves a siteURL to a peer ID, using the cache when possible.
@@ -111,9 +122,9 @@ func (e transientError) Unwrap() error {
 	return e.err
 }
 
-// fetchAddrInfo calls the /hm/api/config endpoint and extracts the AddrInfo.
+// fetchConfig calls the /hm/api/config endpoint and returns the config.
 // It retries transient errors (network errors, 5xx) up to 3 times with 300ms delay.
-func (c *sitePeerResolver) fetchAddrInfo(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
+func (c *sitePeerResolver) fetchConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
 	const maxRetries = 3
 	const retryDelay = 300 * time.Millisecond
 
@@ -123,13 +134,13 @@ func (c *sitePeerResolver) fetchAddrInfo(ctx context.Context, siteURL string) (p
 			select {
 			case <-time.After(retryDelay):
 			case <-ctx.Done():
-				return peer.AddrInfo{}, ctx.Err()
+				return SiteConfigResponse{}, ctx.Err()
 			}
 		}
 
-		addrInfo, err := c.doFetchAddrInfo(ctx, siteURL)
+		config, err := c.doFetchConfig(ctx, siteURL)
 		if err == nil {
-			return addrInfo, nil
+			return config, nil
 		}
 
 		lastErr = err
@@ -137,52 +148,43 @@ func (c *sitePeerResolver) fetchAddrInfo(ctx context.Context, siteURL string) (p
 		// Only retry transient errors.
 		var te transientError
 		if !errors.As(err, &te) {
-			return peer.AddrInfo{}, err
+			return SiteConfigResponse{}, err
 		}
 	}
-	return peer.AddrInfo{}, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
+	return SiteConfigResponse{}, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
 }
 
-// doFetchAddrInfo performs a single fetch attempt.
+// doFetchConfig performs a single fetch attempt.
 // It wraps transient errors (network errors, 5xx) so they can be retried.
-func (c *sitePeerResolver) doFetchAddrInfo(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
+func (c *sitePeerResolver) doFetchConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
 	configURL := siteURL + "/hm/api/config"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, configURL, nil)
 	if err != nil {
-		return peer.AddrInfo{}, fmt.Errorf("failed to create request: %w", err)
+		return SiteConfigResponse{}, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := c.client.Do(req)
 	if err != nil {
 		// Network errors are transient.
-		return peer.AddrInfo{}, transientError{fmt.Errorf("failed to fetch config: %w", err)}
+		return SiteConfigResponse{}, transientError{fmt.Errorf("failed to fetch config: %w", err)}
 	}
 	defer resp.Body.Close()
 
 	// 5xx errors are transient (server issues).
 	if resp.StatusCode >= 500 && resp.StatusCode < 600 {
-		return peer.AddrInfo{}, transientError{fmt.Errorf("config endpoint returned status %d", resp.StatusCode)}
+		return SiteConfigResponse{}, transientError{fmt.Errorf("config endpoint returned status %d", resp.StatusCode)}
 	}
 
 	// Other non-200 errors are not transient (4xx are client errors).
 	if resp.StatusCode != http.StatusOK {
-		return peer.AddrInfo{}, fmt.Errorf("config endpoint returned status %d", resp.StatusCode)
+		return SiteConfigResponse{}, fmt.Errorf("config endpoint returned status %d", resp.StatusCode)
 	}
 
 	var result SiteConfigResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return peer.AddrInfo{}, fmt.Errorf("failed to decode response: %w", err)
+		return SiteConfigResponse{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if result.PeerID == "" {
-		return peer.AddrInfo{}, fmt.Errorf("empty peer ID in response")
-	}
-
-	addrInfo, err := result.AddrInfo()
-	if err != nil {
-		return peer.AddrInfo{}, fmt.Errorf("invalid peer info in response: %w", err)
-	}
-
-	return addrInfo, nil
+	return result, nil
 }

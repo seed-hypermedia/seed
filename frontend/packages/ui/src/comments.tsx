@@ -17,7 +17,6 @@ import {
   UnpackedHypermediaId,
   useCommentGroups,
   useCommentParents,
-  useOpenRoute,
   useRouteLink,
 } from '@shm/shared'
 
@@ -33,7 +32,7 @@ import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {useResourceUrl} from '@shm/shared/url'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
   ReactNode,
@@ -76,7 +75,6 @@ export function CommentDiscussions({
   currentAccountId,
   onCommentDelete,
   selection,
-  scrollRef: externalScrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
@@ -90,35 +88,12 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
-  scrollRef?: React.Ref<HTMLDivElement>
   /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
-  const internalScrollRef = useRef<HTMLDivElement>(null)
-  const scrollRef = (externalScrollRef ||
-    internalScrollRef) as React.RefObject<HTMLDivElement>
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
-  const [bottomPadding, setBottomPadding] = useState<number>(400)
   const parentsRef = useRef<HTMLDivElement>(null)
-
-  // Reset scroll and parent visibility when commentId changes
-  useEffect(() => {
-    if (!commentId) return
-
-    // Reset state when switching to a different comment
-    setShowParents(false)
-
-    // Reset scroll position to top
-    if (scrollRef.current) {
-      const viewport = scrollRef.current.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
-      if (viewport) {
-        viewport.scrollTop = 0
-      }
-    }
-  }, [commentId])
 
   if (!commentId) return null
 
@@ -177,55 +152,6 @@ export function CommentDiscussions({
     return () => clearTimeout(timer)
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
 
-  // Adjust scroll position when parents are shown
-  useLayoutEffect(() => {
-    if (!showParents || !parentsRef.current || !scrollRef.current) return
-
-    // Measure parent height and adjust scroll
-    const parentHeight = parentsRef.current.offsetHeight
-    const viewport = scrollRef.current.querySelector(
-      '[data-slot="scroll-area-viewport"]',
-    ) as HTMLElement
-
-    if (viewport) {
-      // Scroll down by parent height to keep focused comment in view
-      viewport.scrollTop = parentHeight + 8
-    }
-  }, [showParents, commentId]) // Added commentId to re-run on comment change
-
-  // Calculate bottom padding based on viewport height
-  useLayoutEffect(() => {
-    if (!scrollRef.current) return
-
-    const calculatePadding = () => {
-      const viewport = scrollRef.current?.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      ) as HTMLElement
-      if (viewport) {
-        // Get viewport height and calculate padding
-        // We want enough padding so the focused comment can be scrolled to the top
-        const viewportHeight = viewport.clientHeight
-        // Add some extra padding to ensure smooth scrolling
-        const padding = Math.max(viewportHeight * 0.75, 300)
-        setBottomPadding(padding)
-      }
-    }
-
-    // Calculate initially
-    calculatePadding()
-
-    // Recalculate on resize
-    const resizeObserver = new ResizeObserver(calculatePadding)
-    const viewport = scrollRef.current.querySelector(
-      '[data-slot="scroll-area-viewport"]',
-    ) as HTMLElement
-    if (viewport) {
-      resizeObserver.observe(viewport)
-    }
-
-    return () => resizeObserver.disconnect()
-  }, [scrollRef.current])
-
   if (commentsService.error) {
     return (
       <SelectionContent centered={centered}>
@@ -265,11 +191,7 @@ export function CommentDiscussions({
   const hasParents = parentThread?.thread && parentThread.thread.length > 1
 
   return (
-    <SelectionContent
-      scrollRef={scrollRef}
-      bottomPadding={bottomPadding}
-      centered={centered}
-    >
+    <SelectionContent centered={centered}>
       {/* Render parent thread above focused comment when ready */}
       {hasParents && showParents && (
         <div ref={parentsRef}>
@@ -358,21 +280,16 @@ export function CommentDiscussions({
 export function Discussions({
   targetId,
   commentId,
-  commentEditor,
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  scrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
-  commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.Ref<HTMLDivElement>
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
@@ -458,15 +375,7 @@ export function Discussions({
       )
   }
 
-  return (
-    <SelectionContent
-      header={commentEditor}
-      scrollRef={scrollRef}
-      centered={centered}
-    >
-      {panelContent}
-    </SelectionContent>
-  )
+  return <SelectionContent centered={centered}>{panelContent}</SelectionContent>
 }
 
 export function BlockDiscussions({
@@ -475,7 +384,6 @@ export function BlockDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  scrollRef,
   centered,
 }: {
   targetId: UnpackedHypermediaId
@@ -483,8 +391,6 @@ export function BlockDiscussions({
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  scrollRef?: React.Ref<HTMLDivElement>
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
@@ -569,7 +475,7 @@ export function BlockDiscussions({
   }
 
   return (
-    <SelectionContent scrollRef={scrollRef} centered={centered}>
+    <SelectionContent centered={centered}>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
@@ -859,7 +765,8 @@ export function CommentContent({
   openOnClick?: boolean
   onBlockSelect?: (blockId: string, blockRange: BlockRange | null) => void
 }) {
-  const openRoute = useOpenRoute()
+  const navigate = useNavigate()
+  const replaceNavigate = useNavigate('replace')
   const currentRoute = useNavRoute()
   const targetHomeEntity = useResource(hmId(comment.targetAccount))
   const targetHomeDoc =
@@ -896,26 +803,53 @@ export function CommentContent({
       if (onBlockSelectProp) {
         onBlockSelectProp(blockId, blockRange)
       } else {
-        const idWithBlock = {
-          ...targetId,
-          blockRef: blockId || null,
-          blockRange: blockRange || null,
-        }
-        const useFullPageNavigation =
-          currentRoute.key === 'activity' || currentRoute.key === 'discussions'
-        openRoute(
-          useFullPageNavigation
-            ? {key: 'discussions', id: idWithBlock, openComment: comment.id}
-            : {
-                key: 'document',
-                id: targetId,
-                panel: {
+        const commentEntityId = commentIdToHmId(comment.id)
+        // Detect comment main view: route is document with the comment entity ID
+        const isCommentMainView =
+          currentRoute.key === 'document' &&
+          currentRoute.id.uid === commentEntityId.uid &&
+          currentRoute.id.path?.join('/') === commentEntityId.path?.join('/')
+        if (isCommentMainView) {
+          // Stay in place, highlight block, update URL fragment
+          replaceNavigate({
+            key: 'document',
+            id: {
+              ...commentEntityId,
+              blockRef: blockId || null,
+              blockRange: blockRange || null,
+            },
+          })
+        } else {
+          const idWithBlock = {
+            ...targetId,
+            blockRef: blockId || null,
+            blockRange: blockRange || null,
+          }
+          const useFullPageNavigation =
+            currentRoute.key === 'activity' ||
+            currentRoute.key === 'discussions'
+          navigate(
+            useFullPageNavigation
+              ? {
                   key: 'discussions',
                   id: idWithBlock,
                   openComment: comment.id,
+                  blockId: blockId || undefined,
+                  blockRange,
+                }
+              : {
+                  key: 'document',
+                  id: targetId,
+                  panel: {
+                    key: 'discussions',
+                    id: idWithBlock,
+                    openComment: comment.id,
+                    blockId: blockId || undefined,
+                    blockRange,
+                  },
                 },
-              },
-        )
+          )
+        }
       }
       return true
     }
@@ -952,8 +886,9 @@ function CommentDate({comment}: {comment: HMComment}) {
   const currentRoute = useNavRoute()
   const useFullPageNavigation =
     currentRoute.key === 'activity' || currentRoute.key === 'discussions'
+  const commentEntityId = commentIdToHmId(comment.id)
   const destRoute: NavRoute = useFullPageNavigation
-    ? {key: 'discussions', id: targetId!, openComment: comment.id}
+    ? {key: 'document', id: commentEntityId}
     : {
         key: 'document',
         id: targetId!,

@@ -3,7 +3,7 @@ import {contextBridge, ipcRenderer} from 'electron'
 import {exposeElectronTRPC} from 'electron-trpc/main'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 import {AppWindowEvent} from '@/utils/window-events'
-import {eventStream} from '@shm/shared/utils/stream'
+import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 // import directly from this deep path for shared/utils/stream! Bad things happen if you try to directly import from @shm/shared
 
 process.once('loaded', async () => {
@@ -15,6 +15,14 @@ contextBridge.exposeInMainWorld('appWindowEvents', appWindowEvents)
 
 ipcRenderer.addListener('appWindowEvent', (info, event) => {
   dispatchAppWindow(event)
+})
+
+// Dark mode support
+const [updateDarkMode, darkMode] = writeableStateStream<boolean>(false)
+contextBridge.exposeInMainWorld('darkMode', darkMode)
+
+ipcRenderer.addListener('darkMode', (info, state) => {
+  updateDarkMode(state)
 })
 
 contextBridge.exposeInMainWorld('ipc', {

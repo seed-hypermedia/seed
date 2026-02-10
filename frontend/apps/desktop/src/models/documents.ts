@@ -4,13 +4,13 @@ import {useDraft} from '@/models/accounts'
 import {useExperiments} from '@/models/experiments'
 import {useOpenUrl} from '@/open-url'
 import {useSelectedAccountId} from '@/selected-account'
-import {getSlashMenuItems} from '@/slash-menu-items'
 import {client} from '@/trpc'
 import {PartialMessage, Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {ConnectError} from '@connectrpc/connect'
 import {useBlockNote} from '@shm/editor/blocknote'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
 import {createHypermediaDocLinkPlugin} from '@shm/editor/hypermedia-link-plugin'
+import {getSlashMenuItems} from '@shm/editor/slash-menu-items'
 import {
   getCommentTargetId,
   getParentPaths,
@@ -89,6 +89,7 @@ import {useEffect, useMemo, useRef} from 'react'
 import {assign, fromPromise} from 'xstate'
 import {hmBlockSchema} from '../editor'
 import {pathNameify} from '../utils/path'
+import {computeDraftRoute} from '../utils/publish-utils'
 import {useNavigate} from '../utils/useNavigate'
 import {useMyAccountIds} from './daemon'
 import {draftMachine} from './draft-machine'
@@ -580,7 +581,7 @@ export function useDraftEditor() {
     onMentionsQuery,
     importWebFile: importWebFile.mutateAsync,
     blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems({showNostr, docId: editId}),
+    getSlashMenuItems: () => getSlashMenuItems({docId: editId ?? locationId}),
     _tiptapOptions: {
       extensions: [
         Extension.create({
@@ -1388,29 +1389,17 @@ export function useCreateDraft(
 ) {
   const navigate = useNavigate('push')
   const selectedAccountId = useSelectedAccountId()
-  const route = useNavRoute()
 
   return ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
-    const id = nanoid(10)
-
-    if (visibility === 'PRIVATE' && selectedAccountId) {
-      // Private documents: random nanoid path at root level, unchangeable.
-      const privatePath = nanoid(21)
-      navigate({
-        key: 'draft',
-        id,
-        locationUid: selectedAccountId,
-        locationPath: [privatePath],
-        visibility: 'PRIVATE',
-      })
-    } else {
-      navigate({
-        key: 'draft',
-        id,
-        ...draftParams,
-        visibility: visibility ?? undefined,
-      })
-    }
+    const route = computeDraftRoute(
+      visibility,
+      draftParams,
+      selectedAccountId ?? undefined,
+      () => nanoid(10),
+      () => nanoid(21),
+    )
+    if (!route) return
+    navigate(route)
   }
 }
 

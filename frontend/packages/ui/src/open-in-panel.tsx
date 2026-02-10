@@ -1,5 +1,5 @@
 import {DocumentPanelRoute, UnpackedHypermediaId} from '@shm/shared'
-import {useReplace} from '@shm/shared/utils/navigation'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {SquareChevronRight} from 'lucide-react'
 import {Button} from './button'
 import {Tooltip} from './tooltip'
@@ -11,7 +11,7 @@ export function OpenInPanelButton({
   id: UnpackedHypermediaId
   panelRoute: DocumentPanelRoute
 }) {
-  const replace = useReplace()
+  const replace = useNavigate('replace')
 
   return (
     <Tooltip content="Open in right panel">

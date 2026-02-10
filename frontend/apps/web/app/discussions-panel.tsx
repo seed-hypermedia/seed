@@ -5,6 +5,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {PanelContent} from '@shm/ui/accessories'
 import {
   BlockDiscussions,
   CommentDiscussions,
@@ -46,20 +47,22 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
 
   if (comment) {
     return (
-      <CommentDiscussions
-        commentId={comment.id}
-        commentEditor={commentEditor}
-        targetId={props.docId}
-        targetDomain={targetDomain}
-        selection={
-          blockRef
-            ? {
-                blockId: blockRef,
-                blockRange: blockRange || undefined,
-              }
-            : undefined
-        }
-      />
+      <PanelContent>
+        <CommentDiscussions
+          commentId={comment.id}
+          commentEditor={commentEditor}
+          targetId={props.docId}
+          targetDomain={targetDomain}
+          selection={
+            blockRef
+              ? {
+                  blockId: blockRef,
+                  blockRange: blockRange || undefined,
+                }
+              : undefined
+          }
+        />
+      </PanelContent>
     )
   }
 
@@ -69,18 +72,18 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
       blockRef: blockId,
     })
     return (
-      <BlockDiscussions
-        targetId={targetId}
-        commentEditor={commentEditor}
-        targetDomain={targetDomain}
-      />
+      <PanelContent>
+        <BlockDiscussions
+          targetId={targetId}
+          commentEditor={commentEditor}
+          targetDomain={targetDomain}
+        />
+      </PanelContent>
     )
   }
   return (
-    <Discussions
-      commentEditor={commentEditor}
-      targetId={props.docId}
-      targetDomain={targetDomain}
-    />
+    <PanelContent header={commentEditor}>
+      <Discussions targetId={props.docId} targetDomain={targetDomain} />
+    </PanelContent>
   )
 }

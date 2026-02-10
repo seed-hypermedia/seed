@@ -1,13 +1,66 @@
 import {ipc} from '@/ipc'
 import type {AppWindowEvent} from '@/utils/window-events'
-import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
-import {ChevronDown, ChevronUp, Close} from '@shm/ui/icons'
 import {useEffect, useRef, useState} from 'react'
+
+// Inline SVG icons to avoid importing from @shm/ui which causes React duplication
+function ChevronUpIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m18 15-6-6-6 6" />
+    </svg>
+  )
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
 
 export function FindInPage() {
   const [query, setQuery] = useState('')
-  const queryInput = useRef<any>(null)
+  const queryInput = useRef<HTMLInputElement>(null)
 
   function clearFind() {
     setQuery('')
@@ -48,15 +101,13 @@ export function FindInPage() {
     return () => unsubscribe?.()
   }, [])
 
-  function handleKeyPress(event: React.KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     const key = event.key
     if (key === 'Escape') {
       event.preventDefault()
       clearFind()
     } else if (key === 'Enter') {
       event.preventDefault()
-      console.log('Enter pressed - find next occurrence')
-
       if (query.length > 0) {
         ipc.send('find_in_page_query', {
           query,
@@ -67,39 +118,33 @@ export function FindInPage() {
     }
   }
 
-  // Start search when typing (but not on Enter key)
+  // Start search when typing
   useEffect(() => {
-    console.log('useEffect triggered, query:', query)
-
     if (query.length === 0) {
-      console.log('Cancelling search - empty query')
       ipc.send('find_in_page_cancel')
       return
     }
-
-    console.log('Starting initial search')
     ipc.send('find_in_page_query', {query, findNext: true})
   }, [query])
 
   return (
     <div className="fixed inset-0 flex items-center justify-center gap-2 p-4">
       <div className="flex flex-1 items-center">
-        <Input
+        <input
           ref={queryInput}
+          type="text"
           placeholder="Find in page..."
           value={query}
-          onChangeText={setQuery}
-          onKeyDown={handleKeyPress}
-          className="bg-panel border-border flex-1"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="bg-panel border-border focus:ring-ring h-8 flex-1 rounded-sm border px-2 text-sm outline-none focus:ring-1"
         />
       </div>
       <div className="border-border bg-panel flex items-center overflow-hidden rounded-sm border">
-        <Button
-          variant="ghost"
-          className="size-8 rounded-none"
-          size="icon"
+        <button
+          type="button"
+          className="hover:bg-muted flex size-8 items-center justify-center"
           onClick={() => {
-            console.log('Up button clicked - sending IPC from button')
             ipc.send('find_in_page_query', {
               query,
               findNext: false,
@@ -107,15 +152,13 @@ export function FindInPage() {
             })
           }}
         >
-          <ChevronUp className="size-4" />
-        </Button>
+          <ChevronUpIcon />
+        </button>
 
-        <Button
-          variant="ghost"
-          className="size-8 rounded-none"
-          size="icon"
+        <button
+          type="button"
+          className="hover:bg-muted flex size-8 items-center justify-center"
           onClick={() => {
-            console.log('Down button clicked - sending IPC from button')
             ipc.send('find_in_page_query', {
               query,
               findNext: false,
@@ -123,17 +166,16 @@ export function FindInPage() {
             })
           }}
         >
-          <ChevronDown className="size-4" />
-        </Button>
+          <ChevronDownIcon />
+        </button>
 
-        <Button
-          variant="ghost"
-          size="icon"
+        <button
+          type="button"
           onClick={clearFind}
-          className="size-8 rounded-none"
+          className="hover:bg-muted flex size-8 items-center justify-center"
         >
-          <Close className="size-4" />
-        </Button>
+          <CloseIcon />
+        </button>
       </div>
     </div>
   )

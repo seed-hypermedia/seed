@@ -1,7 +1,6 @@
 import {useFullRender} from '@/cache-policy'
-import {DocumentPage} from '@/document'
+import {WebCommenting} from '@/client-lazy'
 import {FeedPage} from '@/feed'
-import {ViewTermPage} from '@/view-term-page'
 import {
   createInstrumentationContext,
   instrument,
@@ -11,20 +10,22 @@ import {
 import {GRPCError, loadSiteResource, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {getOptimizedImageUrl} from '@/providers'
+import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
+import {WebResourcePage} from '@/web-resource-page'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {
+  createDocumentNavRoute,
   getDocumentTitle,
   hmId,
   hmIdPathToEntityQueryPath,
   hostnameStripProtocol,
-  PanelQueryKey,
+  UnpackedHypermediaId,
   VIEW_TERMS,
   ViewRouteKey,
 } from '@shm/shared'
@@ -35,7 +36,7 @@ import {SizableText} from '@shm/ui/text'
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
-  panelParam?: PanelQueryKey | null
+  panelParam?: string | null // Supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
 }
 
 type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
@@ -47,8 +48,21 @@ type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
 function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
+  activityFilter?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
+
+  // Check for :activity/<slug> pattern (second-to-last + last)
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]
+    if (secondToLast === ':activity') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'activity',
+        activityFilter: pathParts[pathParts.length - 1],
+      }
+    }
+  }
 
   const lastPart = pathParts[pathParts.length - 1]
   const viewTermMatch = VIEW_TERMS.find((term) => lastPart === term)
@@ -220,7 +234,7 @@ export const loader = async ({
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === ''
   const feed = url.searchParams.get('feed') === 'true'
-  const panelParam = url.searchParams.get('panel') as PanelQueryKey | null
+  const panelParam = url.searchParams.get('panel')
 
   const serviceConfig = await instrument(ctx, 'getConfig', () =>
     getConfig(hostname),
@@ -241,25 +255,35 @@ export const loader = async ({
 
   let documentId
   let viewTerm: ViewRouteKey | null = null
+  // Merge activity filter slug from path into panelParam for createDocumentNavRoute
+  let effectivePanelParam = panelParam
 
   // Determine document type based on URL pattern
   if (pathParts[0] === 'hm' && pathParts.length > 1) {
     // Hypermedia document (/hm/uid/path...)
-    const {path: cleanPath, viewTerm: extractedViewTerm} =
-      extractViewTermFromPath(pathParts.slice(2))
-    viewTerm = extractedViewTerm
+    const extracted = extractViewTermFromPath(pathParts.slice(2))
+    viewTerm = extracted.viewTerm
+    if (extracted.activityFilter) {
+      effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
     documentId = hmId(pathParts[1], {
-      path: cleanPath,
+      path: extracted.path,
       version,
       latest,
     })
   } else {
     // Site document (regular path)
     const rawPath = params['*'] ? params['*'].split('/').filter(Boolean) : []
-    const {path: cleanPath, viewTerm: extractedViewTerm} =
-      extractViewTermFromPath(rawPath)
-    viewTerm = extractedViewTerm
-    documentId = hmId(registeredAccountUid, {path: cleanPath, version, latest})
+    const extracted = extractViewTermFromPath(rawPath)
+    viewTerm = extracted.viewTerm
+    if (extracted.activityFilter) {
+      effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    documentId = hmId(registeredAccountUid, {
+      path: extracted.path,
+      version,
+      latest,
+    })
   }
 
   const result = await instrument(ctx, 'loadSiteResource', () =>
@@ -267,7 +291,7 @@ export const loader = async ({
       prefersLanguages: parsedRequest.prefersLanguages,
       feed,
       viewTerm,
-      panelParam,
+      panelParam: effectivePanelParam,
       instrumentationCtx: ctx,
     }),
   )
@@ -306,14 +330,27 @@ export default function UnifiedDocumentPage() {
     return <FeedPage {...data} />
   }
 
-  // Pass viewTerm and panelParam to DocumentPage
+  // Render unified ResourcePage with WebSiteProvider for navigation context
   return (
-    <DocumentPage
-      {...data}
-      viewTerm={data.viewTerm}
-      panelParam={data.panelParam}
-    />
+    <WebSiteProvider
+      origin={data.origin}
+      originHomeId={data.originHomeId}
+      siteHost={data.siteHost}
+      dehydratedState={data.dehydratedState}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+      )}
+    >
+      <InnerResourcePage docId={data.id} />
+    </WebSiteProvider>
   )
+}
+
+/** Inner component that can use hooks after providers are mounted */
+function InnerResourcePage({docId}: {docId: UnpackedHypermediaId}) {
+  return <WebResourcePage docId={docId} CommentEditor={WebCommenting} />
 }
 
 export function DaemonErrorPage(props: GRPCError) {

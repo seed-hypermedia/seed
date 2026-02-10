@@ -31,7 +31,7 @@
     "desktop:make": "pnpm --filter @shm/desktop make",
     "desktop:package": "pnpm --filter @shm/desktop package",
     "desktop:test:package": "pnpm --filter @shm/desktop package:test",
-    "desktop:publish": "pnpm --filter @shm/desktop publish",
+    "desktop:publish": "pnpm --filter @shm/desktop run publish",
     "desktop:test": "pnpm --filter @shm/desktop test",
     "desktop:test:only": "pnpm --filter @shm/desktop test:only",
     "desktop:test:unit": "pnpm --filter @shm/desktop test:unit",
@@ -69,7 +69,10 @@
       "@sentry/cli",
       "better-sqlite3",
       "electron",
+      "electron-winstaller",
       "esbuild",
+      "fs-xattr",
+      "macos-alias",
       "sharp"
     ],
     "overrides": {
@@ -107,6 +110,9 @@
       "unist-util-visit": "4.1.2",
       "unist-util-visit-parents": "5.1.3",
       "unist-util-is": "5.2.1"
+    },
+    "patchedDependencies": {
+      "electron-installer-redhat": "patches/electron-installer-redhat.patch"
     }
   },
   "devDependencies": {

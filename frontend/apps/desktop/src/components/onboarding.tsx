@@ -81,7 +81,7 @@ export function OnboardingDialog() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    onboardingDialogEvents.subscribe((open) => {
+    return onboardingDialogEvents.subscribe((open) => {
       setOpen(open)
     })
   }, [])

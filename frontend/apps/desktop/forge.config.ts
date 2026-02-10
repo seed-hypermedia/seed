@@ -141,7 +141,7 @@ const config: ForgeConfig = {
     protocols: [{name: 'Seed Hypermedia', schemes: ['hm']}],
   },
   makers: [
-    new MakerDeb(commonLinuxConfig as MakerDebConfig),
+    new MakerDeb(commonLinuxConfig as MakerDebConfig, ['linux']),
     new MakerZIP(
       IS_PROD_DEV
         ? (arch) => ({
@@ -180,7 +180,7 @@ const config: ForgeConfig = {
       // certificateFile: process.env.WINDOWS_PFX_FILE,
       // certificatePassword: process.env.WINDOWS_PFX_PASSWORD,
     })),
-    new MakerRpm(commonLinuxConfig as MakerRpmConfig),
+    new MakerRpm(commonLinuxConfig as MakerRpmConfig, ['linux']),
     // new MakerFlatpak(flatpakConfig as MakerFlatpakConfig),
     // new MakerAppImage(commonLinuxConfig as MakerAppImageConfig),
     // Temporarily disabled - focusing on flatpak first

@@ -56,7 +56,6 @@ const titleTextClasses =
 
 export const TitleText = (props) => (
   <SizableText
-    name="TitlebarH1"
     size="sm"
     className={cn(titleTextClasses, props.className)}
     {...props}
@@ -67,7 +66,6 @@ export const TitleText = (props) => (
 //   maxWidth: '100%',
 //   overflow: 'hidden',
 //   textOverflow: 'ellipsis',
-//   name: 'TitlebarH1',
 //   color: '$color12',
 //   fontSize: '$4',
 //   userSelect: 'none',

@@ -2,8 +2,11 @@ import {z} from 'zod'
 import {
   BlockRangeSchema,
   HMResourceVisibilitySchema,
+  UnpackedHypermediaId,
   unpackedHmIdSchema,
 } from './hm-types'
+import {activitySlugToFilter} from './utils/entity-id-url'
+import type {ViewRouteKey} from './utils/entity-id-url'
 
 export const defaultRoute: NavRoute = {key: 'library'}
 
@@ -165,10 +168,10 @@ export const previewRouteSchema = z.object({
 })
 export type PreviewRoute = z.infer<typeof previewRouteSchema>
 
-export const favoritesSchema = z.object({
-  key: z.literal('favorites'),
+export const bookmarksSchema = z.object({
+  key: z.literal('bookmarks'),
 })
-export type FavoritesRoute = z.infer<typeof favoritesSchema>
+export type BookmarksRoute = z.infer<typeof bookmarksSchema>
 
 export const draftsSchema = z.object({
   key: z.literal('drafts'),
@@ -193,7 +196,7 @@ export type DeletedContentRoute = z.infer<typeof deletedContentRouteSchema>
 export const libraryRouteSchema = z.object({
   key: z.literal('library'),
   expandedIds: z.array(z.string()).optional(),
-  displayMode: z.enum(['all', 'subscribed', 'favorites']).optional(),
+  displayMode: z.enum(['all', 'subscribed', 'bookmarks']).optional(),
   grouping: z.enum(['site', 'none']).optional(),
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
@@ -208,7 +211,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRouteSchema,
   draftRebaseRouteSchema,
   previewRouteSchema,
-  favoritesSchema,
+  bookmarksSchema,
   draftsSchema,
   deletedContentRouteSchema,
   feedRouteSchema,
@@ -284,5 +287,92 @@ export function routeToPanelRoute(route: NavRoute): DocumentPanelRoute | null {
     }
     default:
       return null
+  }
+}
+
+/**
+ * Create a DocumentPanelRoute from a panel param string
+ * Supports extended formats:
+ * - "comment/COMMENT_ID" for specific comment open in panel
+ * - "discussions/BLOCKID" for block-specific discussions
+ */
+function createPanelRoute(
+  panelParam: string,
+  docId: UnpackedHypermediaId,
+): DocumentPanelRoute {
+  // Check for comment/COMMENT_ID format (most specific)
+  if (panelParam.startsWith('comment/')) {
+    const openComment = panelParam.slice('comment/'.length)
+    return {key: 'discussions' as const, id: docId, openComment}
+  }
+
+  // Check for activity/<filter-slug> format
+  if (panelParam.startsWith('activity/')) {
+    const slug = panelParam.slice('activity/'.length)
+    const filterEventType = activitySlugToFilter(slug)
+    return {key: 'activity', id: docId, filterEventType}
+  }
+
+  // Check for discussions/BLOCKID format
+  if (panelParam.startsWith('discussions/')) {
+    const targetBlockId = panelParam.slice('discussions/'.length)
+    return {key: 'discussions' as const, id: docId, targetBlockId}
+  }
+
+  switch (panelParam) {
+    case 'activity':
+      return {key: 'activity', id: docId}
+    case 'discussions':
+      return {key: 'discussions', id: docId}
+    case 'directory':
+      return {key: 'directory', id: docId}
+    case 'collaborators':
+      return {key: 'collaborators', id: docId}
+    case 'options':
+      return {key: 'options'}
+    default:
+      // Fallback for unknown panel types
+      return {key: 'discussions', id: docId}
+  }
+}
+
+/**
+ * Convert docId + viewTerm + panelParam into a NavRoute
+ * Used by web to initialize navigation context from URL
+ * panelParam supports extended format like "discussions/BLOCKID" or "comment/COMMENT_ID"
+ */
+export function createDocumentNavRoute(
+  docId: UnpackedHypermediaId,
+  viewTerm?: ViewRouteKey | null,
+  panelParam?: string | null,
+): NavRoute {
+  // Create properly typed panel route if panelParam provided
+  const panel = panelParam ? createPanelRoute(panelParam, docId) : null
+
+  switch (viewTerm) {
+    case 'activity': {
+      // When activity is the main view, parse filter slug from panelParam
+      // URL format: /:activity?panel=activity/versions -> panelParam="activity/versions"
+      let filterEventType: string[] | undefined
+      if (panelParam?.startsWith('activity/')) {
+        const slug = panelParam.slice('activity/'.length)
+        filterEventType = activitySlugToFilter(slug)
+      }
+      return {key: 'activity', id: docId, filterEventType}
+    }
+    case 'discussions':
+      return {key: 'discussions', id: docId}
+    case 'directory':
+      return {key: 'directory', id: docId}
+    case 'collaborators':
+      return {key: 'collaborators', id: docId}
+    default: {
+      // Comment links should open in main discussions view, not panel
+      if (panelParam?.startsWith('comment/')) {
+        const openComment = panelParam.slice('comment/'.length)
+        return {key: 'discussions', id: docId, openComment}
+      }
+      return {key: 'document', id: docId, panel}
+    }
   }
 }

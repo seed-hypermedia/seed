@@ -3,7 +3,7 @@ import {Text} from './text'
 
 /**
  * Consistent layout wrapper for full-page content (activity, discussions, directory, etc.)
- * Ensures proper scroll behavior with fixed header and scrollable content area.
+ * Parent component (ResourcePage) handles scrolling - this just provides layout structure.
  */
 export function PageLayout({
   title,
@@ -15,9 +15,7 @@ export function PageLayout({
   title?: string
   headerRight?: ReactNode
   children: ReactNode
-  /** When true, constrains content width and centers it (like feed page) */
   centered?: boolean
-  /** Custom max width for centered content. If not provided, uses default. */
   contentMaxWidth?: number
 }) {
   const hasHeader = title || headerRight
@@ -27,8 +25,8 @@ export function PageLayout({
   const maxWidthClass = contentMaxWidth ? '' : 'max-w-[calc(85ch+1em)]'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Fixed header */}
+    <div className="flex flex-1 flex-col">
+      {/* Header */}
       {hasHeader && (
         <div className="shrink-0">
           <div
@@ -46,8 +44,8 @@ export function PageLayout({
           </div>
         </div>
       )}
-      {/* Scrollable content */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* Content - no scroll, parent handles it */}
+      <div className="flex-1">
         {centered ? (
           <div
             className={`mx-auto w-full px-4 ${maxWidthClass}`}

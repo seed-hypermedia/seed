@@ -1,6 +1,6 @@
 import {AccessoryLayout} from '@/components/accessory-sidebar'
 import {CoverImage} from '@/components/cover-image'
-import DiscardDraftButton from '@/components/discard-draft-button'
+import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {useDocumentSelection} from '@/components/document-accessory'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
@@ -41,19 +41,27 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
+import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
+import {Home, Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
+import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -438,6 +446,28 @@ function DocumentEditor({
     draftQuery.data?.editPath,
   ])
 
+  // Breadcrumbs: compute parent paths from editId (existing doc) or id (new doc location)
+  const breadcrumbParentIds = useMemo(() => {
+    const contextId = editId || id
+    if (!contextId) return []
+    const parentPaths = getParentPaths(contextId.path)
+    // For editId, exclude the last path (the doc itself)
+    // For locationId (id), include all (they're all parents)
+    const paths = editId ? parentPaths.slice(0, -1) : parentPaths
+    return paths.map((path) => hmId(contextId.uid, {path}))
+  }, [editId, id])
+
+  const breadcrumbEntities = useResources(breadcrumbParentIds)
+
+  const breadcrumbs = useMemo(() => {
+    return breadcrumbParentIds.map((bId, idx) => ({
+      id: bId,
+      metadata:
+        // @ts-expect-error - resource type union
+        breadcrumbEntities[idx]?.data?.document?.metadata ?? null,
+    }))
+  }, [breadcrumbParentIds, breadcrumbEntities])
+
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
@@ -492,9 +522,12 @@ function DocumentEditor({
           // @ts-expect-error
           onDrop={onDrop}
           onClick={handleFocusAtMousePos}
-          className="relative flex flex-1 flex-col overflow-hidden pt-12"
+          className="relative flex flex-1 flex-col overflow-hidden"
         >
-          <div className="bg-background absolute top-4 right-4 z-11 flex items-center rounded-sm p-1 shadow-sm">
+          <div
+            className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
             <DraftActionButtons route={route} />
           </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
@@ -509,7 +542,7 @@ function DocumentEditor({
             />
             <div
               ref={elementRef}
-              className="draft-editor relative w-full flex-1"
+              className="draft-editor relative w-full flex-1 pt-12"
             >
               {/* Title section - centered */}
 
@@ -527,6 +560,7 @@ function DocumentEditor({
                     showCover={showCover}
                     setShowCover={setShowCover}
                     visibility={route.visibility || data?.visibility}
+                    breadcrumbs={breadcrumbs}
                   />
                 </div>
               ) : null}
@@ -802,6 +836,7 @@ function DraftMetadataEditor({
   showCover = false,
   setShowCover,
   visibility,
+  breadcrumbs,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
@@ -809,6 +844,7 @@ function DraftMetadataEditor({
   showCover?: boolean
   setShowCover?: (show: boolean) => void
   visibility?: HMResourceVisibility
+  breadcrumbs?: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -895,6 +931,9 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <DraftBreadcrumbs breadcrumbs={breadcrumbs} />
+          ) : null}
           {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
@@ -1063,6 +1102,7 @@ function applyInputResize(target: HTMLTextAreaElement) {
 function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const replace = useNavigate('replace')
+  const dispatch = useNavigationDispatch()
   const draftId = route.id
   const draft = useDraft(draftId)
   const editId = draftEditId(draft.data)
@@ -1071,6 +1111,28 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
     editId || locationId,
     'writer',
   )
+  const deleteDialog = useDeleteDraftDialog()
+
+  const menuItems: MenuItemType[] = [
+    {
+      key: 'delete-draft',
+      label: 'Delete Draft',
+      icon: <Trash className="size-4" />,
+      onClick: () => {
+        if (draftId) {
+          deleteDialog.open({
+            draftId,
+            onSuccess: () => {
+              dispatch({type: 'closeBack'})
+            },
+          })
+        } else {
+          dispatch({type: 'closeBack'})
+        }
+      },
+    },
+  ]
+
   if (!selectedAccount?.id) return null
   if ((editId || locationId) && !editIdWriteCap)
     return (
@@ -1087,6 +1149,8 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
   return (
     <div className="animate flex items-center gap-1">
+      <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
+      {deleteDialog.content}
       <PublishDraftButton key="publish-draft" />
       {draft.data ? (
         <Tooltip content="Preview Document">
@@ -1104,8 +1168,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
-
-      <DiscardDraftButton key="discard-draft" />
       <Tooltip content="Toggle Draft Options">
         <Button
           onClick={() => {
@@ -1129,5 +1191,53 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
         </Button>
       </Tooltip>
     </div>
+  )
+}
+
+function DraftBreadcrumbs({
+  breadcrumbs,
+}: {
+  breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
+}) {
+  const [first, ...rest] = breadcrumbs
+
+  return (
+    <div className="text-muted-foreground flex flex-1 items-center gap-2">
+      {first ? (
+        <div className="flex items-center gap-1">
+          <Home className="size-3" />
+        </div>
+      ) : null}
+      {rest.flatMap((crumb) => {
+        return [
+          <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
+            /
+          </SizableText>,
+          <DraftBreadcrumbLink
+            id={crumb.id}
+            metadata={crumb.metadata}
+            key={crumb.id.id}
+          />,
+        ]
+      })}
+    </div>
+  )
+}
+
+function DraftBreadcrumbLink({
+  id,
+  metadata,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata | null
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <a
+      {...linkProps}
+      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+    >
+      {metadata?.name ?? id?.path?.at(-1) ?? '?'}
+    </a>
   )
 }

@@ -14,6 +14,7 @@ import {
 import {MessageSquare} from 'lucide-react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
+import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
@@ -32,6 +33,7 @@ interface DocumentListItemProps {
   activitySummary?: HMActivitySummary | null
   latestComment?: HMComment | null
   interactionSummary?: InteractionSummaryPayload | null
+  draftId?: string
   isRead?: boolean
   indent?: boolean
   onClick?: (id: UnpackedHypermediaId) => void
@@ -46,11 +48,13 @@ export function DocumentListItem({
   activitySummary,
   latestComment,
   interactionSummary,
+  draftId: draftIdProp,
   isRead,
   indent = false,
   onClick,
 }: DocumentListItemProps) {
   const id = item.id
+  const draftId = draftIdProp
 
   const metadata = item.metadata
   const visibility = 'visibility' in item ? item.visibility : undefined
@@ -79,7 +83,10 @@ export function DocumentListItem({
   const showAuthors =
     !!accountsMetadata && Object.keys(accountsMetadata).length > 0
 
-  const linkProps = useRouteLink({key: 'document', id})
+  const route = draftId
+    ? {key: 'draft' as const, id: draftId}
+    : {key: 'document' as const, id}
+  const linkProps = useRouteLink(route)
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Stop propagation to prevent parent handlers (like EmbedWrapper) from firing.
@@ -119,6 +126,7 @@ export function DocumentListItem({
               >
                 {getMetadataName(metadata)}
               </SizableText>
+              {!!draftId && <DraftBadge />}
               {isPrivate && <PrivateBadge size="sm" />}
             </div>
             {interactionSummary && interactionSummary.comments > 0 && (
@@ -126,13 +134,13 @@ export function DocumentListItem({
                 count={interactionSummary.comments}
               />
             )}
-            {showAuthors && (
+            {showAuthors && 'authors' in item && (
               <FacePile
                 accounts={item.authors}
                 accountsMetadata={accountsMetadata}
               />
             )}
-            {!showAuthors && !itemActivitySummary && (
+            {!showAuthors && !itemActivitySummary && 'updateTime' in item && (
               <SizableText size="xs" color="muted" className="font-sans">
                 {formattedDate(item.updateTime)}
               </SizableText>

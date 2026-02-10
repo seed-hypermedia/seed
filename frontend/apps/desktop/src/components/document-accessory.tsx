@@ -6,8 +6,10 @@ import {useCreateDraft} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {useSelectedAccount} from '@/selected-account'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
 import {DocSelectionOption} from '@shm/shared/routes'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {PanelContent} from '@shm/ui/accessories'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {Feed} from '@shm/ui/feed'
@@ -152,7 +154,12 @@ export function useDocumentSelection({
   // Extract panel info from routes that have panels
   let panelKey: string | undefined
   let discussionsPanel:
-    | {key: 'discussions'; id?: UnpackedHypermediaId; openComment?: string}
+    | {
+        key: 'discussions'
+        id?: UnpackedHypermediaId
+        openComment?: string
+        targetBlockId?: string
+      }
     | undefined
   let activityAutoFocus: boolean | undefined
   let activityFilterEventType: string[] | undefined
@@ -178,7 +185,12 @@ export function useDocumentSelection({
   const selectionOptions: Array<DocSelectionOption> = []
 
   const selectedAccount = useSelectedAccount()
-  const canCreateSubDoc = useCanCreateSubDocument(docId)
+  const docResource = useResource(docId)
+  const isPrivateDoc =
+    docResource.data?.type === 'document'
+      ? docResource.data.document?.visibility === 'PRIVATE'
+      : false
+  const canCreateSubDoc = useCanCreateSubDocument(docId) && !isPrivateDoc
 
   if (panelKey === 'collaborators') {
     // @ts-expect-error
@@ -226,15 +238,16 @@ export function useDocumentSelection({
     selectionUI = (
       <>
         {deleteCommentDialogContent}
-        <Feed
-          size="sm"
-          filterResource={docId?.id}
-          currentAccount={selectedAccount?.id.uid || ''}
-          filterEventType={activityFilterEventType || []}
-          onCommentDelete={onCommentDelete}
-          targetDomain={targetDomain}
-          scrollRef={activityScrollRef}
-        />
+        <PanelContent>
+          <Feed
+            size="sm"
+            filterResource={docId?.id}
+            currentAccount={selectedAccount?.id.uid || ''}
+            filterEventType={activityFilterEventType || []}
+            onCommentDelete={onCommentDelete}
+            targetDomain={targetDomain}
+          />
+        </PanelContent>
       </>
     )
   } else if (panelKey === 'contacts') {
@@ -248,7 +261,6 @@ export function useDocumentSelection({
           filterEventType={['Contact', 'Profile']}
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
-          scrollRef={contactsScrollRef}
         />
       </>
     )

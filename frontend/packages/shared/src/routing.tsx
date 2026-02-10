@@ -5,7 +5,13 @@ import {HMContactRecord, UnpackedHypermediaId} from './hm-types'
 import {NavRoute} from './routes'
 import {LanguagePack} from './translation'
 import type {UniversalClient} from './universal-client'
-import {hmId, hmIdToURL, idToUrl, unpackHmId} from './utils'
+import {
+  activityFilterToSlug,
+  getRoutePanelParam,
+  hmIdToURL,
+  idToUrl,
+  unpackHmId,
+} from './utils'
 import {StateStream} from './utils/stream'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
@@ -139,21 +145,6 @@ export function useUniversalClient() {
   return universalClient
 }
 
-export function useOpenRoute() {
-  const context = useContext(UniversalAppContext)
-  if (!context)
-    throw new Error('useOpenRoute must be used in a UniversalRoutingProvider')
-  const openRoute = context.openRoute
-  if (!openRoute) {
-    throw new Error(
-      'No openRoute function in UniversalAppContext. Cannot open route',
-    )
-  }
-  return (route: NavRoute) => {
-    openRoute(route)
-  }
-}
-
 export function useOpenUrl() {
   const context = useContext(UniversalAppContext)
   if (!context)
@@ -191,21 +182,6 @@ export function routeToHref(
       route.key === 'directory' ||
       route.key === 'collaborators')
   ) {
-    // For discussions routes with openComment, generate a comment URL
-    if (route.key === 'discussions' && route.openComment) {
-      const activeCommentId = route.openComment
-      const [accountUid, commentTsid] = activeCommentId.split('/')
-      if (accountUid && commentTsid) {
-        const commentId = hmId(accountUid, {
-          path: [commentTsid],
-          blockRef: route.id.blockRef,
-          blockRange: route.id.blockRange,
-          hostname: options?.origin,
-        })
-        return options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
-      }
-    }
-
     const docId = route.id
     // Build path with view term
     let basePath = ''
@@ -218,9 +194,14 @@ export function routeToHref(
       }`
     }
     // Add view term - need a / separator between path and view term
-    const viewTerm = `:${route.key}`
-    // If basePath is empty, use "/:viewTerm", otherwise use "basePath/:viewTerm"
-    return basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    let viewTerm = `:${route.key}`
+    // Append activity filter slug to view term path
+    if (route.key === 'activity') {
+      const filterSlug = activityFilterToSlug(route.filterEventType)
+      if (filterSlug) viewTerm += `/${filterSlug}`
+    }
+    let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    return href
   }
 
   const docRoute =
@@ -234,23 +215,11 @@ export function routeToHref(
       : route.key == 'document' || route.key == 'feed'
       ? route.id
       : null
-  const activeCommentSelection =
-    docRoute?.panel?.key == 'discussions' ? docRoute.panel : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
-  } else if (activeCommentSelection && activeCommentSelection.openComment) {
-    const activeCommentId = activeCommentSelection.openComment
-    const [accountUid, commentTsid] = activeCommentId.split('/')
-    if (!accountUid || !commentTsid) return undefined
-    const commentId = hmId(accountUid, {
-      path: [commentTsid],
-      blockRef: activeCommentSelection.id?.blockRef,
-      blockRange: activeCommentSelection.id?.blockRange,
-      hostname: options?.origin,
-    })
-    href = options?.hmUrlHref ? hmIdToURL(commentId) : idToUrl(commentId)
   } else if (docRoute && docId) {
+    const panelParam = getRoutePanelParam(docRoute)
     href = options?.hmUrlHref
       ? hmIdToURL(docId)
       : idToUrl(
@@ -258,6 +227,7 @@ export function routeToHref(
           {
             originHomeId: options?.originHomeId,
             feed: docRoute.key === 'feed',
+            panel: panelParam,
           },
         )
   }

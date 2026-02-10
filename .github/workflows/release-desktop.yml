@@ -145,6 +145,20 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Ensure 7-Zip is in PATH (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          # Squirrel.Windows needs 7z.exe for CreateZipFromDirectory
+          if (Test-Path "C:\Program Files\7-Zip") {
+            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Added 7-Zip to PATH"
+          } else {
+            choco install 7zip -y
+            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Installed and added 7-Zip to PATH"
+          }
+
       - name: Build, package and make (Win32)
         if: startsWith(matrix.config.os, 'windows')
         run: |

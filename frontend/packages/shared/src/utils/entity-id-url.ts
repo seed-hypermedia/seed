@@ -4,6 +4,34 @@ import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
 
+/**
+ * Activity filter slug <-> filterEventType mapping for URL encoding
+ */
+export const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
+  comments: ['Comment'],
+  versions: ['Ref'],
+  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+}
+
+export function activityFilterToSlug(
+  filterEventType?: string[],
+): string | null {
+  if (!filterEventType?.length) return null
+  for (const [slug, types] of Object.entries(ACTIVITY_FILTER_SLUGS)) {
+    if (
+      types.length === filterEventType.length &&
+      types.every((t, i) => t === filterEventType[i])
+    ) {
+      return slug
+    }
+  }
+  return null
+}
+
+export function activitySlugToFilter(slug: string): string[] | undefined {
+  return ACTIVITY_FILTER_SLUGS[slug]
+}
+
 // View terms for URL paths (e.g., /:activity, /:directory)
 export const VIEW_TERMS = [
   ':activity',
@@ -35,7 +63,19 @@ export type PanelQueryKey =
 export function extractViewTermFromUrl(url: string): {
   url: string
   viewTerm: ViewTerm | null
+  activityFilter?: string
 } {
+  // Check for :activity/<slug> pattern first
+  const activitySlugPattern = /\/\:activity\/([a-z]+)(?=[?#]|$)/
+  const activitySlugMatch = url.match(activitySlugPattern)
+  if (activitySlugMatch) {
+    return {
+      url: url.replace(activitySlugMatch[0], ''),
+      viewTerm: ':activity',
+      activityFilter: activitySlugMatch[1],
+    }
+  }
+
   for (const term of VIEW_TERMS) {
     // Match term at end of path (before query/fragment)
     const termPattern = new RegExp(`/${term.replace(':', '\\:')}(?=[?#]|$)`)
@@ -158,54 +198,56 @@ export function createOSProtocolUrl({
 
   return res
 }
-function getRouteViewTerm(route: NavRoute): string | null {
-  // For first-class page routes, return their view term
-  if (route.key === 'activity') return ':activity'
-  if (route.key === 'discussions') return ':discussions'
-  if (route.key === 'collaborators') return ':collaborators'
-  if (route.key === 'directory') return ':directory'
-  return null
-}
-
 /**
- * Extract panel key from route for URL query param
+ * Extract panel param from route for URL query param
+ * Supports:
+ * - "comment/COMMENT_ID" for specific comment open in panel
+ * - "discussions/BLOCKID" for block-specific discussions
+ * - "discussions", "activity", etc. for general panels
  */
-function getRoutePanelParam(route: NavRoute): PanelQueryKey | null {
+export function getRoutePanelParam(route: NavRoute): string | null {
+  let panel:
+    | {
+        key: string
+        targetBlockId?: string
+        openComment?: string
+      }
+    | null
+    | undefined = null
+
   if (route.key === 'document' && route.panel) {
-    return route.panel.key as PanelQueryKey
-  }
-  if (
+    panel = route.panel
+  } else if (
     (route.key === 'activity' ||
       route.key === 'discussions' ||
       route.key === 'collaborators' ||
       route.key === 'directory') &&
     route.panel
   ) {
-    return route.panel.key as PanelQueryKey
+    panel = route.panel
   }
-  return null
-}
-/**
- * Get the comment ID from a route if viewing a specific comment
- */
-function getRouteCommentId(
-  route: NavRoute,
-): {uid: string; path: string[]} | null {
-  // Check discussions page route
-  if (route.key === 'discussions' && route.openComment) {
-    const [uid, ...path] = route.openComment.split('/')
-    if (uid && path.length) return {uid, path}
+
+  if (!panel) return null
+
+  // Priority 1: Encode openComment - most specific
+  if (panel.key === 'discussions' && panel.openComment) {
+    return `comment/${panel.openComment}`
   }
-  // Check document with discussions panel
-  if (
-    route.key === 'document' &&
-    route.panel?.key === 'discussions' &&
-    route.panel.openComment
-  ) {
-    const [uid, ...path] = route.panel.openComment.split('/')
-    if (uid && path.length) return {uid, path}
+
+  // Priority 2: Encode targetBlockId into discussions panel param
+  if (panel.key === 'discussions' && panel.targetBlockId) {
+    return `discussions/${panel.targetBlockId}`
   }
-  return null
+
+  // Encode activity filter slug into panel param
+  if (panel.key === 'activity') {
+    const filterSlug = activityFilterToSlug(
+      (panel as {filterEventType?: string[]}).filterEventType,
+    )
+    if (filterSlug) return `activity/${filterSlug}`
+  }
+
+  return panel.key as PanelQueryKey
 }
 
 export function routeToUrl(
@@ -215,16 +257,6 @@ export function routeToUrl(
     originHomeId?: UnpackedHypermediaId | undefined
   },
 ) {
-  // Check if viewing a specific comment - generate comment URL instead
-  const commentId = getRouteCommentId(route)
-  if (commentId) {
-    return createWebHMUrl(commentId.uid, {
-      path: commentId.path,
-      hostname: opts?.hostname,
-      originHomeId: opts?.originHomeId,
-    })
-  }
-
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'document') {
@@ -232,7 +264,6 @@ export function routeToUrl(
       ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
-      viewTerm: getRouteViewTerm(route),
       panel: panelParam,
     })
     return url
@@ -250,12 +281,30 @@ export function routeToUrl(
     route.key === 'collaborators' ||
     route.key === 'discussions'
   ) {
+    // View-term routes use /:viewTerm in the path
+    let viewTermPath = `:${route.key}`
+    // Append activity filter slug to view term path
+    if (route.key === 'activity') {
+      const filterSlug = activityFilterToSlug(route.filterEventType)
+      if (filterSlug) {
+        viewTermPath = `:activity/${filterSlug}`
+      }
+    }
+    // For discussions with openComment, include it in the panel param
+    let effectivePanelParam = panelParam
+    if (
+      !effectivePanelParam &&
+      route.key === 'discussions' &&
+      route.openComment
+    ) {
+      effectivePanelParam = `comment/${route.openComment}`
+    }
     return createWebHMUrl(route.id.uid, {
       ...route.id,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
-      viewTerm: getRouteViewTerm(route),
-      panel: panelParam,
+      viewTerm: viewTermPath,
+      panel: effectivePanelParam,
     })
   }
   return 'TODO'
@@ -284,7 +333,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
     viewTerm?: string | null
-    panel?: PanelQueryKey | null
+    panel?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -326,7 +375,7 @@ function getHMQueryString({
   feed?: boolean
   version?: string | null
   latest?: boolean | null
-  panel?: PanelQueryKey | null
+  panel?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -514,6 +563,7 @@ export function idToUrl(
   opts?: {
     originHomeId?: UnpackedHypermediaId
     feed?: boolean
+    panel?: string | null
   },
 ) {
   return createWebHMUrl(hmId.uid, {
@@ -524,6 +574,7 @@ export function idToUrl(
     hostname: hmId.hostname,
     originHomeId: opts?.originHomeId,
     feed: opts?.feed,
+    panel: opts?.panel,
     latest: hmId.latest,
   })
 }

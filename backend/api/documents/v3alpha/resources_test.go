@@ -55,10 +55,11 @@ func TestGetResource(t *testing.T) {
 			Iri: "http://example.com/test",
 		})
 
+		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
 		require.Error(t, err)
 		st := status.Convert(err)
-		require.Equal(t, codes.Unimplemented, st.Code())
-		require.Contains(t, st.Message(), "only 'hm' scheme is supported for now")
+		require.Equal(t, codes.NotFound, st.Code())
+		require.Contains(t, st.Message(), "failed to resolve site config")
 	})
 
 	t.Run("HTTPSSchemeNotImplemented", func(t *testing.T) {
@@ -69,10 +70,11 @@ func TestGetResource(t *testing.T) {
 			Iri: "https://example.com/test",
 		})
 
+		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
 		require.Error(t, err)
 		st := status.Convert(err)
-		require.Equal(t, codes.Unimplemented, st.Code())
-		require.Contains(t, st.Message(), "only 'hm' scheme is supported for now")
+		require.Equal(t, codes.NotFound, st.Code())
+		require.Contains(t, st.Message(), "failed to resolve site config")
 	})
 	t.Run("InvalidAccount", func(t *testing.T) {
 		t.Parallel()
@@ -131,6 +133,38 @@ func TestGetResource(t *testing.T) {
 		require.NotNil(t, resp.GetDocument())
 		require.Equal(t, "/test", resp.GetDocument().Path)
 		require.Equal(t, "Test Document", resp.GetDocument().Metadata.Fields["title"].GetStringValue())
+	})
+
+	t.Run("GetDocumentViaWebURLWithHmPath", func(t *testing.T) {
+		t.Parallel()
+		srv := newTestDocsAPI(t, "alice")
+		ctx := context.Background()
+
+		_, err := srv.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        srv.me.Account.PublicKey.String(),
+			Path:           "/test",
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{
+						Key:   "title",
+						Value: "Web URL Test",
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		// Use a web URL with /hm/<account-id>/path format.
+		iri := fmt.Sprintf("https://example.com/hm/%s/test", srv.me.Account.Principal())
+		resp, err := srv.GetResource(ctx, &documents.GetResourceRequest{
+			Iri: iri,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetDocument())
+		require.Equal(t, "/test", resp.GetDocument().Path)
+		require.Equal(t, "Web URL Test", resp.GetDocument().Metadata.Fields["title"].GetStringValue())
 	})
 
 	t.Run("GetDocumentWithVersion", func(t *testing.T) {

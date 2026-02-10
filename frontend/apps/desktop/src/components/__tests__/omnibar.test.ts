@@ -244,8 +244,8 @@ describe('Route ID extraction', () => {
     expect(getRouteId(route)).toBeNull()
   })
 
-  it('should return null for favorites route', () => {
-    const route = {key: 'favorites'}
+  it('should return null for bookmarks route', () => {
+    const route = {key: 'bookmarks'}
     expect(getRouteId(route)).toBeNull()
   })
 
@@ -322,8 +322,8 @@ describe('URL displayable route detection', () => {
     expect(isUrlDisplayableRoute({key: 'contacts'})).toBe(false)
   })
 
-  it('should return false for favorites route', () => {
-    expect(isUrlDisplayableRoute({key: 'favorites'})).toBe(false)
+  it('should return false for bookmarks route', () => {
+    expect(isUrlDisplayableRoute({key: 'bookmarks'})).toBe(false)
   })
 })
 

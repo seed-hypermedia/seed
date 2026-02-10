@@ -15,6 +15,7 @@ import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
 import {DraftBadge} from './draft-badge'
 import {ArrowRight, ChevronDown, Close, Menu, X} from './icons'
+import {SmallListItem} from './list-item'
 import {useResponsiveItems} from './use-responsive-items'
 
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
@@ -48,7 +49,7 @@ export function SiteHeader({
   docId,
   items,
   homeNavigationItems,
-  directoryItems,
+  directoryItems: _directoryItems,
   isCenterLayout = false,
   document,
   draftMetadata,
@@ -247,17 +248,21 @@ export function SiteHeader({
 
               {/* Always show home navigation items */}
               {homeNavigationItems && homeNavigationItems.length > 0 && (
-                <div className="mt-2.5 mb-4">
+                <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
                   <NavItems
                     items={homeNavigationItems}
                     onClick={() => {
                       setIsMobileMenuOpen(false)
                     }}
                   />
+                  <MobileFeedLink
+                    siteHomeId={siteHomeId}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  />
                 </div>
               )}
-
-              {/* Show directory items when not on home */}
+              {/* 
+              Show directory items when not on home
               {directoryItems && directoryItems.length > 0 && (
                 <>
                   <Separator />
@@ -270,21 +275,23 @@ export function SiteHeader({
                     />
                   </div>
                 </>
-              )}
+              )} */}
 
               {/* Show document outline when available */}
               {docId && document && (
                 <>
                   <Separator />
-                  <MobileMenuOutline
-                    onActivateBlock={(blockId) => {
-                      setIsMobileMenuOpen(false)
-                      onBlockFocus?.(blockId)
-                    }}
-                    document={document}
-                    docId={docId}
-                    embeds={embeds}
-                  />
+                  <div className="mt-2.5 mb-4 px-1">
+                    <MobileMenuOutline
+                      onActivateBlock={(blockId) => {
+                        setIsMobileMenuOpen(false)
+                        onBlockFocus?.(blockId)
+                      }}
+                      document={document}
+                      docId={docId}
+                      embeds={embeds}
+                    />
+                  </div>
                 </>
               )}
             </>
@@ -310,28 +317,23 @@ function NavItems({
   items?: DocNavigationItem[] | null
   onClick?: () => void
 }) {
-  return (
-    <div className="flex flex-col gap-2.5 px-2">
-      {items
-        ? items.map((doc) => {
-            // Skip items without id or draftId to prevent routing errors
-            if (!doc.id && !doc.draftId) return null
-            return (
-              <DocumentSmallListItem
-                onClick={onClick}
-                key={doc.id?.id || doc.draftId || ''}
-                metadata={doc.metadata}
-                id={doc.id}
-                indented={0}
-                draftId={doc.draftId}
-                isPublished={doc.isPublished}
-                visibility={doc.visibility}
-              />
-            )
-          })
-        : null}
-    </div>
-  )
+  return items
+    ? items.map((doc) => {
+        // Skip items without id or draftId to prevent routing errors
+        if (!doc.id && !doc.draftId) return null
+        return (
+          <DocumentSmallListItem
+            onClick={onClick}
+            key={doc.id?.id || doc.draftId || ''}
+            metadata={doc.metadata}
+            id={doc.id}
+            draftId={doc.draftId}
+            isPublished={doc.isPublished}
+            visibility={doc.visibility}
+          />
+        )
+      })
+    : null
 }
 
 function MobileMenuOutline({
@@ -353,6 +355,32 @@ function MobileMenuOutline({
       outline={outline}
       id={docId}
       activeBlockId={docId.blockRef}
+    />
+  )
+}
+
+function MobileFeedLink({
+  siteHomeId,
+  onClick,
+}: {
+  siteHomeId: UnpackedHypermediaId
+  onClick?: () => void
+}) {
+  const feedLinkProps = useRouteLink({
+    key: 'feed',
+    id: {...siteHomeId, latest: true, version: null},
+  })
+
+  return (
+    <SmallListItem
+      bold
+      title="Feed"
+      icon={<HistoryIcon className="size-4" />}
+      {...feedLinkProps}
+      onClick={(e) => {
+        feedLinkProps.onClick?.(e)
+        onClick?.()
+      }}
     />
   )
 }
@@ -455,8 +483,6 @@ export function SiteHeaderMenu({
 }) {
   const editNavPaneRef = useRef<HTMLDivElement>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
-  // null = not measured yet (SSR), show text by default
-  const [containerWidth, setContainerWidth] = useState<number | null>(null)
 
   // Calculate reserved width for the dropdown button, edit pane, and feed button
   const editNavPaneWidth =
@@ -494,27 +520,6 @@ export function SiteHeaderMenu({
     key: 'feed',
     id: {...siteHomeId, latest: true, version: null},
   })
-
-  // Track container width for responsive Feed button
-  useIsomorphicLayoutEffect(() => {
-    if (!containerRef.current) return
-
-    const updateWidth = () => {
-      setContainerWidth(containerRef.current?.offsetWidth || 0)
-    }
-
-    updateWidth()
-
-    const resizeObserver = new ResizeObserver(updateWidth)
-    resizeObserver.observe(containerRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [containerRef])
-
-  // Show text by default (SSR) or when container is larger than 500px
-  const showFeedText = containerWidth === null || containerWidth > 500
 
   return (
     <div
@@ -618,17 +623,17 @@ export function SiteHeaderMenu({
             )}
           />
 
-          {showFeedText && (
-            <span
-              className={cn(
-                isMainFeedVisible
-                  ? 'text-foreground text-bold'
-                  : 'text-muted-foreground',
-              )}
-            >
-              Feed
-            </span>
-          )}
+          {/* Hide text on smaller screens via CSS to avoid hydration flash */}
+          <span
+            className={cn(
+              'hidden lg:inline',
+              isMainFeedVisible
+                ? 'text-foreground text-bold'
+                : 'text-muted-foreground',
+            )}
+          >
+            Feed
+          </span>
         </a>
       </Tooltip>
     </div>

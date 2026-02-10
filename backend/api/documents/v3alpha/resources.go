@@ -169,8 +169,37 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, status.Errorf(codes.InvalidArgument, "only %v schemes are supported: got '%s'", supportedSchemes, u.Scheme)
 	}
 
-	if u.Scheme != "hm" {
-		return nil, status.Errorf(codes.Unimplemented, "only 'hm' scheme is supported for now")
+	// Resolve web URLs to account IDs.
+	if u.Scheme == "http" || u.Scheme == "https" {
+		// Check if the path starts with /hm/<account-id> - if so, extract directly.
+		if strings.HasPrefix(u.Path, "/hm/") {
+			rest := u.Path[4:] // Remove "/hm/" prefix.
+			// The account ID is the first path component after /hm/.
+			slashIdx := strings.Index(rest, "/")
+			var accountID, remainingPath string
+			if slashIdx == -1 {
+				accountID = rest
+				remainingPath = ""
+			} else {
+				accountID = rest[:slashIdx]
+				remainingPath = rest[slashIdx:]
+			}
+			u.Scheme = "hm"
+			u.Host = accountID
+			u.Path = remainingPath
+		} else {
+			// Resolve account ID via site config endpoint.
+			siteURL := u.Scheme + "://" + u.Host
+			siteConfig, err := srv.idx.ResolveSiteConfig(ctx, siteURL)
+			if err != nil {
+				return nil, status.Errorf(codes.NotFound, "failed to resolve site config for '%s': %v", siteURL, err)
+			}
+			if siteConfig.RegisteredAccountUID == "" {
+				return nil, status.Errorf(codes.NotFound, "site '%s' has no registered account", siteURL)
+			}
+			u.Scheme = "hm"
+			u.Host = siteConfig.RegisteredAccountUID
+		}
 	}
 
 	acc, err := core.DecodePrincipal(u.Host)

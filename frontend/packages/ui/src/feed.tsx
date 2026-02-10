@@ -56,7 +56,6 @@ export function Feed({
   onCommentDelete,
   targetDomain,
   size = 'md',
-  scrollRef,
   navigationContext,
   centered,
 }: {
@@ -67,10 +66,7 @@ export function Feed({
   currentAccount?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
-  scrollRef?: React.Ref<HTMLDivElement>
-  /** Navigation context for comment clicks: 'page' navigates to full discussions page, 'panel' uses document panel */
   navigationContext?: 'page' | 'panel'
-  /** When true, constrains content width and centers it */
   centered?: boolean
 }) {
   const observerRef = useRef<IntersectionObserver>()
@@ -190,7 +186,7 @@ export function Feed({
   }
 
   return (
-    <SelectionContent scrollRef={scrollRef} centered={centered}>
+    <SelectionContent centered={centered}>
       <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e, useFullPageNavigation)

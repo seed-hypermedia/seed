@@ -1,4 +1,4 @@
-import {NavRoute, useRouteLink} from '@shm/shared'
+import {DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {HMExistingDraft, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
@@ -17,9 +17,9 @@ export function DocumentTools({
   directoryCount = 0,
   rightActions,
   existingDraft,
+  currentPanel,
 }: {
   id: UnpackedHypermediaId
-  /** Which tab is currently active in the main content area */
   activeTab?:
     | 'draft'
     | 'content'
@@ -32,6 +32,8 @@ export function DocumentTools({
   directoryCount?: number
   rightActions?: React.ReactNode
   existingDraft?: HMExistingDraft | false
+  /** Current panel route — tabs preserve this when navigating */
+  currentPanel?: DocumentPanelRoute | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -75,7 +77,16 @@ export function DocumentTools({
     }
   }, [activeTab])
 
-  const documentRoute: NavRoute = {key: 'document', id}
+  // Always carry over the current panel so it stays open across tab switches.
+  // Cast needed because each route type has its own panel union (excluding itself)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const panelFor = (): any => currentPanel || undefined
+
+  const documentRoute: NavRoute = {
+    key: 'document',
+    id,
+    panel: panelFor(),
+  }
   const buttons: {
     label: string
     tooltip: string
@@ -98,6 +109,7 @@ export function DocumentTools({
               id: existingDraft.id,
               editPath: id.path || [],
               editUid: id.uid,
+              panel: panelFor(),
             }
         : documentRoute,
       // bg: existingDraft ? 'bg-yellow-200' : undefined,
@@ -107,7 +119,7 @@ export function DocumentTools({
       tooltip: 'Open Document Activity',
       icon: HistoryIcon,
       active: activeTab == 'activity',
-      route: {key: 'activity', id: id},
+      route: {key: 'activity', id: id, panel: panelFor()},
     },
     {
       label: 'Comments',
@@ -115,7 +127,7 @@ export function DocumentTools({
       icon: MessageSquare,
       active: activeTab == 'discussions',
       count: commentsCount,
-      route: {key: 'discussions', id: id},
+      route: {key: 'discussions', id: id, panel: panelFor()},
     },
     {
       label: 'Collaborators',
@@ -123,7 +135,7 @@ export function DocumentTools({
       icon: Users,
       active: activeTab == 'collaborators',
       count: collabsCount,
-      route: {key: 'collaborators', id: id},
+      route: {key: 'collaborators', id: id, panel: panelFor()},
     },
     {
       label: 'Directory',
@@ -131,14 +143,14 @@ export function DocumentTools({
       icon: Folder,
       active: activeTab == 'directory',
       count: directoryCount,
-      route: {key: 'directory', id: id},
+      route: {key: 'directory', id: id, panel: panelFor()},
     },
   ]
   return (
     <div className="flex w-full shrink-0">
       {/* Left spacer to balance the right actions */}
       {rightActions ? (
-        <div style={{width: rightActionsWidth}} className="shrink-0" />
+        <div style={{maxWidth: rightActionsWidth}} className="w-full shrink" />
       ) : null}
       <div
         ref={containerRef}

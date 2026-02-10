@@ -4,14 +4,13 @@ import {UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {DiscussionsRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {PanelContent} from '@shm/ui/accessories'
 import {
   BlockDiscussions,
   CommentDiscussions,
   Discussions,
   useDeleteCommentDialog,
 } from '@shm/ui/comments'
-import {useScrollRestoration} from '@shm/ui/use-scroll-restoration'
 import {memo, useCallback} from 'react'
 import {CommentBox} from './commenting'
 
@@ -24,12 +23,6 @@ function _DiscussionsPanel(props: {
   const {docId, selection} = props
   // Use selection.id if available (panel's own target), otherwise fall back to docId
   const targetDocId = selection.id ?? docId
-  const route = useNavRoute()
-  const scrollRef = useScrollRestoration({
-    scrollId: `discussions-${targetDocId.id}`,
-    getStorageKey: () => getRouteKey(route),
-    debug: false,
-  })
   const selectedAccount = useSelectedAccount()
   const homeDoc = useResource(hmId(targetDocId.uid))
   const targetDomain =
@@ -77,14 +70,15 @@ function _DiscussionsPanel(props: {
     return (
       <>
         {deleteCommentDialog.content}
-        <BlockDiscussions
-          targetId={targetId}
-          commentEditor={commentEditor}
-          targetDomain={targetDomain}
-          currentAccountId={currentAccountId}
-          onCommentDelete={onCommentDelete}
-          scrollRef={scrollRef}
-        />
+        <PanelContent>
+          <BlockDiscussions
+            targetId={targetId}
+            commentEditor={commentEditor}
+            targetDomain={targetDomain}
+            currentAccountId={currentAccountId}
+            onCommentDelete={onCommentDelete}
+          />
+        </PanelContent>
       </>
     )
   }
@@ -96,23 +90,24 @@ function _DiscussionsPanel(props: {
     return (
       <>
         {deleteCommentDialog.content}
-        <CommentDiscussions
-          commentId={selection.openComment}
-          commentEditor={commentEditor}
-          targetId={targetDocId}
-          targetDomain={targetDomain}
-          currentAccountId={currentAccountId}
-          onCommentDelete={onCommentDelete}
-          scrollRef={scrollRef}
-          selection={
-            blockId
-              ? {
-                  blockId,
-                  blockRange: blockRange || undefined,
-                }
-              : undefined
-          }
-        />
+        <PanelContent>
+          <CommentDiscussions
+            commentId={selection.openComment}
+            commentEditor={commentEditor}
+            targetId={targetDocId}
+            targetDomain={targetDomain}
+            currentAccountId={currentAccountId}
+            onCommentDelete={onCommentDelete}
+            selection={
+              blockId
+                ? {
+                    blockId,
+                    blockRange: blockRange || undefined,
+                  }
+                : undefined
+            }
+          />
+        </PanelContent>
       </>
     )
   }
@@ -120,14 +115,14 @@ function _DiscussionsPanel(props: {
   return (
     <>
       {deleteCommentDialog.content}
-      <Discussions
-        commentEditor={commentEditor}
-        targetId={targetDocId}
-        targetDomain={targetDomain}
-        currentAccountId={currentAccountId}
-        onCommentDelete={onCommentDelete}
-        scrollRef={scrollRef}
-      />
+      <PanelContent header={commentEditor}>
+        <Discussions
+          targetId={targetDocId}
+          targetDomain={targetDomain}
+          currentAccountId={currentAccountId}
+          onCommentDelete={onCommentDelete}
+        />
+      </PanelContent>
     </>
   )
 }

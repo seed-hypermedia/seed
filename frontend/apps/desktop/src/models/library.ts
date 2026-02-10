@@ -19,7 +19,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useQuery} from '@tanstack/react-query'
 import {useComments} from './comments'
 import {useContactList} from './contacts'
-import {useFavorites} from './favorites'
+import {useBookmarks} from './bookmarks'
 import {HMSubscription, useListSubscriptions} from './subscription'
 
 export type FilterItem =
@@ -29,7 +29,7 @@ export type FilterItem =
   | 'writer'
   | 'drafts'
   | 'subscribed'
-  | 'favorites'
+  | 'bookmarks'
 
 export type LibraryQueryState = {
   sort: 'lastUpdate' | 'alphabetical'
@@ -47,7 +47,7 @@ export type LibraryData = {
     document?: HMDocument
     location: LibraryDependentData[]
     authors: LibraryDependentData[]
-    isFavorite: boolean
+    isBookmarked: boolean
     isSubscribed: boolean
   }>
   totalItemCount: number
@@ -85,10 +85,10 @@ export function useLibrary({
   displayMode,
 }: {
   grouping: 'site' | 'none'
-  displayMode: 'all' | 'subscribed' | 'favorites'
+  displayMode: 'all' | 'subscribed' | 'bookmarks'
 }) {
   const accounts = useContactList()
-  const favorites = useFavorites()
+  const bookmarks = useBookmarks()
   const subscriptions = useListSubscriptions()
   const allDocuments = useAllDocuments(grouping === 'none')
   const commentIds =
@@ -111,11 +111,11 @@ export function useLibrary({
       documents = documents?.filter(
         (doc) => subscriptions.data?.find((sub) => isSubscribedBy(doc.id, sub)),
       )
-    } else if (displayMode === 'favorites') {
+    } else if (displayMode === 'bookmarks') {
       documents = documents?.filter(
         (doc) =>
-          favorites?.find((fav) => {
-            return fav && fav.id === doc.id.id
+          bookmarks?.find((bm) => {
+            return bm && bm.id === doc.id.id
           }),
       )
     }
@@ -134,9 +134,9 @@ export function useLibrary({
       accts = accts?.filter(
         (acct) => subscriptions.data?.find((sub) => sub.account === acct.id),
       )
-    } else if (displayMode === 'favorites') {
+    } else if (displayMode === 'bookmarks') {
       accts = accts?.filter(
-        (acct) => favorites?.find((fav) => fav && fav.uid === acct.id),
+        (acct) => bookmarks?.find((bm) => bm && bm.uid === acct.id),
       )
     }
     // @ts-expect-error

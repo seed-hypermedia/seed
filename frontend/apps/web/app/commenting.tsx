@@ -141,10 +141,6 @@ export default function WebCommenting({
 
   const docVersion = docId.version
 
-  if (!docVersion) {
-    return null
-  }
-
   const pendingSubmitRef = useRef<(() => Promise<void>) | null>(null)
 
   const {
@@ -202,7 +198,7 @@ export default function WebCommenting({
       }>,
       reset: () => void,
     ) => {
-      if (isSubmitting) return // Prevent double submission
+      if (isSubmitting || !docVersion) return // Prevent double submission
 
       if (!userKeyPair) {
         // Store the pending submission to retry after account creation
@@ -293,9 +289,9 @@ export default function WebCommenting({
     ? 'plausible-event-name=Publish+Comment'
     : 'plausible-event-name=start-create-account'
 
-  // Don't render until draft is loaded
-  if (isDraftLoading) {
-    return <div className="w-full">Loading...</div>
+  // Don't render until draft is loaded or doc version is missing
+  if (isDraftLoading || !docVersion) {
+    return !docVersion ? null : <div className="w-full">Loading...</div>
   }
 
   return (

@@ -209,7 +209,10 @@ function LocationSearch({
       <PopoverTrigger className="no-window-drag">
         <Search className="size-4" />
       </PopoverTrigger>
-      <PopoverContent className="p-2">
+      <PopoverContent
+        className="p-2"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SearchContent
           writableDocuments={writableDocuments}
           onLocationSelected={(newParent) => {

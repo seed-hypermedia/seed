@@ -56,7 +56,7 @@ export default function LibraryPage() {
   const replace = useNavigate('replace')
   const libraryRoute = route.key === 'library' ? route : undefined
   const displayMode = libraryRoute?.displayMode || 'subscribed'
-  function setDisplayMode(mode: 'all' | 'subscribed' | 'favorites') {
+  function setDisplayMode(mode: 'all' | 'subscribed' | 'bookmarks') {
     replace({
       key: 'library',
       ...(libraryRoute || {}),
@@ -96,8 +96,8 @@ export default function LibraryPage() {
                 onDisplayMode={setDisplayMode}
               />
               <DisplayModeTab
-                label="Favorites"
-                value="favorites"
+                label="Bookmarks"
+                value="bookmarks"
                 activeValue={displayMode}
                 onDisplayMode={setDisplayMode}
               />
@@ -217,9 +217,9 @@ function DisplayModeTab({
   onDisplayMode,
 }: {
   label: string
-  value: 'all' | 'subscribed' | 'favorites'
-  activeValue: 'all' | 'subscribed' | 'favorites'
-  onDisplayMode: (value: 'all' | 'subscribed' | 'favorites') => void
+  value: 'all' | 'subscribed' | 'bookmarks'
+  activeValue: 'all' | 'subscribed' | 'bookmarks'
+  onDisplayMode: (value: 'all' | 'subscribed' | 'bookmarks') => void
 }) {
   return (
     <Button

@@ -25,7 +25,7 @@ import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
 import {experimentsApi} from './app-experiments'
-import {favoritesApi} from './app-favorites'
+import {bookmarksApi} from './app-bookmarks'
 import {gatewaySettingsApi} from './app-gateway-settings'
 import {hostApi} from './app-host'
 import {appInvalidateQueries, queryInvalidation} from './app-invalidation'
@@ -277,7 +277,7 @@ export const router = t.router({
         }
       }),
   }),
-  favorites: favoritesApi,
+  bookmarks: bookmarksApi,
   host: hostApi,
   recentSigners: recentSignersApi,
   comments: commentsApi,
