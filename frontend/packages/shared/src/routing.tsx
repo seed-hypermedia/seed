@@ -174,13 +174,14 @@ export function routeToHref(
     return `/hm/profile/${route.id.uid}`
   }
 
-  // Handle view routes (activity, discussions, directory, collaborators)
+  // Handle view routes (activity, discussions, directory, collaborators, feed)
   if (
     typeof route !== 'string' &&
     (route.key === 'activity' ||
       route.key === 'discussions' ||
       route.key === 'directory' ||
-      route.key === 'collaborators')
+      route.key === 'collaborators' ||
+      route.key === 'feed')
   ) {
     const docId = route.id
     // Build path with view term
@@ -205,16 +206,9 @@ export function routeToHref(
   }
 
   const docRoute =
-    typeof route !== 'string' &&
-    (route.key == 'document' || route.key == 'feed')
-      ? route
-      : null
+    typeof route !== 'string' && route.key == 'document' ? route : null
   const docId =
-    typeof route === 'string'
-      ? null
-      : route.key == 'document' || route.key == 'feed'
-      ? route.id
-      : null
+    typeof route === 'string' ? null : route.key == 'document' ? route.id : null
   let href: string | undefined = undefined
   if (typeof route == 'string') {
     href = route
@@ -226,7 +220,6 @@ export function routeToHref(
           {...docId, hostname: null},
           {
             originHomeId: options?.originHomeId,
-            feed: docRoute.key === 'feed',
             panel: panelParam,
           },
         )

@@ -338,6 +338,7 @@ describe('View term for route', () => {
     if (route.key === 'discussions') return '/:discussions'
     if (route.key === 'collaborators') return '/:collaborators'
     if (route.key === 'directory') return '/:directory'
+    if (route.key === 'feed') return '/:feed'
 
     // Document routes with panel
     if (route.key === 'document' && route.panel) {
@@ -368,6 +369,10 @@ describe('View term for route', () => {
 
     it('should return /:directory for directory route', () => {
       expect(getViewTermForRoute({key: 'directory'})).toBe('/:directory')
+    })
+
+    it('should return /:feed for feed route', () => {
+      expect(getViewTermForRoute({key: 'feed'})).toBe('/:feed')
     })
   })
 
@@ -400,10 +405,6 @@ describe('View term for route', () => {
   describe('routes without view term', () => {
     it('should return null for document route without panel', () => {
       expect(getViewTermForRoute({key: 'document'})).toBeNull()
-    })
-
-    it('should return null for feed route', () => {
-      expect(getViewTermForRoute({key: 'feed'})).toBeNull()
     })
 
     it('should return null for contacts route', () => {

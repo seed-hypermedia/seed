@@ -48,7 +48,6 @@ export default function DesktopResourcePage() {
   // Only handle document-related routes
   const supportedKeys = [
     'document',
-    'feed',
     'directory',
     'collaborators',
     'activity',
