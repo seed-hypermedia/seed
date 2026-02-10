@@ -6,6 +6,7 @@ import {useCreateDraft} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
 import {useSelectedAccount} from '@/selected-account'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
+import {useResource} from '@shm/shared/models/entity'
 import {DocSelectionOption} from '@shm/shared/routes'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
@@ -184,7 +185,12 @@ export function useDocumentSelection({
   const selectionOptions: Array<DocSelectionOption> = []
 
   const selectedAccount = useSelectedAccount()
-  const canCreateSubDoc = useCanCreateSubDocument(docId)
+  const docResource = useResource(docId)
+  const isPrivateDoc =
+    docResource.data?.type === 'document'
+      ? docResource.data.document?.visibility === 'PRIVATE'
+      : false
+  const canCreateSubDoc = useCanCreateSubDocument(docId) && !isPrivateDoc
 
   if (panelKey === 'collaborators') {
     // @ts-expect-error
