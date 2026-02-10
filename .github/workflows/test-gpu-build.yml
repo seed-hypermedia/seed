@@ -37,7 +37,11 @@ jobs:
       - name: Set test version
         id: set_version
         run: |
-          VERSION="0.0.${GITHUB_RUN_NUMBER}-test-gpu.${GITHUB_SHA::7}"
+          MAJOR=$(date -u +%Y)
+          MINOR=$(date -u +%m)
+          PATCH=$((GITHUB_RUN_NUMBER % 65535))
+          BUILD=${GITHUB_RUN_ATTEMPT}
+          VERSION="${MAJOR}.${MINOR#0}.${PATCH}.${BUILD}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   build-backend:
