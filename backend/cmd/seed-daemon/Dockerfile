@@ -1,7 +1,10 @@
 # Build from the root with `docker build . -f ./backend/cmd/seed-daemon/Dockerfile`.
 
-
-FROM golang:1.25.4-alpine AS builder
+# Use Debian Trixie for glibc compatibility and newer Vulkan SDK (1.4.309+).
+# Alpine's musl libc is incompatible with GCC 14's libstdc++ which uses
+# glibc-specific symbols (__libc_single_threaded, __isoc23_* functions).
+# Bookworm's Vulkan SDK (1.3.239) is too old for llama.cpp's ggml-vulkan.
+FROM golang:1.25-trixie AS builder
 WORKDIR /code
 ARG COMMIT_HASH
 ARG BRANCH
@@ -13,11 +16,15 @@ COPY backend ./backend
 COPY monitoring ./monitoring
 
 # Install build dependencies for llama.cpp with Vulkan GPU support.
-RUN apk add build-base cmake g++ linux-headers vulkan-headers vulkan-loader-dev shaderc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake g++ libvulkan-dev glslc \
+    && rm -rf /var/lib/apt/lists/*
 
 # Build llama.cpp with Vulkan GPU support (falls back to CPU at runtime if no GPU available).
+# Clean any pre-existing build artifacts copied from host to ensure fresh build.
 WORKDIR /code/backend/util/llama-go
-RUN CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+RUN rm -rf build llama.cpp/*.o *.o *.a *.so && \
+    BUILD_TYPE=vulkan CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
 
 # Build seed-daemon with llama.cpp support.
 WORKDIR /code
@@ -25,8 +32,10 @@ ENV LIBRARY_PATH=/code/backend/util/llama-go
 ENV C_INCLUDE_PATH=/code/backend/util/llama-go
 RUN go install -ldflags="-X 'seed/backend/daemon.commit=$COMMIT_HASH' -X 'seed/backend/daemon.branch=$BRANCH' -X 'seed/backend/daemon.date=$DATE'" ./backend/cmd/seed-daemon/
 
-FROM alpine:latest
-RUN apk add --no-cache rsync vulkan-loader
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    rsync libvulkan1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /go/bin/seed-daemon /usr/local/bin/seed-daemon
 COPY --from=builder /code/monitoring/grafana /monitoring/grafana
 COPY --from=builder /code/monitoring/prometheus /monitoring/prometheus
