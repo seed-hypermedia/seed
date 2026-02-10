@@ -18,7 +18,7 @@ export type MenuItemType = {
   subLabel?: string
   icon: React.ReactNode
   onClick: ButtonProps['onClick']
-  color?: string
+  variant?: 'default' | 'destructive'
 }
 
 export function OptionsDropdown({
@@ -72,6 +72,7 @@ export function OptionsDropdown({
                     ) : null,
                     <div key={item.key}>
                       <DropdownMenuItem
+                        variant={item.variant}
                         onClick={(e) => {
                           e.stopPropagation()
                           popoverState.onOpenChange(false)

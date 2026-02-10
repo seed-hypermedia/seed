@@ -173,7 +173,8 @@ export function DocumentTools({
   )
 
   if (layoutProps) {
-    const {wrapperProps, sidebarProps, mainContentProps} = layoutProps
+    const {wrapperProps, sidebarProps, mainContentProps, showSidebars} =
+      layoutProps
     return (
       <div className="flex w-full shrink-0">
         <div
@@ -181,7 +182,7 @@ export function DocumentTools({
           className={cn(wrapperProps.className, 'flex flex-1 items-center')}
           style={wrapperProps.style}
         >
-          <div {...sidebarProps} />
+          {showSidebars && <div {...sidebarProps} />}
           <div
             {...mainContentProps}
             ref={containerRef}
@@ -192,16 +193,27 @@ export function DocumentTools({
           >
             {tabButtons}
           </div>
-          <div
-            {...sidebarProps}
-            className={cn(sidebarProps.className, 'flex items-center !p-0')}
-          >
-            {rightActions ? (
+          {showSidebars ? (
+            <div
+              {...sidebarProps}
+              className={cn(sidebarProps.className, 'flex items-center !p-0')}
+            >
+              {rightActions ? (
+                <div
+                  ref={rightActionsRef}
+                  className="flex shrink-0 items-center"
+                >
+                  {rightActions}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            rightActions && (
               <div ref={rightActionsRef} className="flex shrink-0 items-center">
                 {rightActions}
               </div>
-            ) : null}
-          </div>
+            )
+          )}
         </div>
       </div>
     )
@@ -209,9 +221,12 @@ export function DocumentTools({
 
   return (
     <div className="flex w-full shrink-0">
-      {/* Left spacer to balance the right actions */}
+      {/* Left spacer to balance the right actions (hidden on mobile) */}
       {rightActions ? (
-        <div style={{maxWidth: rightActionsWidth}} className="w-full shrink" />
+        <div
+          style={{maxWidth: rightActionsWidth}}
+          className="hidden w-full shrink md:block"
+        />
       ) : null}
       <div
         ref={containerRef}

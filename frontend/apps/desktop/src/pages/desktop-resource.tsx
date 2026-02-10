@@ -193,6 +193,7 @@ export default function DesktopResourcePage() {
       key: 'delete',
       label: 'Delete Document',
       icon: <Trash className="size-4" />,
+      variant: 'destructive',
       onClick: () => {
         deleteEntity.open({
           id: docId,

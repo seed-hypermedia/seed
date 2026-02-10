@@ -879,20 +879,47 @@ function DocumentBody({
 
       <DocumentCover cover={document.metadata?.cover} />
 
-      <div
-        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-        style={{maxWidth: contentMaxWidth}}
-      >
-        {!isHomeDoc && (
-          <DocumentHeader
-            docId={docId}
-            docMetadata={document.metadata}
-            authors={[]}
-            updateTime={document.updateTime}
-            breadcrumbs={breadcrumbs}
-          />
-        )}
-      </div>
+      {!isMobile ? (
+        <div
+          {...wrapperProps}
+          className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
+        >
+          {showSidebars && <div {...sidebarProps} />}
+          <div
+            {...mainContentProps}
+            className={cn(mainContentProps.className, 'flex flex-col')}
+          >
+            {!isHomeDoc && (
+              <DocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={[]}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+              />
+            )}
+          </div>
+          {showSidebars && <div {...sidebarProps} />}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'mx-auto flex w-full flex-col px-4',
+            isHomeDoc && 'mt-6',
+          )}
+          style={{maxWidth: contentMaxWidth}}
+        >
+          {!isHomeDoc && (
+            <DocumentHeader
+              docId={docId}
+              docMetadata={document.metadata}
+              authors={[]}
+              updateTime={document.updateTime}
+              breadcrumbs={breadcrumbs}
+            />
+          )}
+        </div>
+      )}
 
       {/* Sentinel element - also provides top spacing before tools */}
       <div ref={toolsSentinelRef} className="h-3" />

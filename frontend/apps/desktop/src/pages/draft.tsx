@@ -1119,6 +1119,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       key: 'delete-draft',
       label: 'Delete Draft',
       icon: <Trash className="size-4" />,
+      variant: 'destructive',
       onClick: () => {
         if (draftId) {
           deleteDialog.open({
@@ -1192,6 +1193,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
                 accessoryWidth: 0,
               })
             }}
+            className="hover:bg-hover dark:bg-background bg-white"
           >
             <Eye className="size-4" />
           </Button>
@@ -1199,6 +1201,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       ) : null}
       <Tooltip content="Toggle Draft Options">
         <Button
+          className="hover:bg-hover dark:bg-background bg-white"
           onClick={() => {
             replace({
               ...route,

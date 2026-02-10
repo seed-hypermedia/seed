@@ -109,7 +109,7 @@ export function DirectoryPageContent({
       )}
 
       {/* Content */}
-      <div className="p-6" ref={scrollRef}>
+      <div className="py-6" ref={scrollRef}>
         {items.length === 0 ? (
           <DirectoryEmpty canCreate={canCreate} />
         ) : filteredItems.length === 0 ? (
