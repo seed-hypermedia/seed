@@ -86,10 +86,6 @@ message RegisterKeyRequest {
   // Name must be unique across all the registered keys.
   string name = 3;
 
-  // Optional. If true, the key is stored in memory only and will not persist across daemon restarts.
-  // Ephemeral keys are useful for temporary operations like bulk imports where many keys are generated
-  // but don't need to pollute the user's permanent keyring.
-  bool ephemeral = 4;
 }
 
 // Request to get basic information about the running daemon.
