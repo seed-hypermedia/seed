@@ -471,13 +471,36 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	}
 	maxDistance := 1 - float64(threshold)
 	ret := make(map[int64]float32)
-	if err := sqlitex.Exec(conn, qEmbeddingsSearch(), func(stmt *sqlite.Stmt) error {
+
+	// Determine if we need IRI pre-filtering.
+	// Generic patterns like "*" or "hm://*" don't need filtering.
+	needsIriFilter := iriGlob != "*" && iriGlob != "hm://*"
+
+	resultHandler := func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
 		similarity := max(0, 1-distance)
 		ret[stmt.ColumnInt64(0)] = float32(similarity)
 		return nil
-	}, queryEmbedding, maxDistance, limit, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob); err != nil {
-		return nil, fmt.Errorf("semantic search query failed: %w", err)
+	}
+
+	if needsIriFilter {
+		// Use pre-filtered query with fts_id IN (subquery).
+		// The subquery parameters are duplicated for both UNION branches.
+		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
+			queryEmbedding, maxDistance, limit,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, iriGlob,
+		); err != nil {
+			return nil, fmt.Errorf("semantic search query failed: %w", err)
+		}
+	} else {
+		// Use unfiltered query for generic IRI patterns.
+		if err := sqlitex.Exec(conn, qEmbeddingsSearchUnfiltered(), resultHandler,
+			queryEmbedding, maxDistance, limit,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment,
+		); err != nil {
+			return nil, fmt.Errorf("semantic search query failed: %w", err)
+		}
 	}
 
 	return ret, nil
@@ -841,22 +864,48 @@ var qEmbeddingsInsert = dqb.Str(`
 	VALUES (vec_int8(?), ?);
 `)
 
-var qEmbeddingsSearch = dqb.Str(`
+// qEmbeddingsSearchUnfiltered searches embeddings without IRI filtering.
+// Used when iriGlob is generic (e.g., "*" or "hm://*").
+var qEmbeddingsSearchUnfiltered = dqb.Str(`
 SELECT
 	v.fts_id,
-    v.distance
+	v.distance
 FROM embeddings v
 JOIN fts_index fi ON fi.rowid = v.fts_id
-LEFT JOIN structural_blobs sb ON sb.id = fi.blob_id
-LEFT JOIN resources r1 ON r1.id = sb.resource
-LEFT JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
-LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
-LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
   AND v.distance < ?
   AND k = ?
   AND fi.type IN (?, ?, ?, ?)
-  AND COALESCE(r1.iri, r2.iri) IS NOT NULL 
-  AND COALESCE(r1.iri, r2.iri) GLOB ?
+ORDER BY v.distance
+`)
+
+// qEmbeddingsSearchFiltered searches embeddings with IRI pre-filtering.
+// Uses fts_id IN (subquery) to leverage sqlite-vec's metadata pre-filtering,
+// which filters vectors BEFORE distance calculation for better performance.
+// The subquery finds fts entries matching the IRI pattern via two paths:
+// 1. Direct: fts_index -> structural_blobs -> resources (for documents/titles)
+// 2. Indirect: fts_index -> blob_links -> structural_blobs -> resources (for comments).
+var qEmbeddingsSearchFiltered = dqb.Str(`
+SELECT
+	v.fts_id,
+	v.distance
+FROM embeddings v
+WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
+  AND v.distance < ?
+  AND k = ?
+  AND v.fts_id IN (
+    SELECT fi.rowid FROM fts_index fi
+    JOIN structural_blobs sb ON sb.id = fi.blob_id
+    JOIN resources r ON r.id = sb.resource
+    WHERE fi.type IN (?, ?, ?, ?)
+      AND r.iri GLOB ?
+    UNION
+    SELECT fi.rowid FROM fts_index fi
+    JOIN blob_links bl ON bl.target = fi.blob_id AND bl.type = 'ref/head'
+    JOIN structural_blobs sb ON sb.id = bl.source
+    JOIN resources r ON r.id = sb.resource
+    WHERE fi.type IN (?, ?, ?, ?)
+      AND r.iri GLOB ?
+  )
 ORDER BY v.distance
 `)
