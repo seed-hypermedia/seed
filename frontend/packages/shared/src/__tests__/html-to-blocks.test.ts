@@ -22,6 +22,18 @@ describe('htmlToBlocks', () => {
     })
   })
 
+  it('converts top-level plain text into a paragraph block', async () => {
+    const html = 'Plain text from WXR content'
+    const blocks = await htmlToBlocks(html, '/test/path', {})
+
+    expect(blocks).toHaveLength(1)
+    // @ts-expect-error
+    expect(blocks[0].block).toMatchObject({
+      type: 'Paragraph',
+      text: 'Plain text from WXR content',
+    })
+  })
+
   it('converts images to blocks with figure wrapper', async () => {
     const html = '<figure><img src="test.jpg" /></figure>'
     const uploadLocalFile = vi.fn().mockResolvedValue('QmTestCID')
