@@ -120,7 +120,7 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CGO_LDFLAGS: -static-libgcc -static-libstdc++
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++ -static-libgomp
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
@@ -140,7 +140,7 @@ jobs:
           echo "Windows DLL imports:"
           echo "$DLLS"
 
-          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll)$'; then
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll|libwinpthread-1\.dll)$'; then
             echo "ERROR: MinGW runtime DLL dependency is still present"
             exit 1
           fi
