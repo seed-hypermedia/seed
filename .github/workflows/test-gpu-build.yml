@@ -68,7 +68,7 @@ jobs:
             name: windows-x64
             arch: x64
             goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+            daemon_name: x86_64-pc-windows-gnu
 
     runs-on: ${{ matrix.config.os }}
     name: Build ${{ matrix.config.name }}
@@ -111,34 +111,16 @@ jobs:
 
       - name: Build seed-daemon (Windows)
         if: matrix.config.os == 'windows-2025'
-        shell: powershell
+        shell: bash
         run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $installPath) { throw "Visual Studio install path not found" }
-          $vsDevCmd = Join-Path $installPath "Common7\Tools\VsDevCmd.bat"
-          if (-not (Test-Path $vsDevCmd)) { throw "VsDevCmd.bat not found at $vsDevCmd" }
-
-          $cmdFile = Join-Path $env:TEMP "build-seed-daemon-windows.cmd"
-          $cmdLines = @(
-            '@echo off',
-            "call `"$vsDevCmd`" -arch=x64 -host_arch=x64",
-            'if errorlevel 1 exit /b %errorlevel%',
-            'go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon',
-            'if errorlevel 1 exit /b %errorlevel%'
-          )
-          Set-Content -Path $cmdFile -Value $cmdLines -Encoding Ascii
-
-          cmd.exe /d /s /c "`"$cmdFile`""
-          if ($LASTEXITCODE -ne 0) { throw "seed-daemon build failed with exit code $LASTEXITCODE" }
-
-          Get-ChildItem plz-out/bin/backend/seed-daemon-* | Format-Table Name, Length
+          mkdir -p plz-out/bin/backend
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          ls -la plz-out/bin/backend/seed-daemon-*
         env:
           GOOS: windows
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CC: clang --target=x86_64-pc-windows-msvc
-          CXX: clang++ --target=x86_64-pc-windows-msvc -fuse-ld=lld
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
