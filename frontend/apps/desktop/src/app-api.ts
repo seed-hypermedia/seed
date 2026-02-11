@@ -6,8 +6,13 @@ import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
 import {HMHostConfigSchema, SiteDiscoverRequest} from '@shm/shared'
-import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {
+  createDocumentNavRoute,
+  defaultRoute,
+  NavRoute,
+  navRouteSchema,
+} from '@shm/shared/routes'
+import {parseCustomURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   app,
   BrowserWindow,
@@ -438,7 +443,13 @@ export async function handleUrlOpen(url: string) {
 
   log.info('Deep Link Open', {url: url})
   const id = unpackHmId(url)
-  const appRoute = id ? appRouteOfId(id) : null
+  const parsed = parseCustomURL(url)
+  const panel = parsed?.query?.panel || null
+  const appRoute = id
+    ? panel
+      ? createDocumentNavRoute(id, null, panel)
+      : appRouteOfId(id)
+    : null
   if (appRoute) {
     // Get selectedIdentity from last focused window
     const lastFocusedWindow = getLastFocusedWindow()
