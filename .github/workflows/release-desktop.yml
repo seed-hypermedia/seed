@@ -140,6 +140,7 @@ jobs:
           VITE_NOTIFY_SERVICE_HOST: "https://notify.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           VITE_SEED_HOST_URL: "https://host.seed.hyper.media"
+          VITE_PLAUSIBLE_DOMAIN: "stats.desktop.seedhypermedia.com"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -182,6 +183,7 @@ jobs:
           VITE_NOTIFY_SERVICE_HOST: "https://notify.seed.hyper.media"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           VITE_SEED_HOST_URL: "https://host.seed.hyper.media"
+          VITE_PLAUSIBLE_DOMAIN: "stats.desktop.seedhypermedia.com"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
 
       - name: Upload Artifacts

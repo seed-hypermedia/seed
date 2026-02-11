@@ -1,5 +1,4 @@
 import {DocumentPanelRoute, NavRoute, useRouteLink} from '@shm/shared'
-import {IS_DESKTOP} from '@shm/shared/constants'
 import {HMExistingDraft, UnpackedHypermediaId} from '@shm/shared/hm-types'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {MessageSquare, Newspaper, Users} from 'lucide-react'
@@ -274,9 +273,7 @@ function ToolLink({
   let btn = (
     <Button
       className={cn(
-        `flex-1 rounded-full ${
-          IS_DESKTOP ? '' : 'plausible-event-name=Open+Document+Comments'
-        }`,
+        'plausible-event-name=Open+Document+Comments flex-1 rounded-full',
         bg,
       )}
       asChild

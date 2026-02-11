@@ -30,6 +30,19 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 
 import './root.tsx'
 
+// Inject Plausible analytics script when VITE_PLAUSIBLE_DOMAIN is set (production CI builds only)
+// @ts-expect-error
+const plausibleDomain = import.meta.env.VITE_PLAUSIBLE_DOMAIN
+if (plausibleDomain) {
+  const script = document.createElement('script')
+  script.defer = true
+  script.dataset.domain = plausibleDomain
+  script.setAttribute('file-types', 'rpm,deb,dmg,exe')
+  script.src =
+    'https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js'
+  document.head.appendChild(script)
+}
+
 if (IS_PROD_DESKTOP) {
   Sentry.init({
     // @ts-ignore
