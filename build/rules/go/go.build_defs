@@ -101,7 +101,7 @@ $TOOLS_GO build -trimpath -o $OUT {package}
 LLVM_TRIPLES = {
     "darwin/amd64": "x86_64-apple-darwin",
     "darwin/arm64": "aarch64-apple-darwin",
-    "windows/amd64": "x86_64-pc-windows-msvc",
+    "windows/amd64": "x86_64-pc-windows-gnu",
     "linux/amd64": "x86_64-unknown-linux-gnu",
     "linux/arm64": "aarch64-unknown-linux-gnu",
 }

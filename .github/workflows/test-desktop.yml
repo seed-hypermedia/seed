@@ -49,7 +49,7 @@ jobs:
           - os: windows-2025
             arch: x64
             goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+            daemon_name: x86_64-pc-windows-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
