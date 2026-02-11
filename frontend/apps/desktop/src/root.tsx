@@ -234,6 +234,9 @@ function useDarkMode(): boolean {
 
 // on desktop we handle query invalidation by sending it through IPC so it is sent to all windows
 onQueryInvalidation((queryKey: QueryKey) => {
+  // invalidate local cache immediately so navigations within this window see fresh data
+  queryClient.invalidateQueries({queryKey})
+  // also broadcast to all windows via IPC
   ipc.send?.('invalidate_queries', queryKey)
 })
 

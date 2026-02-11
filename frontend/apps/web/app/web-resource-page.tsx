@@ -8,7 +8,7 @@ import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {useCallback} from 'react'
-import {WebAccountFooter, useWebMenuItems} from './web-common'
+import {WebAccountFooter, useWebMenuItems} from './web-utils'
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId

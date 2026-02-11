@@ -2,11 +2,13 @@ import {hmId, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {createWebHMUrl, displayHostname} from '@shm/shared/utils/entity-id-url'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
+import {useMedia} from '@shm/ui/use-media'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {Link} from '@shm/ui/icons'
+import {HistoryIcon, Link} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {CircleUser} from 'lucide-react'
+import {CircleUser, Folder} from 'lucide-react'
 import {ReactNode, useMemo} from 'react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
@@ -72,6 +74,9 @@ export function useWebAccountButton() {
 
 export function useWebMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
   const gwUrl = DEFAULT_GATEWAY_URL
+  const navigate = useNavigate()
+  const media = useMedia()
+  const isMobile = media.xs
   const gatewayLink = useMemo(
     () =>
       createWebHMUrl(docId.uid, {
@@ -103,8 +108,36 @@ export function useWebMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
           }
         },
       },
+      {
+        key: 'versions',
+        label: 'Document Versions',
+        icon: <HistoryIcon className="size-4" />,
+        onClick: () => {
+          if (isMobile) {
+            navigate({
+              key: 'activity',
+              id: docId,
+              filterEventType: ['Ref'],
+            })
+          } else {
+            navigate({
+              key: 'document',
+              id: docId,
+              panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+            })
+          }
+        },
+      },
+      {
+        key: 'directory',
+        label: 'Directory',
+        icon: <Folder className="size-4" />,
+        onClick: () => {
+          navigate({key: 'directory', id: docId})
+        },
+      },
     ],
-    [gwUrl, gatewayLink],
+    [gwUrl, gatewayLink, navigate, docId, isMobile],
   )
 }
 
