@@ -252,30 +252,74 @@ message DeletedEntity {
   // Further metadata about the deleted entity, title, etc ...
   string metadata = 4;
 }
-// Request to
+
+// Describes the state of the discovery task.
+enum SearchType {
+  // Keyword-based search.
+  SEARCH_KEYWORD = 0;
+
+  // Semantic search.
+  SEARCH_SEMANTIC = 1;
+
+  // Hybrid search. with RRFusion.
+  SEARCH_HYBRID = 2;
+}
+
+// Content type to filter search results by.
+enum ContentTypeFilter {
+  CONTENT_TYPE_TITLE = 0;
+  CONTENT_TYPE_DOCUMENT = 1;
+  CONTENT_TYPE_COMMENT = 2;
+  CONTENT_TYPE_CONTACT = 3;
+}
+
+// Request to search entities.
 message SearchEntitiesRequest {
-  // Query to find. We Ssupport wildcards and phrases.
+  // Query to find. We support wildcards and phrases.
   // See https://sqlite.org/fts5.html#full_text_query_syntax.
   string query = 1;
 
-  // Whether to look into all content available or just the titles.
-  // If false, comments are not included in the search.
-  // Default is false.
-  bool include_body = 2;
+  // Deprecated, use content_type_filters instead to specify 
+  // which content types to include in the search.
+  bool include_body = 2 [deprecated = true];
 
   // Optional. The size of the text accompanying the search match.
   // Half of the size is before the match, and half after.
   // Default is 48 runes.
   int32 context_size = 3;
 
-  // Optional. The account uid to filter the search by.
-  // If not set, the search will be performed across all accounts.
-  string account_uid = 4;
+  // Deprecated. Use iri_filter instead.
+  string account_uid = 4 [deprecated = true];
 
   // Optional. The account uid the user is logged in with.
   // This is used to filter out contacts that the user doesn't have access to.
   // If not set, we won't provide any contact entities in the response.
   string logged_account_uid = 5;
+
+  // Optional. Type of search to perform. Could be keyword, semantic or hybrid.
+  // if not set, keyword search is used.
+  SearchType search_type = 6;
+
+  // Optional. hm:// URL with optional GLOB wildcards to scope search.
+  // Examples: "hm://<account>/cars/honda" (single doc), "hm://<account>/cars/*" (subtree).
+  // When empty, falls back to account_uid if set, otherwise matches all.
+  string iri_filter = 7;
+
+  // Optional. Fine-grained content type selection. Overrides include_body when set.
+  // When empty, legacy behavior (title + body types based on include_body).
+  repeated ContentTypeFilter content_type_filter = 8;
+
+  // Optional. Authority weight for citation-based ranking. Range [0, 1].
+  // 0 (default) disables authority scoring. Higher values increase citation influence.
+  // Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
+  float authority_weight = 9;
+
+  // Optional. Maximum number of results per page.
+  // When 0 (default), all results are returned (backwards compatible).
+  int32 page_size = 10;
+
+  // Optional. Token from a previous SearchEntitiesResponse to get the next page.
+  string page_token = 11;
 }
 
 // A list of entities matching the request.

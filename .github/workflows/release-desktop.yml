@@ -66,10 +66,36 @@ jobs:
           - os: windows-2025
             arch: x64
             goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+            daemon_name: x86_64-pc-windows-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - name: Download GGUF model (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: pwsh
+        run: |
+          $modelPath = "backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf"
+          if (-not (Test-Path $modelPath)) {
+            New-Item -ItemType Directory -Force -Path "backend/llm/backends/llamacpp/models"
+            Invoke-WebRequest -Uri "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true" -OutFile $modelPath
+          }
 
       - uses: ./.github/actions/ci-setup
         with:
@@ -77,24 +103,59 @@ jobs:
           # matrix-target: ${{ matrix.config.daemon_name }}
           # matrix-arch: ${{ matrix.config.arch }}
 
-      - name: Build Backend (Unix)
-        if: matrix.config.os != 'windows-2025'
+      - name: Build Backend (Linux)
+        if: matrix.config.os == 'ubuntu-latest'
         run: |
           mkdir -p plz-out/bin/backend
+          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Build Backend (macOS)
+        if: startsWith(matrix.config.os, 'macos')
+        run: |
+          mkdir -p plz-out/bin/backend
+          # GPU is enabled by default (no -tags needed)
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+        env:
+          GOARCH: ${{ matrix.config.goarch }}
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
         if: startsWith(matrix.config.os, 'windows')
+        shell: bash
         run: |
           mkdir -p plz-out/bin/backend
+          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: "windows"
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Stage Windows runtime DLL
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          set -euo pipefail
+          DLL_PATH="$(gcc -print-file-name=libwinpthread-1.dll)"
+
+          if [ ! -f "$DLL_PATH" ]; then
+            echo "ERROR: libwinpthread-1.dll not found in gcc toolchain"
+            exit 1
+          fi
+
+          cp "$DLL_PATH" plz-out/bin/backend/libwinpthread-1.dll
+          ls -la plz-out/bin/backend/libwinpthread-1.dll
 
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')

@@ -3030,3 +3030,862 @@ func pullDocument(t *testing.T, app *App, account, path, wantVersion string) {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
+
+func TestSearchEntitiesFilters(t *testing.T) {
+	t.Parallel()
+	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	aliceAccount := aliceIdentity.Account.PublicKey.String()
+
+	// Create documents with distinct, searchable content at different paths.
+	_, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home Page"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Welcome to my page"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/cars/honda",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Honda rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Honda reliability is legendary"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/cars/toyota",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Toyota rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Toyota durability is unmatched"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/bikes/yamaha",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Why Yamaha rocks"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "Yamaha speed is unreal"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("IriFilterSubtree", func(t *testing.T) {
+		// Search with iri_filter scoped to /cars/* — must only return honda and toyota.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "rocks",
+			IncludeBody: true,
+			IriFilter:   "hm://" + aliceAccount + "/cars/*",
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results under /cars/*")
+		for _, e := range res.Entities {
+			require.Contains(t, e.Id, "/cars/", "all results must be under /cars/ subtree")
+		}
+	})
+
+	t.Run("IriFilterInvalid", func(t *testing.T) {
+		// Invalid pattern must return error.
+		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:     "rocks",
+			IriFilter: "not-hm://injection; DROP TABLE fts",
+		})
+		require.Error(t, err, "invalid iri_filter must be rejected")
+	})
+
+	t.Run("DeprecatedAccountUidFallback", func(t *testing.T) {
+		// Empty iri_filter + account_uid set must still work (legacy).
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:      "rocks",
+			AccountUid: aliceAccount,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results for the account")
+	})
+
+	t.Run("ContentTypeFilterExplicit", func(t *testing.T) {
+		// content_type_filters = [TITLE] must only return title matches.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:             "rocks",
+			IncludeBody:       true,
+			ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return title results")
+		for _, e := range res.Entities {
+			require.Equal(t, "title", e.Type, "must only return title results when filter is explicit")
+		}
+	})
+
+	t.Run("ContentTypeLegacyWithBody", func(t *testing.T) {
+		// Empty content_type_filters + include_body=true must search body content.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:       "reliability",
+			IncludeBody: true,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must find body content with include_body")
+	})
+
+	t.Run("ContentTypeTitleOnlyDefault", func(t *testing.T) {
+		// Empty content_type_filters + include_body=false must only search titles.
+		// "reliability" is only in the body → no results.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query: "reliability",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 0, "must not find body content without include_body")
+	})
+
+	t.Run("AuthorityWeightInvalid", func(t *testing.T) {
+		// authority_weight > 1 must be rejected.
+		_, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:           "rocks",
+			AuthorityWeight: 1.5,
+		})
+		require.Error(t, err, "authority_weight > 1 must be rejected")
+	})
+
+	t.Run("AuthorityWeightZero", func(t *testing.T) {
+		// authority_weight = 0 (default) must work normally.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query: "rocks",
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results with default authority_weight")
+	})
+
+	t.Run("AuthorityWeightValid", func(t *testing.T) {
+		// authority_weight within range must not error.
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:           "rocks",
+			AuthorityWeight: 0.3,
+		})
+		require.NoError(t, err)
+		require.Greater(t, len(res.Entities), 0, "must return results with valid authority_weight")
+	})
+}
+
+// parseEntityVersion extracts version info from an entity ID.
+// Entity IDs have the format: "hm://account/path?v=<version>#blockId[offset:end]"
+// The version may end with "&l" if it represents the latest version.
+// Returns the version string (without &l suffix) and whether it has the latest marker.
+func parseEntityVersion(entityID string) (version string, isLatest bool) {
+	// Find the version parameter.
+	vIdx := strings.Index(entityID, "?v=")
+	if vIdx == -1 {
+		return "", false
+	}
+
+	// Extract everything after "?v=".
+	versionPart := entityID[vIdx+3:]
+
+	// Remove the fragment (block ID) if present.
+	if hashIdx := strings.Index(versionPart, "#"); hashIdx != -1 {
+		versionPart = versionPart[:hashIdx]
+	}
+
+	// Check for latest marker.
+	if strings.HasSuffix(versionPart, "&l") {
+		return strings.TrimSuffix(versionPart, "&l"), true
+	}
+
+	return versionPart, false
+}
+
+func TestSearchVersionConsistency(t *testing.T) {
+	t.Parallel()
+
+	// Setup with embeddings enabled for semantic/hybrid search.
+	cfg := makeTestConfig(t)
+	cfg.LLM.Embedding.Enabled = true
+	alice := makeTestApp(t, "alice", cfg, true)
+	ctx := context.Background()
+	aliceIdentity := coretest.NewTester("alice")
+	aliceAccount := aliceIdentity.Account.PublicKey.String()
+
+	// ===== DOCUMENT 1 SETUP: /version-test-animals =====
+	// This document has 3 blocks (b1, b2, b3) with 5 changes:
+	// C1: b1="alpha dinosaur", b2="static forever", b3="beta elephant"
+	// C2: b1="beta elephant" (b2, b3 untouched)
+	// C3: b3="beta giraffe" (b1, b2 untouched)
+	// C4: b1="gamma hippo" (b2, b3 untouched)
+	// C5: b3="delta iguana" (b1, b2 untouched)
+
+	// C1: Create document with 3 blocks.
+	c1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-animals",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Animal Versions Test"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b3", Parent: "", LeftSibling: "b2"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "alpha dinosaur"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "static forever"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "beta elephant"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// C2: Modify b1 only.
+	c2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-animals",
+		SigningKeyName: "main",
+		BaseVersion:    c1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "beta elephant"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// C3: Modify b3 only.
+	c3, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-animals",
+		SigningKeyName: "main",
+		BaseVersion:    c2.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "beta giraffe"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// C4: Modify b1 only.
+	c4, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-animals",
+		SigningKeyName: "main",
+		BaseVersion:    c3.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "gamma hippo"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// C5: Modify b3 only (final version for doc1).
+	c5, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-animals",
+		SigningKeyName: "main",
+		BaseVersion:    c4.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "delta iguana"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_ = c5 // c5.Version is the latest for doc1.
+
+	// ===== DOCUMENT 2 SETUP: /version-test-creatures =====
+	// This document has 2 blocks (b1, b2) with 3 changes:
+	// D1: b1="omega tiger", b2="beta koala"
+	// D2: b1="beta koala" (b2 untouched)
+	// D3: b1="epsilon panda" (b2 untouched)
+
+	// D1: Create document with 2 blocks.
+	d1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-creatures",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Creature Versions Test"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "omega tiger"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "beta koala"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// D2: Modify b1 only.
+	d2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-creatures",
+		SigningKeyName: "main",
+		BaseVersion:    d1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "beta koala"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// D3: Modify b1 only (final version for doc2).
+	d3, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/version-test-creatures",
+		SigningKeyName: "main",
+		BaseVersion:    d2.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "epsilon panda"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_ = d3 // d3.Version is the latest for doc2.
+
+	// ===== DOCUMENT 3 SETUP: /multi-block-commit-test =====
+	// This document tests a bug where multiple blocks modified in the same commit
+	// can cause version corruption in search results.
+	//
+	// M1: Create 3 blocks
+	//   b1="zulu unique content", b2="yankee other stuff", b3="xray more things"
+	// M2: Modify ALL 3 blocks in ONE commit (including deleting b1's content)
+	//   b1="" (deletion), b2="yankee modified", b3="xray modified"
+	//
+	// The bug: When searching for "zulu" (deleted in M2), the version lookup
+	// iterates through M2's changes. It updates latestUnrelated for b2 and b3
+	// changes (same commit, different blocks) BEFORE detecting that b1 was also
+	// modified. This causes the returned version to be M2's instead of M1's.
+
+	// M1: Create document with 3 blocks.
+	m1, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/multi-block-commit-test",
+		SigningKeyName: "main",
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Multi Block Commit Test"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b3", Parent: "", LeftSibling: "b2"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: "zulu unique content"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "yankee other stuff"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "xray more things"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// M2: Modify ALL 3 blocks in ONE commit (b1 content deleted, b2 and b3 modified).
+	m2, err := alice.RPC.DocumentsV3.CreateDocumentChange(ctx, &documents.CreateDocumentChangeRequest{
+		Account:        aliceAccount,
+		Path:           "/multi-block-commit-test",
+		SigningKeyName: "main",
+		BaseVersion:    m1.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "paragraph", Text: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "paragraph", Text: "yankee modified"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b3", Type: "paragraph", Text: "xray modified"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_ = m2 // m2.Version is the latest for doc3.
+
+	// expectedResult describes what we expect for a search result.
+	type expectedResult struct {
+		contentSubstr string // Substring that must appear in content.
+		isLatest      bool   // Whether version should have &l marker.
+		docPath       string // Which document path this should be from.
+	}
+
+	// verifySearchResults checks that the search results match expectations.
+	// For each expectation, it verifies that at least one matching result exists with the expected &l status.
+	verifySearchResults := func(t *testing.T, results []*entities.Entity, expectations []expectedResult) {
+		t.Helper()
+
+		// Verify each expectation is met.
+		for _, exp := range expectations {
+			foundMatching := false
+			for _, e := range results {
+				if strings.Contains(e.Content, exp.contentSubstr) && strings.Contains(e.DocId, exp.docPath) {
+					_, isLatest := parseEntityVersion(e.Id)
+					if exp.isLatest == isLatest {
+						foundMatching = true
+						break
+					}
+				}
+			}
+			if exp.isLatest {
+				require.True(t, foundMatching,
+					"expected to find content containing %q from %s WITH &l marker", exp.contentSubstr, exp.docPath)
+			} else {
+				require.True(t, foundMatching,
+					"expected to find content containing %q from %s WITHOUT &l marker", exp.contentSubstr, exp.docPath)
+			}
+		}
+	}
+
+	// ===== KEYWORD SEARCH TESTS =====
+	t.Run("Keyword", func(t *testing.T) {
+		t.Run("SearchAlpha_OnlyInDoc1V1", func(t *testing.T) {
+			// "alpha" only existed in C1, C2 changed b1.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "alpha",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'alpha'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "alpha dinosaur")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.False(t, isLatest, "old content 'alpha dinosaur' must NOT have &l marker")
+		})
+
+		t.Run("SearchStaticForever_NeverModified", func(t *testing.T) {
+			// "static forever" in b2 was never modified after C1.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "static",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'static'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "static forever")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.True(t, isLatest, "never-modified content 'static forever' must have &l marker")
+		})
+
+		t.Run("SearchGamma_LatestInDoc1", func(t *testing.T) {
+			// "gamma" exists in C4 for b1, and b1 wasn't touched after C4 (C5 only touched b3).
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "gamma",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'gamma'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "gamma hippo")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.True(t, isLatest, "current content 'gamma hippo' must have &l marker")
+		})
+
+		t.Run("SearchDelta_LatestInDoc1", func(t *testing.T) {
+			// "delta" exists in C5 for b3, which is the latest version.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "delta",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'delta'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "delta iguana")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.True(t, isLatest, "current content 'delta iguana' must have &l marker")
+		})
+
+		t.Run("SearchOmega_OnlyInDoc2V1", func(t *testing.T) {
+			// "omega" only existed in D1, D2 changed b1.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "omega",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'omega'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "omega tiger")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.False(t, isLatest, "old content 'omega tiger' must NOT have &l marker")
+		})
+
+		t.Run("SearchEpsilon_LatestInDoc2", func(t *testing.T) {
+			// "epsilon" exists in D3 for b1, which is the latest version.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "epsilon",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'epsilon'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "epsilon panda")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.True(t, isLatest, "current content 'epsilon panda' must have &l marker")
+		})
+
+		t.Run("SearchBeta_MultipleVersionsAcrossDocs", func(t *testing.T) {
+			// "beta" appears in multiple places:
+			// Doc1: b1@C2 ("beta elephant") -> version C3 (no &l, C4 touched b1)
+			// Doc1: b3@C1 ("beta elephant") -> version C2 (no &l, C3 touched b3)
+			// Doc1: b3@C3 ("beta giraffe") -> version C4 (no &l, C5 touched b3)
+			// Doc2: b1@D2 ("beta koala") -> version D2 (no &l, D3 touched b1)
+			// Doc2: b2@D1 ("beta koala") -> version D3 (has &l, b2 never touched after D1)
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "beta",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 5, "must return 5 results for 'beta' across both docs")
+
+			// Count results by document and check &l markers.
+			doc1Count := 0
+			doc2Count := 0
+			latestCount := 0
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+				if isLatest {
+					latestCount++
+				}
+				if strings.Contains(e.DocId, "/version-test-animals") {
+					doc1Count++
+				}
+				if strings.Contains(e.DocId, "/version-test-creatures") {
+					doc2Count++
+				}
+			}
+			require.Equal(t, 3, doc1Count, "must have 3 'beta' results from doc1")
+			require.Equal(t, 2, doc2Count, "must have 2 'beta' results from doc2")
+			require.Equal(t, 1, latestCount, "only 1 'beta' result should have &l marker (doc2/b2)")
+
+			// Verify the specific expectations.
+			// Note: "beta koala" appears twice in doc2 - b1 (no &l) and b2 (has &l).
+			verifySearchResults(t, res.Entities, []expectedResult{
+				{contentSubstr: "beta elephant", isLatest: false, docPath: "/version-test-animals"},
+				{contentSubstr: "beta giraffe", isLatest: false, docPath: "/version-test-animals"},
+				{contentSubstr: "beta koala", isLatest: false, docPath: "/version-test-creatures"}, // b1 version
+				{contentSubstr: "beta koala", isLatest: true, docPath: "/version-test-creatures"},  // b2 version
+			})
+		})
+
+		t.Run("SearchElephant_TwoBlocksInDoc1", func(t *testing.T) {
+			// "elephant" appears in:
+			// Doc1: b1@C2 ("beta elephant") -> version C3 (no &l)
+			// Doc1: b3@C1 ("beta elephant") -> version C2 (no &l)
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "elephant",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 2, "must return 2 results for 'elephant'")
+
+			for _, e := range res.Entities {
+				require.Contains(t, e.Content, "elephant")
+				_, isLatest := parseEntityVersion(e.Id)
+				require.False(t, isLatest, "superseded content with 'elephant' must NOT have &l marker")
+			}
+		})
+
+		t.Run("SearchKoala_TwoBlocksInDoc2", func(t *testing.T) {
+			// "koala" appears in:
+			// Doc2: b1@D2 ("beta koala") -> version D2 (no &l, D3 touched b1)
+			// Doc2: b2@D1 ("beta koala") -> version D3 (has &l, b2 never touched)
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "koala",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 2, "must return 2 results for 'koala'")
+
+			latestCount := 0
+			for _, e := range res.Entities {
+				require.Contains(t, e.Content, "koala")
+				_, isLatest := parseEntityVersion(e.Id)
+				if isLatest {
+					latestCount++
+				}
+			}
+			require.Equal(t, 1, latestCount, "exactly 1 'koala' result should have &l marker (b2)")
+		})
+
+		t.Run("SearchGiraffe_SupersededInDoc1", func(t *testing.T) {
+			// "giraffe" only in Doc1: b3@C3 ("beta giraffe") -> version C4 (no &l, C5 touched b3).
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "giraffe",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return 1 result for 'giraffe'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "beta giraffe")
+			_, isLatest := parseEntityVersion(e.Id)
+			require.False(t, isLatest, "superseded content 'beta giraffe' must NOT have &l marker")
+		})
+
+		t.Run("SearchMultiBlockCommit_VersionBlobIdConsistency", func(t *testing.T) {
+			// This test reproduces a bug where multiple blocks modified in the same commit
+			// causes the version in the URL to differ from the blobId.
+			//
+			// When searching for "zulu" (content deleted in M2):
+			// - blobId should be M1's blob (where content existed)
+			// - version in URL should ALSO be M1's version
+			// - Bug: version in URL was incorrectly showing M2's version
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "zulu",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+
+			e := res.Entities[0]
+			require.Contains(t, e.Content, "zulu unique content")
+
+			version, isLatest := parseEntityVersion(e.Id)
+			require.False(t, isLatest, "deleted content must NOT have &l marker")
+
+			// CRITICAL: blobId must match the version in the URL.
+			// This is the bug we're testing - when multiple blocks are modified in the
+			// same commit, the version lookup incorrectly picks up the version from
+			// a sibling block's change instead of keeping the original version.
+			require.Equal(t, e.BlobId, version,
+				"blobId (%s) must match version in URL (%s) - version mismatch indicates bug in multi-block commit handling",
+				e.BlobId, version)
+		})
+
+		t.Run("SearchMultiBlockCommit_DeletionDoesNotCorruptVersion", func(t *testing.T) {
+			// When content is deleted in a commit that also modifies other blocks,
+			// the search result for the deleted content must show the pre-deletion version,
+			// not the deletion commit's version.
+			//
+			// Timeline:
+			// M1: b1="zulu unique content" (version X)
+			// M2: b1="" (deleted), b2 and b3 also modified (version Y)
+			//
+			// Search "zulu" should return version X, not version Y.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "zulu",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 1, "must return exactly 1 result for 'zulu'")
+
+			e := res.Entities[0]
+
+			// The version should be M1's version (where content existed),
+			// NOT M2's version (where content was deleted).
+			version, _ := parseEntityVersion(e.Id)
+
+			// blobId points to the blob where content was indexed (M1).
+			// If version != blobId, it means we incorrectly picked up M2's version.
+			require.Equal(t, e.BlobId, version,
+				"deleted content must show pre-deletion version, not deletion commit version")
+		})
+
+		t.Run("SearchMultiBlockCommit_BlockOrderingDoesNotAffectResult", func(t *testing.T) {
+			// Test that the order in which blocks are processed doesn't affect the result.
+			// Search for content in different blocks that were all modified in M2.
+			//
+			// "yankee" exists in both M1 and M2:
+			// - M1: b2="yankee other stuff" -> should show M1 version (no &l, modified in M2)
+			// - M2: b2="yankee modified" -> should show M2 version (has &l)
+			//
+			// Both results must have consistent blobId/version.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "yankee",
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 2, "must return 2 results for 'yankee' (M1 and M2 versions)")
+
+			for _, e := range res.Entities {
+				version, _ := parseEntityVersion(e.Id)
+				require.Equal(t, e.BlobId, version,
+					"blobId (%s) must match version in URL (%s) for content: %s",
+					e.BlobId, version, e.Content)
+			}
+
+			// Verify we have one with &l and one without.
+			latestCount := 0
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+				if isLatest {
+					latestCount++
+					require.Contains(t, e.Content, "yankee modified", "latest version must be M2's content")
+				} else {
+					require.Contains(t, e.Content, "yankee other stuff", "non-latest must be M1's content")
+				}
+			}
+			require.Equal(t, 1, latestCount, "exactly one result should have &l marker")
+		})
+	})
+
+	// ===== SEMANTIC SEARCH TESTS =====
+	t.Run("Semantic", func(t *testing.T) {
+		// Wait for embeddings to be generated. Skip if not available within timeout.
+		embeddingsReady := false
+		for i := 0; i < 20; i++ { // Try for ~10 seconds.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "animal",
+				SearchType:  entities.SearchType_SEARCH_SEMANTIC,
+				IncludeBody: true,
+			})
+			if err == nil && len(res.Entities) > 0 {
+				embeddingsReady = true
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		if !embeddingsReady {
+			t.Skip("Skipping semantic search tests: embeddings not ready within timeout")
+		}
+
+		t.Run("SearchAnimal_VersionConsistency", func(t *testing.T) {
+			// Semantic search for "animal" should return animal-related content.
+			// Each result should have consistent version markers.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:       "animal",
+				SearchType:  entities.SearchType_SEARCH_SEMANTIC,
+				IncludeBody: true,
+			})
+			require.NoError(t, err)
+			require.Greater(t, len(res.Entities), 0, "semantic search for 'animal' must return results")
+
+			// Verify version consistency for results we know about.
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+
+				// Check specific content we know the expected state for.
+				switch {
+				case strings.Contains(e.Content, "alpha dinosaur"):
+					require.False(t, isLatest, "'alpha dinosaur' must NOT have &l")
+				case strings.Contains(e.Content, "gamma hippo"):
+					require.True(t, isLatest, "'gamma hippo' must have &l")
+				case strings.Contains(e.Content, "delta iguana"):
+					require.True(t, isLatest, "'delta iguana' must have &l")
+				case strings.Contains(e.Content, "omega tiger"):
+					require.False(t, isLatest, "'omega tiger' must NOT have &l")
+				case strings.Contains(e.Content, "epsilon panda"):
+					require.True(t, isLatest, "'epsilon panda' must have &l")
+				case strings.Contains(e.Content, "beta elephant"):
+					require.False(t, isLatest, "'beta elephant' must NOT have &l")
+				case strings.Contains(e.Content, "beta giraffe"):
+					require.False(t, isLatest, "'beta giraffe' must NOT have &l")
+				}
+			}
+		})
+	})
+
+	// ===== HYBRID SEARCH TESTS =====
+	t.Run("Hybrid", func(t *testing.T) {
+		t.Run("SearchBeta_BlendedResults", func(t *testing.T) {
+			// Hybrid search for "beta" should blend keyword and semantic results.
+			// Filter to document content only to avoid title matches from semantic search.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:             "beta",
+				SearchType:        entities.SearchType_SEARCH_HYBRID,
+				IncludeBody:       true,
+				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 5, "hybrid search for 'beta' must return 5 results")
+
+			// Same assertions as keyword search.
+			latestCount := 0
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+				if isLatest {
+					latestCount++
+				}
+			}
+			require.Equal(t, 1, latestCount, "only 1 'beta' result should have &l marker in hybrid search")
+		})
+
+		t.Run("SearchElephant_BlendedResults", func(t *testing.T) {
+			// Hybrid search for "elephant".
+			// Filter to document content only to avoid unrelated matches from semantic search.
+			res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+				Query:             "elephant",
+				SearchType:        entities.SearchType_SEARCH_HYBRID,
+				IncludeBody:       true,
+				ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_DOCUMENT},
+			})
+			require.NoError(t, err)
+			require.Len(t, res.Entities, 2, "hybrid search for 'elephant' must return 2 results")
+
+			for _, e := range res.Entities {
+				_, isLatest := parseEntityVersion(e.Id)
+				require.False(t, isLatest, "all 'elephant' results must NOT have &l marker in hybrid search")
+			}
+		})
+	})
+}

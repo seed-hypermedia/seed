@@ -20,7 +20,7 @@ const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
   'darwin/x64': 'x86_64-apple-darwin',
   'darwin/arm64': 'aarch64-apple-darwin',
-  'win32/x64': 'x86_64-pc-windows-msvc.exe',
+  'win32/x64': 'x86_64-pc-windows-gnu.exe',
   'linux/x64': 'x86_64-unknown-linux-gnu',
   'linux/arm64': 'aarch64-unknown-linux-gnu',
 }
@@ -38,6 +38,23 @@ const daemonBinaryPath = path.join(
   // TODO: parametrize this for each platform
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
+
+const extraResources = [daemonBinaryPath]
+
+if (process.platform === 'win32') {
+  const winpthreadRuntimePath = path.join(
+    devProjectRoot,
+    'plz-out/bin/backend/libwinpthread-1.dll',
+  )
+
+  if (fs.existsSync(winpthreadRuntimePath)) {
+    extraResources.push(winpthreadRuntimePath)
+  } else if (process.env.CI) {
+    throw new Error(
+      `Missing Windows runtime dependency at ${winpthreadRuntimePath}`,
+    )
+  }
+}
 
 let iconsPath = IS_PROD_DEV
   ? path.resolve(__dirname, 'assets', 'icons', 'icon')
@@ -132,7 +149,7 @@ const config: ForgeConfig = {
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
-    extraResource: [daemonBinaryPath],
+    extraResource: extraResources,
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',

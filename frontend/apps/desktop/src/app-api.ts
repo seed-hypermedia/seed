@@ -26,6 +26,7 @@ import {writeFile} from 'fs-extra'
 import path from 'path'
 import z from 'zod'
 import {deleteAccount} from './app-account-management'
+import {restartDaemonWithEmbedding} from './daemon'
 import {commentsApi} from './app-comments'
 import {diagnosisApi} from './app-diagnosis'
 import {draftsApi} from './app-drafts'
@@ -425,6 +426,14 @@ export const router = t.router({
   getAppInfo: t.procedure.query(() => {
     return {dataDir: userDataPath, loggingDir: log.loggingDir}
   }),
+
+  restartDaemonWithEmbedding: t.procedure
+    .input(z.object({embeddingEnabled: z.boolean()}))
+    .mutation(async ({input}) => {
+      log.info('Restarting daemon with embedding setting:', input)
+      await restartDaemonWithEmbedding(input.embeddingEnabled)
+      return {success: true}
+    }),
 })
 
 export const trpc = router.createCaller({})

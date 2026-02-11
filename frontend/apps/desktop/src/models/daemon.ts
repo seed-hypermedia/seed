@@ -26,6 +26,11 @@ export type NamedKey = {
   publicKey: string
 }
 
+// Default interval for daemon info polling (when no tasks are active)
+const DEFAULT_DAEMON_INFO_INTERVAL = 10_000
+// Fast interval for daemon info polling (when tasks are active)
+const ACTIVE_TASKS_DAEMON_INFO_INTERVAL = 2_000
+
 function queryDaemonInfo(
   grpcClient: GRPCClient,
   opts: UseQueryOptions<Info | null> | FetchQueryOptions<Info | null> = {},
@@ -43,12 +48,45 @@ function queryDaemonInfo(
       }
       return null
     },
-    refetchInterval: 10_000,
+    refetchInterval: DEFAULT_DAEMON_INFO_INTERVAL,
     useErrorBoundary: false,
   }
 }
+
+/**
+ * Hook to get daemon info with smart polling.
+ * Polls every 2s when there are active tasks, otherwise every 10s.
+ */
 export function useDaemonInfo(opts: UseQueryOptions<Info | null> = {}) {
-  return useQuery(queryDaemonInfo(grpcClient, opts))
+  // Track whether we have active tasks to determine polling interval
+  const [hasActiveTasks, setHasActiveTasks] = useState(false)
+
+  const query = useQuery({
+    queryKey: [queryKeys.GET_DAEMON_INFO],
+    queryFn: async () => {
+      try {
+        return await grpcClient.daemon.getInfo({})
+      } catch (error) {
+        if (error) {
+          console.log('error check make sure not set up condition..', error)
+        }
+      }
+      return null
+    },
+    refetchInterval: hasActiveTasks
+      ? ACTIVE_TASKS_DAEMON_INFO_INTERVAL
+      : DEFAULT_DAEMON_INFO_INTERVAL,
+    useErrorBoundary: false,
+    ...opts,
+  })
+
+  // Update hasActiveTasks based on query data
+  useEffect(() => {
+    const tasksCount = query.data?.tasks?.length ?? 0
+    setHasActiveTasks(tasksCount > 0)
+  }, [query.data?.tasks?.length])
+
+  return query
 }
 
 export function useMnemonics(

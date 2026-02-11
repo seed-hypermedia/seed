@@ -138,6 +138,104 @@ const (
 	C_DocumentGenerationsResource             = "document_generations.resource"
 )
 
+// Table embeddings.
+const (
+	Embeddings                        sqlitegen.Table  = "embeddings"
+	EmbeddingsDistance                sqlitegen.Column = "embeddings.distance"
+	EmbeddingsFtsID                   sqlitegen.Column = "embeddings.fts_id"
+	EmbeddingsK                       sqlitegen.Column = "embeddings.k"
+	EmbeddingsMultilingualMinilmL12V2 sqlitegen.Column = "embeddings.multilingual_minilm_l12_v2"
+	EmbeddingsRowid                   sqlitegen.Column = "embeddings.rowid"
+)
+
+// Table embeddings. Plain strings.
+const (
+	T_Embeddings                        = "embeddings"
+	C_EmbeddingsDistance                = "embeddings.distance"
+	C_EmbeddingsFtsID                   = "embeddings.fts_id"
+	C_EmbeddingsK                       = "embeddings.k"
+	C_EmbeddingsMultilingualMinilmL12V2 = "embeddings.multilingual_minilm_l12_v2"
+	C_EmbeddingsRowid                   = "embeddings.rowid"
+)
+
+// Table embeddings_chunks.
+const (
+	EmbeddingsChunks         sqlitegen.Table  = "embeddings_chunks"
+	EmbeddingsChunksChunkID  sqlitegen.Column = "embeddings_chunks.chunk_id"
+	EmbeddingsChunksRowids   sqlitegen.Column = "embeddings_chunks.rowids"
+	EmbeddingsChunksSize     sqlitegen.Column = "embeddings_chunks.size"
+	EmbeddingsChunksValidity sqlitegen.Column = "embeddings_chunks.validity"
+)
+
+// Table embeddings_chunks. Plain strings.
+const (
+	T_EmbeddingsChunks         = "embeddings_chunks"
+	C_EmbeddingsChunksChunkID  = "embeddings_chunks.chunk_id"
+	C_EmbeddingsChunksRowids   = "embeddings_chunks.rowids"
+	C_EmbeddingsChunksSize     = "embeddings_chunks.size"
+	C_EmbeddingsChunksValidity = "embeddings_chunks.validity"
+)
+
+// Table embeddings_info.
+const (
+	EmbeddingsInfo      sqlitegen.Table  = "embeddings_info"
+	EmbeddingsInfoKey   sqlitegen.Column = "embeddings_info.key"
+	EmbeddingsInfoValue sqlitegen.Column = "embeddings_info.value"
+)
+
+// Table embeddings_info. Plain strings.
+const (
+	T_EmbeddingsInfo      = "embeddings_info"
+	C_EmbeddingsInfoKey   = "embeddings_info.key"
+	C_EmbeddingsInfoValue = "embeddings_info.value"
+)
+
+// Table embeddings_metadatachunks00.
+const (
+	EmbeddingsMetadatachunks00      sqlitegen.Table  = "embeddings_metadatachunks00"
+	EmbeddingsMetadatachunks00Data  sqlitegen.Column = "embeddings_metadatachunks00.data"
+	EmbeddingsMetadatachunks00Rowid sqlitegen.Column = "embeddings_metadatachunks00.rowid"
+)
+
+// Table embeddings_metadatachunks00. Plain strings.
+const (
+	T_EmbeddingsMetadatachunks00      = "embeddings_metadatachunks00"
+	C_EmbeddingsMetadatachunks00Data  = "embeddings_metadatachunks00.data"
+	C_EmbeddingsMetadatachunks00Rowid = "embeddings_metadatachunks00.rowid"
+)
+
+// Table embeddings_rowids.
+const (
+	EmbeddingsRowids            sqlitegen.Table  = "embeddings_rowids"
+	EmbeddingsRowidsChunkID     sqlitegen.Column = "embeddings_rowids.chunk_id"
+	EmbeddingsRowidsChunkOffset sqlitegen.Column = "embeddings_rowids.chunk_offset"
+	EmbeddingsRowidsID          sqlitegen.Column = "embeddings_rowids.id"
+	EmbeddingsRowidsRowid       sqlitegen.Column = "embeddings_rowids.rowid"
+)
+
+// Table embeddings_rowids. Plain strings.
+const (
+	T_EmbeddingsRowids            = "embeddings_rowids"
+	C_EmbeddingsRowidsChunkID     = "embeddings_rowids.chunk_id"
+	C_EmbeddingsRowidsChunkOffset = "embeddings_rowids.chunk_offset"
+	C_EmbeddingsRowidsID          = "embeddings_rowids.id"
+	C_EmbeddingsRowidsRowid       = "embeddings_rowids.rowid"
+)
+
+// Table embeddings_vector_chunks00.
+const (
+	EmbeddingsVectorChunks00        sqlitegen.Table  = "embeddings_vector_chunks00"
+	EmbeddingsVectorChunks00Rowid   sqlitegen.Column = "embeddings_vector_chunks00.rowid"
+	EmbeddingsVectorChunks00Vectors sqlitegen.Column = "embeddings_vector_chunks00.vectors"
+)
+
+// Table embeddings_vector_chunks00. Plain strings.
+const (
+	T_EmbeddingsVectorChunks00        = "embeddings_vector_chunks00"
+	C_EmbeddingsVectorChunks00Rowid   = "embeddings_vector_chunks00.rowid"
+	C_EmbeddingsVectorChunks00Vectors = "embeddings_vector_chunks00.vectors"
+)
+
 // Table fts.
 const (
 	Fts           sqlitegen.Table  = "fts"
@@ -539,6 +637,25 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		EmbeddingsDistance:                      {Table: Embeddings, SQLType: ""},
+		EmbeddingsFtsID:                         {Table: Embeddings, SQLType: ""},
+		EmbeddingsK:                             {Table: Embeddings, SQLType: ""},
+		EmbeddingsMultilingualMinilmL12V2:       {Table: Embeddings, SQLType: ""},
+		EmbeddingsRowid:                         {Table: Embeddings, SQLType: ""},
+		EmbeddingsChunksChunkID:                 {Table: EmbeddingsChunks, SQLType: "INTEGER"},
+		EmbeddingsChunksRowids:                  {Table: EmbeddingsChunks, SQLType: "BLOB"},
+		EmbeddingsChunksSize:                    {Table: EmbeddingsChunks, SQLType: "INTEGER"},
+		EmbeddingsChunksValidity:                {Table: EmbeddingsChunks, SQLType: "BLOB"},
+		EmbeddingsInfoKey:                       {Table: EmbeddingsInfo, SQLType: "TEXT"},
+		EmbeddingsInfoValue:                     {Table: EmbeddingsInfo, SQLType: "ANY"},
+		EmbeddingsMetadatachunks00Data:          {Table: EmbeddingsMetadatachunks00, SQLType: "BLOB"},
+		EmbeddingsMetadatachunks00Rowid:         {Table: EmbeddingsMetadatachunks00, SQLType: ""},
+		EmbeddingsRowidsChunkID:                 {Table: EmbeddingsRowids, SQLType: "INTEGER"},
+		EmbeddingsRowidsChunkOffset:             {Table: EmbeddingsRowids, SQLType: "INTEGER"},
+		EmbeddingsRowidsID:                      {Table: EmbeddingsRowids, SQLType: ""},
+		EmbeddingsRowidsRowid:                   {Table: EmbeddingsRowids, SQLType: "INTEGER"},
+		EmbeddingsVectorChunks00Rowid:           {Table: EmbeddingsVectorChunks00, SQLType: ""},
+		EmbeddingsVectorChunks00Vectors:         {Table: EmbeddingsVectorChunks00, SQLType: "BLOB"},
 		FtsBlobID:                               {Table: Fts, SQLType: ""},
 		FtsBlockID:                              {Table: Fts, SQLType: ""},
 		FtsFts:                                  {Table: Fts, SQLType: ""},
