@@ -14,7 +14,8 @@ function collectStaticAssets(dir: string, urlPrefix: string): Map<string, Return
 	const assets = new Map<string, ReturnType<typeof Bun.file>>()
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
 		if (entry.isDirectory()) {
-			for (const [k, v] of collectStaticAssets(join(dir, entry.name), `${urlPrefix}${entry.name}/`)) {
+			// Don't append subdir to URL — publicPath already handles URL mapping.
+			for (const [k, v] of collectStaticAssets(join(dir, entry.name), urlPrefix)) {
 				assets.set(k, v)
 			}
 		} else if (entry.name !== "main.js" && !entry.name.endsWith(".map")) {
@@ -54,8 +55,22 @@ async function main() {
 		error: handleError,
 
 		routes: {
-			// Frontend.
 			"/vault": index,
+			// In dev, Bun handles assets+SPA automatically via the HTML import.
+			// In prod, serve assets from the pre-built map, with SPA fallback.
+			"/vault/*": isProd
+				? (req: BunRequest) => {
+						const asset = assets.get(new URL(req.url).pathname)
+						if (asset) {
+							return new Response(asset, {
+								headers: { "Content-Type": asset.type },
+							})
+						}
+						return new Response(Bun.file("frontend/index.html"), {
+							headers: { "Content-Type": "text/html;charset=utf-8" },
+						})
+					}
+				: index,
 
 			...createAPIRoutes(svc),
 		},
@@ -64,18 +79,6 @@ async function main() {
 			const url = new URL(req.url)
 			if (url.pathname === "/") {
 				return Response.redirect(`${url.origin}/vault/`, 302)
-			}
-			if (url.pathname.startsWith("/vault/")) {
-				const asset = assets.get(url.pathname)
-				if (asset) {
-					return new Response(asset, {
-						headers: { "Content-Type": asset.type },
-					})
-				}
-				// SPA fallback for client-side routes.
-				return new Response(Bun.file("frontend/index.html"), {
-					headers: { "Content-Type": "text/html;charset=utf-8" },
-				})
 			}
 			return new Response("Not Found", { status: 404 })
 		},
