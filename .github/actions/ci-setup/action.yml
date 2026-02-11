@@ -86,8 +86,24 @@ runs:
           throw "VsDevCmd.bat not found at $vsDevCmd"
         }
 
-        $configureAndBuild = "call \"$vsDevCmd\" -arch=x64 -host_arch=x64 && cd /d backend\util\llama-go && cmake -G \"Ninja\" -B build -S llama.cpp -DGGML_VULKAN=ON -DGGML_OPENMP=OFF -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS=--target=x86_64-pc-windows-msvc -DCMAKE_CXX_FLAGS=--target=x86_64-pc-windows-msvc && cmake --build build --config Release -j %NUMBER_OF_PROCESSORS%"
-        cmd.exe /c $configureAndBuild
+        $cmdFile = Join-Path $env:TEMP "build-llama-windows.cmd"
+        $cmdLines = @(
+          '@echo off',
+          "call `"$vsDevCmd`" -arch=x64 -host_arch=x64",
+          'if errorlevel 1 exit /b %errorlevel%',
+          'cd /d backend\util\llama-go',
+          'if errorlevel 1 exit /b %errorlevel%',
+          'cmake -G "Ninja" -B build -S llama.cpp -DGGML_VULKAN=ON -DGGML_OPENMP=OFF -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS=--target=x86_64-pc-windows-msvc -DCMAKE_CXX_FLAGS=--target=x86_64-pc-windows-msvc',
+          'if errorlevel 1 exit /b %errorlevel%',
+          'cmake --build build --config Release -j %NUMBER_OF_PROCESSORS%',
+          'if errorlevel 1 exit /b %errorlevel%'
+        )
+        Set-Content -Path $cmdFile -Value $cmdLines -Encoding Ascii
+
+        cmd.exe /d /s /c "`"$cmdFile`""
+        if ($LASTEXITCODE -ne 0) {
+          throw "llama.cpp build failed with exit code $LASTEXITCODE"
+        }
 
         Set-Location backend/util/llama-go
 
@@ -144,8 +160,9 @@ runs:
         )
 
         Copy-Item "$env:VULKAN_SDK/Lib/vulkan-1.lib" "libvulkan-1.a" -Force
+        Copy-Item "$env:VULKAN_SDK/Lib/vulkan-1.lib" "vulkan-1.lib" -Force
 
-        foreach ($lib in "libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a") {
+        foreach ($lib in "libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a", "vulkan-1.lib") {
           if (-not (Test-Path $lib)) {
             throw "ERROR: Missing $lib"
           }
