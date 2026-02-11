@@ -734,8 +734,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
                         ),
                       )
                       .run()
-                  } catch (e) {
-                  }
+                  } catch (e) {}
                 })
               }
               return true

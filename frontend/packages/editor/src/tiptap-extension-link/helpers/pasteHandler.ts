@@ -583,8 +583,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
             )
             return true
           })
-          .catch((err) => {
-          })
+          .catch((err) => {})
         metaPromise
           .then((embedResult) => {
             if (!embedResult) {
@@ -599,8 +598,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
               )
             }
           })
-          .catch((err) => {
-          })
+          .catch((err) => {})
         break
       }
       default:
