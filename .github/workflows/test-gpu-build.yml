@@ -137,11 +137,8 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CC: clang
-          CXX: clang++
-          CGO_CFLAGS: --target=x86_64-pc-windows-msvc
-          CGO_CXXFLAGS: --target=x86_64-pc-windows-msvc
-          CGO_LDFLAGS: --target=x86_64-pc-windows-msvc -fuse-ld=lld
+          CC: clang --target=x86_64-pc-windows-msvc
+          CXX: clang++ --target=x86_64-pc-windows-msvc -fuse-ld=lld
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 

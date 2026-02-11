@@ -31,7 +31,6 @@ package sqlite
 // #cgo CFLAGS: -DSQLITE_DQS=0
 // #cgo CFLAGS: -DSQLITE_ENABLE_GEOPOLY
 // #cgo CFLAGS: -DSQLITE_CORE
-// #cgo windows LDFLAGS: -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 // #cgo linux LDFLAGS: -ldl -lm
 // #cgo linux CFLAGS: -std=c99
 // #cgo openbsd LDFLAGS: -lm
