@@ -255,28 +255,32 @@ jobs:
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           SEED_P2P_TESTNET_NAME: "dev"
 
-      - name: Upload Windows installer artifact
-        if: matrix.config.os == 'windows-2025'
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-gpu-windows-installer-${{ needs.build-info.outputs.version }}
-          retention-days: 14
-          path: |
-            frontend/apps/desktop/out/make/squirrel.windows/x64/*-setup.exe
-            frontend/apps/desktop/out/make/squirrel.windows/x64/*.nupkg
-            frontend/apps/desktop/out/make/squirrel.windows/x64/RELEASES
-
       - name: Verify binary
         run: |
           echo "Build successful for ${{ matrix.config.name }}"
           file plz-out/bin/backend/seed-daemon-* || true
 
-      - name: Upload test artifacts
+      - name: Upload test installables
         uses: actions/upload-artifact@v4
         with:
-          name: test-gpu-artifacts-${{ matrix.config.daemon_name }}
+          name: test-gpu-installables-${{ matrix.config.daemon_name }}
           retention-days: 14
+          if-no-files-found: error
           path: |
-            frontend/apps/desktop/out/make/**/*
+            frontend/apps/desktop/out/make/**/*.exe
+            frontend/apps/desktop/out/make/**/*.dmg
+            frontend/apps/desktop/out/make/**/*.deb
+            frontend/apps/desktop/out/make/**/*.rpm
+            frontend/apps/desktop/out/make/**/*.zip
+            frontend/apps/desktop/out/make/**/RELEASES
+
+      - name: Upload Windows daemon bundle
+        if: matrix.config.os == 'windows-2025'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-gpu-daemon-windows-${{ needs.build-info.outputs.version }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
             plz-out/bin/backend/seed-daemon-*
             plz-out/bin/backend/libwinpthread-1.dll
