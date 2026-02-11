@@ -202,7 +202,7 @@ export function DocumentTools({
               {...sidebarProps}
               className={cn(
                 sidebarProps.className,
-                'flex items-center !h-auto !p-0',
+                'flex !h-auto items-center !p-0',
               )}
             >
               {rightActions ? (

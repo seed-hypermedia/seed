@@ -15,6 +15,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
+import {validatePath} from '@shm/shared/utils/document-path'
 import {
   createSiteUrl,
   createWebHMUrl,
