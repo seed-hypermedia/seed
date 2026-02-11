@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs"
+import { join } from "node:path"
 import { type BunRequest, serve } from "bun"
 import { cli } from "cleye"
 import type * as api from "@/api"
@@ -6,6 +8,21 @@ import * as config from "@/config"
 import index from "@/frontend/index.html"
 import * as session from "@/session"
 import * as sqlite from "@/sqlite"
+
+/** Scan directory for built assets and create a lookup map for O(1) serving. */
+function collectStaticAssets(dir: string, urlPrefix: string): Map<string, ReturnType<typeof Bun.file>> {
+	const assets = new Map<string, ReturnType<typeof Bun.file>>()
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		if (entry.isDirectory()) {
+			for (const [k, v] of collectStaticAssets(join(dir, entry.name), `${urlPrefix}${entry.name}/`)) {
+				assets.set(k, v)
+			}
+		} else if (entry.name !== "main.js" && !entry.name.endsWith(".map")) {
+			assets.set(`${urlPrefix}${entry.name}`, Bun.file(join(dir, entry.name)))
+		}
+	}
+	return assets
+}
 
 async function main() {
 	const argv = cli({
@@ -22,6 +39,9 @@ async function main() {
 
 	const svc = new apisvc.Service(db, cfg.relyingParty)
 
+	// Pre-build asset lookup map at startup for O(1) serving.
+	const assets = isProd ? collectStaticAssets(".", "/vault/") : new Map()
+
 	const server = serve({
 		port: cfg.http.port,
 		hostname: cfg.http.hostname,
@@ -36,7 +56,6 @@ async function main() {
 		routes: {
 			// Frontend.
 			"/vault": index,
-			"/vault/*": index,
 
 			...createAPIRoutes(svc),
 		},
@@ -45,6 +64,18 @@ async function main() {
 			const url = new URL(req.url)
 			if (url.pathname === "/") {
 				return Response.redirect(`${url.origin}/vault/`, 302)
+			}
+			if (url.pathname.startsWith("/vault/")) {
+				const asset = assets.get(url.pathname)
+				if (asset) {
+					return new Response(asset, {
+						headers: { "Content-Type": asset.type },
+					})
+				}
+				// SPA fallback for client-side routes.
+				return new Response(Bun.file("frontend/index.html"), {
+					headers: { "Content-Type": "text/html;charset=utf-8" },
+				})
 			}
 			return new Response("Not Found", { status: 404 })
 		},
