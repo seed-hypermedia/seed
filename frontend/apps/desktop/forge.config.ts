@@ -39,6 +39,19 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
+const extraResources = [daemonBinaryPath]
+
+if (process.platform === 'win32') {
+  const winpthreadRuntimePath = path.join(
+    devProjectRoot,
+    'plz-out/bin/backend/libwinpthread-1.dll',
+  )
+
+  if (fs.existsSync(winpthreadRuntimePath)) {
+    extraResources.push(winpthreadRuntimePath)
+  }
+}
+
 let iconsPath = IS_PROD_DEV
   ? path.resolve(__dirname, 'assets', 'icons', 'icon')
   : path.resolve(__dirname, 'assets', 'icons-prod', 'icon')
@@ -132,7 +145,7 @@ const config: ForgeConfig = {
     executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
-    extraResource: [daemonBinaryPath],
+    extraResource: extraResources,
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
