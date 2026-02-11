@@ -2,7 +2,7 @@
 //go:build !cpu && windows
 
 // Include Vulkan LDFLAGS on Windows for GPU acceleration.
-// Built with an MSVC-compatible toolchain for Windows CGO builds.
+// Built with MinGW for Windows CGO builds.
 package llama
 
 /*
