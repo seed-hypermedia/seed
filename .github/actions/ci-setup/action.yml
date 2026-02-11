@@ -72,41 +72,85 @@ runs:
 
     - name: "Build llama.cpp (Windows)"
       if: inputs.matrix-os == 'windows-2025'
-      shell: bash
+      shell: powershell
       run: |
-        set -e
-        cd backend/util/llama-go
+        $ErrorActionPreference = "Stop"
 
-        # Build llama.cpp with CMake using MinGW for ABI compatibility with CGO
-        cmake -G "MinGW Makefiles" -B build -S llama.cpp \
-          -DGGML_VULKAN=ON \
-          -DGGML_OPENMP=OFF \
-          -DBUILD_SHARED_LIBS=OFF \
-          -DLLAMA_CURL=OFF \
-          -DLLAMA_BUILD_TESTS=OFF \
-          -DLLAMA_BUILD_TOOLS=OFF \
-          -DLLAMA_BUILD_EXAMPLES=OFF \
-          -DLLAMA_BUILD_SERVER=OFF \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=gcc \
-          -DCMAKE_CXX_COMPILER=g++
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $installPath) {
+          throw "Visual Studio install path not found"
+        }
+        $vsDevCmd = Join-Path $installPath "Common7\Tools\VsDevCmd.bat"
+        if (-not (Test-Path $vsDevCmd)) {
+          throw "VsDevCmd.bat not found at $vsDevCmd"
+        }
 
-        cmake --build build --config Release -j $(nproc)
+        $configureAndBuild = "call \"$vsDevCmd\" -arch=x64 -host_arch=x64 && cd /d backend\util\llama-go && cmake -G \"Ninja\" -B build -S llama.cpp -DGGML_VULKAN=ON -DGGML_OPENMP=OFF -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS=--target=x86_64-pc-windows-msvc -DCMAKE_CXX_FLAGS=--target=x86_64-pc-windows-msvc && cmake --build build --config Release -j %NUMBER_OF_PROCESSORS%"
+        cmd.exe /c $configureAndBuild
 
-        # Copy static libraries (MinGW output paths differ from MSVC)
-        cp build/src/libllama.a ./libllama.a
-        cp build/ggml/src/ggml.a ./libggml.a
-        cp build/ggml/src/ggml-base.a ./libggml-base.a
-        cp build/ggml/src/ggml-cpu.a ./libggml-cpu.a
-        cp build/ggml/src/ggml-vulkan/ggml-vulkan.a ./libggml-vulkan.a
-        cp build/common/libcommon.a ./libcommon.a
-        cp "$VULKAN_SDK/Lib/vulkan-1.lib" ./libvulkan-1.a
+        Set-Location backend/util/llama-go
 
-        # Verify all libraries exist
-        for lib in libllama.a libggml.a libggml-base.a libggml-cpu.a libggml-vulkan.a libcommon.a libvulkan-1.a; do
-          [ -f "$lib" ] || { echo "ERROR: Missing $lib"; exit 1; }
-        done
-        echo "All llama.cpp libraries built successfully"
+        function Copy-FirstExisting {
+          param(
+            [string]$Destination,
+            [string[]]$Candidates
+          )
+
+          foreach ($candidate in $Candidates) {
+            if (Test-Path $candidate) {
+              Copy-Item $candidate $Destination -Force
+              Write-Host "Copied $candidate -> $Destination"
+              return
+            }
+          }
+
+          throw "Missing library for $Destination. Tried: $($Candidates -join ', ')"
+        }
+
+        Copy-FirstExisting -Destination "libllama.a" -Candidates @(
+          "build/src/libllama.a",
+          "build/src/libllama.lib",
+          "build/src/llama.lib"
+        )
+        Copy-FirstExisting -Destination "libggml.a" -Candidates @(
+          "build/ggml/src/libggml.a",
+          "build/ggml/src/ggml.a",
+          "build/ggml/src/libggml.lib",
+          "build/ggml/src/ggml.lib"
+        )
+        Copy-FirstExisting -Destination "libggml-base.a" -Candidates @(
+          "build/ggml/src/libggml-base.a",
+          "build/ggml/src/ggml-base.a",
+          "build/ggml/src/libggml-base.lib",
+          "build/ggml/src/ggml-base.lib"
+        )
+        Copy-FirstExisting -Destination "libggml-cpu.a" -Candidates @(
+          "build/ggml/src/libggml-cpu.a",
+          "build/ggml/src/ggml-cpu.a",
+          "build/ggml/src/libggml-cpu.lib",
+          "build/ggml/src/ggml-cpu.lib"
+        )
+        Copy-FirstExisting -Destination "libggml-vulkan.a" -Candidates @(
+          "build/ggml/src/ggml-vulkan/libggml-vulkan.a",
+          "build/ggml/src/ggml-vulkan/ggml-vulkan.a",
+          "build/ggml/src/ggml-vulkan/libggml-vulkan.lib",
+          "build/ggml/src/ggml-vulkan/ggml-vulkan.lib"
+        )
+        Copy-FirstExisting -Destination "libcommon.a" -Candidates @(
+          "build/common/libcommon.a",
+          "build/common/libcommon.lib",
+          "build/common/common.lib"
+        )
+
+        Copy-Item "$env:VULKAN_SDK/Lib/vulkan-1.lib" "libvulkan-1.a" -Force
+
+        foreach ($lib in "libllama.a", "libggml.a", "libggml-base.a", "libggml-cpu.a", "libggml-vulkan.a", "libcommon.a", "libvulkan-1.a") {
+          if (-not (Test-Path $lib)) {
+            throw "ERROR: Missing $lib"
+          }
+        }
+        Write-Host "All llama.cpp libraries built successfully"
 
     # Additional packages for Flatpak building
 
