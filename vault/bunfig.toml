@@ -1,0 +1,10 @@
+[serve.static]
+plugins = ["bun-plugin-tailwind"]
+env = "BUN_PUBLIC_*"
+
+[test]
+preload = ["./src/setupTests.ts"]
+
+[run]
+# Always use `bun` instead of `node`, even if scripts call `node`.
+bun = true
