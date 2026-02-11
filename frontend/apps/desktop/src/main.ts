@@ -943,6 +943,144 @@ function initializeIpcHandlers() {
     }
   })
 
+  ipcMain.on('open-pdf-file', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
+
+    const options: OpenDialogOptions = {
+      title: 'Select PDF files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{name: 'PDF Files', extensions: ['pdf']}],
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const files = result.filePaths
+        const validDocuments: {pdfContent: ArrayBuffer; title: string; directoryPath: string}[] = []
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
+
+        for (const filePath of files) {
+          const stats = fs.lstatSync(filePath)
+          if (stats.isFile() && filePath.endsWith('.pdf')) {
+            const pdfBuffer = fs.readFileSync(filePath)
+            const pdfContent = pdfBuffer.buffer.slice(
+              pdfBuffer.byteOffset,
+              pdfBuffer.byteOffset + pdfBuffer.byteLength,
+            )
+            const dirName = path.basename(filePath)
+            const title = formatTitle(dirName.replace(/\.pdf$/, ''))
+
+            docMap.set('./' + dirName, {
+              name: title,
+              path: path.join(
+                accountId,
+                title.toLowerCase().replace(/\s+/g, '-'),
+              ),
+            })
+
+            validDocuments.push({
+              pdfContent,
+              title,
+              directoryPath: path.dirname(filePath),
+            })
+          }
+        }
+
+        event.sender.send('pdf-files-content-response', {
+          success: true,
+          result: {documents: validDocuments, docMap: docMap},
+        })
+      } else {
+        event.sender.send('pdf-files-content-response', {
+          success: false,
+          error: 'File selection was canceled',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Error selecting PDF file:', err)
+      event.sender.send('pdf-files-content-response', {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
+      })
+    }
+  })
+
+  ipcMain.on('open-pdf-directory', async (event, accountId: string) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    if (!focusedWindow) {
+      console.error('No focused window found.')
+      return
+    }
+
+    const options: OpenDialogOptions = {
+      title: 'Select PDF Directory',
+      properties: ['openDirectory'],
+    }
+
+    try {
+      const result = await dialog.showOpenDialog(focusedWindow, options)
+      if (!result.canceled && result.filePaths.length > 0) {
+        const directoryPath = result.filePaths[0]!
+        const files = fs.readdirSync(directoryPath)
+        const pdfFiles = files.filter((file) => file.endsWith('.pdf'))
+
+        const validDocuments: {pdfContent: ArrayBuffer; title: string; directoryPath: string}[] = []
+        const docMap = new Map<
+          string,
+          {relativePath?: string; name: string; path: string}
+        >()
+
+        for (const pdfFile of pdfFiles) {
+          const filePath = path.join(directoryPath, pdfFile)
+          const fileName = path.basename(pdfFile, '.pdf')
+          const title = formatTitle(fileName)
+          const pdfBuffer = fs.readFileSync(filePath)
+          const pdfContent = pdfBuffer.buffer.slice(
+            pdfBuffer.byteOffset,
+            pdfBuffer.byteOffset + pdfBuffer.byteLength,
+          )
+
+          docMap.set('./' + pdfFile, {
+            name: title,
+            path: path.join(
+              accountId,
+              title.toLowerCase().replace(/\s+/g, '-'),
+            ),
+          })
+
+          validDocuments.push({
+            pdfContent,
+            title,
+            directoryPath,
+          })
+        }
+
+        event.sender.send('pdf-directories-content-response', {
+          success: true,
+          result: {documents: validDocuments, docMap: docMap},
+        })
+      } else {
+        event.sender.send('pdf-directories-content-response', {
+          success: false,
+          error: 'Directory selection was canceled',
+        })
+      }
+    } catch (err: unknown) {
+      console.error('Error selecting PDF directory:', err)
+      event.sender.send('pdf-directories-content-response', {
+        success: false,
+        error: err instanceof Error ? err.message : 'Unknown error occurred',
+      })
+    }
+  })
+
   ipcMain.on('read-media-file', async (event, filePath) => {
     try {
       const absoluteFilePath = path.resolve(filePath)

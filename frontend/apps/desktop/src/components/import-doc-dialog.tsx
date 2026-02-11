@@ -5,6 +5,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 export type ImportedDocument = {
   markdownContent?: string
   latexContent?: string
+  pdfContent?: ArrayBuffer
   title: string
   directoryPath: string
 }

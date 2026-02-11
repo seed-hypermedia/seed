@@ -41,6 +41,8 @@ function ImportMenuItem({
       onImportDirectory: importing.importDirectory,
       onImportLatexFile: importing.importLatexFile,
       onImportLatexDirectory: importing.importLatexDirectory,
+      onImportPdfFile: importing.importPdfFile,
+      onImportPdfDirectory: importing.importPdfDirectory,
     })
   }
 
