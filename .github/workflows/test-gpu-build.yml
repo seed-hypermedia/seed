@@ -120,7 +120,7 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
-          CGO_LDFLAGS: -static-libgcc -static-libstdc++ -Wl,-Bstatic -l:libwinpthread.a -Wl,-Bdynamic
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
@@ -140,23 +140,10 @@ jobs:
           echo "Windows DLL imports:"
           echo "$DLLS"
 
-          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll)$'; then
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll|libwinpthread-1\.dll)$'; then
             echo "ERROR: MinGW runtime DLL dependency is still present"
             exit 1
           fi
-
-      - name: Stage winpthread runtime DLL (Windows)
-        if: startsWith(matrix.config.os, 'windows')
-        shell: bash
-        run: |
-          set -euo pipefail
-          DLL_PATH="$(gcc -print-file-name=libwinpthread-1.dll)"
-          if [ ! -f "$DLL_PATH" ]; then
-            echo "ERROR: libwinpthread-1.dll not found via gcc toolchain"
-            exit 1
-          fi
-          cp "$DLL_PATH" "plz-out/bin/backend/libwinpthread-1.dll"
-          ls -la "plz-out/bin/backend/libwinpthread-1.dll"
 
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')

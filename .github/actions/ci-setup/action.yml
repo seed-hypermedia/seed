@@ -80,6 +80,7 @@ runs:
         # Build llama.cpp with CMake using MinGW for ABI compatibility with CGO
         cmake -G "MinGW Makefiles" -B build -S llama.cpp \
           -DGGML_VULKAN=ON \
+          -DGGML_OPENMP=OFF \
           -DBUILD_SHARED_LIBS=OFF \
           -DLLAMA_CURL=OFF \
           -DLLAMA_BUILD_TESTS=OFF \
