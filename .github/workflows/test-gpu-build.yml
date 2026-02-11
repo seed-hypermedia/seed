@@ -37,8 +37,7 @@ jobs:
       - name: Set test version
         id: set_version
         run: |
-          PATCH=$((GITHUB_RUN_NUMBER % 60000))
-          VERSION="0.0.${PATCH}"
+          VERSION="9999.9.9"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
   build-backend:
@@ -251,9 +250,21 @@ jobs:
           VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
           VITE_GATEWAY_URL: "https://dev.hyper.media"
           VITE_NOTIFY_SERVICE_HOST: "https://notify-dev.seed.hyper.media"
+          VITE_AVOID_UPDATES: "true"
           VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
           SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
           SEED_P2P_TESTNET_NAME: "dev"
+
+      - name: Upload Windows installer artifact
+        if: matrix.config.os == 'windows-2025'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-gpu-windows-installer-${{ needs.build-info.outputs.version }}
+          retention-days: 14
+          path: |
+            frontend/apps/desktop/out/make/squirrel.windows/x64/*-setup.exe
+            frontend/apps/desktop/out/make/squirrel.windows/x64/*.nupkg
+            frontend/apps/desktop/out/make/squirrel.windows/x64/RELEASES
 
       - name: Verify binary
         run: |
