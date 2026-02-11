@@ -119,8 +119,18 @@ jobs:
           $vsDevCmd = Join-Path $installPath "Common7\Tools\VsDevCmd.bat"
           if (-not (Test-Path $vsDevCmd)) { throw "VsDevCmd.bat not found at $vsDevCmd" }
 
-          $buildCmd = "call \"$vsDevCmd\" -arch=x64 -host_arch=x64 && go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon"
-          cmd.exe /c $buildCmd
+          $cmdFile = Join-Path $env:TEMP "build-seed-daemon-windows.cmd"
+          $cmdLines = @(
+            '@echo off',
+            "call `"$vsDevCmd`" -arch=x64 -host_arch=x64",
+            'if errorlevel 1 exit /b %errorlevel%',
+            'go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon',
+            'if errorlevel 1 exit /b %errorlevel%'
+          )
+          Set-Content -Path $cmdFile -Value $cmdLines -Encoding Ascii
+
+          cmd.exe /d /s /c "`"$cmdFile`""
+          if ($LASTEXITCODE -ne 0) { throw "seed-daemon build failed with exit code $LASTEXITCODE" }
 
           Get-ChildItem plz-out/bin/backend/seed-daemon-* | Format-Table Name, Length
         env:
