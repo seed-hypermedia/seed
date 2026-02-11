@@ -11,7 +11,9 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
+import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {
+  useAccountsMetadata,
   useDirectory,
   useResource,
   useResources,
@@ -44,7 +46,7 @@ import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {BreadcrumbEntry, DocumentHeader} from './document-header'
+import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -422,6 +424,20 @@ function CommentPageBody({
   const media = useMedia()
   const isMobile = media.xs
 
+  // Fetch author metadata for document header
+  const commentAccountsMetadata = useAccountsMetadata(document.authors || [])
+  const commentAuthorPayloads: AuthorPayload[] = useMemo(() => {
+    return (document.authors || []).map((uid) => {
+      const data = commentAccountsMetadata.data[uid]
+      if (data) return data
+      return {
+        id: hmId(uid),
+        metadata: null,
+        isDiscovering: true,
+      }
+    })
+  }, [document.authors, commentAccountsMetadata.data])
+
   return (
     <>
       <DocumentCover cover={document.metadata?.cover} />
@@ -433,7 +449,7 @@ function CommentPageBody({
           <DocumentHeader
             docId={docId}
             docMetadata={document.metadata}
-            authors={[]}
+            authors={commentAuthorPayloads}
             updateTime={document.updateTime}
             breadcrumbs={breadcrumbs}
           />
@@ -566,6 +582,7 @@ export function PageWrapper({
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
         isMainFeedVisible={isMainFeedVisible}
+        notifyServiceHost={NOTIFY_SERVICE_HOST}
       />
       {children}
     </div>
@@ -742,6 +759,20 @@ function DocumentBody({
       activeView === 'content',
   })
 
+  // Fetch author metadata for document header
+  const accountsMetadata = useAccountsMetadata(document.authors || [])
+  const authorPayloads: AuthorPayload[] = useMemo(() => {
+    return (document.authors || []).map((uid) => {
+      const data = accountsMetadata.data[uid]
+      if (data) return data
+      return {
+        id: hmId(uid),
+        metadata: null,
+        isDiscovering: true,
+      }
+    })
+  }, [document.authors, accountsMetadata.data])
+
   // Use document scroll on mobile, element scroll on desktop
   const media = useMedia()
   const isMobile = media.xs
@@ -895,7 +926,7 @@ function DocumentBody({
               <DocumentHeader
                 docId={docId}
                 docMetadata={document.metadata}
-                authors={[]}
+                authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
               />
@@ -915,7 +946,7 @@ function DocumentBody({
             <DocumentHeader
               docId={docId}
               docMetadata={document.metadata}
-              authors={[]}
+              authors={authorPayloads}
               updateTime={document.updateTime}
               breadcrumbs={breadcrumbs}
             />
@@ -986,31 +1017,33 @@ function DocumentBody({
       </div>
 
       {/* Main content based on activeView */}
-      <MainContent
-        docId={docId}
-        resourceId={
-          'id' in route && typeof route.id === 'object' ? route.id : docId
-        }
-        document={document}
-        activeView={activeView}
-        contentMaxWidth={contentMaxWidth}
-        wrapperProps={wrapperProps}
-        sidebarProps={sidebarProps}
-        mainContentProps={mainContentProps}
-        showSidebars={showSidebars}
-        discussionsParams={discussionsParams}
-        activityFilterEventType={
-          route.key === 'activity' ? route.filterEventType : undefined
-        }
-        onActivityFilterChange={handleMainActivityFilterChange}
-        blockCitations={blockCitations}
-        onBlockCitationClick={handleBlockCitationClick}
-        onBlockCommentClick={handleBlockCommentClick}
-        onBlockSelect={handleBlockSelect}
-        CommentEditor={CommentEditor}
-        directory={directory.data}
-        collaboratorForm={collaboratorForm}
-      />
+      <div className="pt-4">
+        <MainContent
+          docId={docId}
+          resourceId={
+            'id' in route && typeof route.id === 'object' ? route.id : docId
+          }
+          document={document}
+          activeView={activeView}
+          contentMaxWidth={contentMaxWidth}
+          wrapperProps={wrapperProps}
+          sidebarProps={sidebarProps}
+          mainContentProps={mainContentProps}
+          showSidebars={showSidebars}
+          discussionsParams={discussionsParams}
+          activityFilterEventType={
+            route.key === 'activity' ? route.filterEventType : undefined
+          }
+          onActivityFilterChange={handleMainActivityFilterChange}
+          blockCitations={blockCitations}
+          onBlockCitationClick={handleBlockCitationClick}
+          onBlockCommentClick={handleBlockCommentClick}
+          onBlockSelect={handleBlockSelect}
+          CommentEditor={CommentEditor}
+          directory={directory.data}
+          collaboratorForm={collaboratorForm}
+        />
+      </div>
     </>
   )
 
