@@ -35,6 +35,7 @@ import {useResourceUrl} from '@shm/shared/url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
+  memo,
   ReactNode,
   useEffect,
   useLayoutEffect,
@@ -277,7 +278,7 @@ export function CommentDiscussions({
   )
 }
 
-export function Discussions({
+export const Discussions = memo(function Discussions({
   targetId,
   commentId,
   targetDomain,
@@ -344,28 +345,32 @@ export function Discussions({
           {discussionsService.data.discussions?.map((cg) => {
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
-                <CommentGroup
-                  commentGroup={cg}
-                  authors={discussionsService.data.authors}
-                  enableReplies
-                  targetDomain={targetDomain}
-                  currentAccountId={currentAccountId}
-                  onCommentDelete={onCommentDelete}
-                />
+                <LazyCommentGroup>
+                  <CommentGroup
+                    commentGroup={cg}
+                    authors={discussionsService.data.authors}
+                    enableReplies
+                    targetDomain={targetDomain}
+                    currentAccountId={currentAccountId}
+                    onCommentDelete={onCommentDelete}
+                  />
+                </LazyCommentGroup>
               </div>
             )
           })}
           {discussionsService.data.citingDiscussions?.map((cg) => {
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
-                <CommentGroup
-                  commentGroup={cg}
-                  authors={discussionsService.data.authors}
-                  enableReplies
-                  targetDomain={targetDomain}
-                  currentAccountId={currentAccountId}
-                  onCommentDelete={onCommentDelete}
-                />
+                <LazyCommentGroup>
+                  <CommentGroup
+                    commentGroup={cg}
+                    authors={discussionsService.data.authors}
+                    enableReplies
+                    targetDomain={targetDomain}
+                    currentAccountId={currentAccountId}
+                    onCommentDelete={onCommentDelete}
+                  />
+                </LazyCommentGroup>
               </div>
             )
           })}
@@ -376,7 +381,7 @@ export function Discussions({
   }
 
   return <SelectionContent centered={centered}>{panelContent}</SelectionContent>
-}
+})
 
 export function BlockDiscussions({
   targetId,
@@ -484,7 +489,51 @@ export function BlockDiscussions({
 }
 
 // this is a LINEARIZED set of comments, where one comment is directly replying to another. the commentGroup.moreCommentsCount should be the number of replies to the last comment in the group.
-export function CommentGroup({
+const LAZY_COMMENT_PLACEHOLDER_HEIGHT = 80
+
+/**
+ * Lazy-renders children only when near the viewport using IntersectionObserver.
+ * Unmounts children when scrolled far away to keep memory low.
+ * Preserves measured height as placeholder to prevent scroll jumps.
+ */
+function LazyCommentGroup({children}: {children: ReactNode}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [isNearViewport, setIsNearViewport] = useState(false)
+  const heightRef = useRef(LAZY_COMMENT_PLACEHOLDER_HEIGHT)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        if (entry.isIntersecting) {
+          setIsNearViewport(true)
+        } else {
+          if (el.offsetHeight > 0) {
+            heightRef.current = el.offsetHeight
+          }
+          setIsNearViewport(false)
+        }
+      },
+      {rootMargin: '600px'},
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      style={isNearViewport ? undefined : {minHeight: heightRef.current}}
+    >
+      {isNearViewport ? children : null}
+    </div>
+  )
+}
+
+export const CommentGroup = memo(function CommentGroup({
   commentGroup,
   authors,
   enableReplies = true,
@@ -546,9 +595,9 @@ export function CommentGroup({
       })}
     </div>
   )
-}
+})
 
-export function Comment({
+export const Comment = memo(function Comment({
   comment,
   isFirst = true,
   isLast = false,
@@ -742,7 +791,7 @@ export function Comment({
       </div>
     </div>
   )
-}
+})
 
 export function CommentContent({
   comment,

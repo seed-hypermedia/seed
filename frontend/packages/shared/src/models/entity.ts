@@ -167,12 +167,14 @@ export function useResource(
     ...queryOptions,
   })
 
-  // Get discovery state
+  // Get discovery state - only subscribe when entity is subscribed for discovery.
+  // Non-subscribed callers don't need discovery state and subscribing would cause
+  // unnecessary re-renders (e.g. 500 CommentContent components sharing same account stream).
   const {
     isDiscovering: discoveryInProgress,
     isTombstone,
     isNotFound,
-  } = useDiscoveryState(id?.id)
+  } = useDiscoveryState(subscribed ? id?.id : undefined)
 
   // Determine if we should show discovering UI
   // Show discovering when: subscribed, not-found, AND either discovery in progress OR query is fetching
@@ -334,8 +336,8 @@ export function useResources(
     client.subscribeEntity,
   ])
 
-  // Get discovery states for all entities
-  const entityIdStrings = ids.map((id) => id?.id)
+  // Get discovery states - only when subscribed to avoid unnecessary re-renders
+  const entityIdStrings = subscribed ? ids.map((id) => id?.id) : []
   const discoveryStates = useDiscoveryStates(entityIdStrings)
 
   const queryResults = useQueries({

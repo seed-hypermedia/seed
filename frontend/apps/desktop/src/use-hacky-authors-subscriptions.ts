@@ -1,14 +1,16 @@
-import {hmId, useResources} from '@shm/shared'
-import {useMemo, useRef} from 'react'
+import {hmId} from '@shm/shared'
+import {useUniversalClient} from '@shm/shared/routing'
+import {useEffect, useMemo, useRef} from 'react'
 
 /**
  * Desktop-only hook to subscribe to author resources for syncing.
- * This is a temporary workaround while syncing is improved.
- *
- * Uses stable ID references to prevent subscription churn when
- * authorIds array reference changes but content is the same.
+ * Only creates subscriptions - does NOT use useResources/useDiscoveryStates
+ * to avoid triggering re-renders of the parent component when discovery
+ * states change (which would re-render hundreds of comments).
  */
 export function useHackyAuthorsSubscriptions(authorIds: string[]) {
+  const client = useUniversalClient()
+
   // Create stable key from sorted IDs to detect actual content changes
   const idsKey = useMemo(() => [...authorIds].sort().join(','), [authorIds])
 
@@ -25,5 +27,12 @@ export function useHackyAuthorsSubscriptions(authorIds: string[]) {
     return hmIdsRef.current
   }, [idsKey, authorIds])
 
-  useResources(hmIds, {subscribed: true})
+  // Subscribe directly without useResources to avoid re-render cascade
+  useEffect(() => {
+    if (!client.subscribeEntity) return
+    const cleanups = hmIds
+      .filter((id) => !!id)
+      .map((id) => client.subscribeEntity!({id}))
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }, [idsKey, client.subscribeEntity])
 }
