@@ -722,9 +722,11 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	} else {
 		// Legacy fallback.
 		contentTypes["title"] = true
+		contentTypes["contact"] = true
 		if in.IncludeBody {
 			contentTypes["document"] = true
-			contentTypes["contact"] = true
+			contentTypes["comment"] = true
+
 		}
 	}
 	var loggedAccountID int64 = 0
