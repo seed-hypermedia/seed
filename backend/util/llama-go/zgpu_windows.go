@@ -3,11 +3,10 @@
 
 // Include Vulkan LDFLAGS on Windows for GPU acceleration.
 // Built with MinGW for ABI compatibility with CGO.
-// Requires -lgomp for OpenMP support used by ggml-cpu.
 package llama
 
 /*
-#cgo LDFLAGS: -L./ -lggml-vulkan -lvulkan-1 -Wl,-Bstatic -l:libgomp.a -l:libwinpthread.a -Wl,-Bdynamic
+#cgo LDFLAGS: -L./ -lggml-vulkan -lvulkan-1
 #cgo CXXFLAGS: -std=c++17
 */
 import "C"
