@@ -124,6 +124,21 @@ jobs:
           LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
           C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
+      - name: Stage Windows runtime DLL
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DLL_PATH="$(gcc -print-file-name=libwinpthread-1.dll)"
+
+          if [ ! -f "$DLL_PATH" ]; then
+            echo "ERROR: libwinpthread-1.dll not found in gcc toolchain"
+            exit 1
+          fi
+
+          cp "$DLL_PATH" plz-out/bin/backend/libwinpthread-1.dll
+          ls -la plz-out/bin/backend/libwinpthread-1.dll
+
       - name: Verify Windows daemon runtime deps
         if: matrix.config.os == 'windows-2025'
         shell: bash
@@ -140,9 +155,18 @@ jobs:
           echo "Windows DLL imports:"
           echo "$DLLS"
 
-          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll|libwinpthread-1\.dll)$'; then
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll)$'; then
             echo "ERROR: MinGW runtime DLL dependency is still present"
             exit 1
+          fi
+
+          if echo "$DLLS" | grep -Eiq '^libwinpthread-1\.dll$'; then
+            if [ ! -f "plz-out/bin/backend/libwinpthread-1.dll" ]; then
+              echo "ERROR: daemon imports libwinpthread-1.dll but runtime DLL is not staged"
+              exit 1
+            fi
+
+            echo "libwinpthread-1.dll import detected and staged correctly"
           fi
 
       - name: Set MacOS signing certs
@@ -244,3 +268,4 @@ jobs:
           path: |
             frontend/apps/desktop/out/make/**/*
             plz-out/bin/backend/seed-daemon-*
+            plz-out/bin/backend/libwinpthread-1.dll

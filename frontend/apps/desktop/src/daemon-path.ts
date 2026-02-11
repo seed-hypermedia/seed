@@ -32,7 +32,7 @@ function getPlatformTriple() {
       case 'darwin/arm64':
         return 'aarch64-apple-darwin'
       case 'win32/x64':
-        return 'x86_64-pc-windows-msvc'
+        return 'x86_64-pc-windows-gnu'
       case 'linux/x64':
         return 'x86_64-unknown-linux-gnu'
       case 'linux/arm64':
