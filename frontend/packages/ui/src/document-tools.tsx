@@ -182,7 +182,12 @@ export function DocumentTools({
           className={cn(wrapperProps.className, 'flex flex-1 items-center')}
           style={wrapperProps.style}
         >
-          {showSidebars && <div {...sidebarProps} />}
+          {showSidebars && (
+            <div
+              {...sidebarProps}
+              className={cn(sidebarProps.className, '!h-auto !p-0')}
+            />
+          )}
           <div
             {...mainContentProps}
             ref={containerRef}
@@ -196,7 +201,10 @@ export function DocumentTools({
           {showSidebars ? (
             <div
               {...sidebarProps}
-              className={cn(sidebarProps.className, 'flex items-center !p-0')}
+              className={cn(
+                sidebarProps.className,
+                'flex items-center !h-auto !p-0',
+              )}
             >
               {rightActions ? (
                 <div

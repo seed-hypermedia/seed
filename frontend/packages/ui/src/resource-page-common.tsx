@@ -905,7 +905,12 @@ function DocumentBody({
           {...wrapperProps}
           className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
         >
-          {showSidebars && <div {...sidebarProps} />}
+          {showSidebars && (
+            <div
+              {...sidebarProps}
+              className={cn(sidebarProps.className, '!h-auto')}
+            />
+          )}
           <div
             {...mainContentProps}
             className={cn(mainContentProps.className, 'flex flex-col')}
@@ -920,7 +925,12 @@ function DocumentBody({
               />
             )}
           </div>
-          {showSidebars && <div {...sidebarProps} />}
+          {showSidebars && (
+            <div
+              {...sidebarProps}
+              className={cn(sidebarProps.className, '!h-auto')}
+            />
+          )}
         </div>
       ) : (
         <div
