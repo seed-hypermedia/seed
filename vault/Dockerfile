@@ -7,7 +7,6 @@ RUN bun run build
 
 FROM oven/bun:1
 WORKDIR /app
-COPY --from=builder /build/dist/main.js .
+COPY --from=builder /build/dist/ .
 VOLUME /data
-EXPOSE 3000
 CMD ["bun", "main.js"]
