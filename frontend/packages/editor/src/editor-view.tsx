@@ -25,7 +25,6 @@ export function HyperMediaEditorView({
         formattingToolbar={HMFormattingToolbar}
       />
       <HyperlinkToolbarPositioner
-        // hyperlinkToolbar={HypermediaLinkToolbar}
         // @ts-expect-error
         hyperlinkToolbar={HypermediaLinkPreview}
         editor={editor}

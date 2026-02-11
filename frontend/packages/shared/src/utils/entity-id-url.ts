@@ -38,6 +38,7 @@ export const VIEW_TERMS = [
   ':discussions',
   ':collaborators',
   ':directory',
+  ':feed',
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
@@ -47,6 +48,7 @@ export type ViewRouteKey =
   | 'discussions'
   | 'collaborators'
   | 'directory'
+  | 'feed'
 
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey =
@@ -101,6 +103,7 @@ export function viewTermToRouteKey(
     ':discussions': 'discussions',
     ':collaborators': 'collaborators',
     ':directory': 'directory',
+    ':feed': 'feed',
   }
   return mapping[viewTerm] ?? null
 }
@@ -221,7 +224,8 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     (route.key === 'activity' ||
       route.key === 'discussions' ||
       route.key === 'collaborators' ||
-      route.key === 'directory') &&
+      route.key === 'directory' ||
+      route.key === 'feed') &&
     route.panel
   ) {
     panel = route.panel
@@ -268,14 +272,8 @@ export function routeToUrl(
     })
     return url
   }
-  if (route.key === 'feed') {
-    return createWebHMUrl(route.id.uid, {
-      ...route.id,
-      hostname: opts?.hostname,
-      originHomeId: opts?.originHomeId,
-    })
-  }
   if (
+    route.key === 'feed' ||
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
@@ -320,7 +318,6 @@ export function createWebHMUrl(
     latest,
     path,
     originHomeId,
-    feed,
     viewTerm,
     panel,
   }: {
@@ -331,7 +328,6 @@ export function createWebHMUrl(
     latest?: boolean | null
     path?: string[] | null
     originHomeId?: UnpackedHypermediaId
-    feed?: boolean
     viewTerm?: string | null
     panel?: string | null
   } = {},
@@ -357,7 +353,6 @@ export function createWebHMUrl(
   res += getHMQueryString({
     latest: null,
     version: latest ? undefined : version,
-    feed,
     panel,
   })
   if (blockRef) {
@@ -367,12 +362,10 @@ export function createWebHMUrl(
 }
 
 function getHMQueryString({
-  feed,
   version,
   latest,
   panel,
 }: {
-  feed?: boolean
   version?: string | null
   latest?: boolean | null
   panel?: string | null
@@ -383,9 +376,6 @@ function getHMQueryString({
   }
   if (latest) {
     query.l = null
-  }
-  if (feed) {
-    query.feed = 'true'
   }
   if (panel) {
     query.panel = panel
@@ -562,7 +552,6 @@ export function idToUrl(
   hmId: UnpackedHypermediaId,
   opts?: {
     originHomeId?: UnpackedHypermediaId
-    feed?: boolean
     panel?: string | null
   },
 ) {
@@ -573,7 +562,6 @@ export function idToUrl(
     path: hmId.path,
     hostname: hmId.hostname,
     originHomeId: opts?.originHomeId,
-    feed: opts?.feed,
     panel: opts?.panel,
     latest: hmId.latest,
   })

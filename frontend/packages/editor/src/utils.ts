@@ -23,7 +23,6 @@ export function isValidUrl(urlString: string) {
   try {
     return Boolean(new URL(urlString))
   } catch (e) {
-    console.log(e)
     return false
   }
 }

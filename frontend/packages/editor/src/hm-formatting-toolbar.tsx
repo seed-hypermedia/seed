@@ -341,7 +341,6 @@ function ToggleStyleButton<
             'bg-black text-white hover:bg-black/80 hover:text-white dark:bg-white dark:text-black dark:hover:bg-white/90 dark:hover:text-white',
         )}
         onClick={() => {
-          console.log('toggleStyle', toggleStyle)
           handlePress(toggleStyle)
         }}
       >

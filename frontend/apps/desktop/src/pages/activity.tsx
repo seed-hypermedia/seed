@@ -134,12 +134,11 @@ function _ActivityContent({
         id={id}
         activeTab={
           route.panel
-            ? (route.panel.key as 'discussions' | 'collaborators' | 'directory')
-            : 'activity'
+            ? (route.panel.key as 'discussions' | 'collaborators')
+            : undefined
         }
         commentsCount={interactionSummary.data?.comments || 0}
         collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
-        directoryCount={directory.data?.length}
       />
       <PageLayout
         title="Activity"

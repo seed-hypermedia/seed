@@ -122,7 +122,6 @@ export function MentionToken(props: {value: string; selected?: boolean}) {
   } else if (unpackedRef) {
     return <ContactMention unpackedRef={unpackedRef} {...props} />
   } else {
-    console.log('=== MENTION ERROR', props)
     return <MentionText>ERROR</MentionText>
   }
 }

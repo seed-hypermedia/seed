@@ -183,16 +183,7 @@ const UniqueID = Extension.create({
                       ...node.attrs,
                       [attributeName]: generateID(),
                     })
-                    console.log('🆔 [UniqueID] setNodeMarkup successful')
                   } catch (error) {
-                    console.error('🆔 [UniqueID] setNodeMarkup FAILED:', error)
-                    console.error('Node details:', {
-                      pos,
-                      currentNode: currentNode.toString(),
-                      type: currentNode.type.name,
-                      content: currentNode.content.toString(),
-                      attrs: currentNode.attrs,
-                    })
                     throw error
                   }
                 }

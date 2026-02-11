@@ -44,7 +44,6 @@ export const hmBlockSchema: BlockSchema = {
   ['web-embed']: WebEmbed,
   embed: EmbedBlock,
   unknown: UnknownBlock,
-  // nostr: NostrBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

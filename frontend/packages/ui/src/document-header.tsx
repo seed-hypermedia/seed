@@ -22,6 +22,10 @@ export type AuthorPayload = HMMetadataPayload & {
   isDiscovering?: boolean
 }
 
+export type BreadcrumbEntry =
+  | {id: UnpackedHypermediaId; metadata: HMMetadata}
+  | {label: string}
+
 export function DocumentHeader({
   docId,
   docMetadata,
@@ -37,10 +41,7 @@ export function DocumentHeader({
   docMetadata: HMMetadata | null
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs?: Array<{
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }>
+  breadcrumbs?: BreadcrumbEntry[]
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
@@ -166,34 +167,32 @@ function AuthorLink({name, id}: {name: string; id: UnpackedHypermediaId}) {
   )
 }
 
-function Breadcrumbs({
-  breadcrumbs,
-}: {
-  breadcrumbs: Array<{
-    id: UnpackedHypermediaId
-    metadata: HMMetadata
-  }>
-}) {
+function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   const [first, ...rest] = breadcrumbs
 
   return (
     <div className="text-muted-foreground flex flex-1 items-center gap-2">
-      {first ? (
+      {first && 'id' in first ? (
         <div className="flex items-center gap-1">
           <Home className="size-3" />
-          {/* <BreadcrumbLink id={first.id} metadata={first.metadata} /> */}
         </div>
       ) : null}
-      {rest.flatMap((crumb) => {
+      {rest.flatMap((crumb, i) => {
+        const key = 'id' in crumb ? crumb.id.id : `label-${i}`
         return [
-          <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
-            /
+          <SizableText color="muted" key={`${key}-separator`} size="xs">
+            {'>'}
           </SizableText>,
-          <BreadcrumbLink
-            id={crumb.id}
-            metadata={crumb.metadata}
-            key={crumb.id.id}
-          />,
+          'id' in crumb ? (
+            <BreadcrumbLink id={crumb.id} metadata={crumb.metadata} key={key} />
+          ) : (
+            <span
+              key={key}
+              className="max-w-[15ch] truncate text-xs whitespace-nowrap"
+            >
+              {crumb.label}
+            </span>
+          ),
         ]
       })}
     </div>

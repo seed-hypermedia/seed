@@ -652,21 +652,19 @@ export function MobileMenu({
   return (
     <div
       className={cn(
-        'bg-background fixed inset-0 z-50 h-screen transition-transform duration-200 md:hidden',
+        'bg-background fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col transition-transform duration-200 md:hidden',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
     >
-      <div className="sticky top-0 flex h-screen flex-col">
-        <div className="flex flex-0 items-center justify-end p-4">
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <Close className="size-4" />
-          </Button>
-        </div>
-        <ScrollArea className="mobile-menu h-3/4">
-          {open ? renderContent() : null}
-          <div className="h-20"></div>
-        </ScrollArea>
+      <div className="flex flex-0 items-center justify-end p-4">
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <Close className="size-4" />
+        </Button>
       </div>
+      <ScrollArea className="mobile-menu flex-1">
+        {open ? renderContent() : null}
+        <div className="h-20"></div>
+      </ScrollArea>
     </div>
   )
 }

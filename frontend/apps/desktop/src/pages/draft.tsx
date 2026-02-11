@@ -1,9 +1,10 @@
-import {AccessoryLayout} from '@/components/accessory-sidebar'
+import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CoverImage} from '@/components/cover-image'
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
 import {DocNavigationDraftLoader} from '@/components/doc-navigation'
-import {useDocumentSelection} from '@/components/document-accessory'
+import {DiscussionsPanel} from '@/components/discussions-panel'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
+import {OptionsPanel} from '@/components/options-panel'
 import {HyperMediaEditorView} from '@/components/editor'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
@@ -41,21 +42,32 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useDirectory, useResource} from '@shm/shared/models/entity'
+import {
+  useDirectory,
+  useResource,
+  useResources,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
 import '@shm/shared/styles/document.css'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
 import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
+import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {PanelContent} from '@shm/ui/accessories'
+import {DocumentCollaborators} from '@shm/ui/collaborators-page'
 import {Container, panelContainerStyles} from '@shm/ui/container'
+import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
+import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {Trash} from '@shm/ui/icons'
+import {HistoryIcon, Home, Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {PanelLayout} from '@shm/ui/panel-layout'
 import {PrivateBadge} from '@shm/ui/private-badge'
 import {SiteHeader} from '@shm/ui/site-header'
 import {Spinner} from '@shm/ui/spinner'
@@ -65,7 +77,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, Settings} from 'lucide-react'
+import {Eye, Folder, Settings} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -126,32 +138,25 @@ export default function DraftPage() {
   const homeDocument =
     homeEntity.data?.type === 'document' ? homeEntity.data.document : undefined
 
-  const {selectionUI, selectionOptions} = useDocumentSelection({
-    docId: editId,
-    state,
-    actor,
-    isEditingHomeDoc,
-  })
+  const draftPanelOptions = [
+    'options',
+    'activity',
+    'discussions',
+    'collaborators',
+    'directory',
+  ] as const
 
   useListenAppEvent('toggle_accessory', (event) => {
-    // Navigation guard: Check if accessory exists at this index
-    const targetSelection = selectionOptions[event.index]
-
-    if (!targetSelection) {
-      // No accessory at this index, do nothing
-      return
-    }
+    const targetKey = draftPanelOptions[event.index]
+    if (!targetKey) return
     const id = route.editUid
       ? hmId(route.editUid, {path: route.editPath})
       : undefined
     if (!id) return
-    // Check if already open
-    if (panelKey === targetSelection.key) {
-      // Already open → close it
+    if (panelKey === targetKey) {
       replace({...route, panel: null})
     } else {
-      // Not open → open it
-      replace({...route, panel: {key: targetSelection.key, id}})
+      replace({...route, panel: {key: targetKey, id}})
     }
   })
 
@@ -210,127 +215,94 @@ export default function DraftPage() {
   }
 
   const headerDocId = locationId || (!!homeEntity.data && editId)
+
+  const panelContent = panelKey ? (
+    <ScrollArea className="flex-1">
+      <DraftPanelContent
+        panelKey={panelKey}
+        docId={editId}
+        state={state}
+        actor={actor}
+        isEditingHomeDoc={isEditingHomeDoc}
+        route={route}
+      />
+    </ScrollArea>
+  ) : null
+
+  const handlePanelClose = () => {
+    replace({...route, panel: null})
+  }
+
+  const handleFilterChange = (filter: {filterEventType?: string[]}) => {
+    if (route.panel?.key === 'activity') {
+      replace({
+        ...route,
+        panel: {...route.panel, filterEventType: filter.filterEventType},
+      })
+    }
+  }
+
   return (
     <ErrorBoundary FallbackComponent={() => null}>
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
-        onReplyClick={(replyComment) => {
+        onReplyClick={() => {
           toast.error('Not implemented draft CommentsProvider onReplyClick')
-          return
-          // const targetRoute = isRouteEqualToCommentTarget({
-          //   id: editId || locationId,
-          //   comment: replyComment,
-          // })
-          // if (targetRoute) {
-          //   push({
-          //     key: 'document',
-          //     id: targetRoute,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: targetRoute,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // } else {
-          //   console.log('targetRoute is the same. replacing...')
-          //   replace({
-          //     ...route,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // }
-          // triggerCommentDraftFocus(route.id, replyComment.id)
         }}
-        onReplyCountClick={(replyComment) => {
+        onReplyCountClick={() => {
           toast.error(
             'Not implemented draft CommentsProvider onReplyCountClick',
           )
-          return
-          // const targetRoute = isRouteEqualToCommentTarget({
-          //   id: editId || locationId,
-          //   comment: replyComment,
-          // })
-          // if (targetRoute) {
-          //   // comment target is not the same as the route, so we need to change the whole route
-          //   push({
-          //     key: 'document',
-          //     id: targetRoute,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // } else {
-          //   // comment target is the same as the route, so we can replace safely
-          //   replace({
-          //     ...route,
-          //     panel: {
-          //       key: 'discussions',
-          //       id: route.editUid ? hmId(route.editUid, {path: route.editPath}) : undefined,
-          //       openComment: replyComment.id,
-          //       isReplying: true,
-          //     },
-          //   })
-          // }
         }}
       >
-        <div className="flex h-full flex-1">
-          <AccessoryLayout panelUI={selectionUI} panelKey={panelKey}>
-            <div
-              className={cn(
-                panelContainerStyles,
-                'dark:bg-background flex flex-col bg-white',
-              )}
-            >
+        <div
+          className={cn(
+            panelContainerStyles,
+            'dark:bg-background flex h-full flex-col bg-white',
+          )}
+        >
+          {headerDocId ? (
+            <DraftAppHeader
+              siteHomeEntity={homeEntity.data}
+              isEditingHomeDoc={isEditingHomeDoc}
+              docId={headerDocId}
+              document={homeDocument}
+              draftMetadata={
+                isEditingHomeDoc ? state.context.metadata : undefined
+              }
+              onDocNav={(navigation) => {
+                send({
+                  type: 'change.navigation',
+                  navigation,
+                })
+              }}
+              actor={actor}
+            />
+          ) : null}
+          <PanelLayout
+            panelKey={panelKey ?? null}
+            panelContent={panelContent}
+            onPanelClose={handlePanelClose}
+            filterEventType={
+              route.panel?.key === 'activity'
+                ? route.panel.filterEventType
+                : undefined
+            }
+            onFilterChange={handleFilterChange}
+          >
+            <div className="flex h-full flex-col">
               <DraftRebaseBanner />
-              {headerDocId ? (
-                <>
-                  <DraftAppHeader
-                    siteHomeEntity={homeEntity.data}
-                    isEditingHomeDoc={isEditingHomeDoc}
-                    docId={headerDocId}
-                    document={homeDocument}
-                    draftMetadata={
-                      isEditingHomeDoc ? state.context.metadata : undefined
-                    }
-                    onDocNav={(navigation) => {
-                      send({
-                        type: 'change.navigation',
-                        navigation,
-                      })
-                    }}
-                    actor={actor}
-                  />
-                  <DocumentEditor
-                    editor={editor}
-                    state={state}
-                    actor={actor}
-                    data={data}
-                    send={send}
-                    handleFocusAtMousePos={handleFocusAtMousePos}
-                    isHomeDoc={isEditingHomeDoc}
-                  />
-                </>
-              ) : (
-                <DocumentEditor
-                  editor={editor}
-                  state={state}
-                  actor={actor}
-                  data={data}
-                  send={send}
-                  handleFocusAtMousePos={handleFocusAtMousePos}
-                  isHomeDoc={isEditingHomeDoc}
-                />
-              )}
+              <DocumentEditor
+                editor={editor}
+                state={state}
+                actor={actor}
+                data={data}
+                send={send}
+                handleFocusAtMousePos={handleFocusAtMousePos}
+                isHomeDoc={isEditingHomeDoc}
+              />
             </div>
-          </AccessoryLayout>
+          </PanelLayout>
         </div>
       </CommentsProvider>
     </ErrorBoundary>
@@ -363,6 +335,72 @@ export default function DraftPage() {
 //     </div>
 //   )
 // }
+
+function DraftPanelContent({
+  panelKey,
+  docId,
+  state,
+  actor,
+  isEditingHomeDoc,
+  route,
+}: {
+  panelKey: string
+  docId?: UnpackedHypermediaId
+  state: ReturnType<typeof useDraftEditor>['state']
+  actor: ReturnType<typeof useDraftEditor>['actor']
+  isEditingHomeDoc: boolean
+  route: DraftRoute
+}) {
+  switch (panelKey) {
+    case 'options':
+      return state?.context?.metadata && actor ? (
+        <OptionsPanel
+          draftId={route.id}
+          metadata={state.context.metadata}
+          isHomeDoc={isEditingHomeDoc}
+          onMetadata={(metadata) => {
+            if (!metadata) return
+            actor.send({type: 'change', metadata})
+          }}
+          onResetContent={() => {
+            actor.send({type: 'reset.content'})
+          }}
+        />
+      ) : null
+    case 'discussions':
+      return route.panel?.key === 'discussions' && docId ? (
+        <DiscussionsPanel
+          docId={docId}
+          selection={{...route.panel, id: route.panel.id ?? docId}}
+        />
+      ) : null
+    case 'activity':
+      return (
+        <PanelContent>
+          <Feed
+            size="sm"
+            filterResource={docId?.id}
+            filterEventType={
+              route.panel?.key === 'activity'
+                ? route.panel.filterEventType || []
+                : []
+            }
+          />
+        </PanelContent>
+      )
+    case 'collaborators':
+      return docId ? (
+        <PanelContent>
+          <AddCollaboratorForm id={docId} />
+          <DocumentCollaborators docId={docId} />
+        </PanelContent>
+      ) : null
+    case 'directory':
+      return docId ? <DirectoryPanel docId={docId} /> : null
+    default:
+      return null
+  }
+}
 
 function DocumentEditor({
   editor,
@@ -440,6 +478,28 @@ function DocumentEditor({
     draftQuery.data?.editPath,
   ])
 
+  // Breadcrumbs: compute parent paths from editId (existing doc) or id (new doc location)
+  const breadcrumbParentIds = useMemo(() => {
+    const contextId = editId || id
+    if (!contextId) return []
+    const parentPaths = getParentPaths(contextId.path)
+    // For editId, exclude the last path (the doc itself)
+    // For locationId (id), include all (they're all parents)
+    const paths = editId ? parentPaths.slice(0, -1) : parentPaths
+    return paths.map((path) => hmId(contextId.uid, {path}))
+  }, [editId, id])
+
+  const breadcrumbEntities = useResources(breadcrumbParentIds)
+
+  const breadcrumbs = useMemo(() => {
+    return breadcrumbParentIds.map((bId, idx) => ({
+      id: bId,
+      metadata:
+        // @ts-expect-error - resource type union
+        breadcrumbEntities[idx]?.data?.document?.metadata ?? null,
+    }))
+  }, [breadcrumbParentIds, breadcrumbEntities])
+
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
@@ -454,7 +514,6 @@ function DocumentEditor({
       existingDraft={draftQuery.data || false}
       commentsCount={interactionSummary.data?.comments || 0}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
-      directoryCount={directory.data?.length}
     />
   ) : null
 
@@ -532,6 +591,7 @@ function DocumentEditor({
                     showCover={showCover}
                     setShowCover={setShowCover}
                     visibility={route.visibility || data?.visibility}
+                    breadcrumbs={breadcrumbs}
                   />
                 </div>
               ) : null}
@@ -807,6 +867,7 @@ function DraftMetadataEditor({
   showCover = false,
   setShowCover,
   visibility,
+  breadcrumbs,
 }: {
   onEnter: () => void
   draftActor: ActorRefFrom<typeof draftMachine>
@@ -814,6 +875,7 @@ function DraftMetadataEditor({
   showCover?: boolean
   setShowCover?: (show: boolean) => void
   visibility?: HMResourceVisibility
+  breadcrumbs?: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
 }) {
   const route = useNavRoute()
   if (route.key !== 'draft')
@@ -900,6 +962,9 @@ function DraftMetadataEditor({
         }}
       >
         <div className="group-header z-1 flex flex-col gap-4">
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <DraftBreadcrumbs breadcrumbs={breadcrumbs} />
+          ) : null}
           {visibility === 'PRIVATE' && <PrivateBadge />}
           <textarea
             disabled={disabled}
@@ -1068,6 +1133,7 @@ function applyInputResize(target: HTMLTextAreaElement) {
 function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const replace = useNavigate('replace')
+  const push = useNavigate('push')
   const dispatch = useNavigationDispatch()
   const draftId = route.id
   const draft = useDraft(draftId)
@@ -1079,11 +1145,13 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   )
   const deleteDialog = useDeleteDraftDialog()
 
+  const targetId = editId || locationId
   const menuItems: MenuItemType[] = [
     {
       key: 'delete-draft',
       label: 'Delete Draft',
       icon: <Trash className="size-4" />,
+      variant: 'destructive',
       onClick: () => {
         if (draftId) {
           deleteDialog.open({
@@ -1097,6 +1165,34 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
         }
       },
     },
+    ...(targetId
+      ? [
+          {
+            key: 'versions',
+            label: 'Document Versions',
+            icon: <HistoryIcon className="size-4" />,
+            onClick: () => {
+              replace({
+                key: 'document',
+                id: targetId,
+                panel: {
+                  key: 'activity',
+                  id: targetId,
+                  filterEventType: ['Ref'],
+                },
+              } as any)
+            },
+          },
+          {
+            key: 'directory',
+            label: 'Directory',
+            icon: <Folder className="size-4" />,
+            onClick: () => {
+              push({key: 'directory', id: targetId})
+            },
+          },
+        ]
+      : []),
   ]
 
   if (!selectedAccount?.id) return null
@@ -1128,6 +1224,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
                 accessoryWidth: 0,
               })
             }}
+            className="hover:bg-hover dark:bg-background bg-white"
           >
             <Eye className="size-4" />
           </Button>
@@ -1135,6 +1232,7 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       ) : null}
       <Tooltip content="Toggle Draft Options">
         <Button
+          className="hover:bg-hover dark:bg-background bg-white"
           onClick={() => {
             replace({
               ...route,
@@ -1158,5 +1256,53 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       {deleteDialog.content}
     </div>
+  )
+}
+
+function DraftBreadcrumbs({
+  breadcrumbs,
+}: {
+  breadcrumbs: Array<{id: UnpackedHypermediaId; metadata: HMMetadata | null}>
+}) {
+  const [first, ...rest] = breadcrumbs
+
+  return (
+    <div className="text-muted-foreground flex flex-1 items-center gap-2">
+      {first ? (
+        <div className="flex items-center gap-1">
+          <Home className="size-3" />
+        </div>
+      ) : null}
+      {rest.flatMap((crumb) => {
+        return [
+          <SizableText color="muted" key={`${crumb.id.id}-slash`} size="xs">
+            /
+          </SizableText>,
+          <DraftBreadcrumbLink
+            id={crumb.id}
+            metadata={crumb.metadata}
+            key={crumb.id.id}
+          />,
+        ]
+      })}
+    </div>
+  )
+}
+
+function DraftBreadcrumbLink({
+  id,
+  metadata,
+}: {
+  id: UnpackedHypermediaId
+  metadata: HMMetadata | null
+}) {
+  const linkProps = useRouteLink({key: 'document', id})
+  return (
+    <a
+      {...linkProps}
+      className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
+    >
+      {metadata?.name ?? id?.path?.at(-1) ?? '?'}
+    </a>
   )
 }

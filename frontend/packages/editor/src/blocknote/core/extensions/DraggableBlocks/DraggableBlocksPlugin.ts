@@ -629,7 +629,6 @@ export class BlockMenuView<BSchema extends BlockSchema> {
     if (contentNode.node.textContent.length !== 0) {
       const newBlockInsertionPos = block.afterPos
       const newBlockContentPos = newBlockInsertionPos + 2
-      console.log('here???')
       this.ttEditor
         .chain()
         .BNCreateBlock(newBlockInsertionPos)

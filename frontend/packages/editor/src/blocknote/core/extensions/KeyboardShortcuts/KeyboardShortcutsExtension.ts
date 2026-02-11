@@ -734,10 +734,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
                         ),
                       )
                       .run()
-                  } catch (e) {
-                    // @ts-expect-error
-                    console.log(e.message)
-                  }
+                  } catch (e) {}
                 })
               }
               return true

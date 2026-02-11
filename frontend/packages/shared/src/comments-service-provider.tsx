@@ -19,8 +19,8 @@ import {DeleteCommentInput} from './universal-client'
 import {hmId} from './utils/entity-id-url'
 
 type CommentsProviderValue = {
-  onReplyClick: (comment: HMComment) => void
-  onReplyCountClick: (comment: HMComment) => void
+  onReplyClick?: (comment: HMComment) => void
+  onReplyCountClick?: (comment: HMComment) => void
   /**
    * Desktop-only hook to subscribe to author resources for syncing.
    * No-op on web. This is a temporary workaround while syncing is improved.

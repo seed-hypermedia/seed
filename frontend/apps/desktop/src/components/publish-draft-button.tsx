@@ -448,8 +448,8 @@ export default function PublishDraftButton() {
         >
           <PopoverTrigger asChild>
             <Button
-              className="hover:bg-hover dark:bg-background bg-white px-2"
               size="sm"
+              className="hover:bg-hover dark:bg-background bg-white px-2"
             >
               <Share className="size-4" />
               Publish

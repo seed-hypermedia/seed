@@ -12,25 +12,14 @@ import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {PanelContent} from '@shm/ui/accessories'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
-import {ReadOnlyCollaboratorsContent} from '@shm/ui/collaborators-page'
 import {HMIcon, LoadedHMIcon} from '@shm/ui/hm-icon'
 import {ArrowRight, X} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {forwardRef, useEffect, useId, useMemo, useRef, useState} from 'react'
 import './combobox.css'
-
-export function CollaboratorsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  return (
-    <PanelContent>
-      <AddCollaboratorForm id={docId} />
-      <ReadOnlyCollaboratorsContent docId={docId} />
-    </PanelContent>
-  )
-}
 
 type SearchResult = {
   id: UnpackedHypermediaId

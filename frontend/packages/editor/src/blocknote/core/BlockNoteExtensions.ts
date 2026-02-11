@@ -98,11 +98,6 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
     Strike,
     Underline,
     Link.configure(opts.linkExtensionOptions),
-    // TextColorMark,
-    // TextColorExtension,
-    // BackgroundColorMark,
-    // BackgroundColorExtension,
-    // TextAlignmentExtension,
     LocalMediaPastePlugin.configure({
       editor: opts.editor,
     }),

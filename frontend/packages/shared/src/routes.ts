@@ -366,6 +366,8 @@ export function createDocumentNavRoute(
       return {key: 'directory', id: docId}
     case 'collaborators':
       return {key: 'collaborators', id: docId}
+    case 'feed':
+      return {key: 'feed', id: docId, panel}
     default: {
       // Comment links should open in main discussions view, not panel
       if (panelParam?.startsWith('comment/')) {

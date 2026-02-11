@@ -1,4 +1,3 @@
-import {useSearchParams} from '@remix-run/react'
 import {
   HMDocument,
   HMMetadata,
@@ -27,8 +26,6 @@ export function WebSiteHeader({
   origin,
   ...props
 }: React.PropsWithChildren<WebSiteHeaderProps>) {
-  const [searchParams] = useSearchParams()
-
   const homeResourceQuery = useResource(props.siteHomeId)
   const homeDirectoryQuery = useDirectory(props.siteHomeId)
 
@@ -101,7 +98,7 @@ export function WebSiteHeader({
             document.body.style.overflow = 'auto'
           }
         }}
-        isMainFeedVisible={searchParams.get('feed') === 'true'}
+        isMainFeedVisible={false}
         wrapperClassName="fixed sm:static"
         notifyServiceHost={NOTIFY_SERVICE_HOST}
       />

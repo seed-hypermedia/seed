@@ -1,6 +1,8 @@
 import {
   BlockRange,
   DocumentPanelRoute,
+  findContentBlock,
+  getBlockText,
   HMComment,
   HMDocument,
   HMExistingDraft,
@@ -36,13 +38,13 @@ import {
   BlocksContent,
   BlocksContentProvider,
 } from './blocks-content'
-import {ReadOnlyCollaboratorsContent} from './collaborators-page'
+import {DocumentCollaborators} from './collaborators-page'
 import {ScrollArea} from './components/scroll-area'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {DocumentHeader} from './document-header'
+import {BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -106,6 +108,8 @@ export interface ResourcePageProps {
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
   existingDraft?: HMExistingDraft | false
+  /** Platform-specific collaborator form (e.g. invite form on desktop) */
+  collaboratorForm?: ReactNode
 
   floatingButtons?: ReactNode
 }
@@ -133,6 +137,7 @@ export function ResourcePage({
   editActions,
   existingDraft,
   floatingButtons,
+  collaboratorForm,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -279,6 +284,7 @@ export function ResourcePage({
         editActions={editActions}
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
+        collaboratorForm={collaboratorForm}
       />
     </PageWrapper>
   )
@@ -389,7 +395,6 @@ function CommentPageBody({
   openComment: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
 }) {
-  const directory = useDirectory(docId)
   const interactionSummary = useInteractionSummary(docId)
 
   const breadcrumbIds = useMemo(() => {
@@ -398,14 +403,16 @@ function CommentPageBody({
   }, [docId.uid, docId.path, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
-  const breadcrumbs = useMemo(() => {
+  const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
-    return breadcrumbIds.map((id, i) => {
+    const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const data = breadcrumbResults[i]?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
       return {id, metadata}
     })
+    items.push({label: 'Comments'})
+    return items
   }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
 
   const {contentMaxWidth} = useDocumentLayout({
@@ -438,7 +445,6 @@ function CommentPageBody({
           id={docId}
           activeTab="discussions"
           commentsCount={interactionSummary.data?.comments || 0}
-          directoryCount={directory.data?.length}
           rightActions={
             !isMobile ? (
               <OpenInPanelButton
@@ -466,7 +472,7 @@ function CommentPageBody({
 }
 
 // Header data computed from site home document
-interface HeaderData {
+export interface HeaderData {
   items: DocNavigationItem[]
   homeNavigationItems: DocNavigationItem[]
   directoryItems: DocNavigationItem[]
@@ -474,7 +480,7 @@ interface HeaderData {
   siteHomeDocument: HMDocument | null
 }
 
-function computeHeaderData(
+export function computeHeaderData(
   siteHomeId: UnpackedHypermediaId,
   siteHomeDocument: HMDocument | null,
   directory: ReturnType<typeof useDirectory>['data'],
@@ -521,18 +527,20 @@ function computeHeaderData(
 }
 
 // Wrapper that renders SiteHeader + content
-function PageWrapper({
+export function PageWrapper({
   siteHomeId,
   docId,
   headerData,
   document,
   children,
+  isMainFeedVisible = false,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
+  isMainFeedVisible?: boolean
 }) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -557,7 +565,7 @@ function PageWrapper({
         isCenterLayout={headerData.isCenterLayout}
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
-        isMainFeedVisible={false}
+        isMainFeedVisible={isMainFeedVisible}
       />
       {children}
     </div>
@@ -573,6 +581,7 @@ function DocumentBody({
   editActions,
   existingDraft,
   floatingButtons,
+  collaboratorForm,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -581,6 +590,7 @@ function DocumentBody({
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
+  collaboratorForm?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -641,15 +651,56 @@ function DocumentBody({
 
   const breadcrumbResults = useResources(breadcrumbIds)
 
-  const breadcrumbs = useMemo(() => {
+  const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
-    return breadcrumbIds.map((id, i) => {
+    const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
       const data = breadcrumbResults[i]?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
       return {id, metadata}
     })
-  }, [isHomeDoc, breadcrumbIds, breadcrumbResults])
+
+    // Append active panel name when not on content/draft view
+    const panelLabels: Record<string, string> = {
+      discussions: 'Comments',
+      collaborators: 'People',
+      directory: 'Directory',
+      activity: 'Activity',
+    }
+    if (activeView !== 'content' && panelLabels[activeView]) {
+      items.push({label: panelLabels[activeView]})
+    }
+
+    // Append block text when a block is focused
+    if (routeBlockRef && document.content) {
+      const blockNode = findContentBlock(document.content, routeBlockRef)
+      if (blockNode?.block) {
+        let text = getBlockText(blockNode.block)
+        const routeId =
+          'id' in route && typeof route.id === 'object' ? route.id : null
+        const blockRange = routeId?.blockRange ?? null
+        if (
+          blockRange &&
+          typeof blockRange.start === 'number' &&
+          typeof blockRange.end === 'number'
+        ) {
+          text = text.slice(blockRange.start, blockRange.end)
+        }
+        const truncated = text.length > 40 ? text.slice(0, 40) + '...' : text
+        if (truncated) items.push({label: `"${truncated}"`})
+      }
+    }
+
+    return items
+  }, [
+    isHomeDoc,
+    breadcrumbIds,
+    breadcrumbResults,
+    activeView,
+    routeBlockRef,
+    document.content,
+    route,
+  ])
 
   // Track when DocumentTools becomes sticky
   const [isToolsSticky, setIsToolsSticky] = useState(false)
@@ -816,22 +867,61 @@ function DocumentBody({
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
     <>
+      {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
+      {actionButtons && !isMobile ? (
+        <div
+          className={cn(
+            'absolute top-5 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
+            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+          )}
+        >
+          {actionButtons}
+        </div>
+      ) : null}
+
       <DocumentCover cover={document.metadata?.cover} />
 
-      <div
-        className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
-        style={{maxWidth: contentMaxWidth}}
-      >
-        {!isHomeDoc && (
-          <DocumentHeader
-            docId={docId}
-            docMetadata={document.metadata}
-            authors={[]}
-            updateTime={document.updateTime}
-            breadcrumbs={breadcrumbs}
-          />
-        )}
-      </div>
+      {!isMobile ? (
+        <div
+          {...wrapperProps}
+          className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
+        >
+          {showSidebars && <div {...sidebarProps} />}
+          <div
+            {...mainContentProps}
+            className={cn(mainContentProps.className, 'flex flex-col')}
+          >
+            {!isHomeDoc && (
+              <DocumentHeader
+                docId={docId}
+                docMetadata={document.metadata}
+                authors={[]}
+                updateTime={document.updateTime}
+                breadcrumbs={breadcrumbs}
+              />
+            )}
+          </div>
+          {showSidebars && <div {...sidebarProps} />}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'mx-auto flex w-full flex-col px-4',
+            isHomeDoc && 'mt-6',
+          )}
+          style={{maxWidth: contentMaxWidth}}
+        >
+          {!isHomeDoc && (
+            <DocumentHeader
+              docId={docId}
+              docMetadata={document.metadata}
+              authors={[]}
+              updateTime={document.updateTime}
+              breadcrumbs={breadcrumbs}
+            />
+          )}
+        </div>
+      )}
 
       {/* Sentinel element - also provides top spacing before tools */}
       <div ref={toolsSentinelRef} className="h-3" />
@@ -846,31 +936,51 @@ function DocumentBody({
       >
         <DocumentTools
           id={docId}
-          activeTab={activeView}
+          activeTab={
+            activeView === 'activity' || activeView === 'directory'
+              ? undefined
+              : activeView
+          }
           currentPanel={panelRoute}
           existingDraft={existingDraft}
           commentsCount={interactionSummary.data?.comments || 0}
-          directoryCount={directory.data?.length}
-          rightActions={
-            activeView === 'content' && actionButtons ? (
-              <div
-                className={cn(
-                  'flex items-center gap-1 transition-opacity',
-                  isToolsSticky ? 'opacity-100' : 'opacity-0',
-                )}
-              >
-                {actionButtons}
-              </div>
-            ) : activeView !== 'content' && !isMobile ? (
-              <OpenInPanelButton
-                id={docId}
-                panelRoute={
-                  route.key === activeView
-                    ? extractPanelRoute(route)
-                    : {key: activeView, id: docId}
+          layoutProps={
+            isMobile
+              ? undefined
+              : {
+                  wrapperProps,
+                  sidebarProps,
+                  mainContentProps,
+                  showSidebars,
                 }
-              />
-            ) : undefined
+          }
+          rightActions={
+            <div className="flex items-center gap-1 pr-2 md:pr-0">
+              {activeView !== 'content' && !isMobile && (
+                <OpenInPanelButton
+                  id={docId}
+                  panelRoute={
+                    route.key === activeView
+                      ? extractPanelRoute(route)
+                      : {key: activeView, id: docId}
+                  }
+                />
+              )}
+              {actionButtons ? (
+                <div
+                  className={cn(
+                    'flex items-center gap-1 transition-opacity',
+                    isMobile
+                      ? 'opacity-100'
+                      : isToolsSticky
+                      ? 'opacity-100'
+                      : 'opacity-0',
+                  )}
+                >
+                  {actionButtons}
+                </div>
+              ) : null}
+            </div>
           }
         />
       </div>
@@ -899,6 +1009,7 @@ function DocumentBody({
         onBlockSelect={handleBlockSelect}
         CommentEditor={CommentEditor}
         directory={directory.data}
+        collaboratorForm={collaboratorForm}
       />
     </>
   )
@@ -927,27 +1038,29 @@ function DocumentBody({
   if (isMobile) {
     return (
       <>
-        <div className="relative flex flex-1 flex-col pb-16" ref={elementRef}>
+        <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           {mainPageContent}
         </div>
         {floatingButtons}
-        <MobilePanelSheet
-          isOpen={mobilePanelOpen}
-          title={getPanelTitle('discussions')}
-          onClose={() => setMobilePanelOpen(false)}
-        >
-          <DiscussionsPageContent
-            docId={docId}
-            showTitle={false}
-            showOpenInPanel={false}
-            contentMaxWidth={contentMaxWidth}
-            commentEditor={
-              CommentEditor ? (
-                <CommentEditor docId={docId} autoFocus />
-              ) : undefined
-            }
-          />
-        </MobilePanelSheet>
+        {mobilePanelOpen && (
+          <MobilePanelSheet
+            isOpen={mobilePanelOpen}
+            title={getPanelTitle('discussions')}
+            onClose={() => setMobilePanelOpen(false)}
+          >
+            <DiscussionsPageContent
+              docId={docId}
+              showTitle={false}
+              showOpenInPanel={false}
+              contentMaxWidth={contentMaxWidth}
+              commentEditor={
+                CommentEditor ? (
+                  <CommentEditor docId={docId} autoFocus />
+                ) : undefined
+              }
+            />
+          </MobilePanelSheet>
+        )}
       </>
     )
   }
@@ -1054,7 +1167,7 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <ReadOnlyCollaboratorsContent docId={docId} />
+          <DocumentCollaborators docId={docId} />
         </div>
       )
     default:
@@ -1081,6 +1194,7 @@ function MainContent({
   onBlockSelect,
   CommentEditor,
   directory,
+  collaboratorForm,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1109,13 +1223,14 @@ function MainContent({
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   CommentEditor?: React.ComponentType<CommentEditorProps>
   directory?: import('@shm/shared').HMDocumentInfo[]
+  collaboratorForm?: ReactNode
 }) {
   switch (activeView) {
     case 'directory':
       return (
         <DirectoryPageContent
           docId={docId}
-          showTitle={false}
+          showTitle
           contentMaxWidth={contentMaxWidth}
         />
       )
@@ -1123,7 +1238,8 @@ function MainContent({
     case 'collaborators':
       return (
         <PageLayout centered contentMaxWidth={contentMaxWidth}>
-          <ReadOnlyCollaboratorsContent docId={docId} />
+          {collaboratorForm}
+          <DocumentCollaborators docId={docId} />
         </PageLayout>
       )
 
