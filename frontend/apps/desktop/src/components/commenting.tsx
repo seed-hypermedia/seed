@@ -7,7 +7,13 @@ import {handleDragMedia} from '@/utils/media-drag'
 import {useNavigate} from '@/utils/useNavigate'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {CommentEditor} from '@shm/editor/comment-editor'
-import {commentIdToHmId, packHmId, queryClient, queryKeys} from '@shm/shared'
+import {
+  commentIdToHmId,
+  packHmId,
+  queryClient,
+  queryKeys,
+  trimTrailingEmptyBlocks,
+} from '@shm/shared'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {
   HMBlockNode,
@@ -295,11 +301,14 @@ function _CommentBox(props: {
       try {
         // For desktop, we handle file uploads differently - files are already uploaded
         // So we just need to get the content without re-uploading
-        const {blockNodes} = await getContent(async (binaries) => {
-          // Desktop handles media uploads inline via handleDragMedia
-          // which already returns URLs, so no additional upload needed
-          return {blobs: [], resultCIDs: []}
-        })
+        const {blockNodes: rawBlockNodes} = await getContent(
+          async (binaries) => {
+            // Desktop handles media uploads inline via handleDragMedia
+            // which already returns URLs, so no additional upload needed
+            return {blobs: [], resultCIDs: []}
+          },
+        )
+        const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
 
         // Convert to BlockNode for gRPC
         const content = blockNodes.map((b) => new BlockNode(b as any))
