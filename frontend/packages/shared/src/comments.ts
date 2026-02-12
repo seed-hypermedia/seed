@@ -1,5 +1,27 @@
 import {useMemo} from 'react'
-import {HMComment, HMCommentGroup} from './hm-types'
+import {HMBlockNode, HMComment, HMCommentGroup} from './hm-types'
+
+/**
+ * Removes trailing empty blocks from comment content before publishing.
+ * The editor always keeps a trailing empty paragraph for UX, but we
+ * don't want to publish it.
+ */
+export function trimTrailingEmptyBlocks(blocks: HMBlockNode[]): HMBlockNode[] {
+  let end = blocks.length
+  while (end > 0) {
+    const node = blocks[end - 1]!
+    if (!isEmptyBlockNode(node)) break
+    end--
+  }
+  return blocks.slice(0, end)
+}
+
+function isEmptyBlockNode(node: HMBlockNode): boolean {
+  const {block, children} = node
+  if (children && children.length > 0) return false
+  if (block.type !== 'Paragraph' && block.type !== 'Heading') return false
+  return !block.text || block.text.trim() === ''
+}
 
 export function getCommentGroups(
   comments?: Array<HMComment>,
