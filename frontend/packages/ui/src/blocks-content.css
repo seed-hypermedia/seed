@@ -1,5 +1,13 @@
+/* Content text/layout units inherited via CSS variables */
+.blocks-content-root {
+  padding-left: calc(var(--layout-unit, 24px) / 3);
+  padding-right: calc(var(--layout-unit, 24px) / 3);
+}
+
 .blocknode-list {
   -webkit-font-smoothing: antialiased;
+  font-size: var(--text-unit, 18px);
+  line-height: 1.5;
 }
 
 .font-body {
@@ -41,6 +49,23 @@ p.block-paragraph.is-comment *:not(.text-code) {
 
 .blocknode-content {
   scroll-margin-top: 72px;
+  border-radius: calc(var(--layout-unit, 24px) / 4);
+}
+
+.blocknode-content.blocknode-highlight {
+  box-shadow: 0 0 0 1px var(--brand-10);
+}
+
+.blocknode-inner {
+  border-radius: calc(var(--layout-unit, 24px) / 4);
+  padding: calc(var(--layout-unit, 24px) / 3);
+  padding-top: calc(var(--layout-unit, 24px) / 6);
+  padding-bottom: calc(var(--layout-unit, 24px) / 6);
+}
+
+.blocknode-inner.blocknode-inner-embed {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* Collapse button positioning CSS variables */

@@ -341,7 +341,7 @@ export function BlocksContent({
 }) {
   const media = useMedia()
   const {wrapper, bubble, coords, state, actor} = useRangeSelection(blocks)
-  const {layoutUnit, onBlockSelect} = useBlocksContentContext()
+  const {layoutUnit, textUnit, onBlockSelect} = useBlocksContentContext()
   const focusedBlocks = getFocusedBlocks(blocks, focusBlockId)
   const displayBlocks = maxBlockCount
     ? clipContentBlocks(focusedBlocks || [], maxBlockCount)
@@ -376,12 +376,15 @@ export function BlocksContent({
 
   return (
     <div
-      className="relative my-2"
+      className="blocks-content-root relative my-2"
       ref={wrapper}
-      style={{
-        paddingLeft: layoutUnit / 3,
-        paddingRight: layoutUnit / 3,
-      }}
+      style={
+        {
+          // CSS variables for text/layout units — inherited by all content
+          '--text-unit': `${textUnit}px`,
+          '--layout-unit': `${layoutUnit}px`,
+        } as React.CSSProperties
+      }
       {...props}
     >
       <div
@@ -814,25 +817,17 @@ export function BlockNodeContent({
       data-block-type={blockNode.block?.type}
       className={cn(
         'blocknode-content',
-        isHighlight ? 'bg-brand-12' : 'bg-transparent',
+        isHighlight ? 'bg-brand-12 blocknode-highlight' : 'bg-transparent',
         hover && !isHighlight && 'bg-background',
         isEmbed && 'my-2',
       )}
-      style={{
-        borderRadius: layoutUnit / 4,
-        boxShadow: isHighlight ? '0 0 0 1px var(--brand-10)' : 'none',
-      }}
       onClick={handleClick}
     >
       <div
-        style={{
-          borderRadius: layoutUnit / 4,
-          padding: layoutUnit / 3,
-          paddingTop: isEmbed ? 0 : layoutUnit / 6,
-          paddingBottom: isEmbed ? 0 : layoutUnit / 6,
-        }}
-        {...debugStyles(debug, 'red')}
+        style={debugStyles(debug, 'red')}
         className={cn(
+          'blocknode-inner',
+          isEmbed && 'blocknode-inner-embed',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
           // @ts-expect-error
           headingStyles.className,
@@ -1113,20 +1108,17 @@ function BlockContentParagraph({
     return editorBlock?.content ?? []
   }, [block])
   return (
-    <Text
+    <p
       {...props}
-      {...debugStyles(debug, 'blue')}
+      style={debugStyles(debug, 'blue')}
       className={cn(
-        'block-content block-paragraph content-inline break-words',
+        'block-content block-paragraph content-inline leading-normal break-words',
         commentStyle && 'is-comment',
         blockStyles,
       )}
-      asChild
     >
-      <p>
-        <InlineContentView inline={inline} />
-      </p>
-    </Text>
+      <InlineContentView inline={inline} />
+    </p>
   )
 }
 
@@ -1149,7 +1141,7 @@ export function BlockContentHeading({
       level={depth as 1 | 2 | 3 | 4 | undefined}
       className={cn('block-content block-heading max-w-[95%]', blockStyles)}
     >
-      <InlineContentView inline={inline} fontWeight="bold" fontSize={null} />
+      <InlineContentView inline={inline} fontSize={null} />
     </SeedHeading>
   )
 }
@@ -1403,9 +1395,9 @@ function BlockContentVideo({
         <Text>Video block wrong state</Text>
       )}
       {inline.length ? (
-        <Text className="text-muted-foreground" asChild>
+        <span className="text-muted-foreground">
           <InlineContentView fontSize={textUnit * 0.85} inline={inline} />
-        </Text>
+        </span>
       ) : null}
     </div>
   )
@@ -1446,10 +1438,11 @@ function InlineContentView({
   isRange?: boolean
   fontWeight?: string
 } & React.HTMLAttributes<HTMLSpanElement>) {
-  const {textUnit} = useBlocksContentContext()
-
   let contentOffset = rangeOffset || 0
-  const fSize = fontSize === null ? null : fontSize || textUnit
+  // null = don't set fontSize (headings inherit from parent element)
+  // undefined = inherit from CSS --text-unit variable
+  // number = explicit override (captions, recursive calls)
+  const fSize = fontSize === null ? null : fontSize ?? undefined
 
   const getLinkColor = (linkType: LinkType): string => {
     if (linkType == 'basic' || linkType == 'hypermedia')
@@ -1504,18 +1497,15 @@ function InlineContentView({
           content.styles,
           linkType,
         )
-        // Make code text smaller
-        const actualFontSize =
-          // @ts-expect-error
-          fSize === null ? null : content.styles?.code ? fSize * 0.85 : fSize
-
+        // Code text size handled by CSS text-[0.9em] in buildStyleClasses
         const dynamicStyles: React.CSSProperties = {
-          lineHeight: 1.5,
           ...textDecorationStyle,
         }
 
-        if (actualFontSize !== null) {
-          dynamicStyles.fontSize = actualFontSize
+        // Only set fontSize when explicitly provided (captions, etc.)
+        // undefined = inherit from CSS; null = inherit from parent element (headings)
+        if (fSize != null) {
+          dynamicStyles.fontSize = fSize
         }
 
         if (content.type === 'text') {
@@ -1597,8 +1587,7 @@ function InlineContentView({
         // @ts-expect-error
         if (content.type === 'range') {
           return (
-            <Text
-              asChild
+            <span
               key={index}
               className="bg-yellow-200/50 dark:bg-yellow-900/70"
             >
@@ -1610,7 +1599,7 @@ function InlineContentView({
                 isRange
                 fontWeight={fontWeight}
               />
-            </Text>
+            </span>
           )
         }
 
