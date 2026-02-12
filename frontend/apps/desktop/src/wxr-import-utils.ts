@@ -51,6 +51,35 @@ export function createAuthorKeyName(scope: string, login: string): string {
   return `wxr-author-${base}-${digest}`
 }
 
+/**
+ * Extract the last path segment (slug) from a WordPress post <link> URL.
+ * E.g. "https://example.com/2018/10/20/my-post/" -> "my-post"
+ * Returns null if the URL is empty or unparseable.
+ */
+export function extractSlugFromLink(
+  link: string | null | undefined,
+): string | null {
+  const trimmed = (link || '').trim()
+  if (!trimmed) return null
+
+  try {
+    const url = new URL(trimmed)
+    const segments = url.pathname
+      .replace(/\/+$/, '') // strip trailing slashes
+      .split('/')
+      .filter(Boolean) // remove empty segments
+
+    const lastSegment = segments[segments.length - 1]
+    return lastSegment || null
+  } catch {
+    // Not a valid URL, try treating it as a path.
+    const segments = trimmed.replace(/\/+$/, '').split('/').filter(Boolean)
+
+    const lastSegment = segments[segments.length - 1]
+    return lastSegment || null
+  }
+}
+
 export function normalizeWXRSlug(
   slug: string | null | undefined,
   postId: number,
