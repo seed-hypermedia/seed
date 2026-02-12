@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite"
 import * as webauthn from "@simplewebauthn/server"
 import type * as config from "@/config"
+import type * as email from "@/email"
 import * as sess from "@/session"
 import type * as api from "./api"
 
@@ -121,11 +122,13 @@ export class Service implements api.ServerInterface {
 	private db: Database
 	private sessions: sess.Store
 	private rp: config.RelyingParty
+	private email: email.EmailSender
 
-	constructor(db: Database, rp: config.RelyingParty) {
+	constructor(db: Database, rp: config.RelyingParty, emailSender: email.EmailSender) {
 		this.db = db
 		this.sessions = new sess.Store(db)
 		this.rp = rp
+		this.email = emailSender
 	}
 
 	/**
@@ -206,7 +209,7 @@ export class Service implements api.ServerInterface {
 
 		// URL includes challengeId for efficient lookup and token for verification.
 		const verifyUrl = `${this.rp.origin}/vault/verify/${challengeId}/${token}`
-		console.log(`\n📧 Magic link for ${normalizedEmail}:\n${verifyUrl}\n`)
+		await this.email.sendLoginLink(normalizedEmail, verifyUrl)
 
 		return {
 			message: "Verification link sent",
@@ -699,7 +702,7 @@ export class Service implements api.ServerInterface {
 
 		// URL includes challengeId for efficient lookup and token for verification.
 		const verifyUrl = `${this.rp.origin}/vault/email/change-verify/${challengeId}/${token}`
-		console.log(`\n📧 Email change verification link for ${normalizedNewEmail}:\n${verifyUrl}\n`)
+		await this.email.sendLoginLink(normalizedNewEmail, verifyUrl)
 
 		return {
 			message: "Verification link sent to new email",

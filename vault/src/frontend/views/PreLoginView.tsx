@@ -10,7 +10,7 @@ import { useActions, useAppState } from "@/frontend/store"
  * Initial view for email entry before sign in/registration.
  */
 export function PreLoginView() {
-	const { email, loading, error } = useAppState()
+	const { email, loading, sendingEmail, error } = useAppState()
 	const actions = useActions()
 
 	async function handleSubmit(e: React.FormEvent) {
@@ -43,7 +43,7 @@ export function PreLoginView() {
 					</div>
 
 					<Button type="submit" loading={loading} className="w-full">
-						Continue
+						{sendingEmail ? "Sending verification email..." : "Continue"}
 					</Button>
 				</form>
 			</CardContent>

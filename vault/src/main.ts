@@ -5,6 +5,7 @@ import { cli } from "cleye"
 import type * as api from "@/api"
 import * as apisvc from "@/api-service"
 import * as config from "@/config"
+import * as email from "@/email"
 import index from "@/frontend/index.html"
 import * as session from "@/session"
 import * as sqlite from "@/sqlite"
@@ -38,7 +39,8 @@ async function main() {
 
 	const isProd = process.env.NODE_ENV === "production"
 
-	const svc = new apisvc.Service(db, cfg.relyingParty)
+	const emailSender = email.createSender(cfg.smtp)
+	const svc = new apisvc.Service(db, cfg.relyingParty, emailSender)
 
 	// Pre-build asset lookup map at startup for O(1) serving.
 	const assets = isProd ? collectStaticAssets(".", "/vault/") : new Map()
@@ -103,6 +105,7 @@ async function main() {
 	const hostname = cfg.http.hostname === "0.0.0.0" ? "localhost" : cfg.http.hostname
 
 	console.log(`🔐 Vault Server is running at http://${hostname}:${server.port}`)
+	console.log(`   Database: ${cfg.dbPath}`)
 }
 
 if (import.meta.main) {

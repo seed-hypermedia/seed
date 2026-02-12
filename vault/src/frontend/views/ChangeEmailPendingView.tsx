@@ -38,7 +38,7 @@ export function ChangeEmailPendingView() {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-center">Verify New Email</CardTitle>
+				<CardTitle className="text-center">Email Sent</CardTitle>
 				<CardDescription className="text-center">
 					We sent a verification link to <strong>{newEmail}</strong>
 				</CardDescription>
@@ -62,10 +62,6 @@ export function ChangeEmailPendingView() {
 				<Button variant="secondary" className="mt-6 w-full" onClick={() => navigate("/")}>
 					Cancel
 				</Button>
-
-				<Alert variant="info" className="mt-6">
-					<AlertDescription>Check the server console for the magic link (in development).</AlertDescription>
-				</Alert>
 			</CardContent>
 		</Card>
 	)
