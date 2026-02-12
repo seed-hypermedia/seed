@@ -5,6 +5,7 @@
 
 import type * as bunsqlite from "bun:sqlite"
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
+import * as emailTemplate from "@/email-template"
 import * as crypto from "@/frontend/crypto"
 import * as storage from "@/sqlite"
 
@@ -782,5 +783,19 @@ describe("change password flow", () => {
 			.get(userId, "password")
 		expect(createdCred).not.toBeNull()
 		expect(createdCred!.id).toBe("new-pw-credential")
+	})
+})
+
+describe("email template", () => {
+	test("renders login email with correct URL and content", () => {
+		const loginUrl = "https://example.com/vault/verify/abc/token123"
+		const result = emailTemplate.createLoginEmail(loginUrl)
+
+		expect(result.subject).toBe("Your login link for Seed Hypermedia")
+		expect(result.text).toContain(loginUrl)
+		expect(result.text).toContain("2 minutes")
+		expect(result.html).toContain(loginUrl)
+		expect(result.html).toContain("Log in to Seed Hypermedia")
+		expect(result.html).toContain("<!doctype html>")
 	})
 })

@@ -1,4 +1,5 @@
 import type * as cleye from "cleye"
+import type * as email from "@/email"
 
 export type RelyingParty = {
 	id: string
@@ -15,6 +16,7 @@ export type Config = {
 	http: Server
 	relyingParty: RelyingParty
 	dbPath: string
+	smtp: email.SmtpConfig | null
 }
 
 export const flags = {
@@ -72,9 +74,21 @@ export function create(pflags: ParsedFlags): Config {
 		throw new Error("Relying party origin configuration is required")
 	}
 
+	const smtpHost = process.env.SEED_VAULT_SMTP_HOST
+	const smtp: email.SmtpConfig | null = smtpHost
+		? {
+				host: smtpHost,
+				port: Number(process.env.SEED_VAULT_SMTP_PORT) || 587,
+				user: process.env.SEED_VAULT_SMTP_USER || "",
+				password: process.env.SEED_VAULT_SMTP_PASSWORD || "",
+				sender: process.env.SEED_VAULT_SMTP_SENDER || "",
+			}
+		: null
+
 	return {
 		http,
 		relyingParty,
 		dbPath: pflags["db-path"],
+		smtp,
 	}
 }

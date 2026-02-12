@@ -7,10 +7,12 @@ import {
   idToUrl,
   packHmId,
   queryKeys,
+  trimTrailingEmptyBlocks,
   UnpackedHypermediaId,
   unpackHmId,
   useUniversalAppContext,
 } from '@shm/shared'
+import {useCommentsService} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useAccount} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
@@ -41,6 +43,8 @@ import type {
 
 export type WebCommentingProps = {
   docId: UnpackedHypermediaId
+  /** Comment ID from CommentEditorProps - used to resolve reply parent */
+  commentId?: string | null
   replyCommentVersion?: string | null
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
@@ -57,9 +61,10 @@ export type WebCommentingProps = {
 
 export default function WebCommenting({
   docId,
-  replyCommentVersion,
-  rootReplyCommentVersion,
-  replyCommentId,
+  commentId,
+  replyCommentVersion: replyCommentVersionProp,
+  rootReplyCommentVersion: rootReplyCommentVersionProp,
+  replyCommentId: replyCommentIdProp,
   quotingBlockId,
   onDiscardDraft,
   onSuccess,
@@ -69,6 +74,26 @@ export default function WebCommenting({
   const openUrl = useOpenUrlWeb()
   const queryClient = useQueryClient()
   const tx = useTxString()
+
+  // Resolve reply parent from commentId when explicit version props aren't provided
+  const commentsService = useCommentsService({targetId: docId})
+  const resolvedReply = useMemo(() => {
+    const id = replyCommentIdProp || commentId
+    if (!id) return null
+    const comment = commentsService.data?.comments?.find((c) => c.id === id)
+    if (!comment) return null
+    return {
+      replyCommentId: comment.id,
+      replyCommentVersion: comment.version,
+      rootReplyCommentVersion: comment.threadRootVersion || comment.version,
+    }
+  }, [replyCommentIdProp, commentId, commentsService.data?.comments])
+
+  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
+  const replyCommentVersion =
+    replyCommentVersionProp || resolvedReply?.replyCommentVersion
+  const rootReplyCommentVersion =
+    rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
 
   // Use draft persistence
   const {
@@ -419,7 +444,9 @@ async function prepareComment(
   },
   commentingOriginUrl: string | undefined,
 ): Promise<CommentPayload> {
-  const {blockNodes, blobs} = await getContent(prepareAttachments)
+  const {blockNodes: rawBlockNodes, blobs} =
+    await getContent(prepareAttachments)
+  const blockNodes = trimTrailingEmptyBlocks(rawBlockNodes)
 
   // If quotingBlockId is provided, wrap content in an embed block like desktop version
   // Include version to ensure we reference the specific version containing the block

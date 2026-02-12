@@ -82,8 +82,20 @@ export function useWebMenuItems(docId: UnpackedHypermediaId): MenuItemType[] {
       createWebHMUrl(docId.uid, {
         path: docId.path,
         hostname: gwUrl,
+        version: docId.version,
+        blockRef: docId.blockRef,
+        blockRange: docId.blockRange,
+        latest: docId.latest,
       }),
-    [docId.uid, docId.path, gwUrl],
+    [
+      docId.uid,
+      docId.path,
+      docId.version,
+      docId.blockRef,
+      docId.blockRange,
+      docId.latest,
+      gwUrl,
+    ],
   )
 
   return useMemo(

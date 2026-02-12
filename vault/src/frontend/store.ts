@@ -30,6 +30,7 @@ export function initialState() {
 		newEmail: "", // For email change flow.
 		emailChangeChallengeId: "", // For email change polling.
 		returnTo: "", // Store the intended destination when redirected to locked/login.
+		sendingEmail: false, // True while the server is sending a verification email.
 	}
 }
 
@@ -136,6 +137,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 		async handleStartRegistration() {
 			state.error = ""
 			state.loading = true
+			state.sendingEmail = true
 
 			try {
 				const data = await client.registerStart({ email: state.email })
@@ -146,6 +148,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				state.error = (e as Error).message || "Registration failed"
 			} finally {
 				state.loading = false
+				state.sendingEmail = false
 			}
 		},
 
@@ -767,6 +770,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 			state.error = ""
 			state.loading = true
+			state.sendingEmail = true
 
 			try {
 				const data = await client.changeEmailStart({ newEmail: state.newEmail })
@@ -777,6 +781,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				state.error = (e as Error).message || "Failed to start email change"
 			} finally {
 				state.loading = false
+				state.sendingEmail = false
 			}
 		},
 
