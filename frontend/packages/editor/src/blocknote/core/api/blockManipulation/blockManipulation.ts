@@ -41,7 +41,7 @@ export function insertBlocks<BSchema extends BlockSchema>(
       insertionPos = posBeforeNode + node.firstChild!.nodeSize + 1
 
       // @ts-ignore
-      const blockGroupNode = editor.state.schema.nodes['blockGroup'].create(
+      const blockGroupNode = editor.state.schema.nodes['blockChildren'].create(
         {listType: 'Group'},
         nodesToInsert,
       )
@@ -89,7 +89,7 @@ export function removeBlocks(
 
     // Keeps traversing nodes if block with target ID has not been found.
     if (
-      node.type.name !== 'blockContainer' ||
+      node.type.name !== 'blockNode' ||
       !idsOfBlocksToRemove.has(node.attrs.id)
     ) {
       return true

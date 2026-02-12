@@ -59,7 +59,7 @@ export function setGroupTypes(
       ) {
         // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
-          if (child.type.name === 'blockGroup') {
+          if (child.type.name === 'blockChildren') {
             setTimeout(() => {
               let tr = tiptap.state.tr
               tr = block.props?.start
@@ -91,7 +91,7 @@ export function getNodesInSelection(view: EditorView) {
   const nodes: TipTapNode[] = []
 
   state.doc.nodesBetween(from, to, (node) => {
-    if (node.type.name === 'blockContainer') {
+    if (node.type.name === 'blockNode') {
       nodes.push(node)
     }
   })
@@ -117,7 +117,7 @@ export function getBlockGroup(
       }
 
       node.descendants((child: TipTapNode) => {
-        if (child.attrs.listType && child.type.name === 'blockGroup') {
+        if (child.attrs.listType && child.type.name === 'blockChildren') {
           group = {
             type: child.attrs.listType,
             start: child.attrs.start,

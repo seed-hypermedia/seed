@@ -155,12 +155,12 @@ export function createReactBlockSpec<
         if (!pos) return null
         // Gets TipTap editor instance
         const tipTapEditor = editor._tiptapEditor
-        // Gets parent blockContainer node
+        // Gets parent blockNode node
 
-        const blockContainer = tipTapEditor.state.doc.resolve(pos!).node()
+        const blockNode = tipTapEditor.state.doc.resolve(pos!).node()
 
         // Gets block identifier
-        const blockIdentifier = blockContainer.attrs.id
+        const blockIdentifier = blockNode.attrs.id
         // Get the block
         const block = editor.getBlock(blockIdentifier)!
         if (block.type !== blockConfig.type) {

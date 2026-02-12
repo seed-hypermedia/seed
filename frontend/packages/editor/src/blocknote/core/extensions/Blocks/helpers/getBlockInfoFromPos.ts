@@ -11,16 +11,16 @@ type SingleBlockInfo = {
 export type BlockInfo = {
   /**
    * The outer node that represents a BlockNote block. This is the node that has the ID.
-   * It will be of type BlockContainer.
+   * It will be of type blockNode.
    */
   block: SingleBlockInfo
   /**
    * The type of BlockNote block that this node represents.
-   * When dealing with a blockContainer, this is retrieved from the blockContent node, otherwise it's retrieved from the block node.
+   * When dealing with a blockNode, this is retrieved from the block content node, otherwise it's retrieved from the block node.
    */
   blockContentType: string
   /**
-   * The Prosemirror node that holds block.children. For blockContainers, this is the blockGroup node, if it exists.
+   * The Prosemirror node that holds block.children. For blockNodes, this is the blockChildren node, if it exists.
    */
   childContainer?: SingleBlockInfo
   /**
@@ -38,14 +38,14 @@ export type BlockInfo = {
  * position just before the last block is returned.
  * @param doc The ProseMirror doc.
  * @param pos An integer position in the document.
- * @returns The position just before the nearest blockContainer node.
+ * @returns The position just before the nearest blockNode node.
  */
 export function getNearestBlockPos(doc: Node, pos: number) {
   const $pos = doc.resolve(pos)
 
   // Check if the position provided is already just before a block node, in
   // which case we return the position.
-  if ($pos.nodeAfter && $pos.nodeAfter.type.isInGroup('block')) {
+  if ($pos.nodeAfter && $pos.nodeAfter.type.isInGroup('blockNodeChild')) {
     return {
       posBeforeNode: $pos.pos,
       node: $pos.nodeAfter,
@@ -57,7 +57,7 @@ export function getNearestBlockPos(doc: Node, pos: number) {
   let depth = $pos.depth
   let node = $pos.node(depth)
   while (depth > 0) {
-    if (node.type.isInGroup('block')) {
+    if (node.type.isInGroup('blockNodeChild')) {
       return {
         posBeforeNode: $pos.before(depth),
         node: node,
@@ -76,13 +76,13 @@ export function getNearestBlockPos(doc: Node, pos: number) {
   // is a problem specifically when using the collaboration plugin.
   const allBlockContainerPositions: number[] = []
   doc.descendants((node, pos) => {
-    if (node.type.isInGroup('block')) {
+    if (node.type.isInGroup('blockNodeChild')) {
       allBlockContainerPositions.push(pos)
     }
   })
 
   // eslint-disable-next-line no-console
-  console.warn(`Position ${pos} is not within a blockContainer node.`)
+  console.warn(`Position ${pos} is not within a blockNode node.`)
 
   const resolvedPos = doc.resolve(
     // @ts-ignore
@@ -97,20 +97,20 @@ export function getNearestBlockPos(doc: Node, pos: number) {
 
 /**
  * Get information regarding the ProseMirror nodes that make up a block in a
- * BlockNote document. This includes the main `blockContainer` node, the
- * `blockContent` node with the block's main body, and the optional `blockGroup`
+ * BlockNote document. This includes the main `blockNode` node, the
+ * block content node with the block's main body, and the optional `blockChildren`
  * node which contains the block's children. As well as the nodes, also returns
  * the ProseMirror positions just before & after each node.
- * @param node The main `blockContainer` node that the block information should
+ * @param node The main `blockNode` node that the block information should
  * be retrieved from,
  * @param blockBeforePosOffset the position just before the
- * `blockContainer` node in the document.
+ * `blockNode` node in the document.
  */
 export function getBlockInfoWithManualOffset(
   node: Node,
   blockBeforePosOffset: number,
 ): BlockInfo {
-  if (!node.type.isInGroup('block')) {
+  if (!node.type.isInGroup('blockNodeChild')) {
     throw new Error(
       `Attempted to get block node at position but found node of different type ${node.type}`,
     )
@@ -130,7 +130,7 @@ export function getBlockInfoWithManualOffset(
   let blockGroup: SingleBlockInfo | undefined
 
   blockNode.forEach((node, offset) => {
-    if (node.type.spec.group === 'blockContent') {
+    if (node.type.spec.group === 'block') {
       const blockContentNode = node
       const blockContentBeforePos = blockBeforePos + offset + 1
       const blockContentAfterPos = blockContentBeforePos + node.nodeSize
@@ -140,7 +140,7 @@ export function getBlockInfoWithManualOffset(
         beforePos: blockContentBeforePos,
         afterPos: blockContentAfterPos,
       }
-    } else if (node.type.name === 'blockGroup') {
+    } else if (node.type.name === 'blockChildren') {
       const blockGroupNode = node
       const blockGroupBeforePos = blockBeforePos + offset + 1
       const blockGroupAfterPos = blockGroupBeforePos + node.nodeSize
@@ -155,7 +155,7 @@ export function getBlockInfoWithManualOffset(
 
   if (!blockContent) {
     throw new Error(
-      `blockContainer node does not contain a blockContent node in its children: ${blockNode}`,
+      `blockNode does not contain a block content node in its children: ${blockNode}`,
     )
   }
 
@@ -169,11 +169,11 @@ export function getBlockInfoWithManualOffset(
 
 /**
  * Get information regarding the ProseMirror nodes that make up a block in a
- * BlockNote document. This includes the main `blockContainer` node, the
- * `blockContent` node with the block's main body, and the optional `blockGroup`
+ * BlockNote document. This includes the main `blockNode` node, the
+ * block content node with the block's main body, and the optional `blockChildren`
  * node which contains the block's children. As well as the nodes, also returns
  * the ProseMirror positions just before & after each node.
- * @param posInfo An object with the main `blockContainer` node that the block
+ * @param posInfo An object with the main `blockNode` node that the block
  * information should be retrieved from, and the position just before it in the
  * document.
  */
@@ -183,15 +183,15 @@ export function getBlockInfo(posInfo: {posBeforeNode: number; node: Node}) {
 
 /**
  * Get information regarding the ProseMirror nodes that make up a block from a
- * resolved position just before the `blockContainer` node in the document that
+ * resolved position just before the `blockNode` node in the document that
  * corresponds to it.
- * @param resolvedPos The resolved position just before the `blockContainer`
+ * @param resolvedPos The resolved position just before the `blockNode`
  * node.
  */
 export function getBlockInfoFromResolvedPos(resolvedPos: ResolvedPos) {
   if (!resolvedPos.nodeAfter) {
     throw new Error(
-      `Attempted to get blockContainer node at position ${resolvedPos.pos} but a node at this position does not exist`,
+      `Attempted to get blockNode at position ${resolvedPos.pos} but a node at this position does not exist`,
     )
   }
   return getBlockInfoWithManualOffset(resolvedPos.nodeAfter, resolvedPos.pos)

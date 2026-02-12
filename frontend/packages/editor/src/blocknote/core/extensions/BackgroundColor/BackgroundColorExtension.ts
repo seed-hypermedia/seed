@@ -15,7 +15,7 @@ export const BackgroundColorExtension = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: ['blockContainer'],
+        types: ['blockNode'],
         attributes: {
           backgroundColor: {
             default: 'default',

@@ -8,16 +8,16 @@ import {BlockNoteDOMAttributes} from '../api/blockTypes'
 import styles from './Block.module.css'
 
 /**
- * Wraps a blockContent node in a blockContainer.
+ * Wraps a block node in a blockNode.
  */
 function wrapBlockContentInContainer(blockContentNode: any, schema: any): any {
-  return schema.nodes['blockContainer']!.create(null, blockContentNode)
+  return schema.nodes['blockNode']!.create(null, blockContentNode)
 }
 
 /**
- * Wraps a blockGroup node in a blockContainer with an empty paragraph.
- * If a previous blockContainer exists and doesn't have a child blockGroup,
- * merges the blockGroup into it instead of creating a new container.
+ * Wraps a blockChildren node in a blockNode with an empty paragraph.
+ * If a previous blockNode exists and doesn't have a child blockChildren,
+ * merges the blockChildren into it instead of creating a new container.
  */
 function wrapBlockGroupInContainer(
   blockGroupNode: any,
@@ -26,29 +26,29 @@ function wrapBlockGroupInContainer(
 ): any {
   if (
     previousNode &&
-    previousNode.type.name === 'blockContainer' &&
+    previousNode.type.name === 'blockNode' &&
     previousNode.childCount === 1 &&
-    previousNode.firstChild?.type.spec?.group === 'blockContent'
+    previousNode.firstChild?.type.spec?.group === 'block'
   ) {
-    return schema.nodes['blockContainer']!.create(previousNode.attrs, [
+    return schema.nodes['blockNode']!.create(previousNode.attrs, [
       previousNode.firstChild,
       blockGroupNode,
     ])
   }
 
   const placeholderParagraph = schema.nodes['paragraph']!.create()
-  return schema.nodes['blockContainer']!.create(null, [
+  return schema.nodes['blockNode']!.create(null, [
     placeholderParagraph,
     blockGroupNode,
   ])
 }
 
-export const BlockGroup = Node.create<{
+export const BlockChildren = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
 }>({
-  name: 'blockGroup',
+  name: 'blockChildren',
   group: 'childContainer',
-  content: 'blockGroupChild+',
+  content: 'blockNodeChild+',
 
   addAttributes() {
     return {
@@ -187,7 +187,10 @@ export const BlockGroup = Node.create<{
             return false
           }
 
-          if (element.getAttribute('data-node-type') === 'blockGroup') {
+          if (
+            element.getAttribute('data-node-type') === 'blockChildren' ||
+            element.getAttribute('data-node-type') === 'blockGroup'
+          ) {
             // Null means the element matches, but we don't want to add any attributes to the node.
             return null
           }
@@ -200,19 +203,20 @@ export const BlockGroup = Node.create<{
   },
 
   renderHTML({node, HTMLAttributes}) {
-    const blockGroupDOMAttributes = this.options.domAttributes?.blockGroup || {}
+    const blockChildrenDOMAttributes =
+      this.options.domAttributes?.blockChildren || {}
 
     return [
       listNode(node.attrs.listType),
       mergeAttributes(
         {
-          ...blockGroupDOMAttributes,
+          ...blockChildrenDOMAttributes,
           class: mergeCSSClasses(
             // @ts-ignore
-            styles.blockGroup,
-            blockGroupDOMAttributes.class,
+            styles.blockChildren,
+            blockChildrenDOMAttributes.class,
           ),
-          'data-node-type': 'blockGroup',
+          'data-node-type': 'blockChildren',
         },
         HTMLAttributes,
       ),
@@ -229,7 +233,7 @@ export const BlockGroup = Node.create<{
             const {selection} = state
             const isSelectionInText =
               selection.$from.parent.isTextblock &&
-              selection.$from.parent.type.spec.group === 'blockContent' &&
+              selection.$from.parent.type.spec.group === 'block' &&
               selection.$from.parent.content.content.length > 0
 
             // Let default PM paste handling if pasting in a node with text content
@@ -244,8 +248,8 @@ export const BlockGroup = Node.create<{
             let allTopLevelNodesAreStructured = true
             normalizedContent.forEach((node: any) => {
               if (
-                node.type.name !== 'blockContainer' &&
-                node.type.name !== 'blockGroup'
+                node.type.name !== 'blockNode' &&
+                node.type.name !== 'blockChildren'
               ) {
                 allTopLevelNodesAreStructured = false
               }
@@ -284,28 +288,28 @@ function listNode(listType: HMBlockChildrenType) {
 }
 
 /**
- * This function fixes the blockContainer node in case it has multiple blockContent node children after paste.
+ * This function fixes the blockNode in case it has multiple block node children after paste.
  * This is invalid structure
  */
 function splitBlockContainerNode(node: any) {
   const blockContents: any[] = []
   let blockGroup: any = null
 
-  // Traverse blockContainer's children and retrieve all blockContent nodes and the last blockGroup node
+  // Traverse blockNode's children and retrieve all block nodes and the last blockChildren node
   node.forEach((child: any) => {
-    if (child.type.spec.group === 'blockContent') {
+    if (child.type.spec.group === 'block') {
       blockContents.push(child)
-    } else if (child.type.name === 'blockGroup') {
+    } else if (child.type.name === 'blockChildren') {
       blockGroup = child
     }
   })
 
-  // If there is only one blockContent node, return the blockContainer node
+  // If there is only one block node, return the blockNode
   if (blockContents.length <= 1) {
     return [node]
   }
 
-  // If there are multiple blockContent nodes, split the blockContainer node into multiple blockContainer nodes and return them
+  // If there are multiple block nodes, split the blockNode into multiple blockNodes and return them
   const containers: any[] = []
   blockContents.forEach((blockContent, index) => {
     const children = [blockContent]
@@ -328,7 +332,7 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
   const nodes: any[] = []
 
   fragment.forEach((node: any) => {
-    if (node.type.name === 'blockContainer') {
+    if (node.type.name === 'blockNode') {
       const containers = splitBlockContainerNode(node)
       containers.forEach((container: any) => {
         nodes.push(normalizeBlockContainer(container, schema))
@@ -336,23 +340,23 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
       return
     }
 
-    if (node.type.name === 'blockGroup') {
+    if (node.type.name === 'blockChildren') {
       let groupNode = node
       let groupContent = normalizeFragment(node.content, schema)
 
-      // Unwrap when the group has a blockContainer child with a single blockGroup child
-      // This is invalid structure and happens when copy pasting a nested blockGroup without a parent.
+      // Unwrap when the group has a blockNode child with a single blockChildren child
+      // This is invalid structure and happens when copy pasting a nested blockChildren without a parent.
       if (groupContent.childCount === 1) {
         const firstChild = groupContent.firstChild
 
         if (
           firstChild &&
-          firstChild.type?.name === 'blockContainer' &&
+          firstChild.type?.name === 'blockNode' &&
           firstChild.firstChild &&
           firstChild.firstChild.type?.name === 'paragraph' &&
           firstChild.firstChild.content.content.length == 0 &&
           firstChild.lastChild &&
-          firstChild.lastChild.type?.name === 'blockGroup'
+          firstChild.lastChild.type?.name === 'blockChildren'
         ) {
           const innerGroup = firstChild.lastChild
 
@@ -366,8 +370,8 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
         let hasNestedLists = false
         groupContent.forEach((child: any) => {
           if (
-            child.type?.name === 'blockContainer' &&
-            child.lastChild?.type?.name === 'blockGroup'
+            child.type?.name === 'blockNode' &&
+            child.lastChild?.type?.name === 'blockChildren'
           ) {
             hasNestedLists = true
           }
@@ -404,8 +408,8 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
       return
     }
 
-    // Wrap blockContent nodes in blockContainers
-    if (node.type.spec?.group === 'blockContent') {
+    // Wrap block nodes in blockNodes
+    if (node.type.spec?.group === 'block') {
       if (!schema) {
         nodes.push(node)
         return
@@ -428,10 +432,10 @@ function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
 function normalizeBlockContainer(node: any, schema?: any) {
   const children: any[] = []
 
-  // Traverse blockContainer's children
+  // Traverse blockNode's children
   node.forEach((child: any, index: number) => {
-    // If the child is a blockGroup, normalize it and add it to the children array
-    if (child.type?.name === 'blockGroup') {
+    // If the child is a blockChildren, normalize it and add it to the children array
+    if (child.type?.name === 'blockChildren') {
       children.push(
         child.type.create(
           child.attrs,
@@ -445,10 +449,10 @@ function normalizeBlockContainer(node: any, schema?: any) {
     }
   })
 
-  // Add an empty paragraph if the blockGroup is the only child (invalid structure)
+  // Add an empty paragraph if the blockChildren is the only child (invalid structure)
   if (
     children.length === 1 &&
-    children[0].type.name === 'blockGroup' &&
+    children[0].type.name === 'blockChildren' &&
     schema
   ) {
     children.unshift(

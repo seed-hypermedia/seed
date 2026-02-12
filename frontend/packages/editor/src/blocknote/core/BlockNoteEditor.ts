@@ -319,7 +319,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         const root = schema.node(
           'doc',
           undefined,
-          schema.node('blockGroup', {listType: 'Group'}, ic),
+          schema.node('blockChildren', {listType: 'Group'}, ic),
         )
         // override the initialcontent
         editor.editor.options.content = root.toJSON()
@@ -439,7 +439,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
         return false
       }
 
-      if (node.type.name !== 'blockContainer' || node.attrs.id !== id) {
+      if (node.type.name !== 'blockNode' || node.attrs.id !== id) {
         return true
       }
 
@@ -562,7 +562,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
       // for nodes nested in blocks
       parentNode = resolvedPos.node()
       // @ts-ignore
-      if (!parentNode.type.isInGroup('block')) {
+      if (!parentNode.type.isInGroup('blockNodeChild')) {
         // for blockGroups, we need to go one level up
         parentNode = resolvedPos.node(resolvedPos.depth - 1)
       }
@@ -631,7 +631,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
 
     // @ts-ignore
     this._tiptapEditor.state.doc.descendants((node, pos) => {
-      if (node.type.spec.group !== 'blockContent') {
+      if (node.type.spec.group !== 'block') {
         return true
       }
 
@@ -925,7 +925,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * Nests the block containing the text cursor into the block above it.
    */
   public nestBlock() {
-    this._tiptapEditor.commands.sinkListItem('blockContainer')
+    this._tiptapEditor.commands.sinkListItem('blockNode')
   }
 
   // /**
@@ -944,7 +944,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * Lifts the block containing the text cursor out of its parent.
    */
   public unnestBlock() {
-    this._tiptapEditor.commands.liftListItem('blockContainer')
+    this._tiptapEditor.commands.liftListItem('blockNode')
   }
 
   /**

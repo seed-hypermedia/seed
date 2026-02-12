@@ -15,7 +15,7 @@ export const TextColorExtension = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: ['blockContainer'],
+        types: ['blockNode'],
         attributes: {
           textColor: {
             default: 'default',

@@ -257,7 +257,7 @@ export const MarkdownToBlocks = async (
 
   // @ts-ignore
   fragment.firstChild!.content.forEach((node) => {
-    if (node.type.name !== 'blockContainer') {
+    if (node.type.name !== 'blockNode') {
       return false
     }
 

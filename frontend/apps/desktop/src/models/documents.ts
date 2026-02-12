@@ -789,7 +789,7 @@ export type HyperMediaEditor = Exclude<
 >
 
 export const findBlock = findParentNode(
-  (node) => node.type.name === 'blockContainer',
+  (node) => node.type.name === 'blockNode',
 )
 
 export function useDocTextContent(doc?: HMDocument | null) {

@@ -375,7 +375,7 @@ function insertNode(
       // Insert the embed block after the current block
       const nextBlockPos = blockInfo.block.afterPos
       const mappedNextBlockPos = tr.mapping.map(nextBlockPos)
-      const embedBlock = state.schema.nodes['blockContainer'].createAndFill()!
+      const embedBlock = state.schema.nodes['blockNode'].createAndFill()!
       tr = tr.insert(mappedNextBlockPos, embedBlock)
 
       // Resolve position in the updated document to insert the embed node
@@ -402,7 +402,7 @@ function insertNode(
           const embedBlockAfterPos =
             mappedNextBlockPos + insertedEmbedBlock.nodeSize
           const afterTextBlock =
-            state.schema.nodes['blockContainer'].createAndFill()!
+            state.schema.nodes['blockNode'].createAndFill()!
           tr = tr.insert(embedBlockAfterPos, afterTextBlock)
 
           // Insert the after-link text into the new block (resolve position after inserting afterTextBlock)

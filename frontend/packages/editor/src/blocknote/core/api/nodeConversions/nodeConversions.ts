@@ -188,13 +188,13 @@ export function blockToNode<BSchema extends BlockSchema>(
   }
 
   // @ts-ignore
-  const groupNode = schema.nodes['blockGroup'].create(
+  const groupNode = schema.nodes['blockChildren'].create(
     {listType: 'Group'},
     children,
   )
 
   // @ts-ignore
-  return schema.nodes['blockContainer'].create(
+  return schema.nodes['blockNode'].create(
     {
       id: id,
       ...block.props,
@@ -395,11 +395,9 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   blockSchema: BSchema,
   blockCache?: WeakMap<Node, Block<BSchema>>,
 ): Block<BSchema> {
-  if (node.type.name !== 'blockContainer') {
+  if (node.type.name !== 'blockNode') {
     throw Error(
-      'Node must be of type blockContainer, but is of type' +
-        node.type.name +
-        '.',
+      'Node must be of type blockNode, but is of type' + node.type.name + '.',
     )
   }
 

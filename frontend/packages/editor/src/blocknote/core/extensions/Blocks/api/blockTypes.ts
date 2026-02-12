@@ -7,8 +7,8 @@ import {InlineContent, PartialInlineContent} from './inlineContentTypes'
 
 export type BlockNoteDOMElement =
   | 'editor'
-  | 'blockContainer'
-  | 'blockGroup'
+  | 'blockNode'
+  | 'blockChildren'
   | 'blockContent'
   | 'inlineContent'
 
@@ -18,8 +18,8 @@ export type BlockNoteDOMAttributes = Partial<{
 
 // A configuration for a TipTap node, but with stricter type constraints on the
 // "name" and "group" properties. The "name" property is now always a string
-// literal type, and the "blockGroup" property cannot be configured as it should
-// always be "blockContent". Used as the parameter in `createTipTapNode`.
+// literal type, and the "blockChildren" property cannot be configured as it should
+// always be "block". Used as the parameter in `createTipTapNode`.
 export type TipTapNodeConfig<
   Name extends string,
   Options extends {
@@ -38,7 +38,7 @@ export type TipTapNodeConfig<
 
 // A TipTap node with stricter type constraints on the "name" and "group"
 // properties. The "name" property is now a string literal type, and the
-// "blockGroup" property is now "blockContent". Returned by `createTipTapNode`.
+// "blockChildren" property is now "block". Returned by `createTipTapNode`.
 export type TipTapNode<
   Name extends string,
   Options extends {
@@ -49,7 +49,7 @@ export type TipTapNode<
   Storage = any,
 > = Node<Options, Storage> & {
   name: Name
-  group: 'blockContent'
+  group: 'block'
 }
 
 // Defines a single prop spec, which includes the default value the prop should

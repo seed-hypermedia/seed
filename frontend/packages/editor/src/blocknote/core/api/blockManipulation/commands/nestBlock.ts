@@ -53,7 +53,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
           setTimeout(() => {
             editor
               .chain()
-              .liftListItem('blockContainer')
+              .liftListItem('blockNode')
               .command(
                 updateGroupChildrenCommand(
                   group,
@@ -107,7 +107,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // create a new group for them and attach to block content.
         if (children) {
           // @ts-ignore
-          const blockGroup = state.schema.nodes['blockGroup'].create(
+          const blockGroup = state.schema.nodes['blockChildren'].create(
             childGroup
               ? {
                   listType: childGroup.group.attrs.listType,
@@ -124,7 +124,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         // Create and insert the manually built block instead of
         // using tiptap's liftListItem command.
         // @ts-ignore
-        const block = state.schema.nodes['blockContainer'].create(
+        const block = state.schema.nodes['blockNode'].create(
           blockInfo.block.node.attrs,
           blockContent,
         )
@@ -145,7 +145,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         return true
       } else {
         setTimeout(() => {
-          editor.commands.liftListItem('blockContainer')
+          editor.commands.liftListItem('blockNode')
         })
         return true
       }
@@ -165,7 +165,7 @@ function sinkListItem(
     const {$from, $to} = state.selection
     const range = $from.blockRange(
       $to,
-      (node) => node.childCount > 0 && node.type.name === 'blockGroup', // change necessary to not look at first item child type
+      (node) => node.childCount > 0 && node.type.name === 'blockChildren', // change necessary to not look at first item child type
     )
     if (!range) {
       return false
@@ -228,8 +228,8 @@ export function nestBlock(
 ) {
   return editor._tiptapEditor.commands.command(
     sinkListItem(
-      editor._tiptapEditor.schema.nodes['blockContainer'],
-      editor._tiptapEditor.schema.nodes['blockGroup'],
+      editor._tiptapEditor.schema.nodes['blockNode'],
+      editor._tiptapEditor.schema.nodes['blockChildren'],
       listType,
       listLevel,
     ),

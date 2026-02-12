@@ -43,6 +43,14 @@
 [data-list-type='Unordered']
   > ul
   > [data-node-type='blockContainer']
+  > [data-list-type='Group'],
+[data-list-type='Ordered']
+  > ol
+  > [data-node-type='blockNode']
+  > [data-list-type='Group'],
+[data-list-type='Unordered']
+  > ul
+  > [data-node-type='blockNode']
   > [data-list-type='Group'] {
   padding-left: 0;
 }

@@ -181,7 +181,7 @@ export const BlockManipulationExtension = Extension.create({
                 if (selectableNodeTypes.includes(blockInfo.blockContentType)) {
                   const newBlock =
                     // @ts-ignore
-                    state.schema.nodes['blockContainer'].createAndFill()!
+                    state.schema.nodes['blockNode'].createAndFill()!
                   let tr = state.tr.insert(1, newBlock)
                   view.dispatch(tr)
 

@@ -30,31 +30,23 @@ export const ParagraphBlockContent = createTipTapBlock({
       this.options.domAttributes?.inlineContent || {}
 
     return [
-      'div',
+      'p',
       mergeAttributes(
         {
           ...blockContentDOMAttributes,
+          ...inlineContentDOMAttributes,
           class: mergeCSSClasses(
+            'block-paragraph',
             // @ts-ignore
             styles.blockContent,
             blockContentDOMAttributes.class,
+            inlineContentDOMAttributes.class,
           ),
           'data-content-type': this.name,
         },
         HTMLAttributes,
       ),
-      [
-        'p',
-        {
-          ...inlineContentDOMAttributes,
-          class: mergeCSSClasses(
-            // @ts-ignore
-            styles.inlineContent,
-            inlineContentDOMAttributes.class,
-          ),
-        },
-        0,
-      ],
+      0,
     ]
   },
 })

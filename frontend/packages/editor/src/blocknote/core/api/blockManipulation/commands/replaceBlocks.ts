@@ -49,7 +49,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
 
     // Keeps traversing nodes if block with target ID has not been found.
     if (
-      !node.type.isInGroup('block') ||
+      !node.type.isInGroup('blockNodeChild') ||
       !idsOfBlocksToRemove.has(node.attrs.id)
     ) {
       return true
@@ -73,7 +73,7 @@ export function removeAndInsertBlocks<BSchema extends BlockSchema>(
     // `blockContainer`.
     const $pos = tr.doc.resolve(pos - removedSize)
     if (
-      $pos.node().type.name === 'blockGroup' &&
+      $pos.node().type.name === 'blockChildren' &&
       $pos.node($pos.depth - 1).type.name !== 'doc' &&
       $pos.node().childCount === 1
     ) {

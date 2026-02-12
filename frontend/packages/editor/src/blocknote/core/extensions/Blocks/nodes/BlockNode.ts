@@ -157,7 +157,7 @@ function getNearestHeadingFromPos(state: EditorState, pos: number) {
 
     // Check if current node is a blockContainer with heading as first child
     if (
-      node.type.name === 'blockContainer' &&
+      node.type.name === 'blockNode' &&
       node.firstChild?.type.name === 'heading'
     ) {
       return {
@@ -184,15 +184,15 @@ declare module '@tiptap/core' {
 }
 
 /**
- * The main "Block node" documents consist of
+ * The main "blockNode" documents consist of
  */
-export const BlockContainer = Node.create<{
+export const BlockNode = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
 }>({
-  name: 'blockContainer',
-  group: 'blockGroupChild block',
-  // A block always contains content, and optionally a blockGroup which contains nested blocks
-  content: 'blockContent blockGroup?',
+  name: 'blockNode',
+  group: 'blockNodeChild block',
+  // A block always contains content, and optionally a blockChildren which contains nested blocks
+  content: 'block blockChildren?',
   // Ensures content-specific keyboard handlers trigger first.
   priority: 50,
   defining: true,
@@ -218,7 +218,8 @@ export const BlockContainer = Node.create<{
             }
           }
 
-          return element.getAttribute('data-node-type') === 'blockContainer'
+          return element.getAttribute('data-node-type') === 'blockNode' ||
+            element.getAttribute('data-node-type') === 'blockContainer'
             ? attrs
             : false
         },
@@ -228,27 +229,20 @@ export const BlockContainer = Node.create<{
   },
 
   renderHTML({HTMLAttributes}) {
-    const domAttributes = this.options.domAttributes?.blockContainer || {}
+    const domAttributes = this.options.domAttributes?.blockNode || {}
 
     return [
       'div',
-      mergeAttributes(HTMLAttributes, {
-        class: `${styles.blockOuter}`,
-        'data-node-type': 'block-outer',
-      }),
-      [
-        'div',
-        mergeAttributes(
-          {
-            ...domAttributes,
-            // @ts-ignore
-            class: mergeCSSClasses(styles.block, domAttributes.class),
-            'data-node-type': this.name,
-          },
-          HTMLAttributes,
-        ),
-        0,
-      ],
+      mergeAttributes(
+        {
+          ...domAttributes,
+          // @ts-ignore
+          class: mergeCSSClasses(styles.blockNode, domAttributes.class),
+          'data-node-type': this.name,
+        },
+        HTMLAttributes,
+      ),
+      0,
     ]
   },
 
@@ -259,7 +253,7 @@ export const BlockContainer = Node.create<{
         (pos) =>
         ({state, dispatch}) => {
           // @ts-ignore
-          const newBlock = state.schema.nodes['blockContainer'].createAndFill()!
+          const newBlock = state.schema.nodes['blockNode'].createAndFill()!
 
           if (dispatch) {
             state.tr.insert(pos, newBlock)
@@ -300,7 +294,7 @@ export const BlockContainer = Node.create<{
                 .chain()
                 .deleteSelection()
                 .command(splitBlockCommand(state.selection.from, false))
-                .sinkListItem('blockContainer')
+                .sinkListItem('blockNode')
                 .command(
                   updateGroupCommand(
                     -1,
@@ -321,7 +315,7 @@ export const BlockContainer = Node.create<{
             )
             const newBlock =
               // @ts-ignore
-              state.schema.nodes['blockContainer'].createAndFill()!
+              state.schema.nodes['blockNode'].createAndFill()!
             const newBlockInsertionPos =
               block.beforePos + blockContent.node.nodeSize + 2
             const newBlockContentPos = newBlockInsertionPos + 2
@@ -367,6 +361,110 @@ export const BlockContainer = Node.create<{
           }
           return true
         },
+    }
+  },
+
+  addNodeView() {
+    const domAttributes = this.options.domAttributes?.blockNode || {}
+    return ({node, HTMLAttributes, getPos, editor, decorations}) => {
+      // Determine if this blockNode is inside a list by checking the PM doc structure
+      let tag: 'li' | 'div' = 'div'
+      if (typeof getPos === 'function') {
+        const pos = getPos()
+        if (pos != null) {
+          const $pos = editor.state.doc.resolve(pos)
+          // Parent is the blockChildren node
+          if ($pos.parent.type.name === 'blockChildren') {
+            const listType = $pos.parent.attrs.listType
+            if (listType === 'Ordered' || listType === 'Unordered') {
+              tag = 'li'
+            }
+          }
+        }
+      }
+
+      const baseAttrs = mergeAttributes(
+        {
+          ...domAttributes,
+          // @ts-ignore
+          class: mergeCSSClasses(styles.blockNode, domAttributes.class),
+          'data-node-type': this.name,
+        },
+        HTMLAttributes,
+      )
+
+      const dom = document.createElement(tag)
+      for (const [key, value] of Object.entries(baseAttrs)) {
+        if (typeof value === 'string') {
+          dom.setAttribute(key, value)
+        }
+      }
+
+      // Apply node decoration attributes (e.g. selection-in-section class)
+      const applyDecorations = (decos: readonly Decoration[]) => {
+        for (const deco of decos) {
+          const spec = (deco as any).type?.attrs
+          if (spec) {
+            if (spec.class) {
+              dom.classList.add(...spec.class.split(' '))
+            }
+            for (const [k, v] of Object.entries(spec)) {
+              if (k !== 'class' && typeof v === 'string') {
+                dom.setAttribute(k, v)
+              }
+            }
+          }
+        }
+      }
+
+      const removeDecorations = (decos: readonly Decoration[]) => {
+        for (const deco of decos) {
+          const spec = (deco as any).type?.attrs
+          if (spec?.class) {
+            dom.classList.remove(...spec.class.split(' '))
+          }
+        }
+      }
+
+      applyDecorations(decorations)
+
+      let currentDecorations: readonly Decoration[] = decorations
+
+      return {
+        dom,
+        contentDOM: dom,
+        update: (updatedNode, updatedDecorations) => {
+          if (updatedNode.type.name !== 'blockNode') return false
+
+          // Check if the tag needs to change based on current parent
+          const parent = dom.parentElement
+          if (parent) {
+            const parentTag = parent.tagName.toLowerCase()
+            const needsLi = parentTag === 'ol' || parentTag === 'ul'
+            const isLi = dom.tagName.toLowerCase() === 'li'
+            if (needsLi !== isLi) {
+              return false // Force re-creation with correct tag
+            }
+          }
+
+          // Update node attributes
+          for (const [key, value] of Object.entries(updatedNode.attrs)) {
+            if (typeof value === 'string') {
+              dom.setAttribute(
+                BlockAttributes[key as keyof typeof BlockAttributes] || key,
+                value,
+              )
+            }
+          }
+
+          // Update decorations
+          removeDecorations(currentDecorations)
+          applyDecorations(updatedDecorations)
+          currentDecorations = updatedDecorations
+
+          return true
+        },
+      }
     }
   },
 
