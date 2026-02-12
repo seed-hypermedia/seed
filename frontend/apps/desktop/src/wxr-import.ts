@@ -12,6 +12,7 @@ import {uploadFile} from './app-web-importing'
 import {parseWXR, WXRParseResult, WXRPost} from './wxr-parser'
 import {
   createAuthorKeyName,
+  extractSlugFromLink,
   fallbackAuthorLogin,
   getAuthorDisplayName,
   isEmailUsableForAuthored,
@@ -480,7 +481,6 @@ async function createImportData(
 
     const authorLogin =
       normalizeAuthorLogin(post.authorLogin) || fallbackAuthorLogin(post.id)
-    const normalizedSlug = normalizeWXRSlug(post.slug, post.id)
 
     if (!authors[authorLogin]) {
       authors[authorLogin] = {
@@ -488,6 +488,13 @@ async function createImportData(
         email: '',
       }
     }
+
+    // For posts, use the last segment of the <link> URL as the slug, which is
+    // the canonical URL slug WordPress serves (may differ from wp:post_name).
+    // Fall back to wp:post_name if the link is missing or unparseable.
+    const linkSlug =
+      post.type === 'post' ? extractSlugFromLink(post.link) : null
+    const normalizedSlug = normalizeWXRSlug(linkSlug || post.slug, post.id)
 
     let path: string[]
     if (post.type === 'post') {
