@@ -1,10 +1,9 @@
 import {InputRule, mergeAttributes, Node} from '@tiptap/core'
-import {Fragment, Slice} from '@tiptap/pm/model'
-import {Plugin} from '@tiptap/pm/state'
+import {Fragment} from '@tiptap/pm/model'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
 
-export type ListType = 'Ordered' | 'Unordered'
+export type ListType = 'Ordered' | 'Unordered' | 'Blockquote'
 
 /**
  * Wraps a blockContent node in a listContainer.
@@ -209,7 +208,7 @@ export const ListGroup = Node.create<{
   domAttributes?: BlockNoteDOMAttributes
 }>({
   name: 'listGroup',
-  group: 'listOrBlockGroup',
+  group: 'childContainer',
   content: 'listContainer+',
   defining: true,
 
@@ -233,17 +232,17 @@ export const ListGroup = Node.create<{
 
   addInputRules() {
     return [
-      // new InputRule({
-      //   find: new RegExp(`^>\\s$`),
-      //   handler: ({state, chain, range}) => {
-      //     chain()
-      //       .command(
-      //         updateGroupCommand(state.selection.from, 'Blockquote', false),
-      //       )
-      //       // Removes the ">" character used to set the list.
-      //       .deleteRange({from: range.from, to: range.to})
-      //   },
-      // }),
+      new InputRule({
+        find: new RegExp(`^>\\s$`),
+        handler: ({state, chain, range}) => {
+          chain()
+            .command(
+              updateGroupCommand(state.selection.from, 'Blockquote', false),
+            )
+            // Removes the ">" character used to set the blockquote.
+            .deleteRange({from: range.from, to: range.to})
+        },
+      }),
       // Creates an unordered list when starting with "-", "+", or "*".
       new InputRule({
         find: new RegExp(`^[-+*]\\s$`),
@@ -260,21 +259,13 @@ export const ListGroup = Node.create<{
         },
       }),
       new InputRule({
-        // find: new RegExp(/^\d+\.\s/),
         find: new RegExp(/^[1]+\.\s/),
         handler: ({state, chain, range}) => {
           if (state.doc.resolve(range.from).parent.type.name === 'heading') {
             return
           }
           chain()
-            .command(
-              updateGroupCommand(
-                state.selection.from,
-                'Ordered',
-                false,
-                // this.editor.state.doc.textBetween(range.from, range.to - 1),
-              ),
-            )
+            .command(updateGroupCommand(state.selection.from, 'Ordered', false))
             // Removes the "1." characters used to set the list.
             .deleteRange({from: range.from, to: range.to})
         },
@@ -293,6 +284,19 @@ export const ListGroup = Node.create<{
         priority: 300,
       },
       {
+        tag: 'blockquote',
+        attrs: {listType: 'Blockquote'},
+        getAttrs: (element) => {
+          if (typeof element == 'string') {
+            return false
+          }
+          return {
+            listType: 'Blockquote',
+          }
+        },
+        priority: 300,
+      },
+      {
         tag: 'div[data-node-type="listGroup"]',
         priority: 200,
       },
@@ -302,7 +306,12 @@ export const ListGroup = Node.create<{
   renderHTML({node, HTMLAttributes}) {
     const listGroupDOMAttributes = this.options.domAttributes?.listGroup || {}
 
-    const tag = node.attrs.listType === 'Ordered' ? 'ol' : 'ul'
+    let tag = 'ul'
+    if (node.attrs.listType === 'Ordered') {
+      tag = 'ol'
+    } else if (node.attrs.listType === 'Blockquote') {
+      tag = 'blockquote'
+    }
 
     return [
       tag,
@@ -317,52 +326,52 @@ export const ListGroup = Node.create<{
     ]
   },
 
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        props: {
-          transformPasted: (slice, view) => {
-            const {state} = view
-            const {selection} = state
-            const isSelectionInText =
-              selection.$from.parent.isTextblock &&
-              selection.$from.parent.type.spec.group === 'blockContent' &&
-              selection.$from.parent.content.content.length > 0
+  // addProseMirrorPlugins() {
+  //   return [
+  //     new Plugin({
+  //       props: {
+  //         transformPasted: (slice, view) => {
+  //           const {state} = view
+  //           const {selection} = state
+  //           const isSelectionInText =
+  //             selection.$from.parent.isTextblock &&
+  //             selection.$from.parent.type.spec.group === 'blockContent' &&
+  //             selection.$from.parent.content.content.length > 0
 
-            // Let default PM paste handling if pasting in a node with text content
-            if (isSelectionInText) {
-              return slice
-            }
+  //           // Let default PM paste handling if pasting in a node with text content
+  //           if (isSelectionInText) {
+  //             return slice
+  //           }
 
-            const schema = view.state.schema
-            let normalizedContent = normalizeFragment(slice.content, schema)
+  //           const schema = view.state.schema
+  //           let normalizedContent = normalizeFragment(slice.content, schema)
 
-            // If all wrapper nodes are properly structured, close the slice boundaries to indicate it's a complete slice.
-            let allTopLevelNodesAreStructured = true
-            normalizedContent.forEach((node: any) => {
-              if (
-                node.type.name !== 'listContainer' &&
-                node.type.name !== 'listGroup'
-              ) {
-                allTopLevelNodesAreStructured = false
-              }
-            })
+  //           // If all wrapper nodes are properly structured, close the slice boundaries to indicate it's a complete slice.
+  //           let allTopLevelNodesAreStructured = true
+  //           normalizedContent.forEach((node: any) => {
+  //             if (
+  //               node.type.name !== 'listContainer' &&
+  //               node.type.name !== 'listGroup'
+  //             ) {
+  //               allTopLevelNodesAreStructured = false
+  //             }
+  //           })
 
-            const openStart =
-              allTopLevelNodesAreStructured && normalizedContent.childCount > 0
-                ? 0
-                : slice.openStart
-            const openEnd =
-              allTopLevelNodesAreStructured && normalizedContent.childCount > 0
-                ? 0
-                : slice.openEnd
+  //           const openStart =
+  //             allTopLevelNodesAreStructured && normalizedContent.childCount > 0
+  //               ? 0
+  //               : slice.openStart
+  //           const openEnd =
+  //             allTopLevelNodesAreStructured && normalizedContent.childCount > 0
+  //               ? 0
+  //               : slice.openEnd
 
-            const finalSlice = new Slice(normalizedContent, openStart, openEnd)
+  //           const finalSlice = new Slice(normalizedContent, openStart, openEnd)
 
-            return finalSlice
-          },
-        },
-      }),
-    ]
-  },
+  //           return finalSlice
+  //         },
+  //       },
+  //     }),
+  //   ]
+  // },
 })

@@ -12,11 +12,27 @@ import {
   getGroupInfoFromPos,
   getParentGroupInfoFromPos,
 } from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {
+  isBlockContainer,
+  isBlockGroup,
+  isListContainer,
+  isListGroup,
+} from '../helpers/containerHelpers'
 import {updateGroupChildrenCommand} from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
+
+    // Detect what type of container we're lifting
+    const currentContainer = blockInfo.block.node
+    const isLiftingListContainer = isListContainer(currentContainer)
+
+    // Get current group data
+    const {group: currentGroup} = getGroupInfoFromPos(
+      state.selection.from,
+      state,
+    )
 
     if (state.selection.$from.depth - 1 > 2 && dispatch) {
       // If there are children, need to manually append siblings
@@ -40,7 +56,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
           parentBlockInfo.block.afterPos - 2,
         ).content
 
-        // If last child or the only child, just lift list item.
+        // If last child or the only child, manually lift and convert if needed
         if (Fragment.empty.eq(siblingBlocksAfter)) {
           const {group, container, $pos, depth} = getGroupInfoFromPos(
             state.selection.from,
@@ -50,25 +66,78 @@ function liftListItem(editor: Editor, posInBlock: number) {
           const {node: parentGroup, pos: parentGroupPos} =
             getParentGroupInfoFromPos(group, $pos, depth)
 
-          setTimeout(() => {
-            editor
-              .chain()
-              .liftListItem('blockContainer')
-              .command(
-                updateGroupChildrenCommand(
-                  group,
-                  container!,
-                  $pos,
-                  parentGroup?.attrs.listType === 'Unordered'
-                    ? parseInt(parentGroup.attrs.listLevel) + 1
-                    : parseInt(group.attrs.listLevel),
-                  group.attrs.listType,
-                  false,
+          // Determine what container type we need based on parent group
+          const shouldCreateListContainer =
+            parentGroup && isListGroup(parentGroup)
+          const targetContainerType = shouldCreateListContainer
+            ? state.schema.nodes['listContainer']!
+            : state.schema.nodes['blockContainer']!
+
+          // If we need to convert container type, do it manually
+          if (
+            (isListContainer(currentContainer) && !shouldCreateListContainer) ||
+            (isBlockContainer(currentContainer) && shouldCreateListContainer)
+          ) {
+            // Manual lift with conversion
+            const containerPos = blockInfo.block.beforePos
+            const newContainer = targetContainerType.create(
+              blockInfo.block.node.attrs,
+              blockInfo.block.node.content,
+            )
+
+            // Delete current container and insert converted one at parent level
+            const parentPos = state.doc
+              .resolve(containerPos)
+              .start(state.doc.resolve(containerPos).depth - 2)
+
+            state.tr
+              .delete(
+                containerPos,
+                containerPos + blockInfo.block.node.nodeSize,
+              )
+              .insert(parentPos - 1, newContainer)
+              .setSelection(
+                new TextSelection(
+                  state.tr.doc.resolve(
+                    parentPos - 1 + blockInfo.blockContent.node.nodeSize,
+                  ),
                 ),
               )
-              .run()
-          })
-          return true
+
+            dispatch(state.tr)
+            return true
+          } else {
+            // Same container type, use TipTap's liftListItem
+            const containerTypeToLift = isListContainer(currentContainer)
+              ? 'listContainer'
+              : 'blockContainer'
+
+            setTimeout(() => {
+              editor
+                .chain()
+                .liftListItem(containerTypeToLift)
+                .command(
+                  updateGroupChildrenCommand(
+                    group,
+                    container!,
+                    $pos,
+                    parentGroup && isListGroup(parentGroup)
+                      ? parentGroup.attrs.listType === 'Unordered'
+                        ? parseInt(parentGroup.attrs.listLevel) + 1
+                        : parseInt(parentGroup.attrs.listLevel)
+                      : parentGroup?.attrs.listType === 'Unordered'
+                      ? parseInt(parentGroup.attrs.listLevel) + 1
+                      : parseInt(group.attrs.listLevel || '1'),
+                    isListGroup(group)
+                      ? group.attrs.listType
+                      : group.attrs.listType,
+                    false,
+                  ),
+                )
+                .run()
+            })
+            return true
+          }
         }
 
         // Move all siblings after the block into its children.
@@ -102,13 +171,56 @@ function liftListItem(editor: Editor, posInBlock: number) {
           )
         }
 
+        // Determine what container type to create based on where we're lifting to
+        // Find the target group by walking up to find the parent blockGroup or listGroup
+        const $containerPos = state.doc.resolve(blockInfo.block.beforePos)
+        const containerDepth = $containerPos.depth
+
+        // Walk up the tree to find the parent blockGroup or listGroup
+        // (the one that contains the current group)
+        let targetGroup = null
+        let targetDepth = -1
+        for (let d = containerDepth - 1; d >= 0; d--) {
+          const node = $containerPos.node(d)
+          if (
+            (isBlockGroup(node) || isListGroup(node)) &&
+            d < containerDepth - 1
+          ) {
+            targetGroup = node
+            targetDepth = d
+            break
+          }
+        }
+
+        const shouldCreateListContainer =
+          targetGroup && isListGroup(targetGroup)
+        const containerType = shouldCreateListContainer
+          ? state.schema.nodes['listContainer']
+          : state.schema.nodes['blockContainer']
+
         const blockContent = [blockInfo.blockContent.node]
         // If there are children of the unnested block,
         // create a new group for them and attach to block content.
         if (children) {
-          // @ts-ignore
-          const blockGroup = state.schema.nodes['blockGroup'].create(
-            childGroup
+          // Determine group type based on child group
+          const shouldUseListGroup = childGroup && isListGroup(childGroup.group)
+
+          const groupType = shouldUseListGroup
+            ? state.schema.nodes['listGroup']
+            : state.schema.nodes['blockGroup']
+
+          const groupAttrs =
+            childGroup && isListGroup(childGroup.group)
+              ? {
+                  listType: childGroup.group.attrs.listType,
+                  listLevel:
+                    parseInt(childGroup.group.attrs.listLevel) > 1
+                      ? (
+                          parseInt(childGroup.group.attrs.listLevel) - 1
+                        ).toString()
+                      : '1',
+                }
+              : childGroup
               ? {
                   listType: childGroup.group.attrs.listType,
                   listLevel:
@@ -116,15 +228,16 @@ function liftListItem(editor: Editor, posInBlock: number) {
                       ? childGroup.group.attrs.listLevel - 1
                       : 1,
                 }
-              : null,
-            children,
-          )
-          blockContent.push(blockGroup)
+              : null
+
+          // @ts-ignore
+          const childGroupNode = groupType.create(groupAttrs, children)
+          blockContent.push(childGroupNode)
         }
         // Create and insert the manually built block instead of
         // using tiptap's liftListItem command.
         // @ts-ignore
-        const block = state.schema.nodes['blockContainer'].create(
+        const block = containerType.create(
           blockInfo.block.node.attrs,
           blockContent,
         )
@@ -144,10 +257,69 @@ function liftListItem(editor: Editor, posInBlock: number) {
 
         return true
       } else {
-        setTimeout(() => {
-          editor.commands.liftListItem('blockContainer')
-        })
-        return true
+        // Simple lift case (no children or siblings to handle)
+        // But we still need to handle container type conversion
+
+        const $containerPos = state.selection.$from
+        const containerDepth = $containerPos.depth - 1
+
+        // Walk up the tree to find the target group (parent of current group)
+        let targetGroup = null
+        let targetDepth = -1
+        for (let d = containerDepth - 1; d >= 0; d--) {
+          const node = $containerPos.node(d)
+          if (
+            (isBlockGroup(node) || isListGroup(node)) &&
+            d < containerDepth - 1
+          ) {
+            targetGroup = node
+            targetDepth = d
+            break
+          }
+        }
+
+        const shouldCreateListContainer =
+          targetGroup && isListGroup(targetGroup)
+
+        const needsConversion =
+          (isLiftingListContainer && !shouldCreateListContainer) ||
+          (!isLiftingListContainer && shouldCreateListContainer)
+
+        if (needsConversion) {
+          // Manual lift with conversion
+          const targetContainerType = shouldCreateListContainer
+            ? state.schema.nodes['listContainer']!
+            : state.schema.nodes['blockContainer']!
+
+          const containerPos = blockInfo.block.beforePos
+          const newContainer = targetContainerType.create(
+            blockInfo.block.node.attrs,
+            blockInfo.block.node.content,
+          )
+
+          // Calculate target position (parent level)
+          const targetPos = state.selection.$from.start(containerDepth - 1) - 1
+
+          state.tr
+            .delete(containerPos, containerPos + blockInfo.block.node.nodeSize)
+            .insert(targetPos, newContainer)
+            .setSelection(
+              new TextSelection(state.tr.doc.resolve(targetPos + 2)),
+            )
+
+          dispatch(state.tr)
+          return true
+        } else {
+          // No conversion needed, use TipTap's liftListItem
+          const containerTypeToLift = isLiftingListContainer
+            ? 'listContainer'
+            : 'blockContainer'
+
+          setTimeout(() => {
+            editor.commands.liftListItem(containerTypeToLift)
+          })
+          return true
+        }
       }
     }
 
@@ -155,7 +327,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
   }
 }
 
-function sinkListItem(
+export function sinkListItem(
   itemType: NodeType,
   groupType: NodeType,
   listType: HMBlockChildrenType,
@@ -165,7 +337,9 @@ function sinkListItem(
     const {$from, $to} = state.selection
     const range = $from.blockRange(
       $to,
-      (node) => node.childCount > 0 && node.type.name === 'blockGroup', // change necessary to not look at first item child type
+      (node) =>
+        node.childCount > 0 &&
+        (node.type.name === 'blockGroup' || node.type.name === 'listGroup'), // change necessary to not look at first item child type
     )
     if (!range) {
       return false
@@ -198,7 +372,6 @@ function sinkListItem(
         nestedBefore ? 3 : 1,
         0,
       )
-
       const before = range.start
       const after = range.end
       dispatch(
@@ -226,13 +399,22 @@ export function nestBlock(
   listType: HMBlockChildrenType,
   listLevel: string,
 ) {
+  // Determine whether to use list nodes or block nodes based on listType
+  const shouldUseListNodes =
+    listType === 'Ordered' ||
+    listType === 'Unordered' ||
+    listType === 'Blockquote'
+
+  const itemType = shouldUseListNodes
+    ? editor._tiptapEditor.schema.nodes['listContainer']
+    : editor._tiptapEditor.schema.nodes['blockContainer']
+
+  const groupType = shouldUseListNodes
+    ? editor._tiptapEditor.schema.nodes['listGroup']
+    : editor._tiptapEditor.schema.nodes['blockGroup']
+
   return editor._tiptapEditor.commands.command(
-    sinkListItem(
-      editor._tiptapEditor.schema.nodes['blockContainer'],
-      editor._tiptapEditor.schema.nodes['blockGroup'],
-      listType,
-      listLevel,
-    ),
+    sinkListItem(itemType, groupType, listType, listLevel),
   )
 }
 

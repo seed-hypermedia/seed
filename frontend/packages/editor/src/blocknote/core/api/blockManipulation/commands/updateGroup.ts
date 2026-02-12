@@ -7,6 +7,12 @@ import {
   getGroupInfoFromPos,
   getParentGroupInfoFromPos,
 } from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {
+  isBlockContainer,
+  isBlockGroup,
+  isListContainer,
+  isListGroup,
+} from '../helpers/containerHelpers'
 
 export const updateGroupCommand = (
   posInBlock: number,
@@ -37,38 +43,41 @@ export const updateGroupCommand = (
       state,
     )
 
-    if (isSank && group.attrs.listType === listType) return true
+    // Check if the group is already the correct type
+    if (isSank) {
+      const isCorrectType =
+        (listType === 'Group' && isBlockGroup(group)) ||
+        ((listType === 'Ordered' || listType === 'Unordered') &&
+          isListGroup(group))
+      if (isCorrectType) return true
+    }
 
-    // Change group type to div
-    if (group.attrs.listType !== 'Group' && listType === 'Group' && container) {
-      setTimeout(() => {
-        editor
-          .chain()
-          .command(({state, dispatch}) => {
-            if (dispatch) {
-              // setTimeout(() => {
-              state.tr.setNodeMarkup($pos.before(depth), null, {
-                ...group.attrs,
-                listType: 'Group',
-                listLevel: '1',
-              })
-              // })
-              return true
-            }
-            return false
-          })
-          .command(
-            updateGroupChildrenCommand(
-              group,
-              container,
-              $pos,
-              0,
-              group.attrs.listType,
-              false,
-            ),
+    // Change group type to div (convert from list to regular group)
+    if (isListGroup(group) && listType === 'Group' && container) {
+      if (dispatch) {
+        // If converting from listGroup to blockGroup, replace the whole group
+        if (isListGroup(group) && isListContainer(container)) {
+          const groupPos = $pos.start(depth) - 1
+
+          // Create blockContainer from listContainer
+          const blockContainerContent = container.content
+          const newBlockContainer = state.schema.nodes[
+            'blockContainer'
+          ]!.create({id: container.attrs.id}, blockContainerContent)
+
+          // Create blockGroup with the blockContainer
+          const newBlockGroup = state.schema.nodes['blockGroup']!.create(null, [
+            newBlockContainer,
+          ])
+
+          // Replace the listGroup with blockGroup
+          state.tr.replaceWith(
+            groupPos,
+            groupPos + group.nodeSize,
+            newBlockGroup,
           )
-          .run()
-      })
+        }
+      }
 
       return true
     }
@@ -86,9 +95,11 @@ export const updateGroupCommand = (
       group.firstChild &&
       container &&
       group.firstChild.attrs.id !== container.attrs.id &&
-      !tab
+      !tab &&
+      !isSank
     ) {
       setTimeout(() => {
+        // TODO: fix sink list item to include list node types
         editor
           .chain()
           .sinkListItem('blockContainer')
@@ -101,16 +112,20 @@ export const updateGroupCommand = (
       return false
     }
 
-    // If inserting other list type in another list, sink list item and then update group
+    // If inserting a different list type into an existing listGroup, sink the item first
     if (
-      group.attrs.listType !== 'Group' &&
+      isListGroup(group) &&
       group.attrs.listType !== listType &&
+      listType !== 'Group' &&
       container &&
       !tab &&
       !turnInto &&
       !isSank
     ) {
       setTimeout(() => {
+        // Always sink using blockContainer/blockGroup first
+        // (because that's what the current siblings are)
+        // Then convert to listContainer/listGroup if needed
         editor
           .chain()
           .sinkListItem('blockContainer')
@@ -122,44 +137,82 @@ export const updateGroupCommand = (
       return false
     }
 
-    if (dispatch && group.type.name === 'blockGroup') {
+    if (dispatch && (isBlockGroup(group) || isListGroup(group))) {
+      // Determine if we should be using listGroup or blockGroup
+      const shouldUseListGroup =
+        listType === 'Ordered' ||
+        listType === 'Unordered' ||
+        listType === 'Blockquote'
+
       let level = '1'
       // Set new level based on the level of the previous group, if any.
       if (depth >= 5) {
         const {node: parentGroup, pos: parentGroupPos} =
           getParentGroupInfoFromPos(group, $pos, depth)
-        if (parentGroup && parentGroup.attrs.listType === listType) {
+        if (
+          parentGroup &&
+          isListGroup(parentGroup) &&
+          parentGroup.attrs.listType === listType
+        ) {
           level = `${parseInt(parentGroup.attrs.listLevel) + 1}`
         }
       }
 
-      // start
-      //   ? state.tr.setNodeMarkup($pos.before(depth), null, {
-      //       ...group.attrs,
-      //       listType: listType,
-      //       listLevel: level,
-      //       start: parseInt(start),
-      //     })
-      //   :
-      state.tr.setNodeMarkup($pos.before(depth), null, {
-        ...group.attrs,
-        listType: listType,
-        listLevel: level,
-      })
+      if (shouldUseListGroup && isSank) {
+        // After sinking with blockContainer/blockGroup, we need to rebuild the structure
+        // as listContainer/listGroup
+        // We need to rebuild the structure:
+        // blockGroup (nested) -> listGroup
+        //   blockContainer -> listContainer
 
-      if (container) {
-        setTimeout(() => {
-          editor.commands.command(
-            updateGroupChildrenCommand(
-              group,
-              container!,
-              $pos,
-              listType === 'Unordered' ? parseInt(level) : 0,
-              listType,
-              true,
-            ),
-          )
+        const tr = state.tr
+
+        // Convert ALL blockContainers in the group to listContainers
+        const listContainers: PMNode[] = []
+        group.forEach((child) => {
+          if (isBlockContainer(child)) {
+            const listContainer = state.schema.nodes['listContainer']!.create(
+              {id: child.attrs.id},
+              child.content,
+            )
+            listContainers.push(listContainer)
+          }
         })
+
+        // Create the new listGroup with all the listContainers
+        const newListGroup = state.schema.nodes['listGroup']!.create(
+          {listType: listType, listLevel: level},
+          listContainers,
+        )
+
+        // Replace the old blockGroup with the new listGroup
+        const groupPos = $pos.start(depth) - 1
+        tr.replaceWith(groupPos, groupPos + group.nodeSize, newListGroup)
+
+        // tr.setSelection(new TextSelection(tr.doc.resolve($pos.end(depth))))
+        dispatch(tr)
+      } else {
+        // Standard blockGroup handling
+        state.tr.setNodeMarkup($pos.before(depth), null, {
+          ...group.attrs,
+          listType: listType,
+          listLevel: level,
+        })
+
+        if (container) {
+          setTimeout(() => {
+            editor.commands.command(
+              updateGroupChildrenCommand(
+                group,
+                container!,
+                $pos,
+                listType === 'Unordered' ? parseInt(level) : 0,
+                listType,
+                true,
+              ),
+            )
+          })
+        }
       }
     }
 
@@ -187,7 +240,7 @@ export const updateGroupChildrenCommand = (
       let tr = state.tr
       // Update children level of each child of the group.
       group.content.forEach((childContainer, offset) => {
-        if (childContainer.type.name === 'blockContainer') {
+        if (isBlockContainer(childContainer)) {
           if (childContainer.attrs.id === container.attrs.id) {
             beforeSelectedContainer = false
           }
@@ -195,9 +248,10 @@ export const updateGroupChildrenCommand = (
             return
           }
           childContainer.descendants((childGroup, pos, _parent, index) => {
-            // If the child has a group, update group's list level attribute.
+            // If the child has a listGroup with Unordered type, update its listLevel
+            // Note: blockGroup doesn't have listType/listLevel attributes
             if (
-              childGroup.type.name === 'blockGroup' &&
+              isListGroup(childGroup) &&
               childGroup.attrs.listType === 'Unordered'
             ) {
               const $pos = childContainer.resolve(pos)
@@ -215,16 +269,19 @@ export const updateGroupChildrenCommand = (
               ).parent
 
               // Position adjustment based on where the node is in the group.
-              let posAddition =
-                maybeContainer.type.name === 'blockContainer'
-                  ? indent && group.attrs.listType === listType
-                    ? -3
-                    : -1
-                  : group.lastChild &&
-                    childContainer.eq(group.lastChild) &&
-                    !childContainer.eq(group.firstChild!)
-                  ? 1
-                  : 0
+              // Check if we're inserting the same type as the current group
+              const isSameGroupType =
+                (isListGroup(group) && group.attrs.listType === listType) ||
+                (isBlockGroup(group) && listType === 'Group')
+              let posAddition = isBlockContainer(maybeContainer)
+                ? indent && isSameGroupType
+                  ? -3
+                  : -1
+                : group.lastChild &&
+                  childContainer.eq(group.lastChild) &&
+                  !childContainer.eq(group.firstChild!)
+                ? 1
+                : 0
 
               if (
                 childContainer.eq(maybeContainer) &&
@@ -235,7 +292,7 @@ export const updateGroupChildrenCommand = (
                 posAddition = -1
 
               // Add offset only when changing between list types.
-              if (group.attrs.listType !== listType) posAddition += offset
+              if (!isSameGroupType) posAddition += offset
 
               if (newLevel !== childGroup.attrs.listLevel) {
                 tr = tr.setNodeAttribute(

@@ -13,6 +13,10 @@ import {
   updateGroupChildrenCommand,
   updateGroupCommand,
 } from '../../api/blockManipulation/commands/updateGroup'
+import {
+  isListContainer,
+  isListGroup,
+} from '../../api/blockManipulation/helpers/containerHelpers'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {
   getBlockInfoFromPos,
@@ -671,10 +675,8 @@ export const KeyboardShortcutsExtension = Extension.create<{
               state,
             )
 
-            if (
-              group.type.name === 'blockGroup' &&
-              group.attrs.listType !== 'Group'
-            ) {
+            // Handle Tab in listGroup
+            if (isListGroup(group) && isListContainer(container!)) {
               setTimeout(() => {
                 // Try nesting the list item
                 const isNested = nestBlock(
@@ -708,44 +710,118 @@ export const KeyboardShortcutsExtension = Extension.create<{
           }),
         () =>
           // This command is needed for tab inside of the first level of nesting
-          commands.command(({state, chain}) => {
+          // or when Tab is pressed after a list (case 3: convert to listContainer after sink)
+          commands.command(({state, chain, dispatch}) => {
             const {group, container, $pos} = getGroupInfoFromPos(
               state.selection.from,
               state,
             )
 
-            if (container) {
-              // Try sinking the list item.
+            if (container && dispatch) {
+              // Check if previous sibling has a listGroup
+              // Find the index of the current container in the group
+              let currentIndex = -1
+              let prevSibling: PMNode | null = null
+
+              group.forEach((child: PMNode, offset, index) => {
+                if (child.attrs.id === container.attrs.id) {
+                  currentIndex = index
+                }
+                if (currentIndex === -1) {
+                  prevSibling = child
+                }
+              })
+
+              // If there's a previous sibling with a listGroup, add to it
+              if (prevSibling) {
+                const typedPrevSibling = prevSibling as PMNode
+                if (
+                  typedPrevSibling.lastChild &&
+                  isListGroup(typedPrevSibling.lastChild)
+                ) {
+                  const prevSiblingLastChild = typedPrevSibling.lastChild!
+
+                // Convert current blockContainer to listContainer
+                const listContainer = state.schema.nodes[
+                  'listContainer'
+                ]!.create({id: container.attrs.id}, container.content)
+
+                // Find positions
+                const containerPos = $pos.before($pos.depth - 1)
+
+                // Calculate prevSibling position by walking back
+                let prevSiblingPos = containerPos - 1
+                let checkNode = state.doc.resolve(prevSiblingPos).parent
+                while (
+                  checkNode.attrs?.id !== typedPrevSibling.attrs.id &&
+                  prevSiblingPos > 0
+                ) {
+                  prevSiblingPos--
+                  checkNode = state.doc.resolve(prevSiblingPos).parent
+                }
+                prevSiblingPos = state.doc.resolve(prevSiblingPos).before()
+
+                // Position to insert into the listGroup (at the end)
+                const listGroupPos =
+                  prevSiblingPos + typedPrevSibling.firstChild!.nodeSize + 1
+                const insertPos =
+                  listGroupPos + prevSiblingLastChild.content.size
+
+                  // Remove current container and add it to the listGroup
+                  state.tr
+                    .delete(containerPos, containerPos + container.nodeSize)
+                    .insert(insertPos - container.nodeSize, listContainer)
+
+                  return true
+                }
+              }
+
+              // Otherwise, use normal sinkListItem
               const result = chain().sinkListItem('blockContainer').run()
-              // Update group children if sinking was successful.
+
+              // Update group children after sinking
               if (result) {
                 setTimeout(() => {
                   try {
+                    const currentState = this.editor.state
+                    const newGroupInfo = getGroupInfoFromPos(
+                      currentState.selection.from,
+                      currentState,
+                    )
+
+                    const groupListType = isListGroup(newGroupInfo.group)
+                      ? newGroupInfo.group.attrs.listType
+                      : newGroupInfo.group.attrs.listType
+
                     this.editor
                       .chain()
                       .command(
                         updateGroupChildrenCommand(
-                          group,
-                          container,
-                          $pos,
-                          parseInt(group.attrs.listLevel),
-                          group.attrs.listType,
+                          newGroupInfo.group,
+                          newGroupInfo.container!,
+                          newGroupInfo.$pos,
+                          isListGroup(newGroupInfo.group)
+                            ? parseInt(newGroupInfo.group.attrs.listLevel)
+                            : parseInt(
+                                newGroupInfo.group.attrs.listLevel || '1',
+                              ),
+                          groupListType,
                           true,
                         ),
                       )
                       .run()
                   } catch (e) {
-                    // @ts-expect-error
-                    console.log(e.message)
+                    // Silently handle conversion errors
                   }
                 })
               }
               return true
-            } else {
-              // Just sink the list item if not a list.
+            } else if (!container) {
+              // Just sink the container if no container context
               commands.sinkListItem('blockContainer')
               return true
             }
+            return false
           }),
       ])
 

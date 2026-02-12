@@ -20,17 +20,17 @@ export function getGroupInfoFromPos(
   let container
   let depth = maxDepth
 
-  // Find block group, block container and depth it is at
+  // Find block group, list group, block container and depth it is at
   while (true) {
     if (depth < 0) {
       break
     }
 
-    if (group.type.name === 'blockGroup') {
+    if (group.type.name === 'blockGroup' || group.type.name === 'listGroup') {
       break
     }
 
-    if (group.type.name === 'blockContainer') {
+    if (group.type.name === 'blockContainer' || group.type.name === 'listContainer') {
       container = group
     }
 
@@ -54,7 +54,7 @@ export function getParentGroupInfoFromPos(
 ) {
   for (let parentDepth = depth; parentDepth > 0; parentDepth--) {
     const node = $pos.node(parentDepth)
-    if (node.type.name === 'blockGroup' && !node.eq(group)) {
+    if ((node.type.name === 'blockGroup' || node.type.name === 'listGroup') && !node.eq(group)) {
       return {node, pos: $pos.before(depth)}
     }
   }

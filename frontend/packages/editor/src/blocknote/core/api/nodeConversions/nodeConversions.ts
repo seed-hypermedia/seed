@@ -257,7 +257,11 @@ export function blockToListContainer<BSchema extends BlockSchema>(
   if (children.length > 0) {
     // Determine if we should use listGroup based on childrenType
     const childrenType = (block.props as any)?.childrenType
-    if (childrenType === 'Ordered' || childrenType === 'Unordered') {
+    if (
+      childrenType === 'Ordered' ||
+      childrenType === 'Unordered' ||
+      childrenType === 'Blockquote'
+    ) {
       // @ts-ignore
       childGroupNode = schema.nodes['listGroup'].create(
         {listType: childrenType},

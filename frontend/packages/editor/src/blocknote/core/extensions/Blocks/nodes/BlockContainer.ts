@@ -199,13 +199,6 @@ export const BlockContainer = Node.create<{
 
   parseHTML() {
     return [
-      // {
-      //   tag: 'li',
-      //   priority: 300,
-      //   getAttrs: (element) => {
-      //     return null
-      //   },
-      // },
       {
         tag: 'div',
         getAttrs: (element) => {

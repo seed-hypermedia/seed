@@ -1,7 +1,8 @@
-import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
 import {Node} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
+import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
 import {getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {isContainer} from '../helpers/containerHelpers'
 
 export const splitBlockCommand = (
   posInBlock: number,
@@ -20,9 +21,10 @@ export const splitBlockCommand = (
 
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
-    if (blockInfo.block.node.type.name !== 'blockContainer') {
+    // Accept both blockContainer and listContainer
+    if (!isContainer(blockInfo.block.node)) {
       throw new Error(
-        `BlockContainer expected when calling splitBlock, position ${posInBlock}`,
+        `Container node is expected when calling splitBlock, position ${posInBlock}, got ${blockInfo.block.node.type.name}`,
       )
     }
 
