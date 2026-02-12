@@ -1026,7 +1026,7 @@ function DocumentBody({
                       ? 'opacity-100'
                       : isToolsSticky
                       ? 'opacity-100'
-                      : 'opacity-0',
+                      : 'pointer-events-none opacity-0',
                   )}
                 >
                   {actionButtons}
