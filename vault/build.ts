@@ -18,6 +18,9 @@ const result = await Bun.build({
 	publicPath: "/vault/",
 	root: "./src",
 	plugins: [tailwind],
+	// mjml's transitive dep uglify-js has CJS that Bun's bundler can't handle.
+	// Keep these as runtime imports from node_modules instead.
+	external: ["mjml", "uglify-js"],
 })
 
 if (!result.success) {
