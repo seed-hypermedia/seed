@@ -115,6 +115,8 @@ export function createSiteUrl({
   latest,
   blockRef,
   blockRange,
+  viewTerm,
+  panel,
 }: {
   path: string[] | null | undefined
   hostname: string
@@ -122,16 +124,69 @@ export function createSiteUrl({
   latest?: boolean
   blockRef?: string | null | undefined
   blockRange?: BlockRange | null
+  viewTerm?: string | null
+  panel?: string | null
 }) {
-  let res = `${hostname}/`
+  let res = hostname
   if (path && path.length) {
-    res += path.join('/')
+    res += '/' + path.join('/')
   }
-  res += getHMQueryString({latest, version})
+  if (viewTerm) {
+    res += '/' + viewTerm
+  }
+  res += getHMQueryString({latest, version, panel})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
   return res
+}
+
+/**
+ * Build a comment URL relative to a document context.
+ * Produces site-style URLs when siteUrl is provided, gateway URLs otherwise.
+ *
+ * For `:discussions` main view → `.../path/:discussions?panel=comment/COMMENT_ID`
+ * For document with panel    → `.../path?panel=comment/COMMENT_ID`
+ * With blockRef              → append `#BLOCK_ID+` or `#BLOCK_ID[start:end]`
+ */
+export function createCommentUrl({
+  docId,
+  commentId,
+  siteUrl,
+  blockRef,
+  blockRange,
+  isDiscussionsView,
+  latest,
+}: {
+  docId: UnpackedHypermediaId
+  commentId: string
+  siteUrl?: string | null
+  blockRef?: string | null
+  blockRange?: BlockRange | null
+  /** true when on the :discussions main view, false when comment is in a panel */
+  isDiscussionsView?: boolean
+  latest?: boolean | null
+}): string {
+  const panelParam = `comment/${commentId}`
+  if (siteUrl) {
+    return createSiteUrl({
+      path: docId.path,
+      hostname: siteUrl,
+      latest: latest ?? undefined,
+      viewTerm: isDiscussionsView ? ':discussions' : null,
+      panel: panelParam,
+      blockRef,
+      blockRange,
+    })
+  }
+  return createWebHMUrl(docId.uid, {
+    path: docId.path,
+    latest,
+    viewTerm: isDiscussionsView ? ':discussions' : null,
+    panel: panelParam,
+    blockRef,
+    blockRange,
+  })
 }
 
 export function getCommentTargetId(
@@ -351,7 +406,7 @@ export function createWebHMUrl(
     res += `/${viewTerm}`
   }
   res += getHMQueryString({
-    latest: null,
+    latest: latest ?? null,
     version: latest ? undefined : version,
     panel,
   })
