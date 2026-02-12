@@ -17,6 +17,7 @@ export interface WXRPost {
   id: number
   title: string
   slug: string
+  link: string
   content: string
   excerpt: string
   status: 'publish' | 'draft' | 'private' | 'pending' | 'future' | 'trash'
@@ -111,6 +112,7 @@ export function parseWXR(xml: string): WXRParseResult {
     const menuOrder =
       parseInt(getChildText($, $item, 'wp:menu_order') || '0', 10) || undefined
     const slug = getChildText($, $item, 'wp:post_name') || ''
+    const link = $item.children('link').text().trim()
     const attachmentUrl =
       getChildText($, $item, 'wp:attachment_url') || undefined
 
@@ -141,6 +143,7 @@ export function parseWXR(xml: string): WXRParseResult {
         id: postId,
         title,
         slug,
+        link,
         content,
         excerpt,
         status,

@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {
   createAuthorKeyName,
+  extractSlugFromLink,
   isEmailUsableForAuthored,
   normalizeAuthorLogin,
   normalizeWXRSlug,
@@ -53,6 +54,49 @@ describe('createAuthorKeyName', () => {
     const keyA = createAuthorKeyName('siteA', 'theme-reviewer')
     const keyB = createAuthorKeyName('siteB', 'theme-reviewer')
     expect(keyA).not.toBe(keyB)
+  })
+})
+
+describe('extractSlugFromLink', () => {
+  it('extracts last segment from full URL with date path', () => {
+    expect(
+      extractSlugFromLink(
+        'https://wpthemetestdata.wordpress.com/2018/10/20/keyboard-navigation/',
+      ),
+    ).toBe('keyboard-navigation')
+  })
+
+  it('extracts last segment from flat URL', () => {
+    expect(
+      extractSlugFromLink(
+        'https://wpthemetestdata.wordpress.com/wp-6-1-font-size-scale/',
+      ),
+    ).toBe('wp-6-1-font-size-scale')
+  })
+
+  it('handles URL without trailing slash', () => {
+    expect(
+      extractSlugFromLink('https://example.com/2010/09/10/post-format-gallery'),
+    ).toBe('post-format-gallery')
+  })
+
+  it('returns null for empty or nullish input', () => {
+    expect(extractSlugFromLink('')).toBeNull()
+    expect(extractSlugFromLink(null)).toBeNull()
+    expect(extractSlugFromLink(undefined)).toBeNull()
+  })
+
+  it('returns null for root URL with no path segments', () => {
+    expect(extractSlugFromLink('https://example.com/')).toBeNull()
+    expect(extractSlugFromLink('https://example.com')).toBeNull()
+  })
+
+  it('handles percent-encoded unicode slugs', () => {
+    expect(
+      extractSlugFromLink(
+        'https://example.com/greek/%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2/',
+      ),
+    ).toBe('%CE%B5%CF%80%CE%AF%CF%80%CE%B5%CE%B4%CE%BF-2')
   })
 })
 
