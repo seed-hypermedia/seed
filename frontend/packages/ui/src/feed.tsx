@@ -13,14 +13,17 @@ import {useResource} from '@shm/shared/models/entity'
 import {DocumentRoute, NavRoute} from '@shm/shared/routes'
 import {useRouteLink} from '@shm/shared/routing'
 import {useTx, useTxString} from '@shm/shared/translation'
-import {useResourceUrl} from '@shm/shared/url'
 import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {
   AnyTimestamp,
   formattedDateShort,
   normalizeDate,
 } from '@shm/shared/utils/date'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {
+  createCommentUrl,
+  getCommentTargetId,
+  hmId,
+} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import _ from 'lodash'
 import {CircleAlert, Link, Trash2} from 'lucide-react'
@@ -258,7 +261,9 @@ function EventHeaderContent({
   route?: NavRoute | null
 }) {
   const tx = useTxString()
-  const getUrl = useResourceUrl(targetDomain)
+  const currentRoute = useNavRoute()
+  const isDiscussionsView =
+    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
   if (event.type == 'comment') {
     const options: MenuItemType[] = []
     if (
@@ -301,9 +306,24 @@ function EventHeaderContent({
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  const url = getUrl(hmId(event.comment!.id))
-                  copyTextToClipboard(url)
-                  toast.success('Copied Comment URL')
+                  const targetDocId = getCommentTargetId(event.comment!)
+                  if (targetDocId && event.comment) {
+                    const routeLatest =
+                      currentRoute.key === 'document' ||
+                      currentRoute.key === 'discussions' ||
+                      currentRoute.key === 'activity'
+                        ? currentRoute.id.latest
+                        : undefined
+                    const url = createCommentUrl({
+                      docId: targetDocId,
+                      commentId: event.comment.id,
+                      siteUrl: targetDomain,
+                      isDiscussionsView,
+                      latest: routeLatest,
+                    })
+                    copyTextToClipboard(url)
+                    toast.success('Copied Comment URL')
+                  }
                 }}
               >
                 <Link className="size-3" />

@@ -5,6 +5,7 @@ import {
 import {
   BlockRange,
   commentIdToHmId,
+  createCommentUrl,
   getCommentTargetId,
   HMComment,
   HMCommentGroup,
@@ -31,7 +32,6 @@ import {
 import {HMListDiscussionsOutput} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
-import {useResourceUrl} from '@shm/shared/url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Link, MessageSquare, Trash2} from 'lucide-react'
 import {
@@ -652,7 +652,10 @@ export const Comment = memo(function Comment({
       setShowReplies(defaultExpandReplies)
     }
   }, [defaultExpandReplies])
-  const getUrl = useResourceUrl(targetDomain)
+  const currentRoute = useNavRoute()
+  const isDiscussionsView =
+    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
+  const docId = getCommentTargetId(comment)
   const options: MenuItemType[] = []
   if (onCommentDelete) {
     options.push({
@@ -737,9 +740,23 @@ export const Comment = memo(function Comment({
                 variant="ghost"
                 className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                 onClick={() => {
-                  const url = getUrl(hmId(comment.id))
-                  copyTextToClipboard(url)
-                  toast.success('Copied Comment URL')
+                  if (docId) {
+                    const routeLatest =
+                      currentRoute.key === 'document' ||
+                      currentRoute.key === 'discussions' ||
+                      currentRoute.key === 'activity'
+                        ? currentRoute.id.latest
+                        : undefined
+                    const url = createCommentUrl({
+                      docId,
+                      commentId: comment.id,
+                      siteUrl: targetDomain,
+                      isDiscussionsView,
+                      latest: routeLatest,
+                    })
+                    copyTextToClipboard(url)
+                    toast.success('Copied Comment URL')
+                  }
                 }}
               >
                 <Link className="size-3" />
@@ -822,7 +839,10 @@ export function CommentContent({
     targetHomeEntity.data?.type === 'document'
       ? targetHomeEntity.data.document
       : undefined
-  const getUrl = useResourceUrl(targetHomeDoc?.metadata?.siteUrl)
+  const targetDocId = getCommentTargetId(comment)
+  const siteUrl = targetHomeDoc?.metadata?.siteUrl as string | undefined
+  const isDiscussionsView =
+    currentRoute.key === 'discussions' || currentRoute.key === 'activity'
   const textUnit = size === 'sm' ? 12 : 14
   const layoutUnit = size === 'sm' ? 14 : 16
   const onBlockSelect = (
@@ -835,12 +855,24 @@ export function CommentContent({
       blockRange = br
     }
     if (opts?.copyToClipboard) {
-      const fullUrl = getUrl({
-        ...commentIdToHmId(comment.id),
-        blockRef: blockId,
-        blockRange,
-      })
-      copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
+      if (targetDocId) {
+        const routeLatest =
+          currentRoute.key === 'document' ||
+          currentRoute.key === 'discussions' ||
+          currentRoute.key === 'activity'
+            ? currentRoute.id.latest
+            : undefined
+        const fullUrl = createCommentUrl({
+          docId: targetDocId,
+          commentId: comment.id,
+          siteUrl,
+          isDiscussionsView,
+          latest: routeLatest,
+          blockRef: blockId,
+          blockRange,
+        })
+        copyUrlToClipboardWithFeedback(fullUrl, 'Comment Block')
+      }
       return true
     } else {
       if (!openOnClick) return false

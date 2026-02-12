@@ -22,9 +22,10 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {
+  createSiteUrl,
+  createWebHMUrl,
   getCommentTargetId,
   parseFragment,
-  routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {
@@ -281,6 +282,7 @@ export function ResourcePage({
       <DocumentBody
         docId={docId}
         document={document}
+        siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
         optionsMenuItems={optionsMenuItems}
         editActions={editActions}
@@ -378,6 +380,7 @@ function CommentResourcePage({
         isHomeDoc={isHomeDoc}
         openComment={comment.id}
         CommentEditor={CommentEditor}
+        siteUrl={siteHomeDocument?.metadata?.siteUrl}
       />
     </PageWrapper>
   )
@@ -390,12 +393,14 @@ function CommentPageBody({
   isHomeDoc,
   openComment,
   CommentEditor,
+  siteUrl,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   isHomeDoc: boolean
   openComment: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  siteUrl?: string
 }) {
   const interactionSummary = useInteractionSummary(docId)
 
@@ -479,6 +484,7 @@ function CommentPageBody({
         docId={docId}
         openComment={openComment}
         contentMaxWidth={contentMaxWidth}
+        targetDomain={siteUrl}
         commentEditor={
           CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined
         }
@@ -593,6 +599,7 @@ export function PageWrapper({
 function DocumentBody({
   docId,
   document,
+  siteUrl,
   CommentEditor,
   optionsMenuItems,
   editActions,
@@ -602,6 +609,7 @@ function DocumentBody({
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   optionsMenuItems?: MenuItemType[]
   editActions?: ReactNode
@@ -855,7 +863,22 @@ function DocumentBody({
       }
       const shouldCopy = opts?.copyToClipboard !== false
       if (blockId && shouldCopy) {
-        const url = routeToUrl(blockRoute)
+        // Block links must include version (block tied to specific version)
+        // and use siteUrl hostname when available
+        const url = siteUrl
+          ? createSiteUrl({
+              path: docId.path,
+              hostname: siteUrl,
+              blockRef: blockId,
+              blockRange,
+              version: document.version,
+            })
+          : createWebHMUrl(docId.uid, {
+              path: docId.path,
+              blockRef: blockId,
+              blockRange,
+              version: document.version,
+            })
         copyUrlToClipboardWithFeedback(url, 'Block')
       }
       // Navigate to update route with blockRef (unless explicitly copy-only)
@@ -864,7 +887,7 @@ function DocumentBody({
         navigate(blockRoute)
       }
     },
-    [route, navigate, scrollToBlock],
+    [route, navigate, scrollToBlock, docId, document.version, siteUrl],
   )
 
   // Activity filter change handler (main page)
@@ -1040,6 +1063,7 @@ function DocumentBody({
           CommentEditor={CommentEditor}
           directory={directory.data}
           collaboratorForm={collaboratorForm}
+          siteUrl={siteUrl}
         />
       </div>
     </>
@@ -1084,6 +1108,7 @@ function DocumentBody({
               showTitle={false}
               showOpenInPanel={false}
               contentMaxWidth={contentMaxWidth}
+              targetDomain={siteUrl}
               commentEditor={
                 CommentEditor ? (
                   <CommentEditor docId={docId} autoFocus />
@@ -1104,6 +1129,7 @@ function DocumentBody({
         docId={docId}
         contentMaxWidth={contentMaxWidth}
         CommentEditor={CommentEditor}
+        siteUrl={siteUrl}
       />
     </ScrollArea>
   ) : null
@@ -1147,11 +1173,13 @@ function PanelContentRenderer({
   docId,
   contentMaxWidth,
   CommentEditor,
+  siteUrl,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
   contentMaxWidth: number
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  siteUrl?: string
 }) {
   switch (panelRoute.key) {
     case 'activity':
@@ -1161,6 +1189,7 @@ function PanelContentRenderer({
             size="sm"
             filterResource={docId.id}
             filterEventType={panelRoute.filterEventType}
+            targetDomain={siteUrl}
           />
         </div>
       )
@@ -1171,6 +1200,7 @@ function PanelContentRenderer({
           showTitle={false}
           showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
+          targetDomain={siteUrl}
           openComment={panelRoute.openComment}
           targetBlockId={panelRoute.targetBlockId}
           blockId={panelRoute.blockId}
@@ -1226,6 +1256,7 @@ function MainContent({
   CommentEditor,
   directory,
   collaboratorForm,
+  siteUrl,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1255,6 +1286,7 @@ function MainContent({
   CommentEditor?: React.ComponentType<CommentEditorProps>
   directory?: import('@shm/shared').HMDocumentInfo[]
   collaboratorForm?: ReactNode
+  siteUrl?: string
 }) {
   switch (activeView) {
     case 'directory':
@@ -1286,6 +1318,7 @@ function MainContent({
             centered
             filterResource={docId.id}
             filterEventType={activityFilterEventType || []}
+            targetDomain={siteUrl}
           />
         </PageLayout>
       )
@@ -1297,6 +1330,7 @@ function MainContent({
           showTitle={false}
           showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
+          targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}

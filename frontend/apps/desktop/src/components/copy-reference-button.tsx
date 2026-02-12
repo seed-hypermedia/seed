@@ -13,7 +13,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {ExternalLink, Link} from '@shm/ui/icons'
 import {Tooltip} from '@shm/ui/tooltip'
-import React, {PropsWithChildren, ReactNode, useCallback, useState} from 'react'
+import React, {PropsWithChildren, ReactNode, useState} from 'react'
 
 export function useDocumentUrl({
   docId,
@@ -170,23 +170,4 @@ export function CopyReferenceButton({
       {reference.content}
     </>
   )
-}
-
-export function useCopyReferenceButton(docId?: UnpackedHypermediaId) {
-  const [isCopied, setIsCopied] = useState(false)
-
-  const onCopy = useCallback(() => {
-    if (isCopied) return
-    if (docId) {
-      const accountId = hmId(docId.uid)
-      // @ts-expect-error
-      copy(accountId)
-      setIsCopied(true)
-      setTimeout(() => {
-        setIsCopied(false)
-      }, 5000)
-    }
-  }, [docId])
-
-  return {onCopy}
 }
