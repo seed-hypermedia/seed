@@ -555,13 +555,13 @@ function DocumentEditor({
           onClick={handleFocusAtMousePos}
           className="relative flex flex-1 flex-col overflow-hidden"
         >
+          <div
+            className="absolute top-4 right-4 z-20 flex items-center gap-1 rounded-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DraftActionButtons route={route} />
+          </div>
           <ScrollArea onScroll={() => dispatchScroll(true)}>
-            <div
-              className="absolute top-4 right-4 z-11 flex items-center gap-1 rounded-sm"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DraftActionButtons route={route} />
-            </div>
             <DraftCover
               draftActor={actor}
               // @ts-expect-error

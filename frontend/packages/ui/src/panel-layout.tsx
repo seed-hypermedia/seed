@@ -108,7 +108,7 @@ export function PanelLayout({
         storage={widthStorage}
       >
         <Panel id="main" minSize={100 - MAX_PANEL_PERCENT}>
-          <div className="h-full rounded-lg">{children}</div>
+          <div className="relative h-full rounded-lg">{children}</div>
         </Panel>
 
         {panelKey !== null && (
