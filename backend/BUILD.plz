@@ -1,14 +1,13 @@
 subinclude("//build/rules/go:defs", "//build/rules/codegen:defs")
 
-# Build llama.cpp bindings before compiling Go code
+# Build llama.cpp bindings before compiling Go code.
+# Builds in-place in $WORKSPACE to avoid copying ~2500 files from the
+# llama-go submodule (which includes the full llama.cpp source tree) into
+# the Please sandbox. Outputs are copied back to the sandbox for downstream
+# targets. This matches the pattern used by the seed-daemon target.
 genrule(
     name = "llama-cpp",
-    srcs = glob(["util/llama-go/**/*"], exclude=[
-        "util/llama-go/.git/**",
-        "util/llama-go/build/**",
-        "util/llama-go/**/*.a",
-        "util/llama-go/**/*.o",
-    ]),
+    srcs = ["util/llama-go/Makefile"],
     outs = [
         "backend/util/llama-go/libbinding.a",
         "backend/util/llama-go/libcommon.a",
@@ -22,7 +21,8 @@ genrule(
     ],
     cmd = """
 set -e
-cd backend/util/llama-go
+LLAMA_DIR="$WORKSPACE/backend/util/llama-go"
+cd "$LLAMA_DIR"
 export LIBRARY_PATH=$(pwd)
 export C_INCLUDE_PATH=$(pwd)
 export PATH="$(dirname $TOOLS_CMAKE):$PATH"
@@ -55,6 +55,14 @@ else
     touch ggml-metal.metal
 fi
 echo "llama.cpp build completed successfully"
+# Copy outputs back to the Please sandbox where it expects them.
+# Outs are declared as "backend/util/llama-go/*.a" so Please looks for them
+# relative to the genrule working dir at that path.
+OUTDIR="$TMP_DIR/backend/util/llama-go"
+mkdir -p "$OUTDIR"
+cp libbinding.a libcommon.a libllama.a libggml.a libggml-cpu.a libggml-base.a "$OUTDIR/"
+cp libggml-vulkan.a libggml-metal.a "$OUTDIR/"
+cp ggml-metal.metal "$OUTDIR/" 2>/dev/null || touch "$OUTDIR/ggml-metal.metal"
     """,
     building_description = "Building llama.cpp bindings...",
     tools = {
