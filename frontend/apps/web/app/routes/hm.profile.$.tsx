@@ -89,7 +89,7 @@ function ProfilePageContent({
           origin={origin}
         />
         <NavigationLoadingContent className="flex w-full flex-1 flex-col items-center pt-[var(--site-header-h)] sm:pt-0">
-          <PageContainer>
+          <PageContainer className="w-full">
             <HMProfilePage
               profile={{
                 id: profileId,

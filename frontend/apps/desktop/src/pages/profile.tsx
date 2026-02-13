@@ -30,7 +30,7 @@ export default function ProfilePage() {
 
   return (
     <PanelContainer>
-      <MainWrapper scrollable>
+      <MainWrapper scrollable className="w-full">
         {profile.data && (
           <HMProfilePage
             profile={profile.data}
