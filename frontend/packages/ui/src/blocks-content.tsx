@@ -87,6 +87,7 @@ import React, {
   useState,
 } from 'react'
 import {createPortal} from 'react-dom'
+import {ErrorBoundary} from 'react-error-boundary'
 import {contentLayoutUnit, contentTextUnit} from './blocks-content-constants'
 import './blocks-content.css'
 import {Button} from './button'
@@ -2541,12 +2542,34 @@ export function BlockContentWebEmbed({
   )
 }
 
+function CodeHighlight({node}: {node: any}) {
+  if (node.type === 'text') {
+    return node.value
+  }
+
+  if (node.type === 'element') {
+    const {tagName, properties, children} = node
+    if (properties.className && Array.isArray(properties.className)) {
+      properties.className = properties.className[0]
+    }
+    return createElement(
+      tagName,
+      {...properties},
+      children &&
+        children.map((child: any, index: number) => (
+          <CodeHighlight key={index} node={child} />
+        )),
+    )
+  }
+
+  return null
+}
+
 export function BlockContentCode({
   block,
   parentBlockId,
   ...props
 }: BlockContentProps<HMBlockCode>) {
-  const layoutUnit = useLayoutUnit()
   const language =
     block.type === 'Code'
       ? getBlockAttribute(block.attributes, 'language')
@@ -2562,37 +2585,48 @@ export function BlockContentCode({
       />
     )
   }
+  return (
+    <ErrorBoundary fallback={<FallbackCodeBlock value={block.text} />}>
+      <CodeContent language={language} value={block.text} />
+    </ErrorBoundary>
+  )
+}
+
+function FallbackCodeBlock({value}: {value: string}) {
+  const layoutUnit = useLayoutUnit()
+  return (
+    <pre
+      data-content-type="code"
+      className={cn(
+        blockStyles,
+        `border-border bg-background w-full overflow-auto rounded-md border`,
+      )}
+      style={
+        {
+          padding: layoutUnit / 2,
+          marginLeft: (-1 * layoutUnit) / 2,
+          marginRight: (-1 * layoutUnit) / 2,
+        } as React.CSSProperties
+      }
+    >
+      <code className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
+        {value}
+      </code>
+    </pre>
+  )
+}
+
+function CodeContent({language, value}: {language: string; value: string}) {
+  const layoutUnit = useLayoutUnit()
 
   function getHighlightNodes(result: any) {
     return result.value || result.children || []
   }
 
-  const CodeHighlight = ({node}: {node: any}) => {
-    if (node.type === 'text') {
-      return node.value
-    }
-
-    if (node.type === 'element') {
-      const {tagName, properties, children} = node
-      if (properties.className && Array.isArray(properties.className)) {
-        properties.className = properties.className[0]
-      }
-      return createElement(
-        tagName,
-        {...properties},
-        children &&
-          children.map((child: any, index: number) => (
-            <CodeHighlight key={index} node={child} />
-          )),
-      )
-    }
-
-    return null
-  }
   const lowlight = useLowlight(common)
   const nodes: any[] =
     language && language.length > 0
-      ? getHighlightNodes(lowlight.highlight(language, block.text))
+      ? getHighlightNodes(lowlight.highlight(language, value))
       : []
 
   return (
@@ -2609,14 +2643,13 @@ export function BlockContentCode({
           marginRight: (-1 * layoutUnit) / 2,
         } as React.CSSProperties
       }
-      {...props}
     >
       <code className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
         {nodes.length > 0
           ? nodes.map((node, index) => (
               <CodeHighlight key={index} node={node} />
             ))
-          : block.text}
+          : value}
       </code>
     </pre>
   )
