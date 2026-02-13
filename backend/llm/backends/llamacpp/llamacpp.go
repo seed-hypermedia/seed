@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	llama "github.com/seed-hypermedia/llama-go"
+	llama "github.com/tcpipuk/llama-go"
 )
 
 //go:embed models/*.gguf

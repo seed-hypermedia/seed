@@ -227,9 +227,8 @@ require (
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1
-	github.com/seed-hypermedia/llama-go v0.0.0-20260108175825-f54e6b8263d7
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/tcpipuk/llama-go v0.0.0-20260108175825-f54e6b8263d7 // indirect
+	github.com/tcpipuk/llama-go v0.0.0-20260108175825-f54e6b8263d7
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/whyrusleeping/cbor-gen v0.3.1 // indirect
@@ -261,7 +260,7 @@ require (
 )
 
 replace (
-	github.com/seed-hypermedia/llama-go => ./backend/util/llama-go
+	github.com/tcpipuk/llama-go => ./backend/util/llama-go
 	roci.dev/fracdex => github.com/rocicorp/fracdex v0.0.0-20231009204907-ebc26eac9486
 )
 
