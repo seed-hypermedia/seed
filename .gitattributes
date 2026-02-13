@@ -4,3 +4,5 @@
 backend/util/sqlite/sqlite3.c linguist-vendored=true
 backend/util/sqlite/sqlite3.h linguist-vendored=true
 backend/util/sqlite/sqlite3ext.h linguist-vendored=true
+backend/storage/dbext/carray/** linguist-vendored=true
+backend/storage/dbext/sha1/** linguist-vendored=true
