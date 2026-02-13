@@ -1,11 +1,11 @@
 import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CoverImage} from '@/components/cover-image'
 import {useDeleteDraftDialog} from '@/components/delete-draft-dialog'
-import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {DiscussionsPanel} from '@/components/discussions-panel'
+import {DocNavigationDraftLoader} from '@/components/doc-navigation'
 import {EditNavPopover} from '@/components/edit-navigation-popover'
-import {OptionsPanel} from '@/components/options-panel'
 import {HyperMediaEditorView} from '@/components/editor'
+import {OptionsPanel} from '@/components/options-panel'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
 import {
@@ -49,15 +49,15 @@ import {
 } from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {DraftRoute} from '@shm/shared/routes'
-import '@shm/shared/styles/document.css'
-import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
-import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
-import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {useRouteLink} from '@shm/shared/routing'
-import {Button} from '@shm/ui/button'
-import {ScrollArea} from '@shm/ui/components/scroll-area'
+import '@shm/shared/styles/document.css'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils'
+import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
+import {useNavigationDispatch, useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContent} from '@shm/ui/accessories'
+import {Button} from '@shm/ui/button'
 import {DocumentCollaborators} from '@shm/ui/collaborators-page'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {Container, panelContainerStyles} from '@shm/ui/container'
 import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
@@ -124,14 +124,16 @@ export default function DraftPage() {
     return false
   }, [locationId, editId])
 
+  const homeIdRef = useRef<UnpackedHypermediaId | undefined>(undefined)
   const homeId = useMemo(() => {
+    let id: UnpackedHypermediaId | undefined
     if (locationId) {
-      return hmId(locationId.uid, {path: []})
+      id = hmId(locationId.uid, {path: []})
+    } else if (editId) {
+      id = hmId(editId.uid, {path: []})
     }
-    if (editId) {
-      return hmId(editId.uid, {path: []})
-    }
-    return undefined
+    if (id) homeIdRef.current = id
+    return homeIdRef.current
   }, [locationId, editId])
 
   const homeEntity = useResource(homeId)
@@ -214,7 +216,27 @@ export default function DraftPage() {
     }
   }
 
-  const headerDocId = locationId || (!!homeEntity.data && editId)
+  const headerDocIdRef = useRef<UnpackedHypermediaId | undefined>(undefined)
+  const computedHeaderDocId = locationId || editId
+  if (computedHeaderDocId) headerDocIdRef.current = computedHeaderDocId
+  const headerDocId = headerDocIdRef.current
+
+  // Layout: useDocumentLayout lives here so elementRef can wrap PanelLayout (matching resource-page-common.tsx)
+  const showOutline =
+    typeof state.context.metadata.showOutline == 'undefined' ||
+    state.context.metadata.showOutline
+
+  const {
+    showSidebars,
+    elementRef,
+    showCollapsed,
+    mainContentProps,
+    sidebarProps,
+    wrapperProps,
+  } = useDocumentLayout({
+    contentWidth: state.context.metadata.contentWidth || 'M',
+    showSidebars: showOutline && !isEditingHomeDoc,
+  })
 
   const panelContent = panelKey ? (
     <ScrollArea className="flex-1">
@@ -279,18 +301,21 @@ export default function DraftPage() {
               actor={actor}
             />
           ) : null}
-          <PanelLayout
-            panelKey={panelKey ?? null}
-            panelContent={panelContent}
-            onPanelClose={handlePanelClose}
-            filterEventType={
-              route.panel?.key === 'activity'
-                ? route.panel.filterEventType
-                : undefined
-            }
-            onFilterChange={handleFilterChange}
+          <div
+            ref={elementRef}
+            className="relative flex flex-1 flex-col overflow-hidden"
           >
-            <div className="flex h-full flex-col">
+            <PanelLayout
+              panelKey={panelKey ?? null}
+              panelContent={panelContent}
+              onPanelClose={handlePanelClose}
+              filterEventType={
+                route.panel?.key === 'activity'
+                  ? route.panel.filterEventType
+                  : undefined
+              }
+              onFilterChange={handleFilterChange}
+            >
               <DraftRebaseBanner />
               <DocumentEditor
                 editor={editor}
@@ -300,9 +325,15 @@ export default function DraftPage() {
                 send={send}
                 handleFocusAtMousePos={handleFocusAtMousePos}
                 isHomeDoc={isEditingHomeDoc}
+                showSidebars={showSidebars}
+                showCollapsed={showCollapsed}
+                showOutline={showOutline}
+                mainContentProps={mainContentProps}
+                sidebarProps={sidebarProps}
+                wrapperProps={wrapperProps}
               />
-            </div>
-          </PanelLayout>
+            </PanelLayout>
+          </div>
         </div>
       </CommentsProvider>
     </ErrorBoundary>
@@ -410,6 +441,12 @@ function DocumentEditor({
   send,
   handleFocusAtMousePos,
   isHomeDoc = false,
+  showSidebars,
+  showCollapsed,
+  showOutline,
+  mainContentProps,
+  sidebarProps,
+  wrapperProps,
 }: {
   editor: BlockNoteEditor
   state: ReturnType<typeof useDraftEditor>['state']
@@ -418,6 +455,12 @@ function DocumentEditor({
   send: ReturnType<typeof useDraftEditor>['send']
   handleFocusAtMousePos: (event: any) => void
   isHomeDoc: boolean
+  showSidebars: boolean
+  showCollapsed: boolean
+  showOutline: boolean
+  mainContentProps: React.HTMLAttributes<HTMLDivElement>
+  sidebarProps: React.HTMLAttributes<HTMLDivElement>
+  wrapperProps: React.HTMLAttributes<HTMLDivElement>
 }) {
   const route = useNavRoute()
   const openUrl = useOpenUrl()
@@ -427,9 +470,6 @@ function DocumentEditor({
   })
   const [isDragging, setIsDragging] = useState(false)
   const [showCover, setShowCover] = useState(false)
-  const showOutline =
-    typeof state.context.metadata.showOutline == 'undefined' ||
-    state.context.metadata.showOutline
 
   const draftQuery = useDraft(route.id)
 
@@ -450,18 +490,6 @@ function DocumentEditor({
   }, [route, draftQuery.data])
 
   const cover = useSelector(actor, (s) => s.context.metadata.cover)
-
-  const {
-    showSidebars,
-    elementRef,
-    showCollapsed,
-    mainContentProps,
-    sidebarProps,
-    wrapperProps,
-  } = useDocumentLayout({
-    contentWidth: state.context.metadata.contentWidth || 'M',
-    showSidebars: showOutline && !isHomeDoc,
-  })
 
   const editId = useMemo(() => {
     if (route.editUid) {
@@ -505,7 +533,6 @@ function DocumentEditor({
 
   const {data: collaborators} = useAllDocumentCapabilities(id)
   const directory = useChildrenActivity(id)
-  console.log('== EDIT ID IN DOC EDITOR', editId)
 
   const documentTools = editId ? (
     <DocumentTools
@@ -514,8 +541,36 @@ function DocumentEditor({
       existingDraft={draftQuery.data || false}
       commentsCount={interactionSummary.data?.comments || 0}
       collabsCount={collaborators?.filter((c) => c.role !== 'agent').length}
+      layoutProps={{
+        wrapperProps,
+        sidebarProps,
+        mainContentProps,
+        showSidebars,
+      }}
     />
   ) : null
+
+  // Track when DocumentTools becomes sticky
+  const [isToolsSticky, setIsToolsSticky] = useState(false)
+  const toolsSentinelRef = useRef<HTMLDivElement>(null)
+
+  // @ts-expect-error
+  const isEditing = state.matches('editing')
+
+  useEffect(() => {
+    const sentinel = toolsSentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        setIsToolsSticky(!entry.isIntersecting)
+      },
+      {threshold: 0.1, rootMargin: '0px'},
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [isEditing])
 
   useEffect(() => {
     let val = !!cover
@@ -535,119 +590,147 @@ function DocumentEditor({
     })
   }, [id, route.id, editor])
 
-  // @ts-expect-error
-  if (state.matches('editing'))
+  if (isEditing)
     return (
-      <>
+      <div
+        onDragStart={() => {
+          setIsDragging(true)
+        }}
+        onDragEnd={() => {
+          setIsDragging(false)
+        }}
+        onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
+          event.preventDefault()
+          setIsDragging(true)
+        }}
+        // @ts-expect-error
+        onDrop={onDrop}
+        onClick={handleFocusAtMousePos}
+        className="relative flex h-full flex-1 flex-col"
+      >
+        {/* Floating action buttons - fade when tools are sticky */}
         <div
-          onDragStart={() => {
-            setIsDragging(true)
-          }}
-          onDragEnd={() => {
-            setIsDragging(false)
-          }}
-          onDragOver={(event: React.DragEvent<HTMLDivElement>) => {
-            event.preventDefault()
-            setIsDragging(true)
-          }}
-          // @ts-expect-error
-          onDrop={onDrop}
-          onClick={handleFocusAtMousePos}
-          className="relative flex flex-1 flex-col overflow-hidden"
+          className={cn(
+            'absolute top-4 right-4 z-20 flex items-center gap-1 rounded-sm transition-opacity',
+            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+          )}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="absolute top-4 right-4 z-20 flex items-center gap-1 rounded-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DraftActionButtons route={route} />
-          </div>
-          <ScrollArea onScroll={() => dispatchScroll(true)}>
-            <DraftCover
-              draftActor={actor}
-              // @ts-expect-error
-              disabled={!state.matches('editing')}
-              show={showCover}
-              // @ts-expect-error
-              setShow={setShowCover}
-              showOutline={showOutline}
-            />
-            <div
-              ref={elementRef}
-              className="draft-editor relative w-full flex-1 pt-12"
-            >
-              {/* Title section - centered */}
-
-              {!isHomeDoc ? (
-                <div
-                  className="mx-auto w-full"
-                  style={{maxWidth: mainContentProps.style.maxWidth}}
-                >
-                  <DraftMetadataEditor
-                    draftActor={actor}
-                    onEnter={() => {
-                      editor._tiptapEditor.commands.focus()
-                      editor._tiptapEditor.commands.setTextSelection(0)
-                    }}
-                    showCover={showCover}
-                    setShowCover={setShowCover}
-                    visibility={route.visibility || data?.visibility}
-                    breadcrumbs={breadcrumbs}
-                  />
-                </div>
-              ) : null}
-              {/* DocumentTools - full width */}
-              {isHomeDoc ? (
-                documentTools
-              ) : id ? (
-                <DocumentTools
-                  activeTab="draft"
-                  id={id}
-                  existingDraft={draftQuery.data || false}
-                />
-              ) : null}
-              {/* Editor content - centered with sidebar */}
-              <div {...wrapperProps}>
-                {showSidebars ? (
-                  <div
-                    {...sidebarProps}
-                    className={`${sidebarProps.className || ''} flex flex-col`}
-                    style={{
-                      ...sidebarProps.style,
-                      marginTop: showCover ? 150 : 210,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="hide-scrollbar flex h-full flex-col overflow-scroll">
-                      <DocNavigationDraftLoader
-                        showCollapsed={showCollapsed}
-                        id={id}
-                        editor={editor}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-                <div {...mainContentProps}>
-                  <Container
-                    // @ts-expect-error
-                    paddingLeft="$4"
-                    marginBottom={300}
-                    onClick={(e: MouseEvent<HTMLDivElement>) => {
-                      // this prevents to fire handleFocusAtMousePos on click
-                      e.stopPropagation()
-                      // editor?._tiptapEditor.commands.focus()
-                    }}
-                  >
-                    {editor ? (
-                      <HyperMediaEditorView editor={editor} openUrl={openUrl} />
-                    ) : null}
-                  </Container>
-                </div>
-                {showSidebars ? <div {...sidebarProps} /> : null}
-              </div>
-            </div>
-          </ScrollArea>
+          <DraftActionButtons route={route} />
         </div>
-      </>
+        <ScrollArea className="h-full" onScroll={() => dispatchScroll(true)}>
+          <DraftCover
+            draftActor={actor}
+            // @ts-expect-error
+            disabled={!state.matches('editing')}
+            show={showCover}
+            // @ts-expect-error
+            setShow={setShowCover}
+            showOutline={showOutline}
+          />
+
+          {/* Title section - centered using wrapperProps layout */}
+          {!isHomeDoc ? (
+            <div {...wrapperProps} className={cn(wrapperProps.className)}>
+              {showSidebars && (
+                <div
+                  {...sidebarProps}
+                  className={cn(sidebarProps.className, '!h-auto')}
+                />
+              )}
+              <div
+                {...mainContentProps}
+                className={cn(mainContentProps.className, 'flex flex-col')}
+              >
+                <DraftMetadataEditor
+                  draftActor={actor}
+                  onEnter={() => {
+                    editor._tiptapEditor.commands.focus()
+                    editor._tiptapEditor.commands.setTextSelection(0)
+                  }}
+                  showCover={showCover}
+                  setShowCover={setShowCover}
+                  visibility={route.visibility || data?.visibility}
+                  breadcrumbs={breadcrumbs}
+                />
+              </div>
+              {showSidebars && (
+                <div
+                  {...sidebarProps}
+                  className={cn(
+                    sidebarProps.className,
+                    'pointer-events-none !h-auto',
+                  )}
+                />
+              )}
+            </div>
+          ) : null}
+
+          {/* Sentinel element - provides top spacing before tools */}
+          <div ref={toolsSentinelRef} className="h-3" />
+
+          {/* DocumentTools - sticky with shadow */}
+          <div
+            className={cn(
+              'dark:bg-background sticky top-0 z-10 bg-white py-1',
+              isToolsSticky ? 'shadow-md' : 'shadow-none',
+              'transition-shadow',
+            )}
+          >
+            {isHomeDoc ? (
+              documentTools
+            ) : id ? (
+              <DocumentTools
+                activeTab="draft"
+                id={id}
+                existingDraft={draftQuery.data || false}
+                layoutProps={{
+                  wrapperProps,
+                  sidebarProps,
+                  mainContentProps,
+                  showSidebars,
+                }}
+              />
+            ) : null}
+          </div>
+
+          {/* Editor content - centered with sidebar */}
+          <div className="draft-editor pt-4">
+            <div {...wrapperProps}>
+              {showSidebars ? (
+                <div
+                  {...sidebarProps}
+                  className={`${sidebarProps.className || ''} flex flex-col`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="sticky top-12 mt-4">
+                    <DocNavigationDraftLoader
+                      showCollapsed={showCollapsed}
+                      id={id}
+                      editor={editor}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div {...mainContentProps}>
+                <Container
+                  // @ts-expect-error
+                  paddingLeft="$4"
+                  marginBottom={300}
+                  onClick={(e: MouseEvent<HTMLDivElement>) => {
+                    e.stopPropagation()
+                  }}
+                >
+                  {editor ? (
+                    <HyperMediaEditorView editor={editor} openUrl={openUrl} />
+                  ) : null}
+                </Container>
+              </div>
+              {showSidebars ? <div {...sidebarProps} /> : null}
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
     )
 
   return null
