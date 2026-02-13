@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom"
 import { Button } from "@/frontend/components/ui/button"
 import { useActions, useAppState } from "@/frontend/store"
 
@@ -10,7 +11,12 @@ export function Header() {
 
 	return (
 		<header className="flex items-center justify-between px-8 py-4 bg-panel border-b border-border">
-			<span className="text-xl font-semibold text-primary">🔐 Seed Hypermedia Identity Vault</span>
+			<Link
+				to="/"
+				className="text-xl font-semibold !text-primary hover:!text-primary hover:no-underline hover:opacity-80 transition-opacity"
+			>
+				🔐 Seed Hypermedia Identity Vault
+			</Link>
 			{session?.authenticated && (
 				<div className="flex items-center gap-4">
 					<span className="text-sm text-muted-foreground">{session.email}</span>

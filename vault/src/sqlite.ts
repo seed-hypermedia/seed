@@ -49,31 +49,25 @@ function initSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS sessions_by_user_id ON sessions (user_id);
 
-    -- Temporary authentication challenges for WebAuthn and email verification flows.
+    -- Temporary challenges for email verification flows (registration, email change).
     -- Challenges are short-lived and should be cleaned up after use or expiration.
-    CREATE TABLE IF NOT EXISTS auth_challenges (
+    CREATE TABLE IF NOT EXISTS email_challenges (
         -- Unique identifier for this challenge instance (used for polling).
         id TEXT PRIMARY KEY,
 
         -- User this challenge belongs to (NULL for new user registration).
         user_id TEXT REFERENCES users (id),
 
-        -- Challenge type: 'webauthn' for passkey flows, 'email' for magic link flows.
-        type TEXT NOT NULL,
+        -- Purpose of the challenge: 'registration' | 'email_change'
+        purpose TEXT NOT NULL,
 
-        -- Purpose of the challenge (NULL for webauthn, required for email).
-        -- For email: 'registration' | 'email_change'
-        purpose TEXT,
-
-        -- The verifier value proving challenge completion.
-        -- For webauthn: base64url-encoded challenge string signed by authenticator.
-        -- For email: SHA-256 hash of the high-entropy token (token itself is sent in URL).
-        verifier TEXT NOT NULL,
+        -- SHA-256 hash of the high-entropy token (token itself is sent in URL).
+        token_hash TEXT NOT NULL,
 
         -- Email address associated with this challenge.
         -- For registration: the email being verified.
         -- For email_change: the current email.
-        email TEXT,
+        email TEXT NOT NULL,
 
         -- New email address (only for email_change purpose).
         new_email TEXT,
@@ -86,6 +80,26 @@ function initSchema(db: Database): void {
     ) WITHOUT ROWID;
 
     -- Index for cleanup queries by expiration time.
-    CREATE INDEX IF NOT EXISTS auth_challenges_by_expire_time ON auth_challenges (expire_time);
+    CREATE INDEX IF NOT EXISTS email_challenges_by_expire_time ON email_challenges (expire_time);
+
+    -- Key-value store for server configuration and secrets (e.g. HMAC keys).
+    CREATE TABLE IF NOT EXISTS server_config (
+        key TEXT PRIMARY KEY,
+        value BLOB NOT NULL
+    ) WITHOUT ROWID;
   `)
+}
+
+export function getOrCreateHmacSecret(db: Database): Uint8Array {
+	const row = db
+		.query<{ value: Uint8Array }, [string]>(`SELECT value FROM server_config WHERE key = ?`)
+		.get("hmac_secret")
+
+	if (row) {
+		return new Uint8Array(row.value)
+	}
+
+	const secret = crypto.getRandomValues(new Uint8Array(32))
+	db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, ["hmac_secret", secret])
+	return secret
 }

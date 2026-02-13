@@ -1,5 +1,4 @@
 import "./styles.css"
-import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { RouterProvider } from "react-router-dom"
 import { FetchClient } from "./api-client"
@@ -16,11 +15,9 @@ const router = createRouter()
 appStore.navigator.setNavigate((path) => router.navigate(path))
 
 const app = (
-	<StrictMode>
-		<StoreContext.Provider value={appStore}>
-			<RouterProvider router={router} />
-		</StoreContext.Provider>
-	</StrictMode>
+	<StoreContext.Provider value={appStore}>
+		<RouterProvider router={router} />
+	</StoreContext.Provider>
 )
 
 if (import.meta.hot) {
