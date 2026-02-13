@@ -1,6 +1,15 @@
 import {describe, it, expect} from 'vitest'
 import {z} from 'zod'
 import {serializeQueryString, deserializeQueryString} from './input-querystring'
+import {
+  HMCommentRequestSchema,
+  HMAccountContactsRequestSchema,
+  HMListCommentsInputSchema,
+  HMInteractionSummaryInputSchema,
+  HMGetCommentReplyCountInputSchema,
+  HMSearchInputSchema,
+  HMQuerySchema,
+} from './hm-types'
 
 describe('input-querystring', () => {
   describe('serializeQueryString', () => {
@@ -198,6 +207,164 @@ describe('input-querystring', () => {
       const queryString = '?age=invalid'
 
       expect(() => deserializeQueryString(queryString, schema)).toThrow()
+    })
+  })
+
+  describe('non-object input handling', () => {
+    it('serializes string input as __value param', () => {
+      const result = serializeQueryString('hello-world' as any)
+      expect(result).toBe('?__value=hello-world')
+    })
+
+    it('serializes number input as __value param', () => {
+      const result = serializeQueryString(42 as any)
+      expect(result).toBe('?__value=42')
+    })
+
+    it('serializes boolean input as __value param', () => {
+      const result = serializeQueryString(true as any)
+      expect(result).toBe('?__value=true')
+    })
+
+    it('deserializes __value param back to string with string schema', () => {
+      const schema = z.string()
+      const result = deserializeQueryString('?__value=hello-world', schema)
+      expect(result).toBe('hello-world')
+    })
+
+    it('round-trips string input correctly', () => {
+      const original = 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29'
+      const serialized = serializeQueryString(original as any)
+      const deserialized = deserializeQueryString(serialized, z.string() as any)
+      expect(deserialized).toBe(original)
+    })
+
+    it('round-trips string with slashes correctly', () => {
+      const original =
+        'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
+      const serialized = serializeQueryString(original as any)
+      const deserialized = deserializeQueryString(serialized, z.string() as any)
+      expect(deserialized).toBe(original)
+    })
+  })
+
+  describe('API schema round-trips (client→server simulation)', () => {
+    // These tests use the actual HMRequestSchema schemas to simulate
+    // what createWebUniversalClient serializes and api.$.tsx deserializes
+
+    it('Comment: string input round-trips through actual schema', () => {
+      const inputSchema = HMCommentRequestSchema.shape.input
+      const commentId =
+        'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29/z6FR5iXwLvU8i8'
+
+      // Client side: serialize
+      const queryString = serializeQueryString(commentId)
+      // Server side: deserialize
+      const deserialized = deserializeQueryString(queryString, inputSchema)
+
+      expect(deserialized).toBe(commentId)
+    })
+
+    it('AccountContacts: string input round-trips through actual schema', () => {
+      const inputSchema = HMAccountContactsRequestSchema.shape.input
+      const uid = 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29'
+
+      const queryString = serializeQueryString(uid)
+      const deserialized = deserializeQueryString(queryString, inputSchema)
+
+      expect(deserialized).toBe(uid)
+    })
+
+    it('ListComments: object with unpackedHmId round-trips correctly', () => {
+      const input = {
+        targetId: {
+          id: 'hm://z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29',
+          uid: 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29',
+          path: [],
+          version: null,
+          blockRef: null,
+          blockRange: null,
+          hostname: null,
+          scheme: 'hm',
+        },
+      }
+
+      const queryString = serializeQueryString(input)
+      const deserialized = deserializeQueryString(
+        queryString,
+        HMListCommentsInputSchema,
+      )
+
+      expect(deserialized.targetId.uid).toBe(input.targetId.uid)
+      expect(deserialized.targetId.version).toBeNull()
+    })
+
+    it('InteractionSummary: object with unpackedHmId round-trips correctly', () => {
+      const input = {
+        id: {
+          id: 'hm://z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29',
+          uid: 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29',
+          path: [],
+          version: null,
+          blockRef: null,
+          blockRange: null,
+          hostname: null,
+          scheme: 'hm',
+        },
+      }
+
+      const queryString = serializeQueryString(input)
+      const deserialized = deserializeQueryString(
+        queryString,
+        HMInteractionSummaryInputSchema,
+      )
+
+      expect(deserialized.id.uid).toBe(input.id.uid)
+      expect(deserialized.id.version).toBeNull()
+    })
+
+    it('Query: object with includes array round-trips correctly', () => {
+      const input = {
+        includes: [
+          {
+            space: 'z6MkgacSwts6XqFss1tygbJ3b5YJBpMkSEC8GCSVBBx8ef29',
+            mode: 'Children' as const,
+            path: '/',
+          },
+        ],
+      }
+
+      const queryString = serializeQueryString(input)
+      const deserialized = deserializeQueryString(queryString, HMQuerySchema)
+
+      expect(deserialized.includes).toHaveLength(1)
+      expect(deserialized.includes[0].space).toBe(input.includes[0].space)
+      expect(deserialized.includes[0].mode).toBe('Children')
+    })
+
+    it('GetCommentReplyCount: object with string id round-trips correctly', () => {
+      const input = {id: 'some-comment-id'}
+
+      const queryString = serializeQueryString(input)
+      const deserialized = deserializeQueryString(
+        queryString,
+        HMGetCommentReplyCountInputSchema,
+      )
+
+      expect(deserialized).toEqual(input)
+    })
+
+    it('Search: object with optional fields round-trips correctly', () => {
+      const input = {query: 'test', includeBody: true}
+
+      const queryString = serializeQueryString(input)
+      const deserialized = deserializeQueryString(
+        queryString,
+        HMSearchInputSchema,
+      )
+
+      expect(deserialized.query).toBe('test')
+      expect(deserialized.includeBody).toBe(true)
     })
   })
 
