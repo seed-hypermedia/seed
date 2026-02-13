@@ -42,6 +42,10 @@ hide = true
 [tasks.ensure-llama-libs]
 run = '''
 LLAMA_GO_DIR="backend/util/llama-go"
+if [ ! -f "$LLAMA_GO_DIR/Makefile" ]; then
+  echo "ERROR: llama-go submodule not initialized. Run: git submodule update --init --recursive"
+  exit 1
+fi
 if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
   echo "Building llama.cpp libraries (CPU-only, this may take a few minutes)..."
   cd "$LLAMA_GO_DIR"

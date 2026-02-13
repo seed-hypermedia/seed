@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       run-integration-tests:
-        description: 'Whether to run integration tests (web-related)'
+        description: "Whether to run integration tests (web-related)"
         required: false
         type: boolean
         default: true
@@ -56,6 +56,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install pnpm
         uses: pnpm/action-setup@v4
       - name: Install Node.js 22
