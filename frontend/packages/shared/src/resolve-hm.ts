@@ -59,10 +59,28 @@ export async function resolveHypermediaUrl(url: string) {
       const resolvedVersion = blockRef
         ? version ?? hmId?.version ?? null
         : hmId?.version ?? null
+      // Preserve the site hostname from the input URL.
+      // If the URL is NOT a gateway URL (no /hm/ prefix), the host is the siteURL.
+      let siteHostname: string | null = null
+      try {
+        const inputUrl = new URL(url)
+        if (!inputUrl.pathname.startsWith('/hm/')) {
+          siteHostname = inputUrl.origin
+        }
+      } catch {
+        // ignore parse errors
+      }
       return {
         id,
         hmId: hmId
-          ? {...hmId, version: resolvedVersion, latest, blockRef, blockRange}
+          ? {
+              ...hmId,
+              version: resolvedVersion,
+              latest,
+              blockRef,
+              blockRange,
+              hostname: siteHostname || hmId.hostname,
+            }
           : null,
         version,
         title,
