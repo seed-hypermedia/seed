@@ -171,6 +171,11 @@ export type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
 export const blocksContentContext =
   createContext<BlocksContentContextValue | null>(null)
 
+const BlockHoverContext = createContext<{
+  hoveredBlockId: string | null
+  setHoveredBlockId: React.Dispatch<React.SetStateAction<string | null>>
+}>({hoveredBlockId: null, setHoveredBlockId: () => {}})
+
 export function BlocksContentProvider({
   children,
   debugTop = 0,
@@ -205,6 +210,7 @@ export function BlocksContentProvider({
     })
   }
   const showDevMenu = experiments?.pubContentDevMenu || false
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null)
   return (
     <blocksContentContext.Provider
       value={{
@@ -220,58 +226,60 @@ export function BlocksContentProvider({
         saveCidAsFile,
       }}
     >
-      {children}
-      {showDevMenu ? (
-        <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
-          <CheckboxField
-            checked={debug}
-            // @ts-ignore
-            onCheckedChange={setDebug}
-            size="sm"
-          >
-            debug
-          </CheckboxField>
-          <CheckboxField
-            checked={ffSerif}
-            // @ts-ignore
-            onCheckedChange={toggleSerif}
-            size="sm"
-          >
-            body sans-serif
-          </CheckboxField>
-          <RadioGroup
-            aria-labelledby="text unit"
-            defaultValue="18"
-            name="form"
-            onValueChange={(val) => setTUnit(Number(val))}
-          >
-            <div className="flex gap-2">
-              <SizableText size="xs">Text unit:</SizableText>
-              <RadioGroupItemWithLabel value="14" label="14" />
-              <RadioGroupItemWithLabel value="16" label="16" />
-              <RadioGroupItemWithLabel value="18" label="18" />
-              <RadioGroupItemWithLabel value="20" label="20" />
-              <RadioGroupItemWithLabel value="24" label="24" />
-            </div>
-          </RadioGroup>
-          <RadioGroup
-            aria-labelledby="layout unit"
-            defaultValue="24"
-            name="form"
-            onValueChange={(val) => setLUnit(Number(val))}
-          >
-            <div className="flex gap-2">
-              {/* @ts-expect-error */}
-              <SizableText size="$1">Layout unit:</SizableText>
-              <RadioGroupItemWithLabel value="16" label="16" />
-              <RadioGroupItemWithLabel value="20" label="20" />
-              <RadioGroupItemWithLabel value="24" label="24" />
-              <RadioGroupItemWithLabel value="28" label="28" />
-              <RadioGroupItemWithLabel value="32" label="32" />
-            </div>
-          </RadioGroup>
-        </div>
-      ) : null}
+      <BlockHoverContext.Provider value={{hoveredBlockId, setHoveredBlockId}}>
+        {children}
+        {showDevMenu ? (
+          <div className="hover:bg-background border-border dark:bg-background fixed right-16 bottom-16 z-50 flex flex-col gap-1 rounded-md border bg-white p-2">
+            <CheckboxField
+              checked={debug}
+              // @ts-ignore
+              onCheckedChange={setDebug}
+              size="sm"
+            >
+              debug
+            </CheckboxField>
+            <CheckboxField
+              checked={ffSerif}
+              // @ts-ignore
+              onCheckedChange={toggleSerif}
+              size="sm"
+            >
+              body sans-serif
+            </CheckboxField>
+            <RadioGroup
+              aria-labelledby="text unit"
+              defaultValue="18"
+              name="form"
+              onValueChange={(val) => setTUnit(Number(val))}
+            >
+              <div className="flex gap-2">
+                <SizableText size="xs">Text unit:</SizableText>
+                <RadioGroupItemWithLabel value="14" label="14" />
+                <RadioGroupItemWithLabel value="16" label="16" />
+                <RadioGroupItemWithLabel value="18" label="18" />
+                <RadioGroupItemWithLabel value="20" label="20" />
+                <RadioGroupItemWithLabel value="24" label="24" />
+              </div>
+            </RadioGroup>
+            <RadioGroup
+              aria-labelledby="layout unit"
+              defaultValue="24"
+              name="form"
+              onValueChange={(val) => setLUnit(Number(val))}
+            >
+              <div className="flex gap-2">
+                {/* @ts-expect-error */}
+                <SizableText size="$1">Layout unit:</SizableText>
+                <RadioGroupItemWithLabel value="16" label="16" />
+                <RadioGroupItemWithLabel value="20" label="20" />
+                <RadioGroupItemWithLabel value="24" label="24" />
+                <RadioGroupItemWithLabel value="28" label="28" />
+                <RadioGroupItemWithLabel value="32" label="32" />
+              </div>
+            </RadioGroup>
+          </div>
+        ) : null}
+      </BlockHoverContext.Provider>
     </blocksContentContext.Provider>
   )
 }
@@ -592,7 +600,9 @@ export function BlockNodeContent({
     setCollapsedBlocks,
     resourceId,
   } = useBlocksContentContext()
-  const [hover, setHover] = useState(false)
+  const {hoveredBlockId, setHoveredBlockId} = useContext(BlockHoverContext)
+  const blockId = blockNode.block?.id
+  const hover = hoveredBlockId === blockId && !embedDepth
   const isHighlight =
     allowHighlight &&
     resourceId.blockRef == blockNode.block?.id &&
@@ -838,8 +848,15 @@ export function BlockNodeContent({
           // @ts-expect-error
           headingStyles.className,
         )}
-        onMouseEnter={embedDepth ? undefined : () => setHover(true)}
-        onMouseLeave={embedDepth ? undefined : () => setHover(false)}
+        onMouseEnter={
+          embedDepth ? undefined : () => setHoveredBlockId(blockId ?? null)
+        }
+        onMouseLeave={
+          embedDepth
+            ? undefined
+            : () =>
+                setHoveredBlockId((prev) => (prev === blockId ? null : prev))
+        }
       >
         <div className="relative">
           {!hideCollapseButtons && bnChildren ? (
@@ -884,45 +901,16 @@ export function BlockNodeContent({
             </Tooltip>
           ) : null}
           <div {...highlighter({...resourceId, blockRef: blockNode.block?.id})}>
-            {media.gtSm ? (
-              <HoverCard
-                openDelay={500}
-                closeDelay={500}
-                open={isHighlight || undefined}
-              >
-                <HoverCardTrigger asChild>
-                  <div>
-                    <BlockContent
-                      block={blockWithHighlights}
-                      depth={depth}
-                      parentBlockId={parentBlockId}
-                      // {...interactiveProps}
-                    />
-                  </div>
-                </HoverCardTrigger>
-                <HoverCardContent
-                  side="top"
-                  align="end"
-                  className="z-10 w-auto p-0"
-                >
-                  {hoverCardContent}
-                </HoverCardContent>
-              </HoverCard>
-            ) : (
-              <>
-                {isHighlight ? (
-                  <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
-                    {hoverCardContent}
-                  </div>
-                ) : undefined}
-                <BlockContent
-                  block={blockWithHighlights}
-                  depth={depth}
-                  parentBlockId={parentBlockId}
-                  // {...interactiveProps}
-                />
-              </>
-            )}
+            {hover || isHighlight ? (
+              <div className="bg-popover text-popover-foreground absolute top-0 right-0 z-10 -translate-y-[90%] rounded-md border shadow-md outline-hidden">
+                {hoverCardContent}
+              </div>
+            ) : null}
+            <BlockContent
+              block={blockWithHighlights}
+              depth={depth}
+              parentBlockId={parentBlockId}
+            />
           </div>
           {embedDepth
             ? null
@@ -935,11 +923,18 @@ export function BlockNodeContent({
                   style={{
                     borderRadius: layoutUnit / 4,
                   }}
-                  onMouseEnter={() => setHover(true)}
-                  onMouseLeave={() => setHover(false)}
+                  onMouseEnter={() => setHoveredBlockId(blockId ?? null)}
+                  onMouseLeave={() =>
+                    setHoveredBlockId((prev) =>
+                      prev === blockId ? null : prev,
+                    )
+                  }
                 >
                   {media.gtSm ? (
-                    <HoverCard openDelay={0}>
+                    <HoverCard
+                      openDelay={0}
+                      open={isHighlight ? false : undefined}
+                    >
                       <HoverCardTrigger>
                         <Badge
                           onClick={(e) => {
