@@ -116,3 +116,4 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Make sure to remove rambling "stream of consciousness" (a.k.a. thinking out loud) comments in the final code.
 - Prefer broader integration-style tests. Avoid excessive mocking.
 - Consult files in `docs/` to see if there's anything relevant for your current job.
+- Flags are the primary way to configure this application, and they are the source of truth, with the benefit of being self-documenting. Environment variables are layered on top of flags. See @src/config.ts for how configuration is managed.

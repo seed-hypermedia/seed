@@ -30,7 +30,7 @@ function collectStaticAssets(dir: string, urlPrefix: string): Map<string, Return
 async function main() {
 	const argv = cli({
 		name: "seed-vault",
-		flags: config.flags,
+		flags: config.flags(),
 		strictFlags: true,
 	})
 
