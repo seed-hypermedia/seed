@@ -552,6 +552,54 @@ test.describe('Copy and Paste', () => {
       expect(blocks[0].type).toBe('code-block')
       // TODO: Check language
     })
+
+    test('Should paste CH.Code custom code block as code-block with line breaks', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await editorHelpers.setClipboardHTML(
+        htmlContent.customCodeBlock.chCode,
+        "Component rendering\nSome text before the code.\nimport { test, expect } from 'vitest'\nimport { page } from 'vitest/browser'\n\ntest('example', async () => {\n  console.log('hello')\n})\nSome text after the code.",
+      )
+      await editorHelpers.paste()
+      await page.waitForTimeout(100)
+
+      const blocks = await editorHelpers.getBlocks()
+      // Should have: heading, paragraph, code-block, paragraph
+      const types = blocks.map((b: any) => b.type)
+      expect(types).toContain('code-block')
+
+      const codeBlock = blocks.find((b: any) => b.type === 'code-block')
+      expect(codeBlock).toBeDefined()
+
+      // Code block content should have line breaks preserved
+      const codeText = codeBlock.content.map((c: any) => c.text).join('')
+      expect(codeText).toContain('import')
+      expect(codeText).toContain('vitest')
+      expect(codeText).toContain('\n')
+    })
+
+    test('Should paste Shiki/language-* code block as code-block', async ({
+      editorHelpers,
+      page,
+    }) => {
+      await editorHelpers.setClipboardHTML(
+        htmlContent.customCodeBlock.shikiCode,
+        'Example code:\nconst x = 1\nconst y = 2\nconsole.log(x + y)',
+      )
+      await editorHelpers.paste()
+      await page.waitForTimeout(100)
+
+      const blocks = await editorHelpers.getBlocks()
+      const types = blocks.map((b: any) => b.type)
+      expect(types).toContain('code-block')
+
+      const codeBlock = blocks.find((b: any) => b.type === 'code-block')
+      expect(codeBlock).toBeDefined()
+      const codeText = codeBlock.content.map((c: any) => c.text).join('')
+      expect(codeText).toContain('const')
+      expect(codeText).toContain('console.log')
+    })
   })
 
   // ===========================================================================
