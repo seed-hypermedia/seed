@@ -1,9 +1,10 @@
-import { readdirSync } from "node:fs"
-import { join } from "node:path"
+import * as fs from "node:fs"
+import filepath from "node:path"
 import { type BunRequest, serve } from "bun"
 import { cli } from "cleye"
 import type * as api from "@/api"
 import * as apisvc from "@/api-service"
+import * as challenge from "@/challenge"
 import * as config from "@/config"
 import * as email from "@/email"
 import index from "@/frontend/index.html"
@@ -13,14 +14,14 @@ import * as sqlite from "@/sqlite"
 /** Scan directory for built assets and create a lookup map for O(1) serving. */
 function collectStaticAssets(dir: string, urlPrefix: string): Map<string, ReturnType<typeof Bun.file>> {
 	const assets = new Map<string, ReturnType<typeof Bun.file>>()
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 		if (entry.isDirectory()) {
 			// Don't append subdir to URL — publicPath already handles URL mapping.
-			for (const [k, v] of collectStaticAssets(join(dir, entry.name), urlPrefix)) {
+			for (const [k, v] of collectStaticAssets(filepath.join(dir, entry.name), urlPrefix)) {
 				assets.set(k, v)
 			}
 		} else if (entry.name !== "main.js" && !entry.name.endsWith(".map")) {
-			assets.set(`${urlPrefix}${entry.name}`, Bun.file(join(dir, entry.name)))
+			assets.set(`${urlPrefix}${entry.name}`, Bun.file(filepath.join(dir, entry.name)))
 		}
 	}
 	return assets
@@ -34,32 +35,26 @@ async function main() {
 	})
 
 	const cfg = config.create(argv.flags)
-
 	const db = sqlite.open(cfg.dbPath)
-
 	const isProd = process.env.NODE_ENV === "production"
 
+	const hmacSecret = sqlite.getOrCreateHmacSecret(db)
 	const emailSender = email.createSender(cfg.smtp)
-	const svc = new apisvc.Service(db, cfg.relyingParty, emailSender)
+	const svc = new apisvc.Service(db, cfg.relyingParty, hmacSecret, emailSender)
 
 	// Pre-build asset lookup map at startup for O(1) serving.
-	const assets = isProd ? collectStaticAssets(".", "/vault/") : new Map()
+	const assets = isProd ? collectStaticAssets("frontend", "/vault/") : new Map()
 
 	const server = serve({
 		port: cfg.http.port,
 		hostname: cfg.http.hostname,
-
 		development: !isProd && {
 			hmr: true,
 			console: true,
 		},
-
 		error: handleError,
-
 		routes: {
 			"/vault": index,
-			// In dev, Bun handles assets+SPA automatically via the HTML import.
-			// In prod, serve assets from the pre-built map, with SPA fallback.
 			"/vault/*": isProd
 				? (req: BunRequest) => {
 						const asset = assets.get(new URL(req.url).pathname)
@@ -73,14 +68,12 @@ async function main() {
 						})
 					}
 				: index,
-
 			...createAPIRoutes(svc),
 		},
-
 		fetch(req) {
 			const url = new URL(req.url)
 			if (url.pathname === "/") {
-				return Response.redirect(`${url.origin}/vault/`, 302)
+				return Response.redirect(`${url.origin}/vault`, 302)
 			}
 			return new Response("Not Found", { status: 404 })
 		},
@@ -146,22 +139,6 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 				return handleResponse(result, ctx)
 			},
 		},
-		"/vault/api/register/complete": {
-			POST: async (req) => {
-				const body = await req.json()
-				const ctx = getRequestContext(req)
-				const result = await svc.registerComplete(body, ctx)
-				return handleResponse(result, ctx)
-			},
-		},
-		"/vault/api/register/complete-passkey": {
-			POST: async (req) => {
-				const body = await req.json()
-				const ctx = getRequestContext(req)
-				const result = await svc.registerCompletePasskey(body, ctx)
-				return handleResponse(result, ctx)
-			},
-		},
 		"/vault/api/add-password": {
 			POST: async (req) => {
 				const body = await req.json()
@@ -213,8 +190,6 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 				return handleResponse(result, ctx)
 			},
 		},
-
-		// Email Change API.
 		"/vault/api/change-email/start": {
 			POST: async (req) => {
 				const body = await req.json()
@@ -239,8 +214,6 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 				return handleResponse(result, ctx)
 			},
 		},
-
-		// WebAuthn API.
 		"/vault/api/webauthn/register/start": {
 			POST: async (req) => {
 				const ctx = getRequestContext(req)
@@ -283,34 +256,29 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 	}
 }
 
-function jsonResponse(data: unknown, status = 200): Response {
-	return Response.json(data, { status })
-}
-
-function jsonResponseWithCookie(data: unknown, cookie: string, status = 200): Response {
-	return Response.json(data, {
-		status,
-		headers: {
-			"Content-Type": "application/json",
-			"Set-Cookie": cookie,
-		},
-	})
-}
-
-// Helper to handle response and set/clear cookies based on context.
 function handleResponse(data: unknown, ctx: api.ServerContext, status = 200): Response {
+	const headers = new Headers({ "Content-Type": "application/json" })
+	const isProd = process.env.NODE_ENV === "production"
+
 	if (ctx.sessionCookie !== undefined) {
-		if (ctx.sessionCookie === null) {
-			return jsonResponseWithCookie(data, session.clearCookie(), status)
-		}
-		return jsonResponseWithCookie(data, ctx.sessionCookie, status)
+		headers.append("Set-Cookie", ctx.sessionCookie === null ? session.clearCookie() : ctx.sessionCookie)
 	}
-	return jsonResponse(data, status)
+
+	if (ctx.outboundChallengeCookie !== undefined) {
+		headers.append(
+			"Set-Cookie",
+			ctx.outboundChallengeCookie === null ? challenge.clearCookieHeader(isProd) : ctx.outboundChallengeCookie,
+		)
+	}
+
+	return new Response(JSON.stringify(data), { status, headers })
 }
 
 function getRequestContext(req: BunRequest): api.ServerContext {
 	const sessionId = req.cookies.get(session.SESSION_COOKIE_NAME) || null
-	return { sessionId }
+	const isProd = process.env.NODE_ENV === "production"
+	const challengeCookie = req.cookies.get(challenge.getCookieName(isProd)) || null
+	return { sessionId, challengeCookie }
 }
 
 async function handleError(error: unknown): Promise<Response> {

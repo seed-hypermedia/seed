@@ -29,6 +29,7 @@ export type RegisterPollRequest = {
 }
 export type RegisterPollResponse = {
 	verified: boolean
+	userId?: string
 }
 
 // Register verify link - called when user clicks the magic link.
@@ -39,26 +40,6 @@ export type RegisterVerifyLinkRequest = {
 export type RegisterVerifyLinkResponse = {
 	verified: boolean
 	email: string
-}
-
-// Register complete (with password).
-export type RegisterCompleteRequest = {
-	email: string
-	encryptedDEK: string
-	authHash: string
-}
-export type RegisterCompleteResponse = {
-	success: boolean
-	userId: string
-}
-
-// Register complete (passkey-only).
-export type RegisterCompletePasskeyRequest = {
-	email: string
-}
-export type RegisterCompletePasskeyResponse = {
-	success: boolean
-	userId: string
 }
 
 // Add password.
@@ -105,6 +86,7 @@ export type GetSessionResponse = {
 	userId?: string
 	email?: string
 	hasPassword?: boolean
+	hasPasskeys?: boolean
 }
 
 // Change email start - initiates email change verification.
@@ -157,7 +139,7 @@ export type WebAuthnRegisterCompleteResponse = {
 
 // WebAuthn login start.
 export type WebAuthnLoginStartRequest = {
-	email: string
+	email?: string
 }
 export type WebAuthnLoginStartResponse = PublicKeyCredentialRequestOptionsJSON & {
 	userId?: string
@@ -165,7 +147,6 @@ export type WebAuthnLoginStartResponse = PublicKeyCredentialRequestOptionsJSON &
 
 // WebAuthn login complete.
 export type WebAuthnLoginCompleteRequest = {
-	email: string
 	response: AuthenticationResponseJSON
 }
 export type WebAuthnLoginCompleteResponse = {
@@ -209,15 +190,15 @@ export interface ServiceDefinition {
 	registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
 	registerPoll(req: RegisterPollRequest): Promise<RegisterPollResponse>
 	registerVerifyLink(req: RegisterVerifyLinkRequest): Promise<RegisterVerifyLinkResponse>
-	registerComplete(req: RegisterCompleteRequest): Promise<RegisterCompleteResponse>
-	registerCompletePasskey(req: RegisterCompletePasskeyRequest): Promise<RegisterCompletePasskeyResponse>
 	addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
 	changePassword(req: ChangePasswordRequest): Promise<ChangePasswordResponse>
 	login(req: LoginRequest): Promise<LoginResponse>
-	getVault(): Promise<GetVaultResponse>
-	saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
 	logout(): Promise<LogoutResponse>
 	getSession(): Promise<GetSessionResponse>
+
+	// Vault updates.
+	getVault(): Promise<GetVaultResponse>
+	saveVaultData(req: SaveVaultDataRequest): Promise<SaveVaultDataResponse>
 
 	// Email change.
 	changeEmailStart(req: ChangeEmailStartRequest): Promise<ChangeEmailStartResponse>
@@ -242,6 +223,11 @@ export interface ServiceDefinition {
 export interface ServerContext {
 	readonly sessionId: string | null
 	sessionCookie?: string | null
+
+	// The raw value of the challenge cookie from the incoming request.
+	readonly challengeCookie: string | null
+	// Set to a string to send a new challenge cookie, null to clear it.
+	outboundChallengeCookie?: string | null
 }
 
 /**

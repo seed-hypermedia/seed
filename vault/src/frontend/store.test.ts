@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import * as simplewebauthn from "@simplewebauthn/browser"
+import * as blobs from "./blobs"
 import { createStore } from "./store"
 import { createMockClient } from "./test-utils"
+import * as vaultDataMod from "./vault"
 
 // Mock simplewebauthn browser functions (external dependency).
 const mockStartRegistration = spyOn(simplewebauthn, "startRegistration")
@@ -147,27 +149,14 @@ describe("Store", () => {
 			// @ts-expect-error
 			delete window.location
 			// @ts-expect-error
-			window.location = { pathname: "/vault" }
+			window.location = { pathname: "/" }
 		})
 
 		afterEach(() => {
 			window.location = originalLocation as any
 		})
 
-		test("redirects to locked if authenticated but keys missing", async () => {
-			const client = createMockClient({
-				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
-			})
-			const { actions, navigator } = createStore(client)
-			const navigate = mock()
-			navigator.setNavigate(navigate)
-
-			await actions.checkSession()
-
-			expect(navigate).toHaveBeenCalledWith("/locked")
-		})
-
-		test("stores returnTo if redirected to locked from a deep link", async () => {
+		test("does not redirect if authenticated but keys missing", async () => {
 			const client = createMockClient({
 				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
 			})
@@ -175,16 +164,14 @@ describe("Store", () => {
 			const navigate = mock()
 			navigator.setNavigate(navigate)
 
-			// Simulate being on a deep link (with /vault base path prefix)
-			window.location.pathname = "/vault/email/change"
-
 			await actions.checkSession()
 
-			expect(state.returnTo).toBe("/email/change")
-			expect(navigate).toHaveBeenCalledWith("/locked")
+			expect(navigate).not.toHaveBeenCalled()
+			expect(state.session?.authenticated).toBe(true)
+			expect(state.sessionChecked).toBe(true)
 		})
 
-		test("redirects to root if authenticated and keys present (default)", async () => {
+		test("does not redirect if authenticated with keys", async () => {
 			const client = createMockClient({
 				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
 			})
@@ -193,27 +180,11 @@ describe("Store", () => {
 			navigator.setNavigate(navigate)
 
 			state.decryptedDEK = new Uint8Array(32)
-			window.location.pathname = "/vault/locked"
+			window.location.pathname = "/vault"
 			await actions.checkSession()
 
-			expect(navigate).toHaveBeenCalledWith("/")
-		})
-
-		test("redirects to returnTo if set and keys present", async () => {
-			const client = createMockClient({
-				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
-			})
-			const { state, actions, navigator } = createStore(client)
-			const navigate = mock()
-			navigator.setNavigate(navigate)
-
-			state.decryptedDEK = new Uint8Array(32)
-			state.returnTo = "/email/change"
-			window.location.pathname = "/vault/locked"
-			await actions.checkSession()
-
-			expect(navigate).toHaveBeenCalledWith("/email/change")
-			expect(state.returnTo).toBe("")
+			expect(navigate).not.toHaveBeenCalled()
+			expect(state.sessionChecked).toBe(true)
 		})
 	})
 
@@ -333,31 +304,16 @@ describe("Store", () => {
 	})
 
 	describe("handleSetPasskey", () => {
-		test("on retry after cancel, should skip complete-passkey if session exists", async () => {
+		test("failed registration should not clear session if it persists", async () => {
 			// Suppress console.error for this test since we're simulating a cancel error.
 			const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
 
-			// Track calls to verify behavior.
 			const calls: string[] = []
-
-			// Separate counter for getSession that doesn't get reset.
-			// After first handleSetPasskey (cancelled), user has a session from registerCompletePasskey.
-			let getSessionCallCount = 0
 
 			const client = createMockClient({
 				getSession: async () => {
-					getSessionCallCount++
 					calls.push("getSession")
-					// First call (during first attempt): not authenticated.
-					// All subsequent calls: authenticated (user was created by registerCompletePasskey).
-					if (getSessionCallCount === 1) {
-						return { authenticated: false }
-					}
 					return { authenticated: true, userId: "test-user", email: "test@passkey.com" }
-				},
-				registerCompletePasskey: async () => {
-					calls.push("registerCompletePasskey")
-					return { success: true, userId: "test-user" }
 				},
 				webAuthnRegisterStart: async () => {
 					calls.push("webAuthnRegisterStart")
@@ -397,17 +353,17 @@ describe("Store", () => {
 			navigator.setNavigate(navigate)
 
 			state.email = "test@passkey.com"
+			// Pre-set session as if obtained from previous step
+			state.session = { authenticated: true, hasPassword: false, hasPasskeys: false }
 
 			// First attempt: simulate user cancel at startRegistration.
 			mockStartRegistration.mockRejectedValueOnce(new Error("The operation was canceled"))
 
 			await actions.handleSetPasskey()
 
-			// Error should be set from the cancel.
 			expect(state.error).toContain("try again")
-			expect(calls).toContain("registerCompletePasskey")
 
-			// Reset for second attempt — only clear the calls tracking array, not getSessionCallCount.
+			// Reset for second attempt
 			state.error = ""
 			calls.length = 0
 
@@ -444,23 +400,175 @@ describe("Store", () => {
 				},
 			} as unknown as Awaited<ReturnType<typeof simplewebauthn.startAuthentication>>)
 
-			// Mock location to ensure checkSession redirects to root
-			// @ts-expect-error
-			window.location = { pathname: "/vault/login" }
-
 			await actions.handleSetPasskey()
 
-			// Key assertion: registerCompletePasskey should NOT be called again
-			// because session is already authenticated from the first attempt.
-			expect(calls).not.toContain("registerCompletePasskey")
+			expect(calls).toContain("webAuthnRegisterStart")
 			expect(state.error).toBe("")
-
-			expect(navigate).toHaveBeenCalledWith("/")
+			expect(state.decryptedDEK).not.toBeNull()
 
 			// Restore.
 			consoleErrorSpy.mockRestore()
 			mockStartRegistration.mockReset()
 			mockStartAuthentication.mockReset()
 		})
+	})
+})
+
+describe("delegation flow", () => {
+	const originalLocation = window.location
+
+	function makeDelegationUrl(
+		clientId = "https://example.com",
+		redirectUri = "https://example.com/callback",
+		sessionKey?: string,
+	): URL {
+		// Generate a real session key principal if not provided.
+		if (!sessionKey) {
+			const kp = blobs.generateKeyPair()
+			sessionKey = blobs.principalToString(kp.principal)
+		}
+		const url = new URL("https://vault.example.com/delegate")
+		url.searchParams.set("client_id", clientId)
+		url.searchParams.set("redirect_uri", redirectUri)
+		url.searchParams.set("session_key", sessionKey)
+		return url
+	}
+
+	beforeEach(() => {
+		// @ts-expect-error
+		delete window.location
+		// @ts-expect-error
+		window.location = { href: "", pathname: "/" }
+	})
+
+	afterEach(() => {
+		window.location = originalLocation as any
+	})
+
+	test("parseDelegationFromUrl stores valid request", () => {
+		const { state, actions } = createStore(createMockClient())
+		const url = makeDelegationUrl()
+
+		actions.parseDelegationFromUrl(url)
+
+		expect(state.delegationRequest).not.toBeNull()
+		expect(state.delegationRequest!.clientId).toBe("https://example.com")
+		expect(state.delegationRequest!.redirectUri).toBe("https://example.com/callback")
+		expect(state.delegationRequest!.sessionKeyPrincipal).toBeTruthy()
+		expect(state.error).toBe("")
+	})
+
+	test("parseDelegationFromUrl sets error on invalid params", () => {
+		const { state, actions } = createStore(createMockClient())
+		// http non-localhost is invalid for client_id.
+		const url = makeDelegationUrl("http://evil.com", "http://evil.com/callback")
+
+		actions.parseDelegationFromUrl(url)
+
+		expect(state.delegationRequest).toBeNull()
+		expect(state.error).toContain("HTTPS")
+	})
+
+	test("parseDelegationFromUrl ignores URL without delegation params", () => {
+		const { state, actions } = createStore(createMockClient())
+		const url = new URL("https://vault.example.com/some-page")
+
+		actions.parseDelegationFromUrl(url)
+
+		expect(state.delegationRequest).toBeNull()
+		expect(state.error).toBe("")
+	})
+
+	test("completeDelegation creates capability and redirects", async () => {
+		const saveVaultDataCalls: unknown[] = []
+		const client = createMockClient({
+			saveVaultData: async (req) => {
+				saveVaultDataCalls.push(req)
+				return { success: true }
+			},
+		})
+		const { state, actions } = createStore(client)
+
+		// Set up vault state.
+		const kp = blobs.generateKeyPair()
+		const sessionKp = blobs.generateKeyPair()
+		const ts = Date.now()
+		const profile = blobs.createProfile(kp, { name: "Test" }, ts)
+
+		state.decryptedDEK = new Uint8Array(32)
+		state.vaultData = {
+			version: 1,
+			accounts: [
+				{
+					seed: kp.privateKey,
+					profile: profile.decoded,
+					createdAt: ts,
+				},
+			],
+			delegations: [],
+		}
+		state.selectedAccountIndex = 0
+		state.vaultVersion = 0
+
+		// Set up delegation request.
+		state.delegationRequest = {
+			clientId: "https://example.com",
+			redirectUri: "https://example.com/callback",
+			sessionKeyPrincipal: blobs.principalToString(sessionKp.principal),
+		}
+
+		await actions.completeDelegation()
+
+		// saveVaultData should have been called.
+		expect(saveVaultDataCalls.length).toBe(1)
+
+		// Should redirect to callback URL.
+		expect(window.location.href).toContain("https://example.com/callback")
+		expect(window.location.href).toContain("capability=")
+		expect(window.location.href).toContain("account=")
+
+		// Delegation state should be cleared.
+		expect(state.delegationRequest).toBeNull()
+		expect(state.delegationConsented).toBe(false)
+		expect(state.error).toBe("")
+	})
+
+	test("completeDelegation errors without selected account", async () => {
+		const { state, actions } = createStore(createMockClient())
+
+		state.decryptedDEK = new Uint8Array(32)
+		state.vaultData = vaultDataMod.emptyVault()
+		state.selectedAccountIndex = -1
+		state.delegationRequest = {
+			clientId: "https://example.com",
+			redirectUri: "https://example.com/callback",
+			sessionKeyPrincipal: blobs.principalToString(blobs.generateKeyPair().principal),
+		}
+
+		// Suppress console.error for expected error.
+		const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+
+		await actions.completeDelegation()
+
+		expect(state.error).toContain("No account selected")
+
+		consoleErrorSpy.mockRestore()
+	})
+
+	test("cancelDelegation redirects with error param", () => {
+		const { state, actions } = createStore(createMockClient())
+
+		state.delegationRequest = {
+			clientId: "https://example.com",
+			redirectUri: "https://example.com/callback",
+			sessionKeyPrincipal: blobs.principalToString(blobs.generateKeyPair().principal),
+		}
+
+		actions.cancelDelegation()
+
+		expect(window.location.href).toContain("https://example.com/callback")
+		expect(window.location.href).toContain("error=access_denied")
+		expect(state.delegationRequest).toBeNull()
+		expect(state.delegationConsented).toBe(false)
 	})
 })

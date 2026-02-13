@@ -63,20 +63,6 @@ export class FetchClient implements api.ClientInterface {
 		})
 	}
 
-	async registerComplete(req: api.RegisterCompleteRequest): Promise<api.RegisterCompleteResponse> {
-		return this.request("/api/register/complete", {
-			method: "POST",
-			body: JSON.stringify(req),
-		})
-	}
-
-	async registerCompletePasskey(req: api.RegisterCompletePasskeyRequest): Promise<api.RegisterCompletePasskeyResponse> {
-		return this.request("/api/register/complete-passkey", {
-			method: "POST",
-			body: JSON.stringify(req),
-		})
-	}
-
 	async addPassword(req: api.AddPasswordRequest): Promise<api.AddPasswordResponse> {
 		return this.request("/api/add-password", {
 			method: "POST",

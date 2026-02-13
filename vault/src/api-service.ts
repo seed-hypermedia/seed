@@ -1,13 +1,12 @@
 import type { Database } from "bun:sqlite"
 import * as webauthn from "@simplewebauthn/server"
+import * as challenge from "@/challenge"
 import type * as config from "@/config"
 import type * as email from "@/email"
 import * as sess from "@/session"
 import type * as api from "./api"
 
-// ============================================================================
-// Database Types (mirrors db module for local use)
-// ============================================================================
+const isProd = process.env.NODE_ENV === "production"
 
 interface User {
 	id: string
@@ -46,10 +45,9 @@ interface PasswordMetadata {
 interface Challenge {
 	id: string
 	user_id: string | null
-	type: "webauthn" | "email"
-	purpose: "registration" | "email_change" | null
-	verifier: string
-	email: string | null
+	purpose: "registration" | "email_change"
+	token_hash: string
+	email: string
 	new_email: string | null
 	verified: number
 	expire_time: number
@@ -113,7 +111,6 @@ export class APIError extends Error {
 // ============================================================================
 
 const MAGIC_LINK_EXPIRY_MS = 2 * 60 * 1000 // 2 minutes (short-lived for security).
-const CHALLENGE_EXPIRY_MS = 5 * 60 * 1000 // 5 minutes.
 
 /**
  * API server implementation.
@@ -122,21 +119,22 @@ export class Service implements api.ServerInterface {
 	private db: Database
 	private sessions: sess.Store
 	private rp: config.RelyingParty
-	private email: email.EmailSender
-
-	constructor(db: Database, rp: config.RelyingParty, emailSender: email.EmailSender) {
+	private hmacSecret: Uint8Array
+	private emailSender: email.EmailSender
+	constructor(db: Database, rp: config.RelyingParty, hmacSecret: Uint8Array, emailSender: email.EmailSender) {
 		this.db = db
 		this.sessions = new sess.Store(db)
 		this.rp = rp
-		this.email = emailSender
+		this.hmacSecret = hmacSecret
+		this.emailSender = emailSender
 	}
 
 	/**
 	 * Remove all expired challenges from the database.
 	 * Called at the start of challenge-related operations.
 	 */
-	private cleanupExpiredChallenges(): void {
-		this.db.run(`DELETE FROM auth_challenges WHERE expire_time < ?`, [Date.now()])
+	cleanupExpiredChallenges(): void {
+		this.db.run(`DELETE FROM email_challenges WHERE expire_time < ?`, [Date.now()])
 	}
 
 	// ==========================================================================
@@ -197,19 +195,17 @@ export class Service implements api.ServerInterface {
 		const challengeId = sess.randomId()
 
 		// Clean up any existing registration challenges for this email.
-		this.db.run(`DELETE FROM auth_challenges WHERE email = ? AND type = 'email' AND purpose = 'registration'`, [
-			normalizedEmail,
-		])
+		this.db.run(`DELETE FROM email_challenges WHERE email = ? AND purpose = 'registration'`, [normalizedEmail])
 
 		// Store the challenge with the hash of the token (not the token itself).
 		this.db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			[challengeId, null, "email", "registration", tokenHash, normalizedEmail, 0, Date.now() + MAGIC_LINK_EXPIRY_MS],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			[challengeId, null, "registration", tokenHash, normalizedEmail, 0, Date.now() + MAGIC_LINK_EXPIRY_MS],
 		)
 
 		// URL includes challengeId for efficient lookup and token for verification.
 		const verifyUrl = `${this.rp.origin}/vault/verify/${challengeId}/${token}`
-		await this.email.sendLoginLink(normalizedEmail, verifyUrl)
+		await this.emailSender.sendLoginLink(normalizedEmail, verifyUrl)
 
 		return {
 			message: "Verification link sent",
@@ -220,7 +216,7 @@ export class Service implements api.ServerInterface {
 	/**
 	 * Poll endpoint for the original device to check if the magic link was clicked.
 	 */
-	async registerPoll(req: api.RegisterPollRequest, _ctx: api.ServerContext): Promise<api.RegisterPollResponse> {
+	async registerPoll(req: api.RegisterPollRequest, ctx: api.ServerContext): Promise<api.RegisterPollResponse> {
 		if (!req.challengeId) {
 			throw new APIError("Challenge ID required", 400)
 		}
@@ -229,7 +225,7 @@ export class Service implements api.ServerInterface {
 
 		const challenge = this.db
 			.query<Challenge, [string, string]>(
-				`SELECT * FROM auth_challenges WHERE id = ? AND type = 'email' AND purpose = 'registration' AND expire_time > ?`,
+				`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`,
 			)
 			.get(req.challengeId, Date.now().toString())
 
@@ -238,8 +234,33 @@ export class Service implements api.ServerInterface {
 		}
 
 		if (challenge.verified) {
-			this.db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challenge.id])
-			return { verified: true }
+			this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
+
+			let userId: string
+			const normalizedEmail = challenge.email.toLowerCase()
+
+			// Check if user exists.
+			const existingUser = this.db
+				.query<{ id: string }, [string]>(`SELECT id FROM users WHERE email = ?`)
+				.get(normalizedEmail)
+
+			if (existingUser) {
+				userId = existingUser.id
+			} else {
+				// Create new user.
+				userId = sess.randomId()
+				this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [
+					userId,
+					normalizedEmail,
+					Date.now(),
+				])
+			}
+
+			// Create session.
+			const session = this.sessions.createSession(userId)
+			ctx.sessionCookie = sess.createCookie(session)
+
+			return { verified: true, userId }
 		}
 
 		return { verified: false }
@@ -259,7 +280,7 @@ export class Service implements api.ServerInterface {
 		// Lookup by primary key for efficiency.
 		const challenge = this.db
 			.query<Challenge, [string, string]>(
-				`SELECT * FROM auth_challenges WHERE id = ? AND type = 'email' AND purpose = 'registration' AND expire_time > ?`,
+				`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'registration' AND expire_time > ?`,
 			)
 			.get(req.challengeId, Date.now().toString())
 
@@ -267,116 +288,22 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Invalid or expired link", 400)
 		}
 
-		// Verify the token by comparing its hash with the stored verifier.
+		// Verify the token by comparing its hash with the stored hash.
 		const tokenBytes = base64urlDecode(req.token)
 		const providedHash = sha256Hash(tokenBytes)
-		const storedHash = base64urlDecode(challenge.verifier)
+		const storedHash = base64urlDecode(challenge.token_hash)
 
 		if (!timingSafeEqual(providedHash, storedHash)) {
 			throw new APIError("Invalid or expired link", 400)
 		}
 
-		if (!challenge.email) {
-			throw new APIError("Invalid challenge", 400)
-		}
-
 		// Mark as verified so the polling device can proceed.
-		this.db.run(`UPDATE auth_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
+		this.db.run(`UPDATE email_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
 
 		return {
 			verified: true,
 			email: challenge.email,
 		}
-	}
-
-	async registerComplete(
-		req: api.RegisterCompleteRequest,
-		ctx: api.ServerContext,
-	): Promise<api.RegisterCompleteResponse> {
-		if (!req.email || !req.encryptedDEK || !req.authHash) {
-			throw new APIError("Missing required fields", 400)
-		}
-
-		const normalizedEmail = req.email.toLowerCase()
-
-		const existingUser = this.db
-			.query<{ id: string }, [string]>(`SELECT id FROM users WHERE email = ?`)
-			.get(normalizedEmail)
-
-		let userId: string
-		let isExistingUser = false
-
-		if (existingUser) {
-			const credential = this.db
-				.query<{ id: string }, [string]>(`SELECT id FROM credentials WHERE user_id = ?`)
-				.get(existingUser.id)
-
-			if (credential) {
-				throw new APIError("User already exists", 409)
-			}
-			userId = existingUser.id
-			isExistingUser = true
-		} else {
-			userId = sess.randomId()
-		}
-
-		const now = Date.now()
-		const credentialId = sess.randomId()
-
-		const passwordMetadata: PasswordMetadata = {
-			authHash: req.authHash,
-		}
-
-		if (!isExistingUser) {
-			this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [userId, normalizedEmail, now])
-		}
-
-		this.db.run(
-			`INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
-			[credentialId, userId, "password", base64urlDecode(req.encryptedDEK), JSON.stringify(passwordMetadata), now],
-		)
-
-		const session = this.sessions.createSession(userId)
-		ctx.sessionCookie = sess.createCookie(session)
-
-		return { success: true, userId }
-	}
-
-	async registerCompletePasskey(
-		req: api.RegisterCompletePasskeyRequest,
-		ctx: api.ServerContext,
-	): Promise<api.RegisterCompletePasskeyResponse> {
-		if (!req.email) {
-			throw new APIError("Missing required fields", 400)
-		}
-
-		const normalizedEmail = req.email.toLowerCase()
-
-		const existingUser = this.db
-			.query<{ id: string }, [string]>(`SELECT id FROM users WHERE email = ?`)
-			.get(normalizedEmail)
-
-		let userId: string
-
-		if (existingUser) {
-			const credential = this.db
-				.query<{ id: string }, [string]>(`SELECT id FROM credentials WHERE user_id = ?`)
-				.get(existingUser.id)
-
-			if (credential) {
-				throw new APIError("User already exists", 409)
-			}
-			userId = existingUser.id
-		} else {
-			const now = Date.now()
-			userId = sess.randomId()
-			this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [userId, normalizedEmail, now])
-		}
-
-		const session = this.sessions.createSession(userId)
-		ctx.sessionCookie = sess.createCookie(session)
-
-		return { success: true, userId }
 	}
 
 	async addPassword(req: api.AddPasswordRequest, ctx: api.ServerContext): Promise<api.AddPasswordResponse> {
@@ -495,7 +422,6 @@ export class Service implements api.ServerInterface {
 		const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE email = ?`).get(normalizedEmail)
 
 		if (!user) {
-			await new Promise((r) => setTimeout(r, 100))
 			throw new APIError("Invalid credentials", 401)
 		}
 
@@ -619,11 +545,16 @@ export class Service implements api.ServerInterface {
 			.query<{ id: string }, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
 			.get(user.id, "password")
 
+		const passkeyCredential = this.db
+			.query<{ id: string }, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
+			.get(user.id, "passkey")
+
 		return {
 			authenticated: true,
 			userId: user.id,
 			email: user.email,
 			hasPassword: passwordCredential !== null,
+			hasPasskeys: passkeyCredential !== null,
 		}
 	}
 
@@ -680,17 +611,14 @@ export class Service implements api.ServerInterface {
 		const challengeId = sess.randomId()
 
 		// Clean up any existing email change challenges for this user.
-		this.db.run(`DELETE FROM auth_challenges WHERE user_id = ? AND type = 'email' AND purpose = 'email_change'`, [
-			session.user_id,
-		])
+		this.db.run(`DELETE FROM email_challenges WHERE user_id = ? AND purpose = 'email_change'`, [session.user_id])
 
 		// Store the challenge with hash of the token.
 		this.db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, new_email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, new_email, verified, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
 				challengeId,
 				session.user_id,
-				"email",
 				"email_change",
 				tokenHash,
 				user.email,
@@ -702,7 +630,7 @@ export class Service implements api.ServerInterface {
 
 		// URL includes challengeId for efficient lookup and token for verification.
 		const verifyUrl = `${this.rp.origin}/vault/email/change-verify/${challengeId}/${token}`
-		await this.email.sendLoginLink(normalizedNewEmail, verifyUrl)
+		await this.emailSender.sendLoginLink(normalizedNewEmail, verifyUrl)
 
 		return {
 			message: "Verification link sent to new email",
@@ -731,7 +659,7 @@ export class Service implements api.ServerInterface {
 
 		const challenge = this.db
 			.query<Challenge, [string, string, string]>(
-				`SELECT * FROM auth_challenges WHERE id = ? AND user_id = ? AND type = 'email' AND purpose = 'email_change' AND expire_time > ?`,
+				`SELECT * FROM email_challenges WHERE id = ? AND user_id = ? AND purpose = 'email_change' AND expire_time > ?`,
 			)
 			.get(req.challengeId, session.user_id, Date.now().toString())
 
@@ -742,7 +670,7 @@ export class Service implements api.ServerInterface {
 		if (challenge.verified && challenge.new_email) {
 			// User clicked the magic link - update email and clean up.
 			this.db.run(`UPDATE users SET email = ? WHERE id = ?`, [challenge.new_email, session.user_id])
-			this.db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challenge.id])
+			this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
 
 			return {
 				verified: true,
@@ -767,7 +695,7 @@ export class Service implements api.ServerInterface {
 		// Lookup by primary key for efficiency.
 		const challenge = this.db
 			.query<Challenge, [string, string]>(
-				`SELECT * FROM auth_challenges WHERE id = ? AND type = 'email' AND purpose = 'email_change' AND expire_time > ?`,
+				`SELECT * FROM email_challenges WHERE id = ? AND purpose = 'email_change' AND expire_time > ?`,
 			)
 			.get(req.challengeId, Date.now().toString())
 
@@ -775,10 +703,10 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Invalid or expired link", 400)
 		}
 
-		// Verify the token by comparing its hash with the stored verifier.
+		// Verify the token by comparing its hash with the stored hash.
 		const tokenBytes = base64urlDecode(req.token)
 		const providedHash = sha256Hash(tokenBytes)
-		const storedHash = base64urlDecode(challenge.verifier)
+		const storedHash = base64urlDecode(challenge.token_hash)
 
 		if (!timingSafeEqual(providedHash, storedHash)) {
 			throw new APIError("Invalid or expired link", 400)
@@ -794,12 +722,13 @@ export class Service implements api.ServerInterface {
 			.get(challenge.new_email, challenge.user_id ?? "")
 
 		if (existingUser) {
-			this.db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challenge.id])
+			this.db.run(`DELETE FROM email_challenges WHERE id = ?`, [challenge.id])
 			throw new APIError("Email already in use", 409)
 		}
 
 		// Mark as verified so the polling device can proceed.
-		this.db.run(`UPDATE auth_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
+		// Mark as verified so the polling device can proceed.
+		this.db.run(`UPDATE email_challenges SET verified = 1 WHERE id = ?`, [challenge.id])
 
 		return {
 			verified: true,
@@ -856,18 +785,8 @@ export class Service implements api.ServerInterface {
 			challenge: base64urlEncode(crypto.getRandomValues(new Uint8Array(32))),
 		})
 
-		const challengeId = sess.randomId()
-
-		this.db.run(`DELETE FROM auth_challenges WHERE user_id = ? AND type = 'webauthn'`, [user.id])
-
-		// Store challenge as string (already base64url from library).
-		this.db.run(`INSERT INTO auth_challenges (id, user_id, type, verifier, expire_time) VALUES (?, ?, ?, ?, ?)`, [
-			challengeId,
-			user.id,
-			"webauthn",
-			options.challenge,
-			Date.now() + CHALLENGE_EXPIRY_MS,
-		])
+		const hmac = challenge.computeHmac(this.hmacSecret, "webauthn-register", options.challenge, ctx.sessionId)
+		ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
 
 		return options as api.WebAuthnRegisterStartResponse
 	}
@@ -885,23 +804,37 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Session expired", 401)
 		}
 
-		const challengeRecord = this.db
-			.query<Challenge, [string, string]>(
-				`SELECT * FROM auth_challenges WHERE user_id = ? AND type = 'webauthn' AND expire_time > ?`,
-			)
-			.get(session.user_id, Date.now().toString())
-
-		if (!challengeRecord) {
+		if (!ctx.challengeCookie) {
 			throw new APIError("No pending registration", 400)
+		}
+
+		// Extract the challenge from the response's clientDataJSON.
+		const clientDataJSON = JSON.parse(
+			new TextDecoder().decode(base64urlDecode(req.response.response.clientDataJSON)),
+		) as { challenge: string }
+
+		const valid = challenge.verifyHmac(
+			this.hmacSecret,
+			ctx.challengeCookie,
+			"webauthn-register",
+			clientDataJSON.challenge,
+			ctx.sessionId,
+		)
+
+		if (!valid) {
+			throw new APIError("Invalid or expired challenge", 400)
 		}
 
 		try {
 			const verification = await webauthn.verifyRegistrationResponse({
 				response: req.response,
-				expectedChallenge: challengeRecord.verifier,
+				expectedChallenge: clientDataJSON.challenge,
 				expectedOrigin: this.rp.origin,
 				expectedRPID: this.rp.id,
 			})
+
+			// Clear the cookie after use
+			ctx.outboundChallengeCookie = null
 
 			if (!verification.verified || !verification.registrationInfo) {
 				throw new APIError("Verification failed", 400)
@@ -942,8 +875,6 @@ export class Service implements api.ServerInterface {
 				now,
 			])
 
-			this.db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challengeRecord.id])
-
 			return {
 				success: true,
 				credentialId: metadata.credentialId,
@@ -959,13 +890,20 @@ export class Service implements api.ServerInterface {
 
 	async webAuthnLoginStart(
 		req: api.WebAuthnLoginStartRequest,
-		_ctx: api.ServerContext,
+		ctx: api.ServerContext,
 	): Promise<api.WebAuthnLoginStartResponse> {
+		// Conditional mediation: no email provided, generate anonymous challenge.
 		if (!req.email) {
-			throw new APIError("Email required", 400)
-		}
+			const options = await webauthn.generateAuthenticationOptions({
+				rpID: this.rp.id,
+				userVerification: "preferred",
+			})
 
-		this.cleanupExpiredChallenges()
+			const hmac = challenge.computeHmac(this.hmacSecret, "webauthn-login", options.challenge)
+			ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
+
+			return options as api.WebAuthnLoginStartResponse
+		}
 
 		const normalizedEmail = req.email.toLowerCase()
 
@@ -1007,15 +945,8 @@ export class Service implements api.ServerInterface {
 			userVerification: "preferred",
 		})
 
-		const challengeId = sess.randomId()
-
-		this.db.run(`DELETE FROM auth_challenges WHERE user_id = ? AND type = 'webauthn'`, [user.id])
-
-		// Store challenge as string (already base64url from library).
-		this.db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, verifier, email, expire_time) VALUES (?, ?, ?, ?, ?, ?)`,
-			[challengeId, user.id, "webauthn", options.challenge, normalizedEmail, Date.now() + CHALLENGE_EXPIRY_MS],
-		)
+		const hmac = challenge.computeHmac(this.hmacSecret, "webauthn-login", options.challenge)
+		ctx.outboundChallengeCookie = challenge.createCookieHeader(hmac, isProd)
 
 		return {
 			...options,
@@ -1027,53 +958,47 @@ export class Service implements api.ServerInterface {
 		req: api.WebAuthnLoginCompleteRequest,
 		ctx: api.ServerContext,
 	): Promise<api.WebAuthnLoginCompleteResponse> {
-		if (!req.email || !req.response) {
-			throw new APIError("Email and response required", 400)
+		if (!req.response) {
+			throw new APIError("Response required", 400)
 		}
 
-		const normalizedEmail = req.email.toLowerCase()
-
-		const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE email = ?`).get(normalizedEmail)
-
-		if (!user) {
-			throw new APIError("Invalid credentials", 401)
-		}
-
-		const challengeRecord = this.db
-			.query<Challenge, [string, string]>(
-				`SELECT * FROM auth_challenges WHERE user_id = ? AND type = 'webauthn' AND expire_time > ?`,
-			)
-			.get(user.id, Date.now().toString())
-
-		if (!challengeRecord) {
-			throw new APIError("No pending authentication", 400)
-		}
-
-		const passkeys = this.db
-			.query<Credential, [string, string]>(`SELECT * FROM credentials WHERE user_id = ? AND type = ?`)
-			.all(user.id, "passkey")
+		// Find the credential by the WebAuthn credential ID from the response.
+		const allPasskeys = this.db.query<Credential, [string]>(`SELECT * FROM credentials WHERE type = ?`).all("passkey")
 
 		const webAuthnCredentialId = req.response.id
-		const passkey = passkeys.find((p) => {
+		const passkey = allPasskeys.find((p) => {
 			if (!p.metadata) return false
 			const metadata = JSON.parse(p.metadata) as PasskeyMetadata
 			return metadata.credentialId === webAuthnCredentialId
 		})
 
-		if (!passkey) {
+		if (!passkey || !passkey.metadata) {
 			throw new APIError("Credential not found", 401)
 		}
 
-		if (!passkey.metadata) {
-			throw new APIError("Invalid passkey metadata", 401)
+		const userId = passkey.user_id
+		const metadata = JSON.parse(passkey.metadata) as PasskeyMetadata
+
+		// Extract the challenge from the response's clientDataJSON so we can
+		// verify against the cookie.
+		const clientDataJSON = JSON.parse(
+			new TextDecoder().decode(base64urlDecode(req.response.response.clientDataJSON)),
+		) as { challenge: string }
+
+		if (!ctx.challengeCookie) {
+			throw new APIError("No pending authentication", 400)
 		}
 
-		const metadata = JSON.parse(passkey.metadata) as PasskeyMetadata
+		const valid = challenge.verifyHmac(this.hmacSecret, ctx.challengeCookie, "webauthn-login", clientDataJSON.challenge)
+
+		if (!valid) {
+			throw new APIError("Invalid or expired challenge", 400)
+		}
 
 		try {
 			const verification = await webauthn.verifyAuthenticationResponse({
 				response: req.response,
-				expectedChallenge: challengeRecord.verifier,
+				expectedChallenge: clientDataJSON.challenge,
 				expectedOrigin: this.rp.origin,
 				expectedRPID: this.rp.id,
 				credential: {
@@ -1091,12 +1016,11 @@ export class Service implements api.ServerInterface {
 			metadata.counter = verification.authenticationInfo.newCounter
 			this.db.run(`UPDATE credentials SET metadata = ? WHERE id = ?`, [JSON.stringify(metadata), passkey.id])
 
-			this.db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challengeRecord.id])
+			ctx.outboundChallengeCookie = null
 
-			const session = this.sessions.createSession(user.id)
+			const session = this.sessions.createSession(userId)
 			ctx.sessionCookie = sess.createCookie(session)
 
-			// Return vault data from passkey credential columns.
 			let vault: { encryptedDEK: string } | null = null
 			if (passkey.encrypted_dek) {
 				vault = {
@@ -1106,7 +1030,7 @@ export class Service implements api.ServerInterface {
 
 			return {
 				success: true,
-				userId: user.id,
+				userId,
 				vault,
 			}
 		} catch (error) {

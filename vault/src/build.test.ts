@@ -11,7 +11,7 @@ import { resolve } from "node:path"
 const ROOT = resolve(import.meta.dir, "..")
 const DIST = resolve(ROOT, "dist")
 const TEST_DB = "/tmp/vault-build-test.sqlite"
-const PORT = 13579
+const PORT = Number(process.env.VAULT_BUILD_TEST_PORT) || 10000 + Math.floor(Math.random() * 50000)
 
 /** HTTP helper that bypasses happy-dom's CORS-enforcing fetch. */
 function http(method: string, path: string, body?: string): Promise<{ status: number; body: string }> {

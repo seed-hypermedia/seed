@@ -5,7 +5,6 @@
 
 import type * as bunsqlite from "bun:sqlite"
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
-import * as emailTemplate from "@/email-template"
 import * as crypto from "@/frontend/crypto"
 import * as storage from "@/sqlite"
 
@@ -15,7 +14,7 @@ let db: bunsqlite.Database
 // We need to set up the test environment before importing handlers.
 beforeAll(async () => {
 	// Create in-memory test database.
-	db = storage.open("file::memory:?mode=memory&cache=shared")
+	db = storage.open(":memory:")
 })
 
 afterAll(() => {
@@ -42,9 +41,8 @@ interface UserRow {
 interface ChallengeRow {
 	id: string
 	user_id: string | null
-	type: string
 	purpose: string | null
-	verifier: string
+	token_hash: string
 	email: string | null
 	expire_time: number
 }
@@ -217,18 +215,18 @@ describe("challenge management", () => {
 		const validTime = now + 60000 // Valid for 60 more seconds.
 
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			["expired-challenge", null, "email", "registration", "expired-verifier", "expired@test.com", expiredTime],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, expire_time) VALUES (?, ?, ?, ?, ?, ?)`,
+			["expired-challenge", null, "registration", "expired-verifier", "expired@test.com", expiredTime],
 		)
 
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			["valid-challenge", null, "email", "registration", "valid-verifier", "valid@test.com", validTime],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, expire_time) VALUES (?, ?, ?, ?, ?, ?)`,
+			["valid-challenge", null, "registration", "valid-verifier", "valid@test.com", validTime],
 		)
 
 		// Query for valid challenges only.
 		const validChallenges = db
-			.query<ChallengeRow, [number]>(`SELECT * FROM auth_challenges WHERE expire_time > ?`)
+			.query<ChallengeRow, [number]>(`SELECT * FROM email_challenges WHERE expire_time > ?`)
 			.all(now)
 
 		expect(validChallenges.length).toBe(1)
@@ -394,24 +392,24 @@ describe("incomplete registration retry", () => {
 
 		// Now simulate calling handleRegisterStart.
 		// It should allow creating a verification challenge for this user.
-		// We check by seeing if the auth_challenges table can accept an entry.
+		// We check by seeing if the email_challenges table can accept an entry.
 		const _challengesBefore = db
-			.query<{ id: string }, [string]>(`SELECT id FROM auth_challenges WHERE email = ?`)
+			.query<{ id: string }, [string]>(`SELECT id FROM email_challenges WHERE email = ?`)
 			.all(email)
 
 		// Clean existing challenges and insert new one (simulating handleRegisterStart behavior).
-		db.run(`DELETE FROM auth_challenges WHERE email = ? AND type = 'email' AND purpose = 'registration'`, [email])
+		db.run(`DELETE FROM email_challenges WHERE email = ? AND purpose = 'registration'`, [email])
 
 		const challengeId = "test-challenge-id"
 		const verifier = "test-verifier-123456"
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, expire_time) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			[challengeId, null, "email", "registration", verifier, email, Date.now() + 600000],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, expire_time) VALUES (?, ?, ?, ?, ?, ?)`,
+			[challengeId, null, "registration", verifier, email, Date.now() + 600000],
 		)
 
 		// Verify challenge was created.
 		const challengesAfter = db
-			.query<{ id: string }, [string]>(`SELECT id FROM auth_challenges WHERE email = ?`)
+			.query<{ id: string }, [string]>(`SELECT id FROM email_challenges WHERE email = ?`)
 			.all(email)
 		expect(challengesAfter.length).toBe(1)
 		expect(challengesAfter[0]?.id).toBe(challengeId)
@@ -528,7 +526,7 @@ describe("email change flow", () => {
 		user_id: string
 		email: string
 		new_email: string
-		verifier: string
+		token_hash: string
 		verified: number
 		expire_time: number
 	}
@@ -550,21 +548,21 @@ describe("email change flow", () => {
 		const challengeId = "email-change-challenge-id"
 		const verifier = "test-verifier-12345"
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, new_email, verified, expire_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[challengeId, userId, "email", "email_change", verifier, currentEmail, newEmail, 0, now + 120000],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, new_email, verified, expire_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[challengeId, userId, "email_change", verifier, currentEmail, newEmail, 0, now + 120000],
 		)
 
 		// Verify challenge was created.
 		const challenge = db
-			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM auth_challenges WHERE id = ?`)
+			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM email_challenges WHERE id = ?`)
 			.get(challengeId)
 
 		expect(challenge).not.toBeNull()
 		expect(challenge!.user_id).toBe(userId)
 		expect(challenge!.email).toBe(currentEmail)
 		expect(challenge!.new_email).toBe(newEmail)
-		expect(challenge!.verifier).toBe(verifier)
+		expect(challenge!.token_hash).toBe(verifier)
 		expect(challenge!.verified).toBe(0)
 	})
 
@@ -583,16 +581,16 @@ describe("email change flow", () => {
 		const challengeId = "verify-challenge-id"
 		const verifier = "verify-verifier-67890"
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, new_email, verified, expire_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[challengeId, userId, "email", "email_change", verifier, currentEmail, newEmail, 0, now + 120000],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, new_email, verified, expire_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[challengeId, userId, "email_change", verifier, currentEmail, newEmail, 0, now + 120000],
 		)
 
 		// Simulate clicking the magic link - mark as verified.
-		db.run(`UPDATE auth_challenges SET verified = 1 WHERE id = ?`, [challengeId])
+		db.run(`UPDATE email_challenges SET verified = 1 WHERE id = ?`, [challengeId])
 
 		const challenge = db
-			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM auth_challenges WHERE id = ?`)
+			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM email_challenges WHERE id = ?`)
 			.get(challengeId)
 
 		expect(challenge!.verified).toBe(1)
@@ -612,21 +610,21 @@ describe("email change flow", () => {
 
 		const challengeId = "poll-challenge-id"
 		db.run(
-			`INSERT INTO auth_challenges (id, user_id, type, purpose, verifier, email, new_email, verified, expire_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[challengeId, userId, "email", "email_change", "verifier", currentEmail, newEmail, 1, now + 120000],
+			`INSERT INTO email_challenges (id, user_id, purpose, token_hash, email, new_email, verified, expire_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[challengeId, userId, "email_change", "verifier", currentEmail, newEmail, 1, now + 120000],
 		)
 
 		// Simulate poll detecting verification and updating email.
 		const challenge = db
-			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM auth_challenges WHERE id = ?`)
+			.query<EmailChangeChallengeRow, [string]>(`SELECT * FROM email_challenges WHERE id = ?`)
 			.get(challengeId)
 
 		expect(challenge!.verified).toBe(1)
 
 		// Update user email (as poll would do).
 		db.run(`UPDATE users SET email = ? WHERE id = ?`, [challenge!.new_email, userId])
-		db.run(`DELETE FROM auth_challenges WHERE id = ?`, [challengeId])
+		db.run(`DELETE FROM email_challenges WHERE id = ?`, [challengeId])
 
 		// Verify email was updated.
 		const user = db.query<{ email: string }, [string]>(`SELECT email FROM users WHERE id = ?`).get(userId)
@@ -783,19 +781,5 @@ describe("change password flow", () => {
 			.get(userId, "password")
 		expect(createdCred).not.toBeNull()
 		expect(createdCred!.id).toBe("new-pw-credential")
-	})
-})
-
-describe("email template", () => {
-	test("renders login email with correct URL and content", () => {
-		const loginUrl = "https://example.com/vault/verify/abc/token123"
-		const result = emailTemplate.createLoginEmail(loginUrl)
-
-		expect(result.subject).toBe("Your login link for Seed Hypermedia")
-		expect(result.text).toContain(loginUrl)
-		expect(result.text).toContain("2 minutes")
-		expect(result.html).toContain(loginUrl)
-		expect(result.html).toContain("Log in to Seed Hypermedia")
-		expect(result.html).toContain("<!doctype html>")
 	})
 })

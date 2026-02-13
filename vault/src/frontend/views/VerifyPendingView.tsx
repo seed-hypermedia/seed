@@ -37,7 +37,7 @@ export function VerifyPendingView() {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-center">Email Sent</CardTitle>
+				<CardTitle className="text-center">Check Your Email</CardTitle>
 				<CardDescription className="text-center">
 					We sent a verification link to <strong>{email}</strong>
 				</CardDescription>
@@ -61,6 +61,10 @@ export function VerifyPendingView() {
 						<AlertDescription>{error}</AlertDescription>
 					</Alert>
 				)}
+
+				<Alert variant="info" className="mt-6">
+					<AlertDescription>Check the server console for the magic link (in development).</AlertDescription>
+				</Alert>
 
 				<Button variant="ghost" className="mt-4 w-full" onClick={() => navigate("/")}>
 					← Back
