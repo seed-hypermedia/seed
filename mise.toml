@@ -27,6 +27,15 @@ _.file = ".env"
 #   Install Xcode Command Line Tools: xcode-select --install
 #   No additional packages required - Metal is part of the macOS SDK
 
+[tasks.ensure-submodule]
+run = '''
+if [ -f .gitmodules ] && [ ! -f backend/util/llama-go/Makefile ]; then
+  echo "Initializing git submodules (llama-go + llama.cpp)..."
+  git submodule update --init --recursive
+fi
+'''
+hide = true
+
 [tasks.ensure-model]
 run = '''
 MODEL="backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf"
@@ -40,12 +49,9 @@ fi
 hide = true
 
 [tasks.ensure-llama-libs]
+depends = ["ensure-submodule"]
 run = '''
 LLAMA_GO_DIR="backend/util/llama-go"
-if [ ! -f "$LLAMA_GO_DIR/Makefile" ]; then
-  echo "ERROR: llama-go submodule not initialized. Run: git submodule update --init --recursive"
-  exit 1
-fi
 if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
   echo "Building llama.cpp libraries (CPU-only, this may take a few minutes)..."
   cd "$LLAMA_GO_DIR"
@@ -80,6 +86,3 @@ fi
 echo ""
 echo "To build with GPU acceleration: ./dev run-backend --gpu"
 '''
-
-[hooks]
-enter = "mise run ensure-model && mise run ensure-llama-libs"
