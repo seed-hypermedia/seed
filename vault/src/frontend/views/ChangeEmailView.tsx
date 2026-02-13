@@ -51,7 +51,7 @@ export function ChangeEmailView() {
 					</Button>
 				</form>
 
-				<Button variant="secondary" className="mt-4 w-full" onClick={() => navigate("/")} disabled={loading}>
+				<Button variant="secondary" className="mt-4 w-full" onClick={() => navigate("/vault")} disabled={loading}>
 					Cancel
 				</Button>
 			</CardContent>

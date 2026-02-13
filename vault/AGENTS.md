@@ -115,3 +115,4 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Avoid global state. Prefer dependency injection. Can only use global state at the very top layer of the application.
 - Make sure to remove rambling "stream of consciousness" (a.k.a. thinking out loud) comments in the final code.
 - Prefer broader integration-style tests. Avoid excessive mocking.
+- Do not keep old code around for "compatibility"; this is a new project and there are no compatibility concerns yet. Let me know after the fact if this can become a concern.

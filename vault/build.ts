@@ -15,7 +15,7 @@ const result = await Bun.build({
 		chunk: "[dir]/[name].[hash].[ext]",
 		asset: "[dir]/[name].[hash].[ext]",
 	},
-	publicPath: "/vault/",
+	publicPath: "/frontend/",
 	root: "./src",
 	plugins: [tailwind],
 	// mjml's transitive dep uglify-js has CJS that Bun's bundler can't handle.

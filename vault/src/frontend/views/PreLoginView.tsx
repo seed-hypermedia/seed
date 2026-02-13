@@ -1,4 +1,7 @@
+import { WebAuthnAbortService } from "@simplewebauthn/browser"
 import type React from "react"
+import { useEffect } from "react"
+import { Navigate } from "react-router-dom"
 import { ErrorMessage } from "@/frontend/components/ErrorMessage"
 import { Button } from "@/frontend/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/frontend/components/ui/card"
@@ -8,10 +11,27 @@ import { useActions, useAppState } from "@/frontend/store"
 
 /**
  * Initial view for email entry before sign in/registration.
+ * Attempts conditional mediation (passkey autofill) on mount so that users
+ * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
-	const { email, loading, sendingEmail, error } = useAppState()
+	const { email, loading, error, passkeySupported, session, sessionChecked } = useAppState()
 	const actions = useActions()
+
+	useEffect(() => {
+		if (sessionChecked) {
+			actions.handleConditionalLogin()
+		}
+		return () => WebAuthnAbortService.cancelCeremony()
+	}, [actions, sessionChecked])
+
+	if (!sessionChecked) {
+		return null
+	}
+
+	if (session?.authenticated) {
+		return <Navigate to="/vault" replace />
+	}
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault()
@@ -34,18 +54,32 @@ export function PreLoginView() {
 							id="email"
 							name="email"
 							type="email"
-							placeholder="you@example.com"
+							placeholder="Email address"
 							value={email}
 							onChange={(e) => actions.setEmail(e.target.value)}
 							required
+							autoFocus
 							autoComplete="username webauthn"
 						/>
 					</div>
 
 					<Button type="submit" loading={loading} className="w-full">
-						{sendingEmail ? "Sending verification email..." : "Continue"}
+						Continue
 					</Button>
 				</form>
+
+				{passkeySupported && (
+					<p className="mt-4 text-center text-sm text-muted-foreground">
+						<button
+							type="button"
+							className="underline underline-offset-2 hover:text-foreground transition-colors cursor-pointer"
+							onClick={actions.handleModalPasskeyLogin}
+							disabled={loading}
+						>
+							Sign in with a passkey
+						</button>
+					</p>
+				)}
 			</CardContent>
 		</Card>
 	)

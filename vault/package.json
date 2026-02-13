@@ -11,9 +11,9 @@
     "check": "conc 'bun run typecheck' 'bun run lint'"
   },
   "dependencies": {
-    "@faire/mjml-react": "^3.5.3",
     "@ipld/dag-cbor": "^9.2.5",
     "@noble/ciphers": "^2.1.1",
+    "@noble/curves": "^2.0.1",
     "@noble/hashes": "^2.0.1",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.2.6",
@@ -27,8 +27,10 @@
     "hash-wasm": "^4.12.0",
     "lucide-react": "^0.545.0",
     "mjml": "^4.18.0",
+    "@faire/mjml-react": "^3.5.3",
     "nanoid": "^5.1.6",
     "nodemailer": "^6.10.0",
+    "radix-ui": "^1.4.3",
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "^7.13.0",

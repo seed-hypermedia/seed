@@ -63,7 +63,7 @@ export function AddPasswordView() {
 					</Button>
 				</form>
 
-				<Button variant="ghost" className="mt-4 w-full" onClick={() => navigate("/")}>
+				<Button variant="ghost" className="mt-4 w-full" onClick={() => navigate("/vault")}>
 					← Back to Vault
 				</Button>
 			</CardContent>

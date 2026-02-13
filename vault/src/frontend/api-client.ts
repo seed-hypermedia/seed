@@ -11,7 +11,7 @@ export class APIError extends Error {
 }
 
 export class FetchClient implements api.ClientInterface {
-	constructor(private baseUrl: string = "/vault") {}
+	constructor(private baseUrl: string = "") {}
 
 	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const res = await fetch(`${this.baseUrl}${path}`, {
@@ -58,20 +58,6 @@ export class FetchClient implements api.ClientInterface {
 
 	async registerVerifyLink(req: api.RegisterVerifyLinkRequest): Promise<api.RegisterVerifyLinkResponse> {
 		return this.request("/api/register/verify-link", {
-			method: "POST",
-			body: JSON.stringify(req),
-		})
-	}
-
-	async registerComplete(req: api.RegisterCompleteRequest): Promise<api.RegisterCompleteResponse> {
-		return this.request("/api/register/complete", {
-			method: "POST",
-			body: JSON.stringify(req),
-		})
-	}
-
-	async registerCompletePasskey(req: api.RegisterCompletePasskeyRequest): Promise<api.RegisterCompletePasskeyResponse> {
-		return this.request("/api/register/complete-passkey", {
 			method: "POST",
 			body: JSON.stringify(req),
 		})

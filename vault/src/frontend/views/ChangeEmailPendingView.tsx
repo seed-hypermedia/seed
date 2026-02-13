@@ -59,7 +59,7 @@ export function ChangeEmailPendingView() {
 
 				<ErrorMessage message={error} />
 
-				<Button variant="secondary" className="mt-6 w-full" onClick={() => navigate("/")}>
+				<Button variant="secondary" className="mt-6 w-full" onClick={() => navigate("/vault")}>
 					Cancel
 				</Button>
 			</CardContent>

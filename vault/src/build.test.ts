@@ -96,7 +96,7 @@ describe("production build", () => {
 				let ready = false
 				for (let i = 0; i < 30; i++) {
 					try {
-						const res = await http("GET", "/vault/api/session")
+						const res = await http("GET", "/api/session")
 						if (res.status === 200) {
 							ready = true
 							break
@@ -109,7 +109,7 @@ describe("production build", () => {
 				expect(ready).toBe(true)
 
 				// Trigger registration which exercises MJML email rendering.
-				const res = await http("POST", "/vault/api/register/start", JSON.stringify({ email: "buildtest@example.com" }))
+				const res = await http("POST", "/api/register/start", JSON.stringify({ email: "buildtest@example.com" }))
 				expect(res.status).toBe(200)
 				const data = JSON.parse(res.body) as { challengeId: string }
 				expect(data.challengeId).toBeDefined()

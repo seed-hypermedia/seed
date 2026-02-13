@@ -9,7 +9,7 @@ const isProd = process.env.NODE_ENV === "production"
 /**
  * The name of the cookie used to store the session ID.
  */
-export const SESSION_COOKIE_NAME = isProd ? "__Secure-Vault-Session" : "Vault-Session"
+export const SESSION_COOKIE_NAME = isProd ? "__Host-Vault-Session" : "Vault-Session"
 
 export type Session = {
 	id: string
@@ -71,7 +71,7 @@ export function createCookie(session: Session): string {
 		httpOnly: true,
 		sameSite: "strict",
 		maxAge: Math.floor(SESSION_DURATION_MS / 1000),
-		path: "/vault",
+		path: "/",
 		secure: isProd,
 	})
 	return cookie.toString()
@@ -87,7 +87,7 @@ export function clearCookie(): string {
 		httpOnly: true,
 		sameSite: "strict",
 		maxAge: 0,
-		path: "/vault",
+		path: "/",
 		secure: isProd,
 	})
 	return cookie.toString()
