@@ -27,6 +27,7 @@ services:
   seed-web:
     container_name: seed-web
     image: seedhypermedia/web:${SEED_SITE_TAG:-latest}
+    user: "${SEED_UID}:${SEED_GID}"
     depends_on:
       - seed-daemon
     networks:

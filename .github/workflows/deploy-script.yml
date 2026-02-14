@@ -1,0 +1,51 @@
+name: Deploy Script - Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ops/**"
+  pull_request:
+    paths:
+      - "ops/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+        working-directory: ops
+
+      - name: Typecheck
+        run: bun run typecheck
+        working-directory: ops
+
+      - name: Test
+        run: bun test
+        working-directory: ops
+
+      - name: Build bundle
+        run: bun run build
+        working-directory: ops
+
+      - name: Check bundle is up to date
+        run: |
+          if ! git diff --quiet ops/dist/deploy.js; then
+            echo "::error::ops/dist/deploy.js is out of date. Run 'bun run build' in ops/ and commit the result."
+            git diff --stat ops/dist/deploy.js
+            exit 1
+          fi
