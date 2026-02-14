@@ -51,7 +51,7 @@ export function createWebUniversalClient(
         queryString = ''
       } else {
         queryString = serializeQueryString(
-          input as Record<string, unknown>,
+          input,
           requestSchema.shape.input as any,
         )
       }

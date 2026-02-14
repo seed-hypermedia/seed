@@ -1,15 +1,30 @@
 import {z} from 'zod'
 
 /**
- * Serializes an object to a URL query string with proper type handling
+ * Reserved query param key for non-object inputs (string, number, boolean).
  */
-export function serializeQueryString<T extends Record<string, unknown>>(
+const PRIMITIVE_VALUE_KEY = '__value'
+
+/**
+ * Serializes data to a URL query string with proper type handling.
+ * Non-object inputs (string, number, boolean) are stored under a __value key.
+ */
+export function serializeQueryString<T>(
   data: T,
   _schema?: z.ZodType<T>,
 ): string {
   const params = new URLSearchParams()
 
-  for (const [key, value] of Object.entries(data)) {
+  // Handle non-object inputs (string, number, boolean)
+  if (typeof data !== 'object' || data === null) {
+    if (data !== undefined && data !== null) {
+      params.append(PRIMITIVE_VALUE_KEY, String(data))
+    }
+    const queryString = params.toString()
+    return queryString ? `?${queryString}` : ''
+  }
+
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
     if (value === undefined || value === null) {
       continue
     }
@@ -32,9 +47,10 @@ export function serializeQueryString<T extends Record<string, unknown>>(
 }
 
 /**
- * Deserializes a URL query string to an object with proper type handling using Zod schema
+ * Deserializes a URL query string using a Zod schema.
+ * If the query contains only a __value key, returns the primitive value directly.
  */
-export function deserializeQueryString<T extends Record<string, unknown>>(
+export function deserializeQueryString<T>(
   queryString: string,
   schema: z.ZodType<T>,
 ): T {
@@ -48,6 +64,15 @@ export function deserializeQueryString<T extends Record<string, unknown>>(
   }
 
   const params = new URLSearchParams(cleanQuery)
+
+  // Handle primitive value inputs
+  if (
+    params.has(PRIMITIVE_VALUE_KEY) &&
+    Array.from(params.keys()).length === 1
+  ) {
+    return schema.parse(params.get(PRIMITIVE_VALUE_KEY))
+  }
+
   const result: Record<string, unknown> = {}
 
   for (const [key, value] of Array.from(params.entries())) {

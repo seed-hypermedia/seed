@@ -53,7 +53,13 @@ import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
-import {DocNavigationItem, getSiteNavDirectory} from './navigation'
+import {
+  DocNavigationItem,
+  DocNavigationWrapper,
+  DocumentOutline,
+  getSiteNavDirectory,
+  useNodesOutline,
+} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
@@ -460,7 +466,7 @@ function CommentPageBody({
           />
         )}
       </div>
-      <div className="h-3" />
+      {/* <div className="h-3" /> */}
       <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
         <DocumentTools
           id={docId}
@@ -754,6 +760,7 @@ function DocumentBody({
 
   const {
     showSidebars,
+    showCollapsed,
     sidebarProps,
     mainContentProps,
     elementRef,
@@ -1051,6 +1058,7 @@ function DocumentBody({
           sidebarProps={sidebarProps}
           mainContentProps={mainContentProps}
           showSidebars={showSidebars}
+          showCollapsed={showCollapsed}
           discussionsParams={discussionsParams}
           activityFilterEventType={
             route.key === 'activity' ? route.filterEventType : undefined
@@ -1246,6 +1254,7 @@ function MainContent({
   sidebarProps,
   mainContentProps,
   showSidebars,
+  showCollapsed,
   discussionsParams,
   activityFilterEventType,
   onActivityFilterChange,
@@ -1267,6 +1276,7 @@ function MainContent({
   sidebarProps: React.HTMLAttributes<HTMLDivElement>
   mainContentProps: React.HTMLAttributes<HTMLDivElement>
   showSidebars: boolean
+  showCollapsed: boolean
   discussionsParams?: {
     openComment?: string
     targetBlockId?: string
@@ -1350,30 +1360,105 @@ function MainContent({
     case 'content':
     default:
       return (
-        <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
-          {showSidebars && (
-            <div {...sidebarProps}>{/* Document outline - placeholder */}</div>
-          )}
-
-          <div {...mainContentProps}>
-            <BlocksContentProvider
-              resourceId={resourceId}
-              blockCitations={blockCitations}
-              onBlockCitationClick={onBlockCitationClick}
-              onBlockCommentClick={onBlockCommentClick}
-              onBlockSelect={onBlockSelect}
-            >
-              <BlocksContent blocks={document.content} />
-            </BlocksContentProvider>
-            <UnreferencedDocuments
-              docId={docId}
-              content={document.content}
-              directory={directory}
-            />
-          </div>
-
-          {showSidebars && <div {...sidebarProps} />}
-        </div>
+        <ContentViewWithOutline
+          docId={docId}
+          resourceId={resourceId}
+          document={document}
+          wrapperProps={wrapperProps}
+          sidebarProps={sidebarProps}
+          mainContentProps={mainContentProps}
+          showSidebars={showSidebars}
+          showCollapsed={showCollapsed}
+          blockCitations={blockCitations}
+          onBlockCitationClick={onBlockCitationClick}
+          onBlockCommentClick={onBlockCommentClick}
+          onBlockSelect={onBlockSelect}
+          directory={directory}
+        />
       )
   }
+}
+
+function ContentViewWithOutline({
+  docId,
+  resourceId,
+  document,
+  wrapperProps,
+  sidebarProps,
+  mainContentProps,
+  showSidebars,
+  showCollapsed,
+  blockCitations,
+  onBlockCitationClick,
+  onBlockCommentClick,
+  onBlockSelect,
+  directory,
+}: {
+  docId: UnpackedHypermediaId
+  resourceId: UnpackedHypermediaId
+  document: HMDocument
+  wrapperProps: React.HTMLAttributes<HTMLDivElement>
+  sidebarProps: React.HTMLAttributes<HTMLDivElement>
+  mainContentProps: React.HTMLAttributes<HTMLDivElement>
+  showSidebars: boolean
+  showCollapsed: boolean
+  blockCitations?: Record<string, {citations: number; comments: number}> | null
+  onBlockCitationClick?: (blockId?: string | null) => void
+  onBlockCommentClick?: (
+    blockId?: string | null,
+    blockRange?: BlockRange | undefined,
+    startCommentingNow?: boolean,
+  ) => void
+  onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
+  directory?: import('@shm/shared').HMDocumentInfo[]
+}) {
+  const outline = useNodesOutline(document, docId)
+
+  return (
+    <div {...wrapperProps} className={cn(wrapperProps.className, 'flex')}>
+      {showSidebars && (
+        <div {...sidebarProps}>
+          {outline.length > 0 && (
+            <div className="sticky top-24 mt-4">
+              <DocNavigationWrapper
+                showCollapsed={showCollapsed}
+                outline={outline}
+              >
+                <DocumentOutline
+                  onActivateBlock={(blockId) => {
+                    const el = window.document.getElementById(blockId)
+                    if (el) {
+                      el.scrollIntoView({behavior: 'smooth', block: 'start'})
+                    }
+                  }}
+                  outline={outline}
+                  id={docId}
+                  activeBlockId={docId.blockRef}
+                />
+              </DocNavigationWrapper>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div {...mainContentProps}>
+        <BlocksContentProvider
+          resourceId={resourceId}
+          blockCitations={blockCitations}
+          onBlockCitationClick={onBlockCitationClick}
+          onBlockCommentClick={onBlockCommentClick}
+          onBlockSelect={onBlockSelect}
+        >
+          <BlocksContent blocks={document.content} />
+        </BlocksContentProvider>
+        <UnreferencedDocuments
+          docId={docId}
+          content={document.content}
+          directory={directory}
+        />
+      </div>
+
+      {showSidebars && <div {...sidebarProps} />}
+    </div>
+  )
 }

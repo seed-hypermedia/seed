@@ -605,10 +605,12 @@ function useCurrentRouteUrl(): {
   const draftUid = draftEditUid || draftLocationUid
   const lookupUid = routeId?.uid || draftUid
   const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
-  const siteHostname =
+  const entitySiteUrl =
     accountEntity.data?.type === 'document'
       ? accountEntity.data.document?.metadata?.siteUrl
       : null
+  // Entity metadata is authoritative; fall back to hostname preserved from input URL
+  const siteHostname = entitySiteUrl || routeId?.hostname || null
 
   const draftTitle = draftData?.metadata?.name
 

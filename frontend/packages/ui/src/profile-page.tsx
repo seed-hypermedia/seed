@@ -18,23 +18,21 @@ export function HMProfilePage({
 }) {
   const tx = useTxString()
   return (
-    <div>
-      <div className="mx-auto max-w-4xl">
-        <ProfileHeader
-          profile={profile}
-          onEditProfile={onEditProfile}
-          currentAccount={currentAccount}
-          buttons={headerButtons}
-        />
-        <div className="border-t border-neutral-200 py-6 dark:border-neutral-800">
-          <h2 className="text-2xl font-bold">{tx('Account Activity')}</h2>
-        </div>
-        <Feed
-          currentAccount={currentAccount}
-          filterAuthors={[profile.id.uid]}
-          filterResource={undefined}
-        />
+    <div className="mx-auto max-w-4xl">
+      <ProfileHeader
+        profile={profile}
+        onEditProfile={onEditProfile}
+        currentAccount={currentAccount}
+        buttons={headerButtons}
+      />
+      <div className="border-t border-neutral-200 py-6 dark:border-neutral-800">
+        <h2 className="text-2xl font-bold">{tx('Account Activity')}</h2>
       </div>
+      <Feed
+        currentAccount={currentAccount}
+        filterAuthors={[profile.id.uid]}
+        filterResource={undefined}
+      />
     </div>
   )
 }

@@ -342,7 +342,7 @@ export function DocNavigationWrapper({
           align="start"
           sideOffset={12}
           collisionPadding={{bottom: 24}}
-          className="p-1"
+          className="z-50 p-1"
         >
           <div className="h-full max-h-[80vh] w-full overflow-auto">
             {children}
