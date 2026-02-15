@@ -352,8 +352,9 @@ export function routeToUrl(
     ) {
       effectivePanelParam = `comment/${route.openComment}`
     }
+    // View-term URLs only need uid + path, not version/blockRef/latest
     return createWebHMUrl(route.id.uid, {
-      ...route.id,
+      path: route.id.path,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,

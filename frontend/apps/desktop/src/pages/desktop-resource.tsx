@@ -2,7 +2,6 @@ import {useAppContext} from '@/app-context'
 import {BranchDialog} from '@/components/branch-dialog'
 import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
-import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {MoveDialog} from '@/components/move-dialog'
@@ -12,7 +11,6 @@ import {
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
-import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {useNavigate} from '@/utils/useNavigate'
@@ -22,13 +20,11 @@ import {
   CommentsProvider,
   isRouteEqualToCommentTarget,
 } from '@shm/shared/comments-service-provider'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, HMComment} from '@shm/shared/hm-types'
 import {useResource} from '@shm/shared/models/entity'
-import {displayHostname} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
-import {Download, HistoryIcon, Link, Trash} from '@shm/ui/icons'
+import {Download, Trash} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import {SizableText} from '@shm/ui/text'
@@ -36,7 +32,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {Folder, ForwardIcon, GitFork, Pencil} from 'lucide-react'
+import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useCallback} from 'react'
 
@@ -80,12 +76,6 @@ export default function DesktopResourcePage() {
     resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
   const {exportDocument, openDirectory} = useAppContext()
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
-    siteUrl || gwUrl,
-    siteUrl ? hmId(docId.uid) : undefined,
-  )
   const deleteEntity = useDeleteDialog()
   const branchDialog = useAppDialog(BranchDialog)
   const moveDialog = useAppDialog(MoveDialog)
@@ -100,22 +90,6 @@ export default function DesktopResourcePage() {
       onClick: () => moveDialog.open({id: docId}),
     })
   }
-
-  if (siteUrl) {
-    menuItems.push({
-      key: 'link-site',
-      label: `Copy ${displayHostname(siteUrl)} Link`,
-      icon: <Link className="size-4" />,
-      onClick: () => onCopySiteUrl(route),
-    })
-  }
-
-  menuItems.push({
-    key: 'link',
-    label: `Copy ${displayHostname(gwUrl)} Link`,
-    icon: <Link className="size-4" />,
-    onClick: () => onCopyGateway(route),
-  })
 
   menuItems.push({
     key: 'export',
@@ -164,28 +138,6 @@ export default function DesktopResourcePage() {
       onClick: () => branchDialog.open(docId),
     })
   }
-
-  menuItems.push({
-    key: 'versions',
-    label: 'Document Versions',
-    icon: <HistoryIcon className="size-4" />,
-    onClick: () => {
-      replace({
-        key: 'document',
-        id: docId,
-        panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
-      })
-    },
-  })
-
-  menuItems.push({
-    key: 'directory',
-    label: 'Directory',
-    icon: <Folder className="size-4" />,
-    onClick: () => {
-      navigate({key: 'directory', id: docId})
-    },
-  })
 
   if (canEdit && docId.path?.length) {
     menuItems.push({
@@ -327,14 +279,12 @@ export default function DesktopResourcePage() {
         <ResourcePage
           docId={docId}
           CommentEditor={CommentBox}
-          optionsMenuItems={menuItems}
+          extraMenuItems={menuItems}
           editActions={editActions}
           existingDraft={existingDraft}
           collaboratorForm={<AddCollaboratorForm id={docId} />}
         />
       </CommentsProvider>
-      {copyGatewayContent}
-      {copySiteUrlContent}
       {deleteEntity.content}
       {branchDialog.content}
       {moveDialog.content}

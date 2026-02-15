@@ -10,6 +10,7 @@ import {
   NavRoute,
   UnpackedHypermediaId,
   unpackHmId,
+  useUniversalAppContext,
 } from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {
@@ -60,6 +61,7 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
+import {HistoryIcon, Link} from './icons'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
@@ -71,6 +73,63 @@ import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+import {Folder} from 'lucide-react'
+
+/** Common menu items generated internally for all document views */
+export function useCommonMenuItems(
+  docId: UnpackedHypermediaId,
+): MenuItemType[] {
+  const navigate = useNavigate()
+  const media = useMedia()
+  const isMobile = media.xs
+  const {onCopyReference} = useUniversalAppContext()
+
+  return useMemo(
+    () => [
+      {
+        key: 'copy-link',
+        label: 'Copy Link',
+        icon: <Link className="size-4" />,
+        onClick: () => {
+          if (onCopyReference) {
+            onCopyReference(docId)
+          } else if (typeof window !== 'undefined') {
+            copyUrlToClipboardWithFeedback(window.location.href, 'Link')
+          }
+        },
+      },
+      {
+        key: 'versions',
+        label: 'Document Versions',
+        icon: <HistoryIcon className="size-4" />,
+        onClick: () => {
+          if (isMobile) {
+            navigate({
+              key: 'activity',
+              id: docId,
+              filterEventType: ['Ref'],
+            })
+          } else {
+            navigate({
+              key: 'document',
+              id: docId,
+              panel: {key: 'activity', id: docId, filterEventType: ['Ref']},
+            })
+          }
+        },
+      },
+      {
+        key: 'directory',
+        label: 'Directory',
+        icon: <Folder className="size-4" />,
+        onClick: () => {
+          navigate({key: 'directory', id: docId})
+        },
+      },
+    ],
+    [navigate, docId, isMobile, onCopyReference],
+  )
+}
 
 /** Extract panel route from a view route, stripping top-level-only fields */
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
@@ -111,8 +170,8 @@ export interface ResourcePageProps {
   docId: UnpackedHypermediaId
   /** Factory to create comment editor - platform-specific (web vs desktop) */
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  /** Menu items for the options dropdown (three dots) - always visible */
-  optionsMenuItems?: MenuItemType[]
+  /** Additional platform-specific menu items for the options dropdown */
+  extraMenuItems?: MenuItemType[]
   /** Edit/create action buttons - platform-specific (desktop only) */
   editActions?: ReactNode
   /** Existing draft info for showing draft indicator in toolbar */
@@ -142,7 +201,7 @@ function getPanelTitle(panelKey: string | null): string {
 export function ResourcePage({
   docId,
   CommentEditor,
-  optionsMenuItems,
+  extraMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
@@ -290,7 +349,7 @@ export function ResourcePage({
         document={document}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
         CommentEditor={CommentEditor}
-        optionsMenuItems={optionsMenuItems}
+        extraMenuItems={extraMenuItems}
         editActions={editActions}
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
@@ -607,7 +666,7 @@ function DocumentBody({
   document,
   siteUrl,
   CommentEditor,
-  optionsMenuItems,
+  extraMenuItems,
   editActions,
   existingDraft,
   floatingButtons,
@@ -617,7 +676,7 @@ function DocumentBody({
   document: HMDocument
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   editActions?: ReactNode
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
@@ -909,17 +968,19 @@ function DocumentBody({
     }
   }
 
-  // Combined action buttons: options dropdown + edit actions
-  const hasOptions = optionsMenuItems && optionsMenuItems.length > 0
+  // Options dropdown: common items + platform extras
+  const commonMenuItems = useCommonMenuItems(docId)
+  const allMenuItems = useMemo(() => {
+    const extras = extraMenuItems || []
+    return [...extras, ...commonMenuItems]
+  }, [extraMenuItems, commonMenuItems])
+
+  const hasOptions = allMenuItems.length > 0
   const hasActionButtons = hasOptions || editActions
   const actionButtons = hasActionButtons ? (
     <>
       {hasOptions && (
-        <OptionsDropdown
-          menuItems={optionsMenuItems}
-          align="end"
-          side="bottom"
-        />
+        <OptionsDropdown menuItems={allMenuItems} align="end" side="bottom" />
       )}
       {editActions}
     </>
@@ -1159,7 +1220,7 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-        {activeView === 'content' && actionButtons && !isMobile ? (
+        {actionButtons && !isMobile ? (
           <div
             className={cn(
               'absolute top-4 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',

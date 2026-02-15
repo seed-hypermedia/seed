@@ -20,14 +20,14 @@ import {useMedia} from './use-media'
 export interface FeedPageProps {
   docId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   currentAccountUid?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
 }
 
 export function FeedPage({
   docId,
-  optionsMenuItems,
+  extraMenuItems,
   currentAccountUid,
   onCommentDelete,
 }: FeedPageProps) {
@@ -73,7 +73,7 @@ export function FeedPage({
     >
       <FeedBody
         siteHomeId={siteHomeId}
-        optionsMenuItems={optionsMenuItems}
+        extraMenuItems={extraMenuItems}
         currentAccountUid={currentAccountUid}
         onCommentDelete={onCommentDelete}
         targetDomain={targetDomain}
@@ -84,13 +84,13 @@ export function FeedPage({
 
 function FeedBody({
   siteHomeId,
-  optionsMenuItems,
+  extraMenuItems,
   currentAccountUid,
   onCommentDelete,
   targetDomain,
 }: {
   siteHomeId: UnpackedHypermediaId
-  optionsMenuItems?: MenuItemType[]
+  extraMenuItems?: MenuItemType[]
   currentAccountUid?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
@@ -112,7 +112,7 @@ function FeedBody({
   const media = useMedia()
   const isMobile = media.xs
 
-  const hasOptions = optionsMenuItems && optionsMenuItems.length > 0
+  const menuItems = extraMenuItems || []
 
   const feedContent = (
     <PageLayout centered contentMaxWidth={contentMaxWidth}>
@@ -121,12 +121,8 @@ function FeedBody({
           <Text weight="bold" size="3xl">
             What's New
           </Text>
-          {hasOptions && (
-            <OptionsDropdown
-              menuItems={optionsMenuItems!}
-              align="end"
-              side="bottom"
-            />
+          {menuItems.length > 0 && (
+            <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
           )}
         </div>
         <Separator />

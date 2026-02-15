@@ -133,7 +133,7 @@ export default function DesktopFeedPage() {
       >
         <FeedPage
           docId={docId}
-          optionsMenuItems={menuItems}
+          extraMenuItems={menuItems}
           currentAccountUid={selectedAccount?.id?.uid}
         />
       </CommentsProvider>

@@ -15,6 +15,7 @@ import {
   getCommentTargetId,
   getParentPaths,
   HMAnnotation,
+  UniversalClient,
   useUniversalClient,
 } from '@shm/shared'
 import {
@@ -835,265 +836,272 @@ export type BlocksMapItem = {
   block: HMBlock
 }
 
-export function usePushResource() {
-  const universalClient = useUniversalClient()
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+export async function pushResource(
+  universalClient: UniversalClient,
+  gwUrl: string,
+  id: UnpackedHypermediaId,
+  onlyPushToHost?: string,
+  onStatusChange?: (status: PushResourceStatus) => void,
+): Promise<boolean> {
+  const resource = await universalClient.request<HMResourceRequest>(
+    'Resource',
+    id,
+  )
+  // step 1. find all the site IDs that will be affected by this resource.
+  // console.log('== publish 1', id, resource, gwUrl)
+  let destinationSiteUids = new Set<string>()
 
-  return async (
-    id: UnpackedHypermediaId,
-    onlyPushToHost?: string,
-    onStatusChange?: (status: PushResourceStatus) => void,
-  ): Promise<boolean> => {
-    const resource = await universalClient.request<HMResourceRequest>(
-      'Resource',
-      id,
-    )
-    // step 1. find all the site IDs that will be affected by this resource.
-    // console.log('== publish 1', id, resource, gwUrl)
-    let destinationSiteUids = new Set<string>()
-
-    function extractBNReferences(blockNodes: HMBlockNode[]) {
-      blockNodes.forEach(async (node) => {
-        node.children && extractBNReferences(node.children || [])
-        if (node.block.type === 'Query') {
-          const query = node.block.attributes.query
-          query.includes.forEach((include) => {
-            destinationSiteUids.add(include.space)
-          })
-        }
-        if (node.block.type === 'Embed') {
-          const id = unpackHmId(node.block.link)
-          if (id) {
-            destinationSiteUids.add(id.uid)
-          }
-        }
-        const annotations = getAnnotations(node.block)
-        annotations?.forEach((annotation: HMAnnotation) => {
-          const id = unpackHmId(annotation.link)
-          if (id) {
-            destinationSiteUids.add(id.uid)
-          }
+  function extractBNReferences(blockNodes: HMBlockNode[]) {
+    blockNodes.forEach(async (node) => {
+      node.children && extractBNReferences(node.children || [])
+      if (node.block.type === 'Query') {
+        const query = node.block.attributes.query
+        query.includes.forEach((include) => {
+          destinationSiteUids.add(include.space)
         })
-      })
-    }
-
-    // for documents:
-    // - the site that the document is in
-    // - each author of the document
-    // - all the sites that the document directly references through embeds,links,mentions, and queries
-
-    if (resource.type === 'document') {
-      destinationSiteUids.add(resource.id.uid)
-      resource.document.authors.forEach((authorUid: string) => {
-        destinationSiteUids.add(authorUid)
-      })
-      extractBNReferences(resource.document.content)
-    }
-
-    // for comments:
-    // - the site that the comment's target document is in
-    // - the author of the comment
-    // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
-
-    if (resource.type === 'comment') {
-      destinationSiteUids.add(resource.comment.targetAccount)
-
-      // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
-      destinationSiteUids.add(resource.comment.author)
-      destinationSiteUids.add(resource.id.uid)
-
-      extractBNReferences(resource.comment.content)
-    }
-
-    // step 2. find all the hosts for these destination sites
-    // console.log('== publish 2', destinationSiteUids)
-
-    let destinationHosts = new Set<string>([
-      // always push to the gateway url
-      gwUrl,
-    ])
-
-    // when copying the URL, we don't need to push to every host. just the one whose URL we're copying.
-    // TODO: skip the previous steps if onlyPushToHost is provided
-    if (onlyPushToHost) {
-      destinationHosts = new Set([onlyPushToHost])
-    }
-
-    await Promise.all(
-      Array.from(destinationSiteUids).map(async (uid) => {
-        try {
-          const resource = await universalClient.request<HMResourceRequest>(
-            'Resource',
-            hmId(uid),
-          )
-          if (resource.type === 'document') {
-            const siteUrl = resource.document.metadata?.siteUrl
-            if (siteUrl) destinationHosts.add(siteUrl)
-          }
-        } catch (error) {
-          console.error(
-            'Error loading site resource for pushing to the siteUrl',
-            uid,
-            error,
-          )
-        }
-      }),
-    )
-
-    // console.log('== publish 3 == destinationHosts', destinationHosts)
-
-    let status: PushResourceStatus = {
-      hosts: Array.from(destinationHosts).map((host) => ({
-        host,
-        status: 'pending',
-        message: undefined,
-      })),
-    }
-
-    onStatusChange?.(status)
-
-    function updateHostStatus(
-      host: string,
-      newStatus: 'success' | 'error' | 'pending',
-      message: string,
-      peerId?: string,
-    ) {
-      const hostStatus = status.hosts.find((h) => h.host === host)
-      if (hostStatus) {
-        status = {
-          ...status,
-          hosts: status.hosts.map((h) => {
-            if (h.host === host) {
-              return {
-                ...h,
-                status: newStatus,
-                message: message,
-                peerId: peerId,
-              }
-            }
-            return h
-          }),
+      }
+      if (node.block.type === 'Embed') {
+        const id = unpackHmId(node.block.link)
+        if (id) {
+          destinationSiteUids.add(id.uid)
         }
       }
-      onStatusChange?.(status)
-    }
-    function updatePeerStatus(
-      peerId: string,
-      newStatus: 'success' | 'error' | 'pending',
-      message: string,
-    ) {
+      const annotations = getAnnotations(node.block)
+      annotations?.forEach((annotation: HMAnnotation) => {
+        const id = unpackHmId(annotation.link)
+        if (id) {
+          destinationSiteUids.add(id.uid)
+        }
+      })
+    })
+  }
+
+  // for documents:
+  // - the site that the document is in
+  // - each author of the document
+  // - all the sites that the document directly references through embeds,links,mentions, and queries
+
+  if (resource.type === 'document') {
+    destinationSiteUids.add(resource.id.uid)
+    resource.document.authors.forEach((authorUid: string) => {
+      destinationSiteUids.add(authorUid)
+    })
+    extractBNReferences(resource.document.content)
+  }
+
+  // for comments:
+  // - the site that the comment's target document is in
+  // - the author of the comment
+  // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
+
+  if (resource.type === 'comment') {
+    destinationSiteUids.add(resource.comment.targetAccount)
+
+    // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
+    destinationSiteUids.add(resource.comment.author)
+    destinationSiteUids.add(resource.id.uid)
+
+    extractBNReferences(resource.comment.content)
+  }
+
+  // step 2. find all the hosts for these destination sites
+  // console.log('== publish 2', destinationSiteUids)
+
+  let destinationHosts = new Set<string>([
+    // always push to the gateway url
+    gwUrl,
+  ])
+
+  // when copying the URL, we don't need to push to every host. just the one whose URL we're copying.
+  // TODO: skip the previous steps if onlyPushToHost is provided
+  if (onlyPushToHost) {
+    destinationHosts = new Set([onlyPushToHost])
+  }
+
+  await Promise.all(
+    Array.from(destinationSiteUids).map(async (uid) => {
+      try {
+        const resource = await universalClient.request<HMResourceRequest>(
+          'Resource',
+          hmId(uid),
+        )
+        if (resource.type === 'document') {
+          const siteUrl = resource.document.metadata?.siteUrl
+          if (siteUrl) destinationHosts.add(siteUrl)
+        }
+      } catch (error) {
+        console.error(
+          'Error loading site resource for pushing to the siteUrl',
+          uid,
+          error,
+        )
+      }
+    }),
+  )
+
+  // console.log('== publish 3 == destinationHosts', destinationHosts)
+
+  let status: PushResourceStatus = {
+    hosts: Array.from(destinationHosts).map((host) => ({
+      host,
+      status: 'pending',
+      message: undefined,
+    })),
+  }
+
+  onStatusChange?.(status)
+
+  function updateHostStatus(
+    host: string,
+    newStatus: 'success' | 'error' | 'pending',
+    message: string,
+    peerId?: string,
+  ) {
+    const hostStatus = status.hosts.find((h) => h.host === host)
+    if (hostStatus) {
       status = {
         ...status,
         hosts: status.hosts.map((h) => {
-          if (h.peerId === peerId) {
+          if (h.host === host) {
             return {
               ...h,
               status: newStatus,
               message: message,
+              peerId: peerId,
             }
           }
           return h
         }),
       }
-      onStatusChange?.(status)
     }
-
-    const addrsForPeer = new Map<string, string[]>()
-    // step 3. gather all the peerIds for these sites.
-    await Promise.all(
-      Array.from(destinationHosts).map(async (host) => {
-        try {
-          updateHostStatus(host, 'pending', 'Connecting...')
-          const config = await client.web.configOfHost.query({
-            host,
-            timeout: 10_000,
-          })
-          if (config.peerId) {
-            addrsForPeer.set(config.peerId, config.addrs)
-            // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
-            updateHostStatus(host, 'pending', 'Pushing...', config.peerId)
-          }
-        } catch (error) {
-          console.error('Error getting peerId for host', host, error)
-          updateHostStatus(host, 'error', (error as Error).message)
-        }
-      }),
-    )
-
-    // step 4. push this resource to all the sites.
-    // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
-    // console.log('== publish 4 == pushing to peers', peerIds)
-    const resourceIdToPush =
-      resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
-    if (!resourceIdToPush) {
-      console.error('Could not determine resource ID to push', resource)
-      throw new Error('Could not determine resource ID to push')
-    }
-
-    const peerIdsToPush = new Set<string>()
-    status.hosts.forEach(({peerId}) => {
-      if (peerId) peerIdsToPush.add(peerId)
-    })
-
-    if (!peerIdsToPush.size) {
-      console.error('No peers found to push to', {
-        resource,
-        destinationHosts,
-      })
-      throw new Error('Failed to connect to any sites.')
-    }
-
-    const pushResourceUrl = hmIdToURL({
-      ...resourceIdToPush,
-      blockRef: null,
-      blockRange: null,
-    })
-    // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
-
-    await Promise.all(
-      Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
-        let lastProgress: AnnounceBlobsProgress | undefined = undefined
-        const addrs = addrsForPeer.get(peerId)
-        if (!addrs) {
-          updatePeerStatus(peerId, 'error', 'No addresses found for peer')
-        }
-        try {
-          const pushProgress = grpcClient.resources.pushResourcesToPeer({
-            addrs,
-            recursive: true,
-            resources: [pushResourceUrl],
-          })
-          for await (const progress of pushProgress) {
-            console.log(
-              `== publish ${syncDebugId} == progress`,
-              JSON.stringify(toPlainMessage(progress)),
-            )
-            updatePeerStatus(
-              peerId,
-              'pending',
-              `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`,
-            )
-            lastProgress = progress
-          }
-          console.log(`== publish ${syncDebugId} == DONE =====`)
-          updatePeerStatus(peerId, 'success', 'Done')
-        } catch (error) {
-          console.error(
-            `== publish ${syncDebugId} == Error pushing to peer`,
-            peerId,
-            error,
-          )
-          updatePeerStatus(peerId, 'error', (error as Error).message)
-        }
-        console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
-        // if (lastProgress?.peersFailed ?? 0 > 0) {
-        //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
-        // }
-      }),
-    )
-
-    return true
+    onStatusChange?.(status)
   }
+  function updatePeerStatus(
+    peerId: string,
+    newStatus: 'success' | 'error' | 'pending',
+    message: string,
+  ) {
+    status = {
+      ...status,
+      hosts: status.hosts.map((h) => {
+        if (h.peerId === peerId) {
+          return {
+            ...h,
+            status: newStatus,
+            message: message,
+          }
+        }
+        return h
+      }),
+    }
+    onStatusChange?.(status)
+  }
+
+  const addrsForPeer = new Map<string, string[]>()
+  // step 3. gather all the peerIds for these sites.
+  await Promise.all(
+    Array.from(destinationHosts).map(async (host) => {
+      try {
+        updateHostStatus(host, 'pending', 'Connecting...')
+        const config = await client.web.configOfHost.query({
+          host,
+          timeout: 10_000,
+        })
+        if (config.peerId) {
+          addrsForPeer.set(config.peerId, config.addrs)
+          // technically this is not connected via libp2p yet, but the user doesn't need to know that. If the peerId is found, we can assume that the connection is successful for UX purposes.
+          updateHostStatus(host, 'pending', 'Pushing...', config.peerId)
+        }
+      } catch (error) {
+        console.error('Error getting peerId for host', host, error)
+        updateHostStatus(host, 'error', (error as Error).message)
+      }
+    }),
+  )
+
+  // step 4. push this resource to all the sites.
+  // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
+  // console.log('== publish 4 == pushing to peers', peerIds)
+  const resourceIdToPush =
+    resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+  if (!resourceIdToPush) {
+    console.error('Could not determine resource ID to push', resource)
+    throw new Error('Could not determine resource ID to push')
+  }
+
+  const peerIdsToPush = new Set<string>()
+  status.hosts.forEach(({peerId}) => {
+    if (peerId) peerIdsToPush.add(peerId)
+  })
+
+  if (!peerIdsToPush.size) {
+    console.error('No peers found to push to', {
+      resource,
+      destinationHosts,
+    })
+    throw new Error('Failed to connect to any sites.')
+  }
+
+  const pushResourceUrl = hmIdToURL({
+    ...resourceIdToPush,
+    blockRef: null,
+    blockRange: null,
+  })
+  // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
+
+  await Promise.all(
+    Array.from(peerIdsToPush).map(async (peerId, syncDebugId) => {
+      let lastProgress: AnnounceBlobsProgress | undefined = undefined
+      const addrs = addrsForPeer.get(peerId)
+      if (!addrs) {
+        updatePeerStatus(peerId, 'error', 'No addresses found for peer')
+      }
+      try {
+        const pushProgress = grpcClient.resources.pushResourcesToPeer({
+          addrs,
+          recursive: true,
+          resources: [pushResourceUrl],
+        })
+        for await (const progress of pushProgress) {
+          console.log(
+            `== publish ${syncDebugId} == progress`,
+            JSON.stringify(toPlainMessage(progress)),
+          )
+          updatePeerStatus(
+            peerId,
+            'pending',
+            `Pushing ${progress.blobsProcessed}/${progress.blobsWanted}`,
+          )
+          lastProgress = progress
+        }
+        console.log(`== publish ${syncDebugId} == DONE =====`)
+        updatePeerStatus(peerId, 'success', 'Done')
+      } catch (error) {
+        console.error(
+          `== publish ${syncDebugId} == Error pushing to peer`,
+          peerId,
+          error,
+        )
+        updatePeerStatus(peerId, 'error', (error as Error).message)
+      }
+      console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
+      // if (lastProgress?.peersFailed ?? 0 > 0) {
+      //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
+      // }
+    }),
+  )
+
+  return true
+}
+
+export function usePushResource() {
+  const universalClient = useUniversalClient()
+  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
+  return (
+    id: UnpackedHypermediaId,
+    onlyPushToHost?: string,
+    onStatusChange?: (status: PushResourceStatus) => void,
+  ) => pushResource(universalClient, gwUrl, id, onlyPushToHost, onStatusChange)
 }
 
 // ============================================================================

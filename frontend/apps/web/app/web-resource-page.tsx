@@ -8,7 +8,7 @@ import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {useCallback} from 'react'
-import {WebAccountFooter, useWebMenuItems} from './web-utils'
+import {WebAccountFooter} from './web-utils'
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
@@ -25,8 +25,6 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
-
-  const menuItems = useWebMenuItems(docId)
 
   // Show banner when viewing content from a different site than the host
   const siteUid = docId.uid
@@ -105,11 +103,7 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <ResourcePage
-          docId={docId}
-          CommentEditor={CommentEditor}
-          optionsMenuItems={menuItems}
-        />
+        <ResourcePage docId={docId} CommentEditor={CommentEditor} />
       </CommentsProvider>
     </WebAccountFooter>
   )
