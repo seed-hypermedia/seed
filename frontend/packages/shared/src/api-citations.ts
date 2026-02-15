@@ -10,7 +10,7 @@ export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {
     input,
   ): Promise<HMListCitationsRequest['output']> {
     const result = await grpcClient.entities.listEntityMentions({
-      id: packHmId(input.targetId),
+      id: packHmId({...input.targetId, version: null, latest: null}),
       pageSize: BIG_INT,
     })
     return {
