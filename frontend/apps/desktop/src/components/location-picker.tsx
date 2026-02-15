@@ -451,9 +451,7 @@ function useDefaultAccountId(
   })
   const {data: myAccountIds} = useMyAccountIds()
   const parentLocation = getParent(defaultLocation)
-  const allDocumentCapabilities = useCapabilities(
-    parentLocation || undefined,
-  )
+  const allDocumentCapabilities = useCapabilities(parentLocation || undefined)
   if (!myAccountIds?.length) return null
   const myAccounts = new Set(myAccountIds)
 

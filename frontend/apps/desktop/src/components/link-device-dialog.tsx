@@ -115,8 +115,8 @@ export function LinkDeviceDialog({
           <ErrorBoundary
             fallbackRender={(err) => (
               <SizableText color="destructive">
-                Failed to generate QR code: {err.error.toString()}. It's
-                probably a bug. Try using the token above.
+                Failed to generate QR code: {String(err.error)}. It's probably a
+                bug. Try using the token above.
               </SizableText>
             )}
           >

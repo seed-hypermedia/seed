@@ -338,8 +338,8 @@ describe('input-querystring', () => {
       const deserialized = deserializeQueryString(queryString, HMQuerySchema)
 
       expect(deserialized.includes).toHaveLength(1)
-      expect(deserialized.includes[0].space).toBe(input.includes[0].space)
-      expect(deserialized.includes[0].mode).toBe('Children')
+      expect(deserialized.includes![0]!.space).toBe(input.includes[0]!.space)
+      expect(deserialized.includes![0]!.mode).toBe('Children')
     })
 
     it('GetCommentReplyCount: object with string id round-trips correctly', () => {

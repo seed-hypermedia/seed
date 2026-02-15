@@ -1,20 +1,24 @@
 import {Button} from '@shm/ui/button'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
-import {FallbackProps, useErrorBoundary} from 'react-error-boundary'
+import {
+  FallbackProps,
+  getErrorMessage,
+  useErrorBoundary,
+} from 'react-error-boundary'
 import {ErrorBar} from './error-bar'
 
 export function AppErrorPage({error}: FallbackProps) {
   return (
     <div className={windowContainerStyles}>
       <ErrorBar />
-      <AppErrorContent message={error.message} />
+      <AppErrorContent message={getErrorMessage(error) ?? 'Unknown error'} />
     </div>
   )
 }
 
 export function RootAppError({error}: FallbackProps) {
-  return <AppErrorContent message={error.message} />
+  return <AppErrorContent message={getErrorMessage(error) ?? 'Unknown error'} />
 }
 
 export function AppErrorContent({message}: {message: string}) {
