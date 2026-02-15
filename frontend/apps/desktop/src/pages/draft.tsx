@@ -8,10 +8,7 @@ import {HyperMediaEditorView} from '@/components/editor'
 import {OptionsPanel} from '@/components/options-panel'
 import PublishDraftButton from '@/components/publish-draft-button'
 import {subscribeDraftFocus} from '@/draft-focusing'
-import {
-  useAllDocumentCapabilities,
-  useSelectedAccountCapability,
-} from '@/models/access-control'
+import {useSelectedAccountCapability} from '@/models/access-control'
 import {useDraft} from '@/models/accounts'
 import {useDraftEditor, useSiteNavigationItems} from '@/models/documents'
 import {draftMachine, DraftMachineState} from '@/models/draft-machine'
@@ -43,6 +40,7 @@ import {
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
 import {
+  useCapabilities,
   useDirectory,
   useResource,
   useResources,
@@ -531,7 +529,7 @@ function DocumentEditor({
   // Only fetch interaction summary for existing documents being edited, not new drafts.
   const interactionSummary = useInteractionSummary(editId)
 
-  const {data: collaborators} = useAllDocumentCapabilities(id)
+  const {data: collaborators} = useCapabilities(id)
   const directory = useChildrenActivity(id)
 
   const documentTools = editId ? (

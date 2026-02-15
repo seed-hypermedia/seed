@@ -1,7 +1,6 @@
 import {
   HMWritableDocument,
   roleCanWrite,
-  useAllDocumentCapabilities,
   useSelectedAccountWritableDocuments,
 } from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
@@ -20,6 +19,7 @@ import {
   useSearch,
 } from '@shm/shared'
 import {
+  useCapabilities,
   useDirectory,
   useResource,
   useResources,
@@ -451,7 +451,7 @@ function useDefaultAccountId(
   })
   const {data: myAccountIds} = useMyAccountIds()
   const parentLocation = getParent(defaultLocation)
-  const allDocumentCapabilities = useAllDocumentCapabilities(
+  const allDocumentCapabilities = useCapabilities(
     parentLocation || undefined,
   )
   if (!myAccountIds?.length) return null

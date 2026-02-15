@@ -1,4 +1,3 @@
-import {useAllDocumentCapabilities} from '@/models/access-control'
 import {useDocumentEmbeds, useSiteNavigationItems} from '@/models/documents'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
 import {useChildrenActivity} from '@/models/library'
@@ -11,7 +10,11 @@ import {
   HMResourceFetchResult,
   UnpackedHypermediaId,
 } from '@shm/shared'
-import {useAccount, useResource} from '@shm/shared/models/entity'
+import {
+  useAccount,
+  useCapabilities,
+  useResource,
+} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {panelContainerStyles} from '@shm/ui/container'
@@ -44,7 +47,7 @@ function _ActivityContent({
 
   // Data for DocumentTools
   const directory = useChildrenActivity(id)
-  const {data: collaborators} = useAllDocumentCapabilities(id)
+  const {data: collaborators} = useCapabilities(id)
   const interactionSummary = useInteractionSummary(id)
 
   const account = useAccount(id.uid, {enabled: !id.path?.length})

@@ -11,25 +11,21 @@ interface CapabilitiesTabProps {
 const CapabilitiesTab: React.FC<CapabilitiesTabProps> = ({capabilities}) => {
   const navigate = useNavigate();
   const preparedCapabilities = useMemo(() => {
-    // Ensure capabilities is an array before mapping
     if (!Array.isArray(capabilities)) {
       console.warn("Capabilities is not an array:", capabilities);
       return [];
     }
     return capabilities.map((capability) => {
-      const {id, issuer, delegate, account, ...rest} = capability;
+      const {id, accountUid, grantId, ...rest} = capability;
       const out = {...rest};
       if (id) {
-        out.id = `ipfs://${id}`;
+        out.id = id === '_owner' ? id : `ipfs://${id}`;
       }
-      if (issuer) {
-        out.issuer = `hm://${issuer}`;
+      if (accountUid) {
+        out.accountUid = `hm://${accountUid}`;
       }
-      if (delegate) {
-        out.delegate = `hm://${delegate}`;
-      }
-      if (account) {
-        out.account = `hm://${account}`;
+      if (grantId) {
+        out.grantId = grantId.id;
       }
       return out;
     });

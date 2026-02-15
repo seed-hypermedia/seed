@@ -1,6 +1,5 @@
 import {
   useAddCapabilities,
-  useAllDocumentCapabilities,
   useSelectedAccountCapability,
 } from '@/models/access-control'
 import {useSelectedAccountId} from '@/selected-account'
@@ -8,7 +7,7 @@ import * as Ariakit from '@ariakit/react'
 import {CompositeInput} from '@ariakit/react-core/composite/composite-input'
 import {Role} from '@shm/shared/client/grpc-types'
 import {HMMetadata, UnpackedHypermediaId} from '@shm/shared/hm-types'
-import {useResource} from '@shm/shared/models/entity'
+import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {hmId, hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
@@ -34,7 +33,7 @@ export function AddCollaboratorForm({id}: {id: UnpackedHypermediaId}) {
   const [selectedCollaborators, setSelectedCollaborators] = useState<
     SearchResult[]
   >([])
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
 
   const [search, setSearch] = useState('')
   const selectedAccountId = useSelectedAccountId()

@@ -2,7 +2,7 @@ import {useIPC} from '@/app-context'
 import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useAllDocumentCapabilities} from '@/models/access-control'
+import {useCapabilities} from '@shm/shared/models/entity'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -656,7 +656,7 @@ function LinkedDevices({
   accountName: string
 }) {
   const linkDevice = useAppDialog(LinkDeviceDialog)
-  const {data: capabilities} = useAllDocumentCapabilities(hmId(accountUid))
+  const {data: capabilities} = useCapabilities(hmId(accountUid))
   const devices = capabilities?.filter((c) => c.role === 'agent')
   return (
     <div className="flex flex-col gap-3">

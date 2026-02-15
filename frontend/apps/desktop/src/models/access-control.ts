@@ -8,7 +8,7 @@ import {
   HMRole,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
-import {useResources} from '@shm/shared/models/entity'
+import {useCapabilities, useResources} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId, isPathParentOfOrEqual} from '@shm/shared/utils/entity-id-url'
@@ -17,7 +17,7 @@ import {
   hmIdPathToEntityQueryPath,
 } from '@shm/shared/utils/path-api'
 import {toast} from '@shm/ui/toast'
-import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
+import {useMutation, useQueries} from '@tanstack/react-query'
 import {useMyAccountIds} from './daemon'
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
@@ -46,8 +46,8 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       )
     },
     onSuccess: (data, {collaboratorAccountIds: count}) => {
-      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`),
-        invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+      toast.success(`Capabilit${count?.length > 1 ? 'ies' : 'y'} added`)
+      invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
     },
   })
 }
@@ -187,7 +187,7 @@ export function useSelectedAccountCapability(
   minimumRole: HMRole = 'writer',
 ): HMCapability | null {
   const selectedAccount = useSelectedAccount()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   if (!id) return null
   if (selectedAccount?.id.uid === id.uid) {
     // owner is the highest role so we don't need to check for minimumRole
@@ -219,7 +219,7 @@ export function useMyCapability(
 ): HMCapability | null {
   if (!id) return null
   const myAccounts = useMyAccountIds()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   if (myAccounts.data?.indexOf(id.uid) !== -1) {
     // owner is the highest role so we don't need to check for minimumRole
     return {
@@ -251,7 +251,7 @@ export function useSelectedAccountCapabilities(
   minimumRole: HMRole = 'writer',
 ): HMCapability[] {
   if (!id) return []
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
   const selectedAccount = useSelectedAccount()
 
   const ownerCap: HMCapability[] =
@@ -284,7 +284,7 @@ export function useMyAccountsWithWriteAccess(
   id: UnpackedHypermediaId | undefined | null,
 ) {
   const myAccounts = useMyAccountIds()
-  const capabilities = useAllDocumentCapabilities(id)
+  const capabilities = useCapabilities(id)
 
   const myAccountIdsWithCapability = myAccounts.data?.filter((accountUid) => {
     return !!capabilities.data?.find((cap) => cap.accountUid === accountUid)
@@ -292,50 +292,4 @@ export function useMyAccountsWithWriteAccess(
   const accountsWithCapabilities =
     myAccountIdsWithCapability?.map((uid) => hmId(uid)) || []
   return useResources(accountsWithCapabilities)
-}
-
-export function useAllDocumentCapabilities(
-  id: UnpackedHypermediaId | undefined | null,
-) {
-  return useQuery({
-    queryKey: [queryKeys.CAPABILITIES, id?.uid, ...(id?.path || [])],
-    queryFn: async () => {
-      if (!id) return []
-      const result = await grpcClient.accessControl.listCapabilities({
-        account: id.uid,
-        path: hmIdPathToEntityQueryPath(id.path),
-        pageSize: BIG_INT,
-      })
-      // Not sure why we do this deduplication here. It was here before ¯\_(ツ)_/¯.
-      const visitedCaps = new Set<string>()
-      const grantedCaps: HMCapability[] = []
-      for (const cap of result.capabilities) {
-        const key = `${cap.delegate}-${cap.role}`
-        if (visitedCaps.has(key)) continue
-        visitedCaps.add(key)
-        grantedCaps.push({
-          id: cap.id,
-          accountUid: cap.delegate,
-          grantId: hmId(cap.account, {
-            path: entityQueryPathToHmIdPath(cap.path),
-          }),
-          role: roleToHMRole(cap.role),
-          label: cap.label,
-          createTime: cap.createTime!,
-        })
-      }
-
-      return [
-        ...grantedCaps,
-        {
-          id: '_owner',
-          accountUid: id.uid,
-          grantId: hmId(id.uid),
-          role: 'owner',
-          label: 'Owner',
-          createTime: EMPTY_TIMESTAMP,
-        },
-      ] satisfies HMCapability[]
-    },
-  })
 }

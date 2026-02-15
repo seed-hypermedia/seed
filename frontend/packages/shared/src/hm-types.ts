@@ -1734,6 +1734,8 @@ export const HMRawCapabilitySchema = z.object({
   path: z.string().optional(),
   role: z.string().optional(),
   noRecursive: z.boolean().optional(),
+  label: z.string().optional(),
+  createTime: z.string().optional(),
 })
 export type HMRawCapability = z.infer<typeof HMRawCapabilitySchema>
 

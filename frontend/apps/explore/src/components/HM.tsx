@@ -130,7 +130,7 @@ export default function HM() {
       case 'citations':
         return <CitationsTab citations={citations?.citations} />
       case 'capabilities':
-        return <CapabilitiesTab capabilities={capabilities?.capabilities} />
+        return <CapabilitiesTab capabilities={capabilities} />
       case 'children':
         return <ChildrenDocsTab list={childrenDocs} id={id} />
       case 'authored-comments':
@@ -166,7 +166,7 @@ export default function HM() {
         changeCount={changes?.changes?.length}
         commentCount={comments?.comments?.length}
         citationCount={citations?.citations?.length}
-        capabilityCount={capabilities?.capabilities?.length}
+        capabilityCount={capabilities?.length}
         childrenCount={childrenDocs?.length}
         authoredCommentCount={authoredComments?.comments?.length}
       />

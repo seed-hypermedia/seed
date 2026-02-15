@@ -1,7 +1,6 @@
-import {HMRawCapability, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
+import {HMCapability, UnpackedHypermediaId, useRouteLink} from '@shm/shared'
 import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Users} from 'lucide-react'
 import {useMemo} from 'react'
 import {HMIcon} from './hm-icon'
@@ -23,33 +22,10 @@ export function CollaboratorsEmpty() {
 }
 
 function getRoleDisplayName(role: string | undefined): string {
-  if (role === 'WRITER' || role === 'writer') return 'Writer'
-  if (role === 'AGENT' || role === 'agent') return 'Device'
-  if (role === 'OWNER' || role === 'owner') return 'Owner'
+  if (role === 'writer') return 'Writer'
+  if (role === 'agent') return 'Device'
+  if (role === 'owner') return 'Owner'
   return role || 'Unknown'
-}
-
-/** Transformed capability with grantId for parent capability detection */
-export type CollaboratorCapability = {
-  id: string
-  accountUid: string
-  role: string
-  grantId: UnpackedHypermediaId
-}
-
-/** Transform raw capability to collaborator capability */
-function transformCapability(
-  raw: HMRawCapability,
-): CollaboratorCapability | null {
-  if (!raw.delegate || !raw.account) return null
-  return {
-    id: raw.id || '',
-    accountUid: raw.delegate,
-    role: raw.role || 'unknown',
-    grantId: hmId(raw.account, {
-      path: entityQueryPathToHmIdPath(raw.path),
-    }),
-  }
 }
 
 /** Shared hook to fetch and prepare collaborators data */
@@ -57,20 +33,11 @@ export function useCollaboratorsData(docId: UnpackedHypermediaId) {
   const capabilities = useCapabilities(docId)
 
   const processedData = useMemo(() => {
-    const rawCaps = capabilities.data?.capabilities || []
+    const allCaps = capabilities.data || []
 
-    // Transform and filter capabilities
-    const allCaps = rawCaps
-      .map(transformCapability)
-      .filter((cap): cap is CollaboratorCapability => cap !== null)
-
-    // Filter out agents (devices) and owners - matching desktop behavior
+    // Filter out agents (devices) and owners
     const filteredCaps = allCaps.filter(
-      (cap) =>
-        cap.role !== 'AGENT' &&
-        cap.role !== 'agent' &&
-        cap.role !== 'OWNER' &&
-        cap.role !== 'owner',
+      (cap) => cap.role !== 'agent' && cap.role !== 'owner',
     )
 
     // Separate parent capabilities from direct grants
@@ -83,7 +50,7 @@ export function useCollaboratorsData(docId: UnpackedHypermediaId) {
 
     // Deduplicate by accountUid
     const seen = new Set<string>()
-    const dedupeList = (list: CollaboratorCapability[]) =>
+    const dedupeList = (list: HMCapability[]) =>
       list.filter((cap) => {
         if (seen.has(cap.accountUid)) return false
         seen.add(cap.accountUid)
@@ -146,8 +113,8 @@ export function CollaboratorsListView({
   publisherUid,
   docId,
 }: {
-  parentCapabilities: CollaboratorCapability[]
-  grantedCapabilities: CollaboratorCapability[]
+  parentCapabilities: HMCapability[]
+  grantedCapabilities: HMCapability[]
   publisherUid: string
   docId: UnpackedHypermediaId
 }) {
@@ -201,7 +168,7 @@ function CollaboratorListItem({
   capability,
   docId,
 }: {
-  capability: CollaboratorCapability
+  capability: HMCapability
   docId: UnpackedHypermediaId
 }) {
   const collaboratorId = hmId(capability.accountUid)

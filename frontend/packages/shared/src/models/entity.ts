@@ -43,7 +43,6 @@ import {
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {entityQueryPathToHmIdPath, hmId, unpackHmId} from '../utils'
-import {queryKeys} from './query-keys'
 import {
   queryAccount,
   queryCapabilities,
@@ -53,6 +52,7 @@ import {
   queryDirectory,
   queryResource,
 } from './queries'
+import {queryKeys} from './query-keys'
 
 export function documentMetadataParseAdjustments(metadata: any) {
   if (metadata?.theme === '[object Object]') {
