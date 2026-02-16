@@ -1,6 +1,10 @@
 # Drag Document Tool Tabs to Panel — Implementation Guide
 
-This document describes how to implement VSCode-style drag-to-split for the document tool tabs (Content, People, Comments). Users drag any tab to the left/center to open it as the main view, or to the right to open it in the side panel. Works on desktop (Electron) + web (Remix), on both published documents and draft pages.
+This document describes how to implement VSCode-style drag-to-split for the
+document tool tabs (Content, People, Comments). Users drag any tab to the
+left/center to open it as the main view, or to the right to open it in the side
+panel. Works on desktop (Electron) + web (Remix), on both published documents
+and draft pages.
 
 Reference branch: `draggable-document-tools-tabs`
 
@@ -10,10 +14,14 @@ Reference branch: `draggable-document-tools-tabs`
 
 ### Approach: Native HTML5 Drag API + React Context
 
-- **Zero new dependencies** — HTML5 drag API works identically in Electron + browsers
-- **React Context** connects drag sources (tabs in `document-tools.tsx`) to drop targets (overlay zones)
-- **3 drag sources** (Content, People, Comments tabs) → **2 drop zones** (main view, panel)
-- State flows: `onDragStart` → context sets `draggedTab` → overlay renders → `onDrop` → navigate → `onDragEnd` → context clears
+- **Zero new dependencies** — HTML5 drag API works identically in Electron +
+  browsers
+- **React Context** connects drag sources (tabs in `document-tools.tsx`) to drop
+  targets (overlay zones)
+- **3 drag sources** (Content, People, Comments tabs) → **2 drop zones** (main
+  view, panel)
+- State flows: `onDragStart` → context sets `draggedTab` → overlay renders →
+  `onDrop` → navigate → `onDragEnd` → context clears
 
 ### Data flow diagram
 
@@ -42,11 +50,13 @@ Route system → PanelLayout renders panel content
 
 ## Step 1: Add `content` panel route type
 
-The "Content" tab has no existing panel equivalent. We need to add it to the route system.
+The "Content" tab has no existing panel equivalent. We need to add it to the
+route system.
 
 ### `frontend/packages/shared/src/routes.ts`
 
-Add `contentPanelSchema` alongside the existing panel schemas (after `directoryPanelSchema`):
+Add `contentPanelSchema` alongside the existing panel schemas (after
+`directoryPanelSchema`):
 
 ```ts
 const contentPanelSchema = z.object({
@@ -89,7 +99,9 @@ export type PanelQueryKey =
   | 'content' // ADD THIS
 ```
 
-The existing fallthrough in `getRoutePanelParam` (`return panel.key as PanelQueryKey`) already handles `'content'` — no other changes needed in this file.
+The existing fallthrough in `getRoutePanelParam`
+(`return panel.key as PanelQueryKey`) already handles `'content'` — no other
+changes needed in this file.
 
 ---
 
@@ -97,7 +109,8 @@ The existing fallthrough in `getRoutePanelParam` (`return panel.key as PanelQuer
 
 ### New file: `frontend/packages/ui/src/tab-drag-context.tsx`
 
-Lightweight React Context connecting drag sources to drop targets. Tracks which tab is currently being dragged.
+Lightweight React Context connecting drag sources to drop targets. Tracks which
+tab is currently being dragged.
 
 ```tsx
 import {NavRoute} from '@shm/shared'
@@ -150,7 +163,8 @@ export function useTabDrag() {
 
 Absolute overlay with left/right drop zones. Shown during drag.
 
-**CRITICAL**: Uses a 100ms delayed visibility to prevent drag cancellation. See [Gotcha #1](#gotcha-1-drag-cancellation-from-overlay-rendering) below.
+**CRITICAL**: Uses a 100ms delayed visibility to prevent drag cancellation. See
+[Gotcha #1](#gotcha-1-drag-cancellation-from-overlay-rendering) below.
 
 ```tsx
 import {useEffect, useRef, useState} from 'react'
@@ -251,6 +265,7 @@ export function DropZoneOverlay({
 ```
 
 Key design decisions:
+
 - **Outer div**: `pointer-events-none` so the overlay doesn't block interaction
 - **Inner zones**: `pointer-events-auto` so they receive drag events
 - **Left zone**: `flex-1` (~70%), border transparent until hovered
@@ -323,7 +338,7 @@ const buttons: {
   active: boolean
   route: NavRoute
   bg?: string
-  dragData?: DraggedTab  // ADD THIS TYPE
+  dragData?: DraggedTab // ADD THIS TYPE
 }[] = [
   {
     label: 'Content',
@@ -381,13 +396,15 @@ In the visible buttons map (NOT the hidden measurement container):
   count={button.count}
   bg={button.bg}
   showLabel={showLabels}
-  dragData={button.dragData}  // ADD THIS
+  dragData={button.dragData} // ADD THIS
 />
 ```
 
 #### 5d. Modify `ToolLink` to support dragging
 
-**CRITICAL**: Use `<Button>` directly (renders as `<button>` element), NOT `<Button asChild><a>`. See [Gotcha #2](#gotcha-2-a-elements-interfere-with-draggable) below.
+**CRITICAL**: Use `<Button>` directly (renders as `<button>` element), NOT
+`<Button asChild><a>`. See
+[Gotcha #2](#gotcha-2-a-elements-interfere-with-draggable) below.
 
 ```tsx
 function ToolLink({
@@ -399,7 +416,7 @@ function ToolLink({
   active = false,
   showLabel = true,
   bg,
-  dragData,           // ADD THIS PROP
+  dragData, // ADD THIS PROP
 }: ButtonProps & {
   route: NavRoute
   label?: string
@@ -409,12 +426,13 @@ function ToolLink({
   active?: boolean
   showLabel?: boolean
   bg?: string
-  dragData?: DraggedTab  // ADD THIS TYPE
+  dragData?: DraggedTab // ADD THIS TYPE
 }) {
   const linkProps = useRouteLink(route)
-  const {setDraggedTab} = useTabDrag()   // ADD THIS
+  const {setDraggedTab} = useTabDrag() // ADD THIS
 
-  const handleDragStart = useCallback(   // ADD THIS
+  const handleDragStart = useCallback(
+    // ADD THIS
     (e: React.DragEvent) => {
       if (!dragData) return
       e.dataTransfer.setData('text/plain', dragData.label)
@@ -424,17 +442,18 @@ function ToolLink({
     [dragData, setDraggedTab],
   )
 
-  const handleDragEnd = useCallback(() => {  // ADD THIS
+  const handleDragEnd = useCallback(() => {
+    // ADD THIS
     setDraggedTab(null)
   }, [setDraggedTab])
 
   let btn = (
     <Button
       variant={active ? 'accent' : 'ghost'}
-      onClick={linkProps.onClick}       // Use onClick from useRouteLink
-      draggable={!!dragData}            // ADD THIS
-      onDragStart={handleDragStart}     // ADD THIS
-      onDragEnd={handleDragEnd}         // ADD THIS
+      onClick={linkProps.onClick} // Use onClick from useRouteLink
+      draggable={!!dragData} // ADD THIS
+      onDragStart={handleDragStart} // ADD THIS
+      onDragEnd={handleDragEnd} // ADD THIS
     >
       <Icon className="size-4" />
       {label && showLabel ? (
@@ -468,8 +487,8 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
       return 'Collaborators'
     case 'options':
       return 'Draft Options'
-    case 'content':       // ADD THIS
-      return 'Content'    // ADD THIS
+    case 'content': // ADD THIS
+      return 'Content' // ADD THIS
     default:
       return ''
   }
@@ -514,7 +533,10 @@ const handleDropPanel = useCallback(
 )
 ```
 
-**Note**: `handleDropPanel` navigates to an explicit `{key: 'document', id, panel}` route instead of spreading the current route. This avoids TypeScript errors from the discriminated union type — see [Gotcha #3](#gotcha-3-typescript-error-with-route-spreading).
+**Note**: `handleDropPanel` navigates to an explicit
+`{key: 'document', id, panel}` route instead of spreading the current route.
+This avoids TypeScript errors from the discriminated union type — see
+[Gotcha #3](#gotcha-3-typescript-error-with-route-spreading).
 
 #### 7c. Wrap with `TabDragProvider` and add `DropZoneOverlay`
 
@@ -542,7 +564,8 @@ return (
 )
 ```
 
-The container div MUST have `relative` class for the absolute overlay to position correctly.
+The container div MUST have `relative` class for the absolute overlay to
+position correctly.
 
 #### 7d. Add `'content'` case to `PanelContentRenderer`
 
@@ -594,7 +617,8 @@ const handleDropPanel = useCallback(
 )
 ```
 
-Note: draft page uses `replace` instead of `navigate`, and `editId || locationId` for the panel doc ID.
+Note: draft page uses `replace` instead of `navigate`, and
+`editId || locationId` for the panel doc ID.
 
 #### 8c. Wrap with `TabDragProvider` and add `DropZoneOverlay`
 
@@ -631,11 +655,11 @@ case 'content':
 
 ## Route Construction on Drop
 
-| Tab | Drop on Main | Drop on Panel |
-|-----|-------------|---------------|
-| Content | Navigate to doc/draft route | `{key: 'document', id, panel: {key: 'content', id}}` |
-| People | `{key: 'collaborators', id, panel: currentPanel}` | `{key: 'document', id, panel: {key: 'collaborators', id}}` |
-| Comments | `{key: 'discussions', id, panel: currentPanel}` | `{key: 'document', id, panel: {key: 'discussions', id}}` |
+| Tab      | Drop on Main                                      | Drop on Panel                                              |
+| -------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| Content  | Navigate to doc/draft route                       | `{key: 'document', id, panel: {key: 'content', id}}`       |
+| People   | `{key: 'collaborators', id, panel: currentPanel}` | `{key: 'document', id, panel: {key: 'collaborators', id}}` |
+| Comments | `{key: 'discussions', id, panel: currentPanel}`   | `{key: 'document', id, panel: {key: 'discussions', id}}`   |
 
 ---
 
@@ -700,11 +724,18 @@ describe('getRoutePanelParam', () => {
 
 ### Gotcha 1: Drag cancellation from overlay rendering
 
-**Problem**: When `onDragStart` fires, it sets `draggedTab` in context, which causes `DropZoneOverlay` to render immediately. The overlay appears on top of the drag source **in the same frame**, causing the browser to lose the drag source reference and fire `onDragEnd` immediately (drag starts and cancels instantly).
+**Problem**: When `onDragStart` fires, it sets `draggedTab` in context, which
+causes `DropZoneOverlay` to render immediately. The overlay appears on top of
+the drag source **in the same frame**, causing the browser to lose the drag
+source reference and fire `onDragEnd` immediately (drag starts and cancels
+instantly).
 
-**Symptoms**: `onDragStart` fires, then `onDragEnd` fires within milliseconds. The drag ghost never appears.
+**Symptoms**: `onDragStart` fires, then `onDragEnd` fires within milliseconds.
+The drag ghost never appears.
 
-**Solution**: Add a `visible` state with 100ms delay via `useEffect`/`setTimeout`. The overlay doesn't render until 100ms after drag starts, giving the browser time to fully establish the drag operation.
+**Solution**: Add a `visible` state with 100ms delay via
+`useEffect`/`setTimeout`. The overlay doesn't render until 100ms after drag
+starts, giving the browser time to fully establish the drag operation.
 
 ```tsx
 useEffect(() => {
@@ -722,15 +753,26 @@ if (!visible || !draggedTab) return null
 
 ### Gotcha 2: `<a>` elements interfere with `draggable`
 
-**Problem**: The original `ToolLink` used `<Button asChild><a href={...}>` (Radix's Slot pattern). Native `<a>` elements are **inherently draggable** by browsers (to allow link dragging). This native drag behavior competes with the explicit `draggable` attribute, and Radix's `Slot`/`TooltipTrigger` event handlers may also intercept drag events.
+**Problem**: The original `ToolLink` used `<Button asChild><a href={...}>`
+(Radix's Slot pattern). Native `<a>` elements are **inherently draggable** by
+browsers (to allow link dragging). This native drag behavior competes with the
+explicit `draggable` attribute, and Radix's `Slot`/`TooltipTrigger` event
+handlers may also intercept drag events.
 
-**Symptoms**: Dragging shows a link-drag ghost (URL text) instead of the custom drag behavior, or drag events don't fire at all.
+**Symptoms**: Dragging shows a link-drag ghost (URL text) instead of the custom
+drag behavior, or drag events don't fire at all.
 
-**Solution**: Remove `asChild`/`<a>` pattern entirely. Use plain `<Button>` (renders as `<button>` element) with `onClick={linkProps.onClick}`. The `<button>` element is NOT natively draggable, so the explicit `draggable` attribute works correctly. Navigation still works via `linkProps.onClick` from `useRouteLink`.
+**Solution**: Remove `asChild`/`<a>` pattern entirely. Use plain `<Button>`
+(renders as `<button>` element) with `onClick={linkProps.onClick}`. The
+`<button>` element is NOT natively draggable, so the explicit `draggable`
+attribute works correctly. Navigation still works via `linkProps.onClick` from
+`useRouteLink`.
 
 ### Gotcha 3: TypeScript error with route spreading
 
-**Problem**: Spreading `{...route, panel: newPanel}` causes TypeScript errors because the `NavRoute` discriminated union can't be narrowed when you spread and override. The resulting type doesn't match any specific union member.
+**Problem**: Spreading `{...route, panel: newPanel}` causes TypeScript errors
+because the `NavRoute` discriminated union can't be narrowed when you spread and
+override. The resulting type doesn't match any specific union member.
 
 **Solution**: Navigate to an explicit route object instead of spreading:
 
@@ -750,11 +792,15 @@ navigate({
 
 ## Edge Cases
 
-- **Drag cancelled** (dropped outside zones): `onDragEnd` fires → `setDraggedTab(null)` → overlay disappears, no navigation
+- **Drag cancelled** (dropped outside zones): `onDragEnd` fires →
+  `setDraggedTab(null)` → overlay disappears, no navigation
 - **Tab already active**: navigating to same route is a no-op, harmless
-- **Mobile**: overlay doesn't render (panels not supported on mobile), tabs work as click-only
-- **Content in panel on draft page**: shows published version via `useResource`; if unpublished, shows "No content available"
-- **Click navigation preserved**: HTML5 drag only starts after pointer movement threshold, so regular clicks still navigate normally
+- **Mobile**: overlay doesn't render (panels not supported on mobile), tabs work
+  as click-only
+- **Content in panel on draft page**: shows published version via `useResource`;
+  if unpublished, shows "No content available"
+- **Click navigation preserved**: HTML5 drag only starts after pointer movement
+  threshold, so regular clicks still navigate normally
 
 ---
 
