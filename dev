@@ -31,38 +31,6 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
     )
 
 
-GPU_CONFIG_FILE = ".plz-cache/.gpu-config"
-
-
-def setup_gpu_build(cpu_only: bool):
-    """Configure GPU build. Clean cache if GPU setting changed. GPU is enabled by default."""
-    current_gpu = "false" if cpu_only else "true"
-
-    # Read previous value
-    previous_gpu = None
-    if os.path.exists(GPU_CONFIG_FILE):
-        with open(GPU_CONFIG_FILE, "r") as f:
-            previous_gpu = f.read().strip()
-
-    # If changed, clean the cache silently
-    if previous_gpu is not None and previous_gpu != current_gpu:
-        subprocess.run("plz clean", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    # Store current value
-    os.makedirs(os.path.dirname(GPU_CONFIG_FILE), exist_ok=True)
-    with open(GPU_CONFIG_FILE, "w") as f:
-        f.write(current_gpu)
-
-    # Set env var for BUILD.plz - GPU is default, CPU-only requires explicit flag
-    if cpu_only:
-        os.environ["SEED_CPU_ONLY"] = "true"
-        if "SEED_USE_GPU" in os.environ:
-            del os.environ["SEED_USE_GPU"]
-    else:
-        os.environ["SEED_USE_GPU"] = "true"
-        if "SEED_CPU_ONLY" in os.environ:
-            del os.environ["SEED_CPU_ONLY"]
-
 
 def main():
     if not os.getenv("DIRENV_DIR"):
@@ -152,11 +120,8 @@ def main():
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. GPU is enabled by default. Use --cpu for CPU-only build. Use --profiler to enable React Profiler.")
+    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. Use --profiler to enable React Profiler.")
     def build_desktop(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         # run("node scripts/cleanup-desktop.js")
         # run("./scripts/cleanup-frontend.sh")
         run("pnpm install")
@@ -179,11 +144,8 @@ def main():
             env_prefix = f"REACT_PROFILER=1 {env_prefix}"
         run(f"{env_prefix} pnpm desktop:make")
 
-    @cmd(cmds, "test-desktop", "Run frontend desktop tests. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:pnpm")
 
@@ -222,12 +184,9 @@ def main():
     @cmd(
         cmds,
         "run-backend",
-        "Build and run seed-daemon binary for the current platform. GPU is enabled by default. Use --cpu for CPU-only build.",
+        "Build and run seed-daemon binary for the current platform.",
     )
     def run_backend(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         env = os.environ.copy()
         env["LLAMA_LOG"] = "error"
         return run("plz run //backend:seed-daemon", args=args, env=env)
