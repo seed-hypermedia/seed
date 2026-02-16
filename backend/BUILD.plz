@@ -15,6 +15,7 @@ genrule(
         "backend/util/llama-go/libggml.a",
         "backend/util/llama-go/libggml-cpu.a",
         "backend/util/llama-go/libggml-base.a",
+        "backend/util/llama-go/libggml-blas.a",
         "backend/util/llama-go/libggml-vulkan.a",
         "backend/util/llama-go/libggml-metal.a",
         "backend/util/llama-go/ggml-metal.metal",
@@ -41,6 +42,7 @@ else
     export CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF"
     make libbinding.a || { echo "ERROR: llama.cpp CPU build failed"; exit 1; }
     # Stubs for GPU libraries (not used in CPU-only build)
+    touch libggml-blas.a
     touch libggml-vulkan.a
     touch libggml-metal.a
     touch ggml-metal.metal
@@ -50,7 +52,7 @@ echo "llama.cpp build completed successfully"
 OUTDIR="$TMP_DIR/backend/util/llama-go"
 mkdir -p "$OUTDIR"
 cp libbinding.a libcommon.a libllama.a libggml.a libggml-cpu.a libggml-base.a "$OUTDIR/"
-cp libggml-vulkan.a libggml-metal.a "$OUTDIR/"
+cp libggml-blas.a libggml-vulkan.a libggml-metal.a "$OUTDIR/"
 cp ggml-metal.metal "$OUTDIR/" 2>/dev/null || touch "$OUTDIR/ggml-metal.metal"
     """,
     building_description = "Building llama.cpp bindings...",

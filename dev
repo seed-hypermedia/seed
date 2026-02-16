@@ -77,11 +77,8 @@ def main():
             return
         return run("plz run parallel " + " ".join(targets_to_gen))
 
-    @cmd(cmds, "run-desktop", "Run frontend desktop app for development. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
     def run_desktop(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
@@ -90,11 +87,8 @@ def main():
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
     def run_desktop_mainnet(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
@@ -105,15 +99,12 @@ def main():
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window.")
     def run_desktop_profiler(args):
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
-            cpu_only = "--cpu" in args
-            args = [a for a in args if a != "--cpu"]
-            setup_gpu_build(cpu_only)
             run("plz build //backend:seed-daemon")
 
         os.environ["MEMORY_PROFILER"] = "1"
@@ -191,11 +182,8 @@ def main():
         env["LLAMA_LOG"] = "error"
         return run("plz run //backend:seed-daemon", args=args, env=env)
 
-    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
     def build_backend(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
         return run("plz build //backend:seed-daemon")
 
     @cmd(cmds, "run-gw-backend", "Build and run backend for seed web gateway.")
