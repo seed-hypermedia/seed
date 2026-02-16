@@ -6,11 +6,11 @@
       "content": [
         {
           "type": "blockContainer",
-          "attrs": { "id": "test-root" },
+          "attrs": { "id": "root" },
           "content": [
             {
               "type": "paragraph",
-              "content": [{ "type": "text", "text": "Root paragraph" }]
+              "content": [{ "type": "text", "text": "Root" }]
             },
             {
               "type": "listGroup",
@@ -18,11 +18,21 @@
               "content": [
                 {
                   "type": "listContainer",
-                  "attrs": { "id": "test-1" },
+                  "attrs": { "id": "item-1" },
                   "content": [
                     {
                       "type": "paragraph",
-                      "content": [{ "type": "text", "text": "Hello" }]
+                      "content": [{ "type": "text", "text": "First" }]
+                    }
+                  ]
+                },
+                {
+                  "type": "listContainer",
+                  "attrs": { "id": "item-2" },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "Second" }]
                     }
                   ]
                 }

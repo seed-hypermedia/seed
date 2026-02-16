@@ -10,7 +10,7 @@ export function createMinimalSchema(): Schema {
   return new Schema({
     nodes: {
       doc: {
-        content: 'blockContainer+',
+        content: 'blockGroup',
       },
       blockContainer: {
         content: 'paragraph (blockGroup | listGroup)?',
@@ -114,6 +114,45 @@ export function printDoc(doc: PMNode, indent: string = ''): string {
 
   traverse(doc)
   return lines.join('\n')
+}
+
+/**
+ * Find a position inside a block by its id attribute.
+ * Returns a position inside the block's first text content.
+ */
+export function findPosInBlock(doc: PMNode, blockId: string): number {
+  let found = -1
+  doc.descendants((node, pos) => {
+    if (
+      found === -1 &&
+      (node.type.name === 'blockContainer' ||
+        node.type.name === 'listContainer') &&
+      node.attrs.id === blockId
+    ) {
+      // pos = start of node, +1 = inside node, +1 = inside paragraph content
+      found = pos + 2
+    }
+  })
+  if (found === -1) throw new Error(`Block with id "${blockId}" not found`)
+  return found
+}
+
+/**
+ * Find a position inside the last container in the document.
+ * Useful when the target container has a null id.
+ */
+export function findPosInLastContainer(doc: PMNode): number {
+  let lastPos = -1
+  doc.descendants((node, pos) => {
+    if (
+      node.type.name === 'blockContainer' ||
+      node.type.name === 'listContainer'
+    ) {
+      lastPos = pos + 2
+    }
+  })
+  if (lastPos === -1) throw new Error('No container found')
+  return lastPos
 }
 
 /**

@@ -55,28 +55,28 @@ export const updateGroupCommand = (
     // Change group type to div (convert from list to regular group)
     if (isListGroup(group) && listType === 'Group' && container) {
       if (dispatch) {
-        // If converting from listGroup to blockGroup, replace the whole group
-        if (isListGroup(group) && isListContainer(container)) {
-          const groupPos = $pos.start(depth) - 1
+        const tr = state.tr
+        const groupPos = $pos.start(depth) - 1
 
-          // Create blockContainer from listContainer
-          const blockContainerContent = container.content
-          const newBlockContainer = state.schema.nodes[
-            'blockContainer'
-          ]!.create({id: container.attrs.id}, blockContainerContent)
+        // Convert ALL listContainers to blockContainers
+        const blockContainers: PMNode[] = []
+        group.forEach((child) => {
+          if (isListContainer(child)) {
+            blockContainers.push(
+              state.schema.nodes['blockContainer']!.create(
+                {id: child.attrs.id},
+                child.content,
+              ),
+            )
+          }
+        })
 
-          // Create blockGroup with the blockContainer
-          const newBlockGroup = state.schema.nodes['blockGroup']!.create(null, [
-            newBlockContainer,
-          ])
-
-          // Replace the listGroup with blockGroup
-          state.tr.replaceWith(
-            groupPos,
-            groupPos + group.nodeSize,
-            newBlockGroup,
-          )
-        }
+        const newBlockGroup = state.schema.nodes['blockGroup']!.create(
+          null,
+          blockContainers,
+        )
+        tr.replaceWith(groupPos, groupPos + group.nodeSize, newBlockGroup)
+        dispatch(tr)
       }
 
       return true
@@ -90,7 +90,7 @@ export const updateGroupCommand = (
     )
       return false
 
-    // If block is not the first in its' group, sink list item and then update group
+    // If block is not the first in its' group, sink into previous sibling
     if (
       group.firstChild &&
       container &&
@@ -98,18 +98,75 @@ export const updateGroupCommand = (
       !tab &&
       !isSank
     ) {
-      setTimeout(() => {
-        // TODO: fix sink list item to include list node types
-        editor
-          .chain()
-          .sinkListItem('blockContainer')
-          .command(updateGroupCommand(-1, listType, tab, true))
-          .run()
+      if (dispatch) {
+        const tr = state.tr
+        const groupStart = $pos.start(depth)
+        const shouldUseListGroup =
+          listType === 'Ordered' ||
+          listType === 'Unordered' ||
+          listType === 'Blockquote'
 
-        return true
-      })
+        // Find previous sibling and current container positions
+        // Use position-based matching (not id-based) to handle null/duplicate ids
+        const containerGroupOffset = $pos.before(depth + 1) - groupStart
+        let prevChild: PMNode | null = null
+        let prevChildOffset = -1
+        let containerOffset = -1
 
-      return false
+        group.forEach((child, offset) => {
+          if (offset === containerGroupOffset) {
+            containerOffset = offset
+          } else if (containerOffset === -1) {
+            prevChild = child
+            prevChildOffset = offset
+          }
+        })
+
+        if (prevChild && containerOffset !== -1) {
+          const prevAbsPos = groupStart + prevChildOffset
+          const containerAbsPos = groupStart + containerOffset
+
+          // Convert container to target type
+          const targetContainerType = shouldUseListGroup
+            ? 'listContainer'
+            : 'blockContainer'
+          const newContainer = state.schema.nodes[targetContainerType]!.create(
+            {id: container.attrs.id},
+            container.content,
+          )
+
+          // Create child group wrapping the container
+          const targetGroupType = shouldUseListGroup ? 'listGroup' : 'blockGroup'
+          const groupAttrs = shouldUseListGroup
+            ? {listType: listType, listLevel: '1'}
+            : null
+          const newChildGroup = state.schema.nodes[targetGroupType]!.create(
+            groupAttrs,
+            [newContainer],
+          )
+
+          // Build new previous sibling with child group appended
+          const prevContent: PMNode[] = []
+          ;(prevChild as PMNode).forEach((child) => {
+            prevContent.push(child)
+          })
+          prevContent.push(newChildGroup)
+
+          const newPrevSibling = state.schema.nodes[
+            (prevChild as PMNode).type.name
+          ]!.create((prevChild as PMNode).attrs, prevContent)
+
+          // Replace both prev sibling and container with augmented prev sibling
+          tr.replaceWith(
+            prevAbsPos,
+            containerAbsPos + container.nodeSize,
+            newPrevSibling,
+          )
+          dispatch(tr)
+        }
+      }
+
+      return true
     }
 
     // If inserting a different list type into an existing listGroup, sink the item first
@@ -158,46 +215,70 @@ export const updateGroupCommand = (
         }
       }
 
-      if (shouldUseListGroup && isSank) {
-        // After sinking with blockContainer/blockGroup, we need to rebuild the structure
-        // as listContainer/listGroup
-        // We need to rebuild the structure:
-        // blockGroup (nested) -> listGroup
-        //   blockContainer -> listContainer
-
+      if (shouldUseListGroup && isBlockGroup(group)) {
+        // blockGroup → listGroup: full replacement converting all children
         const tr = state.tr
+        const groupPos = $pos.start(depth) - 1
 
-        // Convert ALL blockContainers in the group to listContainers
         const listContainers: PMNode[] = []
         group.forEach((child) => {
           if (isBlockContainer(child)) {
-            const listContainer = state.schema.nodes['listContainer']!.create(
-              {id: child.attrs.id},
-              child.content,
+            listContainers.push(
+              state.schema.nodes['listContainer']!.create(
+                {id: child.attrs.id},
+                child.content,
+              ),
             )
-            listContainers.push(listContainer)
           }
         })
 
-        // Create the new listGroup with all the listContainers
         const newListGroup = state.schema.nodes['listGroup']!.create(
           {listType: listType, listLevel: level},
           listContainers,
         )
-
-        // Replace the old blockGroup with the new listGroup
-        const groupPos = $pos.start(depth) - 1
         tr.replaceWith(groupPos, groupPos + group.nodeSize, newListGroup)
-
-        // tr.setSelection(new TextSelection(tr.doc.resolve($pos.end(depth))))
         dispatch(tr)
-      } else {
-        // Standard blockGroup handling
-        state.tr.setNodeMarkup($pos.before(depth), null, {
+      } else if (shouldUseListGroup && isSank) {
+        // After sinking: blockGroup (nested) → listGroup with listContainers
+        const tr = state.tr
+        const groupPos = $pos.start(depth) - 1
+
+        const listContainers: PMNode[] = []
+        group.forEach((child) => {
+          if (isBlockContainer(child)) {
+            listContainers.push(
+              state.schema.nodes['listContainer']!.create(
+                {id: child.attrs.id},
+                child.content,
+              ),
+            )
+          }
+        })
+
+        const newListGroup = state.schema.nodes['listGroup']!.create(
+          {listType: listType, listLevel: level},
+          listContainers,
+        )
+        tr.replaceWith(groupPos, groupPos + group.nodeSize, newListGroup)
+        dispatch(tr)
+      } else if (isListGroup(group)) {
+        // List type switching (e.g. Unordered → Ordered): update attribute
+        const tr = state.tr
+        tr.setNodeMarkup($pos.before(depth), null, {
           ...group.attrs,
           listType: listType,
           listLevel: level,
         })
+        dispatch(tr)
+      } else {
+        // Standard blockGroup attr handling (fallback)
+        const tr = state.tr
+        tr.setNodeMarkup($pos.before(depth), null, {
+          ...group.attrs,
+          listType: listType,
+          listLevel: level,
+        })
+        dispatch(tr)
 
         if (container) {
           setTimeout(() => {

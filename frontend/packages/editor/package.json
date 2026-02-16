@@ -14,7 +14,9 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "test:harness": "vite --config e2e/vite.config.ts"
+    "test:harness": "vite --config e2e/vite.config.ts",
+    "test": "vitest --run",
+    "test:w": "vitest"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -80,6 +82,9 @@
     "prettier": "3.0.2",
     "typescript": "5.8.3",
     "typescript-eslint": "^8.18.2",
-    "vite": "6.3.5"
+    "vite": "6.3.5",
+    "@testing-library/jest-dom": "^6.1.5",
+    "jsdom": "^24.0.0",
+    "vitest": "^3.0.9"
   }
 }

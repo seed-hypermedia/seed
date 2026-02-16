@@ -1,0 +1,55 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "blockGroup",
+      "content": [
+        {
+          "type": "blockContainer",
+          "attrs": { "id": "root" },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Root" }]
+            },
+            {
+              "type": "listGroup",
+              "attrs": { "listType": "Unordered", "listLevel": "1" },
+              "content": [
+                {
+                  "type": "listContainer",
+                  "attrs": { "id": "item-a" },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "First" }]
+                    }
+                  ]
+                },
+                {
+                  "type": "listContainer",
+                  "attrs": { "id": null },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "Second" }]
+                    }
+                  ]
+                },
+                {
+                  "type": "listContainer",
+                  "attrs": { "id": null },
+                  "content": [
+                    {
+                      "type": "paragraph"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

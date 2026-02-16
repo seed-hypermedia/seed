@@ -59,19 +59,16 @@ export function setGroupTypes(
       ) {
         // @ts-ignore
         node.descendants((child: TipTapNode, childPos: number) => {
-          if (child.type.name === 'blockGroup') {
+          if (
+            // child.type.name === 'blockGroup' ||
+            child.type.name === 'listGroup'
+          ) {
             setTimeout(() => {
               let tr = tiptap.state.tr
-              tr = block.props?.start
-                ? tr.setNodeMarkup(pos + childPos + 1, null, {
-                    listType: block.props?.childrenType,
-                    listLevel: block.props?.listLevel,
-                    start: parseInt(block.props?.start),
-                  })
-                : tr.setNodeMarkup(pos + childPos + 1, null, {
-                    listType: block.props?.childrenType,
-                    listLevel: block.props?.listLevel,
-                  })
+              tr = tr.setNodeMarkup(pos + childPos + 1, null, {
+                listType: block.props?.childrenType,
+                listLevel: block.props?.listLevel,
+              })
               tiptap.view.dispatch(tr)
             })
             return false
@@ -117,7 +114,11 @@ export function getBlockGroup(
       }
 
       node.descendants((child: TipTapNode) => {
-        if (child.attrs.listType && child.type.name === 'blockGroup') {
+        // Handle both blockGroup and listGroup
+        if (
+          child.attrs.listType &&
+          (child.type.name === 'blockGroup' || child.type.name === 'listGroup')
+        ) {
           group = {
             type: child.attrs.listType,
             start: child.attrs.start,
