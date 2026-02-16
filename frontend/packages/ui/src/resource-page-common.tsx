@@ -478,10 +478,21 @@ function CommentPageBody({
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
-      const data = breadcrumbResults[i]?.data
+      const result = breadcrumbResults[i]
+      const data = result?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
-      return {id, metadata}
+      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      return {
+        id,
+        metadata,
+        fallbackName,
+        isLoading: result?.isDiscovering || result?.isLoading,
+        isTombstone: result?.isTombstone,
+        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
+        isError:
+          result?.isError && !result?.isDiscovering && !result?.isTombstone,
+      }
     })
     items.push({label: 'Comments'})
     return items
@@ -744,10 +755,21 @@ function DocumentBody({
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const items: BreadcrumbEntry[] = breadcrumbIds.map((id, i) => {
-      const data = breadcrumbResults[i]?.data
+      const result = breadcrumbResults[i]
+      const data = result?.data
       const metadata =
         data?.type === 'document' ? data.document?.metadata || {} : {}
-      return {id, metadata}
+      const fallbackName = id.path?.at(-1) || id.uid.slice(0, 8)
+      return {
+        id,
+        metadata,
+        fallbackName,
+        isLoading: result?.isDiscovering || result?.isLoading,
+        isTombstone: result?.isTombstone,
+        isNotFound: data?.type === 'not-found' && !result?.isDiscovering,
+        isError:
+          result?.isError && !result?.isDiscovering && !result?.isTombstone,
+      }
     })
 
     // Append active panel name when not on content/draft view

@@ -17,13 +17,22 @@ import {Home} from './icons'
 import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
+import {Tooltip} from './tooltip'
 
 export type AuthorPayload = HMMetadataPayload & {
   isDiscovering?: boolean
 }
 
 export type BreadcrumbEntry =
-  | {id: UnpackedHypermediaId; metadata: HMMetadata}
+  | {
+      id: UnpackedHypermediaId
+      metadata: HMMetadata
+      isLoading?: boolean
+      isNotFound?: boolean
+      isTombstone?: boolean
+      isError?: boolean
+      fallbackName?: string
+    }
   | {label: string}
 
 export function DocumentHeader({
@@ -184,7 +193,7 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
             {'>'}
           </SizableText>,
           'id' in crumb ? (
-            <BreadcrumbLink id={crumb.id} metadata={crumb.metadata} key={key} />
+            <BreadcrumbLink key={key} crumb={crumb} />
           ) : (
             <span
               key={key}
@@ -199,20 +208,72 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   )
 }
 
-function BreadcrumbLink({
-  id,
-  metadata,
-}: {
-  id: UnpackedHypermediaId
-  metadata: HMMetadata
-}) {
-  const linkProps = useRouteLink({key: 'document', id})
+function BreadcrumbLink({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
+  const linkProps = useRouteLink({key: 'document', id: crumb.id})
+
+  if (crumb.isLoading) {
+    return (
+      <span className="text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap">
+        {crumb.fallbackName ||
+          crumb.id.path?.at(-1) ||
+          crumb.id.uid.slice(0, 8)}
+        <Spinner size="small" />
+      </span>
+    )
+  }
+
+  if (crumb.isTombstone) {
+    return (
+      <Tooltip content="This document has been deleted">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName ||
+            crumb.id.path?.at(-1) ||
+            crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (crumb.isNotFound) {
+    return (
+      <Tooltip content="Document not found on the network">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName ||
+            crumb.id.path?.at(-1) ||
+            crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (crumb.isError) {
+    return (
+      <Tooltip content="Failed to load this document">
+        <span className="max-w-[15ch] truncate text-xs whitespace-nowrap text-red-500">
+          {crumb.fallbackName ||
+            crumb.id.path?.at(-1) ||
+            crumb.id.uid.slice(0, 8)}
+        </span>
+      </Tooltip>
+    )
+  }
+
+  if (!crumb.metadata?.name) {
+    return (
+      <span className="text-muted-foreground max-w-[15ch] truncate text-xs whitespace-nowrap">
+        {crumb.fallbackName ||
+          crumb.id.path?.at(-1) ||
+          crumb.id.uid.slice(0, 8)}
+      </span>
+    )
+  }
+
   return (
     <a
       {...linkProps}
       className="max-w-[15ch] truncate overflow-hidden text-xs whitespace-nowrap no-underline hover:underline"
     >
-      {metadata?.name}
+      {crumb.metadata.name}
     </a>
   )
 }
