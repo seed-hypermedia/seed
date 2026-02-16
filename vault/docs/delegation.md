@@ -120,8 +120,9 @@ The client SDK (`src/sdk/hypermedia-auth.ts`) is designed to be copied into any 
 ```ts
 import * as hmauth from "./hypermedia-auth";
 
-// Start the flow — generates key, stores it, redirects to Vault
-await hmauth.startAuth({ vaultUrl: "https://vault.example.com" });
+// Start the flow — generates key, stores it, returns the Vault URL.
+const authUrl = await hmauth.startAuth({ vaultUrl: "https://vault.example.com" });
+window.location.href = authUrl;
 
 // On callback — parses URL params, retrieves session from IndexedDB
 const result = await hmauth.handleCallback({

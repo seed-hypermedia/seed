@@ -43,10 +43,52 @@ function RedirectIfUnlocked() {
  * If authenticated but locked, renders the inline lock screen.
  * If not authenticated, redirects to home.
  */
-function EnsureUnlocked() {
-	const { session, decryptedDEK, sessionChecked, loading, error, passkeySupported } = useAppState()
+function LockedView() {
+	const { session, loading, error, passkeySupported } = useAppState()
 	const actions = useActions()
 	const navigate = useNavigate()
+
+	return (
+		<Card className="max-w-md mx-auto">
+			<CardHeader>
+				<CardTitle className="text-center">🔒 Vault Locked</CardTitle>
+				<CardDescription className="text-center">Authenticate to unlock your vault</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<ErrorMessage message={error} />
+
+				<p className="text-sm text-muted-foreground text-center mb-6">Signed in as {session?.email}</p>
+
+				{passkeySupported && (
+					<Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
+						🔑 Unlock with Passkey
+					</Button>
+				)}
+
+				{session?.hasPassword && (
+					<>
+						<Divider>or</Divider>
+						<Button variant="secondary" onClick={() => navigate("/login")} disabled={loading} className="w-full">
+							🔒 Use Master Password
+						</Button>
+					</>
+				)}
+
+				<Button variant="ghost" className="mt-4 w-full" onClick={actions.handleLogout}>
+					Sign out
+				</Button>
+			</CardContent>
+		</Card>
+	)
+}
+
+/**
+ * Ensures the user is authenticated and the vault is unlocked.
+ * If authenticated but locked, renders the inline lock screen.
+ * If not authenticated, redirects to home.
+ */
+function EnsureUnlocked() {
+	const { session, decryptedDEK, sessionChecked } = useAppState()
 
 	if (!sessionChecked) {
 		return null // Or a loading spinner
@@ -57,38 +99,7 @@ function EnsureUnlocked() {
 	}
 
 	if (!decryptedDEK) {
-		return (
-			<Card className="max-w-md mx-auto">
-				<CardHeader>
-					<CardTitle className="text-center">🔒 Vault Locked</CardTitle>
-					<CardDescription className="text-center">Authenticate to unlock your vault</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<ErrorMessage message={error} />
-
-					<p className="text-sm text-muted-foreground text-center mb-6">Signed in as {session?.email}</p>
-
-					{passkeySupported && (
-						<Button onClick={actions.handleQuickUnlock} loading={loading} className="w-full">
-							🔑 Unlock with Passkey
-						</Button>
-					)}
-
-					{session?.hasPassword && (
-						<>
-							<Divider>or</Divider>
-							<Button variant="secondary" onClick={() => navigate("/login")} disabled={loading} className="w-full">
-								🔒 Use Master Password
-							</Button>
-						</>
-					)}
-
-					<Button variant="ghost" className="mt-4 w-full" onClick={actions.handleLogout}>
-						Sign out
-					</Button>
-				</CardContent>
-			</Card>
-		)
+		return <LockedView />
 	}
 
 	return <Outlet />
@@ -116,6 +127,9 @@ const RootLayout = () => {
 	const actions = useActions()
 
 	useEffect(() => {
+		// Capture delegation params from the landing URL before any navigation
+		// occurs. This ensures delegation context survives registration/login flows.
+		actions.parseDelegationFromUrl(new URL(window.location.href))
 		actions.checkSession()
 		actions.checkPasskeySupport()
 	}, [actions])
@@ -131,9 +145,21 @@ const RootLayout = () => {
 }
 
 function RootView() {
-	const { session, decryptedDEK, delegationRequest } = useAppState()
+	const { session, decryptedDEK, delegationRequest, sessionChecked } = useAppState()
 
-	if (session?.authenticated && decryptedDEK) {
+	if (!sessionChecked) {
+		return null
+	}
+
+	if (session?.authenticated) {
+		if (!decryptedDEK) {
+			return (
+				<div className="w-full max-w-md">
+					<LockedView />
+				</div>
+			)
+		}
+
 		if (delegationRequest) {
 			return <Navigate to="/delegate" replace />
 		}

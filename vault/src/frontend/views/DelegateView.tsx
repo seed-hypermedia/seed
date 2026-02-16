@@ -21,13 +21,11 @@ export function DelegateView() {
 
 	const accounts = vaultData?.accounts ?? []
 
-	// Sync delegation params between URL and store.
-	// URL has params → parse into store. Store has params but URL doesn't → push to URL.
+	// Mirror store delegation params into the URL bar for transparency.
+	// RootLayout already parses URL→store on initial mount, so we only need
+	// to push store→URL when arriving here via internal <Navigate /> redirect.
 	useEffect(() => {
-		const urlRequest = delegation.parseDelegationRequest(new URL(window.location.href))
-		if (urlRequest && !delegationRequest) {
-			actions.parseDelegationFromUrl(new URL(window.location.href))
-		} else if (!urlRequest && delegationRequest) {
+		if (delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
 			setSearchParams(
 				{
 					[delegation.PARAM_CLIENT_ID]: delegationRequest.clientId,
@@ -37,7 +35,7 @@ export function DelegateView() {
 				{ replace: true },
 			)
 		}
-	}, [actions, delegationRequest, setSearchParams])
+	}, [delegationRequest, searchParams, setSearchParams])
 
 	useEffect(() => {
 		if (decryptedDEK) {

@@ -113,17 +113,10 @@ export default function App() {
 	}, [])
 
 	const handleSignIn = async () => {
-		// Open tab synchronously in the click handler to avoid popup blockers.
-		const tab = window.open("about:blank", "_blank")
 		try {
 			const authUrl = await hmauth.startAuth({ vaultUrl })
-			if (tab) {
-				tab.location.href = authUrl
-			} else {
-				window.location.href = authUrl
-			}
+			window.location.href = authUrl
 		} catch (err) {
-			tab?.close()
 			setError(`Failed to start auth: ${err instanceof Error ? err.message : String(err)}`)
 		}
 	}

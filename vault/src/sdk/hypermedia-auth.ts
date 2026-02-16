@@ -236,9 +236,9 @@ export async function generateSessionKey(): Promise<{
 /**
  * Start the authentication flow by generating a session key and storing it.
  *
- * 1. Generates a non-extractable Ed25519 key pair
- * 2. Stores it in IndexedDB keyed by the Vault URL
- * 3. Returns the Vault delegation URL for the caller to navigate to
+ * 1. Generates a non-extractable Ed25519 key pair.
+ * 2. Stores it in IndexedDB keyed by the Vault URL.
+ * 3. Returns the Vault URL (with delegation params) for the caller to navigate to.
  */
 export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 	const clientId = config.clientId ?? window.location.origin
@@ -256,12 +256,11 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 
 	await dbPut(config.vaultUrl, record)
 
-	const vault = new URL(config.vaultUrl)
-	const basePath = vault.pathname.endsWith("/") ? vault.pathname.slice(0, -1) : vault.pathname
-	vault.pathname = `${basePath === "" ? "" : basePath}/delegate`
-	vault.search = ""
-	vault.hash = ""
-	const url = vault
+	// Navigate to the vault root. The vault captures delegation params on any
+	// landing URL and preserves them through login/registration flows.
+	const url = new URL(config.vaultUrl)
+	url.search = ""
+	url.hash = ""
 	url.searchParams.set("client_id", clientId)
 	url.searchParams.set("redirect_uri", redirectUri)
 	url.searchParams.set("session_key", session.principal)
