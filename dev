@@ -4,9 +4,48 @@
 
 import argparse
 import os
+import platform
 import subprocess
 import sys
 
+
+DAEMON_OUT_DIR = "plz-out/bin/backend"
+
+
+def daemon_binary_name():
+    """Return the seed-daemon binary name for the current platform."""
+    machine = platform.machine()
+    system = platform.system().lower()
+    if system == "darwin":
+        arch = "aarch64" if machine == "arm64" else "x86_64"
+        return f"seed-daemon-{arch}-apple-darwin"
+    elif system == "linux":
+        return f"seed-daemon-{machine}-unknown-linux-gnu"
+    else:
+        return f"seed-daemon-{machine}-pc-windows-gnu.exe"
+
+
+def build_seed_daemon():
+    """Build seed-daemon using go build directly (fast, ~12s)."""
+    llama_dir = os.path.join(os.environ["WORKSPACE"], "backend", "util", "llama-go")
+    out_path = os.path.join(DAEMON_OUT_DIR, daemon_binary_name())
+    os.makedirs(DAEMON_OUT_DIR, exist_ok=True)
+
+    build_tags = ""
+    if platform.system() != "Darwin":
+        build_tags = "-tags cpu"
+
+    env = os.environ.copy()
+    env["CGO_ENABLED"] = "1"
+    env["CGO_CXXFLAGS"] = "-std=c++17"
+    env["LIBRARY_PATH"] = llama_dir
+    env["C_INCLUDE_PATH"] = llama_dir
+
+    cmd = f"go build {build_tags} -trimpath -o {out_path} ./backend/cmd/seed-daemon"
+    print(f"Building seed-daemon ({out_path})...")
+    subprocess.run(cmd, shell=True, check=True, env=env)
+    print("seed-daemon built successfully.")
+    return out_path
 
 
 def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
@@ -125,7 +164,7 @@ def main():
         # run("node scripts/cleanup-desktop.js")
         # run("./scripts/cleanup-frontend.sh")
         run("pnpm install")
-        run("plz build //backend:seed-daemon //:pnpm")
+        build_seed_daemon()
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
@@ -147,7 +186,7 @@ def main():
     @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
     def test_desktop(args):
         run("node scripts/cleanup-desktop.js")
-        run("plz build //backend:seed-daemon //:pnpm")
+        build_seed_daemon()
 
         testnet_var = "SEED_P2P_TESTNET_NAME"
         if testnet_var not in os.environ:
@@ -187,16 +226,14 @@ def main():
         "Build and run seed-daemon binary for the current platform.",
     )
     def run_backend(args):
+        out_path = build_seed_daemon()
         env = os.environ.copy()
         env["LLAMA_LOG"] = "error"
-        return run("plz run //backend:seed-daemon", args=args, env=env)
+        return run(out_path, args=args, env=env)
 
-    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform. GPU is enabled by default. Use --cpu for CPU-only build.")
+    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
     def build_backend(args):
-        cpu_only = "--cpu" in args
-        args = [a for a in args if a != "--cpu"]
-        setup_gpu_build(cpu_only)
-        return run("plz build //backend:seed-daemon")
+        build_seed_daemon()
 
     @cmd(cmds, "run-gw-backend", "Build and run backend for seed web gateway.")
     def run_gateway(args):
