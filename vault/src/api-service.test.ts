@@ -14,7 +14,9 @@ let db: bunsqlite.Database
 // We need to set up the test environment before importing handlers.
 beforeAll(async () => {
 	// Create in-memory test database.
-	db = storage.open(":memory:")
+	const result = storage.open(":memory:")
+	if (!result.ok) throw new Error("unexpected schema mismatch")
+	db = result.db
 })
 
 afterAll(() => {

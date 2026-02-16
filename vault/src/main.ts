@@ -8,6 +8,7 @@ import * as challenge from "@/challenge"
 import * as config from "@/config"
 import * as email from "@/email"
 import index from "@/frontend/index.html"
+import schemaMismatch from "@/frontend/schema-mismatch.html"
 import * as session from "@/session"
 import * as sqlite from "@/sqlite"
 
@@ -35,9 +36,29 @@ async function main() {
 	})
 
 	const cfg = config.create(argv.flags)
-	const db = sqlite.open(cfg.dbPath)
+	const result = sqlite.open(cfg.dbPath)
 	const isProd = process.env.NODE_ENV === "production"
 
+	if (!result.ok) {
+		console.error(
+			`❌ Database schema mismatch: stored version is ${result.current}, but server expects ${result.desired}.`,
+		)
+		console.error(`   Delete the database file (rm ${cfg.dbPath}*) and restart the server.`)
+
+		const server = serve({
+			port: cfg.http.port,
+			hostname: cfg.http.hostname,
+			routes: {
+				"/*": schemaMismatch,
+			},
+		})
+
+		const hostname = cfg.http.hostname === "0.0.0.0" ? "localhost" : cfg.http.hostname
+		console.error(`   Server running at http://${hostname}:${server.port} (schema mismatch mode)`)
+		return
+	}
+
+	const db = result.db
 	const hmacSecret = sqlite.getOrCreateHmacSecret(db)
 	const emailSender = email.createSender(cfg.smtp)
 	const svc = new apisvc.Service(db, cfg.relyingParty, hmacSecret, emailSender)

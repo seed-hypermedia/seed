@@ -3,7 +3,9 @@ import * as sqlite from "./sqlite.ts"
 
 describe("sqlite", () => {
 	test("getOrCreateHmacSecret", () => {
-		const db = sqlite.open(":memory:")
+		const result = sqlite.open(":memory:")
+		if (!result.ok) throw new Error("unexpected schema mismatch")
+		const db = result.db
 
 		// First call should generate a secret
 		const secret1 = sqlite.getOrCreateHmacSecret(db)

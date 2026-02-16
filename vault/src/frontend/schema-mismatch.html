@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Database Schema Mismatch</title>
+		<style>
+		body {
+			font-family: system-ui, -apple-system, sans-serif;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			min-height: 100vh;
+			margin: 0;
+			background: #f5f5f5;
+			color: #333;
+		}
+		.container {
+			max-width: 480px;
+			padding: 2rem;
+			background: white;
+			border-radius: 8px;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+			text-align: center;
+		}
+		h1 {
+			font-size: 1.4rem;
+			margin-bottom: 0.5rem;
+		}
+		p {
+			line-height: 1.6;
+			color: #555;
+		}
+		code {
+			background: #f0f0f0;
+			padding: 0.15em 0.4em;
+			border-radius: 4px;
+			font-size: 0.9em;
+		}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>⚠️ Database Schema Mismatch</h1>
+			<p>
+				The database schema version does not match what this version of the server expects. During development, delete
+				the database file manually and restart the server.
+			</p>
+			<p>
+				Typically: <code>rm vault.sqlite*</code>
+			</p>
+		</div>
+	</body>
+</html>

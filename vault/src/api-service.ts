@@ -864,11 +864,10 @@ export class Service implements api.ServerInterface {
 				prfEnabled: true,
 			}
 
-			const credentialDbId = sess.randomId()
 			const now = Date.now()
 
 			this.db.run(`INSERT INTO credentials (id, user_id, type, metadata, create_time) VALUES (?, ?, ?, ?, ?)`, [
-				credentialDbId,
+				credentialIdStr,
 				session.user_id,
 				"passkey",
 				JSON.stringify(metadata),
@@ -962,15 +961,10 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Response required", 400)
 		}
 
-		// Find the credential by the WebAuthn credential ID from the response.
-		const allPasskeys = this.db.query<Credential, [string]>(`SELECT * FROM credentials WHERE type = ?`).all("passkey")
-
-		const webAuthnCredentialId = req.response.id
-		const passkey = allPasskeys.find((p) => {
-			if (!p.metadata) return false
-			const metadata = JSON.parse(p.metadata) as PasskeyMetadata
-			return metadata.credentialId === webAuthnCredentialId
-		})
+		// Look up passkey directly by primary key (WebAuthn credential ID).
+		const passkey = this.db
+			.query<Credential, [string, string]>(`SELECT * FROM credentials WHERE id = ? AND type = ?`)
+			.get(req.response.id, "passkey")
 
 		if (!passkey || !passkey.metadata) {
 			throw new APIError("Credential not found", 401)
@@ -1056,16 +1050,12 @@ export class Service implements api.ServerInterface {
 			throw new APIError("Missing required fields", 400)
 		}
 
-		// Find the credential by matching the WebAuthn credential ID in metadata.
-		const credentials = this.db
-			.query<Credential, [string, string]>(`SELECT * FROM credentials WHERE user_id = ? AND type = ?`)
-			.all(session.user_id, "passkey")
-
-		const credential = credentials.find((c) => {
-			if (!c.metadata) return false
-			const metadata = JSON.parse(c.metadata) as PasskeyMetadata
-			return metadata.credentialId === req.credentialId
-		})
+		// Look up passkey directly by primary key (WebAuthn credential ID) and verify ownership.
+		const credential = this.db
+			.query<Credential, [string, string, string]>(
+				`SELECT * FROM credentials WHERE id = ? AND user_id = ? AND type = ?`,
+			)
+			.get(req.credentialId, session.user_id, "passkey")
 
 		if (!credential) {
 			throw new APIError("Invalid credential", 400)
