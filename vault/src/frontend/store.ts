@@ -219,6 +219,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				})
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -412,6 +413,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -442,6 +444,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedDEK = localCrypto.base64urlDecode(response.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, stretchedKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					// Should not happen for password users based on current schema,
 					// but defensive coding.
@@ -498,6 +501,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				}
 
 				await actions.checkSession()
@@ -558,6 +562,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					state.error = "No vault found for this passkey"
 				}
@@ -631,6 +636,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				}
 
 				await actions.checkSession()
@@ -682,6 +688,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
+					await actions.loadVaultData()
 				} else {
 					state.error = "No vault found for this passkey"
 					return
@@ -801,6 +808,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				state.decryptedDEK = dek
+				await actions.loadVaultData()
 				navigator.go("/")
 				await actions.checkSession()
 			} catch (e) {
@@ -822,6 +830,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					const encryptedData = localCrypto.base64urlDecode(serverData.encryptedData)
 					const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
 					state.vaultData = await vaultDataMod.deserializeVault(decryptedData)
+
+					if (state.vaultData.accounts.length === 1) {
+						state.selectedAccountIndex = 0
+					}
 				} else {
 					state.vaultData = vaultDataMod.emptyVault()
 				}

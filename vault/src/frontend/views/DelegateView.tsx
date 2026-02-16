@@ -15,7 +15,7 @@ import { useActions, useAppState } from "@/frontend/store"
  * authorize or deny the delegation request.
  */
 export function DelegateView() {
-	const { delegationRequest, vaultData, selectedAccountIndex, loading, error, decryptedDEK } = useAppState()
+	const { delegationRequest, vaultData, selectedAccountIndex, loading, error } = useAppState()
 	const actions = useActions()
 	const [searchParams, setSearchParams] = useSearchParams()
 
@@ -36,19 +36,6 @@ export function DelegateView() {
 			)
 		}
 	}, [delegationRequest, searchParams, setSearchParams])
-
-	useEffect(() => {
-		if (decryptedDEK) {
-			actions.loadVaultData()
-		}
-	}, [decryptedDEK, actions])
-
-	// Auto-select the first account if none is selected and there's exactly one.
-	useEffect(() => {
-		if (accounts.length === 1 && selectedAccountIndex !== 0) {
-			actions.selectAccount(0)
-		}
-	}, [accounts.length, selectedAccountIndex, actions])
 
 	if (!delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
 		return <Navigate to="/" replace />

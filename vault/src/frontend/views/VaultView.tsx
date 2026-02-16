@@ -1,5 +1,5 @@
 import { Check, Copy, Plus, Settings, User } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import * as blobs from "@/frontend/blobs"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
@@ -14,15 +14,9 @@ import { useActions, useAppState } from "@/frontend/store"
  * Vault-level settings (credentials, email) live in a separate SettingsView.
  */
 export function VaultView() {
-	const { decryptedDEK, vaultData, selectedAccountIndex } = useAppState()
+	const { vaultData, selectedAccountIndex } = useAppState()
 	const actions = useActions()
 	const navigate = useNavigate()
-
-	useEffect(() => {
-		if (decryptedDEK) {
-			actions.loadVaultData()
-		}
-	}, [decryptedDEK, actions])
 
 	const accounts = vaultData?.accounts ?? []
 	const hasAccounts = accounts.length > 0
