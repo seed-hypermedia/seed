@@ -181,11 +181,7 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
 
   return (
     <div className="text-muted-foreground flex flex-1 items-center gap-2">
-      {first && 'id' in first ? (
-        <div className="flex items-center gap-1">
-          <Home className="size-3" />
-        </div>
-      ) : null}
+      {first && 'id' in first ? <HomeBreadcrumb crumb={first} /> : null}
       {rest.flatMap((crumb, i) => {
         const key = 'id' in crumb ? crumb.id.id : `label-${i}`
         return [
@@ -205,6 +201,18 @@ function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
         ]
       })}
     </div>
+  )
+}
+
+function HomeBreadcrumb({crumb}: {crumb: Extract<BreadcrumbEntry, {id: any}>}) {
+  const linkProps = useRouteLink({key: 'document', id: crumb.id})
+  return (
+    <a
+      {...linkProps}
+      className="text-muted-foreground flex items-center gap-1 no-underline hover:underline"
+    >
+      <Home className="size-3" />
+    </a>
   )
 }
 
