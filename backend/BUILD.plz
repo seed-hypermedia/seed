@@ -74,7 +74,10 @@ genrule(
             "**/*.cpp",
             "**/*.hpp",
         ],
-        exclude = ["**/*_test.go"],
+        exclude = [
+            "**/*_test.go",
+            "util/llama-go/llama.cpp/**",
+        ],
     ) + [
         "//backend/lndhub/lndhubsql:go_library",
         "//backend/storage:go_library",
