@@ -76,11 +76,6 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.error = error
 		},
 
-		async checkPasskeySupport() {
-			state.passkeySupported = localCrypto.isWebAuthnSupported()
-			state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
-		},
-
 		async checkSession() {
 			try {
 				const data = await client.getSession()
@@ -92,6 +87,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				console.error("Session check failed:", e)
 			} finally {
 				state.sessionChecked = true
+				state.passkeySupported = localCrypto.isWebAuthnSupported()
+				state.platformAuthAvailable = await localCrypto.isPlatformAuthenticatorAvailable()
 			}
 		},
 
@@ -641,6 +638,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				await actions.checkSession()
 			} catch (e) {
+				if ((e as Error).name === "AbortError") return
 				console.error("Conditional mediation error:", e)
 			}
 		},

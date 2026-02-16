@@ -5,7 +5,7 @@ import * as localCrypto from "../frontend/crypto"
 import type { AuthResult } from "../sdk/hypermedia-auth"
 import * as hmauth from "../sdk/hypermedia-auth"
 
-const DEFAULT_VAULT_URL = "http://localhost:3000/vault"
+const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
 
 function bytesToHex(bytes: Uint8Array): string {
 	return Array.from(bytes)
@@ -46,7 +46,7 @@ function CapabilityField({ capability }: { capability: string }) {
 }
 
 export default function App() {
-	const [vaultUrl, setVaultUrl] = useState(DEFAULT_VAULT_URL)
+	const [vaultUrl, setVaultUrl] = useState(DEFAULT_DELEGATE_URL)
 	const [error, setError] = useState<string | null>(null)
 	const [authResult, setAuthResult] = useState<AuthResult | null>(null)
 	const [signResult, setSignResult] = useState<{ message: string; signature: string } | null>(null)
@@ -67,7 +67,7 @@ export default function App() {
 	// Initialize: check callback or existing session
 	useEffect(() => {
 		async function init() {
-			const currentVaultUrl = localStorage.getItem("vault_url") || DEFAULT_VAULT_URL
+			const currentVaultUrl = localStorage.getItem("vault_url") || DEFAULT_DELEGATE_URL
 			try {
 				// 1. Check for callback (delegation response)
 				const result = await hmauth.handleCallback({ vaultUrl: currentVaultUrl })

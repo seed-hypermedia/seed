@@ -127,11 +127,8 @@ const RootLayout = () => {
 	const actions = useActions()
 
 	useEffect(() => {
-		// Capture delegation params from the landing URL before any navigation
-		// occurs. This ensures delegation context survives registration/login flows.
-		actions.parseDelegationFromUrl(new URL(window.location.href))
 		actions.checkSession()
-		actions.checkPasskeySupport()
+		actions.parseDelegationFromUrl(new URL(window.location.href))
 	}, [actions])
 
 	return (

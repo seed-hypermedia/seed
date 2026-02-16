@@ -22,8 +22,7 @@ export function DelegateView() {
 	const accounts = vaultData?.accounts ?? []
 
 	// Mirror store delegation params into the URL bar for transparency.
-	// RootLayout already parses URL→store on initial mount, so we only need
-	// to push store→URL when arriving here via internal <Navigate /> redirect.
+	// This ensures the URL reflects what's in the store after the initial parse.
 	useEffect(() => {
 		if (delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
 			setSearchParams(
