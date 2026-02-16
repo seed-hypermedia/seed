@@ -10,7 +10,8 @@
 set -e
 
 SEED_DIR="${SEED_DIR:-/opt/seed}"
-SEED_REPO_URL="${SEED_REPO_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/main}"
+SEED_BRANCH="${SEED_BRANCH:-main}"
+GH_RAW="https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops"
 
 command_exists() {
   command -v "$@" > /dev/null 2>&1
@@ -59,7 +60,7 @@ fi
 ensure_dir "${SEED_DIR}"
 
 info "Downloading deployment script..."
-curl -fsSL "${SEED_REPO_URL}/ops/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
+curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
 
 info "Running deployment script..."
 exec bun "${SEED_DIR}/deploy.js"
