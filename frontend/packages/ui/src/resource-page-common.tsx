@@ -537,7 +537,6 @@ function CommentPageBody({
           />
         )}
       </div>
-      {/* <div className="h-3" /> */}
       <div className="dark:bg-background sticky top-0 z-10 bg-white py-1">
         <DocumentTools
           id={docId}
@@ -1067,8 +1066,8 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Sentinel element - also provides top spacing before tools */}
-      <div ref={toolsSentinelRef} className="h-3" />
+      {/* Sentinel element - important for doc tools sticky checking */}
+      <div ref={toolsSentinelRef} />
 
       {/* DocumentTools - sticky with compact padding */}
       <div
