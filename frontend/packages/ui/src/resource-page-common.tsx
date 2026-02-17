@@ -21,7 +21,7 @@ import {
 } from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {getRoutePanel} from '@shm/shared/routes'
-import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
+import {getBreadcrumbDocumentIds} from '@shm/shared/utils/breadcrumbs'
 import {
   createSiteUrl,
   createWebHMUrl,
@@ -471,8 +471,8 @@ function CommentPageBody({
 
   const breadcrumbIds = useMemo(() => {
     if (isHomeDoc) return []
-    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
-  }, [docId.uid, docId.path, isHomeDoc])
+    return getBreadcrumbDocumentIds(docId)
+  }, [docId, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
@@ -748,8 +748,8 @@ function DocumentBody({
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
     if (isHomeDoc) return []
-    return getParentPaths(docId.path).map((path) => hmId(docId.uid, {path}))
-  }, [docId.uid, docId.path, isHomeDoc])
+    return getBreadcrumbDocumentIds(docId)
+  }, [docId, isHomeDoc])
 
   const breadcrumbResults = useResources(breadcrumbIds)
 

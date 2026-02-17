@@ -6,8 +6,8 @@ import {
   entityQueryPathToHmIdPath,
   extractQueryBlocks,
   extractRefs,
+  getBreadcrumbDocumentIds,
   getCommentTargetId,
-  getParentPaths,
   HMDocument,
   HMDocumentMetadataSchema,
   hmId,
@@ -21,7 +21,6 @@ import {
 import {SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {
-  HMAccountsMetadata,
   HMComment,
   HMCommentSchema,
   HMDocumentInfo,
@@ -143,11 +142,8 @@ export type WebResourcePayload = {
   // if the resource is a comment, this is the target document. Otherwise, it is the doc identified by the resource ID
   document: HMDocument
 
-  // supporting metadata for referenced accounts
-  accountsMetadata: HMAccountsMetadata
   siteHost: string | undefined
   isLatest: boolean
-  breadcrumbs: Array<HMMetadataPayload>
 
   // Icon from the document's home (for favicon in SSR)
   siteHomeIcon?: string | null
@@ -259,6 +255,15 @@ async function prefetchResourceData(
   const client = serverUniversalClient
   const homeId = hmId(docId.uid, {latest: true})
   const noopCtx = createNoopInstrumentationContext()
+  const breadcrumbIds = getBreadcrumbDocumentIds(docId)
+  const baseResourceKeys = new Set([
+    `${docId.id}:${docId.version || ''}`,
+    `${homeId.id}:`,
+  ])
+  const breadcrumbResourceIds = breadcrumbIds.filter((id) => {
+    const key = `${id.id}:${id.version || ''}`
+    return !baseResourceKeys.has(key)
+  })
 
   // Wave 1: Core navigation data (parallel, no dependencies)
   await instrument(ctx || noopCtx, 'prefetchWave1', () =>
@@ -277,15 +282,6 @@ async function prefetchResourceData(
             queryDirectory(client, homeId, 'Children'),
           ),
       ),
-      // AllDescendants for breadcrumb metadata (covers all nested paths)
-      instrument(
-        ctx || noopCtx,
-        `prefetchDirectory(${packHmId(homeId)}, AllDescendants)`,
-        () =>
-          prefetchCtx.queryClient.prefetchQuery(
-            queryDirectory(client, homeId, 'AllDescendants'),
-          ),
-      ),
       instrument(
         ctx || noopCtx,
         `prefetchDirectory(${packHmId(docId)}, Children)`,
@@ -301,6 +297,14 @@ async function prefetchResourceData(
           prefetchCtx.queryClient.prefetchQuery(
             queryInteractionSummary(client, docId),
           ),
+      ),
+      ...breadcrumbResourceIds.map((id) =>
+        instrument(
+          ctx || noopCtx,
+          `prefetchBreadcrumbResource(${packHmId(id)})`,
+          () =>
+            prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+        ),
       ),
     ]),
   )
@@ -418,56 +422,6 @@ function getHomeDocumentFromCache(
 }
 
 /**
- * Build breadcrumbs from directory cache instead of individual metadata fetches.
- * Uses AllDescendants directory which contains all documents in the account.
- */
-function buildBreadcrumbsFromCache(
-  prefetchCtx: PrefetchContext,
-  docId: UnpackedHypermediaId,
-  document: HMDocument,
-): HMMetadataPayload[] {
-  const client = serverUniversalClient
-  const homeId = hmId(docId.uid, {latest: true})
-
-  // Use AllDescendants which contains all documents (including intermediate parents)
-  const allDescendants = prefetchCtx.queryClient.getQueryData(
-    queryDirectory(client, homeId, 'AllDescendants').queryKey,
-  ) as HMDocumentInfo[] | null
-
-  const crumbPaths = getParentPaths(docId.path).slice(0, -1)
-  const breadcrumbs = crumbPaths.map((crumbPath) => {
-    const id = hmId(docId.uid, {path: crumbPath})
-    const dirEntry = allDescendants?.find((d) => d.id.id === id.id)
-    return {
-      id,
-      metadata: dirEntry?.metadata || {},
-    }
-  })
-
-  // Add current document
-  breadcrumbs.push({id: docId, metadata: document.metadata})
-  return breadcrumbs
-}
-
-/**
- * Build accounts metadata from prefetch cache.
- */
-function buildAccountsMetadataFromCache(
-  prefetchCtx: PrefetchContext,
-  authorUids: string[],
-): HMAccountsMetadata {
-  const client = serverUniversalClient
-  return Object.fromEntries(
-    authorUids.map((uid) => {
-      const account = prefetchCtx.queryClient.getQueryData(
-        queryAccount(client, uid).queryKey,
-      ) as HMMetadataPayload | null
-      return [uid, account || {id: hmId(uid), metadata: {}}]
-    }),
-  )
-}
-
-/**
  * Create a noop instrumentation context for when none is provided.
  */
 function createNoopInstrumentationContext(): InstrumentationContext {
@@ -516,20 +470,13 @@ async function loadResourcePayload(
 
   // Extract data from cache for SSR response
   const homeDocument = getHomeDocumentFromCache(prefetchCtx, homeId)
-  const breadcrumbs = buildBreadcrumbsFromCache(prefetchCtx, docId, document)
-  const accountsMetadata = buildAccountsMetadataFromCache(
-    prefetchCtx,
-    document.authors,
-  )
 
   return {
     document,
     comment,
-    accountsMetadata,
     isLatest: !latestDocument || latestDocument.version === document.version,
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
-    breadcrumbs,
     siteHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState: dehydratePrefetchContext(prefetchCtx),
     ...getOriginRequestData(parsedRequest),
