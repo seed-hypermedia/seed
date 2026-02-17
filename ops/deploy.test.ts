@@ -28,6 +28,8 @@ import {
   parseDaemonEnv,
   parseWebEnv,
   parseImageTag,
+  inferEnvironment,
+  type OldInstallInfo,
   extractDns,
   generateCaddyfile,
   sha256,
@@ -37,6 +39,12 @@ import {
   getContainerImages,
   ensureSeedDir,
   environmentPresets,
+  buildCrontab,
+  parseArgs,
+  extractSeedCronLines,
+  removeSeedCronLines,
+  DEFAULT_SEED_DIR,
+  selfUpdate,
 } from "./deploy";
 
 // ---------------------------------------------------------------------------
@@ -423,6 +431,63 @@ describe("parseImageTag", () => {
 
   test("handles empty string", () => {
     expect(parseImageTag("")).toBe("latest");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// inferEnvironment
+// ---------------------------------------------------------------------------
+
+function makeOldInstall(
+  overrides: Partial<OldInstallInfo> = {},
+): OldInstallInfo {
+  return {
+    workspace: "/home/user/.seed-site",
+    secret: null,
+    secretConsumed: false,
+    hostname: "https://example.com",
+    logLevel: "info",
+    imageTag: "latest",
+    testnet: false,
+    gateway: false,
+    trafficStats: false,
+    ...overrides,
+  };
+}
+
+describe("inferEnvironment", () => {
+  test("returns 'dev' when testnet is true", () => {
+    expect(inferEnvironment(makeOldInstall({ testnet: true }))).toBe("dev");
+  });
+
+  test("returns 'dev' when testnet is true even with dev image tag", () => {
+    expect(
+      inferEnvironment(makeOldInstall({ testnet: true, imageTag: "dev" })),
+    ).toBe("dev");
+  });
+
+  test("returns 'staging' when not testnet and image tag is 'dev'", () => {
+    expect(
+      inferEnvironment(makeOldInstall({ testnet: false, imageTag: "dev" })),
+    ).toBe("staging");
+  });
+
+  test("returns 'prod' when not testnet and image tag is 'latest'", () => {
+    expect(
+      inferEnvironment(makeOldInstall({ testnet: false, imageTag: "latest" })),
+    ).toBe("prod");
+  });
+
+  test("returns 'prod' when not testnet and image tag is a semver", () => {
+    expect(
+      inferEnvironment(makeOldInstall({ testnet: false, imageTag: "v1.2.3" })),
+    ).toBe("prod");
+  });
+
+  test("returns 'prod' when not testnet and image tag is null", () => {
+    expect(
+      inferEnvironment(makeOldInstall({ testnet: false, imageTag: null })),
+    ).toBe("prod");
   });
 });
 
@@ -822,5 +887,325 @@ describe("full config scenarios", () => {
     expect(dirs.some((d) => d.includes("monitoring"))).toBe(true);
     expect(dirs.some((d) => d.includes("monitoring/grafana"))).toBe(true);
     expect(dirs.some((d) => d.includes("monitoring/prometheus"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildCrontab
+// ---------------------------------------------------------------------------
+
+describe("buildCrontab", () => {
+  const paths = makePaths("/opt/seed");
+
+  test("adds seed lines to an empty crontab", () => {
+    const result = buildCrontab("", paths);
+    expect(result).toContain("# seed-deploy");
+    expect(result).toContain("# seed-cleanup");
+    expect(result).toContain("/opt/seed/deploy.js");
+    expect(result.endsWith("\n")).toBe(true);
+  });
+
+  test("preserves existing non-seed cron lines", () => {
+    const existing = "0 * * * * /usr/bin/some-other-job # my-job";
+    const result = buildCrontab(existing, paths);
+    expect(result).toContain("some-other-job");
+    expect(result).toContain("# seed-deploy");
+    expect(result).toContain("# seed-cleanup");
+  });
+
+  test("replaces existing seed-deploy line without duplicating", () => {
+    const existing = [
+      "0 * * * * /usr/bin/some-other-job # my-job",
+      "0 3 * * * /usr/bin/bun /old/path/deploy.js >> /old/path/log 2>&1 # seed-deploy",
+    ].join("\n");
+    const result = buildCrontab(existing, paths);
+
+    // Should contain exactly one seed-deploy line (the new one)
+    const deployLines = result
+      .split("\n")
+      .filter((l) => l.includes("# seed-deploy"));
+    expect(deployLines).toHaveLength(1);
+    expect(deployLines[0]).toContain("/opt/seed/deploy.js");
+    expect(deployLines[0]).not.toContain("/old/path");
+
+    // Other job preserved
+    expect(result).toContain("some-other-job");
+  });
+
+  test("replaces existing seed-cleanup line without duplicating", () => {
+    const existing = "30 0 * * * docker image prune -f # seed-cleanup";
+    const result = buildCrontab(existing, paths);
+
+    const cleanupLines = result
+      .split("\n")
+      .filter((l) => l.includes("# seed-cleanup"));
+    expect(cleanupLines).toHaveLength(1);
+    // New version uses -a flag and multiple times
+    expect(cleanupLines[0]).toContain("0 0,4,8,12,16,20");
+  });
+
+  test("replaces both seed lines at once (idempotent)", () => {
+    // First run
+    const first = buildCrontab("0 * * * * /usr/bin/other # my-job", paths);
+    // Second run with first output
+    const second = buildCrontab(first, paths);
+
+    expect(first).toBe(second);
+  });
+
+  test("does not leave blank lines when replacing", () => {
+    const existing = [
+      "0 * * * * /usr/bin/job-a # job-a",
+      "0 2 * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy",
+      "0 0,4,8,12,16,20 * * * docker image prune -a -f # seed-cleanup",
+    ].join("\n");
+    const result = buildCrontab(existing, paths);
+
+    // No double newlines (blank lines)
+    expect(result).not.toContain("\n\n");
+  });
+
+  test("uses custom bun path in deploy cron line", () => {
+    const result = buildCrontab("", paths, "/home/user/.bun/bin/bun");
+    const deployLine = result
+      .split("\n")
+      .find((l) => l.includes("# seed-deploy"))!;
+    expect(deployLine).toContain("/home/user/.bun/bin/bun");
+    expect(deployLine).not.toContain("/usr/local/bin/bun");
+  });
+
+  test("defaults bun path to /usr/local/bin/bun", () => {
+    const result = buildCrontab("", paths);
+    const deployLine = result
+      .split("\n")
+      .find((l) => l.includes("# seed-deploy"))!;
+    expect(deployLine).toContain("/usr/local/bin/bun");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseArgs
+// ---------------------------------------------------------------------------
+
+describe("parseArgs", () => {
+  test("defaults to 'deploy' when no args given", () => {
+    const result = parseArgs(["node", "deploy.js"]);
+    expect(result.command).toBe("deploy");
+    expect(result.args).toEqual([]);
+  });
+
+  test("parses known commands", () => {
+    const commands = [
+      "deploy",
+      "stop",
+      "start",
+      "restart",
+      "status",
+      "config",
+      "logs",
+      "cron",
+      "backup",
+      "restore",
+      "uninstall",
+    ] as const;
+    for (const cmd of commands) {
+      const result = parseArgs(["node", "deploy.js", cmd]);
+      expect(result.command).toBe(cmd);
+    }
+  });
+
+  test("passes remaining args through", () => {
+    const result = parseArgs(["node", "deploy.js", "logs", "daemon"]);
+    expect(result.command).toBe("logs");
+    expect(result.args).toEqual(["daemon"]);
+  });
+
+  test("parses --help flag", () => {
+    expect(parseArgs(["node", "deploy.js", "--help"]).command).toBe("help");
+    expect(parseArgs(["node", "deploy.js", "-h"]).command).toBe("help");
+  });
+
+  test("parses --version flag", () => {
+    expect(parseArgs(["node", "deploy.js", "--version"]).command).toBe(
+      "version",
+    );
+    expect(parseArgs(["node", "deploy.js", "-v"]).command).toBe("version");
+  });
+
+  test("passes backup path as arg", () => {
+    const result = parseArgs([
+      "node",
+      "deploy.js",
+      "backup",
+      "/tmp/backup.tar.gz",
+    ]);
+    expect(result.command).toBe("backup");
+    expect(result.args).toEqual(["/tmp/backup.tar.gz"]);
+  });
+
+  test("passes restore path as arg", () => {
+    const result = parseArgs([
+      "node",
+      "deploy.js",
+      "restore",
+      "/tmp/backup.tar.gz",
+    ]);
+    expect(result.command).toBe("restore");
+    expect(result.args).toEqual(["/tmp/backup.tar.gz"]);
+  });
+
+  test("passes cron subcommand as arg", () => {
+    const result = parseArgs(["node", "deploy.js", "cron", "remove"]);
+    expect(result.command).toBe("cron");
+    expect(result.args).toEqual(["remove"]);
+  });
+
+  test("--reconfigure flag on deploy command", () => {
+    const result = parseArgs(["node", "deploy.js", "deploy", "--reconfigure"]);
+    expect(result.command).toBe("deploy");
+    expect(result.reconfigure).toBe(true);
+    expect(result.args).toEqual([]);
+  });
+
+  test("--reconfigure without explicit deploy command", () => {
+    const result = parseArgs(["node", "deploy.js", "--reconfigure"]);
+    expect(result.command).toBe("deploy");
+    expect(result.reconfigure).toBe(true);
+    expect(result.args).toEqual([]);
+  });
+
+  test("--reconfigure is not set on other commands", () => {
+    const result = parseArgs(["node", "deploy.js", "status"]);
+    expect(result.reconfigure).toBeFalsy();
+  });
+
+  test("--reconfigure is not set on plain deploy", () => {
+    const result = parseArgs(["node", "deploy.js"]);
+    expect(result.reconfigure).toBeFalsy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractSeedCronLines / removeSeedCronLines
+// ---------------------------------------------------------------------------
+
+describe("extractSeedCronLines", () => {
+  test("extracts seed-deploy and seed-cleanup lines", () => {
+    const crontab = [
+      "0 * * * * /usr/bin/other # my-job",
+      "0 2 * * * /usr/bin/bun /opt/seed/deploy.js >> /opt/seed/deploy.log 2>&1 # seed-deploy",
+      "0 0,4,8,12,16,20 * * * docker image prune -a -f # seed-cleanup",
+    ].join("\n");
+    const lines = extractSeedCronLines(crontab);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("# seed-deploy");
+    expect(lines[1]).toContain("# seed-cleanup");
+  });
+
+  test("returns empty array when no seed lines present", () => {
+    const crontab = "0 * * * * /usr/bin/other # my-job";
+    expect(extractSeedCronLines(crontab)).toHaveLength(0);
+  });
+});
+
+describe("removeSeedCronLines", () => {
+  test("removes seed lines and preserves others", () => {
+    const crontab = [
+      "0 * * * * /usr/bin/other # my-job",
+      "0 2 * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy",
+      "30 * * * * /usr/bin/another # another-job",
+      "0 0 * * * docker image prune -a -f # seed-cleanup",
+    ].join("\n");
+    const result = removeSeedCronLines(crontab);
+    expect(result).toContain("my-job");
+    expect(result).toContain("another-job");
+    expect(result).not.toContain("seed-deploy");
+    expect(result).not.toContain("seed-cleanup");
+  });
+
+  test("returns empty crontab when only seed lines present", () => {
+    const crontab = [
+      "0 2 * * * /usr/bin/bun /opt/seed/deploy.js # seed-deploy",
+      "0 0 * * * docker image prune -a -f # seed-cleanup",
+    ].join("\n");
+    const result = removeSeedCronLines(crontab);
+    expect(result.trim()).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DEFAULT_SEED_DIR derivation
+// ---------------------------------------------------------------------------
+
+describe("DEFAULT_SEED_DIR", () => {
+  test("derives from dirname of process.argv[1] when SEED_DIR is unset", () => {
+    // When SEED_DIR is not set in the test environment, the default should
+    // be derived from process.argv[1] (the test runner's script path).
+    // We can't fully test the env-var branch here since it would require
+    // modifying process.env before the module loads, but we verify the
+    // derivation logic is not hardcoded to "/opt/seed".
+    if (!process.env.SEED_DIR) {
+      const { dirname } = require("node:path");
+      expect(DEFAULT_SEED_DIR).toBe(dirname(process.argv[1]));
+    } else {
+      expect(DEFAULT_SEED_DIR).toBe(process.env.SEED_DIR);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildCrontab: pruning safety margin
+// ---------------------------------------------------------------------------
+
+describe("buildCrontab pruning safety", () => {
+  const paths = makePaths("/opt/seed");
+
+  test("cleanup line includes --filter until=1h for safety margin", () => {
+    const result = buildCrontab("", paths);
+    const cleanupLine = result
+      .split("\n")
+      .find((l) => l.includes("# seed-cleanup"))!;
+    expect(cleanupLine).toContain('--filter "until=1h"');
+    expect(cleanupLine).toContain("docker image prune -a -f");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selfUpdate
+// ---------------------------------------------------------------------------
+
+describe("selfUpdate", () => {
+  let tmpDir: string;
+  let paths: DeployPaths;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "seed-selfupdate-"));
+    paths = makePaths(tmpDir);
+    await mkdir(tmpDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  test("is exported and callable", () => {
+    expect(typeof selfUpdate).toBe("function");
+  });
+
+  test("handles fetch failure gracefully (no throw)", async () => {
+    // selfUpdate uses process.argv[1] and fetches from DEFAULT_REPO_URL.
+    // In a test environment, the fetch will fail (no internet or wrong URL).
+    // It should not throw — just log and return.
+    const origUrl = process.env.SEED_REPO_URL;
+    process.env.SEED_REPO_URL = "http://localhost:1/nonexistent";
+    try {
+      await selfUpdate(paths); // should not throw
+    } finally {
+      if (origUrl !== undefined) {
+        process.env.SEED_REPO_URL = origUrl;
+      } else {
+        delete process.env.SEED_REPO_URL;
+      }
+    }
   });
 });
