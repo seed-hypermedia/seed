@@ -183,7 +183,7 @@ export function DocumentOutline({
         id: {
           ...id,
           blockRef: node.id,
-          blockRange: null,
+          blockRange: {expanded: true},
         },
       },
       {
@@ -280,7 +280,7 @@ function OutlineNode({
                   id: {
                     ...docId,
                     blockRef: child.id,
-                    blockRange: null,
+                    blockRange: {expanded: true},
                   },
                 },
                 {
