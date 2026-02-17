@@ -73,6 +73,8 @@ export const SearchInput = forwardRef<
     onExternalSearchChange?: (value: string) => void
     /** Hide the input field (for when input is rendered externally) */
     hideInput?: boolean
+    /** Callback when loading state changes */
+    onLoadingChange?: (loading: boolean) => void
   }
 >(function SearchInput(
   {
@@ -82,6 +84,7 @@ export const SearchInput = forwardRef<
     externalSearch,
     onExternalSearchChange,
     hideInput = false,
+    onLoadingChange,
   },
   ref,
 ) {
@@ -266,13 +269,12 @@ export const SearchInput = forwardRef<
     [handleArrowUp, handleArrowDown, handleEnter],
   )
 
-  console.log(
-    `🔍 Search="${search}" | Deferred="${deferredSearch}" | isPending=${isSearchPending} | isRecents=${isDisplayingRecents} | results=${
-      searchResults.data?.entities?.length || 0
-    } | activeItems=${activeItems.length} | SHOW_SPINNER=${
-      isSearchPending && !isDisplayingRecents
-    }`,
-  )
+  const isLoading =
+    (isSearchPending || searchResults.isFetching) && !isDisplayingRecents
+
+  useEffect(() => {
+    onLoadingChange?.(isLoading)
+  }, [isLoading, onLoadingChange])
 
   useEffect(() => {
     if (focusedIndex >= activeItems.length) setFocusedIndex(0)

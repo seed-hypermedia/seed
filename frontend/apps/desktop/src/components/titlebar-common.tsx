@@ -63,6 +63,7 @@ import {
   UploadCloud,
 } from '@shm/ui/icons'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
@@ -795,6 +796,7 @@ export function Omnibar() {
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const publishSite = usePublishSite()
   const searchInputRef = useRef<SearchInputHandle>(null)
+  const [isSearchLoading, setIsSearchLoading] = useState(false)
 
   const {
     mode,
@@ -1013,7 +1015,7 @@ export function Omnibar() {
     return (
       <div
         className={cn(
-          'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
+          'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border px-2 py-1',
           'border-primary bg-white dark:bg-black',
           'focus-within:ring-primary focus-within:ring-1',
           'max-w-2xl',
@@ -1044,7 +1046,7 @@ export function Omnibar() {
       <PopoverTrigger asChild>
         <div
           className={cn(
-            'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border py-1 pl-2',
+            'no-window-drag flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-full border px-2 py-1',
             'border-primary bg-white dark:bg-black',
             'focus-within:ring-primary focus-within:ring-1',
             'max-w-2xl',
@@ -1064,6 +1066,9 @@ export function Omnibar() {
             placeholder="Search documents..."
             autoFocus
           />
+          {isSearchLoading ? (
+            <Spinner className="text-muted-foreground size-3.5 shrink-0" />
+          ) : null}
           {indicators}
         </div>
       </PopoverTrigger>
@@ -1080,6 +1085,7 @@ export function Omnibar() {
             externalSearch={inputValue}
             onExternalSearchChange={handleInputChange}
             hideInput={true}
+            onLoadingChange={setIsSearchLoading}
             onSelect={({id, route: selectedRoute}) => {
               if (selectedRoute) {
                 navigate(selectedRoute)

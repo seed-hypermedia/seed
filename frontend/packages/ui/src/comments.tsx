@@ -250,24 +250,22 @@ export function CommentDiscussions({
         <div className="px-2 pr-4 pl-3">{commentEditor}</div>
       </div>
 
-      {commentGroupReplies.data?.length > 0 ? (
-        commentGroupReplies.data.map((cg) => {
-          return (
-            <div key={cg.id} className={cn('p-2')}>
-              <CommentGroup
-                key={cg.id}
-                commentGroup={cg}
-                authors={commentsService.data?.authors}
-                onCommentDelete={onCommentDelete}
-                targetDomain={targetDomain}
-                currentAccountId={currentAccountId}
-              />
-            </div>
-          )
-        })
-      ) : (
-        <EmptyDiscussions emptyReplies />
-      )}
+      {commentGroupReplies.data?.length > 0
+        ? commentGroupReplies.data.map((cg) => {
+            return (
+              <div key={cg.id} className={cn('p-2')}>
+                <CommentGroup
+                  key={cg.id}
+                  commentGroup={cg}
+                  authors={commentsService.data?.authors}
+                  onCommentDelete={onCommentDelete}
+                  targetDomain={targetDomain}
+                  currentAccountId={currentAccountId}
+                />
+              </div>
+            )
+          })
+        : null}
     </SelectionContent>
   )
 }

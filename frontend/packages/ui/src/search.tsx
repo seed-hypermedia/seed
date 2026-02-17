@@ -543,7 +543,7 @@ export function SearchInput({
       <div className="relative flex items-center gap-2 rounded-md">
         <Search className="absolute top-1/2 left-2.5 z-3 size-4 -translate-y-1/2" />
         {loading ? (
-          <Spinner className="absolute top-1/2 right-2.5 z-3 size-4 -translate-y-1/2 text-black/50 dark:text-white/50" />
+          <Spinner className="absolute top-1/2 right-7 z-3 size-4 -translate-y-1/2 text-black/50 dark:text-white/50" />
         ) : null}
         <Input
           autoFocus={true}
