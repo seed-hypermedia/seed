@@ -20,6 +20,58 @@
  * ```
  */
 
+import * as dagCBOR from "@ipld/dag-cbor"
+
+// -- Blob types (mirrored from frontend) --
+
+/** Packed binary public key: `<multicodec-varint><raw-key-bytes>`. */
+export type Principal = Uint8Array
+
+/** Cryptographic signature bytes. */
+export type Signature = Uint8Array
+
+/** Unix timestamp in milliseconds. */
+export type Timestamp = number
+
+/** Role values for capability blobs. */
+export type Role = "WRITER" | "AGENT"
+
+/** Base blob type that all signed blobs extend. */
+export interface Blob {
+	readonly type: string
+	readonly signer: Principal
+	readonly sig: Signature
+	readonly ts: Timestamp
+	readonly [key: string]: unknown
+}
+
+/** Profile blob representing user identity information. */
+export interface Profile extends Blob {
+	readonly type: "Profile"
+	readonly alias?: Principal
+	readonly name?: string
+	readonly avatar?: string
+	readonly description?: string
+	readonly account?: Principal
+}
+
+/** Capability blob granting rights from issuer to delegate. */
+export interface Capability extends Blob {
+	readonly type: "Capability"
+	readonly delegate: Principal
+	readonly audience?: Principal
+	readonly path?: string
+	readonly role: Role
+	readonly label?: string
+}
+
+/** Callback data structure returned from the vault. */
+interface CallbackData {
+	account: Principal
+	capability: Capability
+	profile: Profile
+}
+
 // -- Types --
 
 /** Configuration for the Hypermedia auth client. */
@@ -60,12 +112,12 @@ export interface AccountProfile {
 export interface AuthResult {
 	/** The account principal (base58btc) that authorized this session. */
 	accountPrincipal: string
-	/** The base64url-encoded signed capability blob (DAG-CBOR). */
-	capability: string
+	/** The signed capability blob. */
+	capability: Capability
 	/** The stored session with the unextractable signing key. */
 	session: StoredSession
-	/** Profile metadata of the account that authorized this session. */
-	profile: AccountProfile
+	/** The profile blob of the account. */
+	profile: Profile
 }
 
 // -- Base58btc encoder/decoder (inline, no deps) --
@@ -147,6 +199,68 @@ export function principalDecode(principal: string): Uint8Array {
 		throw new Error("Invalid principal: missing Ed25519 multicodec prefix")
 	}
 	return decoded.slice(2)
+}
+
+// -- Base64url decoding (for callback data) --
+
+function base64urlDecode(str: string): Uint8Array {
+	return Uint8Array.fromBase64(str, { alphabet: "base64url" })
+}
+
+// -- Gzip decompression --
+
+async function decompress(data: Uint8Array): Promise<Uint8Array> {
+	const ds = new DecompressionStream("gzip")
+	const writer = ds.writable.getWriter()
+	writer.write(data as Uint8Array<ArrayBuffer>)
+	writer.close()
+	return collectStream(ds.readable)
+}
+
+async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+	const chunks: Uint8Array[] = []
+	const reader = readable.getReader()
+	for (;;) {
+		const { done, value } = await reader.read()
+		if (done) break
+		chunks.push(value)
+	}
+	const total = chunks.reduce((sum, c) => sum + c.length, 0)
+	const result = new Uint8Array(total)
+	let offset = 0
+	for (const chunk of chunks) {
+		result.set(chunk, offset)
+		offset += chunk.length
+	}
+	return result
+}
+
+// -- Blob signature verification --
+
+const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
+const ED25519_SIGNATURE_SIZE = 64
+const ED25519_PUBLIC_KEY_SIZE = 32
+
+async function verifyBlob(blob: Blob): Promise<boolean> {
+	if (blob.signer[0] !== ED25519_VARINT_PREFIX[0] || blob.signer[1] !== ED25519_VARINT_PREFIX[1]) {
+		return false
+	}
+	const rawPubKey = blob.signer.slice(ED25519_VARINT_PREFIX.length)
+	if (rawPubKey.length !== ED25519_PUBLIC_KEY_SIZE) {
+		return false
+	}
+
+	const sigCopy = new Uint8Array(blob.sig)
+	const unsigned = { ...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE) }
+	const encoded = dagCBOR.encode(unsigned)
+	const data = new Uint8Array(encoded)
+
+	return await crypto.subtle.verify(
+		"Ed25519" as unknown as AlgorithmIdentifier,
+		await crypto.subtle.importKey("raw", rawPubKey, "Ed25519" as unknown as AlgorithmIdentifier, false, ["verify"]),
+		sigCopy,
+		data,
+	)
 }
 
 // -- IndexedDB helpers (private) --
@@ -271,25 +385,21 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 /**
  * Handle the callback after the Vault redirects back with delegation results.
  *
- * Checks the current URL for `capability` and `account` query parameters.
+ * Checks the current URL for `data` query parameter containing CBOR-encoded,
+ * gzip-compressed, base64url-encoded callback data.
  * Returns null if no delegation parameters are present.
  * Throws if an `error` parameter is present.
  */
 export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Promise<AuthResult | null> {
 	const url = new URL(window.location.href)
-	const capability = url.searchParams.get("capability")
-	const account = url.searchParams.get("account")
+	const dataParam = url.searchParams.get("data")
 	const error = url.searchParams.get("error")
 
-	if (!capability) {
+	if (!dataParam) {
 		if (error) {
 			throw new Error(`Delegation error: ${error}`)
 		}
 		return null
-	}
-
-	if (!account) {
-		throw new Error("Missing account parameter in callback URL")
 	}
 
 	const vaultUrl = config?.vaultUrl
@@ -302,19 +412,27 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
 		throw new Error("No stored session found for this vault. Was startAuth() called first?")
 	}
 
-	const profile: AccountProfile = {}
-	const name = url.searchParams.get("account_name")
-	const description = url.searchParams.get("account_description")
-	const avatar = url.searchParams.get("account_avatar")
-	if (name) profile.name = name
-	if (description) profile.description = description
-	if (avatar) profile.avatar = avatar
+	// Decode callback data: base64url → gzip decompress → CBOR decode
+	const compressed = base64urlDecode(dataParam)
+	const cbor = await decompress(compressed)
+	const callbackData = dagCBOR.decode(cbor) as CallbackData
+
+	// Verify signatures on capability and profile
+	const capabilityValid = await verifyBlob(callbackData.capability)
+	if (!capabilityValid) {
+		throw new Error("Invalid capability signature")
+	}
+
+	const profileValid = await verifyBlob(callbackData.profile)
+	if (!profileValid) {
+		throw new Error("Invalid profile signature")
+	}
 
 	return {
-		accountPrincipal: account,
-		capability,
+		accountPrincipal: principalEncode(callbackData.account),
+		capability: callbackData.capability,
 		session,
-		profile,
+		profile: callbackData.profile,
 	}
 }
 

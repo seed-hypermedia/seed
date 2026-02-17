@@ -43,14 +43,20 @@ For now: no back-channel between servers (maybe in the future), no client regist
 
 **Back to the site** (step 6, as URL search params):
 
-| Parameter             | Example    | Purpose                                                                    |
-| --------------------- | ---------- | -------------------------------------------------------------------------- |
-| `capability`          | `p2J0c...` | Base64url-encoded DAG-CBOR Capability blob, signed by the account key.     |
-| `account`             | `z6Mko...` | Base58btc-encoded principal of the account that authorized the delegation. |
-| `account_name`        | `Alice`    | Display name from the account's profile.                                   |
-| `account_description` | `...`      | Description from the account's profile.                                    |
+| Parameter | Example         | Purpose                                                                     |
+| --------- | --------------- | --------------------------------------------------------------------------- |
+| `data`    | `p2J0c...`      | Base64url-encoded, gzip-compressed, CBOR-encoded callback data (see below). |
+| `error`   | `access_denied` | Present if the user denied the request.                                     |
 
-If the user denies, the redirect includes `?error=access_denied` instead.
+The `data` parameter contains a CBOR-encoded object with the following structure, then gzipped, then base64url-encoded:
+
+```typescript
+{
+  account: Uint8Array; // Principal bytes of the account that authorized the delegation
+  capability: Capability; // Signed capability blob
+  profile: Profile; // Profile blob of the account
+}
+```
 
 ### The Capability Blob
 
@@ -115,22 +121,24 @@ The two servers share nothing — no cookies, no database, no backend communicat
 
 ## SDK
 
-The client SDK (`src/sdk/hypermedia-auth.ts`) is designed to be copied into any project. It has zero dependencies — only the Web Crypto API and IndexedDB. Key functions:
+The client SDK (`src/sdk/hypermedia-auth.ts`) is designed to be copied into any project. It depends on `@ipld/dag-cbor` for CBOR encoding/decoding. Key functions:
 
 ```ts
 import * as hmauth from "./hypermedia-auth";
 
 // Start the flow — generates key, stores it, returns the Vault URL.
-const authUrl = await hmauth.startAuth({ vaultUrl: "https://vault.example.com" });
+const authUrl = await hmauth.startAuth({
+  vaultUrl: "https://vault.example.com",
+});
 window.location.href = authUrl;
 
 // On callback — parses URL params, retrieves session from IndexedDB
 const result = await hmauth.handleCallback({
   vaultUrl: "https://vault.example.com",
 });
-// result.accountPrincipal — who authorized you
-// result.capability — the signed proof
-// result.profile — name, description, avatar
+// result.accountPrincipal — base58btc-encoded principal who authorized you
+// result.capability — typed Capability blob (verifiable signature)
+// result.profile — typed Profile blob with name, description, avatar, etc.
 // result.session — the stored session with signing key
 
 // Sign data with the session key (non-extractable, uses WebCrypto)

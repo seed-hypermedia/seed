@@ -57,7 +57,8 @@ export async function deserializeVault(compressed: Uint8Array): Promise<VaultDat
 	return dagCBOR.decode(cbor) as VaultData
 }
 
-async function compress(data: Uint8Array): Promise<Uint8Array> {
+/** Compress data using gzip. */
+export async function compress(data: Uint8Array): Promise<Uint8Array> {
 	const cs = new CompressionStream("gzip")
 	const writer = cs.writable.getWriter()
 	writer.write(data as Uint8Array<ArrayBuffer>)

@@ -83,7 +83,9 @@ describe("handleCallback", () => {
 
 	test("returns null when no params present", async () => {
 		setUrl("http://localhost:8081/")
-		const result = await SDK.handleCallback({ vaultUrl: "http://localhost:3000" })
+		const result = await SDK.handleCallback({
+			vaultUrl: "http://localhost:3000",
+		})
 		expect(result).toBeNull()
 	})
 
@@ -94,13 +96,13 @@ describe("handleCallback", () => {
 		)
 	})
 
-	test("throws when capability present but no account", async () => {
-		setUrl("http://localhost:8081/?capability=abc123")
-		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000" })).rejects.toThrow("Missing account parameter")
+	test("throws when data param present but invalid", async () => {
+		setUrl("http://localhost:8081/?data=invalidbase64")
+		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000" })).rejects.toThrow()
 	})
 
 	test("throws when no vaultUrl provided", async () => {
-		setUrl("http://localhost:8081/?capability=abc123&account=zSomePrincipal")
+		setUrl("http://localhost:8081/?data=abc")
 		await expect(SDK.handleCallback()).rejects.toThrow("vaultUrl is required")
 	})
 })

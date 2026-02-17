@@ -70,7 +70,10 @@ describe("Store", () => {
 		test("navigates to verify-pending when user does not exist", async () => {
 			const client = createMockClient({
 				preLogin: async () => ({ exists: false }),
-				registerStart: async () => ({ message: "ok", challengeId: "test-challenge" }),
+				registerStart: async () => ({
+					message: "ok",
+					challengeId: "test-challenge",
+				}),
 				registerPoll: async () => ({ verified: false }),
 			})
 			const { state, actions, navigator } = createStore(client)
@@ -158,7 +161,10 @@ describe("Store", () => {
 
 		test("does not redirect if authenticated but keys missing", async () => {
 			const client = createMockClient({
-				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
+				getSession: async () => ({
+					authenticated: true,
+					email: "test@test.com",
+				}),
 			})
 			const { state, actions, navigator } = createStore(client)
 			const navigate = mock()
@@ -173,7 +179,10 @@ describe("Store", () => {
 
 		test("does not redirect if authenticated with keys", async () => {
 			const client = createMockClient({
-				getSession: async () => ({ authenticated: true, email: "test@test.com" }),
+				getSession: async () => ({
+					authenticated: true,
+					email: "test@test.com",
+				}),
 			})
 			const { state, actions, navigator } = createStore(client)
 			const navigate = mock()
@@ -191,7 +200,10 @@ describe("Store", () => {
 	describe("handleStartRegistration", () => {
 		test("navigates to verify-pending on success and stores challengeId", async () => {
 			const client = createMockClient({
-				registerStart: async () => ({ message: "ok", challengeId: "test-challenge-123" }),
+				registerStart: async () => ({
+					message: "ok",
+					challengeId: "test-challenge-123",
+				}),
 				registerPoll: async () => ({ verified: false }),
 			})
 			const { state, actions, navigator } = createStore(client)
@@ -313,7 +325,11 @@ describe("Store", () => {
 			const client = createMockClient({
 				getSession: async () => {
 					calls.push("getSession")
-					return { authenticated: true, userId: "test-user", email: "test@passkey.com" }
+					return {
+						authenticated: true,
+						userId: "test-user",
+						email: "test@passkey.com",
+					}
 				},
 				webAuthnRegisterStart: async () => {
 					calls.push("webAuthnRegisterStart")
@@ -354,7 +370,11 @@ describe("Store", () => {
 
 			state.email = "test@passkey.com"
 			// Pre-set session as if obtained from previous step
-			state.session = { authenticated: true, hasPassword: false, hasPasskeys: false }
+			state.session = {
+				authenticated: true,
+				hasPassword: false,
+				hasPasskeys: false,
+			}
 
 			// First attempt: simulate user cancel at startRegistration.
 			mockStartRegistration.mockRejectedValueOnce(new Error("The operation was canceled"))
@@ -524,8 +544,7 @@ describe("delegation flow", () => {
 
 		// Should redirect to callback URL.
 		expect(window.location.href).toContain("https://example.com/callback")
-		expect(window.location.href).toContain("capability=")
-		expect(window.location.href).toContain("account=")
+		expect(window.location.href).toContain("data=")
 
 		// Delegation state should be cleared.
 		expect(state.delegationRequest).toBeNull()

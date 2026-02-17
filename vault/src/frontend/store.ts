@@ -976,7 +976,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			state.loading = true
 
 			try {
-				const data = await client.changeEmailStart({ newEmail: state.newEmail })
+				const data = await client.changeEmailStart({
+					newEmail: state.newEmail,
+				})
 				state.emailChangeChallengeId = data.challengeId
 				navigator.go("/email/change-pending")
 				actions.startPollingEmailChange()
@@ -1116,16 +1118,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				await actions.saveVaultData()
 
-				const accountPrincipal = blobs.principalToString(issuerKeyPair.principal)
-				const callbackUrl = delegation.buildCallbackUrl(
+				const callbackUrl = await delegation.buildCallbackUrl(
 					state.delegationRequest.redirectUri,
-					encoded.data,
-					accountPrincipal,
-					{
-						name: account.profile.name,
-						description: account.profile.description,
-						avatar: account.profile.avatar,
-					},
+					issuerKeyPair.principal,
+					encoded.decoded,
+					account.profile,
 				)
 
 				state.delegationRequest = null

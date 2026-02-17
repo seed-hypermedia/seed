@@ -2,7 +2,7 @@ import * as dagCBOR from "@ipld/dag-cbor"
 import { useEffect, useMemo, useState } from "react"
 import * as base64 from "../frontend/base64"
 import * as blobs from "../frontend/blobs"
-import type { AuthResult } from "../sdk/hypermedia-auth"
+import type { AuthResult, Capability } from "../sdk/hypermedia-auth"
 import * as hmauth from "../sdk/hypermedia-auth"
 
 const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
@@ -13,12 +13,28 @@ function bytesToHex(bytes: Uint8Array): string {
 		.join("")
 }
 
-function CapabilityField({ capability }: { capability: string }) {
+function encodeCallbackData(data: AuthResult): string {
+	return base64.encode(
+		new Uint8Array(
+			dagCBOR.encode({
+				accountPrincipal: data.accountPrincipal,
+				capability: data.capability,
+				profile: data.profile,
+			}),
+		),
+	)
+}
+
+function decodeCallbackData(encoded: string): AuthResult {
+	const decoded = dagCBOR.decode(base64.decode(encoded))
+	return decoded as unknown as AuthResult
+}
+
+function CapabilityField({ capability }: { capability: Capability }) {
 	const decoded = useMemo(() => {
 		try {
-			const bytes = base64.decode(capability)
 			return JSON.stringify(
-				dagCBOR.decode(bytes),
+				capability,
 				(_key, value) => {
 					if (value instanceof Uint8Array) {
 						if (value.length === 34 && value[0] === 0xed && value[1] === 0x01) {
@@ -77,15 +93,8 @@ export default function App() {
 					vaultUrl: currentVaultUrl,
 				})
 				if (result) {
-					// Persist profile info
-					localStorage.setItem(
-						"auth_result",
-						JSON.stringify({
-							accountPrincipal: result.accountPrincipal,
-							capability: result.capability,
-							profile: result.profile,
-						}),
-					)
+					// Persist callback data as CBOR
+					localStorage.setItem("auth_result", encodeCallbackData(result))
 					setAuthResult(result)
 					// Clean URL
 					window.history.replaceState({}, "", window.location.pathname)
@@ -103,7 +112,7 @@ export default function App() {
 
 				if (session && savedResult) {
 					try {
-						const parsed = JSON.parse(savedResult)
+						const parsed = decodeCallbackData(savedResult)
 						setAuthResult({ ...parsed, session })
 					} catch {
 						// Bad localStorage data, ignore

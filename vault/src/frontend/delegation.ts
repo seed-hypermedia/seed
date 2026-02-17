@@ -4,8 +4,10 @@
  * and redirect URIs, and creating signed capabilities for session keys.
  */
 
+import * as dagCBOR from "@ipld/dag-cbor"
 import * as base64 from "./base64"
 import * as blobs from "./blobs"
+import { compress } from "./vault"
 
 /** URL parameter name for the client ID (origin of the requesting site). */
 export const PARAM_CLIENT_ID = "client_id"
@@ -123,39 +125,36 @@ export function validateRedirectUri(redirectUri: string, clientId: string): void
 	}
 }
 
-/** Profile metadata to include in the callback URL. */
-export interface CallbackProfile {
-	/** Display name of the account. */
-	name?: string
-	/** Short text description. */
-	description?: string
-	/** Avatar URI. */
-	avatar?: string
+/** Callback data passed back to the requesting site after authorization. */
+export interface CallbackData {
+	/** Account principal (the issuer of the capability). */
+	account: blobs.Principal
+	/** Signed capability blob granting authority to the session key. */
+	capability: blobs.Capability
+	/** Profile blob of the account. */
+	profile: blobs.Profile
 }
 
 /**
  * Build the callback URL to redirect the user back with the signed capability.
- * Appends `capability` (base64url-encoded DAG-CBOR), `account` (base58btc principal),
- * and optional profile metadata as search params.
+ * Encodes callback data as CBOR, compresses with gzip, then base64url-encodes.
+ * Uses a single `data` URL parameter.
  */
-export function buildCallbackUrl(
+export async function buildCallbackUrl(
 	redirectUri: string,
-	capabilityData: Uint8Array,
-	accountPrincipal: string,
-	profile?: CallbackProfile,
-): string {
+	accountPrincipal: blobs.Principal,
+	capability: blobs.Capability,
+	profile: blobs.Profile,
+): Promise<string> {
 	const url = new URL(redirectUri)
-	url.searchParams.set("capability", base64.encode(capabilityData))
-	url.searchParams.set("account", accountPrincipal)
-	if (profile?.name) {
-		url.searchParams.set("account_name", profile.name)
+	const callbackData: CallbackData = {
+		account: accountPrincipal,
+		capability,
+		profile,
 	}
-	if (profile?.description) {
-		url.searchParams.set("account_description", profile.description)
-	}
-	if (profile?.avatar) {
-		url.searchParams.set("account_avatar", profile.avatar)
-	}
+	const cbor = dagCBOR.encode(callbackData)
+	const compressed = await compress(new Uint8Array(cbor))
+	url.searchParams.set("data", base64.encode(compressed))
 	return url.toString()
 }
 
