@@ -610,6 +610,11 @@ export function BlockNodeContent({
     allowHighlight &&
     resourceId.blockRef == blockNode.block?.id &&
     resourceId.blockRange?.start == undefined
+  const isHighlightExpanded =
+    isHighlight &&
+    !!resourceId.blockRange &&
+    'expanded' in resourceId.blockRange &&
+    !!resourceId.blockRange.expanded
   const headingMarginStyles = useHeadingMarginStyles(
     depth,
     layoutUnit,
@@ -828,7 +833,9 @@ export function BlockNodeContent({
       data-block-type={blockNode.block?.type}
       className={cn(
         'blocknode-content',
-        isHighlight ? 'bg-brand-12 blocknode-highlight' : 'bg-transparent',
+        isHighlightExpanded
+          ? 'bg-brand-12 blocknode-highlight'
+          : 'bg-transparent',
         hover && !isHighlight && 'bg-background',
         isEmbed && 'my-2',
       )}
@@ -840,6 +847,9 @@ export function BlockNodeContent({
           'blocknode-inner',
           isEmbed && 'blocknode-inner-embed',
           blockNode.block!.type == 'Heading' && 'blocknode-content-heading',
+          isHighlight &&
+            !isHighlightExpanded &&
+            'bg-brand-12 blocknode-highlight',
           // @ts-expect-error
           headingStyles.className,
         )}
@@ -2021,12 +2031,12 @@ function BlockEmbedContentDocument(props: {
                       ]
                     : currentAnnotations,
               },
-              // children:
-              //   props.blockRange &&
-              //   'expanded' in props.blockRange &&
-              //   props.blockRange.expanded
-              //     ? [...selectedBlock.children]
-              //     : [],
+              children:
+                props.blockRange &&
+                'expanded' in props.blockRange &&
+                props.blockRange.expanded
+                  ? [...(selectedBlock.children || [])]
+                  : [],
             },
           ]
         : null
