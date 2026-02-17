@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import * as simplewebauthn from "@simplewebauthn/browser"
+import * as base64 from "./base64"
 import * as blobs from "./blobs"
 import { createStore } from "./store"
 import { createMockClient } from "./test-utils"
-import * as vaultDataMod from "./vault"
 
 // Mock simplewebauthn browser functions (external dependency).
 const mockStartRegistration = spyOn(simplewebauthn, "startRegistration")
@@ -163,6 +163,7 @@ describe("Store", () => {
 			const client = createMockClient({
 				getSession: async () => ({
 					authenticated: true,
+					relyingPartyOrigin: "https://vault.example.com",
 					email: "test@test.com",
 				}),
 			})
@@ -181,6 +182,7 @@ describe("Store", () => {
 			const client = createMockClient({
 				getSession: async () => ({
 					authenticated: true,
+					relyingPartyOrigin: "https://vault.example.com",
 					email: "test@test.com",
 				}),
 			})
@@ -302,7 +304,7 @@ describe("Store", () => {
 			const navigate = mock()
 			navigator.setNavigate(navigate)
 
-			state.session = { authenticated: true, email: "test@test.com" }
+			state.session = { authenticated: true, relyingPartyOrigin: "https://vault.example.com", email: "test@test.com" }
 			state.decryptedDEK = new Uint8Array(64)
 			state.password = "secret"
 
@@ -327,6 +329,7 @@ describe("Store", () => {
 					calls.push("getSession")
 					return {
 						authenticated: true,
+						relyingPartyOrigin: "https://vault.example.com",
 						userId: "test-user",
 						email: "test@passkey.com",
 					}
@@ -372,6 +375,7 @@ describe("Store", () => {
 			// Pre-set session as if obtained from previous step
 			state.session = {
 				authenticated: true,
+				relyingPartyOrigin: "https://vault.example.com",
 				hasPassword: false,
 				hasPasskeys: false,
 			}
@@ -437,69 +441,51 @@ describe("Store", () => {
 describe("delegation flow", () => {
 	const originalLocation = window.location
 
-	function makeDelegationUrl(
+	async function makeSignedDelegationUrl(
 		clientId = "https://example.com",
 		redirectUri = "https://example.com/callback",
-		sessionKey?: string,
-	): URL {
-		// Generate a real session key principal if not provided.
-		if (!sessionKey) {
-			const kp = blobs.generateKeyPair()
-			sessionKey = blobs.principalToString(kp.principal)
-		}
-		const url = new URL("https://vault.example.com/delegate")
-		url.searchParams.set("client_id", clientId)
-		url.searchParams.set("redirect_uri", redirectUri)
-		url.searchParams.set("session_key", sessionKey)
-		return url
+		vaultOrigin = "https://vault.example.com",
+	) {
+		const keyPair = (await crypto.subtle.generateKey("Ed25519" as unknown as AlgorithmIdentifier, false, [
+			"sign",
+			"verify",
+		])) as CryptoKeyPair
+		const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey))
+		const sessionKeyPrincipal = blobs.principalToString(blobs.principalFromEd25519(publicKeyRaw))
+		const state = "AAAAAAAAAAAAAAAAAAAAAA"
+		const ts = Date.now()
+		const unsignedUrl = new URL(`${vaultOrigin}/delegate`)
+		unsignedUrl.searchParams.set("client_id", clientId)
+		unsignedUrl.searchParams.set("redirect_uri", redirectUri)
+		unsignedUrl.searchParams.set("session_key", sessionKeyPrincipal)
+		unsignedUrl.searchParams.set("state", state)
+		unsignedUrl.searchParams.set("ts", String(ts))
+		const payload = new TextEncoder().encode(unsignedUrl.toString())
+		const proof = new Uint8Array(
+			await crypto.subtle.sign(
+				"Ed25519" as unknown as AlgorithmIdentifier,
+				keyPair.privateKey,
+				payload as ArrayBufferView<ArrayBuffer>,
+			),
+		)
+		const proofBase64 = base64.encode(proof)
+		const delimiter = unsignedUrl.search ? "&" : "?"
+		const url = new URL(`${unsignedUrl.toString()}${delimiter}proof=${encodeURIComponent(proofBase64)}`)
+		return { url, state }
 	}
 
 	beforeEach(() => {
 		// @ts-expect-error
 		delete window.location
 		// @ts-expect-error
-		window.location = { href: "", pathname: "/" }
+		window.location = { href: "", pathname: "/", origin: "https://vault.example.com" }
 	})
 
 	afterEach(() => {
 		window.location = originalLocation as any
 	})
 
-	test("parseDelegationFromUrl stores valid request", () => {
-		const { state, actions } = createStore(createMockClient())
-		const url = makeDelegationUrl()
-
-		actions.parseDelegationFromUrl(url)
-
-		expect(state.delegationRequest).not.toBeNull()
-		expect(state.delegationRequest!.clientId).toBe("https://example.com")
-		expect(state.delegationRequest!.redirectUri).toBe("https://example.com/callback")
-		expect(state.delegationRequest!.sessionKeyPrincipal).toBeTruthy()
-		expect(state.error).toBe("")
-	})
-
-	test("parseDelegationFromUrl sets error on invalid params", () => {
-		const { state, actions } = createStore(createMockClient())
-		// http non-localhost is invalid for client_id.
-		const url = makeDelegationUrl("http://evil.com", "http://evil.com/callback")
-
-		actions.parseDelegationFromUrl(url)
-
-		expect(state.delegationRequest).toBeNull()
-		expect(state.error).toContain("HTTPS")
-	})
-
-	test("parseDelegationFromUrl ignores URL without delegation params", () => {
-		const { state, actions } = createStore(createMockClient())
-		const url = new URL("https://vault.example.com/some-page")
-
-		actions.parseDelegationFromUrl(url)
-
-		expect(state.delegationRequest).toBeNull()
-		expect(state.error).toBe("")
-	})
-
-	test("completeDelegation creates capability and redirects", async () => {
+	test("completes delegation with signed protocol request and redirects with state", async () => {
 		const saveVaultDataCalls: unknown[] = []
 		const client = createMockClient({
 			saveVaultData: async (req) => {
@@ -508,10 +494,11 @@ describe("delegation flow", () => {
 			},
 		})
 		const { state, actions } = createStore(client)
+		const request = await makeSignedDelegationUrl()
+		actions.parseDelegationFromUrl(request.url)
 
 		// Set up vault state.
 		const kp = blobs.generateKeyPair()
-		const sessionKp = blobs.generateKeyPair()
 		const ts = Date.now()
 		const profile = blobs.createProfile(kp, { name: "Test" }, ts)
 
@@ -529,13 +516,7 @@ describe("delegation flow", () => {
 		}
 		state.selectedAccountIndex = 0
 		state.vaultVersion = 0
-
-		// Set up delegation request.
-		state.delegationRequest = {
-			clientId: "https://example.com",
-			redirectUri: "https://example.com/callback",
-			sessionKeyPrincipal: blobs.principalToString(sessionKp.principal),
-		}
+		state.relyingPartyOrigin = "https://vault.example.com"
 
 		await actions.completeDelegation()
 
@@ -545,6 +526,7 @@ describe("delegation flow", () => {
 		// Should redirect to callback URL.
 		expect(window.location.href).toContain("https://example.com/callback")
 		expect(window.location.href).toContain("data=")
+		expect(window.location.href).toContain(`state=${request.state}`)
 
 		// Delegation state should be cleared.
 		expect(state.delegationRequest).toBeNull()
@@ -552,35 +534,41 @@ describe("delegation flow", () => {
 		expect(state.error).toBe("")
 	})
 
-	test("completeDelegation errors without selected account", async () => {
+	test("rejects tampered proof during delegation completion", async () => {
 		const { state, actions } = createStore(createMockClient())
+		const request = await makeSignedDelegationUrl()
+		request.url.searchParams.set("proof", "bad-proof")
+		actions.parseDelegationFromUrl(request.url)
 
 		state.decryptedDEK = new Uint8Array(32)
-		state.vaultData = vaultDataMod.emptyVault()
-		state.selectedAccountIndex = -1
-		state.delegationRequest = {
-			clientId: "https://example.com",
-			redirectUri: "https://example.com/callback",
-			sessionKeyPrincipal: blobs.principalToString(blobs.generateKeyPair().principal),
+		const kp = blobs.generateKeyPair()
+		const profile = blobs.createProfile(kp, { name: "Test" }, Date.now())
+		state.vaultData = {
+			version: 1,
+			accounts: [{ seed: kp.privateKey, profile: profile.decoded, createdAt: Date.now() }],
+			delegations: [],
 		}
-
-		// Suppress console.error for expected error.
-		const consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		state.selectedAccountIndex = 0
+		state.relyingPartyOrigin = "https://vault.example.com"
 
 		await actions.completeDelegation()
 
-		expect(state.error).toContain("No account selected")
-
-		consoleErrorSpy.mockRestore()
+		expect(state.error).toContain("Invalid proof signature encoding")
 	})
 
 	test("cancelDelegation redirects with error param", () => {
 		const { state, actions } = createStore(createMockClient())
 
 		state.delegationRequest = {
+			originalUrl:
+				"https://vault.example.com/delegate?client_id=https%3A%2F%2Fexample.com&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&session_key=missing&state=AAAAAAAAAAAAAAAAAAAAAA&ts=1700000000000&proof=cA",
 			clientId: "https://example.com",
 			redirectUri: "https://example.com/callback",
 			sessionKeyPrincipal: blobs.principalToString(blobs.generateKeyPair().principal),
+			state: "AAAAAAAAAAAAAAAAAAAAAA",
+			requestTs: Date.now(),
+			proof: "cA",
+			vaultOrigin: "https://vault.example.com",
 		}
 
 		actions.cancelDelegation()

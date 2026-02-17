@@ -1,114 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import * as delegation from "@/frontend/delegation"
 import * as SDK from "./hypermedia-auth"
 
-describe("base58btc encoding", () => {
-	test("round-trips arbitrary bytes", () => {
-		const input = new Uint8Array([0xed, 0x01, 0xaa, 0xbb, 0xcc, 0xdd])
-		const encoded = SDK.base58btcEncode(input)
-		const decoded = SDK.base58btcDecode(encoded)
-		expect(decoded).toEqual(input)
-	})
-
-	test("handles leading zeros", () => {
-		const input = new Uint8Array([0, 0, 0, 1, 2, 3])
-		const encoded = SDK.base58btcEncode(input)
-		// Leading zeros become '1' characters
-		expect(encoded.startsWith("111")).toBe(true)
-		const decoded = SDK.base58btcDecode(encoded)
-		expect(decoded).toEqual(input)
-	})
-
-	test("empty input", () => {
-		const encoded = SDK.base58btcEncode(new Uint8Array([]))
-		expect(encoded).toBe("")
-		const decoded = SDK.base58btcDecode("")
-		expect(decoded).toEqual(new Uint8Array([]))
-	})
-
-	test("throws on invalid base58 character", () => {
-		expect(() => SDK.base58btcDecode("0OIl")).toThrow("Invalid base58 character")
-	})
-
-	test("encodes known value", () => {
-		// "Hello" in base58btc
-		const input = new TextEncoder().encode("Hello")
-		const encoded = SDK.base58btcEncode(input)
-		expect(encoded).toBe("9Ajdvzr")
-	})
-})
-
-describe("principal encoding", () => {
-	test("produces z-prefixed string with correct structure", () => {
-		const pubkey = new Uint8Array(32).fill(0x42)
-		const principal = SDK.principalEncode(pubkey)
-
-		// Multibase prefix
-		expect(principal.startsWith("z")).toBe(true)
-
-		// Round-trip
-		const decoded = SDK.principalDecode(principal)
-		expect(decoded).toEqual(pubkey)
-	})
-
-	test("decode rejects non-z prefix", () => {
-		expect(() => SDK.principalDecode("m" + "abc")).toThrow("must start with 'z'")
-	})
-
-	test("decode rejects invalid multicodec prefix", () => {
-		// Encode something with wrong prefix
-		const bad = new Uint8Array([0x00, 0x01, ...new Uint8Array(32)])
-		const encoded = `z${SDK.base58btcEncode(bad)}`
-		expect(() => SDK.principalDecode(encoded)).toThrow("missing Ed25519 multicodec prefix")
-	})
-})
-
-describe("handleCallback", () => {
-	const originalLocation = window.location
-
-	function setUrl(url: string) {
-		Object.defineProperty(window, "location", {
-			value: new URL(url),
-			writable: true,
-			configurable: true,
-		})
-	}
-
-	afterEach(() => {
-		Object.defineProperty(window, "location", {
-			value: originalLocation,
-			writable: true,
-			configurable: true,
-		})
-	})
-
-	test("returns null when no params present", async () => {
-		setUrl("http://localhost:8081/")
-		const result = await SDK.handleCallback({
-			vaultUrl: "http://localhost:3000",
-		})
-		expect(result).toBeNull()
-	})
-
-	test("throws on error param", async () => {
-		setUrl("http://localhost:8081/?error=access_denied")
-		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000" })).rejects.toThrow(
-			"Delegation error: access_denied",
-		)
-	})
-
-	test("throws when data param present but invalid", async () => {
-		setUrl("http://localhost:8081/?data=invalidbase64")
-		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000" })).rejects.toThrow()
-	})
-
-	test("throws when no vaultUrl provided", async () => {
-		setUrl("http://localhost:8081/?data=abc")
-		await expect(SDK.handleCallback()).rejects.toThrow("vaultUrl is required")
-	})
-})
-
-// WebCrypto Ed25519 may not be supported in happy-dom.
-// We test it conditionally.
 const hasWebCryptoEd25519 = await (async () => {
 	try {
 		await crypto.subtle.generateKey("Ed25519" as unknown as AlgorithmIdentifier, false, ["sign", "verify"])
@@ -120,39 +13,211 @@ const hasWebCryptoEd25519 = await (async () => {
 
 const cryptoTest = hasWebCryptoEd25519 ? test : test.skip
 
-describe("generateSessionKey", () => {
-	cryptoTest("produces valid key pair and principal", async () => {
-		const result = await SDK.generateSessionKey()
+type IDBStoreMap = Map<string, Map<string, unknown>>
 
-		expect(result.keyPair.publicKey).toBeDefined()
-		expect(result.keyPair.privateKey).toBeDefined()
-		expect(result.publicKeyRaw.length).toBe(32)
-		expect(result.principal.startsWith("z")).toBe(true)
+function createIndexedDBMock() {
+	const databases = new Map<string, IDBStoreMap>()
 
-		// Verify round-trip of principal
-		const decodedPubKey = SDK.principalDecode(result.principal)
-		expect(decodedPubKey).toEqual(result.publicKeyRaw)
+	const makeRequest = <T>(executor: (resolve: (value: T) => void, reject: (error: Error) => void) => void) => {
+		const req: {
+			result?: T
+			error?: Error
+			onsuccess: null | (() => void)
+			onerror: null | (() => void)
+		} = {
+			onsuccess: null,
+			onerror: null,
+		}
+		queueMicrotask(() => {
+			executor(
+				(value) => {
+					req.result = value
+					req.onsuccess?.()
+				},
+				(error) => {
+					req.error = error
+					req.onerror?.()
+				},
+			)
+		})
+		return req
+	}
+
+	const indexedDBMock = {
+		open(dbName: string) {
+			let stores = databases.get(dbName)
+			const req: {
+				result?: unknown
+				error?: Error
+				onupgradeneeded: null | (() => void)
+				onsuccess: null | (() => void)
+				onerror: null | (() => void)
+			} = {
+				onupgradeneeded: null,
+				onsuccess: null,
+				onerror: null,
+			}
+
+			queueMicrotask(() => {
+				const isNew = !stores
+				if (!stores) {
+					stores = new Map()
+					databases.set(dbName, stores)
+				}
+				const db = {
+					objectStoreNames: {
+						contains(name: string) {
+							return stores!.has(name)
+						},
+					},
+					createObjectStore(name: string) {
+						if (!stores!.has(name)) {
+							stores!.set(name, new Map())
+						}
+					},
+					transaction(name: string) {
+						const store = stores!.get(name)
+						if (!store) {
+							throw new Error(`Object store does not exist: ${name}`)
+						}
+						return {
+							objectStore() {
+								return {
+									get(key: string) {
+										return makeRequest((resolve) => resolve(store.get(key)))
+									},
+									put(value: unknown, key: string) {
+										return makeRequest<void>((resolve) => {
+											store.set(key, value)
+											resolve()
+										})
+									},
+									delete(key: string) {
+										return makeRequest<void>((resolve) => {
+											store.delete(key)
+											resolve()
+										})
+									},
+								}
+							},
+						}
+					},
+				}
+				req.result = db
+				if (isNew) {
+					req.onupgradeneeded?.()
+				}
+				req.onsuccess?.()
+			})
+
+			return req
+		},
+	}
+
+	return indexedDBMock
+}
+
+describe("hypermedia auth protocol", () => {
+	const originalLocation = window.location
+	const originalIndexedDB = (globalThis as { indexedDB?: unknown }).indexedDB
+
+	function setUrl(url: string) {
+		Object.defineProperty(window, "location", {
+			value: new URL(url),
+			writable: true,
+			configurable: true,
+		})
+	}
+
+	afterEach(() => {
+		;(globalThis as { indexedDB?: unknown }).indexedDB = originalIndexedDB
+	})
+
+	afterEach(() => {
+		Object.defineProperty(window, "location", {
+			value: originalLocation,
+			writable: true,
+			configurable: true,
+		})
+	})
+
+	cryptoTest("startAuth produces a signed delegation request URL and stores session", async () => {
+		;(globalThis as { indexedDB?: unknown }).indexedDB = createIndexedDBMock()
+		setUrl("http://localhost:8081/callback")
+		const vaultUrl = "http://localhost:3000/vault/delegate"
+		const authUrl = await SDK.startAuth({ vaultUrl })
+		const parsed = new URL(authUrl)
+
+		expect(parsed.searchParams.get("client_id")).toBe("http://localhost:8081")
+		expect(parsed.searchParams.get("redirect_uri")).toBe("http://localhost:8081/callback")
+		expect(parsed.searchParams.get("session_key")).toBeString()
+		expect(parsed.searchParams.get("state")).toBeString()
+		expect(parsed.searchParams.get("ts")).toBeString()
+		expect(parsed.searchParams.get("proof")).toBeString()
+
+		const session = await SDK.getSession(vaultUrl)
+		expect(session).not.toBeNull()
+		const sessionKey = parsed.searchParams.get("session_key")
+		if (!sessionKey) {
+			throw new Error("missing session_key")
+		}
+		expect(session!.principal).toBe(sessionKey)
+	})
+
+	test("handleCallback returns null when callback params are absent", async () => {
+		setUrl("http://localhost:8081/")
+		const result = await SDK.handleCallback({ vaultUrl: "http://localhost:3000/vault/delegate" })
+		expect(result).toBeNull()
+	})
+
+	cryptoTest("handleCallback rejects callbacks with mismatched state", async () => {
+		;(globalThis as { indexedDB?: unknown }).indexedDB = createIndexedDBMock()
+		setUrl("http://localhost:8081/callback")
+		const vaultUrl = "http://localhost:3000/vault/delegate"
+		await SDK.startAuth({ vaultUrl })
+		setUrl("http://localhost:8081/callback?error=access_denied&state=WRONGSTATE")
+		await expect(SDK.handleCallback({ vaultUrl })).rejects.toThrow("Invalid callback state")
+	})
+
+	cryptoTest("demo redirect URL should be accepted by vault delegation parser", async () => {
+		;(globalThis as { indexedDB?: unknown }).indexedDB = createIndexedDBMock()
+		setUrl("http://localhost:8081/callback")
+		const vaultUrl = "http://localhost:3000/vault/delegate"
+		const authUrl = await SDK.startAuth({ vaultUrl })
+		const parsedAuthUrl = new URL(authUrl)
+
+		const request = delegation.parseDelegationRequest(parsedAuthUrl)
+		expect(request).not.toBeNull()
+		await expect(delegation.verifyDelegationRequestProof(request!, parsedAuthUrl.origin)).resolves.toBeUndefined()
+	})
+
+	test("handleCallback requires state when callback has error", async () => {
+		setUrl("http://localhost:8081/callback?error=access_denied")
+		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000/vault/delegate" })).rejects.toThrow(
+			"Missing callback state",
+		)
 	})
 })
 
-describe("signWithSession", () => {
-	cryptoTest("signs data and produces 64-byte signature", async () => {
+describe("sdk key operations", () => {
+	cryptoTest("generateSessionKey and principalDecode round-trip", async () => {
+		const result = await SDK.generateSessionKey()
+		expect(result.publicKeyRaw.length).toBe(32)
+		const decodedPubKey = SDK.principalDecode(result.principal)
+		expect(decodedPubKey).toEqual(result.publicKeyRaw)
+	})
+
+	cryptoTest("signWithSession signs data with stored key", async () => {
 		const { keyPair, publicKeyRaw, principal } = await SDK.generateSessionKey()
 		const session: SDK.StoredSession = {
 			keyPair,
 			publicKeyRaw,
 			principal,
-			vaultUrl: "http://localhost:3000",
+			vaultUrl: "http://localhost:3000/vault/delegate",
 			createdAt: Date.now(),
 		}
-
 		const data = new TextEncoder().encode("test message")
 		const signature = await SDK.signWithSession(session, data)
-
-		expect(signature).toBeInstanceOf(Uint8Array)
-		expect(signature.length).toBe(64)
-
-		// Verify the signature with the public key
 		const valid = await crypto.subtle.verify(
 			"Ed25519" as unknown as AlgorithmIdentifier,
 			keyPair.publicKey,

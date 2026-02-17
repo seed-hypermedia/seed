@@ -1,97 +1,100 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
+import * as base64 from "./base64"
 import * as blobs from "./blobs"
-import { createStore, type SessionInfo } from "./store"
-import { createMockClient } from "./test-utils"
+import * as delegation from "./delegation"
 
-function makeDelegationUrl(
+async function createSignedDelegationUrl(
 	clientId = "https://example.com",
 	redirectUri = "https://example.com/callback",
-	sessionKey?: string,
-): URL {
-	if (!sessionKey) {
-		const kp = blobs.generateKeyPair()
-		sessionKey = blobs.principalToString(kp.principal)
-	}
-	const url = new URL("https://vault.example.com/delegate")
-	url.searchParams.set("client_id", clientId)
-	url.searchParams.set("redirect_uri", redirectUri)
-	url.searchParams.set("session_key", sessionKey)
-	return url
+	vaultOrigin = "https://vault.example.com",
+) {
+	const keyPair = (await crypto.subtle.generateKey("Ed25519" as unknown as AlgorithmIdentifier, false, [
+		"sign",
+		"verify",
+	])) as CryptoKeyPair
+	const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey))
+	const sessionKeyPrincipal = blobs.principalToString(blobs.principalFromEd25519(publicKeyRaw))
+	const state = "AAAAAAAAAAAAAAAAAAAAAA"
+	const requestTs = Date.now()
+	const unsignedUrl = new URL(`${vaultOrigin}/delegate`)
+	unsignedUrl.searchParams.set("client_id", clientId)
+	unsignedUrl.searchParams.set("redirect_uri", redirectUri)
+	unsignedUrl.searchParams.set("session_key", sessionKeyPrincipal)
+	unsignedUrl.searchParams.set("state", state)
+	unsignedUrl.searchParams.set("ts", String(requestTs))
+	const payload = new TextEncoder().encode(unsignedUrl.toString())
+	const proof = new Uint8Array(
+		await crypto.subtle.sign(
+			"Ed25519" as unknown as AlgorithmIdentifier,
+			keyPair.privateKey,
+			payload as ArrayBufferView<ArrayBuffer>,
+		),
+	)
+	const proofBase64 = base64.encode(proof)
+	const delimiter = unsignedUrl.search ? "&" : "?"
+	const url = new URL(`${unsignedUrl.toString()}${delimiter}proof=${encodeURIComponent(proofBase64)}`)
+	return { url, state }
 }
 
-describe("delegation flow - scenario 3: account exists but not signed in", () => {
-	const originalLocation = window.location
-
-	beforeEach(() => {
-		delete (window as any).location
-		window.location = { href: "", pathname: "/", search: "" } as any
+describe("delegation request protocol", () => {
+	test("parses and verifies a valid signed request", async () => {
+		const { url } = await createSignedDelegationUrl()
+		const request = delegation.parseDelegationRequest(url)
+		expect(request).not.toBeNull()
+		await expect(
+			delegation.verifyDelegationRequestProof(request!, "https://vault.example.com"),
+		).resolves.toBeUndefined()
 	})
 
-	afterEach(() => {
-		window.location = originalLocation as any
+	test("rejects request when signed fields are tampered", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set("state", "BBBBBBBBBBBBBBBBBBBBBB")
+		const request = delegation.parseDelegationRequest(url)
+		await expect(delegation.verifyDelegationRequestProof(request!, "https://vault.example.com")).rejects.toThrow(
+			"does not match session key",
+		)
 	})
 
-	test("BUG: visiting /delegate while not authenticated - delegationRequest stays null because parse is never called", () => {
-		const client = createMockClient()
-		const { state } = createStore(client)
-
-		const delegationUrl = makeDelegationUrl()
-		window.location.href = delegationUrl.toString()
-		window.location.pathname = "/delegate"
-		window.location.search = delegationUrl.search
-
-		expect(state.session).toBeNull()
-		expect(state.sessionChecked).toBe(false)
-		expect(state.delegationRequest).toBeNull()
-
-		state.sessionChecked = true
-		state.session = null
-
-		expect((state.session as SessionInfo | null)?.authenticated).toBeFalsy()
-		expect(state.delegationRequest).toBeNull()
-
-		const kp = blobs.generateKeyPair()
-		const ts = Date.now()
-		const profile = blobs.createProfile(kp, { name: "Test User" }, ts)
-		state.vaultData = {
-			version: 1,
-			accounts: [{ seed: kp.privateKey, profile: profile.decoded, createdAt: ts }],
-			delegations: [],
-		}
-
-		state.session = {
-			authenticated: true,
-			email: "test@example.com",
-			hasPassword: true,
-		}
-		state.decryptedDEK = new Uint8Array(32)
-
-		expect(state.session?.authenticated).toBe(true)
-		expect(state.decryptedDEK).not.toBeNull()
-		expect(state.delegationRequest).toBeNull()
+	test("rejects request with malformed proof encoding", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set("proof", "not-base64url")
+		const request = delegation.parseDelegationRequest(url)
+		await expect(delegation.verifyDelegationRequestProof(request!, "https://vault.example.com")).rejects.toThrow(
+			"Invalid proof signature encoding",
+		)
 	})
 
-	test("WORKAROUND: if parseDelegationFromUrl is called before login, delegationRequest persists", () => {
-		const client = createMockClient()
-		const { state, actions } = createStore(client)
+	test("rejects expired request proof", async () => {
+		const { url } = await createSignedDelegationUrl()
+		const request = delegation.parseDelegationRequest(url)
+		const now = Date.now() + 6 * 60 * 1000
+		await expect(delegation.verifyDelegationRequestProof(request!, "https://vault.example.com", now)).rejects.toThrow(
+			"expired",
+		)
+	})
 
-		const delegationUrl = makeDelegationUrl()
-		actions.parseDelegationFromUrl(delegationUrl)
+	test("rejects request when proof is not the final query parameter", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set("extra", "1")
+		expect(() => delegation.parseDelegationRequest(url)).toThrow("proof must be the final query parameter")
+	})
+})
 
-		expect(state.delegationRequest).not.toBeNull()
-
-		state.sessionChecked = true
-		state.session = null
-
-		state.session = {
-			authenticated: true,
-			email: "test@example.com",
-			hasPassword: true,
-		}
-		state.decryptedDEK = new Uint8Array(32)
-
-		expect(state.session?.authenticated).toBe(true)
-		expect(state.decryptedDEK).not.toBeNull()
-		expect(state.delegationRequest).not.toBeNull()
+describe("delegation callback protocol", () => {
+	test("echoes state in callback URL", async () => {
+		const issuer = blobs.generateKeyPair()
+		const delegate = blobs.generateKeyPair()
+		const capability = blobs.createCapability(issuer, delegate.principal, "AGENT", Date.now()).decoded
+		const profile = blobs.createProfile(issuer, { name: "Alice" }, Date.now()).decoded
+		const url = await delegation.buildCallbackUrl(
+			"https://example.com/callback",
+			"AAAAAAAAAAAAAAAAAAAAAA",
+			issuer.principal,
+			capability,
+			profile,
+		)
+		const parsed = new URL(url)
+		expect(parsed.searchParams.get("state")).toBe("AAAAAAAAAAAAAAAAAAAAAA")
+		expect(parsed.searchParams.get("data")).toBeString()
 	})
 })

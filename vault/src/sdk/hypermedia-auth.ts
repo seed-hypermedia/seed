@@ -1,9 +1,8 @@
 /**
  * Hypermedia Auth Client SDK.
  *
- * A self-contained module for third-party sites to authenticate users via a
- * Seed Hypermedia Identity Vault. Uses only the Web Crypto API and IndexedDB —
- * zero external dependencies.
+ * A client module for third-party sites to authenticate users via a
+ * Seed Hypermedia Identity Vault.
  *
  * @example
  * ```ts
@@ -21,56 +20,9 @@
  */
 
 import * as dagCBOR from "@ipld/dag-cbor"
-
-// -- Blob types (mirrored from frontend) --
-
-/** Packed binary public key: `<multicodec-varint><raw-key-bytes>`. */
-export type Principal = Uint8Array
-
-/** Cryptographic signature bytes. */
-export type Signature = Uint8Array
-
-/** Unix timestamp in milliseconds. */
-export type Timestamp = number
-
-/** Role values for capability blobs. */
-export type Role = "WRITER" | "AGENT"
-
-/** Base blob type that all signed blobs extend. */
-export interface Blob {
-	readonly type: string
-	readonly signer: Principal
-	readonly sig: Signature
-	readonly ts: Timestamp
-	readonly [key: string]: unknown
-}
-
-/** Profile blob representing user identity information. */
-export interface Profile extends Blob {
-	readonly type: "Profile"
-	readonly alias?: Principal
-	readonly name?: string
-	readonly avatar?: string
-	readonly description?: string
-	readonly account?: Principal
-}
-
-/** Capability blob granting rights from issuer to delegate. */
-export interface Capability extends Blob {
-	readonly type: "Capability"
-	readonly delegate: Principal
-	readonly audience?: Principal
-	readonly path?: string
-	readonly role: Role
-	readonly label?: string
-}
-
-/** Callback data structure returned from the vault. */
-interface CallbackData {
-	account: Principal
-	capability: Capability
-	profile: Profile
-}
+import * as base64 from "@/frontend/base64"
+import * as blobs from "@/frontend/blobs"
+import type * as delegation from "@/frontend/delegation"
 
 // -- Types --
 
@@ -113,98 +65,60 @@ export interface AuthResult {
 	/** The account principal (base58btc) that authorized this session. */
 	accountPrincipal: string
 	/** The signed capability blob. */
-	capability: Capability
+	capability: blobs.Capability
 	/** The stored session with the unextractable signing key. */
 	session: StoredSession
 	/** The profile blob of the account. */
-	profile: Profile
+	profile: blobs.Profile
 }
 
 // -- Base58btc encoder/decoder (inline, no deps) --
 
-const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-
-/** Encode bytes to a base58btc string. */
-export function base58btcEncode(bytes: Uint8Array): string {
-	if (bytes.length === 0) return ""
-	const digits: number[] = [0]
-	for (const byte of bytes) {
-		let carry = byte
-		for (let j = 0; j < digits.length; j++) {
-			// biome-ignore lint/style/noNonNullAssertion: digits[j] always defined in loop
-			carry += digits[j]! << 8
-			digits[j] = carry % 58
-			carry = (carry / 58) | 0
-		}
-		while (carry > 0) {
-			digits.push(carry % 58)
-			carry = (carry / 58) | 0
-		}
-	}
-	let str = ""
-	for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-		str += BASE58_ALPHABET[0]
-	}
-	for (let i = digits.length - 1; i >= 0; i--) {
-		// biome-ignore lint/style/noNonNullAssertion: digits[i] always defined in loop
-		str += BASE58_ALPHABET[digits[i]!]
-	}
-	return str
-}
-
-/** Decode a base58btc string to bytes. */
-export function base58btcDecode(str: string): Uint8Array {
-	if (str.length === 0) return new Uint8Array([])
-	const bytes: number[] = [0]
-	for (const char of str) {
-		const idx = BASE58_ALPHABET.indexOf(char)
-		if (idx === -1) throw new Error(`Invalid base58 character: ${char}`)
-		let carry = idx
-		for (let j = 0; j < bytes.length; j++) {
-			// biome-ignore lint/style/noNonNullAssertion: bytes[j] always defined in loop
-			carry += bytes[j]! * 58
-			bytes[j] = carry & 0xff
-			carry >>= 8
-		}
-		while (carry > 0) {
-			bytes.push(carry & 0xff)
-			carry >>= 8
-		}
-	}
-	for (let i = 0; i < str.length && str[i] === BASE58_ALPHABET[0]; i++) {
-		bytes.push(0)
-	}
-	return new Uint8Array(bytes.reverse())
-}
+const AUTH_STATE_BYTES = 16
 
 // -- Principal encoding --
 
-const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
-
 /** Encode a 32-byte Ed25519 public key as a base58btc multibase principal string. */
 export function principalEncode(rawPublicKey: Uint8Array): string {
-	const prefixed = new Uint8Array(ED25519_MULTICODEC_PREFIX.length + rawPublicKey.length)
-	prefixed.set(ED25519_MULTICODEC_PREFIX)
-	prefixed.set(rawPublicKey, ED25519_MULTICODEC_PREFIX.length)
-	return `z${base58btcEncode(prefixed)}`
+	return blobs.principalToString(blobs.principalFromEd25519(rawPublicKey))
 }
 
 /** Decode a base58btc multibase principal string to the raw 32-byte Ed25519 public key. */
 export function principalDecode(principal: string): Uint8Array {
-	if (!principal.startsWith("z")) {
-		throw new Error("Invalid principal: must start with 'z' (base58btc multibase prefix)")
-	}
-	const decoded = base58btcDecode(principal.slice(1))
-	if (decoded[0] !== 0xed || decoded[1] !== 0x01) {
-		throw new Error("Invalid principal: missing Ed25519 multicodec prefix")
-	}
-	return decoded.slice(2)
+	const packed = principalPackedDecode(principal)
+	return packed.slice(blobs.ED25519_VARINT_PREFIX.length)
+}
+
+function principalPackedDecode(principal: string): Uint8Array {
+	return blobs.principalFromString(principal)
+}
+
+function principalToString(principal: Uint8Array): string {
+	return blobs.principalToString(principal)
 }
 
 // -- Base64url decoding (for callback data) --
 
 function base64urlDecode(str: string): Uint8Array {
-	return Uint8Array.fromBase64(str, { alphabet: "base64url" })
+	return base64.decode(str)
+}
+
+function base64urlEncode(bytes: Uint8Array): string {
+	return base64.encode(bytes)
+}
+
+function generateAuthState(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(AUTH_STATE_BYTES))
+	return base64urlEncode(bytes)
+}
+
+async function signDelegationProof(privateKey: CryptoKey, payload: Uint8Array): Promise<Uint8Array> {
+	const signature = await crypto.subtle.sign(
+		"Ed25519" as unknown as AlgorithmIdentifier,
+		privateKey,
+		payload as ArrayBufferView<ArrayBuffer>,
+	)
+	return new Uint8Array(signature)
 }
 
 // -- Gzip decompression --
@@ -237,30 +151,8 @@ async function collectStream(readable: ReadableStream<Uint8Array>): Promise<Uint
 
 // -- Blob signature verification --
 
-const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
-const ED25519_SIGNATURE_SIZE = 64
-const ED25519_PUBLIC_KEY_SIZE = 32
-
-async function verifyBlob(blob: Blob): Promise<boolean> {
-	if (blob.signer[0] !== ED25519_VARINT_PREFIX[0] || blob.signer[1] !== ED25519_VARINT_PREFIX[1]) {
-		return false
-	}
-	const rawPubKey = blob.signer.slice(ED25519_VARINT_PREFIX.length)
-	if (rawPubKey.length !== ED25519_PUBLIC_KEY_SIZE) {
-		return false
-	}
-
-	const sigCopy = new Uint8Array(blob.sig)
-	const unsigned = { ...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE) }
-	const encoded = dagCBOR.encode(unsigned)
-	const data = new Uint8Array(encoded)
-
-	return await crypto.subtle.verify(
-		"Ed25519" as unknown as AlgorithmIdentifier,
-		await crypto.subtle.importKey("raw", rawPubKey, "Ed25519" as unknown as AlgorithmIdentifier, false, ["verify"]),
-		sigCopy,
-		data,
-	)
+function verifyBlob(blob: blobs.Blob): boolean {
+	return blobs.verify(blob)
 }
 
 // -- IndexedDB helpers (private) --
@@ -275,6 +167,8 @@ interface DBSessionRecord {
 	principal: string
 	vaultUrl: string
 	createdAt: number
+	authState: string | null
+	authStartedAt: number | null
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -341,7 +235,7 @@ export async function generateSessionKey(): Promise<{
 	])) as CryptoKeyPair
 	const rawExport = await crypto.subtle.exportKey("raw", keyPair.publicKey)
 	const publicKeyRaw = new Uint8Array(rawExport)
-	const principal = principalEncode(publicKeyRaw)
+	const principal = blobs.principalToString(blobs.principalFromEd25519(publicKeyRaw))
 	return { keyPair, publicKeyRaw, principal }
 }
 
@@ -359,6 +253,8 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 	const redirectUri = config.redirectUri ?? `${window.location.origin}${window.location.pathname}`
 
 	const session = await generateSessionKey()
+	const authState = generateAuthState()
+	const authStartedAt = Date.now()
 
 	const record: DBSessionRecord = {
 		keyPair: session.keyPair,
@@ -366,6 +262,8 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 		principal: session.principal,
 		vaultUrl: config.vaultUrl,
 		createdAt: Date.now(),
+		authState,
+		authStartedAt,
 	}
 
 	await dbPut(config.vaultUrl, record)
@@ -378,8 +276,14 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 	url.searchParams.set("client_id", clientId)
 	url.searchParams.set("redirect_uri", redirectUri)
 	url.searchParams.set("session_key", session.principal)
-
-	return url.toString()
+	url.searchParams.set("state", authState)
+	url.searchParams.set("ts", String(authStartedAt))
+	const signedUrl = url.toString()
+	const proofPayload = new TextEncoder().encode(signedUrl)
+	const proofSig = await signDelegationProof(session.keyPair.privateKey, proofPayload)
+	const proof = base64urlEncode(proofSig)
+	const delimiter = signedUrl.includes("?") ? "&" : "?"
+	return `${signedUrl}${delimiter}proof=${encodeURIComponent(proof)}`
 }
 
 /**
@@ -393,12 +297,10 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
 export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Promise<AuthResult | null> {
 	const url = new URL(window.location.href)
 	const dataParam = url.searchParams.get("data")
+	const stateParam = url.searchParams.get("state")
 	const error = url.searchParams.get("error")
 
-	if (!dataParam) {
-		if (error) {
-			throw new Error(`Delegation error: ${error}`)
-		}
+	if (!dataParam && !error) {
 		return null
 	}
 
@@ -407,29 +309,77 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
 		throw new Error("vaultUrl is required to retrieve the stored session")
 	}
 
-	const session = await getSession(vaultUrl)
-	if (!session) {
+	if (!stateParam) {
+		throw new Error("Missing callback state")
+	}
+
+	const record = await dbGet(vaultUrl)
+	if (!record) {
 		throw new Error("No stored session found for this vault. Was startAuth() called first?")
+	}
+	if (!record.authState) {
+		throw new Error("No pending auth state found for this vault. Was startAuth() called first?")
+	}
+	if (record.authState !== stateParam) {
+		throw new Error("Invalid callback state")
+	}
+
+	if (error) {
+		await dbPut(vaultUrl, {
+			...record,
+			authState: null,
+			authStartedAt: null,
+		})
+		throw new Error(`Delegation error: ${error}`)
+	}
+	if (!dataParam) {
+		throw new Error("Missing callback data")
+	}
+
+	const session: StoredSession = {
+		keyPair: record.keyPair,
+		publicKeyRaw: record.publicKeyRaw,
+		principal: record.principal,
+		vaultUrl: record.vaultUrl,
+		createdAt: record.createdAt,
 	}
 
 	// Decode callback data: base64url → gzip decompress → CBOR decode
 	const compressed = base64urlDecode(dataParam)
 	const cbor = await decompress(compressed)
-	const callbackData = dagCBOR.decode(cbor) as CallbackData
+	const callbackData = dagCBOR.decode(cbor) as delegation.CallbackData
 
 	// Verify signatures on capability and profile
-	const capabilityValid = await verifyBlob(callbackData.capability)
+	const capabilityValid = verifyBlob(callbackData.capability)
 	if (!capabilityValid) {
 		throw new Error("Invalid capability signature")
 	}
 
-	const profileValid = await verifyBlob(callbackData.profile)
+	const profileValid = verifyBlob(callbackData.profile)
 	if (!profileValid) {
 		throw new Error("Invalid profile signature")
 	}
 
+	const expectedDelegate = blobs.principalFromString(session.principal)
+	if (!blobs.principalEqual(callbackData.capability.delegate, expectedDelegate)) {
+		throw new Error("Capability delegate does not match local session key")
+	}
+	if (!blobs.principalEqual(callbackData.account, callbackData.capability.signer)) {
+		throw new Error("Callback account does not match capability signer")
+	}
+	const profileAccount = callbackData.profile.account ?? callbackData.profile.signer
+	if (!blobs.principalEqual(callbackData.account, profileAccount)) {
+		throw new Error("Callback account does not match profile owner")
+	}
+
+	await dbPut(vaultUrl, {
+		...record,
+		authState: null,
+		authStartedAt: null,
+	})
+
 	return {
-		accountPrincipal: principalEncode(callbackData.account),
+		accountPrincipal: principalToString(callbackData.account),
 		capability: callbackData.capability,
 		session,
 		profile: callbackData.profile,

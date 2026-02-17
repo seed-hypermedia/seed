@@ -2,7 +2,7 @@ import * as dagCBOR from "@ipld/dag-cbor"
 import { useEffect, useMemo, useState } from "react"
 import * as base64 from "../frontend/base64"
 import * as blobs from "../frontend/blobs"
-import type { AuthResult, Capability } from "../sdk/hypermedia-auth"
+import type { AuthResult } from "../sdk/hypermedia-auth"
 import * as hmauth from "../sdk/hypermedia-auth"
 
 const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
@@ -30,7 +30,7 @@ function decodeCallbackData(encoded: string): AuthResult {
 	return decoded as unknown as AuthResult
 }
 
-function CapabilityField({ capability }: { capability: Capability }) {
+function CapabilityField({ capability }: { capability: blobs.Capability }) {
 	const decoded = useMemo(() => {
 		try {
 			return JSON.stringify(

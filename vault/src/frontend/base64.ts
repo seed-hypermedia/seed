@@ -39,7 +39,7 @@ if (!Uint8Array.fromBase64) {
  * Encode Uint8Array to base64url string.
  */
 export function encode(data: Uint8Array): string {
-	return data.toBase64({ alphabet: "base64url" })
+	return data.toBase64({ alphabet: "base64url" }).replace(/=+$/g, "")
 }
 
 /**

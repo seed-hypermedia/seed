@@ -12,9 +12,10 @@ import * as Digest from "multiformats/hashes/digest"
 import { sha256 as sha256hasher } from "multiformats/hashes/sha2"
 
 // Ed25519 multicodec (0xed) varint prefix. No existing JS library exports this constant.
-const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
-const ED25519_SIGNATURE_SIZE = 64
-const ED25519_PUBLIC_KEY_SIZE = 32
+export const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
+export const ED25519_SIGNATURE_SIZE = 64
+export const ED25519_PUBLIC_KEY_SIZE = 32
+export const ED25519_PRINCIPAL_SIZE = ED25519_VARINT_PREFIX.length + ED25519_PUBLIC_KEY_SIZE
 
 /** Packed binary public key: `<multicodec-varint><raw-key-bytes>`. */
 export type Principal = Uint8Array
@@ -66,7 +67,20 @@ export function principalToString(p: Principal): string {
 
 /** Decode a Principal from its base58btc multibase string. */
 export function principalFromString(s: string): Principal {
-	return base58btc.decode(s)
+	let decoded: Uint8Array
+	try {
+		decoded = base58btc.decode(s)
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		throw new Error(`Invalid principal encoding: ${message}`)
+	}
+	if (decoded.length !== ED25519_PRINCIPAL_SIZE) {
+		throw new Error(`Invalid principal length: expected ${ED25519_PRINCIPAL_SIZE} bytes, got ${decoded.length}`)
+	}
+	if (decoded[0] !== ED25519_VARINT_PREFIX[0] || decoded[1] !== ED25519_VARINT_PREFIX[1]) {
+		throw new Error("Invalid principal multicodec: expected Ed25519 (0xed01)")
+	}
+	return decoded
 }
 
 /** Check if two Principals are equal. */

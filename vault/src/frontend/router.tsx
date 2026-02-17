@@ -128,7 +128,7 @@ const RootLayout = () => {
 
 	useEffect(() => {
 		actions.checkSession()
-		actions.parseDelegationFromUrl(new URL(window.location.href))
+		actions.parseDelegationFromUrl(window.location.href)
 	}, [actions])
 
 	return (

@@ -1,5 +1,4 @@
 import { ExternalLink, Plus, Shield, User } from "lucide-react"
-import { useEffect } from "react"
 import { Navigate, useSearchParams } from "react-router-dom"
 import * as blobs from "@/frontend/blobs"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
@@ -17,24 +16,9 @@ import { useActions, useAppState } from "@/frontend/store"
 export function DelegateView() {
 	const { delegationRequest, vaultData, selectedAccountIndex, loading, error } = useAppState()
 	const actions = useActions()
-	const [searchParams, setSearchParams] = useSearchParams()
+	const [searchParams] = useSearchParams()
 
 	const accounts = vaultData?.accounts ?? []
-
-	// Mirror store delegation params into the URL bar for transparency.
-	// This ensures the URL reflects what's in the store after the initial parse.
-	useEffect(() => {
-		if (delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
-			setSearchParams(
-				{
-					[delegation.PARAM_CLIENT_ID]: delegationRequest.clientId,
-					[delegation.PARAM_REDIRECT_URI]: delegationRequest.redirectUri,
-					[delegation.PARAM_SESSION_KEY]: delegationRequest.sessionKeyPrincipal,
-				},
-				{ replace: true },
-			)
-		}
-	}, [delegationRequest, searchParams, setSearchParams])
 
 	if (!delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
 		return <Navigate to="/" replace />

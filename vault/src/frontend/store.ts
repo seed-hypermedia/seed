@@ -10,6 +10,7 @@ import * as vaultDataMod from "./vault"
 
 export interface SessionInfo {
 	authenticated: boolean
+	relyingPartyOrigin: string
 	userId?: string
 	email?: string
 	hasPassword?: boolean
@@ -41,6 +42,8 @@ export function initialState() {
 		delegationRequest: null as delegation.DelegationRequest | null,
 		/** Whether the user has given consent for the current delegation. */
 		delegationConsented: false,
+		/** Server-configured relying party origin used by WebAuthn verification. */
+		relyingPartyOrigin: "",
 	}
 }
 
@@ -80,6 +83,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 		async checkSession() {
 			try {
 				const data = await client.getSession()
+				state.relyingPartyOrigin = data.relyingPartyOrigin
 				if (data.authenticated && data.email) {
 					state.session = data
 					state.email = data.email
@@ -1059,7 +1063,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 		 * If the URL has no delegation params, this is a no-op.
 		 * If params are present but invalid, sets state.error.
 		 */
-		parseDelegationFromUrl(url: URL) {
+		parseDelegationFromUrl(url: URL | string) {
 			try {
 				const request = delegation.parseDelegationRequest(url)
 				if (request) {
@@ -1098,6 +1102,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (!account) {
 					throw new Error("No account selected")
 				}
+				if (!state.relyingPartyOrigin) {
+					throw new Error("Missing relying party origin")
+				}
+				const configuredVaultOrigin = new URL(state.relyingPartyOrigin).origin
+				if (configuredVaultOrigin !== state.delegationRequest.vaultOrigin) {
+					throw new Error("Delegation request vault origin mismatch")
+				}
+				await delegation.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
 
 				const issuerKeyPair = blobs.keyPairFromPrivateKey(account.seed)
 				const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
@@ -1120,6 +1132,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				const callbackUrl = await delegation.buildCallbackUrl(
 					state.delegationRequest.redirectUri,
+					state.delegationRequest.state,
 					issuerKeyPair.principal,
 					encoded.decoded,
 					account.profile,
@@ -1142,6 +1155,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			if (state.delegationRequest) {
 				const url = new URL(state.delegationRequest.redirectUri)
 				url.searchParams.set("error", "access_denied")
+				url.searchParams.set("state", state.delegationRequest.state)
 				state.delegationRequest = null
 				state.delegationConsented = false
 				window.location.href = url.toString()

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { base58btc } from "multiformats/bases/base58"
 import * as blobs from "./blobs"
 
 describe("key pair", () => {
@@ -39,6 +40,18 @@ describe("principal encoding", () => {
 		const a = blobs.generateKeyPair()
 		const b = blobs.generateKeyPair()
 		expect(blobs.principalEqual(a.principal, b.principal)).toBe(false)
+	})
+
+	test("rejects principal with invalid multicodec prefix", () => {
+		const invalid = new Uint8Array([0x00, 0x01, ...new Uint8Array(32)])
+		const encoded = base58btc.encode(invalid)
+		expect(() => blobs.principalFromString(encoded)).toThrow("Invalid principal multicodec")
+	})
+
+	test("rejects principal with invalid length", () => {
+		const tooShort = new Uint8Array([0xed, 0x01, ...new Uint8Array(16)])
+		const encoded = base58btc.encode(tooShort)
+		expect(() => blobs.principalFromString(encoded)).toThrow("Invalid principal length")
 	})
 })
 
