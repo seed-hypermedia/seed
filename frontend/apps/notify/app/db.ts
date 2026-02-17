@@ -60,6 +60,8 @@ let stmtSetEmailUnsubscribed: Database.Statement
 let stmtGetAllEmails: Database.Statement
 let stmtEnsureEmail: Database.Statement
 let stmtUpsertSubscription: Database.Statement
+let stmtGetNotificationConfig: Database.Statement
+let stmtUpsertNotificationConfig: Database.Statement
 
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(
@@ -164,6 +166,21 @@ export async function initDatabase(): Promise<void> {
     version = 4
   }
 
+  if (version === 4) {
+    db.exec(`
+    BEGIN;
+    CREATE TABLE notification_config (
+      accountId TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    PRAGMA user_version = 5;
+    COMMIT;
+  `)
+    version = 5
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare(
     'INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)',
@@ -223,6 +240,16 @@ export async function initDatabase(): Promise<void> {
       notifyOwnedDocChange  = excluded.notifyOwnedDocChange,
       notifySiteDiscussions = excluded.notifySiteDiscussions,
       notifyAllComments     = excluded.notifyAllComments
+  `)
+  stmtGetNotificationConfig = db.prepare(
+    'SELECT * FROM notification_config WHERE accountId = ?',
+  )
+  stmtUpsertNotificationConfig = db.prepare(`
+    INSERT INTO notification_config (accountId, email, updatedAt)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(accountId) DO UPDATE SET
+      email = excluded.email,
+      updatedAt = CURRENT_TIMESTAMP
   `)
 }
 
@@ -474,6 +501,26 @@ export function setSubscription({
     nextNotifySiteDiscussions,
     nextNotifyAllComments,
   )
+}
+
+export type NotificationConfigRow = {
+  accountId: string
+  email: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function getNotificationConfig(
+  accountId: string,
+): NotificationConfigRow | null {
+  const row = stmtGetNotificationConfig.get(accountId) as
+    | NotificationConfigRow
+    | undefined
+  return row ?? null
+}
+
+export function setNotificationConfig(accountId: string, email: string): void {
+  stmtUpsertNotificationConfig.run(accountId, email)
 }
 
 // export function setAccount({

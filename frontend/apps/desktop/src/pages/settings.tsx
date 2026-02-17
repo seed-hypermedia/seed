@@ -1,8 +1,7 @@
 import {useIPC} from '@/app-context'
-import {NotifSettingsDialog} from '@/components/email-notifs-dialog'
+import {grpcClient} from '@/grpc-client'
 import {LinkDeviceDialog} from '@/components/link-device-dialog'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
-import {useCapabilities} from '@shm/shared/models/entity'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {
   useDaemonInfo,
@@ -10,7 +9,12 @@ import {
   useMyAccountIds,
   useSavedMnemonics,
 } from '@/models/daemon'
-import {useWriteExperiments} from '@/models/experiments'
+import {useExperiments, useWriteExperiments} from '@/models/experiments'
+import {
+  NotificationSigner,
+  useNotificationConfig,
+  useSetNotificationConfig,
+} from '@shm/shared/models/notifications'
 import {
   useGatewayUrl,
   useNotifyServiceHost,
@@ -25,8 +29,6 @@ import {usePeerInfo} from '@/models/networking'
 import {useSystemThemeWriter} from '@/models/settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {useMutation, useQuery} from '@tanstack/react-query'
 import {useUniversalAppContext} from '@shm/shared'
 import {
   COMMIT_HASH,
@@ -35,8 +37,9 @@ import {
   VERSION,
 } from '@shm/shared/constants'
 import {getMetadataName} from '@shm/shared/content'
-import {useResource} from '@shm/shared/models/entity'
+import {useCapabilities, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {formattedDateLong} from '@shm/shared/utils/date'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
@@ -77,8 +80,10 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
+import {useMutation, useQuery} from '@tanstack/react-query'
 import {
   AtSign,
+  Biohazard,
   Check,
   Code2,
   Cog,
@@ -90,6 +95,7 @@ import {
   Trash,
   UserRoundPlus,
 } from 'lucide-react'
+import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useId, useMemo, useState} from 'react'
 
 export default function Settings() {
@@ -135,12 +141,12 @@ export default function Settings() {
               icon={Info}
               label="App Info"
             />
-            {/* <Tab
+            <Tab
               value="experiments"
               active={activeTab === 'experiments'}
               icon={Biohazard}
               label="Experiments"
-            /> */}
+            />
             <Tab
               value="developer"
               active={activeTab === 'developer'}
@@ -161,9 +167,9 @@ export default function Settings() {
           <CustomTabsContent value="app-info">
             <AppSettings />
           </CustomTabsContent>
-          {/* <CustomTabsContent value="experiments">
+          <CustomTabsContent value="experiments">
             <ExperimentsSettings />
-          </CustomTabsContent> */}
+          </CustomTabsContent>
           <CustomTabsContent value="developer">
             <DeveloperSettings />
           </CustomTabsContent>
@@ -614,37 +620,101 @@ function EmailNotificationsSettings({
   accountUid: string
   accountName: string
 }) {
-  const notifSettingsDialog = useAppDialog(NotifSettingsDialog)
-  const notifyServiceHost =
-    useNotifyServiceHost() || 'https://notify.seed.hyper.media'
-
+  const {data: experiments} = useExperiments()
+  if (!experiments?.notifications) return null
   return (
-    <SettingsSection title="Email Notifications">
-      <Button
-        variant="inverse"
-        onClick={() => {
-          notifSettingsDialog.open({
-            accountUid: accountUid,
-            title: `Notifications for ${accountName}`,
-            notifyServiceHost,
-          })
-        }}
-      >
-        Subscribe with email address
-      </Button>
-      {notifSettingsDialog.content}
-    </SettingsSection>
+    <AccountNotifSettings accountUid={accountUid} accountName={accountName} />
   )
 }
 
-function CheckmarkRow({checked, label}: {checked: boolean; label: string}) {
+function AccountNotifSettings({
+  accountUid,
+}: {
+  accountUid: string
+  accountName: string
+}) {
+  const notifyServiceHost =
+    useNotifyServiceHost() || 'https://notify.seed.hyper.media'
+  const signer = useMemo((): NotificationSigner => {
+    const publicKey = new Uint8Array(base58btc.decode(accountUid))
+    return {
+      publicKey,
+      sign: async (data: Uint8Array) => {
+        const res = await grpcClient.daemon.signData({
+          signingKeyName: accountUid,
+          data: new Uint8Array(data),
+        })
+        return new Uint8Array(res.signature)
+      },
+    }
+  }, [accountUid])
+  const {data: config, isLoading} = useNotificationConfig(
+    notifyServiceHost,
+    signer,
+  )
+  const setConfig = useSetNotificationConfig(notifyServiceHost, signer)
+  const [emailInput, setEmailInput] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const currentEmail = config?.email ?? null
+
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-6">
-        {checked ? <Check className="text-primary size-4" /> : null}
-      </div>
-      <SizableText weight={checked ? 'bold' : 'normal'}>{label}</SizableText>
-    </div>
+    <SettingsSection title="Email Notifications">
+      {isLoading ? (
+        <Spinner />
+      ) : isEditing || !currentEmail ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!emailInput) return
+            setConfig.mutate(
+              {email: emailInput},
+              {
+                onSuccess: () => {
+                  setIsEditing(false)
+                  toast.success('Email updated')
+                },
+              },
+            )
+          }}
+        >
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={!emailInput || setConfig.isLoading}>
+              {setConfig.isLoading ? 'Saving...' : 'Save'}
+            </Button>
+            {currentEmail ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      ) : (
+        <div className="flex items-center gap-2">
+          <SizableText className="flex-1">{currentEmail}</SizableText>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEmailInput(currentEmail)
+              setIsEditing(true)
+            }}
+          >
+            Change
+          </Button>
+        </div>
+      )}
+    </SettingsSection>
   )
 }
 
@@ -796,27 +866,21 @@ function EnabledTag() {
 }
 
 type ExperimentType = {
-  key: string
+  key: keyof NonNullable<
+    ReturnType<typeof useUniversalAppContext>['experiments']
+  >
   label: string
   emoji: string
   description: string
 }
-const EXPERIMENTS = //: ExperimentType[]
-  [
-    // {
-    //   key: 'webImporting',
-    //   label: 'Web Importing',
-    //   emoji: '🛰️',
-    //   description:
-    //     'When opening a Web URL from the Quick Switcher, automatically convert to a Hypermedia Document.',
-    // },
-    // {
-    //   key: 'nostr',
-    //   label: 'Nostr Embeds',
-    //   emoji: '🍀',
-    //   description: 'Embed Nostr notes into documents for permanent referencing.',
-    // },
-  ] as const
+const EXPERIMENTS: ExperimentType[] = [
+  {
+    key: 'notifications',
+    label: 'Notifications',
+    emoji: '🔔',
+    description: 'Enable desktop notifications for activity on your documents.',
+  },
+]
 
 function GatewaySettings({}: {}) {
   const gatewayUrl = useGatewayUrl()
@@ -1078,30 +1142,29 @@ function PushOnPublishSetting({}: {}) {
   )
 }
 
-// function ExperimentsSettings({}: {}) {
-//   const experiments = useUniversalAppContext().experiments
-//   const writeExperiments = useWriteExperiments()
-//   return (
-//     <div className="flex flex-col gap-3">
-//       <div className="flex flex-col self-stretch my-4 space-y-4">
-//         {EXPERIMENTS.map((experiment) => {
-//           return (
-//             <ExperimentSection
-//               key={experiment.key}
-//               id={experiment.key}
-//               value={!!experiments.data?.[experiment.key]}
-//               experiment={experiment}
-//               onValue={(isEnabled) => {
-//                 console.log(experiment.key, 'isEnabled', isEnabled)
-//                 writeExperiments.mutate({[experiment.key]: isEnabled})
-//               }}
-//             />
-//           )
-//         })}
-//       </div>
-//     </div>
-//   )
-// }
+function ExperimentsSettings() {
+  const experiments = useUniversalAppContext().experiments
+  const writeExperiments = useWriteExperiments()
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="my-4 flex flex-col space-y-4 self-stretch">
+        {EXPERIMENTS.map((experiment) => {
+          return (
+            <ExperimentSection
+              key={experiment.key}
+              id={experiment.key}
+              value={!!experiments?.[experiment.key]}
+              experiment={experiment}
+              onValue={(isEnabled) => {
+                writeExperiments.mutate({[experiment.key]: isEnabled})
+              }}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function DeviceItem({id}: {id: string}) {
   let {data} = usePeerInfo(id)

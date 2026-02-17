@@ -15,7 +15,7 @@ import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
-import {hostnameStripProtocol} from '@shm/shared'
+import {hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
 import {hmBlocksToEditorContent} from '@shm/shared/client/hmblock-to-editorblock'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {HMBlockNode, UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -72,6 +72,7 @@ import {cn} from '@shm/ui/utils'
 import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
+  Bell,
   FilePlus,
   ForwardIcon,
   GitFork,
@@ -363,12 +364,35 @@ export function DocOptionsButton({
   )
 }
 
+function NotificationButton() {
+  const experiments = useUniversalAppContext().experiments
+  const navigate = useNavigate()
+  const route = useNavRoute()
+  if (!experiments?.notifications) return null
+  return (
+    <Tooltip content="Notifications">
+      <Button
+        size="icon"
+        variant={route.key === 'notifications' ? 'secondary' : 'ghost'}
+        className="window-no-drag"
+        onClick={() => navigate({key: 'notifications'})}
+      >
+        <Bell className="size-4" />
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function PageActionButtons(props: TitleBarProps) {
   const route = useNavRoute()
-  if (route.key == 'document' || route.key == 'feed') {
-    return <DocumentTitlebarButtons route={route} />
-  }
-  return null
+  return (
+    <TitlebarSection>
+      {route.key == 'document' || route.key == 'feed' ? (
+        <DocumentTitlebarButtons route={route} />
+      ) : null}
+      <NotificationButton />
+    </TitlebarSection>
+  )
 }
 
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
@@ -562,6 +586,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Bookmarks'
     case 'settings':
       return 'Settings'
+    case 'notifications':
+      return 'Notifications'
     case 'draft':
       return 'Draft'
     case 'preview':

@@ -7,10 +7,12 @@ import {
   createSubscription,
   getAllEmails,
   getEmailWithToken,
+  getNotificationConfig,
   getNotifierLastProcessedEventId,
   getSubscription,
   initDatabase,
   setEmailUnsubscribed,
+  setNotificationConfig,
   setNotifierLastProcessedEventId,
   setSubscription,
   updateSubscription,
@@ -54,10 +56,11 @@ describe('Database', () => {
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
         .all() as TableInfo[]
-      expect(tables).toHaveLength(3)
+      expect(tables).toHaveLength(4)
       expect(tables.map((t) => t.name)).toContain('emails')
       expect(tables.map((t) => t.name)).toContain('email_subscriptions')
       expect(tables.map((t) => t.name)).toContain('notifier_status')
+      expect(tables.map((t) => t.name)).toContain('notification_config')
 
       // Check emails table schema
       const emailsSchema = db
@@ -115,7 +118,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(4)
+      expect(version).toBe(5)
       db.close()
     })
   })
@@ -461,6 +464,36 @@ describe('Database', () => {
 
       const email2Data = emails.find((e) => e.email === email2)
       expect(email2Data?.subscriptions).toHaveLength(1)
+    })
+  })
+
+  describe('notification config operations', () => {
+    it('should return null for non-existent config', () => {
+      expect(getNotificationConfig('non-existent')).toBeNull()
+    })
+
+    it('should set and get notification config', () => {
+      setNotificationConfig('account-1', 'user@example.com')
+      const config = getNotificationConfig('account-1')
+      expect(config).not.toBeNull()
+      expect(config!.accountId).toBe('account-1')
+      expect(config!.email).toBe('user@example.com')
+      expect(config!.createdAt).toBeDefined()
+      expect(config!.updatedAt).toBeDefined()
+    })
+
+    it('should upsert notification config', () => {
+      setNotificationConfig('account-2', 'old@example.com')
+      setNotificationConfig('account-2', 'new@example.com')
+      const config = getNotificationConfig('account-2')
+      expect(config!.email).toBe('new@example.com')
+    })
+
+    it('should keep configs independent per account', () => {
+      setNotificationConfig('account-a', 'a@example.com')
+      setNotificationConfig('account-b', 'b@example.com')
+      expect(getNotificationConfig('account-a')!.email).toBe('a@example.com')
+      expect(getNotificationConfig('account-b')!.email).toBe('b@example.com')
     })
   })
 
