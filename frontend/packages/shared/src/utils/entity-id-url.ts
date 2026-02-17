@@ -361,6 +361,13 @@ export function routeToUrl(
       panel: effectivePanelParam,
     })
   }
+  if (route.key === 'profile') {
+    return createWebHMUrl(route.id.uid, {
+      path: route.id.path,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+    })
+  }
   return 'TODO'
 }
 

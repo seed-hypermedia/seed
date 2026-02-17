@@ -680,7 +680,8 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'activity' ||
     route.key === 'directory' ||
     route.key === 'collaborators' ||
-    route.key === 'discussions'
+    route.key === 'discussions' ||
+    route.key === 'profile'
   ) {
     return route.id
   }

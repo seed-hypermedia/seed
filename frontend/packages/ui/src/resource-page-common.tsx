@@ -29,6 +29,7 @@ import {
   parseFragment,
 } from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {Folder} from 'lucide-react'
 import {
   ReactNode,
   useCallback,
@@ -52,6 +53,7 @@ import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {Feed} from './feed'
 import {FeedFilters} from './feed-filters'
+import {HistoryIcon, Link} from './icons'
 import {useDocumentLayout} from './layout'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {
@@ -61,7 +63,6 @@ import {
   getSiteNavDirectory,
   useNodesOutline,
 } from './navigation'
-import {HistoryIcon, Link} from './icons'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {PageLayout} from './page-layout'
@@ -73,7 +74,6 @@ import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
 import {useMedia} from './use-media'
 import {cn} from './utils'
-import {Folder} from 'lucide-react'
 
 /** Common menu items generated internally for all document views */
 export function useCommonMenuItems(
@@ -1108,20 +1108,6 @@ function DocumentBody({
                   }
                 />
               )}
-              {actionButtons ? (
-                <div
-                  className={cn(
-                    'flex items-center gap-1 transition-opacity',
-                    isMobile
-                      ? 'opacity-100'
-                      : isToolsSticky
-                      ? 'opacity-100'
-                      : 'pointer-events-none opacity-0',
-                  )}
-                >
-                  {actionButtons}
-                </div>
-              ) : null}
             </div>
           }
         />
@@ -1245,8 +1231,7 @@ function DocumentBody({
         {actionButtons && !isMobile ? (
           <div
             className={cn(
-              'absolute top-4 right-4 z-20 mt-[2px] flex items-center gap-1 rounded-sm transition-opacity',
-              isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
             )}
           >
             {actionButtons}

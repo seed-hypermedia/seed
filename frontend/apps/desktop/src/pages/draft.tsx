@@ -532,6 +532,10 @@ function DocumentEditor({
   const {data: collaborators} = useCapabilities(id)
   const directory = useChildrenActivity(id)
 
+  // Track when DocumentTools becomes sticky
+  const [isToolsSticky, setIsToolsSticky] = useState(false)
+  const toolsSentinelRef = useRef<HTMLDivElement>(null)
+
   const documentTools = editId ? (
     <DocumentTools
       activeTab="draft"
@@ -547,10 +551,6 @@ function DocumentEditor({
       }}
     />
   ) : null
-
-  // Track when DocumentTools becomes sticky
-  const [isToolsSticky, setIsToolsSticky] = useState(false)
-  const toolsSentinelRef = useRef<HTMLDivElement>(null)
 
   // @ts-expect-error
   const isEditing = state.matches('editing')
@@ -609,8 +609,8 @@ function DocumentEditor({
         {/* Floating action buttons - fade when tools are sticky */}
         <div
           className={cn(
-            'absolute top-4 right-4 z-20 flex items-center gap-1 rounded-sm transition-opacity',
-            isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
+            'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+            // isToolsSticky ? 'pointer-events-none opacity-0' : 'opacity-100',
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1228,6 +1228,33 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
 
   const targetId = editId || locationId
   const menuItems: MenuItemType[] = [
+    ...(targetId
+      ? [
+          {
+            key: 'versions',
+            label: 'Document Versions',
+            icon: <HistoryIcon className="size-4" />,
+            onClick: () => {
+              replace({
+                ...route,
+                panel: {
+                  key: 'activity',
+                  id: targetId,
+                  filterEventType: ['Ref'],
+                },
+              } as any)
+            },
+          },
+          {
+            key: 'directory',
+            label: 'Directory',
+            icon: <Folder className="size-4" />,
+            onClick: () => {
+              push({...route, panel: {key: 'directory', id: targetId}})
+            },
+          },
+        ]
+      : []),
     {
       key: 'delete-draft',
       label: 'Delete Draft',
@@ -1246,34 +1273,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
         }
       },
     },
-    ...(targetId
-      ? [
-          {
-            key: 'versions',
-            label: 'Document Versions',
-            icon: <HistoryIcon className="size-4" />,
-            onClick: () => {
-              replace({
-                key: 'document',
-                id: targetId,
-                panel: {
-                  key: 'activity',
-                  id: targetId,
-                  filterEventType: ['Ref'],
-                },
-              } as any)
-            },
-          },
-          {
-            key: 'directory',
-            label: 'Directory',
-            icon: <Folder className="size-4" />,
-            onClick: () => {
-              push({key: 'directory', id: targetId})
-            },
-          },
-        ]
-      : []),
   ]
 
   if (!selectedAccount?.id) return null
