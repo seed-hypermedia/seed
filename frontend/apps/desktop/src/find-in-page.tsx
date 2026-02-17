@@ -45,7 +45,7 @@ function createFindInPageUI() {
   // Create button container
   const buttonContainer = document.createElement('div')
   buttonContainer.className =
-    'border-border bg-panel flex items-center overflow-hidden rounded-sm border'
+    'border-border bg-panel flex h-8 items-center overflow-hidden rounded-sm border'
 
   // Create up button
   const upButton = document.createElement('button')
