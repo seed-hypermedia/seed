@@ -72,6 +72,7 @@ let stmtGetAllEmails: Database.Statement
 let stmtEnsureEmail: Database.Statement
 let stmtUpsertSubscription: Database.Statement
 let stmtGetNotificationConfig: Database.Statement
+let stmtGetAllNotificationConfigs: Database.Statement
 let stmtUpsertNotificationConfig: Database.Statement
 let stmtGetNotificationReadState: Database.Statement
 let stmtUpsertNotificationReadState: Database.Statement
@@ -280,6 +281,9 @@ export async function initDatabase(): Promise<void> {
   stmtGetNotificationConfig = db.prepare(
     'SELECT * FROM notification_config WHERE accountId = ?',
   )
+  stmtGetAllNotificationConfigs = db.prepare(
+    'SELECT * FROM notification_config',
+  )
   stmtUpsertNotificationConfig = db.prepare(`
     INSERT INTO notification_config (accountId, email, updatedAt)
     VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -321,6 +325,14 @@ export async function initDatabase(): Promise<void> {
     DELETE FROM notification_read_events
     WHERE accountId = ? AND eventAtMs <= ?
   `)
+
+  // Ensure email rows exist for notification_config entries from previous runs.
+  const existingNotificationConfigs = stmtGetAllNotificationConfigs.all() as {
+    email: string
+  }[]
+  for (const cfg of existingNotificationConfigs) {
+    stmtEnsureEmail.run(cfg.email, crypto.randomBytes(32).toString('hex'))
+  }
 }
 
 export function cleanup(): void {
@@ -601,7 +613,12 @@ export function getNotificationConfig(
   return row ?? null
 }
 
+export function getAllNotificationConfigs(): NotificationConfigRow[] {
+  return stmtGetAllNotificationConfigs.all() as NotificationConfigRow[]
+}
+
 export function setNotificationConfig(accountId: string, email: string): void {
+  stmtEnsureEmail.run(email, crypto.randomBytes(32).toString('hex'))
   stmtUpsertNotificationConfig.run(accountId, email)
 }
 

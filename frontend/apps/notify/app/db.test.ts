@@ -486,6 +486,14 @@ describe('Database', () => {
       expect(config!.updatedAt).toBeDefined()
     })
 
+    it('should ensure email row exists for notification config email', () => {
+      setNotificationConfig('account-config-email', 'config@example.com')
+      const allEmails = getAllEmails()
+      expect(
+        allEmails.find((email) => email.email === 'config@example.com'),
+      ).toBeDefined()
+    })
+
     it('should upsert notification config', () => {
       setNotificationConfig('account-2', 'old@example.com')
       setNotificationConfig('account-2', 'new@example.com')
