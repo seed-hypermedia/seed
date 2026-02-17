@@ -100,7 +100,6 @@ export function DirectoryPageContent({
           {headerRight}
         </>
       }
-      centered
       contentMaxWidth={contentMaxWidth}
     >
       {/* Optional header slot (for create button, etc.) */}

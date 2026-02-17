@@ -76,7 +76,6 @@ export function CommentDiscussions({
   currentAccountId,
   onCommentDelete,
   selection,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -89,8 +88,6 @@ export function CommentDiscussions({
     blockId?: string
     blockRange?: BlockRange
   }
-  /** When true, constrains content width and centers it */
-  centered?: boolean
 }) {
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
@@ -155,7 +152,7 @@ export function CommentDiscussions({
 
   if (commentsService.error) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             Failed to load comment thread
@@ -167,7 +164,7 @@ export function CommentDiscussions({
 
   if (commentsService.isLoading && !commentsService.data) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
@@ -178,7 +175,7 @@ export function CommentDiscussions({
   // If comment not found in the list, show a message
   if (!commentFound && commentsService.data) {
     return (
-      <SelectionContent centered={centered}>
+      <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
             This comment is not available in the current document version
@@ -192,7 +189,7 @@ export function CommentDiscussions({
   const hasParents = parentThread?.thread && parentThread.thread.length > 1
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       {/* Render parent thread above focused comment when ready */}
       {hasParents && showParents && (
         <div ref={parentsRef}>
@@ -284,14 +281,12 @@ export const Discussions = memo(function Discussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  centered?: boolean
 }) {
   const discussionsService = useDiscussionsService({targetId, commentId})
 
@@ -380,7 +375,7 @@ export const Discussions = memo(function Discussions({
       )
   }
 
-  return <SelectionContent centered={centered}>{panelContent}</SelectionContent>
+  return <SelectionContent>{panelContent}</SelectionContent>
 })
 
 export function BlockDiscussions({
@@ -389,14 +384,12 @@ export function BlockDiscussions({
   targetDomain,
   currentAccountId,
   onCommentDelete,
-  centered,
 }: {
   targetId: UnpackedHypermediaId
   commentEditor?: ReactNode
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
-  centered?: boolean
 }) {
   const commentsService = useBlockDiscussionsService({targetId})
   const doc = useResource(targetId)
@@ -480,7 +473,7 @@ export function BlockDiscussions({
   }
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
       <div className="border-border mt-2 border-t pt-2">{panelContent}</div>

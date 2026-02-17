@@ -1380,7 +1380,7 @@ function MainContent({
 
     case 'collaborators':
       return (
-        <PageLayout centered contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth}>
           {collaboratorForm}
           <DocumentCollaborators docId={docId} />
         </PageLayout>
@@ -1388,14 +1388,13 @@ function MainContent({
 
     case 'activity':
       return (
-        <PageLayout centered contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth}>
           <FeedFilters
             filterEventType={activityFilterEventType}
             onFilterChange={onActivityFilterChange}
           />
           <Feed
             size="md"
-            centered
             filterResource={docId.id}
             filterEventType={activityFilterEventType || []}
             targetDomain={siteUrl}

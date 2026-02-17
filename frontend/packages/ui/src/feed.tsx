@@ -60,7 +60,6 @@ export function Feed({
   targetDomain,
   size = 'md',
   navigationContext,
-  centered,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -70,7 +69,6 @@ export function Feed({
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
   targetDomain?: string
   navigationContext?: 'page' | 'panel'
-  centered?: boolean
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -189,7 +187,7 @@ export function Feed({
   }
 
   return (
-    <SelectionContent centered={centered}>
+    <SelectionContent>
       <div>
         {allEvents.map((e) => {
           const route = getEventRoute(e, useFullPageNavigation)

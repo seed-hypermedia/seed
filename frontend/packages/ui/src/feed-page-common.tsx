@@ -115,9 +115,9 @@ function FeedBody({
   const menuItems = extraMenuItems || []
 
   const feedContent = (
-    <PageLayout centered contentMaxWidth={contentMaxWidth}>
+    <PageLayout contentMaxWidth={contentMaxWidth}>
       <div className="flex flex-col gap-4 pt-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-4">
           <Text weight="bold" size="3xl">
             What's New
           </Text>
@@ -132,7 +132,6 @@ function FeedBody({
           onCommentDelete={onCommentDelete}
           targetDomain={targetDomain}
           size="md"
-          centered
           filterEventType={filterEventType}
         />
       </div>

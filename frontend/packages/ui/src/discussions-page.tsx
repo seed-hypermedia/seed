@@ -62,7 +62,6 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
-        centered
       />
     )
   } else if (openComment) {
@@ -77,7 +76,6 @@ export function DiscussionsPageContent({
         selection={
           blockId ? {blockId, blockRange: blockRange || undefined} : undefined
         }
-        centered
       />
     )
   } else {
@@ -89,7 +87,6 @@ export function DiscussionsPageContent({
           targetDomain={targetDomain}
           currentAccountId={currentAccountId}
           onCommentDelete={onCommentDelete}
-          centered
         />
       </>
     )
@@ -98,7 +95,6 @@ export function DiscussionsPageContent({
   return (
     <PageLayout
       title={showTitle ? 'Discussions' : undefined}
-      centered
       contentMaxWidth={contentMaxWidth}
     >
       {deleteCommentDialogContent}

@@ -145,7 +145,6 @@ function _ActivityContent({
       />
       <PageLayout
         title="Activity"
-        centered
         headerRight={
           <OpenInPanelButton
             id={id}
@@ -165,7 +164,6 @@ function _ActivityContent({
         />
         <Feed
           size="md"
-          centered
           filterResource={id.id}
           currentAccount={selectedAccount?.id.uid || ''}
           filterEventType={route.filterEventType || []}

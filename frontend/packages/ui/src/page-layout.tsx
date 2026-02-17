@@ -9,13 +9,11 @@ export function PageLayout({
   title,
   headerRight,
   children,
-  centered = false,
   contentMaxWidth,
 }: {
   title?: string
   headerRight?: ReactNode
   children: ReactNode
-  centered?: boolean
   contentMaxWidth?: number
 }) {
   const hasHeader = title || headerRight
@@ -30,10 +28,8 @@ export function PageLayout({
       {hasHeader && (
         <div className="shrink-0">
           <div
-            className={`flex items-center gap-4 ${
-              centered ? `mx-auto w-full ${maxWidthClass}` : 'px-6'
-            }`}
-            style={centered ? maxWidthStyle : undefined}
+            className={`mx-auto flex w-full items-center gap-4 ${maxWidthClass}`}
+            style={maxWidthStyle}
           >
             {title && (
               <Text weight="bold" size="2xl" className="flex-1">
@@ -46,16 +42,12 @@ export function PageLayout({
       )}
       {/* Content - no scroll, parent handles it */}
       <div className="flex-1">
-        {centered ? (
-          <div
-            className={`mx-auto w-full ${maxWidthClass}`}
-            style={maxWidthStyle}
-          >
-            {children}
-          </div>
-        ) : (
-          children
-        )}
+        <div
+          className={`mx-auto w-full ${maxWidthClass}`}
+          style={maxWidthStyle}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )
