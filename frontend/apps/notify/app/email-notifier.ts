@@ -109,6 +109,8 @@ function reportError(message: string) {
   }
 }
 
+const reportedOldEventIds = new Set<string>()
+
 async function flushErrorBatch() {
   errorBatchTimeout = null
   if (pendingErrors.length === 0) return
@@ -292,7 +294,11 @@ async function getLastEventId(): Promise<string | undefined> {
   })
   const event = events.at(0)
   if (!event) return
-  const lastEventId = getEventId(event)
+  const plainEvent =
+    typeof (event as any).toJson === 'function'
+      ? toPlainMessage(event)
+      : (event as PlainMessage<Event>)
+  const lastEventId = getEventId(plainEvent)
   if (!lastEventId) return
   return lastEventId
 }
@@ -540,9 +546,66 @@ function getEventId(event: PlainMessage<Event>) {
   if (event.data.case === 'newMention') {
     if (!event.data.value) return undefined
     const {sourceBlob, mentionType, target} = event.data.value
-    return `mention-${sourceBlob?.cid}-${mentionType}-${target}`
+    const normalizedMentionType =
+      typeof mentionType === 'string' ? mentionType : ''
+    const normalizedTarget = typeof target === 'string' ? target : ''
+    return `mention-${sourceBlob?.cid}-${normalizedMentionType}-${normalizedTarget}`
   }
   return undefined
+}
+
+type EventCursorFingerprint =
+  | {kind: 'blob'; cid: string}
+  | {kind: 'mention'; cid: string}
+
+function getEventCursorFingerprint(
+  event: PlainMessage<Event>,
+): EventCursorFingerprint | null {
+  if (event.data.case === 'newBlob') {
+    const cid = event.data.value?.cid
+    if (!cid) return null
+    return {kind: 'blob', cid}
+  }
+  if (event.data.case === 'newMention') {
+    const cid = event.data.value?.sourceBlob?.cid
+    if (!cid) return null
+    return {kind: 'mention', cid}
+  }
+  return null
+}
+
+function parseCursorFingerprintFromId(
+  eventId: string,
+): EventCursorFingerprint | null {
+  if (eventId.startsWith('blob-')) {
+    const cid = eventId.slice('blob-'.length)
+    if (!cid) return null
+    return {kind: 'blob', cid}
+  }
+  if (eventId.startsWith('mention-')) {
+    const withoutPrefix = eventId.slice('mention-'.length)
+    const firstDash = withoutPrefix.indexOf('-')
+    if (firstDash <= 0) return null
+    const cid = withoutPrefix.slice(0, firstDash)
+    if (!cid) return null
+    return {kind: 'mention', cid}
+  }
+  return null
+}
+
+function matchesCursorEvent(
+  event: PlainMessage<Event>,
+  eventId: string | undefined,
+  lastProcessedEventId: string,
+) {
+  if (eventId && eventId === lastProcessedEventId) return true
+  const cursorFingerprint = parseCursorFingerprintFromId(lastProcessedEventId)
+  const eventFingerprint = getEventCursorFingerprint(event)
+  if (!cursorFingerprint || !eventFingerprint) return false
+  return (
+    cursorFingerprint.kind === eventFingerprint.kind &&
+    cursorFingerprint.cid === eventFingerprint.cid
+  )
 }
 
 function getEventAtMs(event: PlainMessage<Event>): number {
@@ -587,10 +650,14 @@ async function evaluateEventForNotifications(
     considerationTime <
       new Date(Date.now() - emailBatchNotifIntervalHours * 60 * 60 * 1000)
   ) {
-    const eventId = getEventId(event)
-    reportError(
-      `Event ${eventId} is older than ${emailBatchNotifIntervalHours} hours. Ignoring!`,
-    )
+    const eventId = getEventId(event) || 'unknown-event'
+    if (!reportedOldEventIds.has(eventId)) {
+      if (reportedOldEventIds.size > 5_000) reportedOldEventIds.clear()
+      reportedOldEventIds.add(eventId)
+      console.warn(
+        `[notify][email] skip old event ${eventId} older than ${emailBatchNotifIntervalHours} hours`,
+      )
+    }
     return
   }
   const eventMeta: NotificationEventMeta = {
@@ -1202,16 +1269,16 @@ async function loadEventsAfterEventId(
 
     for (const event of events) {
       const eventId = getEventId(event)
-      if (eventId) {
-        if (eventId === lastProcessedEventId) {
-          const totalTime = Date.now() - startTime
-          if (totalTime > 5000) {
-            console.log(
-              `loadEventsAfterEventId found target after ${pageCount} pages, ${eventsAfterEventId.length} events, ${totalTime}ms`,
-            )
-          }
-          return {events: eventsAfterEventId, foundCursor: true, aborted: false}
+      if (matchesCursorEvent(event, eventId, lastProcessedEventId)) {
+        const totalTime = Date.now() - startTime
+        if (totalTime > 5000) {
+          console.log(
+            `loadEventsAfterEventId found target after ${pageCount} pages, ${eventsAfterEventId.length} events, ${totalTime}ms`,
+          )
         }
+        return {events: eventsAfterEventId, foundCursor: true, aborted: false}
+      }
+      if (eventId) {
         eventsAfterEventId.push(event)
       }
     }

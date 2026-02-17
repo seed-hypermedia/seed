@@ -1,31 +1,16 @@
 import {LoadedEventWithNotifMeta} from '@shm/shared/models/activity-service'
 import {NavRoute} from '@shm/shared/routes'
 import {abbreviateUid} from '@shm/shared/utils'
-
-export type NotificationReason = 'mention' | 'reply'
+import {
+  classifyNotificationEvent,
+  NotificationReason,
+} from '@/models/notification-event-classifier'
+export {classifyNotificationEvent}
+export type {NotificationReason}
 
 export type NotificationItem = {
   reason: NotificationReason
   event: LoadedEventWithNotifMeta
-}
-
-export function classifyNotificationEvent(
-  event: LoadedEventWithNotifMeta,
-  accountUid: string,
-): NotificationReason | null {
-  if (event.type === 'citation') {
-    const targetPath = (event.target?.id?.path || []).filter(Boolean)
-    const isAccountRootTarget =
-      event.target?.id?.uid === accountUid &&
-      targetPath.length === 0
-    if (isAccountRootTarget) return 'mention'
-  }
-
-  if (event.type === 'comment') {
-    if (event.replyParentAuthor?.id?.uid === accountUid) return 'reply'
-  }
-
-  return null
 }
 
 export function notificationRouteForEvent(

@@ -67,13 +67,16 @@ Result:
 ## 6. Account switching and per-account isolation
 
 Requirement:
-- Desktop notifications are scoped to selected account only.
+- Notification ingestion runs in desktop main process for all local accounts.
 
 Implementation:
+- The background ingestor tracks a persisted global feed cursor and classifies
+  mention/reply notifications for every local key returned by `daemon.listKeys`.
+- UI rendering still scopes to the currently selected account.
 - Read-state is stored per account UID.
 - Queries and sync status are keyed by account UID.
 - Sync requests are signed with the selected account key and merged server-side by `accountId`.
 
 Result:
-- Switching accounts cannot leak or overwrite another account's read-state.
-
+- Switching accounts does not pause ingestion for non-selected accounts, and
+  cannot leak or overwrite another account's read-state.

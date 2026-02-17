@@ -4,6 +4,7 @@ import {
   getEmail,
   getNotificationReadState,
   initDatabase,
+  setNotificationConfig,
   setSubscription,
 } from './db'
 import {
@@ -99,5 +100,26 @@ describe('notification read redirect helpers', () => {
     })
     expect(result.applied).toBe(false)
     expect(result.reason).toBe('subscription-not-found')
+  })
+
+  it('marks read state when token email matches notification config', () => {
+    const accountId = 'z-account-config'
+    const email = 'config-reader@example.com'
+    setNotificationConfig(accountId, email)
+    const token = getEmail(email)?.adminToken
+    if (!token) throw new Error('Expected email token')
+
+    const result = applyNotificationReadFromEmailLink({
+      token,
+      accountId,
+      eventId: 'mention-event-id',
+      eventAtMs: 67890,
+    })
+
+    expect(result.applied).toBe(true)
+    const state = getNotificationReadState(accountId)
+    expect(state.readEvents).toEqual([
+      {eventId: 'mention-event-id', eventAtMs: 67890},
+    ])
   })
 })

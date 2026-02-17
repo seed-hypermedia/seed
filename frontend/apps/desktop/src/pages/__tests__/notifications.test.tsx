@@ -84,9 +84,85 @@ describe('notifications page helpers', () => {
     expect(classifyNotificationEvent(event, 'target-account')).toBe('mention')
   })
 
+  it('classifies mention notifications for selected account path targets', () => {
+    const event = createMentionEvent({
+      target: {
+        id: hmId('target-account', ['foo', 'bar']),
+        metadata: {name: 'Target Doc'},
+      } as any,
+    })
+    expect(classifyNotificationEvent(event, 'target-account')).toBe('mention')
+  })
+
   it('classifies reply notifications when parent author matches selected account', () => {
     const event = createReplyEvent()
     expect(classifyNotificationEvent(event, 'target-account')).toBe('reply')
+  })
+
+  it('classifies mention notifications from comment body embeds', () => {
+    const event = createReplyEvent({
+      replyParentAuthor: null,
+      target: {
+        id: hmId('some-other-account', ['post']),
+        metadata: {name: 'Post'},
+      } as any,
+      comment: {
+        id: 'comment-version-cid',
+        targetAccount: 'some-other-account',
+        content: [
+          {
+            block: {
+              id: 'p1',
+              type: 'Paragraph',
+              text: 'ping',
+              attributes: {},
+              annotations: [
+                {
+                  type: 'Embed',
+                  starts: [0],
+                  ends: [1],
+                  link: 'hm://target-account',
+                },
+              ],
+            },
+          },
+        ],
+      } as any,
+    })
+    expect(classifyNotificationEvent(event, 'target-account')).toBe('mention')
+  })
+
+  it('ignores self-authored comment body mentions', () => {
+    const event = createReplyEvent({
+      replyParentAuthor: null,
+      author: {
+        id: hmId('target-account'),
+        metadata: {name: 'Self'},
+      } as any,
+      comment: {
+        id: 'comment-version-cid',
+        targetAccount: 'some-other-account',
+        content: [
+          {
+            block: {
+              id: 'p1',
+              type: 'Paragraph',
+              text: 'ping',
+              attributes: {},
+              annotations: [
+                {
+                  type: 'Embed',
+                  starts: [0],
+                  ends: [1],
+                  link: 'hm://target-account',
+                },
+              ],
+            },
+          },
+        ],
+      } as any,
+    })
+    expect(classifyNotificationEvent(event, 'target-account')).toBeNull()
   })
 
   it('filters out events for other selected accounts', () => {

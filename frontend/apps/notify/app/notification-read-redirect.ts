@@ -1,5 +1,6 @@
 import {
   getEmailWithToken,
+  getNotificationConfig,
   getSubscription,
   mergeNotificationReadState,
 } from './db'
@@ -56,7 +57,10 @@ export function applyNotificationReadFromEmailLink(input: {
   }
 
   const subscription = getSubscription(input.accountId, email.email)
-  if (!subscription) {
+  const notificationConfig = getNotificationConfig(input.accountId)
+  const isLinkedToAccount =
+    Boolean(subscription) || notificationConfig?.email === email.email
+  if (!isLinkedToAccount) {
     return {applied: false, reason: 'subscription-not-found' as const}
   }
 

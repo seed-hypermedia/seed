@@ -665,7 +665,9 @@ export async function loadCitationEvent(
           const grpcComment = await cache.getComment(commentCid)
           comment = prepareHMComment(grpcComment)
 
-          replyCount = await cache.getCommentReplyCount(commentCid)
+          if (grpcComment.id) {
+            replyCount = await cache.getCommentReplyCount(grpcComment.id)
+          }
         }
       } catch (error) {
         console.error('Event: Failed to load comment for citation:', error)

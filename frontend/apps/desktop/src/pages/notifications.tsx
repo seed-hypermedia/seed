@@ -1,5 +1,6 @@
 import {MainWrapper} from '@/components/main-wrapper'
 import {useNotifyServiceHost} from '@/models/gateway-settings'
+import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead} from '@/models/notification-read-logic'
 import {
   useLocalNotificationReadState,
@@ -9,33 +10,21 @@ import {
   useSyncNotificationReadState,
 } from '@/models/notification-read-state'
 import {
-  classifyNotificationEvent,
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
-  NotificationItem,
   notificationTitle,
 } from '@/pages/notifications-helpers'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {useUniversalAppContext} from '@shm/shared'
-import {useActivityFeed} from '@shm/shared/use-activity-feed'
 import {formattedDateShort} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
-import {panelContainerStyles} from '@shm/ui/container'
+import {Container, PanelContainer} from '@shm/ui/container'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Bell} from 'lucide-react'
 import {useEffect, useMemo} from 'react'
-
-const NOTIFICATION_FEED_EVENT_TYPES = [
-  'Comment',
-  'Comment/Target',
-  'Comment/Embed',
-  'Doc/Embed',
-  'Doc/Link',
-  'Doc/Button',
-]
 
 export default function NotificationsPage() {
   const {experiments} = useUniversalAppContext()
@@ -44,37 +33,44 @@ export default function NotificationsPage() {
 
   if (!experiments?.notifications) {
     return (
-      <MainWrapper>
-        <div className={panelContainerStyles}>
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-            <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
-              <Bell size={50} className="text-muted-foreground" />
+      <PanelContainer>
+        <MainWrapper scrollable>
+          <Container centered className="h-full">
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+                <Bell size={50} className="text-muted-foreground" />
+              </div>
+              <SizableText size="xl">
+                Notifications are experimental
+              </SizableText>
+              <p className="text-muted-foreground max-w-lg text-center">
+                Enable the Notifications experiment in settings to use this
+                page.
+              </p>
             </div>
-            <SizableText size="xl">Notifications are experimental</SizableText>
-            <p className="text-muted-foreground max-w-lg text-center">
-              Enable the Notifications experiment in settings to use this page.
-            </p>
-          </div>
-        </div>
-      </MainWrapper>
+          </Container>
+        </MainWrapper>
+      </PanelContainer>
     )
   }
 
   if (!accountUid) {
     return (
-      <MainWrapper>
-        <div className={panelContainerStyles}>
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-            <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
-              <Bell size={50} className="text-muted-foreground" />
+      <PanelContainer>
+        <MainWrapper scrollable>
+          <Container centered className="h-full">
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+              <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
+                <Bell size={50} className="text-muted-foreground" />
+              </div>
+              <SizableText size="xl">Notifications</SizableText>
+              <p className="text-muted-foreground max-w-lg text-center">
+                Select an account to view notifications.
+              </p>
             </div>
-            <SizableText size="xl">Notifications</SizableText>
-            <p className="text-muted-foreground max-w-lg text-center">
-              Select an account to view notifications.
-            </p>
-          </div>
-        </div>
-      </MainWrapper>
+          </Container>
+        </MainWrapper>
+      </PanelContainer>
     )
   }
 
@@ -89,44 +85,12 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   const markEventRead = useMarkNotificationEventRead()
   const markAllRead = useMarkAllNotificationsRead()
   const syncNow = useSyncNotificationReadState()
-  const activityFeed = useActivityFeed({
-    currentAccount: accountUid,
-    pageSize: 30,
-    filterEventType: NOTIFICATION_FEED_EVENT_TYPES,
-  })
-
-  const notifications = useMemo<NotificationItem[]>(() => {
-    const loadedEvents =
-      activityFeed.data?.pages.flatMap((page) => page.events) || []
-    return loadedEvents
-      .map((event) => {
-        const reason = classifyNotificationEvent(event, accountUid)
-        if (!reason) return null
-        return {reason, event}
-      })
-      .filter((item): item is NotificationItem => item !== null)
-  }, [activityFeed.data, accountUid])
+  const inbox = useNotificationInbox(accountUid)
+  const notifications = inbox.data || []
 
   const maxLoadedEventAtMs = useMemo(() => {
     return getMaxLoadedNotificationEventAtMs(notifications)
   }, [notifications])
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') return
-    const loadedEvents =
-      activityFeed.data?.pages.flatMap((page) => page.events) || []
-    if (!loadedEvents.length) return
-    const byType = loadedEvents.reduce<Record<string, number>>((acc, event) => {
-      acc[event.type] = (acc[event.type] || 0) + 1
-      return acc
-    }, {})
-    console.info('[notifications] feed snapshot', {
-      accountUid,
-      loadedEvents: loadedEvents.length,
-      notifications: notifications.length,
-      byType,
-    })
-  }, [accountUid, activityFeed.data, notifications.length])
 
   useEffect(() => {
     if (!notifyServiceHost) return
@@ -135,9 +99,9 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
   }, [accountUid, notifyServiceHost])
 
   return (
-    <MainWrapper>
-      <div className={panelContainerStyles}>
-        <div className="flex flex-1 flex-col gap-4 p-6">
+    <PanelContainer>
+      <MainWrapper scrollable>
+        <Container centered className="gap-4">
           <div className="flex items-center justify-between">
             <SizableText size="xl">Notifications</SizableText>
             <Button
@@ -161,12 +125,12 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
             </p>
           ) : null}
 
-          {activityFeed.isLoading ? (
+          {inbox.isLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <Spinner />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
               <div className="bg-muted flex h-20 w-20 items-center justify-center rounded-lg">
                 <Bell size={50} className="text-muted-foreground" />
               </div>
@@ -229,8 +193,8 @@ function NotificationsForAccount({accountUid}: {accountUid: string}) {
               })}
             </div>
           )}
-        </div>
-      </div>
-    </MainWrapper>
+        </Container>
+      </MainWrapper>
+    </PanelContainer>
   )
 }
