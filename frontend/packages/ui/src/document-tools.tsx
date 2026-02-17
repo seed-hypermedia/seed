@@ -38,7 +38,6 @@ export function DocumentTools({
   const measureRef = useRef<HTMLDivElement>(null)
   const rightActionsRef = useRef<HTMLDivElement>(null)
   const [showLabels, setShowLabels] = useState(true)
-  const [rightActionsWidth, setRightActionsWidth] = useState(0)
 
   useIsomorphicLayoutEffect(() => {
     if (!containerRef.current || !measureRef.current) return
@@ -53,23 +52,12 @@ export function DocumentTools({
       setShowLabels(measuredWidth + 20 <= containerWidth)
     }
 
-    const updateRightActionsWidth = () => {
-      if (rightActionsRef.current) {
-        setRightActionsWidth(rightActionsRef.current.offsetWidth)
-      }
-    }
-
     updateLabelVisibility()
-    updateRightActionsWidth()
 
     const resizeObserver = new ResizeObserver(() => {
       updateLabelVisibility()
-      updateRightActionsWidth()
     })
     resizeObserver.observe(containerRef.current)
-    if (rightActionsRef.current) {
-      resizeObserver.observe(rightActionsRef.current)
-    }
 
     return () => {
       resizeObserver.disconnect()
@@ -228,16 +216,9 @@ export function DocumentTools({
 
   return (
     <div className="flex w-full shrink-0">
-      {/* Left spacer to balance the right actions (hidden on mobile) */}
-      {rightActions ? (
-        <div
-          style={{maxWidth: rightActionsWidth}}
-          className="hidden w-full shrink md:block"
-        />
-      ) : null}
       <div
         ref={containerRef}
-        className="flex flex-1 items-center justify-center gap-2 p-1 md:gap-4 md:p-2"
+        className="flex flex-1 items-center gap-2 p-1 md:gap-4 md:p-2"
       >
         {tabButtons}
       </div>
