@@ -360,8 +360,14 @@ export function createDocumentNavRoute(
       }
       return {key: 'activity', id: docId, filterEventType}
     }
-    case 'discussions':
+    case 'discussions': {
+      // Backward-compat: /:discussions?panel=comment/... → focus comment in main view
+      if (panelParam?.startsWith('comment/')) {
+        const openComment = panelParam.slice('comment/'.length)
+        return {key: 'discussions', id: docId, openComment}
+      }
       return {key: 'discussions', id: docId}
+    }
     case 'directory':
       return {key: 'directory', id: docId}
     case 'collaborators':
@@ -369,11 +375,7 @@ export function createDocumentNavRoute(
     case 'feed':
       return {key: 'feed', id: docId, panel}
     default: {
-      // Comment links should open in main discussions view, not panel
-      if (panelParam?.startsWith('comment/')) {
-        const openComment = panelParam.slice('comment/'.length)
-        return {key: 'discussions', id: docId, openComment}
-      }
+      // panel=comment/... opens document with comment in right panel
       return {key: 'document', id: docId, panel}
     }
   }

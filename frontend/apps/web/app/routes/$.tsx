@@ -49,8 +49,23 @@ function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
   activityFilter?: string
+  commentId?: string
 } {
   if (pathParts.length === 0) return {path: [], viewTerm: null}
+
+  // Check for :comment/AUTHOR/TSID pattern (3 segments)
+  if (pathParts.length >= 3) {
+    const thirdToLast = pathParts[pathParts.length - 3]
+    if (thirdToLast === ':comment') {
+      return {
+        path: pathParts.slice(0, -3),
+        viewTerm: null,
+        commentId: `${pathParts[pathParts.length - 2]}/${
+          pathParts[pathParts.length - 1]
+        }`,
+      }
+    }
+  }
 
   // Check for :activity/<slug> pattern (second-to-last + last)
   if (pathParts.length >= 2) {
@@ -265,6 +280,10 @@ export const loader = async ({
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
     }
+    if (extracted.commentId) {
+      viewTerm = 'discussions'
+      effectivePanelParam = `comment/${extracted.commentId}`
+    }
     documentId = hmId(pathParts[1], {
       path: extracted.path,
       version,
@@ -277,6 +296,10 @@ export const loader = async ({
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    if (extracted.commentId) {
+      viewTerm = 'discussions'
+      effectivePanelParam = `comment/${extracted.commentId}`
     }
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,

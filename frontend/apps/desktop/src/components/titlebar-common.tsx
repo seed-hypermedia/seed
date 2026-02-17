@@ -831,11 +831,16 @@ export function Omnibar() {
         url: cleanUrl,
         viewTerm,
         activityFilter,
+        commentId,
       } = extractViewTermFromUrl(url)
       const routeKey = viewTermToRouteKey(viewTerm)
 
       // Helper to apply view term to route
       const applyViewTerm = (route: NavRoute): NavRoute => {
+        // :comment/AUTHOR/TSID → open discussions with comment focused
+        if (commentId && route.key === 'document') {
+          return {key: 'discussions', id: route.id, openComment: commentId}
+        }
         if (!routeKey) return route
         if (route.key === 'document') {
           const viewRoute: NavRoute = {key: routeKey, id: route.id}

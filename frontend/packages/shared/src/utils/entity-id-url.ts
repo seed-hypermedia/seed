@@ -66,7 +66,19 @@ export function extractViewTermFromUrl(url: string): {
   url: string
   viewTerm: ViewTerm | null
   activityFilter?: string
+  commentId?: string
 } {
+  // Check for :comment/AUTHOR/TSID pattern (e.g., /:comment/z6Mk.../z6FUj...)
+  const commentPattern = /\/\:comment\/([^/?#]+\/[^/?#]+)(?=[?#]|$)/
+  const commentMatch = url.match(commentPattern)
+  if (commentMatch) {
+    return {
+      url: url.replace(commentMatch[0], ''),
+      viewTerm: null,
+      commentId: commentMatch[1],
+    }
+  }
+
   // Check for :activity/<slug> pattern first
   const activitySlugPattern = /\/\:activity\/([a-z]+)(?=[?#]|$)/
   const activitySlugMatch = url.match(activitySlugPattern)
@@ -145,9 +157,9 @@ export function createSiteUrl({
  * Build a comment URL relative to a document context.
  * Produces site-style URLs when siteUrl is provided, gateway URLs otherwise.
  *
- * For `:discussions` main view → `.../path/:discussions?panel=comment/COMMENT_ID`
- * For document with panel    → `.../path?panel=comment/COMMENT_ID`
- * With blockRef              → append `#BLOCK_ID+` or `#BLOCK_ID[start:end]`
+ * For main section (discussions view) → `.../path/:comment/COMMENT_ID`
+ * For right panel (document view)     → `.../path?panel=comment/COMMENT_ID`
+ * With blockRef                       → append `#BLOCK_ID+` or `#BLOCK_ID[start:end]`
  */
 export function createCommentUrl({
   docId,
@@ -167,14 +179,17 @@ export function createCommentUrl({
   isDiscussionsView?: boolean
   latest?: boolean | null
 }): string {
-  const panelParam = `comment/${commentId}`
+  // Main section: comment ID goes in path as /:comment/COMMENT_ID
+  // Right panel: comment ID goes in query as ?panel=comment/COMMENT_ID
+  const viewTerm = isDiscussionsView ? `:comment/${commentId}` : null
+  const panel = isDiscussionsView ? null : `comment/${commentId}`
   if (siteUrl) {
     return createSiteUrl({
       path: docId.path,
       hostname: siteUrl,
       latest: latest ?? undefined,
-      viewTerm: isDiscussionsView ? ':discussions' : null,
-      panel: panelParam,
+      viewTerm,
+      panel,
       blockRef,
       blockRange,
     })
@@ -182,8 +197,8 @@ export function createCommentUrl({
   return createWebHMUrl(docId.uid, {
     path: docId.path,
     latest,
-    viewTerm: isDiscussionsView ? ':discussions' : null,
-    panel: panelParam,
+    viewTerm,
+    panel,
     blockRef,
     blockRange,
   })

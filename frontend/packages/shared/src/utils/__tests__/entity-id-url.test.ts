@@ -3,6 +3,7 @@ import {
   createCommentUrl,
   createSiteUrl,
   createWebHMUrl,
+  extractViewTermFromUrl,
   hmId,
   idToUrl,
   packHmId,
@@ -677,7 +678,7 @@ describe('createSiteUrl with viewTerm and panel', () => {
 describe('createCommentUrl', () => {
   const docId = hmId('z6MkOwner', {path: ['human-interface-library']})
 
-  test('discussions view with siteUrl', () => {
+  test('main section with siteUrl', () => {
     expect(
       createCommentUrl({
         docId,
@@ -686,11 +687,11 @@ describe('createCommentUrl', () => {
         isDiscussionsView: true,
       }),
     ).toBe(
-      'https://seedteamtalks.hyper.media/human-interface-library/:discussions?panel=comment/z6MkAuthor/tsid123',
+      'https://seedteamtalks.hyper.media/human-interface-library/:comment/z6MkAuthor/tsid123',
     )
   })
 
-  test('discussions view with siteUrl + latest', () => {
+  test('main section with siteUrl + latest', () => {
     expect(
       createCommentUrl({
         docId,
@@ -700,11 +701,11 @@ describe('createCommentUrl', () => {
         latest: true,
       }),
     ).toBe(
-      'https://seedteamtalks.hyper.media/human-interface-library/:discussions?l&panel=comment/z6MkAuthor/tsid123',
+      'https://seedteamtalks.hyper.media/human-interface-library/:comment/z6MkAuthor/tsid123?l',
     )
   })
 
-  test('discussions view with siteUrl + blockRef', () => {
+  test('main section with siteUrl + blockRef', () => {
     expect(
       createCommentUrl({
         docId,
@@ -715,7 +716,7 @@ describe('createCommentUrl', () => {
         blockRange: {expanded: true},
       }),
     ).toBe(
-      'https://seedteamtalks.hyper.media/human-interface-library/:discussions?panel=comment/z6MkAuthor/tsid123#XK6l8B4d+',
+      'https://seedteamtalks.hyper.media/human-interface-library/:comment/z6MkAuthor/tsid123#XK6l8B4d+',
     )
   })
 
@@ -748,7 +749,7 @@ describe('createCommentUrl', () => {
     )
   })
 
-  test('discussions view without siteUrl (gateway)', () => {
+  test('main section without siteUrl (gateway)', () => {
     expect(
       createCommentUrl({
         docId,
@@ -757,7 +758,7 @@ describe('createCommentUrl', () => {
         latest: true,
       }),
     ).toContain(
-      '/hm/z6MkOwner/human-interface-library/:discussions?l&panel=comment/z6MkAuthor/tsid123',
+      '/hm/z6MkOwner/human-interface-library/:comment/z6MkAuthor/tsid123?l',
     )
   })
 
@@ -773,7 +774,7 @@ describe('createCommentUrl', () => {
     )
   })
 
-  test('gateway view with blockRef', () => {
+  test('gateway main section with blockRef', () => {
     expect(
       createCommentUrl({
         docId,
@@ -783,12 +784,12 @@ describe('createCommentUrl', () => {
         blockRange: {expanded: true},
       }),
     ).toContain(
-      '/hm/z6MkOwner/human-interface-library/:discussions?panel=comment/z6MkAuthor/tsid123#blk1+',
+      '/hm/z6MkOwner/human-interface-library/:comment/z6MkAuthor/tsid123#blk1+',
     )
   })
 
   // Root path (no doc path) — matches user's gabo.es example
-  test('root doc discussions view with siteUrl + latest', () => {
+  test('root doc main section with siteUrl + latest', () => {
     const rootDocId = hmId('z6MkOwner', {path: []})
     expect(
       createCommentUrl({
@@ -798,7 +799,7 @@ describe('createCommentUrl', () => {
         isDiscussionsView: true,
         latest: true,
       }),
-    ).toBe('https://gabo.es/:discussions?l&panel=comment/zDnae.../z6FK...')
+    ).toBe('https://gabo.es/:comment/zDnae.../z6FK...?l')
   })
 
   test('root doc panel view with siteUrl + latest', () => {
@@ -812,6 +813,48 @@ describe('createCommentUrl', () => {
         latest: true,
       }),
     ).toBe('https://gabo.es?l&panel=comment/zDnae.../z6FK...')
+  })
+})
+
+describe('extractViewTermFromUrl with :comment', () => {
+  test('extracts commentId from site URL', () => {
+    const result = extractViewTermFromUrl(
+      'https://seedteamtalks.hyper.media/projects/my-doc/:comment/z6MkAuthor/tsid123?l',
+    )
+    expect(result.commentId).toBe('z6MkAuthor/tsid123')
+    expect(result.url).toBe(
+      'https://seedteamtalks.hyper.media/projects/my-doc?l',
+    )
+    expect(result.viewTerm).toBeNull()
+  })
+
+  test('extracts commentId from gateway URL', () => {
+    const result = extractViewTermFromUrl(
+      'https://gw.com/hm/z6MkOwner/my-doc/:comment/z6MkAuthor/tsid123',
+    )
+    expect(result.commentId).toBe('z6MkAuthor/tsid123')
+    expect(result.url).toBe('https://gw.com/hm/z6MkOwner/my-doc')
+  })
+
+  test('extracts commentId from root doc URL', () => {
+    const result = extractViewTermFromUrl(
+      'https://gabo.es/:comment/zDnae/z6FK?l',
+    )
+    expect(result.commentId).toBe('zDnae/z6FK')
+    expect(result.url).toBe('https://gabo.es?l')
+  })
+
+  test('does not match :comment without two ID segments', () => {
+    const result = extractViewTermFromUrl('https://example.com/docs/:comment?l')
+    expect(result.commentId).toBeUndefined()
+  })
+
+  test('still extracts regular view terms', () => {
+    const result = extractViewTermFromUrl(
+      'https://example.com/path/:discussions?l',
+    )
+    expect(result.viewTerm).toBe(':discussions')
+    expect(result.commentId).toBeUndefined()
   })
 })
 
