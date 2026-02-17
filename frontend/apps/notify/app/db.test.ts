@@ -8,9 +8,11 @@ import {
   getAllEmails,
   getEmailWithToken,
   getNotificationConfig,
+  getNotificationReadState,
   getNotifierLastProcessedEventId,
   getSubscription,
   initDatabase,
+  mergeNotificationReadState,
   setEmailUnsubscribed,
   setNotificationConfig,
   setNotifierLastProcessedEventId,
@@ -56,11 +58,13 @@ describe('Database', () => {
       const tables = db
         .prepare("SELECT name FROM sqlite_master WHERE type='table'")
         .all() as TableInfo[]
-      expect(tables).toHaveLength(4)
+      expect(tables).toHaveLength(6)
       expect(tables.map((t) => t.name)).toContain('emails')
       expect(tables.map((t) => t.name)).toContain('email_subscriptions')
       expect(tables.map((t) => t.name)).toContain('notifier_status')
       expect(tables.map((t) => t.name)).toContain('notification_config')
+      expect(tables.map((t) => t.name)).toContain('notification_read_state')
+      expect(tables.map((t) => t.name)).toContain('notification_read_events')
 
       // Check emails table schema
       const emailsSchema = db
@@ -118,7 +122,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = db.pragma('user_version', {simple: true})
-      expect(version).toBe(5)
+      expect(version).toBe(6)
       db.close()
     })
   })
@@ -516,6 +520,122 @@ describe('Database', () => {
         'bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdj'
       setNotifierLastProcessedEventId(newCid)
       expect(getNotifierLastProcessedEventId()).toBe(newCid)
+    })
+  })
+
+  describe('notification read state operations', () => {
+    it('should return default read state when account has no state', () => {
+      const state = getNotificationReadState('account-empty')
+      expect(state).toMatchObject({
+        accountId: 'account-empty',
+        markAllReadAtMs: null,
+        readEvents: [],
+      })
+      expect(state.updatedAt).toBeDefined()
+    })
+
+    it('should merge mark-all watermark monotonically', () => {
+      const accountId = 'account-read-1'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1000,
+        readEvents: [],
+      })
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 500,
+        readEvents: [],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1000)
+    })
+
+    it('should union read events and keep max timestamp per event id', () => {
+      const accountId = 'account-read-2'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 100},
+          {eventId: 'event-b', eventAtMs: 200},
+        ],
+      })
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-a', eventAtMs: 300},
+          {eventId: 'event-c', eventAtMs: 250},
+        ],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.readEvents).toEqual([
+        {eventId: 'event-a', eventAtMs: 300},
+        {eventId: 'event-c', eventAtMs: 250},
+        {eventId: 'event-b', eventAtMs: 200},
+      ])
+    })
+
+    it('should prune read events at or before mark-all timestamp', () => {
+      const accountId = 'account-read-3'
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: null,
+        readEvents: [
+          {eventId: 'event-old', eventAtMs: 1000},
+          {eventId: 'event-new', eventAtMs: 2000},
+        ],
+      })
+
+      mergeNotificationReadState(accountId, {
+        markAllReadAtMs: 1500,
+        readEvents: [],
+      })
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(1500)
+      expect(state.readEvents).toEqual([
+        {eventId: 'event-new', eventAtMs: 2000},
+      ])
+    })
+
+    it('should be idempotent for repeated merges', () => {
+      const accountId = 'account-read-4'
+      const payload = {
+        markAllReadAtMs: 5000,
+        readEvents: [
+          {eventId: 'event-1', eventAtMs: 6000},
+          {eventId: 'event-2', eventAtMs: 7000},
+        ],
+      }
+      mergeNotificationReadState(accountId, payload)
+      mergeNotificationReadState(accountId, payload)
+
+      const state = getNotificationReadState(accountId)
+      expect(state.markAllReadAtMs).toBe(5000)
+      expect(state.readEvents).toEqual([
+        {eventId: 'event-2', eventAtMs: 7000},
+        {eventId: 'event-1', eventAtMs: 6000},
+      ])
+    })
+
+    it('should keep read states isolated per account', () => {
+      mergeNotificationReadState('account-a', {
+        markAllReadAtMs: 100,
+        readEvents: [{eventId: 'event-a', eventAtMs: 101}],
+      })
+      mergeNotificationReadState('account-b', {
+        markAllReadAtMs: 200,
+        readEvents: [{eventId: 'event-b', eventAtMs: 201}],
+      })
+
+      expect(getNotificationReadState('account-a')).toMatchObject({
+        accountId: 'account-a',
+        markAllReadAtMs: 100,
+        readEvents: [{eventId: 'event-a', eventAtMs: 101}],
+      })
+      expect(getNotificationReadState('account-b')).toMatchObject({
+        accountId: 'account-b',
+        markAllReadAtMs: 200,
+        readEvents: [{eventId: 'event-b', eventAtMs: 201}],
+      })
     })
   })
 })

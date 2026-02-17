@@ -6,7 +6,7 @@
 export const withCors = (response: Response) => {
   const headers = new Headers(response.headers)
   headers.set('Access-Control-Allow-Origin', '*')
-  headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   headers.set('Access-Control-Allow-Headers', 'Content-Type')
 
   return new Response(response.body, {
