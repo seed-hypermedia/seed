@@ -698,6 +698,13 @@ NESTED BLOCKS
 
 :global(.comment-editor) .blockContent.isEmpty.hasAnchor .inlineContent:before {
   font-size: 1em !important;
+  color: var(--muted-foreground, rgb(99 104 118));
+  opacity: 1;
+}
+
+:global(.comment-editor) .blockContent.isFilter.hasAnchor .inlineContent:before {
+  color: var(--muted-foreground, rgb(99 104 118));
+  opacity: 1;
 }
 
 :global(.comment-editor) .blockContent[data-content-type='code-block'] {
