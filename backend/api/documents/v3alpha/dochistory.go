@@ -67,7 +67,7 @@ func (srv *Server) ListDocumentChanges(ctx context.Context, in *documents.ListDo
 		StartFrom string
 	}
 	if in.PageToken != "" {
-		apiutil.DecodePageToken(in.PageToken, &cursor, nil)
+		_ = apiutil.DecodePageToken(in.PageToken, &cursor, nil)
 	}
 
 	out := &documents.ListDocumentChangesResponse{

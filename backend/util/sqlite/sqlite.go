@@ -31,7 +31,6 @@ package sqlite
 // #cgo CFLAGS: -DSQLITE_DQS=0
 // #cgo CFLAGS: -DSQLITE_ENABLE_GEOPOLY
 // #cgo CFLAGS: -DSQLITE_CORE
-// #cgo windows LDFLAGS: -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 // #cgo linux LDFLAGS: -ldl -lm
 // #cgo linux CFLAGS: -std=c99
 // #cgo openbsd LDFLAGS: -lm
@@ -51,7 +50,12 @@ package sqlite
 //	return sqlite3_bind_blob(stmt, col, p, n, SQLITE_TRANSIENT);
 // }
 //
-// extern void log_fn(void* pArg, int code, char* msg);
+// #ifdef _WIN32
+// #define SQLITE_GO_EXPORT __declspec(dllexport)
+// #else
+// #define SQLITE_GO_EXPORT
+// #endif
+// extern SQLITE_GO_EXPORT void log_fn(void* pArg, int code, char* msg);
 // static void enable_logging() {
 //	sqlite3_config(SQLITE_CONFIG_LOG, log_fn, NULL);
 // }

@@ -6,6 +6,8 @@ import argparse
 import os
 import subprocess
 import sys
+import shutil
+import tempfile
 
 
 def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
@@ -30,6 +32,202 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
     )
 
 
+GPU_CONFIG_FILE = ".plz-cache/.gpu-config"
+
+
+def setup_gpu_build(cpu_only: bool):
+    """Configure GPU build. Clean cache if GPU setting changed. GPU is enabled by default."""
+    current_gpu = "false" if cpu_only else "true"
+
+    # Read previous value
+    previous_gpu = None
+    if os.path.exists(GPU_CONFIG_FILE):
+        with open(GPU_CONFIG_FILE, "r") as f:
+            previous_gpu = f.read().strip()
+
+    # If changed, clean the cache silently
+    if previous_gpu is not None and previous_gpu != current_gpu:
+        subprocess.run("plz clean", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Store current value
+    os.makedirs(os.path.dirname(GPU_CONFIG_FILE), exist_ok=True)
+    with open(GPU_CONFIG_FILE, "w") as f:
+        f.write(current_gpu)
+
+    # Set env var for BUILD.plz - GPU is default, CPU-only requires explicit flag
+    if cpu_only:
+        os.environ["SEED_CPU_ONLY"] = "true"
+        if "SEED_USE_GPU" in os.environ:
+            del os.environ["SEED_USE_GPU"]
+    else:
+        os.environ["SEED_USE_GPU"] = "true"
+        if "SEED_CPU_ONLY" in os.environ:
+            del os.environ["SEED_CPU_ONLY"]
+
+
+def sync_llama_go():
+    """Clone llama-go and sync it to backend/llama-go."""
+    print("Syncing llama-go from GitHub...")
+    
+    # Create temp directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        clone_path = os.path.join(temp_dir, "llama-go")
+        
+        # Clone the repository with submodules
+        print(f"Cloning llama-go to {clone_path}...")
+        subprocess.run(
+            ["git", "clone", "--recurse-submodules", 
+             "https://github.com/seed-hypermedia/llama-go", clone_path],
+            check=True
+        )
+        
+        # Switch to the fix/vulkan branch 
+        # TODO: Switch to main when the vulkan fix is merged
+        print("Switching to fix/vulkan branch...")
+        subprocess.run(
+            ["git", "checkout", "fix/vulkan"],
+            cwd=clone_path,
+            check=True
+        )
+        
+        # Prepare destination
+        dest_path = os.path.join(os.getcwd(), "backend", "util", "llama-go")
+        
+        # Remove existing llama-go if it exists
+        if os.path.exists(dest_path):
+            print(f"Removing existing {dest_path}...")
+            shutil.rmtree(dest_path)
+        
+        # Create destination directory
+        os.makedirs(dest_path, exist_ok=True)
+        
+        # Copy files, excluding git-specific files and top-level unwanted folders
+        print(f"Copying files to {dest_path}...")
+        exclude_patterns = {
+            '.git', '.gitignore', '.gitmodules', '.github', '.claude', '.forgejo'
+        }
+        
+        def ignore_patterns(dir, files):
+            """Custom ignore function to exclude git-specific files."""
+            ignored = []
+            for f in files:
+                # Exclude folders only at top level
+                dir_basename = os.path.basename(dir)
+                parent_is_root = os.path.dirname(dir) == clone_path
+                if parent_is_root and f in {'docs', 'internal'}:
+                    ignored.append(f)
+                # Exclude git-specific files
+                elif f.startswith('.git'):
+                    ignored.append(f)
+            return ignored
+        
+        for item in os.listdir(clone_path):
+            # Skip excluded directories and markdown files
+            if item in exclude_patterns or item.endswith('.md') or item.endswith('.yaml') or item.endswith('.yml') or item.startswith('Dockerfile'):
+                continue
+                
+            src = os.path.join(clone_path, item)
+            dst = os.path.join(dest_path, item)
+            
+            if os.path.isdir(src):
+                shutil.copytree(src, dst, ignore=ignore_patterns)
+            else:
+                shutil.copy2(src, dst)
+        
+        # Delete specific folders completely
+        print("Removing unwanted folders...")
+        folders_to_delete = [
+            os.path.join(dest_path, "examples"),
+            os.path.join(dest_path, "internal"),
+            os.path.join(dest_path, "docs"),
+            os.path.join(dest_path, "llama.cpp", "examples"),
+            os.path.join(dest_path, "llama.cpp", "tests"),
+            os.path.join(dest_path, "llama.cpp", "benches"),
+            os.path.join(dest_path, "llama.cpp", "vendor", "miniaudio"),
+        ]
+        
+        for folder in folders_to_delete:
+            if os.path.exists(folder):
+                print(f"  Deleting {folder}...")
+                shutil.rmtree(folder)
+        
+        # Clean up specific folders by removing files except allowed extensions
+        print("Cleaning up remaining folders...")
+        allowed_extensions = {'.txt', '.c', '.cpp', '.h', '.hpp'}
+        folders_to_clean = [
+            os.path.join(dest_path, "llama.cpp", "tools"),
+            os.path.join(dest_path, "llama.cpp", "models"),
+            os.path.join(dest_path, "models"),
+        ]
+        
+        for folder in folders_to_clean:
+            if not os.path.exists(folder):
+                continue
+            for root, dirs, files in os.walk(folder, topdown=False):
+                for filename in files:
+                    file_ext = os.path.splitext(filename)[1].lower()
+                    if file_ext not in allowed_extensions:
+                        file_path = os.path.join(root, filename)
+                        os.remove(file_path)
+        
+        # Restore placeholder directories for CMake
+        print("Restoring placeholder directories...")
+        placeholder_dirs = [
+            os.path.join(dest_path, "llama.cpp", "tests"),
+            os.path.join(dest_path, "llama.cpp", "examples"),
+        ]
+        
+        for placeholder_dir in placeholder_dirs:
+            os.makedirs(placeholder_dir, exist_ok=True)
+            cmake_file = os.path.join(placeholder_dir, "CMakeLists.txt")
+            # Create empty CMakeLists.txt file
+            open(cmake_file, 'a').close()
+        
+        print("llama-go sync completed successfully!")
+
+        # Regenerate GPU build files
+        generate_gpu_build_files(dest_path)
+
+
+def generate_gpu_build_files(llama_go_path: str):
+    """Generate platform-specific GPU build files after syncing llama-go."""
+    print("Generating GPU build files...")
+
+    # Linux GPU file
+    linux_gpu_file = os.path.join(llama_go_path, "zgpu_linux.go")
+    linux_content = """// Code generated by ./dev gen --all. DO NOT EDIT.
+
+//go:build gpu
+
+package llama
+
+/*
+#cgo LDFLAGS: -L./ -lggml-vulkan -lvulkan
+*/
+import "C"
+"""
+    with open(linux_gpu_file, "w") as f:
+        f.write(linux_content)
+    print(f"  Created {linux_gpu_file}")
+
+    # macOS GPU file
+    darwin_gpu_file = os.path.join(llama_go_path, "zgpu_darwin.go")
+    darwin_content = """// Code generated by ./dev gen --all. DO NOT EDIT.
+
+//go:build gpu
+
+package llama
+
+/*
+#cgo LDFLAGS: -L./ -framework Accelerate -framework Foundation -framework Metal -framework MetalKit -framework MetalPerformanceShaders
+*/
+import "C"
+"""
+    with open(darwin_gpu_file, "w") as f:
+        f.write(darwin_content)
+    print(f"  Created {darwin_gpu_file}")
+
+
 def main():
     if not os.getenv("DIRENV_DIR"):
         print("Direnv is not enabled. Fix it first! See README.md for instructions.")
@@ -50,9 +248,23 @@ def main():
     @cmd(
         cmds,
         "gen",
-        "Check all the generated code is up to date. Otherwise run the code generation process to fix it.",
+        "Check the generated code is up to date. --all flag to refetch also llama-go dependencies. Otherwise run the code generation process to fix it.",
     )
     def gen(args):
+        # Sync llama-go only if --all flag is present
+        if '--all' in args:
+            try:
+                sync_llama_go()
+                # Remove --all from args so it doesn't get passed to plz commands
+                args = [arg for arg in args if arg != '--all']
+            except subprocess.CalledProcessError as e:
+                print(f"Error syncing llama-go: {e}")
+                sys.exit(1)
+            except Exception as e:
+                print(f"Unexpected error syncing llama-go: {e}")
+                sys.exit(1)
+        
+        # Then proceed with existing code generation checks
         targets_to_check = (
             run(
                 f"plz query filter -i 'generated:check' {str.join(' ', args)}",
@@ -75,8 +287,11 @@ def main():
             return
         return run("plz run parallel " + " ".join(targets_to_gen))
 
-    @cmd(cmds, "run-desktop", "Run frontend desktop app for development.")
+    @cmd(cmds, "run-desktop", "Run frontend desktop app for development. GPU is enabled by default. Use --cpu for CPU-only build.")
     def run_desktop(args):
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
@@ -85,8 +300,11 @@ def main():
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet.")
+    @cmd(cmds, "run-desktop-mainnet", "Run frontend desktop app for dev, on mainnet. GPU is enabled by default. Use --cpu for CPU-only build.")
     def run_desktop_mainnet(args):
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
@@ -97,20 +315,26 @@ def main():
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window.")
+    @cmd(cmds, "run-desktop-profiler", "Run desktop app with memory profiler window. GPU is enabled by default. Use --cpu for CPU-only build.")
     def run_desktop_profiler(args):
         run("node scripts/cleanup-desktop.js")
         run("plz build //:pnpm")
 
         if "SEED_NO_DAEMON_SPAWN" not in os.environ:
+            cpu_only = "--cpu" in args
+            args = [a for a in args if a != "--cpu"]
+            setup_gpu_build(cpu_only)
             run("plz build //backend:seed-daemon")
 
         os.environ["MEMORY_PROFILER"] = "1"
 
         return run("pnpm desktop", args=args)
 
-    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. Use --profiler to enable React Profiler.")
+    @cmd(cmds, "build-desktop", "Builds the desktop app for the current platform. GPU is enabled by default. Use --cpu for CPU-only build. Use --profiler to enable React Profiler.")
     def build_desktop(args):
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
         # run("node scripts/cleanup-desktop.js")
         # run("./scripts/cleanup-frontend.sh")
         run("pnpm install")
@@ -133,8 +357,11 @@ def main():
             env_prefix = f"REACT_PROFILER=1 {env_prefix}"
         run(f"{env_prefix} pnpm desktop:make")
 
-    @cmd(cmds, "test-desktop", "Run frontend desktop tests.")
+    @cmd(cmds, "test-desktop", "Run frontend desktop tests. GPU is enabled by default. Use --cpu for CPU-only build.")
     def test_desktop(args):
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
         run("node scripts/cleanup-desktop.js")
         run("plz build //backend:seed-daemon //:pnpm")
 
@@ -173,13 +400,21 @@ def main():
     @cmd(
         cmds,
         "run-backend",
-        "Build and run seed-daemon binary for the current platform.",
+        "Build and run seed-daemon binary for the current platform. GPU is enabled by default. Use --cpu for CPU-only build.",
     )
     def run_backend(args):
-        return run("plz run //backend:seed-daemon", args=args)
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
+        env = os.environ.copy()
+        env["LLAMA_LOG"] = "error"
+        return run("plz run //backend:seed-daemon", args=args, env=env)
 
-    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
+    @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform. GPU is enabled by default. Use --cpu for CPU-only build.")
     def build_backend(args):
+        cpu_only = "--cpu" in args
+        args = [a for a in args if a != "--cpu"]
+        setup_gpu_build(cpu_only)
         return run("plz build //backend:seed-daemon")
 
     @cmd(cmds, "run-gw-backend", "Build and run backend for seed web gateway.")

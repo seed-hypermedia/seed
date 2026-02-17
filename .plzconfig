@@ -11,6 +11,8 @@ GitFunctions = true
 [build]
 PassUnsafeEnv = "WORKSPACE" ; This is expected to be set via direnv to point to the absolute path to the workspace. Needed to do some nasty but useful workarounds.
 PassUnsafeEnv = "SEED_MISE_BIN"
+PassUnsafeEnv = "SEED_USE_GPU" ; Internal: GPU is enabled by default. Do not set manually.
+PassUnsafeEnv = "SEED_CPU_ONLY" ; Internal: set by ./dev --cpu flag for CPU-only builds. Do not set manually.
 ExitOnError = true
 Path = "/bin:/usr/bin"
 

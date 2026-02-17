@@ -1,0 +1,286 @@
+name: Test GPU Build
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "backend/util/llama-go/**"
+      - "backend/cmd/seed-daemon/**"
+      - "backend/cmd/seed-daemon/Dockerfile"
+      - "frontend/apps/desktop/**"
+      - ".github/actions/ci-setup/**"
+      - ".github/workflows/test-gpu-build.yml"
+  pull_request:
+    paths:
+      - "backend/util/llama-go/**"
+      - "backend/cmd/seed-daemon/**"
+      - "backend/cmd/seed-daemon/Dockerfile"
+      - "frontend/apps/desktop/**"
+      - ".github/actions/ci-setup/**"
+      - ".github/workflows/test-gpu-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-info:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set_version.outputs.version }}
+
+    steps:
+      - name: Set test version
+        id: set_version
+        run: |
+          VERSION="9999.9.9"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build-backend:
+    needs: [build-info]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            name: linux-x64
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-unknown-linux-gnu
+          - os: macos-15-large
+            name: macos-x64
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-apple-darwin
+          - os: macos-15-xlarge
+            name: macos-arm64
+            arch: arm64
+            goarch: arm64
+            daemon_name: aarch64-apple-darwin
+          - os: windows-2025
+            name: windows-x64
+            arch: x64
+            goarch: amd64
+            daemon_name: x86_64-pc-windows-gnu
+
+    runs-on: ${{ matrix.config.os }}
+    name: Build ${{ matrix.config.name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+
+      - name: Download GGUF model
+        shell: bash
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - uses: ./.github/actions/ci-setup
+        with:
+          matrix-os: ${{ matrix.config.os }}
+
+      - name: Build seed-daemon (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: |
+          mkdir -p plz-out/bin/backend
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
+          ls -la plz-out/bin/backend/seed-daemon-*
+        env:
+          GOARCH: ${{ matrix.config.goarch }}
+          CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Build seed-daemon (Windows)
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          mkdir -p plz-out/bin/backend
+          go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
+          ls -la plz-out/bin/backend/seed-daemon-*
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.config.goarch }}
+          CGO_ENABLED: 1
+          CGO_LDFLAGS: -static-libgcc -static-libstdc++
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+
+      - name: Stage Windows runtime DLL
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          set -euo pipefail
+          DLL_PATH="$(gcc -print-file-name=libwinpthread-1.dll)"
+
+          if [ ! -f "$DLL_PATH" ]; then
+            echo "ERROR: libwinpthread-1.dll not found in gcc toolchain"
+            exit 1
+          fi
+
+          cp "$DLL_PATH" plz-out/bin/backend/libwinpthread-1.dll
+          ls -la plz-out/bin/backend/libwinpthread-1.dll
+
+      - name: Verify Windows daemon runtime deps
+        if: matrix.config.os == 'windows-2025'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe"
+
+          if ! command -v objdump >/dev/null 2>&1; then
+            echo "objdump not available on runner; skipping dependency check"
+            exit 0
+          fi
+
+          DLLS="$(objdump -p "$BIN" | awk '/DLL Name:/ {print $3}')"
+          echo "Windows DLL imports:"
+          echo "$DLLS"
+
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll)$'; then
+            echo "ERROR: MinGW runtime DLL dependency is still present"
+            exit 1
+          fi
+
+          if echo "$DLLS" | grep -Eiq '^libwinpthread-1\.dll$'; then
+            if [ ! -f "plz-out/bin/backend/libwinpthread-1.dll" ]; then
+              echo "ERROR: daemon imports libwinpthread-1.dll but runtime DLL is not staged"
+              exit 1
+            fi
+
+            echo "libwinpthread-1.dll import detected and staged correctly"
+          fi
+
+      - name: Set MacOS signing certs
+        if: startsWith(matrix.config.os, 'macos')
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p $APPLE_KEYCHAIN_PASSWORD build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p $APPLE_KEYCHAIN_PASSWORD build.keychain
+          security import certificate.p12 -k build.keychain -P $APPLE_CERTIFICATE_PASSWORD -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k $APPLE_KEYCHAIN_PASSWORD build.keychain
+          rm -fr *.p12
+          security set-keychain-settings -lut 1200
+
+      - name: Set test version in package.json
+        run: node scripts/set-desktop-version.mjs
+        env:
+          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+
+      - name: Ensure 7-Zip is in PATH (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          if (Test-Path "C:\Program Files\7-Zip") {
+            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            choco install 7zip -y
+            echo "C:\Program Files\7-Zip" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+
+      - name: Build desktop packages (Unix)
+        if: matrix.config.os != 'windows-2025'
+        run: pnpm desktop:make --arch=${{ matrix.config.arch }}
+        env:
+          DEBUG: electron-*
+          NODE_OPTIONS: --max_old_space_size=4096
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          DAEMON_NAME: ${{ matrix.config.daemon_name }}
+          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_COMMIT_HASH: "${{ github.sha }}"
+          VITE_DESKTOP_P2P_PORT: "59000"
+          VITE_DESKTOP_HTTP_PORT: "59001"
+          VITE_DESKTOP_GRPC_PORT: "59002"
+          VITE_METRIC_SERVER_HTTP_PORT: "59003"
+          VITE_DESKTOP_APPDATA: "Seed-test-gpu"
+          VITE_DESKTOP_HOSTNAME: "http://localhost"
+          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
+          VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
+          VITE_GATEWAY_URL: "https://dev.hyper.media"
+          VITE_NOTIFY_SERVICE_HOST: "https://notify-dev.seed.hyper.media"
+          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
+          SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SEED_P2P_TESTNET_NAME: "dev"
+
+      - name: Build desktop packages (Windows)
+        if: startsWith(matrix.config.os, 'windows')
+        shell: powershell
+        run: |
+          if (Test-Path "frontend/apps/desktop/out") { Remove-Item -Recurse -Force "frontend/apps/desktop/out" }
+          pnpm desktop:make --arch=${{ matrix.config.arch }}
+        env:
+          DEBUG: electron-*
+          NODE_OPTIONS: --max_old_space_size=4096
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          DAEMON_NAME: "${{ matrix.config.daemon_name }}.exe"
+          VITE_VERSION: "${{ needs.build-info.outputs.version }}"
+          VITE_COMMIT_HASH: "${{ github.sha }}"
+          VITE_DESKTOP_P2P_PORT: "59000"
+          VITE_DESKTOP_HTTP_PORT: "59001"
+          VITE_DESKTOP_GRPC_PORT: "59002"
+          VITE_METRIC_SERVER_HTTP_PORT: "59003"
+          VITE_DESKTOP_APPDATA: "Seed-test-gpu"
+          VITE_DESKTOP_HOSTNAME: "http://localhost"
+          VITE_LIGHTNING_API_URL: "https://ln.testnet.seed.hyper.media"
+          VITE_SEED_HOST_URL: "https://host-dev.seed.hyper.media"
+          VITE_GATEWAY_URL: "https://dev.hyper.media"
+          VITE_NOTIFY_SERVICE_HOST: "https://notify-dev.seed.hyper.media"
+          VITE_AVOID_UPDATES: "true"
+          VITE_DESKTOP_SENTRY_DSN: "${{ secrets.DESKTOP_SENTRY_DSN }}"
+          SENTRY_AUTH_TOKEN: "${{ secrets.SENTRY_AUTH_TOKEN }}"
+          SEED_P2P_TESTNET_NAME: "dev"
+
+      - name: Verify binary
+        run: |
+          echo "Build successful for ${{ matrix.config.name }}"
+          file plz-out/bin/backend/seed-daemon-* || true
+
+      - name: Upload test installables
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-gpu-installables-${{ matrix.config.daemon_name }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            frontend/apps/desktop/out/make/**/*.exe
+            frontend/apps/desktop/out/make/**/*.dmg
+            frontend/apps/desktop/out/make/**/*.deb
+            frontend/apps/desktop/out/make/**/*.rpm
+            frontend/apps/desktop/out/make/**/*.zip
+            frontend/apps/desktop/out/make/**/RELEASES
+
+      - name: Upload Windows daemon bundle
+        if: matrix.config.os == 'windows-2025'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-gpu-daemon-windows-${{ needs.build-info.outputs.version }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            plz-out/bin/backend/seed-daemon-*
+            plz-out/bin/backend/libwinpthread-1.dll

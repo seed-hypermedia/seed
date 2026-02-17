@@ -19,9 +19,14 @@ package sqlite
 // #include <sqlite3.h>
 // #include "wrappers.h"
 //
-// extern void func_tramp(sqlite3_context*, int, sqlite3_value**);
-// extern void step_tramp(sqlite3_context*, int, sqlite3_value**);
-// extern void final_tramp(sqlite3_context*);
+// #ifdef _WIN32
+// #define SQLITE_GO_EXPORT __declspec(dllexport)
+// #else
+// #define SQLITE_GO_EXPORT
+// #endif
+// extern SQLITE_GO_EXPORT void func_tramp(sqlite3_context*, int, sqlite3_value**);
+// extern SQLITE_GO_EXPORT void step_tramp(sqlite3_context*, int, sqlite3_value**);
+// extern SQLITE_GO_EXPORT void final_tramp(sqlite3_context*);
 //
 // static int go_sqlite3_create_function_v2(
 //   sqlite3 *db,
