@@ -1,0 +1,47 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "blockChildren",
+      "attrs": { "listType": "Group", "listLevel": "1" },
+      "content": [
+        {
+          "type": "blockNode",
+          "attrs": { "id": "block-a" },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "A" }]
+            },
+            {
+              "type": "blockChildren",
+              "attrs": { "listType": "Unordered", "listLevel": "1" },
+              "content": [
+                {
+                  "type": "blockNode",
+                  "attrs": { "id": "block-b" },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "B" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "blockNode",
+          "attrs": { "id": "block-c" },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "C" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

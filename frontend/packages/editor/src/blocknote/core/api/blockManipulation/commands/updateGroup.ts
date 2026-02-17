@@ -41,33 +41,28 @@ export const updateGroupCommand = (
 
     // Change group type to div
     if (group.attrs.listType !== 'Group' && listType === 'Group' && container) {
+      if (dispatch) {
+        const tr = state.tr
+        tr.setNodeMarkup($pos.before(depth), null, {
+          ...group.attrs,
+          listType: 'Group',
+          listLevel: '1',
+        })
+        dispatch(tr)
+      }
+
+      // Update children levels asynchronously
       setTimeout(() => {
-        editor
-          .chain()
-          .command(({state, dispatch}) => {
-            if (dispatch) {
-              // setTimeout(() => {
-              state.tr.setNodeMarkup($pos.before(depth), null, {
-                ...group.attrs,
-                listType: 'Group',
-                listLevel: '1',
-              })
-              // })
-              return true
-            }
-            return false
-          })
-          .command(
-            updateGroupChildrenCommand(
-              group,
-              container,
-              $pos,
-              0,
-              group.attrs.listType,
-              false,
-            ),
-          )
-          .run()
+        editor.commands.command(
+          updateGroupChildrenCommand(
+            group,
+            container,
+            $pos,
+            0,
+            group.attrs.listType,
+            false,
+          ),
+        )
       })
 
       return true
@@ -133,20 +128,15 @@ export const updateGroupCommand = (
         }
       }
 
-      // start
-      //   ? state.tr.setNodeMarkup($pos.before(depth), null, {
-      //       ...group.attrs,
-      //       listType: listType,
-      //       listLevel: level,
-      //       start: parseInt(start),
-      //     })
-      //   :
-      state.tr.setNodeMarkup($pos.before(depth), null, {
+      const tr = state.tr
+      tr.setNodeMarkup($pos.before(depth), null, {
         ...group.attrs,
         listType: listType,
         listLevel: level,
       })
+      dispatch(tr)
 
+      // Update children levels asynchronously
       if (container) {
         setTimeout(() => {
           editor.commands.command(

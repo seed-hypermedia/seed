@@ -112,9 +112,9 @@ function liftListItem(editor: Editor, posInBlock: number) {
               ? {
                   listType: childGroup.group.attrs.listType,
                   listLevel:
-                    childGroup.group.attrs.listLevel > 1
-                      ? childGroup.group.attrs.listLevel - 1
-                      : 1,
+                    parseInt(childGroup.group.attrs.listLevel) > 1
+                      ? String(parseInt(childGroup.group.attrs.listLevel) - 1)
+                      : '1',
                 }
               : null,
             children,
@@ -129,15 +129,11 @@ function liftListItem(editor: Editor, posInBlock: number) {
           blockContent,
         )
 
-        const insertPos =
-          state.tr.selection.from -
-          (childGroup.group.attrs.listLevel === '3' ? 4 : 2)
+        const insertPos = state.tr.mapping.map(parentBlockInfo.block.afterPos)
 
         state.tr.insert(insertPos, block)
         state.tr.setSelection(
-          new TextSelection(
-            state.tr.doc.resolve(state.tr.selection.from - block.nodeSize),
-          ),
+          new TextSelection(state.tr.doc.resolve(insertPos + 2)),
         )
 
         dispatch(state.tr)
@@ -155,7 +151,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
   }
 }
 
-function sinkListItem(
+export function sinkListItem(
   itemType: NodeType,
   groupType: NodeType,
   listType: HMBlockChildrenType,

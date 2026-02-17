@@ -1,0 +1,63 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "blockChildren",
+      "attrs": { "listType": "Unordered", "listLevel": "1" },
+      "content": [
+        {
+          "type": "blockNode",
+          "attrs": { "id": "parent" },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Parent" }]
+            },
+            {
+              "type": "blockChildren",
+              "attrs": { "listType": "Unordered", "listLevel": "2" },
+              "content": [
+                {
+                  "type": "blockNode",
+                  "attrs": { "id": "child" },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "Child" }]
+                    },
+                    {
+                      "type": "blockChildren",
+                      "attrs": { "listType": "Unordered", "listLevel": "3" },
+                      "content": [
+                        {
+                          "type": "blockNode",
+                          "attrs": { "id": "grandchild" },
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [{ "type": "text", "text": "Grandchild" }]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "blockNode",
+                  "attrs": { "id": "sibling" },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [{ "type": "text", "text": "Sibling" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
