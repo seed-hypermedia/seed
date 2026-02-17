@@ -115,5 +115,12 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Avoid global state. Prefer dependency injection. Can only use global state at the very top layer of the application.
 - Make sure to remove rambling "stream of consciousness" (a.k.a. thinking out loud) comments in the final code.
 - Prefer broader integration-style tests. Avoid excessive mocking.
+- When extracting code to a new module, update all call sites directly. Don't leave re-exports in the old module as "backward compatibility" — this creates unnecessary indirection and confusion.
 - Consult files in `docs/` to see if there's anything relevant for your current job.
 - Flags are the primary way to configure this application, and they are the source of truth, with the benefit of being self-documenting. Environment variables are layered on top of flags. See @src/config.ts for how configuration is managed.
+- Use the modern built-in API for base64 operations (always use url-safe variant):
+  - Encode: `bytes.toBase64({ alphabet: "base64url" })`.
+  - Decode: `Uint8Array.fromBase64(str, { alphabet: "base64url" })`.
+  - On the client-side, a polyfill already exists in `@/frontend/base64.ts` that checks for native support first and falls back to a manual implementation. Import as `import * as base64 from "@/frontend/base64"` and use `base64.encode`/`base64.decode` — never reimplement base64 logic.
+  - On the server (Bun), the native API is available directly.
+  - Never use `btoa`/`atob`, `Buffer`, or third-party base64 libraries directly.

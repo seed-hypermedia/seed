@@ -5,6 +5,7 @@
 
 import type * as bunsqlite from "bun:sqlite"
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
+import * as base64 from "@/frontend/base64"
 import * as crypto from "@/frontend/crypto"
 import * as storage from "@/sqlite"
 
@@ -67,7 +68,7 @@ describe("auth flow integration", () => {
 		const credentialId = "test-credential-id"
 		const now = Date.now()
 
-		const passwordMetadata = JSON.stringify({ authHash: crypto.base64urlEncode(authHash) })
+		const passwordMetadata = JSON.stringify({ authHash: base64.encode(authHash) })
 
 		db.run(
 			`INSERT INTO users (id, email, create_time)
@@ -95,8 +96,10 @@ describe("auth flow integration", () => {
 		const storedCredential = db
 			.query<{ metadata: string }, [string, string]>(`SELECT metadata FROM credentials WHERE user_id = ? AND type = ?`)
 			.get(userId, "password")
-		const storedMetadata = JSON.parse(storedCredential!.metadata) as { authHash: string }
-		const storedHash = crypto.base64urlDecode(storedMetadata.authHash)
+		const storedMetadata = JSON.parse(storedCredential!.metadata) as {
+			authHash: string
+		}
+		const storedHash = base64.decode(storedMetadata.authHash)
 		expect(loginAuthHash).toEqual(storedHash)
 
 		// Step 5: Decrypt vault.
@@ -166,7 +169,7 @@ describe("auth flow integration", () => {
 		const passkeyMetadata = {
 			credentialId: "abc123",
 			wrapKey: "xyz",
-			encryptedDEK: crypto.base64urlEncode(pkCipher),
+			encryptedDEK: base64.encode(pkCipher),
 		}
 
 		db.run(`INSERT INTO credentials (id, user_id, type, metadata, create_time) VALUES (?, ?, ?, ?, ?)`, [
@@ -202,7 +205,7 @@ describe("auth flow integration", () => {
 
 		const decryptedPwDEK = await decrypt(new Uint8Array(storedPwCredential!.encrypted_dek), passwordKey)
 
-		const decryptedPkDEK = await decrypt(crypto.base64urlDecode(metadata.encryptedDEK), passkeyKey)
+		const decryptedPkDEK = await decrypt(base64.decode(metadata.encryptedDEK), passkeyKey)
 
 		// Both should decrypt to the same DEK.
 		expect(decryptedPwDEK).toEqual(decryptedPkDEK)
@@ -239,7 +242,7 @@ describe("challenge management", () => {
 describe("hasPassword flag", () => {
 	test("user with password has hasPassword true", () => {
 		const userId = "user-with-password"
-		const hash = crypto.base64urlEncode(new Uint8Array(32).fill(99))
+		const hash = base64.encode(new Uint8Array(32).fill(99))
 
 		db.run(
 			`INSERT INTO users (id, email, create_time)
@@ -284,7 +287,7 @@ describe("hasPassword flag", () => {
 
 	test("pre-login query returns correct hasPassword for password user", () => {
 		const email = "prelogin-password@test.com"
-		const hash = crypto.base64urlEncode(new Uint8Array(32).fill(88))
+		const hash = base64.encode(new Uint8Array(32).fill(88))
 		const userId = "prelogin-pw-user"
 
 		db.run(
@@ -490,7 +493,7 @@ describe("add password for passkey-only user", () => {
 		const ciphertext = await crypto.encrypt(dek, stretchedKey)
 
 		// Simulate adding password credential.
-		const passwordMetadata = JSON.stringify({ authHash: crypto.base64urlEncode(authHash) })
+		const passwordMetadata = JSON.stringify({ authHash: base64.encode(authHash) })
 
 		// The original test updated users DEK. Now we insert a credential with DEK.
 
@@ -508,8 +511,10 @@ describe("add password for passkey-only user", () => {
 		expect(updatedCredential).not.toBeNull()
 		expect(updatedCredential?.metadata).not.toBeNull()
 		if (updatedCredential?.metadata) {
-			const metadata = JSON.parse(updatedCredential.metadata) as { authHash: string }
-			expect(crypto.base64urlDecode(metadata.authHash)).toEqual(new Uint8Array(authHash))
+			const metadata = JSON.parse(updatedCredential.metadata) as {
+				authHash: string
+			}
+			expect(base64.decode(metadata.authHash)).toEqual(new Uint8Array(authHash))
 		}
 
 		// Verify user now has both credentials.
@@ -684,7 +689,7 @@ describe("change password flow", () => {
 		const dek = crypto.generateDEK()
 		const encryptedDEK = await crypto.encrypt(dek, stretchedKey)
 
-		const passwordMetadata = JSON.stringify({ authHash: crypto.base64urlEncode(authHash) })
+		const passwordMetadata = JSON.stringify({ authHash: base64.encode(authHash) })
 		const credentialId = "old-pw-credential"
 
 		db.run(
@@ -703,7 +708,9 @@ describe("change password flow", () => {
 		// Encrypt DEK with new key.
 		const newEncryptedDEK = await crypto.encrypt(dek, newStretchedKey)
 
-		const newMetadata = JSON.stringify({ authHash: crypto.base64urlEncode(newAuthHash) })
+		const newMetadata = JSON.stringify({
+			authHash: base64.encode(newAuthHash),
+		})
 
 		// Execute update (simulating API handler logic).
 		const existingPwCred = db
@@ -723,10 +730,10 @@ describe("change password flow", () => {
 			.query<{ metadata: string; encrypted_dek: ArrayBuffer }, [string]>(`SELECT * FROM credentials WHERE id = ?`)
 			.get(credentialId)
 		const updatedMeta = JSON.parse(updatedCred!.metadata)
-		const storedHash = crypto.base64urlDecode(updatedMeta.authHash)
+		const storedHash = base64.decode(updatedMeta.authHash)
 
-		expect(crypto.base64urlEncode(storedHash)).not.toEqual(crypto.base64urlEncode(authHash))
-		expect(crypto.base64urlEncode(storedHash)).toEqual(crypto.base64urlEncode(newAuthHash))
+		expect(base64.encode(storedHash)).not.toEqual(base64.encode(authHash))
+		expect(base64.encode(storedHash)).toEqual(base64.encode(newAuthHash))
 
 		// 5. Verify new password can decrypt DEK.
 		const decryptedDEK = await crypto.decrypt(new Uint8Array(updatedCred!.encrypted_dek), newStretchedKey)
@@ -763,7 +770,9 @@ describe("change password flow", () => {
 
 		const dek = crypto.generateDEK() // Simulated unlocked DEK.
 		const newEncryptedDEK = await crypto.encrypt(dek, newStretchedKey)
-		const newMetadata = JSON.stringify({ authHash: crypto.base64urlEncode(newAuthHash) })
+		const newMetadata = JSON.stringify({
+			authHash: base64.encode(newAuthHash),
+		})
 
 		// Check if password credential exists
 		const existingPwCred = db

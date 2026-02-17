@@ -3,6 +3,7 @@
  * Tests key derivation, encryption/decryption, and encoding utilities.
  */
 import { describe, expect, test } from "bun:test"
+import * as base64 from "./base64"
 import * as crypto from "./crypto"
 
 describe("crypto utilities", () => {
@@ -42,22 +43,22 @@ describe("crypto utilities", () => {
 describe("base64url encoding", () => {
 	test("encode and decode roundtrip", () => {
 		const original = new Uint8Array([0, 1, 2, 255, 254, 253])
-		const encoded = crypto.base64urlEncode(original)
-		const decoded = crypto.base64urlDecode(encoded)
+		const encoded = base64.encode(original)
+		const decoded = base64.decode(encoded)
 		expect(decoded).toEqual(original)
 	})
 
 	test("handles empty array", () => {
 		const empty = new Uint8Array([])
-		const encoded = crypto.base64urlEncode(empty)
-		const decoded = crypto.base64urlDecode(encoded)
+		const encoded = base64.encode(empty)
+		const decoded = base64.decode(encoded)
 		expect(decoded).toEqual(empty)
 	})
 
 	test("produces URL-safe characters", () => {
 		// Test data that would produce + and / in standard base64.
 		const data = new Uint8Array([251, 255, 254])
-		const encoded = crypto.base64urlEncode(data)
+		const encoded = base64.encode(data)
 		expect(encoded).not.toContain("+")
 		expect(encoded).not.toContain("/")
 		expect(encoded).not.toContain("=")

@@ -2,6 +2,7 @@ import * as webauthn from "@simplewebauthn/browser"
 import { createContext, useContext } from "react"
 import { proxy, useSnapshot } from "valtio"
 import type * as api from "@/api"
+import * as base64 from "./base64"
 import * as blobs from "./blobs"
 import * as localCrypto from "./crypto"
 import * as delegation from "./delegation"
@@ -143,7 +144,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (!state.challengeId) return
 
 				try {
-					const data = await client.registerPoll({ challengeId: state.challengeId })
+					const data = await client.registerPoll({
+						challengeId: state.challengeId,
+					})
 
 					if (data.verified) {
 						// Poll successful, session created. Update local state.
@@ -211,8 +214,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.addPassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				state.decryptedDEK = dek
@@ -256,8 +259,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.addPassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				await actions.checkSession()
@@ -302,8 +305,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const authHash = await localCrypto.computeAuthHash(stretchedKey)
 
 				await client.changePassword({
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
-					authHash: localCrypto.base64urlEncode(authHash),
+					encryptedDEK: base64.encode(encryptedDEK),
+					authHash: base64.encode(authHash),
 				})
 
 				await actions.checkSession()
@@ -345,7 +348,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const regResponse = await webauthn.startRegistration({ optionsJSON: regOptionsWithPrf })
+				const regResponse = await webauthn.startRegistration({
+					optionsJSON: regOptionsWithPrf,
+				})
 
 				const completeData = await client.webAuthnRegisterComplete({
 					response: regResponse,
@@ -353,13 +358,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				// Check if we got PRF output from registration.
 				let wrapKey: Uint8Array | null = null
-				const regPrfOutput = regResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+				const regPrfOutput = regResponse.clientExtensionResults as {
+					prf?: localCrypto.PRFOutput
+				}
 				wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
 
 				if (!wrapKey) {
 					// Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
 					try {
-						const authOptions = await client.webAuthnLoginStart({ email: state.email })
+						const authOptions = await client.webAuthnLoginStart({
+							email: state.email,
+						})
 
 						const authOptionsWithPrf = {
 							...authOptions,
@@ -373,10 +382,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 							},
 						}
 
-						const authResponse = await webauthn.startAuthentication({ optionsJSON: authOptionsWithPrf })
+						const authResponse = await webauthn.startAuthentication({
+							optionsJSON: authOptionsWithPrf,
+						})
 
 						// Extract the PRF key from the authenticator response to wrap the DEK.
-						const authPrfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+						const authPrfOutput = authResponse.clientExtensionResults as {
+							prf?: localCrypto.PRFOutput
+						}
 						wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
 
 						// Cleanup the pending login challenge on server best-effort (or just let it expire).
@@ -402,7 +415,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				// Store encrypted DEK for this credential.
 				await client.webAuthnVaultStore({
 					credentialId: completeData.credentialId,
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
+					encryptedDEK: base64.encode(encryptedDEK),
 				})
 
 				if (!completeData.backupState) {
@@ -434,11 +447,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				const response = await client.login({
 					email: state.email,
-					authHash: localCrypto.base64urlEncode(authHash),
+					authHash: base64.encode(authHash),
 				})
 
 				if (response.vault) {
-					const encryptedDEK = localCrypto.base64urlDecode(response.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(response.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, stretchedKey)
 					state.decryptedDEK = dek
 					await actions.loadVaultData()
@@ -478,7 +491,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const authResponse = await webauthn.startAuthentication({ optionsJSON: optionsWithPrf })
+				const authResponse = await webauthn.startAuthentication({
+					optionsJSON: optionsWithPrf,
+				})
 
 				const data = await client.webAuthnLoginComplete({
 					response: authResponse,
@@ -486,7 +501,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				if (data.vault) {
 					// Extract PRF output for wrapKey.
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -495,7 +512,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
 					await actions.loadVaultData()
@@ -539,7 +556,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const authResponse = await webauthn.startAuthentication({ optionsJSON: optionsWithPrf })
+				const authResponse = await webauthn.startAuthentication({
+					optionsJSON: optionsWithPrf,
+				})
 
 				const data = await client.webAuthnLoginComplete({
 					response: authResponse,
@@ -547,7 +566,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				if (data.vault) {
 					// Extract PRF output for wrapKey.
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -556,7 +577,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
 					await actions.loadVaultData()
@@ -622,7 +643,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				})
 
 				if (data.vault) {
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -630,7 +653,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
 					await actions.loadVaultData()
@@ -675,7 +698,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				})
 
 				if (data.vault) {
-					const prfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+					const prfOutput = authResponse.clientExtensionResults as {
+						prf?: localCrypto.PRFOutput
+					}
 					const wrapKey = localCrypto.extractPRFKey(prfOutput.prf)
 
 					if (!wrapKey) {
@@ -683,7 +708,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 						return
 					}
 
-					const encryptedDEK = localCrypto.base64urlDecode(data.vault.encryptedDEK)
+					const encryptedDEK = base64.decode(data.vault.encryptedDEK)
 					const dek = await localCrypto.decrypt(encryptedDEK, wrapKey)
 					state.decryptedDEK = dek
 					await actions.loadVaultData()
@@ -735,7 +760,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 					},
 				}
 
-				const regResponse = await webauthn.startRegistration({ optionsJSON: regOptionsWithPrf })
+				const regResponse = await webauthn.startRegistration({
+					optionsJSON: regOptionsWithPrf,
+				})
 
 				const data = await client.webAuthnRegisterComplete({
 					response: regResponse,
@@ -743,13 +770,17 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				// Check if we got PRF output from registration.
 				let wrapKey: Uint8Array | null = null
-				const regPrfOutput = regResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+				const regPrfOutput = regResponse.clientExtensionResults as {
+					prf?: localCrypto.PRFOutput
+				}
 				wrapKey = localCrypto.extractPRFKey(regPrfOutput.prf)
 
 				if (!wrapKey) {
 					// Step 2: PRF not evaluated during registration. Try to authenticate immediately to get PRF output.
 					try {
-						const authOptions = await client.webAuthnLoginStart({ email: state.email })
+						const authOptions = await client.webAuthnLoginStart({
+							email: state.email,
+						})
 
 						const authOptionsWithPrf = {
 							...authOptions,
@@ -763,9 +794,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 							},
 						}
 
-						const authResponse = await webauthn.startAuthentication({ optionsJSON: authOptionsWithPrf })
+						const authResponse = await webauthn.startAuthentication({
+							optionsJSON: authOptionsWithPrf,
+						})
 
-						const authPrfOutput = authResponse.clientExtensionResults as { prf?: localCrypto.PRFOutput }
+						const authPrfOutput = authResponse.clientExtensionResults as {
+							prf?: localCrypto.PRFOutput
+						}
 						wrapKey = localCrypto.extractPRFKey(authPrfOutput.prf)
 					} catch (e) {
 						console.warn("Failed to perform immediate PRF evaluation after registration:", e)
@@ -798,7 +833,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				// Store encrypted DEK for this credential.
 				await client.webAuthnVaultStore({
 					credentialId: data.credentialId,
-					encryptedDEK: localCrypto.base64urlEncode(encryptedDEK),
+					encryptedDEK: base64.encode(encryptedDEK),
 				})
 
 				if (!data.backupState) {
@@ -825,7 +860,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 			try {
 				const serverData = await client.getVault()
 				if (serverData.encryptedData) {
-					const encryptedData = localCrypto.base64urlDecode(serverData.encryptedData)
+					const encryptedData = base64.decode(serverData.encryptedData)
 					const decryptedData = await localCrypto.decrypt(encryptedData, state.decryptedDEK)
 					state.vaultData = await vaultDataMod.deserializeVault(decryptedData)
 
@@ -854,7 +889,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				const encryptedData = await localCrypto.encrypt(dataBytes, state.decryptedDEK)
 
 				await client.saveVaultData({
-					encryptedData: localCrypto.base64urlEncode(encryptedData),
+					encryptedData: base64.encode(encryptedData),
 					version: state.vaultVersion,
 				})
 
@@ -967,7 +1002,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				}
 
 				try {
-					const data = await client.changeEmailPoll({ challengeId: state.emailChangeChallengeId })
+					const data = await client.changeEmailPoll({
+						challengeId: state.emailChangeChallengeId,
+					})
 
 					if (data.verified && data.newEmail) {
 						// Update session with new email.

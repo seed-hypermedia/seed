@@ -1,7 +1,7 @@
 import * as dagCBOR from "@ipld/dag-cbor"
 import { useEffect, useMemo, useState } from "react"
+import * as base64 from "../frontend/base64"
 import * as blobs from "../frontend/blobs"
-import * as localCrypto from "../frontend/crypto"
 import type { AuthResult } from "../sdk/hypermedia-auth"
 import * as hmauth from "../sdk/hypermedia-auth"
 
@@ -16,7 +16,7 @@ function bytesToHex(bytes: Uint8Array): string {
 function CapabilityField({ capability }: { capability: string }) {
 	const decoded = useMemo(() => {
 		try {
-			const bytes = localCrypto.base64urlDecode(capability)
+			const bytes = base64.decode(capability)
 			return JSON.stringify(
 				dagCBOR.decode(bytes),
 				(_key, value) => {
@@ -24,7 +24,7 @@ function CapabilityField({ capability }: { capability: string }) {
 						if (value.length === 34 && value[0] === 0xed && value[1] === 0x01) {
 							return blobs.principalToString(value)
 						}
-						return localCrypto.base64urlEncode(value)
+						return base64.encode(value)
 					}
 					return value
 				},
@@ -49,7 +49,10 @@ export default function App() {
 	const [vaultUrl, setVaultUrl] = useState(DEFAULT_DELEGATE_URL)
 	const [error, setError] = useState<string | null>(null)
 	const [authResult, setAuthResult] = useState<AuthResult | null>(null)
-	const [signResult, setSignResult] = useState<{ message: string; signature: string } | null>(null)
+	const [signResult, setSignResult] = useState<{
+		message: string
+		signature: string
+	} | null>(null)
 
 	// Load stored vault URL
 	useEffect(() => {
@@ -70,7 +73,9 @@ export default function App() {
 			const currentVaultUrl = localStorage.getItem("vault_url") || DEFAULT_DELEGATE_URL
 			try {
 				// 1. Check for callback (delegation response)
-				const result = await hmauth.handleCallback({ vaultUrl: currentVaultUrl })
+				const result = await hmauth.handleCallback({
+					vaultUrl: currentVaultUrl,
+				})
 				if (result) {
 					// Persist profile info
 					localStorage.setItem(
@@ -256,7 +261,13 @@ export default function App() {
 					{/* Signing demo */}
 					<div className="card">
 						<div className="card-title">Try Signing</div>
-						<p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.75rem" }}>
+						<p
+							style={{
+								fontSize: "0.85rem",
+								color: "var(--muted)",
+								marginBottom: "0.75rem",
+							}}
+						>
 							Sign arbitrary data with the session key stored in this browser. The private key is{" "}
 							<strong>unextractable</strong> — it never leaves WebCrypto.
 						</p>

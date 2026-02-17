@@ -4,8 +4,8 @@
  * and redirect URIs, and creating signed capabilities for session keys.
  */
 
+import * as base64 from "./base64"
 import * as blobs from "./blobs"
-import * as localCrypto from "./crypto"
 
 /** URL parameter name for the client ID (origin of the requesting site). */
 export const PARAM_CLIENT_ID = "client_id"
@@ -145,7 +145,7 @@ export function buildCallbackUrl(
 	profile?: CallbackProfile,
 ): string {
 	const url = new URL(redirectUri)
-	url.searchParams.set("capability", localCrypto.base64urlEncode(capabilityData))
+	url.searchParams.set("capability", base64.encode(capabilityData))
 	url.searchParams.set("account", accountPrincipal)
 	if (profile?.name) {
 		url.searchParams.set("account_name", profile.name)
