@@ -220,10 +220,7 @@ export function CommentDiscussions({
 
       {/* Render the focused comment */}
       {focusedComment && (
-        <div
-          ref={focusedCommentRef}
-          className={cn('border-border border-b p-2')}
-        >
+        <div ref={focusedCommentRef} className={cn('p-2')}>
           <Comment
             comment={focusedComment}
             authorId={focusedComment.author}
@@ -241,7 +238,7 @@ export function CommentDiscussions({
         </div>
       )}
 
-      <div className="border-border relative max-h-1/2 border-b py-4">
+      <div className="relative max-h-1/2 py-4">
         <div
           className="bg-border absolute w-px"
           style={{
@@ -253,22 +250,24 @@ export function CommentDiscussions({
         <div className="px-2 pr-4">{commentEditor}</div>
       </div>
 
-      {commentGroupReplies.data?.length > 0
-        ? commentGroupReplies.data.map((cg) => {
-            return (
-              <div key={cg.id} className={cn('border-border border-b p-2')}>
-                <CommentGroup
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={commentsService.data?.authors}
-                  onCommentDelete={onCommentDelete}
-                  targetDomain={targetDomain}
-                  currentAccountId={currentAccountId}
-                />
-              </div>
-            )
-          })
-        : null}
+      {commentGroupReplies.data?.length > 0 ? (
+        commentGroupReplies.data.map((cg) => {
+          return (
+            <div key={cg.id} className={cn('p-2')}>
+              <CommentGroup
+                key={cg.id}
+                commentGroup={cg}
+                authors={commentsService.data?.authors}
+                onCommentDelete={onCommentDelete}
+                targetDomain={targetDomain}
+                currentAccountId={currentAccountId}
+              />
+            </div>
+          )
+        })
+      ) : (
+        <EmptyDiscussions emptyReplies />
+      )}
     </SelectionContent>
   )
 }
@@ -449,7 +448,7 @@ export function BlockDiscussions({
       <>
         {commentsService.data.comments.map((comment) => {
           return (
-            <div key={comment.id} className={cn('border-border border-b p-2')}>
+            <div key={comment.id} className={cn('p-2')}>
               <Comment
                 isFirst
                 isLast
@@ -474,7 +473,7 @@ export function BlockDiscussions({
     <SelectionContent>
       {quotedContent}
       <div className="px-2 pr-4">{commentEditor}</div>
-      <div className="border-border mt-2 border-t pt-2">{panelContent}</div>
+      <div className="mt-2 pt-2">{panelContent}</div>
     </SelectionContent>
   )
 }
