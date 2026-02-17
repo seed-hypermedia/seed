@@ -11,7 +11,7 @@ import {LinkIcon} from '@shm/ui/hm-icon'
 import {AtSignIcon, ImageIcon, SlashSquareIcon} from '@shm/ui/icons'
 import {cn} from '@shm/ui/utils'
 import {Extension} from '@tiptap/core'
-import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import avatarPlaceholder from './assets/avatar.png'
 import {BlockNoteEditor, getBlockInfoFromPos, useBlockNote} from './blocknote'
 import {HyperMediaEditorView} from './editor-view'
@@ -222,23 +222,14 @@ export interface CommentEditorProps {
  *   -
  *
  */
-function _CommentEditor({}: CommentEditorProps) {
-  const {editor} = useCommentEditor()
-
-  const reset = useCallback(() => {
-    editor.removeBlocks(editor.topLevelBlocks)
-  }, [editor.topLevelBlocks])
-
-  return null
-}
 
 export function CommentEditor({
   submitButton,
   handleSubmit,
   account,
   autoFocus,
+  isReplying,
   perspectiveAccountUid,
-  onDiscardDraft,
   initialBlocks,
   onContentChange,
   onAvatarPress,
@@ -272,8 +263,8 @@ export function CommentEditor({
   ) => void
   account?: ReturnType<typeof useAccount>['data']
   autoFocus?: boolean
+  isReplying?: boolean
   perspectiveAccountUid?: string | null | undefined
-  onDiscardDraft?: () => void
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   onAvatarPress?: () => void
@@ -946,7 +937,7 @@ export function CommentEditor({
                 variant="ghost"
                 size="sm"
               >
-                {tx('Start a Discussion')}
+                {tx(isReplying ? 'Write a Reply' : 'Start a Discussion')}
               </Button>
             )}
           </div>

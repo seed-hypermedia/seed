@@ -163,6 +163,7 @@ export interface CommentEditorProps {
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   commentId?: string
+  isReplying?: boolean
   autoFocus?: boolean
 }
 
@@ -1288,6 +1289,7 @@ function PanelContentRenderer({
                 docId={docId}
                 quotingBlockId={panelRoute.targetBlockId}
                 commentId={panelRoute.openComment}
+                isReplying={!!panelRoute.openComment}
                 autoFocus
               />
             ) : undefined
@@ -1420,6 +1422,7 @@ function MainContent({
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
                 commentId={discussionsParams?.openComment}
+                isReplying={!!discussionsParams?.openComment}
                 autoFocus={discussionsParams?.autoFocus}
               />
             ) : undefined

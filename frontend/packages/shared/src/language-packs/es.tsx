@@ -75,7 +75,8 @@ const Translations = {
   'You will not receive any notifications.':
     'No recibirás ninguna notificación.',
   'Start a Discussion': 'Comenta',
-  'No discussions': 'No hay debates',
+  'Write a Reply': 'Escribe una respuesta',
+  'No comments here, yet!': 'No hay debates',
   'Be the first to reply': 'Se el primero en responder',
   version_from: (args: {date: string}) => `Versión del ${args.date}`,
   'Go to Latest': 'Ir a Última',

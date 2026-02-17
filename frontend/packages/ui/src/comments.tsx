@@ -253,24 +253,22 @@ export function CommentDiscussions({
         <div className="px-2 pr-4">{commentEditor}</div>
       </div>
 
-      {commentGroupReplies.data?.length > 0 ? (
-        commentGroupReplies.data.map((cg) => {
-          return (
-            <div key={cg.id} className={cn('border-border border-b p-2')}>
-              <CommentGroup
-                key={cg.id}
-                commentGroup={cg}
-                authors={commentsService.data?.authors}
-                onCommentDelete={onCommentDelete}
-                targetDomain={targetDomain}
-                currentAccountId={currentAccountId}
-              />
-            </div>
-          )
-        })
-      ) : (
-        <EmptyDiscussions emptyReplies />
-      )}
+      {commentGroupReplies.data?.length > 0
+        ? commentGroupReplies.data.map((cg) => {
+            return (
+              <div key={cg.id} className={cn('border-border border-b p-2')}>
+                <CommentGroup
+                  key={cg.id}
+                  commentGroup={cg}
+                  authors={commentsService.data?.authors}
+                  onCommentDelete={onCommentDelete}
+                  targetDomain={targetDomain}
+                  currentAccountId={currentAccountId}
+                />
+              </div>
+            )
+          })
+        : null}
     </SelectionContent>
   )
 }
@@ -371,7 +369,7 @@ export const Discussions = memo(function Discussions({
           })}
         </>
       ) : (
-        <EmptyDiscussions />
+        <NoComments />
       )
   }
 
@@ -1040,18 +1038,12 @@ function DeleteCommentDialog({
   )
 }
 
-export function EmptyDiscussions({
-  emptyReplies = false,
-}: {
-  emptyReplies?: boolean
-}) {
+function NoComments({}: {}) {
   const tx = useTxString()
   return (
     <div className="flex flex-col items-center gap-4 py-4">
       <MessageSquare className="size-25 text-gray-200" size={48} />
-      <SizableText size="md">
-        {tx(emptyReplies ? 'Be the first on replying' : 'No discussions')}
-      </SizableText>
+      <SizableText size="md">{tx('No comments here, yet!')}</SizableText>
     </div>
   )
 }

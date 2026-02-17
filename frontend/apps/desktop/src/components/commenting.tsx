@@ -58,10 +58,12 @@ function _CommentBox(props: {
   backgroundColor?: string
   quotingBlockId?: string
   commentId?: string
+  isReplying?: boolean
   autoFocus?: boolean
   context?: 'accessory' | 'feed' | 'document-content'
 }) {
-  const {docId, quotingBlockId, commentId, autoFocus, context} = props
+  const {docId, quotingBlockId, commentId, isReplying, autoFocus, context} =
+    props
 
   const account = useSelectedAccount()
   const selectedAccountId = useSelectedAccountId()
@@ -352,6 +354,7 @@ function _CommentBox(props: {
   return (
     <CommentEditor
       autoFocus={autoFocus}
+      isReplying={isReplying || !!commentId}
       handleSubmit={handleSubmit}
       initialBlocks={draft.data?.blocks}
       onContentChange={handleContentChange}

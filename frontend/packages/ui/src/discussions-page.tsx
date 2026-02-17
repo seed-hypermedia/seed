@@ -1,9 +1,7 @@
 import {BlockRange, hmId, UnpackedHypermediaId} from '@shm/shared'
-import {MessageSquare} from 'lucide-react'
 import {ReactNode} from 'react'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {PageLayout} from './page-layout'
-import {SizableText} from './text'
 
 export interface DiscussionsPageContentProps {
   docId: UnpackedHypermediaId
@@ -100,19 +98,5 @@ export function DiscussionsPageContent({
       {deleteCommentDialogContent}
       {content}
     </PageLayout>
-  )
-}
-
-export function DiscussionsEmpty() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16">
-      <MessageSquare className="text-muted-foreground size-16" />
-      <SizableText color="muted" weight="medium" size="xl">
-        No discussions yet
-      </SizableText>
-      <SizableText color="muted" size="sm">
-        Start a conversation by leaving a comment
-      </SizableText>
-    </div>
   )
 }

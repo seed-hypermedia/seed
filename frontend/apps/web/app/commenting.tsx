@@ -45,11 +45,11 @@ export type WebCommentingProps = {
   docId: UnpackedHypermediaId
   /** Comment ID from CommentEditorProps - used to resolve reply parent */
   commentId?: string | null
+  isReplying?: boolean
   replyCommentVersion?: string | null
   replyCommentId?: string | null
   rootReplyCommentVersion?: string | null
   quotingBlockId?: string
-  onDiscardDraft?: () => void
   onSuccess?: (successData: {
     id: string
     response: CommentResponsePayload
@@ -62,11 +62,11 @@ export type WebCommentingProps = {
 export default function WebCommenting({
   docId,
   commentId,
+  isReplying,
   replyCommentVersion: replyCommentVersionProp,
   rootReplyCommentVersion: rootReplyCommentVersionProp,
   replyCommentId: replyCommentIdProp,
   quotingBlockId,
-  onDiscardDraft,
   onSuccess,
   commentingOriginUrl,
   autoFocus,
@@ -94,6 +94,7 @@ export default function WebCommenting({
     replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion =
     rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
+  const isReplyEditor = isReplying || !!replyCommentId || !!commentId
 
   // Use draft persistence
   const {
@@ -266,8 +267,7 @@ export default function WebCommenting({
               console.error('Failed to cleanup draft media:', err),
             )
         }
-        onDiscardDraft?.()
-        await promptEmailNotifications()
+        promptEmailNotifications()
       } finally {
         setIsSubmitting(false)
       }
@@ -284,7 +284,6 @@ export default function WebCommenting({
       createAccount,
       postComment,
       removeDraft,
-      onDiscardDraft,
       promptEmailNotifications,
     ],
   )
@@ -294,21 +293,6 @@ export default function WebCommenting({
     }
     return undefined
   }, [userKeyPair])
-
-  const handleDiscardDraft = useCallback(() => {
-    removeDraft()
-    // Clean up associated media from IndexedDB
-    if (typeof window !== 'undefined') {
-      import('./draft-media-db')
-        .then(({deleteAllDraftMediaForDraft, revokeHMBlockObjectURLs}) => {
-          // Revoke object URLs before cleanup to free memory
-          if (draft) revokeHMBlockObjectURLs(draft)
-          return deleteAllDraftMediaForDraft(draftId)
-        })
-        .catch((err) => console.error('Failed to cleanup draft media:', err))
-    }
-    onDiscardDraft?.()
-  }, [removeDraft, onDiscardDraft, draftId, draft])
 
   const publishButtonEventClass = userKeyPair
     ? 'plausible-event-name=Publish+Comment'
@@ -324,11 +308,11 @@ export default function WebCommenting({
       <ClientOnly>
         <CommentEditor
           autoFocus={autoFocus}
+          isReplying={isReplyEditor}
           handleSubmit={handleSubmit}
           initialBlocks={draft || undefined}
           onContentChange={saveDraft}
           onAvatarPress={onAvatarPress}
-          onDiscardDraft={handleDiscardDraft}
           importWebFile={importWebFile}
           handleFileAttachment={(file) => handleFileAttachment(file, draftId)}
           getDraftMediaBlob={async (draftId, mediaId) => {
