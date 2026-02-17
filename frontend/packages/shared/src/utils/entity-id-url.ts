@@ -365,6 +365,10 @@ export function routeToUrl(
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
     return `${urlHost}/hm/profile/${route.id.uid}`
   }
+  if (route.key === 'contact') {
+    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
+    return `${urlHost}/hm/contact/${route.id.uid}`
+  }
   return 'TODO'
 }
 
@@ -538,6 +542,7 @@ const STATIC_HM_PATHS = new Set([
   'register',
   'device-link',
   'profile',
+  'contact',
 ])
 
 export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {

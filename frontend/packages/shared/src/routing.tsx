@@ -173,6 +173,9 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'profile') {
     return `/hm/profile/${route.id.uid}`
   }
+  if (typeof route !== 'string' && route.key == 'contact') {
+    return `/hm/contact/${route.id.uid}`
+  }
 
   // Handle view routes (activity, discussions, directory, collaborators, feed)
   if (
