@@ -148,12 +148,13 @@ export const commentsApi = t.router({
       if (!targetDocId) return null
 
       // Find existing draft matching these parameters
+      // When context is undefined, match any draft regardless of stored context
       const existingDraft = commentDraftIndex?.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       if (!existingDraft) return null
@@ -197,12 +198,13 @@ export const commentsApi = t.router({
       }
 
       // Find existing draft or create new one
+      // When context is undefined, match any draft regardless of stored context
       let existingDraft = commentDraftIndex.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       const draftId = existingDraft?.id || nanoid(10)
@@ -241,12 +243,13 @@ export const commentsApi = t.router({
     .mutation(async ({input}) => {
       const {targetDocId, replyCommentId, quotingBlockId, context} = input
 
+      // When context is undefined, match any draft regardless of stored context
       const existingDraft = commentDraftIndex?.find(
         (d) =>
           d.targetDocId === targetDocId &&
           d.replyCommentId === replyCommentId &&
           d.quotingBlockId === quotingBlockId &&
-          d.context === context,
+          (context === undefined ? true : d.context === context),
       )
 
       if (!existingDraft) return

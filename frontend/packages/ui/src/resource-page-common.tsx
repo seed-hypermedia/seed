@@ -709,6 +709,7 @@ function DocumentBody({
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
+          autoFocus: route.autoFocus,
         }
       : undefined
 
@@ -1350,6 +1351,7 @@ function MainContent({
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@shm/shared').BlockRange | null
+    autoFocus?: boolean
   }
   activityFilterEventType?: string[]
   onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
@@ -1419,6 +1421,7 @@ function MainContent({
                 docId={docId}
                 quotingBlockId={discussionsParams?.targetBlockId}
                 commentId={discussionsParams?.openComment}
+                autoFocus={discussionsParams?.autoFocus}
               />
             ) : undefined
           }
