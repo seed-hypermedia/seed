@@ -216,6 +216,12 @@ func TestEmbedderRunOnce_IndexingBehavior(t *testing.T) {
 	require.Equal(t, 1, backend.getLoadCalls())
 	require.Eventually(t, func() bool { return backend.getEmbedCalls() == 2 },
 		200*time.Second, 10*time.Millisecond, "expected 2 embed call after init run")
+	// Wait for runOnce to fully complete (all DB writes committed).
+	// embedCalls==2 only means Embed() was called, but the INSERT
+	// transaction may still be in-flight. The task is deleted via defer
+	// at the end of runOnce, so 0 tasks means all writes are done.
+	require.Eventually(t, func() bool { return len(tm.Tasks()) == 0 },
+		10*time.Second, 10*time.Millisecond, "runOnce must complete before checking DB state")
 	embedInputs := backend.getEmbedInputs()
 	firstPassInputs := embedInputs[0]
 	secondPassInputs := embedInputs[1]
