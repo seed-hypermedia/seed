@@ -16,7 +16,7 @@ set -e
 
 SEED_DIR="${SEED_DIR:-/opt/seed}"
 SEED_BRANCH="${SEED_BRANCH:-main}"
-GH_RAW="https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops"
+GH_RAW="${SEED_DEPLOY_URL:-https://raw.githubusercontent.com/seed-hypermedia/seed/${SEED_BRANCH}/ops}"
 MIN_GLIBC="2.25"
 
 command_exists() {
@@ -113,6 +113,26 @@ ensure_dir "${SEED_DIR}"
 
 info "Downloading deployment script..."
 curl -fsSL "${GH_RAW}/dist/deploy.js" -o "${SEED_DIR}/deploy.js"
+
+# Install the 'seed-deploy' CLI wrapper so users can run commands from anywhere.
+# ~/.local/bin is user-writable and on PATH by default on modern Linux distros.
+BUN_PATH="$(command -v bun)"
+WRAPPER_DIR="${HOME}/.local/bin"
+WRAPPER="${WRAPPER_DIR}/seed-deploy"
+
+mkdir -p "${WRAPPER_DIR}"
+cat > "$WRAPPER" <<WRAPPER_EOF
+#!/bin/sh
+exec "${BUN_PATH}" "${SEED_DIR}/deploy.js" "\$@"
+WRAPPER_EOF
+chmod +x "$WRAPPER"
+info "Installed 'seed-deploy' command at ${WRAPPER}"
+
+# Check if ~/.local/bin is on PATH; hint if not.
+case ":${PATH}:" in
+  *":${WRAPPER_DIR}:"*) ;;
+  *) info "NOTE: Add ~/.local/bin to your PATH: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+esac
 
 info "Running deployment script..."
 exec bun "${SEED_DIR}/deploy.js"
