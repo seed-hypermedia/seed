@@ -136,36 +136,36 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               props.updateLink(newUrl, _text, false)
             }}
           />
-          {/* {props.type === 'embed' && (
+          {props.type === 'embed' && unpacked.blockRef && (
             <SwitchField
-              label="Expand Block"
-              id="expand"
-              checked={!collapsedBlocks.has(props.id)}
+              label="Include Children"
+              id="expanded"
+              defaultChecked={
+                !!unpacked.blockRange &&
+                'expanded' in unpacked.blockRange &&
+                !!unpacked.blockRange.expanded
+              }
               style={{
-                opacity: !collapsedBlocks.has(props.id) ? 1 : 0.4,
+                opacity:
+                  unpacked.blockRange &&
+                  'expanded' in unpacked.blockRange &&
+                  unpacked.blockRange.expanded
+                    ? 1
+                    : 0.4,
               }}
               onCheckedChange={(checked) => {
-                props.updateLink(
-                  packHmId(
-                    hmId(unpacked.uid, {
-                      version: unpacked.version,
-                      blockRef: unpacked.blockRef,
-                      blockRange: {
-                        ...unpacked.blockRange,
-                        expanded: checked,
-                      },
-                      path: unpacked.path,
-                      hostname: unpacked.hostname,
-                      latest: unpacked.latest,
-                    }),
-                  ),
-                  _text,
-                  false,
-                )
-                setCollapsedBlocks(props.id, !checked)
+                const newUrl = packHmId({
+                  ...unpacked,
+                  blockRange: {
+                    ...unpacked.blockRange,
+                    expanded: checked,
+                  },
+                })
+                setUrl(newUrl)
+                props.updateLink(newUrl, _text, false)
               }}
             />
-          )} */}
+          )}
         </div>
       )}
       {props.toolbarProps?.alignment && (
