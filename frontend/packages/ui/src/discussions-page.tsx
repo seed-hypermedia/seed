@@ -71,6 +71,7 @@ export function DiscussionsPageContent({
         targetDomain={targetDomain}
         currentAccountId={currentAccountId}
         onCommentDelete={onCommentDelete}
+        isEntirelyHighlighted={!blockId}
         selection={
           blockId ? {blockId, blockRange: blockRange || undefined} : undefined
         }
@@ -91,12 +92,14 @@ export function DiscussionsPageContent({
   }
 
   return (
-    <PageLayout
-      title={showTitle ? 'Discussions' : undefined}
-      contentMaxWidth={contentMaxWidth}
-    >
-      {deleteCommentDialogContent}
-      {content}
-    </PageLayout>
+    <div className="p-4">
+      <PageLayout
+        title={showTitle ? 'Discussions' : undefined}
+        contentMaxWidth={contentMaxWidth}
+      >
+        {deleteCommentDialogContent}
+        {content}
+      </PageLayout>
+    </div>
   )
 }

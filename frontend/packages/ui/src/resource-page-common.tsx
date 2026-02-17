@@ -1116,7 +1116,7 @@ function DocumentBody({
       </div>
 
       {/* Main content based on activeView */}
-      <div className="pt-4">
+      <div className="px-4">
         <MainContent
           docId={docId}
           resourceId={
@@ -1262,14 +1262,12 @@ function PanelContentRenderer({
   switch (panelRoute.key) {
     case 'activity':
       return (
-        <div className="p-4">
-          <Feed
-            size="sm"
-            filterResource={docId.id}
-            filterEventType={panelRoute.filterEventType}
-            targetDomain={siteUrl}
-          />
-        </div>
+        <Feed
+          size="sm"
+          filterResource={docId.id}
+          filterEventType={panelRoute.filterEventType}
+          targetDomain={siteUrl}
+        />
       )
     case 'discussions':
       return (

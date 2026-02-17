@@ -98,6 +98,7 @@ function _DiscussionsPanel(props: {
             targetDomain={targetDomain}
             currentAccountId={currentAccountId}
             onCommentDelete={onCommentDelete}
+            isEntirelyHighlighted={!blockId}
             selection={
               blockId
                 ? {

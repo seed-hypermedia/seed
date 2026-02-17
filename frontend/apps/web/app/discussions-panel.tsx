@@ -53,6 +53,7 @@ function _WebDiscussionsPanel(props: DiscussionsPanelProps) {
           commentEditor={commentEditor}
           targetId={props.docId}
           targetDomain={targetDomain}
+          isEntirelyHighlighted={!blockRef}
           selection={
             blockRef
               ? {

@@ -66,10 +66,9 @@ import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 import {cn} from './utils'
 
-const avatarSize = 18
-
 export function CommentDiscussions({
   targetId,
+  isEntirelyHighlighted = false,
   commentId,
   commentEditor,
   targetDomain,
@@ -81,6 +80,7 @@ export function CommentDiscussions({
   commentId?: string
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
+  isEntirelyHighlighted?: boolean
   targetDomain?: string
   currentAccountId?: string
   onCommentDelete?: (commentId: string, signingAccountId?: string) => void
@@ -242,12 +242,12 @@ export function CommentDiscussions({
         <div
           className="bg-border absolute w-px"
           style={{
-            height: 40,
-            top: -16,
-            left: avatarSize + 4,
+            height: isEntirelyHighlighted ? 40 : 56,
+            top: isEntirelyHighlighted ? -16 : -32,
+            left: 26,
           }}
         />
-        <div className="px-2 pr-4">{commentEditor}</div>
+        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
       </div>
 
       {commentGroupReplies.data?.length > 0 ? (
@@ -689,7 +689,9 @@ export const Comment = memo(function Comment({
               />
             </div>
           )}
-          {!isLast ? <div className="bg-border h-full w-px" /> : null}
+          {!isLast || (highlight && selection?.blockId) ? (
+            <div className="bg-border h-full w-px" />
+          ) : null}
         </div>
       )}
 
@@ -765,7 +767,7 @@ export const Comment = memo(function Comment({
 
         <CommentContent comment={comment} selection={selection} />
 
-        {!highlight && (
+        {!isEntirelyHighlighted && (
           <div
             className={cn(
               '-ml-1 flex items-center gap-2 py-1',

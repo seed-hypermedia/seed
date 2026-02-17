@@ -145,9 +145,7 @@ export function PanelLayout({
                       />
                     )}
                   </div>
-                  <div className="flex-1 overflow-hidden pt-4">
-                    {panelContent}
-                  </div>
+                  <div className="flex-1 overflow-hidden">{panelContent}</div>
                 </div>
               </div>
             </Panel>
