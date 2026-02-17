@@ -362,11 +362,8 @@ export function routeToUrl(
     })
   }
   if (route.key === 'profile') {
-    return createWebHMUrl(route.id.uid, {
-      path: route.id.path,
-      hostname: opts?.hostname,
-      originHomeId: opts?.originHomeId,
-    })
+    const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
+    return `${urlHost}/hm/profile/${route.id.uid}`
   }
   return 'TODO'
 }
