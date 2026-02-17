@@ -1,6 +1,10 @@
 import {PlainMessage, toPlainMessage} from '@bufbuild/protobuf'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {createNotificationsEmail, Notification} from '@shm/emails/notifier'
+import {
+  createDesktopNotificationsEmail,
+  createNotificationsEmail,
+  Notification,
+} from '@shm/emails/notifier'
 import {
   createWebHMUrl,
   entityQueryPathToHmIdPath,
@@ -17,7 +21,11 @@ import {
   UnpackedHypermediaId,
   unpackHmId,
 } from '@shm/shared'
-import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
+import {
+  DAEMON_HTTP_URL,
+  NOTIFY_SERVICE_HOST,
+  SITE_BASE_URL,
+} from '@shm/shared/constants'
 import {CID} from 'multiformats'
 import {
   BaseSubscription,
@@ -30,6 +38,7 @@ import {
   setNotifierLastProcessedEventId,
 } from './db'
 import {sendEmail} from './mailer'
+import {buildNotificationReadRedirectUrl} from './notification-read-redirect'
 import {grpcClient, requestAPI} from './notify-request'
 
 async function getDocument(id: UnpackedHypermediaId) {
@@ -63,11 +72,20 @@ const notifReasonsBatch = new Set<NotifReason>([
 ])
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
+const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(
+  /\/$/,
+  '',
+)
 
 // Error batching for reportError
 const errorBatchDelayMs = 30_000 // 30 seconds
 let pendingErrors: string[] = []
 let errorBatchTimeout: ReturnType<typeof setTimeout> | null = null
+
+type NotificationEventMeta = {
+  eventId?: string
+  eventAtMs: number
+}
 
 function reportError(message: string) {
   const messageWithTime = `${new Date().toISOString()} ${message}`
@@ -402,14 +420,45 @@ async function handleEmailNotifs(
     }
   }
   const emailsToSend = Object.entries(notificationsToSend)
+  const useDesktopTemplate = shouldUseDesktopEmailTemplate(includedNotifReasons)
   for (const [email, notifications] of emailsToSend) {
     const firstNotification = notifications[0]
     if (!firstNotification) continue
     const adminToken = firstNotification.adminToken
-    const notificationEmail = await createNotificationsEmail(
+    const notificationsWithActions = notifications.map((notification) => {
+      if (
+        (notification.notif.reason === 'mention' ||
+          notification.notif.reason === 'reply') &&
+        notification.notif.eventId &&
+        notification.notif.eventAtMs &&
+        notificationEmailHost
+      ) {
+        return {
+          ...notification,
+          notif: {
+            ...notification.notif,
+            actionUrl: buildNotificationReadRedirectUrl({
+              notifyServiceHost: notificationEmailHost,
+              token: adminToken,
+              accountId: notification.accountId,
+              eventId: notification.notif.eventId,
+              eventAtMs: notification.notif.eventAtMs,
+              redirectTo: notification.notif.url,
+            }),
+          },
+        }
+      }
+      return notification
+    })
+
+    const createEmail = useDesktopTemplate
+      ? createDesktopNotificationsEmail
+      : createNotificationsEmail
+
+    const notificationEmail = await createEmail(
       email,
       {adminToken},
-      notifications,
+      notificationsWithActions,
     )
     if (notificationEmail) {
       const {subject, text, html} = notificationEmail
@@ -429,6 +478,24 @@ function getEventId(event: PlainMessage<Event>) {
     return `mention-${sourceBlob?.cid}-${mentionType}-${target}`
   }
   return undefined
+}
+
+function getEventAtMs(event: PlainMessage<Event>): number {
+  const eventTime = normalizeDate(event.eventTime)
+  const observeTime = normalizeDate(event.observeTime)
+  if (eventTime && observeTime) {
+    return Math.max(eventTime.getTime(), observeTime.getTime())
+  }
+  if (eventTime) return eventTime.getTime()
+  if (observeTime) return observeTime.getTime()
+  return Date.now()
+}
+
+function shouldUseDesktopEmailTemplate(includedNotifReasons: Set<NotifReason>) {
+  if (includedNotifReasons.size === 0) return false
+  return Array.from(includedNotifReasons).every(
+    (reason) => reason === 'mention' || reason === 'reply',
+  )
 }
 
 async function evaluateEventForNotifications(
@@ -458,6 +525,22 @@ async function evaluateEventForNotifications(
     )
     return
   }
+  const eventMeta: NotificationEventMeta = {
+    eventId: getEventId(event),
+    eventAtMs: getEventAtMs(event),
+  }
+
+  if (event.data.case === 'newMention') {
+    await evaluateMentionEventForNotifications(
+      event.data.value,
+      allSubscriptions,
+      appendNotification,
+      eventMeta,
+      event.account,
+    )
+    return
+  }
+
   if (event.data.case === 'newBlob') {
     const blob = event.data.value
     if (blob.blobType === 'Ref') {
@@ -490,6 +573,8 @@ async function evaluateEventForNotifications(
         comment,
         allSubscriptions,
         appendNotification,
+        eventMeta,
+        {includeMentionsFromBody: false},
       )
     }
   }
@@ -534,6 +619,132 @@ async function evaluateDocUpdateForNotifications(
   }
 }
 
+async function getAccountSiteBaseUrl(accountId: string): Promise<string> {
+  try {
+    const accountResult = await requestAPI('Account', accountId)
+    if (accountResult.type === 'account') {
+      return (
+        accountResult.metadata?.siteUrl?.replace(/\/$/, '') ||
+        SITE_BASE_URL.replace(/\/$/, '')
+      )
+    }
+  } catch (error: any) {
+    reportError(`Error getting account site url ${accountId}: ${error.message}`)
+  }
+  return SITE_BASE_URL.replace(/\/$/, '')
+}
+
+async function evaluateMentionEventForNotifications(
+  mentionEvent: any,
+  allSubscriptions: BaseSubscription[],
+  appendNotification: (
+    subscription: BaseSubscription,
+    notif: Notification,
+  ) => Promise<void>,
+  eventMeta: NotificationEventMeta,
+  fallbackAuthorAccountId: string,
+) {
+  if (!mentionEvent) return
+
+  const targetId = unpackHmId(mentionEvent.target)
+  if (!targetId || targetId.path?.length) {
+    return
+  }
+
+  const sourceType = mentionEvent.sourceType?.toLowerCase() || ''
+  const isCommentMention = sourceType.startsWith('comment/')
+  const sourceHref =
+    isCommentMention && mentionEvent.sourceDocument
+      ? mentionEvent.sourceDocument
+      : mentionEvent.source
+  const sourceId = unpackHmId(sourceHref)
+  if (!sourceId) return
+
+  const sourceDocId = hmId(sourceId.uid, {
+    path: sourceId.path,
+    version: sourceId.version || null,
+  })
+
+  let targetMeta: HMMetadata | null = null
+  try {
+    targetMeta = (await requestAPI('ResourceMetadata', sourceDocId)).metadata
+  } catch (error: any) {
+    reportError(
+      `Error getting source metadata for mention ${sourceDocId.id}: ${error.message}`,
+    )
+  }
+
+  const authorAccountId =
+    mentionEvent.sourceBlob?.author || fallbackAuthorAccountId
+  let authorMeta: HMMetadata | null = null
+  try {
+    const authorResult = await requestAPI('Account', authorAccountId)
+    authorMeta = authorResult.type === 'account' ? authorResult.metadata : null
+  } catch (error: any) {
+    reportError(
+      `Error getting mention author ${authorAccountId}: ${error.message}`,
+    )
+  }
+
+  const siteBaseUrl = await getAccountSiteBaseUrl(sourceDocId.uid)
+
+  let mentionUrl: string
+  let mentionComment: HMComment | undefined
+  if (isCommentMention) {
+    const sourceCommentId = unpackHmId(mentionEvent.source)
+    const commentPath = sourceCommentId?.path?.[0]
+    if (!sourceCommentId || !commentPath) {
+      return
+    }
+    mentionUrl = createWebHMUrl(sourceCommentId.uid, {
+      path: [commentPath],
+      hostname: siteBaseUrl,
+    })
+    try {
+      const sourceBlobCid = mentionEvent.sourceBlob?.cid
+      if (sourceBlobCid) {
+        const serverComment = await grpcClient.comments.getComment({
+          id: sourceBlobCid,
+        })
+        const rawComment = toPlainMessage(serverComment)
+        mentionComment = HMCommentSchema.parse(rawComment)
+      }
+    } catch (error: any) {
+      reportError(
+        `Error loading mention comment ${mentionEvent.sourceBlob?.cid}: ${error.message}`,
+      )
+    }
+  } else {
+    mentionUrl = createWebHMUrl(sourceDocId.uid, {
+      path: sourceDocId.path,
+      hostname: siteBaseUrl,
+    })
+  }
+
+  for (const sub of allSubscriptions) {
+    if (!sub.notifyAllMentions || sub.id !== targetId.uid) continue
+    const subjectAccountResult = await requestAPI('Account', sub.id)
+    const subjectAccountMeta =
+      subjectAccountResult.type === 'account'
+        ? subjectAccountResult.metadata
+        : null
+    await appendNotification(sub, {
+      reason: 'mention',
+      source: isCommentMention ? 'comment' : 'document',
+      authorAccountId,
+      authorMeta,
+      targetMeta,
+      subjectAccountId: sub.id,
+      subjectAccountMeta,
+      targetId: sourceDocId,
+      url: mentionUrl,
+      comment: mentionComment,
+      eventId: eventMeta.eventId,
+      eventAtMs: eventMeta.eventAtMs,
+    })
+  }
+}
+
 async function evaluateNewCommentForNotifications(
   comment: HMComment,
   allSubscriptions: BaseSubscription[],
@@ -541,6 +752,8 @@ async function evaluateNewCommentForNotifications(
     subscription: BaseSubscription,
     notif: Notification,
   ) => Promise<void>,
+  eventMeta: NotificationEventMeta,
+  options: {includeMentionsFromBody: boolean},
 ) {
   const parentStartTime = Date.now()
   const parentComments = await getParentComments(comment)
@@ -615,14 +828,16 @@ async function evaluateNewCommentForNotifications(
 
   // Get all mentioned users in this comment
   const mentionedUsers = new Set<string>()
-  for (const rawBlockNode of comment.content) {
-    const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
-    // @ts-expect-error
-    for (const annotation of blockNode.block?.annotations || []) {
-      if (annotation.type === 'Embed') {
-        const hmId = unpackHmId(annotation.link)
-        if (hmId && !hmId.path?.length) {
-          mentionedUsers.add(hmId.uid)
+  if (options.includeMentionsFromBody) {
+    for (const rawBlockNode of comment.content) {
+      const blockNode = HMBlockNodeSchema.parse(rawBlockNode)
+      // @ts-expect-error
+      for (const annotation of blockNode.block?.annotations || []) {
+        if (annotation.type === 'Embed') {
+          const hmId = unpackHmId(annotation.link)
+          if (hmId && !hmId.path?.length) {
+            mentionedUsers.add(hmId.uid)
+          }
         }
       }
     }
@@ -659,6 +874,8 @@ async function evaluateNewCommentForNotifications(
         url: commentUrl,
         subjectAccountId: sub.id,
         subjectAccountMeta: subjectAccountResult.metadata,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
       })
     }
     if (sub.notifyAllReplies && parentCommentAuthor === sub.id) {
@@ -670,6 +887,8 @@ async function evaluateNewCommentForNotifications(
         targetMeta: targetMeta,
         targetId: targetDocId,
         url: commentUrl,
+        eventId: eventMeta.eventId,
+        eventAtMs: eventMeta.eventAtMs,
       })
     }
     if (
