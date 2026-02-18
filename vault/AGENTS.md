@@ -115,9 +115,12 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 - Avoid global state. Prefer dependency injection. Can only use global state at the very top layer of the application.
 - Make sure to remove rambling "stream of consciousness" (a.k.a. thinking out loud) comments in the final code.
 - Prefer broader integration-style tests. Avoid excessive mocking.
+- Test actual implementation, do not duplicate logic into tests.
 - When extracting code to a new module, update all call sites directly. Don't leave re-exports in the old module as "backward compatibility" — this creates unnecessary indirection and confusion.
 - Consult files in `docs/` to see if there's anything relevant for your current job.
 - Flags are the primary way to configure this application, and they are the source of truth, with the benefit of being self-documenting. Environment variables are layered on top of flags. See @src/config.ts for how configuration is managed.
+- Avoid unnecessary destructuring. Use dot notation to preserve context.
+- Avoid else statements. Prefer early returns.
 - Use the modern built-in API for base64 operations (always use url-safe variant):
   - Encode: `bytes.toBase64({ alphabet: "base64url" })`.
   - Decode: `Uint8Array.fromBase64(str, { alphabet: "base64url" })`.

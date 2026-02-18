@@ -6,6 +6,7 @@ import type { AuthResult } from "../sdk/hypermedia-auth"
 import * as hmauth from "../sdk/hypermedia-auth"
 
 const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
+const DEMO_CALLBACK_PATH = "/callback"
 
 function bytesToHex(bytes: Uint8Array): string {
 	return Array.from(bytes)
@@ -128,7 +129,11 @@ export default function App() {
 
 	const handleSignIn = async () => {
 		try {
-			const authUrl = await hmauth.startAuth({ vaultUrl })
+			const redirectUri = new URL(DEMO_CALLBACK_PATH, window.location.origin).toString()
+			const authUrl = await hmauth.startAuth({
+				vaultUrl,
+				redirectUri,
+			})
 			window.location.href = authUrl
 		} catch (err) {
 			setError(`Failed to start auth: ${err instanceof Error ? err.message : String(err)}`)
