@@ -99,6 +99,7 @@ vi.mock('@shm/shared/models/search', async (importOriginal) => {
 vi.mock('@/auth', () => ({
   useLocalKeyPair: () => null,
   useCreateAccount: () => ({content: null, createAccount: () => {}}),
+  AccountFooterActions: () => null,
 }))
 
 // Mock navigation hooks used by WebResourcePage

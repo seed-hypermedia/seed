@@ -1,5 +1,14 @@
-import {BlockRange, HMComment, ParsedFragment, UnpackedHypermediaId} from '..'
-import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME} from '../constants'
+import type {
+  BlockRange,
+  HMComment,
+  ParsedFragment,
+  UnpackedHypermediaId,
+} from '../hm-types'
+import {
+  DEFAULT_GATEWAY_URL,
+  HYPERMEDIA_SCHEME,
+  OS_PROTOCOL_SCHEME,
+} from '../constants'
 import {NavRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import {StateStream} from './stream'
@@ -242,8 +251,6 @@ export function createOSProtocolUrl({
   blockRef,
   blockRange,
 }: UnpackedHypermediaId) {
-  // Import at runtime to avoid circular dependency
-  const {OS_PROTOCOL_SCHEME} = require('../constants')
   let res = `${OS_PROTOCOL_SCHEME}://${uid}`
 
   if (path && path.length) {

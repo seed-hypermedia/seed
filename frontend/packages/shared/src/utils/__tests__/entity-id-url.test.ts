@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {
   createCommentUrl,
+  createOSProtocolUrl,
   createSiteUrl,
   createWebHMUrl,
   hmId,
@@ -152,6 +153,20 @@ describe('hmId', () => {
       blockRange: null,
       path: ['def', 'a', 'b'],
     })
+  })
+})
+
+describe('createOSProtocolUrl', () => {
+  test('creates hm:// URL for desktop protocol', () => {
+    expect(
+      createOSProtocolUrl(
+        hmId('abc123', {
+          path: ['foo'],
+          version: 'v1',
+          blockRef: 'blockA',
+        }),
+      ),
+    ).toBe('hm://abc123/foo?v=v1#blockA')
   })
 })
 
