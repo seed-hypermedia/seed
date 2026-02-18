@@ -714,9 +714,7 @@ describe('createCommentUrl', () => {
         blockRef: 'XK6l8B4d',
         blockRange: {expanded: true},
       }),
-    ).toBe(
-      'https://seedteamtalks.hyper.media/human-interface-library/:comment/z6MkAuthor/tsid123#XK6l8B4d+',
-    )
+    ).toBe('https://seedteamtalks.hyper.media/human-interface-library/:comment/z6MkAuthor/tsid123#XK6l8B4d+')
   })
 
   test('panel view with siteUrl (not discussions main view)', () => {
@@ -811,24 +809,18 @@ describe('extractViewTermFromUrl with :comment', () => {
       'https://seedteamtalks.hyper.media/projects/my-doc/:comment/z6MkAuthor/tsid123?l',
     )
     expect(result.commentId).toBe('z6MkAuthor/tsid123')
-    expect(result.url).toBe(
-      'https://seedteamtalks.hyper.media/projects/my-doc?l',
-    )
+    expect(result.url).toBe('https://seedteamtalks.hyper.media/projects/my-doc?l')
     expect(result.viewTerm).toBeNull()
   })
 
   test('extracts commentId from gateway URL', () => {
-    const result = extractViewTermFromUrl(
-      'https://gw.com/hm/z6MkOwner/my-doc/:comment/z6MkAuthor/tsid123',
-    )
+    const result = extractViewTermFromUrl('https://gw.com/hm/z6MkOwner/my-doc/:comment/z6MkAuthor/tsid123')
     expect(result.commentId).toBe('z6MkAuthor/tsid123')
     expect(result.url).toBe('https://gw.com/hm/z6MkOwner/my-doc')
   })
 
   test('extracts commentId from root doc URL', () => {
-    const result = extractViewTermFromUrl(
-      'https://gabo.es/:comment/zDnae/z6FK?l',
-    )
+    const result = extractViewTermFromUrl('https://gabo.es/:comment/zDnae/z6FK?l')
     expect(result.commentId).toBe('zDnae/z6FK')
     expect(result.url).toBe('https://gabo.es?l')
   })
@@ -839,9 +831,7 @@ describe('extractViewTermFromUrl with :comment', () => {
   })
 
   test('still extracts regular view terms', () => {
-    const result = extractViewTermFromUrl(
-      'https://example.com/path/:discussions?l',
-    )
+    const result = extractViewTermFromUrl('https://example.com/path/:discussions?l')
     expect(result.viewTerm).toBe(':discussions')
     expect(result.commentId).toBeUndefined()
   })

@@ -349,7 +349,11 @@ export const SearchInput = forwardRef<
 /**
  * Apply view term to a resolved route (e.g., /:directory -> open Directory page)
  */
-function applyViewTermToRoute(route: NavRoute, routeKey: ReturnType<typeof viewTermToRouteKey>, commentId?: string): NavRoute {
+function applyViewTermToRoute(
+  route: NavRoute,
+  routeKey: ReturnType<typeof viewTermToRouteKey>,
+  commentId?: string,
+): NavRoute {
   // :comment/AUTHOR/TSID → open discussions with comment focused
   if (commentId && route.key === 'document') {
     return {key: 'discussions', id: route.id, openComment: commentId}
@@ -378,11 +382,7 @@ function useURLHandler() {
     const httpSearch = isHttpUrl(search) ? search : `https://${search}`
 
     // Extract view term (e.g., /:activity) or :comment before making request
-    const {
-      url: cleanUrl,
-      viewTerm,
-      commentId,
-    } = extractViewTermFromUrl(httpSearch)
+    const {url: cleanUrl, viewTerm, commentId} = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
 
     connect.mutate(cleanUrl)

@@ -60,9 +60,7 @@ function extractViewTermFromPath(pathParts: string[]): {
       return {
         path: pathParts.slice(0, -3),
         viewTerm: null,
-        commentId: `${pathParts[pathParts.length - 2]}/${
-          pathParts[pathParts.length - 1]
-        }`,
+        commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
       }
     }
   }
