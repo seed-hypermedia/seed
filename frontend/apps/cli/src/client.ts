@@ -19,7 +19,7 @@ export function createClient(config?: Partial<ClientConfig>) {
    */
   async function request<T>(
     key: string,
-    input?: Record<string, unknown>
+    input?: Record<string, unknown>,
   ): Promise<T> {
     const params = input ? serializeQueryString(input) : ''
     const url = `${server}/api/${key}${params}`
@@ -79,20 +79,25 @@ export function createClient(config?: Partial<ClientConfig>) {
     return request<SearchResponse>('Search', {query, accountUid})
   }
 
-  async function query(includes: QueryInclude[], sort?: QuerySort[], limit?: number) {
+  async function query(
+    includes: QueryInclude[],
+    sort?: QuerySort[],
+    limit?: number,
+  ) {
     return request<QueryResponse>('Query', {includes, sort, limit})
   }
 
   async function listComments(targetId: string) {
-    const unpacked = unpackHmId(targetId)
-    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
-    return request<CommentsResponse>('ListComments', {targetId: unpacked})
+    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    return request<CommentsResponse>('ListComments', {targetId})
   }
 
   async function listDiscussions(targetId: string, commentId?: string) {
-    const unpacked = unpackHmId(targetId)
-    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
-    return request<DiscussionsResponse>('ListDiscussions', {targetId: unpacked, commentId})
+    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    return request<DiscussionsResponse>('ListDiscussions', {
+      targetId,
+      commentId,
+    })
   }
 
   async function getComment(id: string) {
@@ -100,27 +105,23 @@ export function createClient(config?: Partial<ClientConfig>) {
   }
 
   async function listChanges(targetId: string) {
-    const unpacked = unpackHmId(targetId)
-    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
-    return request<ChangesResponse>('ListChanges', {targetId: unpacked})
+    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    return request<ChangesResponse>('ListChanges', {targetId})
   }
 
   async function listCitations(targetId: string) {
-    const unpacked = unpackHmId(targetId)
-    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
-    return request<CitationsResponse>('ListCitations', {targetId: unpacked})
+    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    return request<CitationsResponse>('ListCitations', {targetId})
   }
 
   async function listCapabilities(targetId: string) {
-    const unpacked = unpackHmId(targetId)
-    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
-    return request<CapabilitiesResponse>('ListCapabilities', {targetId: unpacked})
+    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    return request<CapabilitiesResponse>('ListCapabilities', {targetId})
   }
 
   async function getInteractionSummary(id: string) {
-    const unpacked = unpackHmId(id)
-    if (!unpacked) throw new Error(`Invalid ID: ${id}`)
-    return request<InteractionSummaryResponse>('InteractionSummary', {id: unpacked})
+    if (!unpackHmId(id)) throw new Error(`Invalid ID: ${id}`)
+    return request<InteractionSummaryResponse>('InteractionSummary', {id})
   }
 
   async function listEvents(options?: ListEventsInput) {
@@ -192,7 +193,11 @@ function serializeQueryString(data: Record<string, unknown>): string {
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined) continue
 
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
       params.append(key, String(value))
     } else {
       // Serialize objects/arrays as JSON (including those with null values)
@@ -221,11 +226,20 @@ export type MetadataResponse = {
 }
 
 export type AccountResponse =
-  | {type: 'account'; id: UnpackedId; metadata: Metadata | null; hasSite?: boolean}
+  | {
+      type: 'account'
+      id: UnpackedId
+      metadata: Metadata | null
+      hasSite?: boolean
+    }
   | {type: 'account-not-found'; uid: string}
 
 export type ListAccountsResponse = {
-  accounts: Array<{id: UnpackedId; metadata: Metadata | null; hasSite?: boolean}>
+  accounts: Array<{
+    id: UnpackedId
+    metadata: Metadata | null
+    hasSite?: boolean
+  }>
 }
 
 export type SearchResponse = {

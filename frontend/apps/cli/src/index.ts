@@ -17,21 +17,30 @@ import {registerQueryCommand} from './commands/query'
 import {registerCommentsCommand} from './commands/comments'
 import {registerChangesCommand} from './commands/changes'
 import {registerKeyCommands} from './commands/key'
+import {registerUpdateCommand} from './commands/update'
+import {registerWriteCommentCommand} from './commands/write-comment'
 
 const program = new Command()
 
 program
-  .name('seed')
+  .name('seed-cli')
   .description('CLI for Seed Hypermedia')
-  .version('0.1.0')
-  .option('-s, --server <url>', 'Server URL', process.env.SEED_SERVER || 'https://hyper.media')
+  .version('0.1.1')
+  .option(
+    '-s, --server <url>',
+    'Server URL',
+    process.env.SEED_SERVER || 'https://hyper.media',
+  )
   .option('--json', 'JSON output (default)')
   .option('--yaml', 'YAML output')
   .option('--pretty', 'Pretty formatted output')
   .option('-q, --quiet', 'Minimal output')
+  .option('--dev', 'Use development environment (seed-daemon-dev keyring)')
 
 // Helper to get output format from options
-export function getOutputFormat(options: Record<string, unknown>): OutputFormat {
+export function getOutputFormat(
+  options: Record<string, unknown>,
+): OutputFormat {
   if (options.yaml) return 'yaml'
   if (options.pretty) return 'pretty'
   return 'json'
@@ -51,6 +60,8 @@ registerQueryCommand(program)
 registerCommentsCommand(program)
 registerChangesCommand(program)
 registerKeyCommands(program)
+registerUpdateCommand(program)
+registerWriteCommentCommand(program)
 
 // Config command
 program
