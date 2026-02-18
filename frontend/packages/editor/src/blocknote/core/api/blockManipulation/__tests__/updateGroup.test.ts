@@ -4,17 +4,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 import {updateGroupCommand} from '../commands/updateGroup'
 import {
-  createDocFromJSON,
+  buildDoc,
   createMinimalSchema,
   createMockEditor,
   findPosInBlock,
 } from './test-helpers-prosemirror'
-
-// JSON fixtures
-import childrenGroupSimple from './fixtures/children-group-simple.json'
-import childrenUnordered from './fixtures/children-unordered.json'
-import twoBlocks from './fixtures/two-blocks.json'
-import unorderedTwoItems from './fixtures/unordered-two-items.json'
 
 describe('updateGroup command', () => {
   let schema: Schema
@@ -75,7 +69,13 @@ describe('updateGroup command', () => {
   //
   describe('Group → list type', () => {
     it('updates blockChildren to Unordered', () => {
-      const doc = createDocFromJSON(schema, childrenGroupSimple)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {blocks: [{id: 'test-1', text: 'Hello'}]},
+        },
+      ])
       const state = EditorState.create({doc, schema})
       const editor = createMockEditor(state)
 
@@ -101,7 +101,13 @@ describe('updateGroup command', () => {
     })
 
     it('updates blockChildren to Ordered', () => {
-      const doc = createDocFromJSON(schema, childrenGroupSimple)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {blocks: [{id: 'test-1', text: 'Hello'}]},
+        },
+      ])
       const state = EditorState.create({doc, schema})
       const editor = createMockEditor(state)
 
@@ -141,7 +147,10 @@ describe('updateGroup command', () => {
   //
   describe('sink blockNode into sibling with updateGroupCommand', () => {
     it('sinks second block into first as unordered list', () => {
-      const doc = createDocFromJSON(schema, twoBlocks)
+      const doc = buildDoc(schema, [
+        {id: 'block-1', text: 'First'},
+        {id: 'block-2', text: 'Second'},
+      ])
       // Place selection inside block-2 so sinkListItem knows what to sink
       const pos = findPosInBlock(doc, 'block-2')
       const state = EditorState.create({
@@ -193,7 +202,16 @@ describe('updateGroup command', () => {
   //
   describe('list type → Group', () => {
     it('updates Unordered to Group', () => {
-      const doc = createDocFromJSON(schema, childrenUnordered)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {
+            listType: 'Unordered',
+            blocks: [{id: 'test-1', text: 'Hello'}],
+          },
+        },
+      ])
       const state = EditorState.create({doc, schema})
       const editor = createMockEditor(state)
 
@@ -227,7 +245,16 @@ describe('updateGroup command', () => {
   //
   describe('list type switching', () => {
     it('switches Unordered to Ordered', () => {
-      const doc = createDocFromJSON(schema, childrenUnordered)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {
+            listType: 'Unordered',
+            blocks: [{id: 'test-1', text: 'Hello'}],
+          },
+        },
+      ])
       const state = EditorState.create({doc, schema})
       const editor = createMockEditor(state)
 
@@ -266,7 +293,19 @@ describe('updateGroup command', () => {
   //
   describe('sink into nested list with updateGroup command', () => {
     it('sinks last item into previous sibling with different list type', () => {
-      const doc = createDocFromJSON(schema, unorderedTwoItems)
+      const doc = buildDoc(schema, [
+        {
+          id: 'root',
+          text: 'Root',
+          children: {
+            listType: 'Unordered',
+            blocks: [
+              {id: 'item-1', text: 'First'},
+              {id: 'item-2', text: 'Second'},
+            ],
+          },
+        },
+      ])
       const pos = findPosInBlock(doc, 'item-2')
       const state = EditorState.create({
         doc,

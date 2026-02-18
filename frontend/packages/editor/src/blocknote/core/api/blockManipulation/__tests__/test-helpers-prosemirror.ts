@@ -45,6 +45,54 @@ export function createDocFromJSON(schema: Schema, json: any): PMNode {
 }
 
 /**
+ * Block type for document builder
+ */
+export type BlockDef = {
+  id?: string
+  text: string
+  children?: {
+    listType?: string
+    listLevel?: string
+    blocks: BlockDef[]
+  }
+}
+
+/**
+ * Declarative document builder
+ */
+export function buildDoc(
+  schema: Schema,
+  blocks: BlockDef[],
+  opts?: {listType?: string; listLevel?: string},
+): PMNode {
+  function buildBlockNode(def: BlockDef): PMNode {
+    const paragraph = def.text
+      ? schema.nodes['paragraph']!.create(null, schema.text(def.text))
+      : schema.nodes['paragraph']!.create()
+    const content: PMNode[] = [paragraph]
+    if (def.children) {
+      content.push(buildBlockChildren(def.children.blocks, def.children))
+    }
+    return schema.nodes['blockNode']!.create({id: def.id ?? null}, content)
+  }
+
+  function buildBlockChildren(
+    defs: BlockDef[],
+    groupOpts?: {listType?: string; listLevel?: string},
+  ): PMNode {
+    return schema.nodes['blockChildren']!.create(
+      {
+        listType: groupOpts?.listType ?? 'Group',
+        listLevel: groupOpts?.listLevel ?? '1',
+      },
+      defs.map(buildBlockNode),
+    )
+  }
+
+  return schema.nodes['doc']!.create(null, buildBlockChildren(blocks, opts))
+}
+
+/**
  * Print document structure for debugging.
  */
 export function printDoc(doc: PMNode): string {

@@ -3,15 +3,10 @@ import {EditorState, TextSelection} from 'prosemirror-state'
 import {beforeEach, describe, expect, it} from 'vitest'
 import {sinkListItem} from '../commands/nestBlock'
 import {
-  createDocFromJSON,
+  buildDoc,
   createMinimalSchema,
   findPosInBlock,
 } from './test-helpers-prosemirror'
-
-// JSON fixtures
-import groupWithNestedList from './fixtures/group-with-nested-list.json'
-import twoBlocks from './fixtures/two-blocks.json'
-import unorderedTwoItems from './fixtures/unordered-two-items.json'
 
 describe('nestBlock - custom sinkListItem', () => {
   let schema: Schema
@@ -51,7 +46,10 @@ describe('nestBlock - custom sinkListItem', () => {
   //                                              paragraph "Second"
   //
   it('sinks block into previous sibling in Group', () => {
-    const doc = createDocFromJSON(schema, twoBlocks)
+    const doc = buildDoc(schema, [
+      {id: 'block-1', text: 'First'},
+      {id: 'block-2', text: 'Second'},
+    ])
     const pos = findPosInBlock(doc, 'block-2')
     const state = EditorState.create({
       doc,
@@ -93,7 +91,19 @@ describe('nestBlock - custom sinkListItem', () => {
   //                                                      paragraph "Second"
   //
   it('sinks list item creating nested list with preserved type', () => {
-    const doc = createDocFromJSON(schema, unorderedTwoItems)
+    const doc = buildDoc(schema, [
+      {
+        id: 'root',
+        text: 'Root',
+        children: {
+          listType: 'Unordered',
+          blocks: [
+            {id: 'item-1', text: 'First'},
+            {id: 'item-2', text: 'Second'},
+          ],
+        },
+      },
+    ])
     const pos = findPosInBlock(doc, 'item-2')
     const state = EditorState.create({
       doc,
@@ -142,7 +152,17 @@ describe('nestBlock - custom sinkListItem', () => {
   //       paragraph "C"                                     paragraph "C"
   //
   it('sinks block into sibling with existing nested list', () => {
-    const doc = createDocFromJSON(schema, groupWithNestedList)
+    const doc = buildDoc(schema, [
+      {
+        id: 'block-a',
+        text: 'A',
+        children: {
+          listType: 'Unordered',
+          blocks: [{id: 'block-b', text: 'B'}],
+        },
+      },
+      {id: 'block-c', text: 'C'},
+    ])
     const pos = findPosInBlock(doc, 'block-c')
     const state = EditorState.create({
       doc,

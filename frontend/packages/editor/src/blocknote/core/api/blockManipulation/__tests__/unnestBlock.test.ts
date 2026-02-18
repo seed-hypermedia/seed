@@ -1,21 +1,13 @@
-import {Schema} from 'prosemirror-model'
+import {Node as PMNode, Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {unnestBlock} from '../commands/nestBlock'
 import {
-  createDocFromJSON,
+  buildDoc,
   createMinimalSchema,
   createMockEditor,
   findPosInBlock,
 } from './test-helpers-prosemirror'
-
-// JSON fixtures
-import childrenGroupSimple from './fixtures/children-group-simple.json'
-import childrenUnordered from './fixtures/children-unordered.json'
-import nestedUnordered from './fixtures/nested-unordered.json'
-import nestedWithChildren from './fixtures/nested-with-children.json'
-import nestedWithChildrenAndSiblings from './fixtures/nested-with-children-and-siblings.json'
-import nestedListWithChildrenAndSiblings from './fixtures/nested-list-with-children-and-siblings.json'
 
 describe('unnestBlock - liftListItem', () => {
   let schema: Schema
@@ -30,10 +22,7 @@ describe('unnestBlock - liftListItem', () => {
   })
 
   // Helper: run unnestBlock (deferred paths use setTimeout)
-  function runUnnest(
-    doc: ReturnType<typeof createDocFromJSON>,
-    blockId: string,
-  ): EditorState {
+  function runUnnest(doc: PMNode, blockId: string): EditorState {
     const pos = findPosInBlock(doc, blockId)
     const state = EditorState.create({
       doc,
@@ -59,7 +48,13 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('Group → Group', () => {
     it('lifts block out of nested Group into parent Group', () => {
-      const doc = createDocFromJSON(schema, childrenGroupSimple)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {blocks: [{id: 'test-1', text: 'Hello'}]},
+        },
+      ])
       const newState = runUnnest(doc, 'test-1')
 
       const topGroup = newState.doc.firstChild!
@@ -90,7 +85,21 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('list → list', () => {
     it('lifts block out of nested Unordered into parent Unordered', () => {
-      const doc = createDocFromJSON(schema, nestedUnordered)
+      const doc = buildDoc(
+        schema,
+        [
+          {
+            id: 'item-1',
+            text: 'First',
+            children: {
+              listType: 'Unordered',
+              listLevel: '2',
+              blocks: [{id: 'item-2', text: 'Second'}],
+            },
+          },
+        ],
+        {listType: 'Unordered'},
+      )
       const newState = runUnnest(doc, 'item-2')
 
       const topGroup = newState.doc.firstChild!
@@ -121,7 +130,16 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('cross type: Unordered → Group', () => {
     it('lifts block from Unordered child into parent Group', () => {
-      const doc = createDocFromJSON(schema, childrenUnordered)
+      const doc = buildDoc(schema, [
+        {
+          id: 'test-root',
+          text: 'Root paragraph',
+          children: {
+            listType: 'Unordered',
+            blocks: [{id: 'test-1', text: 'Hello'}],
+          },
+        },
+      ])
       const newState = runUnnest(doc, 'test-1')
 
       const topGroup = newState.doc.firstChild!
@@ -154,7 +172,21 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('unnest with children', () => {
     it('lifts block preserving its children', () => {
-      const doc = createDocFromJSON(schema, nestedWithChildren)
+      const doc = buildDoc(schema, [
+        {
+          id: 'parent',
+          text: 'Parent',
+          children: {
+            blocks: [
+              {
+                id: 'child',
+                text: 'Child',
+                children: {blocks: [{id: 'grandchild', text: 'Grandchild'}]},
+              },
+            ],
+          },
+        },
+      ])
       const newState = runUnnest(doc, 'child')
 
       const topGroup = newState.doc.firstChild!
@@ -199,7 +231,24 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('unnest with children and siblings after', () => {
     it('moves siblings into children and lifts block', () => {
-      const doc = createDocFromJSON(schema, nestedWithChildrenAndSiblings)
+      const doc = buildDoc(schema, [
+        {
+          id: 'parent',
+          text: 'Parent',
+          children: {
+            blocks: [
+              {
+                id: 'child',
+                text: 'Child',
+                children: {
+                  blocks: [{id: 'grandchild', text: 'Grandchild'}],
+                },
+              },
+              {id: 'sibling', text: 'Sibling'},
+            ],
+          },
+        },
+      ])
       const newState = runUnnest(doc, 'child')
 
       const topGroup = newState.doc.firstChild!
@@ -250,7 +299,32 @@ describe('unnestBlock - liftListItem', () => {
   //
   describe('list unnest with children+siblings — list levels', () => {
     it('decrements listLevel on children group after lift', () => {
-      const doc = createDocFromJSON(schema, nestedListWithChildrenAndSiblings)
+      const doc = buildDoc(
+        schema,
+        [
+          {
+            id: 'parent',
+            text: 'Parent',
+            children: {
+              listType: 'Unordered',
+              listLevel: '2',
+              blocks: [
+                {
+                  id: 'child',
+                  text: 'Child',
+                  children: {
+                    listType: 'Unordered',
+                    listLevel: '3',
+                    blocks: [{id: 'grandchild', text: 'Grandchild'}],
+                  },
+                },
+                {id: 'sibling', text: 'Sibling'},
+              ],
+            },
+          },
+        ],
+        {listType: 'Unordered'},
+      )
       const newState = runUnnest(doc, 'child')
 
       const topGroup = newState.doc.firstChild!
