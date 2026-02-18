@@ -118,6 +118,52 @@ export interface Profile extends Blob {
 	readonly account?: Principal
 }
 
+/** Create a signed and encoded Profile blob. */
+export function createProfile(
+	kp: KeyPair,
+	opts: {
+		/** Display name (required for non-alias profiles). */
+		name: string
+		/** Icon/avatar URI. */
+		avatar?: string
+		/** Short text description. */
+		description?: string
+		/** Account principal. Omitted from encoding if it equals the signer. */
+		account?: Principal
+	},
+	ts: Timestamp,
+): EncodedBlob<Profile> {
+	// Omit account when it equals the signer (matches Go behavior).
+	const account = opts.account && !principalEqual(kp.principal, opts.account) ? opts.account : undefined
+
+	// Build blob without undefined values (DAG-CBOR does not support undefined).
+	const blob: Profile = {
+		type: "Profile",
+		signer: kp.principal,
+		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
+		ts,
+		...(opts.name != null ? { name: opts.name } : {}),
+		...(opts.avatar != null ? { avatar: opts.avatar } : {}),
+		...(opts.description != null ? { description: opts.description } : {}),
+		...(account != null ? { account } : {}),
+	}
+
+	return encode(sign(kp, blob))
+}
+
+/** Create a signed and encoded alias Profile blob (identity redirect). */
+export function createProfileAlias(kp: KeyPair, alias: Principal, ts: Timestamp): EncodedBlob<Profile> {
+	const blob: Profile = {
+		type: "Profile",
+		signer: kp.principal,
+		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
+		ts,
+		alias,
+	}
+
+	return encode(sign(kp, blob))
+}
+
 /** Capability blob granting rights from issuer to delegate. */
 export interface Capability extends Blob {
 	readonly type: "Capability"
@@ -131,6 +177,34 @@ export interface Capability extends Blob {
 	readonly role: Role
 	/** Human-readable label. */
 	readonly label?: string
+}
+
+/** Create a signed and encoded Capability blob. */
+export function createCapability(
+	issuer: KeyPair,
+	delegate: Principal,
+	role: Role,
+	ts: Timestamp,
+	opts: {
+		/** Path scope. */
+		path?: string
+		/** Human-readable label. */
+		label?: string
+		/** Audience principal for direct auth. */
+		audience?: Principal
+	} = {},
+): EncodedBlob<Capability> {
+	const blob: Capability = {
+		type: "Capability",
+		signer: issuer.principal,
+		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
+		ts,
+		delegate,
+		role,
+		...opts,
+	}
+
+	return encode(sign(issuer, blob))
 }
 
 /** A blob with its DAG-CBOR encoding and content-addressed CID. */
@@ -178,82 +252,4 @@ export function encode<T extends Blob>(blob: T): EncodedBlob<T> {
 	const digest = Digest.create(sha256hasher.code, hash)
 	const cid = CID.createV1(dagCBOR.code, digest)
 	return { cid, data: new Uint8Array(data), decoded: blob }
-}
-
-// ---- Factory functions ----
-
-/** Options for creating a profile blob. */
-export interface ProfileOptions {
-	/** Display name (required for non-alias profiles). */
-	name: string
-	/** Icon/avatar URI. */
-	avatar?: string
-	/** Short text description. */
-	description?: string
-	/** Account principal. Omitted from encoding if it equals the signer. */
-	account?: Principal
-}
-
-/** Create a signed and encoded Profile blob. */
-export function createProfile(kp: KeyPair, opts: ProfileOptions, ts: Timestamp): EncodedBlob<Profile> {
-	// Omit account when it equals the signer (matches Go behavior).
-	const account = opts.account && !principalEqual(kp.principal, opts.account) ? opts.account : undefined
-
-	// Build blob without undefined values (DAG-CBOR does not support undefined).
-	const blob: Profile = {
-		type: "Profile",
-		signer: kp.principal,
-		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
-		ts,
-		...(opts.name != null ? { name: opts.name } : {}),
-		...(opts.avatar != null ? { avatar: opts.avatar } : {}),
-		...(opts.description != null ? { description: opts.description } : {}),
-		...(account != null ? { account } : {}),
-	}
-
-	return encode(sign(kp, blob))
-}
-
-/** Create a signed and encoded alias Profile blob (identity redirect). */
-export function createProfileAlias(kp: KeyPair, alias: Principal, ts: Timestamp): EncodedBlob<Profile> {
-	const blob: Profile = {
-		type: "Profile",
-		signer: kp.principal,
-		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
-		ts,
-		alias,
-	}
-
-	return encode(sign(kp, blob))
-}
-
-/** Options for creating a capability blob. */
-export interface CapabilityOptions {
-	/** Path scope. */
-	path?: string
-	/** Human-readable label. */
-	label?: string
-	/** Audience principal for direct auth. */
-	audience?: Principal
-}
-
-/** Create a signed and encoded Capability blob. */
-export function createCapability(
-	issuer: KeyPair,
-	delegate: Principal,
-	role: Role,
-	ts: Timestamp,
-	opts: CapabilityOptions = {},
-): EncodedBlob<Capability> {
-	const blob: Capability = {
-		type: "Capability",
-		signer: issuer.principal,
-		sig: new Uint8Array(ED25519_SIGNATURE_SIZE),
-		ts,
-		delegate,
-		role,
-		...opts,
-	}
-
-	return encode(sign(issuer, blob))
 }
