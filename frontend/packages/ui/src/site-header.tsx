@@ -86,11 +86,15 @@ export function SiteHeader({
   routeType?: NavRoute['key']
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
+  const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
   const [isSubscribeDialogOpen, setIsSubscribeDialogOpen] = useState(false)
 
   function setIsMobileMenuOpen(isOpen: boolean) {
     _setIsMobileMenuOpen(isOpen)
     onShowMobileMenu?.(isOpen)
+    if (!isOpen) {
+      setIsMobileSearchActive(false)
+    }
   }
   // Determine the home document for logo/branding
   // Priority: current doc if on home page, otherwise siteHomeDocument
@@ -243,9 +247,10 @@ export function SiteHeader({
           open={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
           renderContent={() => (
-            <>
+            <div className="flex min-h-full flex-col">
               <MobileSearch
                 siteHomeId={siteHomeId}
+                onSearchActiveChange={setIsMobileSearchActive}
                 // @ts-expect-error
                 onSelect={(item: SearchResult) => {
                   setIsMobileMenuOpen(false)
@@ -253,55 +258,63 @@ export function SiteHeader({
                 }}
               />
 
-              {/* Always show home navigation items */}
-              {homeNavigationItems && homeNavigationItems.length > 0 && (
-                <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
-                  <NavItems
-                    items={homeNavigationItems}
-                    onClick={() => {
-                      setIsMobileMenuOpen(false)
-                    }}
-                  />
-                  <MobileFeedLink
-                    siteHomeId={siteHomeId}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  />
-                </div>
-              )}
-              {/* 
-              Show directory items when not on home
-              {directoryItems && directoryItems.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="mb-4">
-                    <NavItems
-                      items={directoryItems}
-                      onClick={() => {
-                        setIsMobileMenuOpen(false)
-                      }}
-                    />
-                  </div>
-                </>
-              )} */}
+              <div className="relative min-h-0 flex-1">
+                {isMobileSearchActive ? (
+                  <div className="bg-background absolute inset-0 z-10" />
+                ) : null}
 
-              {/* Show document outline when available */}
-              {docId && document && (
-                <>
-                  <Separator />
-                  <div className="mt-2.5 mb-4 px-1">
-                    <MobileMenuOutline
-                      onActivateBlock={(blockId) => {
-                        setIsMobileMenuOpen(false)
-                        onBlockFocus?.(blockId)
-                      }}
-                      document={document}
-                      docId={docId}
-                      embeds={embeds}
-                    />
-                  </div>
-                </>
-              )}
-            </>
+                <div className="relative z-0">
+                  {/* Always show home navigation items */}
+                  {homeNavigationItems && homeNavigationItems.length > 0 && (
+                    <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
+                      <NavItems
+                        items={homeNavigationItems}
+                        onClick={() => {
+                          setIsMobileMenuOpen(false)
+                        }}
+                      />
+                      <MobileFeedLink
+                        siteHomeId={siteHomeId}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      />
+                    </div>
+                  )}
+                  {/* 
+                  Show directory items when not on home
+                  {directoryItems && directoryItems.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="mb-4">
+                        <NavItems
+                          items={directoryItems}
+                          onClick={() => {
+                            setIsMobileMenuOpen(false)
+                          }}
+                        />
+                      </div>
+                    </>
+                  )} */}
+
+                  {/* Show document outline when available */}
+                  {docId && document && (
+                    <>
+                      <Separator />
+                      <div className="mt-2.5 mb-4 px-1">
+                        <MobileMenuOutline
+                          onActivateBlock={(blockId) => {
+                            setIsMobileMenuOpen(false)
+                            onBlockFocus?.(blockId)
+                          }}
+                          document={document}
+                          docId={docId}
+                          embeds={embeds}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         />
 

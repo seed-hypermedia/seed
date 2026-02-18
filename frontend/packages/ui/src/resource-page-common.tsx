@@ -1146,6 +1146,15 @@ function DocumentBody({
           }
           rightActions={
             <div className="flex items-center gap-1 pr-2 md:pr-0">
+              {hasOptions && (
+                <div className="md:hidden">
+                  <OptionsDropdown
+                    menuItems={allMenuItems}
+                    align="end"
+                    side="bottom"
+                  />
+                </div>
+              )}
               {activeView !== 'content' && !isMobile && (
                 <OpenInPanelButton
                   id={docId}
@@ -1277,10 +1286,10 @@ function DocumentBody({
         onFilterChange={handleFilterChange}
       >
         {/* Floating action buttons - visible when DocumentTools is NOT sticky */}
-        {actionButtons && !isMobile ? (
+        {actionButtons ? (
           <div
             className={cn(
-              'absolute top-2 right-2 z-40 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+              'absolute top-2 right-2 z-40 hidden items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4 md:flex',
             )}
           >
             {actionButtons}

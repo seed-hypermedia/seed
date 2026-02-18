@@ -29,11 +29,14 @@ import {cn} from './utils'
 export function MobileSearch({
   siteHomeId,
   onSelect,
+  onSearchActiveChange,
 }: {
   siteHomeId: UnpackedHypermediaId | null
   onSelect: () => void
+  onSearchActiveChange?: (isActive: boolean) => void
 }) {
   const [searchValue, setSearchValue] = useState('')
+  const isSearchActive = searchValue.trim().length > 0
   const searchResults = useSearch(searchValue, {
     enabled: !!searchValue,
     accountUid: siteHomeId?.uid,
@@ -64,8 +67,13 @@ export function MobileSearch({
       })
       .filter(Boolean) ?? []
 
+  useEffect(() => {
+    onSearchActiveChange?.(isSearchActive)
+    return () => onSearchActiveChange?.(false)
+  }, [isSearchActive, onSearchActiveChange])
+
   return (
-    <div className="relative max-h-1/2 w-full gap-2 rounded-md p-2">
+    <div className="relative z-20 w-full gap-2 rounded-md p-2">
       <Input
         className="w-full flex-1"
         value={searchValue}
@@ -74,33 +82,32 @@ export function MobileSearch({
         }}
         placeholder="Search Documents"
       />
-      {searchResults.data?.entities[0] ? (
-        <div className="mb-8">
-          {searchItems.map((item: SearchResult) => {
-            const navigateProps = useRouteLink(
-              // @ts-expect-error
-              item.id
-                ? {
-                    key: 'document',
-                    // @ts-expect-error
-                    id: item.id,
-                  }
-                : null,
-            )
-            console.log('NAVIGATE PROPS', navigateProps)
-            return (
-              <Fragment key={item.key}>
-                <SearchResultItem
-                  item={{
-                    ...item,
-                  }}
-                  onSelect={onSelect}
-                  siteHomeId={siteHomeId}
-                  selected={false}
-                />
-              </Fragment>
-            )
-          })}
+      {isSearchActive ? (
+        <div className="bg-background absolute inset-x-2 top-[calc(100%+8px)] z-20 max-h-[65dvh] overflow-hidden rounded-md border shadow-sm">
+          <ScrollArea className="max-h-[65dvh]">
+            <div className="py-2">
+              {searchItems.length > 0 ? (
+                searchItems.map((item: SearchResult) => {
+                  return (
+                    <Fragment key={item.key}>
+                      <SearchResultItem
+                        item={{
+                          ...item,
+                        }}
+                        onSelect={onSelect}
+                        siteHomeId={siteHomeId}
+                        selected={false}
+                      />
+                    </Fragment>
+                  )
+                })
+              ) : (
+                <div className="text-muted-foreground p-4 text-center">
+                  No results found
+                </div>
+              )}
+            </div>
+          </ScrollArea>
         </div>
       ) : null}
     </div>
