@@ -2,7 +2,8 @@
 
 ## Overview
 
-A Bun+TypeScript CLI for interacting with Seed Hypermedia servers via HTTP API. Default server: `https://dev.hyper.media`
+A Bun+TypeScript CLI for interacting with Seed Hypermedia servers via HTTP API.
+Default server: `https://dev.hyper.media`
 
 ## Architecture
 
@@ -18,27 +19,27 @@ Where `key` is one of the 19 API endpoints defined in `@shm/shared`.
 
 ### Available API Endpoints
 
-| Key | Purpose | Input |
-|-----|---------|-------|
-| `Resource` | Fetch document/comment/entity | `UnpackedHypermediaId` |
-| `ResourceMetadata` | Get metadata only | `UnpackedHypermediaId` |
-| `Account` | Fetch account info | `string` (uid) |
-| `Comment` | Fetch single comment | `string` (id) |
-| `AccountContacts` | List account contacts | `string` (uid) |
-| `Search` | Full-text search | `{query, accountUid?, ...}` |
-| `Query` | Directory listing | `{includes, sort?, limit?}` |
-| `ListComments` | Comments on target | `{targetId}` |
-| `ListDiscussions` | Threaded discussions | `{targetId, commentId?}` |
-| `ListCommentsByReference` | Comments by ref | `{targetId}` |
-| `GetCommentReplyCount` | Reply count | `{id}` |
-| `ListEvents` | Activity feed | `{pageSize?, pageToken?, ...}` |
-| `ListAccounts` | All known accounts | `{}` |
-| `GetCID` | Raw IPFS block | `{cid}` |
-| `ListCommentsByAuthor` | Author's comments | `{authorId}` |
-| `ListCitations` | Mentions/backlinks | `{targetId}` |
-| `ListChanges` | Document history | `{targetId}` |
-| `ListCapabilities` | Access control | `{targetId}` |
-| `InteractionSummary` | Doc interaction stats | `{id}` |
+| Key                       | Purpose                       | Input                          |
+| ------------------------- | ----------------------------- | ------------------------------ |
+| `Resource`                | Fetch document/comment/entity | `UnpackedHypermediaId`         |
+| `ResourceMetadata`        | Get metadata only             | `UnpackedHypermediaId`         |
+| `Account`                 | Fetch account info            | `string` (uid)                 |
+| `Comment`                 | Fetch single comment          | `string` (id)                  |
+| `AccountContacts`         | List account contacts         | `string` (uid)                 |
+| `Search`                  | Full-text search              | `{query, accountUid?, ...}`    |
+| `Query`                   | Directory listing             | `{includes, sort?, limit?}`    |
+| `ListComments`            | Comments on target            | `{targetId}`                   |
+| `ListDiscussions`         | Threaded discussions          | `{targetId, commentId?}`       |
+| `ListCommentsByReference` | Comments by ref               | `{targetId}`                   |
+| `GetCommentReplyCount`    | Reply count                   | `{id}`                         |
+| `ListEvents`              | Activity feed                 | `{pageSize?, pageToken?, ...}` |
+| `ListAccounts`            | All known accounts            | `{}`                           |
+| `GetCID`                  | Raw IPFS block                | `{cid}`                        |
+| `ListCommentsByAuthor`    | Author's comments             | `{authorId}`                   |
+| `ListCitations`           | Mentions/backlinks            | `{targetId}`                   |
+| `ListChanges`             | Document history              | `{targetId}`                   |
+| `ListCapabilities`        | Access control                | `{targetId}`                   |
+| `InteractionSummary`      | Doc interaction stats         | `{id}`                         |
 
 ### Hypermedia ID Format
 
@@ -55,6 +56,7 @@ Examples:
 ### Write Operations (Phase 2)
 
 Write ops require signing and use separate endpoints:
+
 - `POST /hm/api/document-update` - Create/update documents
 - `POST /hm/api/comment` - Create comments
 
@@ -66,52 +68,52 @@ Payload format: CBOR-encoded with signed blobs
 
 ```bash
 # Resource fetching
-seed get <hm-id>              # Fetch document/entity
-seed get --metadata <hm-id>   # Metadata only
+seed-cli get <hm-id>              # Fetch document/entity
+seed-cli get --metadata <hm-id>   # Metadata only
 
 # Account operations
-seed account <uid>            # Account info
-seed accounts                 # List all accounts
-seed contacts <uid>           # Account contacts
+seed-cli account <uid>            # Account info
+seed-cli accounts                 # List all accounts
+seed-cli contacts <uid>           # Account contacts
 
 # Search & Query
-seed search <query> [--account <uid>]
-seed query <hm-id> [--mode children|descendants] [--limit N]
-seed children <hm-id>         # Shorthand for query --mode=children
+seed-cli search <query> [--account <uid>]
+seed-cli query <hm-id> [--mode children|descendants] [--limit N]
+seed-cli children <hm-id>         # Shorthand for query --mode=children
 
 # Comments
-seed comments <hm-id>         # List comments on target
-seed discussions <hm-id>      # Threaded discussions
-seed comment <comment-id>     # Single comment
+seed-cli comments <hm-id>         # List comments on target
+seed-cli discussions <hm-id>      # Threaded discussions
+seed-cli comment <comment-id>     # Single comment
 
 # History & Activity
-seed changes <hm-id>          # Document history
-seed citations <hm-id>        # Backlinks/mentions
-seed activity [--author <uid>] [--limit N]
+seed-cli changes <hm-id>          # Document history
+seed-cli citations <hm-id>        # Backlinks/mentions
+seed-cli activity [--author <uid>] [--limit N]
 
 # Access Control
-seed capabilities <hm-id>     # List capabilities
+seed-cli capabilities <hm-id>     # List capabilities
 
 # Utilities
-seed cid <cid>                # Raw IPFS block
-seed stats <hm-id>            # Interaction summary
+seed-cli cid <cid>                # Raw IPFS block
+seed-cli stats <hm-id>            # Interaction summary
 ```
 
 ### Phase 2: Write Operations
 
 ```bash
 # Identity management
-seed identity init            # Generate keypair
-seed identity show            # Show public key
-seed identity link <session>  # Link to daemon
+seed-cli identity init            # Generate keypair
+seed-cli identity show            # Show public key
+seed-cli identity link <session>  # Link to daemon
 
 # Document operations
-seed publish <file> --to <hm-id>  # Publish markdown
-seed update <hm-id> <file>        # Update document
+seed-cli publish <file> --to <hm-id>  # Publish markdown
+seed-cli update <hm-id> <file>        # Update document
 
 # Comments
-seed comment create <hm-id> <text>
-seed comment reply <comment-id> <text>
+seed-cli comment create <hm-id> <text>
+seed-cli comment reply <comment-id> <text>
 ```
 
 ### Global Options
@@ -189,13 +191,14 @@ Leverage `HMRequest` discriminated union from `@shm/shared`:
 ```typescript
 async function apiRequest<K extends HMRequest['key']>(
   key: K,
-  input: Extract<HMRequest, {key: K}>['input']
+  input: Extract<HMRequest, {key: K}>['input'],
 ): Promise<Extract<HMRequest, {key: K}>['output']>
 ```
 
 ### Error Handling
 
 API responses:
+
 - Success: `200 OK` with JSON body
 - Not found: `404` or `{type: 'not-found'}`
 - Redirect: `{type: 'redirect', redirectTarget}`
@@ -206,7 +209,8 @@ API responses:
 
 ### Key Derivation (Ed25519 via BIP-39)
 
-The CLI uses Ed25519 keys derived from BIP-39 mnemonics, matching the Go daemon implementation.
+The CLI uses Ed25519 keys derived from BIP-39 mnemonics, matching the Go daemon
+implementation.
 
 ```typescript
 // Derivation flow (from tests/key-derivation.ts):
@@ -220,7 +224,7 @@ import SLIP10 from '@exodus/slip10'
 import {base58btc} from 'multiformats/bases/base58'
 import * as ed25519 from '@noble/ed25519'
 
-const KEY_DERIVATION_PATH = "m/44'/104109'/0'"  // 104109 = 'hm' Unicode
+const KEY_DERIVATION_PATH = "m/44'/104109'/0'" // 104109 = 'hm' Unicode
 const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
 
 function deriveKeyPairFromMnemonic(mnemonic: string, passphrase = '') {
@@ -229,7 +233,10 @@ function deriveKeyPairFromMnemonic(mnemonic: string, passphrase = '') {
   const derivedKey = masterKey.derive(KEY_DERIVATION_PATH)
   const privateKey = derivedKey.key
   const publicKey = ed25519.getPublicKey(privateKey)
-  const publicKeyWithPrefix = new Uint8Array([...ED25519_MULTICODEC_PREFIX, ...publicKey])
+  const publicKeyWithPrefix = new Uint8Array([
+    ...ED25519_MULTICODEC_PREFIX,
+    ...publicKey,
+  ])
   const accountId = base58btc.encode(publicKeyWithPrefix)
   return {privateKey, publicKey, accountId}
 }
@@ -240,15 +247,16 @@ function deriveKeyPairFromMnemonic(mnemonic: string, passphrase = '') {
 All data stored as IPLD DAG-CBOR blobs. Three main blob types:
 
 **1. Change Blob (document mutations)**
+
 ```typescript
 type Change = {
   type: 'Change'
-  signer: Uint8Array      // Public key with multicodec prefix
-  sig: Uint8Array         // Ed25519 signature (64 bytes)
-  ts: bigint              // Timestamp (0n for genesis)
-  genesis?: CID           // Genesis change CID (except for genesis itself)
-  deps?: CID[]            // Parent change CIDs
-  depth?: number          // DAG depth
+  signer: Uint8Array // Public key with multicodec prefix
+  sig: Uint8Array // Ed25519 signature (64 bytes)
+  ts: bigint // Timestamp (0n for genesis)
+  genesis?: CID // Genesis change CID (except for genesis itself)
+  deps?: CID[] // Parent change CIDs
+  depth?: number // DAG depth
   body?: {
     ops: HMDocumentOperation[]
     opCount: number
@@ -257,22 +265,24 @@ type Change = {
 ```
 
 **2. Ref Blob (version pointers)**
+
 ```typescript
 type Ref = {
   type: 'Ref'
   signer: Uint8Array
   sig: Uint8Array
   ts: bigint
-  genesisBlob: CID        // Points to genesis change
-  heads: CID[]            // Current head changes
-  generation: number      // Ref generation number
-  space?: Uint8Array      // If different from signer
-  path?: string           // Document path
+  genesisBlob: CID // Points to genesis change
+  heads: CID[] // Current head changes
+  generation: number // Ref generation number
+  space?: Uint8Array // If different from signer
+  path?: string // Document path
   capability?: Uint8Array // Delegation capability
 }
 ```
 
 **3. Comment Blob**
+
 ```typescript
 type Comment = {
   type: 'Comment'
@@ -280,11 +290,11 @@ type Comment = {
   sig: Uint8Array
   ts: bigint
   body: HMPublishableBlock[]
-  space: Uint8Array       // Target document space
-  path: string            // Target document path
-  version: CID[]          // Target document version
-  replyParent?: CID       // Parent comment (for threads)
-  threadRoot?: CID        // Root of thread
+  space: Uint8Array // Target document space
+  path: string // Target document path
+  version: CID[] // Target document version
+  replyParent?: CID // Parent comment (for threads)
+  threadRoot?: CID // Root of thread
 }
 ```
 
@@ -295,7 +305,7 @@ type Comment = {
 const unsigned = {
   type: 'Change',
   signer: publicKeyWithPrefix,
-  sig: new Uint8Array(64),  // Empty placeholder
+  sig: new Uint8Array(64), // Empty placeholder
   // ... other fields
 }
 
@@ -307,7 +317,11 @@ const signature = await ed25519.sign(cborData, privateKey)
 const signed = {...unsigned, sig: signature}
 
 // 4. Encode final blob and compute CID
-const block = await Block.encode({value: signed, codec: cborCodec, hasher: sha256})
+const block = await Block.encode({
+  value: signed,
+  codec: cborCodec,
+  hasher: sha256,
+})
 // block.cid = CID, block.bytes = Uint8Array
 ```
 
@@ -325,6 +339,7 @@ const block = await Block.encode({value: signed, codec: cborCodec, hasher: sha25
 ## Write API Endpoints
 
 ### `/hm/api/store-blob` (preferred)
+
 ```
 POST /hm/api/debug.store-blob
 Content-Type: application/cbor
@@ -334,6 +349,7 @@ Response: {cid: string}
 ```
 
 ### `/hm/api/create-account`
+
 ```
 POST /hm/api/create-account
 Content-Type: application/cbor
@@ -346,6 +362,7 @@ Body: CBOR({
 ```
 
 ### `/hm/api/document-update`
+
 ```
 POST /hm/api/document-update
 Content-Type: application/cbor
@@ -357,6 +374,7 @@ Body: CBOR({
 ```
 
 ### `/hm/api/comment`
+
 ```
 POST /hm/api/comment
 Content-Type: application/cbor
@@ -369,6 +387,7 @@ Body: CBOR({
 ## Development Phases
 
 ### Phase 1 (MVP)
+
 - [x] Project setup with Bun
 - [ ] HTTP client wrapper
 - [ ] Basic commands: get, account, search
@@ -376,12 +395,14 @@ Body: CBOR({
 - [ ] Config file support
 
 ### Phase 2 (Full Read)
+
 - [ ] All read commands
 - [ ] Multiple output formats
 - [ ] Pagination support
 - [ ] Interactive mode
 
 ### Phase 3 (Write)
+
 - [ ] Key derivation from mnemonic
 - [ ] Local key storage (secure)
 - [ ] Account creation (genesis + home + ref)
@@ -389,6 +410,7 @@ Body: CBOR({
 - [ ] Comment creation
 
 ### Phase 4 (Polish)
+
 - [ ] Shell completions
 - [ ] Man pages
 - [ ] Error messages

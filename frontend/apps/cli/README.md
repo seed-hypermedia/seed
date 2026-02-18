@@ -1,6 +1,8 @@
 # Seed Hypermedia CLI
 
-A command-line interface for interacting with the Seed Hypermedia network. Query documents, manage accounts, search content, and work with decentralized hypermedia from your terminal.
+A command-line interface for interacting with the Seed Hypermedia network. Query
+documents, manage accounts, search content, and work with decentralized
+hypermedia from your terminal.
 
 ## Installation
 
@@ -29,16 +31,16 @@ bun run dev [command]
 
 ```bash
 # List all known accounts
-seed accounts
+seed-cli accounts
 
 # Get a document
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Search for content
-seed search "climate change"
+seed-cli search "climate change"
 
 # Get document as markdown
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md
 ```
 
 ---
@@ -47,36 +49,36 @@ seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md
 
 These options work with all commands:
 
-| Option | Description |
-|--------|-------------|
+| Option               | Description                                 |
+| -------------------- | ------------------------------------------- |
 | `-s, --server <url>` | Server URL (default: `https://hyper.media`) |
-| `--json` | Output as JSON (default) |
-| `--yaml` | Output as YAML |
-| `--pretty` | Pretty formatted output |
-| `-q, --quiet` | Minimal output (IDs and names only) |
-| `-V, --version` | Display version |
-| `-h, --help` | Display help |
+| `--json`             | Output as JSON (default)                    |
+| `--yaml`             | Output as YAML                              |
+| `--pretty`           | Pretty formatted output                     |
+| `-q, --quiet`        | Minimal output (IDs and names only)         |
+| `-V, --version`      | Display version                             |
+| `-h, --help`         | Display help                                |
 
 ### Examples
 
 ```bash
 # Use a different server
-seed --server http://localhost:4000 accounts
+seed-cli --server http://localhost:4000 accounts
 
 # Get YAML output
-seed accounts --yaml
+seed-cli accounts --yaml
 
 # Get pretty-printed JSON
-seed account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --pretty
+seed-cli account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --pretty
 
 # Quiet mode for scripting
-seed accounts -q
+seed-cli accounts -q
 ```
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable      | Description        |
+| ------------- | ------------------ |
 | `SEED_SERVER` | Default server URL |
 
 ---
@@ -88,59 +90,59 @@ The CLI stores configuration in `~/.seed/config.json`.
 ### Show Configuration
 
 ```bash
-seed config --show
+seed-cli config --show
 ```
 
 ### Set Default Server
 
 ```bash
-seed config --server https://hyper.media
+seed-cli config --server https://hyper.media
 ```
 
 ---
 
 ## Document Commands
 
-### `seed get <id>`
+### `seed-cli get <id>`
 
 Fetch a document, comment, or entity by Hypermedia ID.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
-| `-m, --metadata` | Fetch metadata only (faster) |
-| `--md` | Output as Markdown |
-| `--frontmatter` | Include YAML frontmatter (with `--md`) |
-| `-r, --resolve` | Resolve embeds, mentions, and queries (with `--md`) |
-| `-q, --quiet` | Output minimal info |
+| Option           | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `-m, --metadata` | Fetch metadata only (faster)                        |
+| `--md`           | Output as Markdown                                  |
+| `--frontmatter`  | Include YAML frontmatter (with `--md`)              |
+| `-r, --resolve`  | Resolve embeds, mentions, and queries (with `--md`) |
+| `-q, --quiet`    | Output minimal info                                 |
 
 **Examples:**
 
 ```bash
 # Get document as JSON
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Get document as Markdown
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md
 
 # Get Markdown with frontmatter metadata
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md --frontmatter
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md --frontmatter
 
 # Resolve all embeds and queries in the document
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md --resolve
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --md --resolve
 
 # Get just the metadata (name, summary, etc.)
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -m
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -m
 
 # Get a specific version of a document
-seed get "hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou?v=bafy..."
+seed-cli get "hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou?v=bafy..."
 
 # Get a child document at a path
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/child-path
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou/child-path
 
 # Quiet mode: just print the document title
-seed get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli get hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
 ### Markdown Output
@@ -156,20 +158,20 @@ When using `--md`, the CLI converts documents to GitHub-flavored Markdown:
 - **Embeds** show as quoted blocks with links
 - **Queries** are resolved to lists of linked documents (with `--resolve`)
 
-### `seed cid <cid>`
+### `seed-cli cid <cid>`
 
 Fetch raw IPFS block data by CID.
 
 ```bash
-seed cid bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
+seed-cli cid bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi
 ```
 
-### `seed stats <id>`
+### `seed-cli stats <id>`
 
 Get interaction statistics for a document.
 
 ```bash
-seed stats hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli stats hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 ```
 
 **Output includes:**
@@ -184,145 +186,145 @@ seed stats hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 ## Account Commands
 
-### `seed accounts`
+### `seed-cli accounts`
 
 List all known accounts on the server.
 
 ```bash
 # Full JSON output
-seed accounts
+seed-cli accounts
 
 # Compact output: ID<tab>name per line
-seed accounts -q
+seed-cli accounts -q
 
 # As YAML
-seed accounts --yaml
+seed-cli accounts --yaml
 ```
 
-### `seed account <uid>`
+### `seed-cli account <uid>`
 
 Get detailed information about a specific account.
 
 ```bash
 # Get account info
-seed account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Pretty print
-seed account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --pretty
+seed-cli account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --pretty
 
 # Just the name (or ID if no name)
-seed account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
-### `seed contacts <uid>`
+### `seed-cli contacts <uid>`
 
 List contacts for an account.
 
 ```bash
 # Full output
-seed contacts z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli contacts z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Just names
-seed contacts z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli contacts z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
 ---
 
 ## Search Commands
 
-### `seed search <query>`
+### `seed-cli search <query>`
 
 Search for documents across the network.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
+| Option                | Description                        |
+| --------------------- | ---------------------------------- |
 | `-a, --account <uid>` | Limit search to a specific account |
-| `-q, --quiet` | Output ID and title only |
+| `-q, --quiet`         | Output ID and title only           |
 
 **Examples:**
 
 ```bash
 # Search all documents
-seed search "artificial intelligence"
+seed-cli search "artificial intelligence"
 
 # Search within a specific account
-seed search "meeting notes" --account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli search "meeting notes" --account z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Compact output for scripting
-seed search "project" -q
+seed-cli search "project" -q
 ```
 
 ---
 
 ## Query Commands
 
-### `seed query <space>`
+### `seed-cli query <space>`
 
 List documents in a space (account).
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
-| `-p, --path <path>` | Path prefix to filter |
-| `-m, --mode <mode>` | `Children` (default) or `AllDescendants` |
-| `-l, --limit <n>` | Maximum results |
-| `--sort <term>` | Sort by: `Path`, `Title`, `CreateTime`, `UpdateTime`, `DisplayTime` |
-| `--reverse` | Reverse sort order |
-| `-q, --quiet` | Output ID and name only |
+| Option              | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| `-p, --path <path>` | Path prefix to filter                                               |
+| `-m, --mode <mode>` | `Children` (default) or `AllDescendants`                            |
+| `-l, --limit <n>`   | Maximum results                                                     |
+| `--sort <term>`     | Sort by: `Path`, `Title`, `CreateTime`, `UpdateTime`, `DisplayTime` |
+| `--reverse`         | Reverse sort order                                                  |
+| `-q, --quiet`       | Output ID and name only                                             |
 
 **Examples:**
 
 ```bash
 # List direct children of an account
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # List all descendants recursively
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --mode AllDescendants
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --mode AllDescendants
 
 # List children under a specific path
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --path projects
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --path projects
 
 # Sort by update time (newest first)
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --sort UpdateTime --reverse
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --sort UpdateTime --reverse
 
 # Limit to 5 results
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --limit 5
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --limit 5
 
 # Compact output
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
-### `seed children <space>`
+### `seed-cli children <space>`
 
 Shorthand for `query --mode Children`.
 
 ```bash
 # These are equivalent:
-seed children z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
-seed query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --mode Children
+seed-cli children z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli query z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --mode Children
 ```
 
-### `seed citations <id>`
+### `seed-cli citations <id>`
 
 List documents that cite (link to) a given resource.
 
 ```bash
 # Full output
-seed citations hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli citations hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Just source IDs
-seed citations hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli citations hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
-### `seed capabilities <id>`
+### `seed-cli capabilities <id>`
 
 List access control capabilities for a document.
 
 ```bash
-seed capabilities hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli capabilities hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 ```
 
 **Output includes:**
@@ -338,97 +340,97 @@ seed capabilities hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 ## Comments Commands
 
-### `seed comments <targetId>`
+### `seed-cli comments <targetId>`
 
 List all comments on a document.
 
 ```bash
 # Full output
-seed comments hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli comments hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Compact: ID<tab>author per line
-seed comments hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli comments hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
-### `seed discussions <targetId>`
+### `seed-cli discussions <targetId>`
 
 List threaded discussions on a document.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
+| Option               | Description                 |
+| -------------------- | --------------------------- |
 | `-c, --comment <id>` | Filter to a specific thread |
 
 ```bash
 # All discussions
-seed discussions hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli discussions hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Specific thread
-seed discussions hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --comment bafy...
+seed-cli discussions hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou --comment bafy...
 ```
 
-### `seed comment <id>`
+### `seed-cli comment <id>`
 
 Get a single comment by its ID.
 
 ```bash
-seed comment hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou?c=bafy...
+seed-cli comment hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou?c=bafy...
 ```
 
 ---
 
 ## Activity Commands
 
-### `seed activity`
+### `seed-cli activity`
 
 List recent activity events across the network.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
-| `-l, --limit <n>` | Page size |
-| `-t, --token <token>` | Pagination token |
-| `--authors <uids>` | Filter by author UIDs (comma-separated) |
-| `--resource <id>` | Filter by resource |
-| `-q, --quiet` | Summary output only |
+| Option                | Description                             |
+| --------------------- | --------------------------------------- |
+| `-l, --limit <n>`     | Page size                               |
+| `-t, --token <token>` | Pagination token                        |
+| `--authors <uids>`    | Filter by author UIDs (comma-separated) |
+| `--resource <id>`     | Filter by resource                      |
+| `-q, --quiet`         | Summary output only                     |
 
 **Examples:**
 
 ```bash
 # Recent activity
-seed activity
+seed-cli activity
 
 # Limit to 10 events
-seed activity --limit 10
+seed-cli activity --limit 10
 
 # Filter by author
-seed activity --authors z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli activity --authors z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Filter by resource
-seed activity --resource hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli activity --resource hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Paginate through results
-seed activity --limit 20
+seed-cli activity --limit 20
 # ... note the nextPageToken in output ...
-seed activity --limit 20 --token <nextPageToken>
+seed-cli activity --limit 20 --token <nextPageToken>
 ```
 
 ---
 
 ## Changes Commands
 
-### `seed changes <targetId>`
+### `seed-cli changes <targetId>`
 
 List the change history (versions) of a document.
 
 ```bash
 # Full output
-seed changes hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
+seed-cli changes hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou
 
 # Compact: CID<tab>author per line
-seed changes hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
+seed-cli changes hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 ```
 
 **Output includes:**
@@ -443,125 +445,126 @@ seed changes hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou -q
 
 ## Key Management Commands
 
-Local key management for signing documents. Keys are stored in `~/.seed/keys.json`.
+Local key management for signing documents. Keys are stored in
+`~/.seed/keys.json`.
 
-### `seed key generate`
+### `seed-cli key generate`
 
 Generate a new signing key from a BIP-39 mnemonic.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
-| `-n, --name <name>` | Name for the key (default: "default") |
+| Option                | Description                                 |
+| --------------------- | ------------------------------------------- |
+| `-n, --name <name>`   | Name for the key (default: "default")       |
 | `-w, --words <count>` | Mnemonic word count: 12 or 24 (default: 12) |
-| `--passphrase <pass>` | Optional BIP-39 passphrase |
-| `--show-mnemonic` | Display the mnemonic (save it securely!) |
+| `--passphrase <pass>` | Optional BIP-39 passphrase                  |
+| `--show-mnemonic`     | Display the mnemonic (save it securely!)    |
 
 **Examples:**
 
 ```bash
 # Generate a new key
-seed key generate -n myaccount
+seed-cli key generate -n myaccount
 
 # Generate with 24 words and show mnemonic
-seed key generate -n secure-key --words 24 --show-mnemonic
+seed-cli key generate -n secure-key --words 24 --show-mnemonic
 
 # Generate with passphrase
-seed key generate -n passphrase-protected --passphrase "my secret"
+seed-cli key generate -n passphrase-protected --passphrase "my secret"
 ```
 
-### `seed key import`
+### `seed-cli key import`
 
 Import an existing key from a mnemonic.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
-| `-n, --name <name>` | Name for the key (default: "imported") |
-| `--passphrase <pass>` | Optional BIP-39 passphrase |
+| Option                | Description                            |
+| --------------------- | -------------------------------------- |
+| `-n, --name <name>`   | Name for the key (default: "imported") |
+| `--passphrase <pass>` | Optional BIP-39 passphrase             |
 
 ```bash
 # Import a 12-word mnemonic
-seed key import -n restored "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+seed-cli key import -n restored "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
 # Import with passphrase
-seed key import -n restored --passphrase "my secret" "word1 word2 ... word12"
+seed-cli key import -n restored --passphrase "my secret" "word1 word2 ... word12"
 ```
 
-### `seed key list`
+### `seed-cli key list`
 
 List all stored signing keys.
 
 ```bash
-seed key list
+seed-cli key list
 
 # Just names
-seed key list -q
+seed-cli key list -q
 ```
 
-### `seed key show [nameOrId]`
+### `seed-cli key show [nameOrId]`
 
 Show details for a specific key (or default key if none specified).
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
+| Option            | Description                        |
+| ----------------- | ---------------------------------- |
 | `--show-mnemonic` | Also display the mnemonic (DANGER) |
 
 ```bash
 # Show default key
-seed key show
+seed-cli key show
 
 # Show specific key
-seed key show myaccount
+seed-cli key show myaccount
 
 # Show with mnemonic (be careful!)
-seed key show myaccount --show-mnemonic
+seed-cli key show myaccount --show-mnemonic
 ```
 
-### `seed key default [nameOrId]`
+### `seed-cli key default [nameOrId]`
 
 Set or show the default signing key.
 
 ```bash
 # Show current default
-seed key default
+seed-cli key default
 
 # Set default
-seed key default myaccount
+seed-cli key default myaccount
 ```
 
-### `seed key remove <nameOrId>`
+### `seed-cli key remove <nameOrId>`
 
 Remove a stored key.
 
 **Options:**
 
-| Option | Description |
-|--------|-------------|
+| Option        | Description       |
+| ------------- | ----------------- |
 | `-f, --force` | Skip confirmation |
 
 ```bash
 # Will show warning and require --force
-seed key remove myaccount
+seed-cli key remove myaccount
 
 # Actually remove it
-seed key remove myaccount --force
+seed-cli key remove myaccount --force
 ```
 
-### `seed key derive`
+### `seed-cli key derive`
 
 Derive an account ID from a mnemonic without storing the key.
 
 ```bash
-seed key derive "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+seed-cli key derive "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 # Output: z6MkiTBz1ymuepAQ4HEHYSF1H8quG5GLVVQR3djdX3mDooWp
 
 # With passphrase
-seed key derive --passphrase "secret" "word1 word2 ... word12"
+seed-cli key derive --passphrase "secret" "word1 word2 ... word12"
 ```
 
 ---
@@ -576,12 +579,12 @@ hm://<account-uid>[/<path>][?v=<version>][#<block-ref>]
 
 **Components:**
 
-| Component | Description |
-|-----------|-------------|
-| `account-uid` | The account's public key ID (z6Mk...) |
-| `path` | Optional path segments (e.g., `/projects/alpha`) |
-| `version` | Optional version CID (`?v=bafy...`) |
-| `block-ref` | Optional block reference (`#block-id`) |
+| Component     | Description                                      |
+| ------------- | ------------------------------------------------ |
+| `account-uid` | The account's public key ID (z6Mk...)            |
+| `path`        | Optional path segments (e.g., `/projects/alpha`) |
+| `version`     | Optional version CID (`?v=bafy...`)              |
+| `block-ref`   | Optional block reference (`#block-id`)           |
 
 **Examples:**
 
@@ -613,13 +616,13 @@ hm://z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou?c=bafy...
 ACCOUNT="z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou"
 
 # Get all document IDs
-seed query "$ACCOUNT" --mode AllDescendants -q | while IFS=$'\t' read -r id name; do
+seed-cli query "$ACCOUNT" --mode AllDescendants -q | while IFS=$'\t' read -r id name; do
   # Create filename from name or path
   filename=$(echo "$name" | tr ' /' '_' | tr -cd '[:alnum:]_-')
   [ -z "$filename" ] && filename="unnamed_$(echo $id | md5sum | head -c 8)"
 
   # Export as markdown
-  seed get "$id" --md --resolve > "${filename}.md"
+  seed-cli get "$id" --md --resolve > "${filename}.md"
   echo "Exported: ${filename}.md"
 done
 ```
@@ -629,7 +632,7 @@ done
 ```bash
 #!/bin/bash
 while true; do
-  seed activity --limit 5 -q
+  seed-cli activity --limit 5 -q
   sleep 60
 done
 ```
@@ -638,9 +641,9 @@ done
 
 ```bash
 #!/bin/bash
-seed key list -q | while read name; do
+seed-cli key list -q | while read name; do
   echo "=== Key: $name ==="
-  seed key show "$name" --show-mnemonic
+  seed-cli key show "$name" --show-mnemonic
   echo ""
 done
 ```
@@ -651,14 +654,14 @@ done
 #!/bin/bash
 AUTHOR="z6MkrbYsRzKb1VABdvhsDSAk6JK8fAszKsyHhcaZigYeWCou"
 
-seed activity --authors "$AUTHOR" --limit 100 | jq -r '.events[].resource' | sort -u
+seed-cli activity --authors "$AUTHOR" --limit 100 | jq -r '.events[].resource' | sort -u
 ```
 
 ### Check if document exists
 
 ```bash
 #!/bin/bash
-if seed get "$1" -q 2>/dev/null | grep -q "not-found"; then
+if seed-cli get "$1" -q 2>/dev/null | grep -q "not-found"; then
   echo "Document not found"
   exit 1
 else
@@ -674,7 +677,7 @@ fi
 ### JSON (default)
 
 ```bash
-seed accounts
+seed-cli accounts
 ```
 
 ```json
@@ -691,7 +694,7 @@ seed accounts
 ### YAML
 
 ```bash
-seed accounts --yaml
+seed-cli accounts --yaml
 ```
 
 ```yaml
@@ -706,7 +709,7 @@ accounts:
 ### Pretty JSON
 
 ```bash
-seed accounts --pretty
+seed-cli accounts --pretty
 ```
 
 Outputs indented, colorized JSON for readability.
@@ -714,7 +717,7 @@ Outputs indented, colorized JSON for readability.
 ### Quiet Mode
 
 ```bash
-seed accounts -q
+seed-cli accounts -q
 ```
 
 ```
@@ -730,18 +733,18 @@ Tab-separated values, one per line. Ideal for piping to other tools.
 
 The CLI uses standard exit codes:
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Error (invalid input, network error, not found, etc.) |
+| Code | Meaning                                               |
+| ---- | ----------------------------------------------------- |
+| 0    | Success                                               |
+| 1    | Error (invalid input, network error, not found, etc.) |
 
 Errors are printed to stderr with a descriptive message:
 
 ```bash
-$ seed get hm://invalid
+$ seed-cli get hm://invalid
 Error: Invalid Hypermedia ID
 
-$ seed account nonexistent
+$ seed-cli account nonexistent
 Error: API error (500): Account not found
 ```
 
@@ -749,10 +752,10 @@ Error: API error (500): Account not found
 
 ## Data Storage
 
-| Path | Contents |
-|------|----------|
+| Path                  | Contents                                        |
+| --------------------- | ----------------------------------------------- |
 | `~/.seed/config.json` | CLI configuration (server URL, default account) |
-| `~/.seed/keys.json` | Stored signing keys (mnemonics, account IDs) |
+| `~/.seed/keys.json`   | Stored signing keys (mnemonics, account IDs)    |
 
 Files are created with mode `0600` (owner read/write only) for security.
 
