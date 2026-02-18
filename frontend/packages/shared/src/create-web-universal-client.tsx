@@ -4,9 +4,15 @@ import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import type {UniversalClient} from './universal-client'
 
+// API keys that require POST with CBOR-encoded body instead of GET with query params
+const CBOR_POST_KEYS = new Set<HMRequest['key']>(['PublishBlobs'])
+
 export type WebClientDependencies = {
   // API utilities
   queryAPI: <T>(url: string) => Promise<T>
+
+  // POST CBOR-encoded data to an API endpoint
+  postCBOR?: (url: string, data: any) => Promise<any>
 
   // Comment editor component
   CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
@@ -30,6 +36,17 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       if (!requestSchema) {
         throw new Error(`No schema found for key: ${key}`)
       }
+
+      // Use POST with CBOR encoding for binary endpoints
+      if (CBOR_POST_KEYS.has(key as HMRequest['key'])) {
+        if (!deps.postCBOR) {
+          throw new Error(`postCBOR dependency required for key: ${key}`)
+        }
+        const url = `/api/${key}`
+        const response = await deps.postCBOR(url, input)
+        return requestSchema.shape.output.parse(response) as Req['output']
+      }
+
       // Get custom params serializer if available
       const apiParams = APIParams[key as HMRequest['key']]
       // Serialize input to query string

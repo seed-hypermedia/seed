@@ -1,7 +1,8 @@
 import {grpcClient} from '@/client.server'
 import {withCors} from '@/utils/cors'
 import {wrapJSON} from '@/wrapping.server'
-import {LoaderFunctionArgs} from '@remix-run/node'
+import {decode as cborDecode} from '@ipld/dag-cbor'
+import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {HMRequest, HMRequestSchema} from '@shm/shared'
 import {APIParams, APIRouter} from '@shm/shared/api'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
@@ -63,6 +64,50 @@ export async function loader({request, params}: LoaderFunctionArgs) {
     return withCors(wrapJSON(validatedOutput))
   } catch (error) {
     console.error('API error:', error)
+    return withCors(
+      new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }),
+        {status: 500, headers: {'Content-Type': 'application/json'}},
+      ),
+    )
+  }
+}
+
+export async function action({request, params}: ActionFunctionArgs) {
+  const pathParts = params['*']?.split('/') || []
+  const key = pathParts[0]
+
+  if (!key) {
+    return withCors(new Response('Missing API key', {status: 400}))
+  }
+
+  const apiDefinition = APIRouter[key as HMRequest['key']]
+  if (!apiDefinition) {
+    return withCors(new Response(`Unknown API key: ${key}`, {status: 404}))
+  }
+
+  const requestSchema = HMRequestSchema.options.find(
+    (schema) => schema.shape.key.value === key,
+  )
+
+  try {
+    const body = await request.arrayBuffer()
+    const input = cborDecode(new Uint8Array(body))
+    const output = await apiDefinition.getData(
+      grpcClient,
+      input as any,
+      queryDaemon,
+    )
+
+    if (requestSchema) {
+      const validatedOutput = requestSchema.shape.output.parse(output)
+      return withCors(wrapJSON(validatedOutput))
+    }
+    return withCors(wrapJSON(output))
+  } catch (error) {
+    console.error('API action error:', error)
     return withCors(
       new Response(
         JSON.stringify({
