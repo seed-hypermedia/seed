@@ -1704,6 +1704,29 @@ export const HMInteractionSummaryRequestSchema = z.object({
 })
 export type HMInteractionSummaryRequest = z.infer<typeof HMInteractionSummaryRequestSchema>
 
+// PublishBlobs - store blobs via gRPC StoreBlobs
+export const HMPublishBlobsOutputSchema = z.object({
+  cids: z.array(z.string()),
+})
+export type HMPublishBlobsOutput = z.infer<typeof HMPublishBlobsOutputSchema>
+
+export const HMPublishBlobsInputSchema = z.object({
+  blobs: z.array(
+    z.object({
+      cid: z.string().optional(),
+      data: z.instanceof(Uint8Array),
+    }),
+  ),
+})
+export type HMPublishBlobsInput = z.infer<typeof HMPublishBlobsInputSchema>
+
+export const HMPublishBlobsRequestSchema = z.object({
+  key: z.literal('PublishBlobs'),
+  input: HMPublishBlobsInputSchema,
+  output: HMPublishBlobsOutputSchema,
+})
+export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
+
 export const HMRequestSchema = z.discriminatedUnion('key', [
   HMResourceRequestSchema,
   HMResourceMetadataRequestSchema,
@@ -1724,6 +1747,7 @@ export const HMRequestSchema = z.discriminatedUnion('key', [
   HMListChangesRequestSchema,
   HMListCapabilitiesRequestSchema,
   HMInteractionSummaryRequestSchema,
+  HMPublishBlobsRequestSchema,
 ])
 
 export type HMRequest = z.infer<typeof HMRequestSchema>

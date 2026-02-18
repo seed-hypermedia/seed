@@ -8,6 +8,7 @@ import {ListChanges, ListChangesParams} from './api-changes'
 import {ListCitations, ListCitationsParams} from './api-citations'
 import {GetCommentReplyCount, ListComments, ListCommentsByReference, ListDiscussions} from './api-comments'
 import {GetCID} from './api-get-cid'
+import {PublishBlobs} from './api-publish-blobs'
 import {InteractionSummary} from './api-interaction-summary'
 import {ListAccounts} from './api-list-accounts'
 import {ListCommentsByAuthor} from './api-list-comments-by-author'
@@ -37,6 +38,7 @@ export const APIRouter = {
   ListChanges,
   ListCapabilities,
   InteractionSummary,
+  PublishBlobs,
 } as const satisfies {
   [K in HMRequest as K['key']]: HMRequestImplementation<K>
 }
