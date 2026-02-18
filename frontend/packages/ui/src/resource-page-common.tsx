@@ -672,7 +672,12 @@ function DocumentBody({
       id: {
         ...route.id,
         blockRef: fragment.blockId,
-        blockRange: 'start' in fragment && 'end' in fragment ? {start: fragment.start, end: fragment.end} : null,
+        blockRange:
+          'start' in fragment && 'end' in fragment
+            ? {start: fragment.start, end: fragment.end}
+            : 'expanded' in fragment && fragment.expanded
+            ? {expanded: true}
+            : null,
       },
     })
   }, []) // only on mount
@@ -838,7 +843,12 @@ function DocumentBody({
   const handleBlockSelect = useCallback(
     (blockId: string, opts?: BlockRangeSelectOptions) => {
       if (route.key !== 'document' && route.key !== 'feed') return
-      const blockRange = opts && 'start' in opts && 'end' in opts ? {start: opts.start, end: opts.end} : null
+      const blockRange =
+        opts && 'start' in opts && 'end' in opts
+          ? {start: opts.start, end: opts.end}
+          : opts && 'expanded' in opts && opts.expanded
+          ? {expanded: true}
+          : null
       const blockRoute = {
         ...route,
         id: {
