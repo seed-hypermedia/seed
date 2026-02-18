@@ -94,13 +94,17 @@ async function waitForDaemon(url: string, timeoutMs = 90000): Promise<void> {
     await sleep(1000)
   }
 
-  throw new Error(`Daemon failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`)
+  throw new Error(
+    `Daemon failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`,
+  )
 }
 
 /**
  * Start a daemon instance for testing
  */
-export async function startDaemon(config: TestConfig = {}): Promise<TestContext> {
+export async function startDaemon(
+  config: TestConfig = {},
+): Promise<TestContext> {
   const testnetName = generateTestnetName()
   // Use random ports to avoid conflicts between test runs
   const basePort = getRandomPort()
@@ -112,7 +116,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
 
   console.log(`[test] Starting daemon with testnet: ${testnetName}`)
   console.log(`[test] Data dir: ${dataDir}`)
-  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`)
+  console.log(
+    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`,
+  )
 
   const repoRoot = findRepoRoot()
   const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
@@ -134,7 +140,7 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
         SEED_P2P_TESTNET_NAME: testnetName,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-    }
+    },
   )
 
   const daemonUrl = `http://localhost:${httpPort}`
@@ -200,7 +206,9 @@ export async function startDaemon(config: TestConfig = {}): Promise<TestContext>
  * Start daemon with test fixture data
  * Copies fixture to temp dir to avoid modifying original
  */
-export async function startDaemonWithFixture(config: TestConfig = {}): Promise<TestContext> {
+export async function startDaemonWithFixture(
+  config: TestConfig = {},
+): Promise<TestContext> {
   const testnetName = 'fixture'
   const basePort = getRandomPort()
   const httpPort = config.httpPort || basePort
@@ -220,7 +228,9 @@ export async function startDaemonWithFixture(config: TestConfig = {}): Promise<T
 
   console.log(`[test] Starting daemon with fixture data`)
   console.log(`[test] Data dir: ${dataDir}`)
-  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`)
+  console.log(
+    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}`,
+  )
 
   const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
   const keystoreDir = join(dataDir, 'keys')
@@ -240,7 +250,7 @@ export async function startDaemonWithFixture(config: TestConfig = {}): Promise<T
         SEED_P2P_TESTNET_NAME: testnetName,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-    }
+    },
   )
 
   const daemonUrl = `http://localhost:${httpPort}`
@@ -305,7 +315,7 @@ export async function startDaemonWithFixture(config: TestConfig = {}): Promise<T
  */
 export async function runCli(
   args: string[],
-  options: {server?: string; env?: Record<string, string>} = {}
+  options: {server?: string; env?: Record<string, string>} = {},
 ): Promise<{stdout: string; stderr: string; exitCode: number}> {
   return new Promise((resolve) => {
     // Find CLI directory
@@ -369,13 +379,17 @@ async function waitForWebServer(url: string, timeoutMs = 60000): Promise<void> {
     await sleep(1000)
   }
 
-  throw new Error(`Web server failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`)
+  throw new Error(
+    `Web server failed to start within ${timeoutMs}ms. Last error: ${lastError?.message}`,
+  )
 }
 
 /**
  * Start daemon with fixture data AND web server for full integration testing
  */
-export async function startFullIntegrationWithFixture(config: TestConfig = {}): Promise<FullTestContext> {
+export async function startFullIntegrationWithFixture(
+  config: TestConfig = {},
+): Promise<FullTestContext> {
   const testnetName = 'fixture'
   const basePort = getRandomPort()
   const httpPort = config.httpPort || basePort
@@ -396,7 +410,9 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
 
   console.log(`[test] Starting full integration with fixture data`)
   console.log(`[test] Data dir: ${dataDir}`)
-  console.log(`[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}, web=${webServerPort}`)
+  console.log(
+    `[test] Ports: http=${httpPort}, grpc=${grpcPort}, p2p=${p2pPort}, web=${webServerPort}`,
+  )
 
   const daemonPath = join(repoRoot, 'backend/cmd/seed-daemon')
   const keystoreDir = join(dataDir, 'keys')
@@ -417,7 +433,7 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
         SEED_P2P_TESTNET_NAME: testnetName,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-    }
+    },
   )
 
   const daemonUrl = `http://localhost:${httpPort}`
@@ -467,11 +483,29 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
     console.log(`[test] Created temporary config.json at ${webConfigPath}`)
   }
 
+  // Write .env file so the Remix server picks up the correct daemon port.
+  // The constants module reads process.env at import time inside Vite's SSR
+  // module runner, which may not inherit env vars from the spawned shell.
+  const webEnvPath = join(webPath, '.env')
+  const hadEnv = existsSync(webEnvPath)
+  const envContent = [
+    `DAEMON_HTTP_URL=http://localhost:${httpPort}`,
+    `DAEMON_HTTP_PORT=${httpPort}`,
+    `DAEMON_FILE_URL=http://localhost:${httpPort}/ipfs`,
+    `VITE_DESKTOP_HTTP_PORT=${httpPort}`,
+    `VITE_DESKTOP_HOSTNAME=http://localhost`,
+  ].join('\n')
+  writeFileSync(webEnvPath, envContent)
+  console.log(`[test] Wrote .env with DAEMON_HTTP_PORT=${httpPort}`)
+
   // Find pnpm in mise installs or use npx as fallback
   let pnpmBinary = findExecutable('pnpm')
   if (!pnpmBinary || pnpmBinary === 'pnpm') {
     // Check mise installs
-    const misePnpm = join(process.env.HOME || '', '.local/share/mise/installs/pnpm/9.15.0/pnpm')
+    const misePnpm = join(
+      process.env.HOME || '',
+      '.local/share/mise/installs/pnpm/9.15.0/pnpm',
+    )
     if (existsSync(misePnpm)) {
       pnpmBinary = misePnpm
     }
@@ -482,7 +516,7 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
     '/bin/sh',
     [
       '-c',
-      `cd "${webPath}" && "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
+      `cd "${webPath}" && DAEMON_HTTP_URL="http://localhost:${httpPort}" DAEMON_HTTP_PORT="${httpPort}" DAEMON_FILE_URL="http://localhost:${httpPort}/ipfs" "${pnpmBinary}" remix vite:dev --port ${webServerPort}`,
     ],
     {
       env: {
@@ -493,7 +527,7 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
         NODE_ENV: 'development',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-    }
+    },
   )
 
   webServer.stdout?.on('data', (data) => {
@@ -551,6 +585,13 @@ export async function startFullIntegrationWithFixture(config: TestConfig = {}): 
     if (!hadConfig && existsSync(webConfigPath)) {
       rmSync(webConfigPath)
       console.log(`[test] Removed temporary config.json`)
+    }
+    // Remove .env if we created it
+    if (!hadEnv && existsSync(webEnvPath)) {
+      rmSync(webEnvPath)
+      console.log(`[test] Removed temporary .env`)
+    } else if (hadEnv) {
+      // Restore original .env if it existed (shouldn't normally happen)
     }
     console.log('[test] Cleanup complete')
   }
