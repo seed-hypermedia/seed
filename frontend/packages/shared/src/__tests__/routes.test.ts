@@ -78,16 +78,20 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('comment opens main discussions view with openComment', () => {
+    test('comment opens document with comment in right panel', () => {
       const route = createDocumentNavRoute(
         testDocId,
         null,
         'comment/uid123/path/to/comment',
       )
       expect(route).toEqual({
-        key: 'discussions',
+        key: 'document',
         id: testDocId,
-        openComment: 'uid123/path/to/comment',
+        panel: {
+          key: 'discussions',
+          id: testDocId,
+          openComment: 'uid123/path/to/comment',
+        },
       })
     })
 
