@@ -202,6 +202,21 @@ describe('CLI Full Integration Tests', () => {
         'CLI Write Test Account',
       )
       console.log(`[test] Write test account registered on web server`)
+
+      // 5. Wait for the account to be indexed and verify it's accessible.
+      await new Promise((r) => setTimeout(r, 2000))
+      const verifyResult = await runCli(['get', writeAccountHmId], {
+        server: ctx.webServerUrl,
+      })
+      console.log(
+        `[test] Verify account doc: exitCode=${verifyResult.exitCode}, type=${
+          JSON.parse(verifyResult.stdout || '{}').type || 'N/A'
+        }`,
+      )
+      if (verifyResult.exitCode !== 0) {
+        console.log(`[test] Verify stderr: ${verifyResult.stderr}`)
+        console.log(`[test] Verify stdout: ${verifyResult.stdout}`)
+      }
     }, TEST_TIMEOUT)
 
     afterAll(async () => {
@@ -231,6 +246,10 @@ describe('CLI Full Integration Tests', () => {
           ],
           {server: ctx.webServerUrl},
         )
+        if (result.exitCode !== 0) {
+          console.log('[test] update --title stderr:', result.stderr)
+          console.log('[test] update --title stdout:', result.stdout)
+        }
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Document updated')
 
@@ -262,8 +281,8 @@ describe('CLI Full Integration Tests', () => {
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Document updated')
 
-        // Verify by reading metadata.
-        const getResult = await runCli(['get', writeAccountHmId, '-m'], {
+        // Verify by reading full resource (ResourceMetadata doesn't return summary).
+        const getResult = await runCli(['get', writeAccountHmId], {
           server: ctx.webServerUrl,
         })
         expect(getResult.exitCode).toBe(0)
@@ -322,6 +341,10 @@ describe('CLI Full Integration Tests', () => {
           ],
           {server: ctx.webServerUrl},
         )
+        if (result.exitCode !== 0) {
+          console.log('[test] comment-create stderr:', result.stderr)
+          console.log('[test] comment-create stdout:', result.stdout)
+        }
         expect(result.exitCode).toBe(0)
         expect(result.stderr + result.stdout).toContain('Comment created')
 
