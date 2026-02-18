@@ -155,6 +155,8 @@ export interface ResourcePageProps {
   pageFooter?: ReactNode
 
   floatingButtons?: ReactNode
+  /** Inline child draft cards rendered after document content */
+  inlineCards?: ReactNode
 }
 
 /** Get panel title for display */
@@ -182,6 +184,7 @@ export function ResourcePage({
   floatingButtons,
   collaboratorForm,
   pageFooter,
+  inlineCards,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -299,6 +302,7 @@ export function ResourcePage({
         floatingButtons={floatingButtons}
         collaboratorForm={collaboratorForm}
         pageFooter={pageFooter}
+        inlineCards={inlineCards}
       />
     </PageWrapper>
   )
@@ -615,6 +619,7 @@ function DocumentBody({
   floatingButtons,
   collaboratorForm,
   pageFooter,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -626,6 +631,7 @@ function DocumentBody({
   floatingButtons?: ReactNode
   collaboratorForm?: ReactNode
   pageFooter?: ReactNode
+  inlineCards?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -1010,6 +1016,7 @@ function DocumentBody({
           directory={directory.data}
           collaboratorForm={collaboratorForm}
           siteUrl={siteUrl}
+          inlineCards={inlineCards}
         />
       </div>
       {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
@@ -1184,6 +1191,7 @@ function MainContent({
   directory,
   collaboratorForm,
   siteUrl,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1216,6 +1224,7 @@ function MainContent({
   directory?: import('@shm/shared').HMDocumentInfo[]
   collaboratorForm?: ReactNode
   siteUrl?: string
+  inlineCards?: ReactNode
 }) {
   switch (activeView) {
     case 'directory':
@@ -1285,6 +1294,7 @@ function MainContent({
           onBlockCommentClick={onBlockCommentClick}
           onBlockSelect={onBlockSelect}
           directory={directory}
+          inlineCards={inlineCards}
         />
       )
   }
@@ -1304,6 +1314,7 @@ function ContentViewWithOutline({
   onBlockCommentClick,
   onBlockSelect,
   directory,
+  inlineCards,
 }: {
   docId: UnpackedHypermediaId
   resourceId: UnpackedHypermediaId
@@ -1322,6 +1333,7 @@ function ContentViewWithOutline({
   ) => void
   onBlockSelect?: (blockId: string, opts?: BlockRangeSelectOptions) => void
   directory?: import('@shm/shared').HMDocumentInfo[]
+  inlineCards?: ReactNode
 }) {
   const outline = useNodesOutline(document, docId)
 
@@ -1359,6 +1371,7 @@ function ContentViewWithOutline({
         >
           <BlocksContent blocks={document.content} />
         </BlocksContentProvider>
+        {inlineCards}
         <UnreferencedDocuments docId={docId} content={document.content} directory={directory} />
       </div>
 

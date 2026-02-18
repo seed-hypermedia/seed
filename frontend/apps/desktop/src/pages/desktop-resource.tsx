@@ -4,9 +4,11 @@ import {AddCollaboratorForm} from '@/components/collaborators-panel'
 import {CommentBox, triggerCommentDraftFocus} from '@/components/commenting'
 import {CreateDocumentButton} from '@/components/create-doc-button'
 import {useDeleteDialog} from '@/components/delete-dialog'
+import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {MoveDialog} from '@/components/move-dialog'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
+import {useChildDrafts, useCreateInlineDraft} from '@/models/documents'
 import {useExistingDraft} from '@/models/drafts'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
@@ -28,7 +30,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {ForwardIcon, GitFork, Pencil} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useCallback} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 
 export default function DesktopResourcePage() {
   const route = useNavRoute()
@@ -60,6 +62,22 @@ export default function DesktopResourcePage() {
   const resource = useResource(docId)
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
   const isPrivate = doc?.visibility === 'PRIVATE'
+
+  // Inline document creation
+  const childDrafts = useChildDrafts(docId)
+  const createInlineDraft = useCreateInlineDraft(docId)
+  const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
+  const inlineCards = useMemo(() => {
+    if (!childDrafts.length) return null
+    return (
+      <div className="mt-6 grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-3">
+        {childDrafts.map((draft) => (
+          <InlineNewDocumentCard key={draft.id} draft={draft} autoFocus={draft.id === lastCreatedDraftId} />
+        ))}
+      </div>
+    )
+  }, [childDrafts, lastCreatedDraftId])
+
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const branchDialog = useAppDialog(BranchDialog)
@@ -177,7 +195,22 @@ export default function DesktopResourcePage() {
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
-      {!isPrivate && <CreateDocumentButton locationId={docId} siteUrl={siteUrl} />}
+      {!isPrivate && (
+        <CreateDocumentButton
+          locationId={docId}
+          siteUrl={siteUrl}
+          onInlineCreate={(opts) => {
+            createInlineDraft.mutate(
+              {visibility: opts?.visibility},
+              {
+                onSuccess: ({draftId}) => {
+                  setLastCreatedDraftId(draftId)
+                },
+              },
+            )
+          }}
+        />
+      )}
     </>
   ) : null
 
@@ -263,6 +296,7 @@ export default function DesktopResourcePage() {
           editActions={editActions}
           existingDraft={existingDraft}
           collaboratorForm={<AddCollaboratorForm id={docId} />}
+          inlineCards={inlineCards}
         />
       </CommentsProvider>
       {deleteEntity.content}
