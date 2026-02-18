@@ -9,7 +9,11 @@ import {sha512} from '@noble/hashes/sha2'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {CID} from 'multiformats/cid'
-import {generateMnemonic, deriveKeyPairFromMnemonic, type KeyPair} from '../utils/key-derivation'
+import {
+  generateMnemonic,
+  deriveKeyPairFromMnemonic,
+  type KeyPair,
+} from '../utils/key-derivation'
 
 // Configure ed25519 to use sha512
 ed25519.etc.sha512Sync = (...m) => sha512(ed25519.etc.concatBytes(...m))
@@ -43,7 +47,7 @@ function blockReference(block: EncodedBlock) {
 
 async function signBlob<T extends {sig: Uint8Array}>(
   unsigned: T,
-  privateKey: Uint8Array
+  privateKey: Uint8Array,
 ): Promise<T> {
   const cborData = cborEncode(unsigned)
   const signature = await ed25519.signAsync(cborData, privateKey)
@@ -88,7 +92,7 @@ async function createGenesisChange(keyPair: KeyPair) {
 async function createHomeDocumentChange(
   keyPair: KeyPair,
   genesisCid: CID,
-  accountName: string
+  accountName: string,
 ) {
   const blockId = generateBlockId()
   const operations = [
@@ -98,20 +102,17 @@ async function createHomeDocumentChange(
     },
     {
       type: 'ReplaceBlock',
-      blockId,
       block: {
         type: 'Paragraph',
         id: blockId,
         text: `Welcome to ${accountName}'s space`,
         annotations: [],
-        attributes: {},
       },
     },
     {
-      type: 'MoveBlock',
-      blockId,
+      type: 'MoveBlocks',
       parent: '',
-      leftSibling: '',
+      blocks: [blockId],
     },
   ]
 
@@ -119,7 +120,7 @@ async function createHomeDocumentChange(
     type: 'Change',
     signer: keyPair.publicKeyWithPrefix,
     sig: new Uint8Array(64),
-    ts: BigInt(Date.now()) * 1000n, // microseconds
+    ts: BigInt(Date.now()), // milliseconds (daemon expects UnixMilli)
     genesis: genesisCid,
     deps: [genesisCid],
     depth: 1,
@@ -131,16 +132,12 @@ async function createHomeDocumentChange(
 /**
  * Create ref (version pointer)
  */
-async function createRef(
-  keyPair: KeyPair,
-  genesisCid: CID,
-  headCid: CID
-) {
+async function createRef(keyPair: KeyPair, genesisCid: CID, headCid: CID) {
   const unsigned = {
     type: 'Ref',
     signer: keyPair.publicKeyWithPrefix,
     sig: new Uint8Array(64),
-    ts: BigInt(Date.now()) * 1000n,
+    ts: BigInt(Date.now()), // milliseconds (daemon expects UnixMilli)
     genesisBlob: genesisCid,
     heads: [headCid],
     generation: 1,
@@ -154,7 +151,7 @@ async function createRef(
 export async function registerAccount(
   serverUrl: string,
   account: TestAccount,
-  accountName: string
+  accountName: string,
 ): Promise<void> {
   const {keyPair} = account
 
@@ -163,7 +160,11 @@ export async function registerAccount(
   const genesisBlock = await encodeBlock(genesisChange)
 
   // Create home document change
-  const homeChange = await createHomeDocumentChange(keyPair, genesisBlock.cid, accountName)
+  const homeChange = await createHomeDocumentChange(
+    keyPair,
+    genesisBlock.cid,
+    accountName,
+  )
   const homeBlock = await encodeBlock(homeChange)
 
   // Create ref
@@ -183,7 +184,7 @@ export async function registerAccount(
   const response = await fetch(`${serverUrl}/hm/api/create-account`, {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor'},
-    body: cborData,
+    body: new Uint8Array(cborData) as unknown as BodyInit,
   })
 
   if (!response.ok) {
@@ -199,13 +200,15 @@ export async function createDocumentUpdate(
   serverUrl: string,
   account: TestAccount,
   path: string,
-  operations: Array<{type: string; [key: string]: unknown}>
+  operations: Array<{type: string; [key: string]: unknown}>,
 ): Promise<void> {
   const {keyPair} = account
   const accountId = account.accountId
 
   // Get current document version to use as dependency
-  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(`hm://${accountId}${path ? '/' + path : ''}`)}`
+  const resourceUrl = `${serverUrl}/api/Resource?id=${encodeURIComponent(
+    `hm://${accountId}${path ? '/' + path : ''}`,
+  )}`
   const resourceRes = await fetch(resourceUrl)
   const resource = await resourceRes.json()
   const doc = resource.json || resource
@@ -266,7 +269,7 @@ export async function createDocumentUpdate(
     const response = await fetch(`${serverUrl}/hm/api/document-update`, {
       method: 'POST',
       headers: {'Content-Type': 'application/cbor'},
-      body: cborData,
+      body: new Uint8Array(cborData) as unknown as BodyInit,
     })
 
     if (!response.ok) {
@@ -280,7 +283,8 @@ export async function createDocumentUpdate(
 }
 
 function generateBlockId(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
   let id = ''
   for (let i = 0; i < 8; i++) {
     id += chars[Math.floor(Math.random() * chars.length)]

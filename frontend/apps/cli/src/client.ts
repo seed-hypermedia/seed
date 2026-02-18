@@ -46,7 +46,7 @@ export function createClient(config?: Partial<ClientConfig>) {
     const response = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'application/cbor'},
-      body: cborData,
+      body: new Uint8Array(cborData) as unknown as BodyInit,
     })
 
     if (!response.ok) {
@@ -88,14 +88,16 @@ export function createClient(config?: Partial<ClientConfig>) {
   }
 
   async function listComments(targetId: string) {
-    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
-    return request<CommentsResponse>('ListComments', {targetId})
+    const unpacked = unpackHmId(targetId)
+    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
+    return request<CommentsResponse>('ListComments', {targetId: unpacked})
   }
 
   async function listDiscussions(targetId: string, commentId?: string) {
-    if (!unpackHmId(targetId)) throw new Error(`Invalid ID: ${targetId}`)
+    const unpacked = unpackHmId(targetId)
+    if (!unpacked) throw new Error(`Invalid ID: ${targetId}`)
     return request<DiscussionsResponse>('ListDiscussions', {
-      targetId,
+      targetId: unpacked,
       commentId,
     })
   }
