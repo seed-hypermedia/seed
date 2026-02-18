@@ -7,8 +7,9 @@ import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Link} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {cn} from '@shm/ui/utils'
 import {CircleUser} from 'lucide-react'
-import {ReactNode, useMemo} from 'react'
+import {ReactNode, useEffect, useMemo, useState} from 'react'
 import {useCreateAccount, useLocalKeyPair} from './auth'
 
 export function useWebAccountButton() {
@@ -106,12 +107,91 @@ export function useWebMenuItems(): MenuItemType[] {
   )
 }
 
-export function WebAccountFooter({children}: {children?: ReactNode}) {
+export function WebAccountFooter({
+  children,
+  liftForPageFooter = false,
+}: {
+  children?: ReactNode
+  liftForPageFooter?: boolean
+}) {
   const {accountButton, extraContent} = useWebAccountButton()
+  const [footerLiftPx, setFooterLiftPx] = useState(0)
+
+  useEffect(() => {
+    if (!liftForPageFooter || typeof window === 'undefined') {
+      setFooterLiftPx(0)
+      return
+    }
+
+    let pageFooter: HTMLElement | null = null
+    let intersectionObserver: IntersectionObserver | null = null
+    let resizeObserver: ResizeObserver | null = null
+
+    const cleanupObservers = () => {
+      intersectionObserver?.disconnect()
+      resizeObserver?.disconnect()
+      intersectionObserver = null
+      resizeObserver = null
+    }
+
+    const attachToFooter = () => {
+      const nextFooter = document.querySelector<HTMLElement>(
+        '[data-page-footer="true"]',
+      )
+      if (!nextFooter || nextFooter === pageFooter) return
+
+      cleanupObservers()
+      pageFooter = nextFooter
+
+      const updateLift = (isVisible: boolean) => {
+        if (!pageFooter || !isVisible) {
+          setFooterLiftPx(0)
+          return
+        }
+        // Keep the floating account button above the currently visible footer.
+        setFooterLiftPx(
+          Math.ceil(pageFooter.getBoundingClientRect().height) + 8,
+        )
+      }
+
+      intersectionObserver = new IntersectionObserver((entries) => {
+        const entry = entries[0]
+        updateLift(!!entry?.isIntersecting)
+      })
+      intersectionObserver.observe(pageFooter)
+
+      resizeObserver = new ResizeObserver(() => {
+        const rect = pageFooter?.getBoundingClientRect()
+        if (!rect) return
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          updateLift(true)
+        }
+      })
+      resizeObserver.observe(pageFooter)
+    }
+
+    attachToFooter()
+
+    const mutationObserver = new MutationObserver(() => {
+      attachToFooter()
+    })
+    mutationObserver.observe(document.body, {childList: true, subtree: true})
+
+    return () => {
+      mutationObserver.disconnect()
+      cleanupObservers()
+    }
+  }, [liftForPageFooter])
+
   return (
     <>
       {children}
-      <div className="fixed bottom-4 left-4 z-30">{accountButton}</div>
+      <div
+        style={{bottom: `calc(1rem + ${footerLiftPx}px)`}}
+        className={cn('fixed left-4 z-30 transition-[bottom] duration-200')}
+      >
+        {accountButton}
+      </div>
       {extraContent}
     </>
   )

@@ -132,6 +132,10 @@ export function SiteHeader({
         '--site-header-h',
         `${headerHeight}px`,
       )
+      window.document.documentElement.style.setProperty(
+        '--site-header-live-h',
+        `${headerHeight}px`,
+      )
     }
 
     // Initial measurement
@@ -149,6 +153,9 @@ export function SiteHeader({
       window.document.documentElement.style.setProperty(
         '--site-header-h',
         '0px',
+      )
+      window.document.documentElement.style.removeProperty(
+        '--site-header-live-h',
       )
     }
   }, [headerRef.current])

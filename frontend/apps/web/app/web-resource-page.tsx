@@ -8,6 +8,7 @@ import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
 import {useCallback} from 'react'
+import {PageFooter} from './page-footer'
 import {WebAccountFooter} from './web-utils'
 
 export interface WebResourcePageProps {
@@ -97,13 +98,17 @@ export function WebResourcePage({docId, CommentEditor}: WebResourcePageProps) {
   )
 
   return (
-    <WebAccountFooter>
+    <WebAccountFooter liftForPageFooter={true}>
       {showBanner && <HypermediaHostBanner origin={origin} />}
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
       >
-        <ResourcePage docId={docId} CommentEditor={CommentEditor} />
+        <ResourcePage
+          docId={docId}
+          CommentEditor={CommentEditor}
+          pageFooter={<PageFooter id={docId} hideDeviceLinkToast={true} />}
+        />
       </CommentsProvider>
     </WebAccountFooter>
   )

@@ -31,6 +31,7 @@ import {
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Folder} from 'lucide-react'
 import {
+  CSSProperties,
   ReactNode,
   useCallback,
   useEffect,
@@ -179,6 +180,8 @@ export interface ResourcePageProps {
   existingDraft?: HMExistingDraft | false
   /** Platform-specific collaborator form (e.g. invite form on desktop) */
   collaboratorForm?: ReactNode
+  /** Platform-specific page footer (web only) */
+  pageFooter?: ReactNode
 
   floatingButtons?: ReactNode
 }
@@ -207,6 +210,7 @@ export function ResourcePage({
   existingDraft,
   floatingButtons,
   collaboratorForm,
+  pageFooter,
 }: ResourcePageProps) {
   // Load document data via React Query (hydrated from SSR prefetch)
   const resource = useResource(docId, {
@@ -242,6 +246,7 @@ export function ResourcePage({
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -255,6 +260,7 @@ export function ResourcePage({
         headerData={headerData}
       >
         <PageDiscovery />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -268,6 +274,7 @@ export function ResourcePage({
         headerData={headerData}
       >
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -281,6 +288,7 @@ export function ResourcePage({
         headerData={headerData}
       >
         <PageDeleted />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -296,6 +304,7 @@ export function ResourcePage({
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -309,6 +318,7 @@ export function ResourcePage({
         headerData={headerData}
       >
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -320,6 +330,7 @@ export function ResourcePage({
         comment={resource.data.comment}
         commentId={docId}
         CommentEditor={CommentEditor}
+        pageFooter={pageFooter}
       />
     )
   }
@@ -333,6 +344,7 @@ export function ResourcePage({
         headerData={headerData}
       >
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -355,6 +367,7 @@ export function ResourcePage({
         existingDraft={existingDraft}
         floatingButtons={floatingButtons}
         collaboratorForm={collaboratorForm}
+        pageFooter={pageFooter}
       />
     </PageWrapper>
   )
@@ -365,10 +378,12 @@ function CommentResourcePage({
   comment,
   commentId,
   CommentEditor,
+  pageFooter,
 }: {
   comment: HMComment
   commentId: UnpackedHypermediaId
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  pageFooter?: ReactNode
 }) {
   const targetDocId = getCommentTargetId(comment)
 
@@ -400,6 +415,7 @@ function CommentResourcePage({
         headerData={headerData}
       >
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -414,6 +430,7 @@ function CommentResourcePage({
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -426,6 +443,7 @@ function CommentResourcePage({
         headerData={headerData}
       >
         <PageNotFound />
+        {pageFooter}
       </PageWrapper>
     )
   }
@@ -447,6 +465,7 @@ function CommentResourcePage({
         openComment={comment.id}
         CommentEditor={CommentEditor}
         siteUrl={siteHomeDocument?.metadata?.siteUrl}
+        pageFooter={pageFooter}
       />
     </PageWrapper>
   )
@@ -460,6 +479,7 @@ function CommentPageBody({
   openComment,
   CommentEditor,
   siteUrl,
+  pageFooter,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -467,6 +487,7 @@ function CommentPageBody({
   openComment: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   siteUrl?: string
+  pageFooter?: ReactNode
 }) {
   const interactionSummary = useInteractionSummary(docId)
 
@@ -521,7 +542,13 @@ function CommentPageBody({
   }, [document.authors, commentAccountsMetadata.data])
 
   return (
-    <>
+    <div
+      className={cn(
+        'flex flex-1 flex-col',
+        pageFooter &&
+          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+      )}
+    >
       <DocumentCover cover={document.metadata?.cover} />
       <div
         className={cn('mx-auto flex w-full flex-col px-4', isHomeDoc && 'mt-6')}
@@ -565,7 +592,8 @@ function CommentPageBody({
           CommentEditor ? <CommentEditor docId={docId} autoFocus /> : undefined
         }
       />
-    </>
+      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
+    </div>
   )
 }
 
@@ -647,6 +675,13 @@ export function PageWrapper({
 
   return (
     <div
+      style={
+        {
+          '--site-header-default-h': headerData.isCenterLayout
+            ? '96px'
+            : '60px',
+        } as CSSProperties
+      }
       className={cn(
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
@@ -682,6 +717,7 @@ function DocumentBody({
   existingDraft,
   floatingButtons,
   collaboratorForm,
+  pageFooter,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
@@ -692,6 +728,7 @@ function DocumentBody({
   existingDraft?: HMExistingDraft | false
   floatingButtons?: ReactNode
   collaboratorForm?: ReactNode
+  pageFooter?: ReactNode
 }) {
   const route = useNavRoute()
   const navigate = useNavigate()
@@ -1011,13 +1048,23 @@ function DocumentBody({
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
-    <>
+    <div
+      className={cn(
+        'flex flex-col',
+        pageFooter &&
+          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+        !pageFooter && 'min-h-full',
+      )}
+    >
       <DocumentCover cover={document.metadata?.cover} />
 
       {!isMobile ? (
         <div
-          {...wrapperProps}
-          className={cn(wrapperProps.className, isHomeDoc && 'mt-6')}
+          style={wrapperProps.style}
+          className={cn(
+            'mx-auto flex w-full justify-between',
+            isHomeDoc && 'mt-6',
+          )}
         >
           {showSidebars && (
             <div
@@ -1144,7 +1191,8 @@ function DocumentBody({
           siteUrl={siteUrl}
         />
       </div>
-    </>
+      {pageFooter ? <div className="mt-auto">{pageFooter}</div> : null}
+    </div>
   )
 
   // Close panel handler
@@ -1238,7 +1286,13 @@ function DocumentBody({
             {actionButtons}
           </div>
         ) : null}
-        <ScrollArea className="h-full">{mainPageContent}</ScrollArea>
+        <ScrollArea
+          className="h-full"
+          viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+          fillViewportContent
+        >
+          {mainPageContent}
+        </ScrollArea>
       </PanelLayout>
     </div>
   )

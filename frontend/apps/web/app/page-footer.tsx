@@ -20,16 +20,19 @@ export function PageFooter({
   const tx = useTx()
   return (
     <div
+      data-page-footer="true"
       className={cn(
         'border-border border-t px-3 py-2 sm:px-4 sm:py-2',
         className,
       )}
     >
-      <div className="flex flex-row-reverse flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <ClientOnly>
-          <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
+          <div>
+            <AccountFooterActions hideDeviceLinkToast={hideDeviceLinkToast} />
+          </div>
         </ClientOnly>
-        <div className="flex items-center gap-4">
+        <div className={cn('ml-auto flex items-center gap-4')}>
           <SizableText size="xs">
             {tx(
               'powered_by',
