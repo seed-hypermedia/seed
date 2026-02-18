@@ -702,7 +702,9 @@ NESTED BLOCKS
   opacity: 1;
 }
 
-:global(.comment-editor) .blockContent.isFilter.hasAnchor .inlineContent:before {
+:global(.comment-editor)
+  .blockContent.isFilter.hasAnchor
+  .inlineContent:before {
   color: var(--muted-foreground, rgb(99 104 118));
   opacity: 1;
 }
