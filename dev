@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 
+
 def cmd(cmds: argparse._SubParsersAction, name: str, help: str):
     """Decorator that registers subcommands as functions to be executed."""
 
@@ -30,6 +31,7 @@ def run(cmd: str, args: list = [], capture_output=False, env: os._Environ = os.e
     )
 
 
+
 def main():
     if not os.getenv("DIRENV_DIR"):
         print("Direnv is not enabled. Fix it first! See README.md for instructions.")
@@ -50,7 +52,7 @@ def main():
     @cmd(
         cmds,
         "gen",
-        "Check all the generated code is up to date. Otherwise run the code generation process to fix it.",
+        "Check the generated code is up to date and run the code generation process to fix it.",
     )
     def gen(args):
         targets_to_check = (
@@ -176,7 +178,9 @@ def main():
         "Build and run seed-daemon binary for the current platform.",
     )
     def run_backend(args):
-        return run("plz run //backend:seed-daemon", args=args)
+        env = os.environ.copy()
+        env["LLAMA_LOG"] = "error"
+        return run("plz run //backend:seed-daemon", args=args, env=env)
 
     @cmd(cmds, "build-backend", "Build seed-daemon binary for the current platform.")
     def build_backend(args):

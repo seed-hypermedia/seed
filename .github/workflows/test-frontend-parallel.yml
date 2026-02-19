@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       run-integration-tests:
-        description: 'Whether to run integration tests (web-related)'
+        description: "Whether to run integration tests (web-related)"
         required: false
         type: boolean
         default: true
@@ -56,6 +56,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install pnpm
         uses: pnpm/action-setup@v4
       - name: Install Node.js 22
@@ -69,10 +71,33 @@ jobs:
           go-version: "1.25.4"
       - name: Install dependencies
         run: pnpm install
+      - name: Install build dependencies
+        run: sudo apt-get install -y cmake
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+          enableCrossOsArchive: true
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+      - name: Build llama.cpp (CPU-only)
+        run: |
+          cd backend/util/llama-go
+          CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
       - name: Build daemon binary
         run: |
           mkdir -p plz-out/bin/backend
-          go build -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+          go build -tags cpu -o plz-out/bin/backend/seed-daemon-x86_64-unknown-linux-gnu ./backend/cmd/seed-daemon
+        env:
+          CGO_ENABLED: "1"
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
       - name: Build web app
         run: pnpm web:prod
       - name: Install Playwright browsers

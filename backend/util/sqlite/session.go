@@ -19,8 +19,13 @@ package sqlite
 // #include <sqlite3.h>
 // #include "wrappers.h"
 //
-// extern int go_strm_w_tramp(uintptr_t, char*, int);
-// extern int go_strm_r_tramp(uintptr_t, char*, int*);
+// #ifdef _WIN32
+// #define SQLITE_GO_EXPORT __declspec(dllexport)
+// #else
+// #define SQLITE_GO_EXPORT
+// #endif
+// extern SQLITE_GO_EXPORT int go_strm_w_tramp(uintptr_t, char*, int);
+// extern SQLITE_GO_EXPORT int go_strm_r_tramp(uintptr_t, char*, int*);
 //
 // static int go_sqlite3session_changeset_strm(
 //   sqlite3_session *pSession,

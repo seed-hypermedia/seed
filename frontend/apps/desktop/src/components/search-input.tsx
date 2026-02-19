@@ -6,6 +6,7 @@ import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
 import {useTriggerWindowEvent} from '@/utils/window-events'
+import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
 import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {SearchResult} from '@shm/shared/editor-types'
 import {UnpackedHypermediaId} from '@shm/shared/hm-types'
@@ -106,6 +107,7 @@ export const SearchInput = forwardRef<
     includeBody: true,
     contextSize: 48 - deferredSearch.length,
     perspectiveAccountUid: selectedAccountId ?? undefined,
+    searchType: SearchType.SEARCH_HYBRID,
   })
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   let queryItem: null | SearchResult = useMemo(() => {

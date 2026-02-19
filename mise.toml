@@ -7,6 +7,96 @@ go = "1.25.4"
 node = "22.2.0"
 protoc = "24.4"
 pnpm = "9.15.0"
+cmake = "3.31.6"
+golangci-lint = "2.8.0"
 
 [settings]
 experimental = true
+
+[env]
+_.file = ".env"
+
+# GPU acceleration for llama.cpp:
+# - macOS: Metal (built-in, no extra packages needed)
+# - Linux: CPU-only for local dev (Vulkan used in CI/production only)
+#
+# If you need Vulkan on Linux for local GPU testing:
+#   Fedora/RHEL: sudo dnf install vulkan-headers vulkan-loader-devel glslang gcc-c++
+#   Ubuntu/Debian: sudo apt install libvulkan-dev vulkan-tools glslc g++
+
+[tasks.ensure-submodule]
+run = '''
+if [ -f .gitmodules ] && [ ! -f backend/util/llama-go/Makefile ]; then
+  echo "Initializing git submodules (llama-go + llama.cpp)..."
+  git submodule update --init --recursive
+fi
+'''
+hide = true
+
+[tasks.ensure-model]
+run = '''
+MODEL="backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf"
+if [ ! -f "$MODEL" ]; then
+  mkdir -p "$(dirname "$MODEL")"
+  echo "Downloading GGUF embedding model..."
+  curl -fSL --progress-bar -o "$MODEL" \
+    "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+fi
+'''
+hide = true
+
+[tasks.ensure-llama-libs]
+depends = ["ensure-submodule"]
+run = '''
+LLAMA_GO_DIR="backend/util/llama-go"
+NEEDS_BUILD=false
+
+if [ ! -f "$LLAMA_GO_DIR/libbinding.a" ]; then
+  NEEDS_BUILD=true
+elif [ "$(uname -s)" = "Darwin" ] && [ ! -f "$LLAMA_GO_DIR/libggml-blas.a" ]; then
+  # macOS requires Metal build. libggml-blas.a only exists after a Metal build.
+  # If missing, a stale CPU-only build exists and must be replaced.
+  NEEDS_BUILD=true
+fi
+
+if [ "$NEEDS_BUILD" = "true" ]; then
+  cd "$LLAMA_GO_DIR"
+  if [ "$(uname -s)" = "Darwin" ]; then
+    echo "Building llama.cpp libraries with Metal (this may take a few minutes)..."
+    BUILD_TYPE=metal CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF" make libbinding.a
+    cp build/bin/ggml-metal.metal . 2>/dev/null || true
+    # Stub for Vulkan (not used on macOS).
+    touch libggml-vulkan.a
+  else
+    echo "Building llama.cpp libraries, CPU-only (this may take a few minutes)..."
+    CMAKE_ARGS="-DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_HIP=OFF -DGGML_SYCL=OFF -DGGML_BLAS=OFF" make libbinding.a
+    # Stubs for GPU libraries (not used in CPU-only build, but needed for linking).
+    touch libggml-vulkan.a
+    touch libggml-metal.a
+  fi
+  echo "llama.cpp libraries built successfully."
+fi
+'''
+hide = true
+
+[tasks.check-gpu]
+description = "Check if GPU acceleration dependencies are installed for your platform"
+run = '''
+if [ "$(uname -s)" = "Darwin" ]; then
+  echo "macOS: Metal support is built-in and always enabled"
+else
+  echo "Linux: local dev uses CPU-only builds. Vulkan is used in CI/production."
+  echo ""
+  echo "To check Vulkan availability (optional):"
+  if command -v glslc >/dev/null 2>&1; then
+    echo "  glslc: found"
+  else
+    echo "  glslc: not found (install: sudo dnf install glslang / sudo apt install glslc)"
+  fi
+  if pkg-config --exists vulkan 2>/dev/null; then
+    echo "  vulkan: found"
+  else
+    echo "  vulkan: not found (install: sudo dnf install vulkan-headers vulkan-loader-devel)"
+  fi
+fi
+'''

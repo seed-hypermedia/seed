@@ -20,22 +20,38 @@
 
 unlock_note* unlock_note_alloc() {
 	unlock_note* un = (unlock_note*)malloc(sizeof(unlock_note));
+	#ifdef _WIN32
+	InitializeConditionVariable(&un->cond);
+	InitializeCriticalSection(&un->mu);
+	#else
 	pthread_mutex_init(&un->mu, 0);
 	pthread_cond_init(&un->cond, 0);
+	#endif
 	return un;
 }
 
 void unlock_note_free(unlock_note* un) {
+	#ifdef _WIN32
+	DeleteCriticalSection(&un->mu);
+	#else
 	pthread_cond_destroy(&un->cond);
 	pthread_mutex_destroy(&un->mu);
+	#endif
 	free(un);
 }
 
 void unlock_note_fire(unlock_note* un) {
+	#ifdef _WIN32
+	EnterCriticalSection(&un->mu);
+	un->fired = 1;
+	WakeConditionVariable(&un->cond);
+	LeaveCriticalSection(&un->mu);
+	#else
 	pthread_mutex_lock(&un->mu);
 	un->fired = 1;
 	pthread_cond_signal(&un->cond);
 	pthread_mutex_unlock(&un->mu);
+	#endif
 }
 
 static void unlock_notify_cb(void **apArg, int nArg) {
@@ -50,11 +66,19 @@ int wait_for_unlock_notify(sqlite3 *db, unlock_note* un) {
 	int res = sqlite3_unlock_notify(db, unlock_notify_cb, (void *)un);
 
 	if (res == SQLITE_OK) {
+		#ifdef _WIN32
+		EnterCriticalSection(&un->mu);
+		while (!un->fired) {
+			SleepConditionVariableCS(&un->cond, &un->mu, INFINITE);
+		}
+		LeaveCriticalSection(&un->mu);
+		#else
 		pthread_mutex_lock(&un->mu);
-		if (!un->fired) {
+		while (!un->fired) {
 			pthread_cond_wait(&un->cond, &un->mu);
 		}
 		pthread_mutex_unlock(&un->mu);
+		#endif
 	}
 
 	return res;

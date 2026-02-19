@@ -246,6 +246,12 @@ enum TaskName {
 
   // Task for reindexing the database.
   REINDEXING = 1;
+
+  // Task for generating embeddings.
+  EMBEDDING = 2;
+
+  // Task for loading a machine learning model.
+  LOADING_MODEL = 3;
 }
 
 // Description of a task that the daemon is performing.

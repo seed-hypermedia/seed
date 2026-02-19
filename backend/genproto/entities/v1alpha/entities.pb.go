@@ -77,6 +77,112 @@ func (DiscoveryTaskState) EnumDescriptor() ([]byte, []int) {
 	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{0}
 }
 
+// Describes the state of the discovery task.
+type SearchType int32
+
+const (
+	// Keyword-based search.
+	SearchType_SEARCH_KEYWORD SearchType = 0
+	// Semantic search.
+	SearchType_SEARCH_SEMANTIC SearchType = 1
+	// Hybrid search. with RRFusion.
+	SearchType_SEARCH_HYBRID SearchType = 2
+)
+
+// Enum value maps for SearchType.
+var (
+	SearchType_name = map[int32]string{
+		0: "SEARCH_KEYWORD",
+		1: "SEARCH_SEMANTIC",
+		2: "SEARCH_HYBRID",
+	}
+	SearchType_value = map[string]int32{
+		"SEARCH_KEYWORD":  0,
+		"SEARCH_SEMANTIC": 1,
+		"SEARCH_HYBRID":   2,
+	}
+)
+
+func (x SearchType) Enum() *SearchType {
+	p := new(SearchType)
+	*p = x
+	return p
+}
+
+func (x SearchType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SearchType) Descriptor() protoreflect.EnumDescriptor {
+	return file_entities_v1alpha_entities_proto_enumTypes[1].Descriptor()
+}
+
+func (SearchType) Type() protoreflect.EnumType {
+	return &file_entities_v1alpha_entities_proto_enumTypes[1]
+}
+
+func (x SearchType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SearchType.Descriptor instead.
+func (SearchType) EnumDescriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{1}
+}
+
+// Content type to filter search results by.
+type ContentTypeFilter int32
+
+const (
+	ContentTypeFilter_CONTENT_TYPE_TITLE    ContentTypeFilter = 0
+	ContentTypeFilter_CONTENT_TYPE_DOCUMENT ContentTypeFilter = 1
+	ContentTypeFilter_CONTENT_TYPE_COMMENT  ContentTypeFilter = 2
+	ContentTypeFilter_CONTENT_TYPE_CONTACT  ContentTypeFilter = 3
+)
+
+// Enum value maps for ContentTypeFilter.
+var (
+	ContentTypeFilter_name = map[int32]string{
+		0: "CONTENT_TYPE_TITLE",
+		1: "CONTENT_TYPE_DOCUMENT",
+		2: "CONTENT_TYPE_COMMENT",
+		3: "CONTENT_TYPE_CONTACT",
+	}
+	ContentTypeFilter_value = map[string]int32{
+		"CONTENT_TYPE_TITLE":    0,
+		"CONTENT_TYPE_DOCUMENT": 1,
+		"CONTENT_TYPE_COMMENT":  2,
+		"CONTENT_TYPE_CONTACT":  3,
+	}
+)
+
+func (x ContentTypeFilter) Enum() *ContentTypeFilter {
+	p := new(ContentTypeFilter)
+	*p = x
+	return p
+}
+
+func (x ContentTypeFilter) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContentTypeFilter) Descriptor() protoreflect.EnumDescriptor {
+	return file_entities_v1alpha_entities_proto_enumTypes[2].Descriptor()
+}
+
+func (ContentTypeFilter) Type() protoreflect.EnumType {
+	return &file_entities_v1alpha_entities_proto_enumTypes[2]
+}
+
+func (x ContentTypeFilter) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContentTypeFilter.Descriptor instead.
+func (ContentTypeFilter) EnumDescriptor() ([]byte, []int) {
+	return file_entities_v1alpha_entities_proto_rawDescGZIP(), []int{2}
+}
+
 // Request to get a change by ID.
 type GetChangeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -922,29 +1028,50 @@ func (x *DeletedEntity) GetMetadata() string {
 	return ""
 }
 
-// Request to
+// Request to search entities.
 type SearchEntitiesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Query to find. We Ssupport wildcards and phrases.
+	// Query to find. We support wildcards and phrases.
 	// See https://sqlite.org/fts5.html#full_text_query_syntax.
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	// Whether to look into all content available or just the titles.
-	// If false, comments are not included in the search.
-	// Default is false.
+	// Deprecated, use content_type_filters instead to specify
+	// which content types to include in the search.
+	//
+	// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 	IncludeBody bool `protobuf:"varint,2,opt,name=include_body,json=includeBody,proto3" json:"include_body,omitempty"`
 	// Optional. The size of the text accompanying the search match.
 	// Half of the size is before the match, and half after.
 	// Default is 48 runes.
 	ContextSize int32 `protobuf:"varint,3,opt,name=context_size,json=contextSize,proto3" json:"context_size,omitempty"`
-	// Optional. The account uid to filter the search by.
-	// If not set, the search will be performed across all accounts.
+	// Deprecated. Use iri_filter instead.
+	//
+	// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 	AccountUid string `protobuf:"bytes,4,opt,name=account_uid,json=accountUid,proto3" json:"account_uid,omitempty"`
 	// Optional. The account uid the user is logged in with.
 	// This is used to filter out contacts that the user doesn't have access to.
 	// If not set, we won't provide any contact entities in the response.
 	LoggedAccountUid string `protobuf:"bytes,5,opt,name=logged_account_uid,json=loggedAccountUid,proto3" json:"logged_account_uid,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Optional. Type of search to perform. Could be keyword, semantic or hybrid.
+	// if not set, keyword search is used.
+	SearchType SearchType `protobuf:"varint,6,opt,name=search_type,json=searchType,proto3,enum=com.seed.entities.v1alpha.SearchType" json:"search_type,omitempty"`
+	// Optional. hm:// URL with optional GLOB wildcards to scope search.
+	// Examples: "hm://<account>/cars/honda" (single doc), "hm://<account>/cars/*" (subtree).
+	// When empty, falls back to account_uid if set, otherwise matches all.
+	IriFilter string `protobuf:"bytes,7,opt,name=iri_filter,json=iriFilter,proto3" json:"iri_filter,omitempty"`
+	// Optional. Fine-grained content type selection. Overrides include_body when set.
+	// When empty, legacy behavior (title + body types based on include_body).
+	ContentTypeFilter []ContentTypeFilter `protobuf:"varint,8,rep,packed,name=content_type_filter,json=contentTypeFilter,proto3,enum=com.seed.entities.v1alpha.ContentTypeFilter" json:"content_type_filter,omitempty"`
+	// Optional. Authority weight for citation-based ranking. Range [0, 1].
+	// 0 (default) disables authority scoring. Higher values increase citation influence.
+	// Final score: (1-weight)*textRRF + 0.7*weight*docAuthRRF + 0.3*weight*authorAuthRRF.
+	AuthorityWeight float32 `protobuf:"fixed32,9,opt,name=authority_weight,json=authorityWeight,proto3" json:"authority_weight,omitempty"`
+	// Optional. Maximum number of results per page.
+	// When 0 (default), all results are returned (backwards compatible).
+	PageSize int32 `protobuf:"varint,10,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// Optional. Token from a previous SearchEntitiesResponse to get the next page.
+	PageToken     string `protobuf:"bytes,11,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchEntitiesRequest) Reset() {
@@ -984,6 +1111,7 @@ func (x *SearchEntitiesRequest) GetQuery() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 func (x *SearchEntitiesRequest) GetIncludeBody() bool {
 	if x != nil {
 		return x.IncludeBody
@@ -998,6 +1126,7 @@ func (x *SearchEntitiesRequest) GetContextSize() int32 {
 	return 0
 }
 
+// Deprecated: Marked as deprecated in entities/v1alpha/entities.proto.
 func (x *SearchEntitiesRequest) GetAccountUid() string {
 	if x != nil {
 		return x.AccountUid
@@ -1008,6 +1137,48 @@ func (x *SearchEntitiesRequest) GetAccountUid() string {
 func (x *SearchEntitiesRequest) GetLoggedAccountUid() string {
 	if x != nil {
 		return x.LoggedAccountUid
+	}
+	return ""
+}
+
+func (x *SearchEntitiesRequest) GetSearchType() SearchType {
+	if x != nil {
+		return x.SearchType
+	}
+	return SearchType_SEARCH_KEYWORD
+}
+
+func (x *SearchEntitiesRequest) GetIriFilter() string {
+	if x != nil {
+		return x.IriFilter
+	}
+	return ""
+}
+
+func (x *SearchEntitiesRequest) GetContentTypeFilter() []ContentTypeFilter {
+	if x != nil {
+		return x.ContentTypeFilter
+	}
+	return nil
+}
+
+func (x *SearchEntitiesRequest) GetAuthorityWeight() float32 {
+	if x != nil {
+		return x.AuthorityWeight
+	}
+	return 0
+}
+
+func (x *SearchEntitiesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *SearchEntitiesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
 	}
 	return ""
 }
@@ -1688,14 +1859,24 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\vdelete_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"deleteTime\x12%\n" +
 	"\x0edeleted_reason\x18\x03 \x01(\tR\rdeletedReason\x12\x1a\n" +
-	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xc2\x01\n" +
+	"\bmetadata\x18\x04 \x01(\tR\bmetadata\"\xf6\x03\n" +
 	"\x15SearchEntitiesRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12!\n" +
-	"\finclude_body\x18\x02 \x01(\bR\vincludeBody\x12!\n" +
-	"\fcontext_size\x18\x03 \x01(\x05R\vcontextSize\x12\x1f\n" +
-	"\vaccount_uid\x18\x04 \x01(\tR\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12%\n" +
+	"\finclude_body\x18\x02 \x01(\bB\x02\x18\x01R\vincludeBody\x12!\n" +
+	"\fcontext_size\x18\x03 \x01(\x05R\vcontextSize\x12#\n" +
+	"\vaccount_uid\x18\x04 \x01(\tB\x02\x18\x01R\n" +
 	"accountUid\x12,\n" +
-	"\x12logged_account_uid\x18\x05 \x01(\tR\x10loggedAccountUid\"\x7f\n" +
+	"\x12logged_account_uid\x18\x05 \x01(\tR\x10loggedAccountUid\x12F\n" +
+	"\vsearch_type\x18\x06 \x01(\x0e2%.com.seed.entities.v1alpha.SearchTypeR\n" +
+	"searchType\x12\x1d\n" +
+	"\n" +
+	"iri_filter\x18\a \x01(\tR\tiriFilter\x12\\\n" +
+	"\x13content_type_filter\x18\b \x03(\x0e2,.com.seed.entities.v1alpha.ContentTypeFilterR\x11contentTypeFilter\x12)\n" +
+	"\x10authority_weight\x18\t \x01(\x02R\x0fauthorityWeight\x12\x1b\n" +
+	"\tpage_size\x18\n" +
+	" \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\v \x01(\tR\tpageToken\"\x7f\n" +
 	"\x16SearchEntitiesResponse\x12=\n" +
 	"\bentities\x18\x01 \x03(\v2!.com.seed.entities.v1alpha.EntityR\bentities\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"=\n" +
@@ -1742,7 +1923,17 @@ const file_entities_v1alpha_entities_proto_rawDesc = "" +
 	"\x12DiscoveryTaskState\x12\x1a\n" +
 	"\x16DISCOVERY_TASK_STARTED\x10\x00\x12\x1e\n" +
 	"\x1aDISCOVERY_TASK_IN_PROGRESS\x10\x01\x12\x1c\n" +
-	"\x18DISCOVERY_TASK_COMPLETED\x10\x022\x89\a\n" +
+	"\x18DISCOVERY_TASK_COMPLETED\x10\x02*H\n" +
+	"\n" +
+	"SearchType\x12\x12\n" +
+	"\x0eSEARCH_KEYWORD\x10\x00\x12\x13\n" +
+	"\x0fSEARCH_SEMANTIC\x10\x01\x12\x11\n" +
+	"\rSEARCH_HYBRID\x10\x02*z\n" +
+	"\x11ContentTypeFilter\x12\x16\n" +
+	"\x12CONTENT_TYPE_TITLE\x10\x00\x12\x19\n" +
+	"\x15CONTENT_TYPE_DOCUMENT\x10\x01\x12\x18\n" +
+	"\x14CONTENT_TYPE_COMMENT\x10\x02\x12\x18\n" +
+	"\x14CONTENT_TYPE_CONTACT\x10\x032\x89\a\n" +
 	"\bEntities\x12[\n" +
 	"\tGetChange\x12+.com.seed.entities.v1alpha.GetChangeRequest\x1a!.com.seed.entities.v1alpha.Change\x12s\n" +
 	"\x11GetEntityTimeline\x123.com.seed.entities.v1alpha.GetEntityTimelineRequest\x1a).com.seed.entities.v1alpha.EntityTimeline\x12u\n" +
@@ -1765,72 +1956,76 @@ func file_entities_v1alpha_entities_proto_rawDescGZIP() []byte {
 	return file_entities_v1alpha_entities_proto_rawDescData
 }
 
-var file_entities_v1alpha_entities_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_entities_v1alpha_entities_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_entities_v1alpha_entities_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_entities_v1alpha_entities_proto_goTypes = []any{
 	(DiscoveryTaskState)(0),             // 0: com.seed.entities.v1alpha.DiscoveryTaskState
-	(*GetChangeRequest)(nil),            // 1: com.seed.entities.v1alpha.GetChangeRequest
-	(*GetEntityTimelineRequest)(nil),    // 2: com.seed.entities.v1alpha.GetEntityTimelineRequest
-	(*DiscoverEntityRequest)(nil),       // 3: com.seed.entities.v1alpha.DiscoverEntityRequest
-	(*DiscoverEntityResponse)(nil),      // 4: com.seed.entities.v1alpha.DiscoverEntityResponse
-	(*DiscoveryProgress)(nil),           // 5: com.seed.entities.v1alpha.DiscoveryProgress
-	(*Change)(nil),                      // 6: com.seed.entities.v1alpha.Change
-	(*EntityTimeline)(nil),              // 7: com.seed.entities.v1alpha.EntityTimeline
-	(*AuthorVersion)(nil),               // 8: com.seed.entities.v1alpha.AuthorVersion
-	(*Entity)(nil),                      // 9: com.seed.entities.v1alpha.Entity
-	(*DeletedEntity)(nil),               // 10: com.seed.entities.v1alpha.DeletedEntity
-	(*SearchEntitiesRequest)(nil),       // 11: com.seed.entities.v1alpha.SearchEntitiesRequest
-	(*SearchEntitiesResponse)(nil),      // 12: com.seed.entities.v1alpha.SearchEntitiesResponse
-	(*DeleteEntityRequest)(nil),         // 13: com.seed.entities.v1alpha.DeleteEntityRequest
-	(*ListDeletedEntitiesRequest)(nil),  // 14: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	(*ListDeletedEntitiesResponse)(nil), // 15: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	(*UndeleteEntityRequest)(nil),       // 16: com.seed.entities.v1alpha.UndeleteEntityRequest
-	(*ListEntityMentionsRequest)(nil),   // 17: com.seed.entities.v1alpha.ListEntityMentionsRequest
-	(*ListEntityMentionsResponse)(nil),  // 18: com.seed.entities.v1alpha.ListEntityMentionsResponse
-	(*Mention)(nil),                     // 19: com.seed.entities.v1alpha.Mention
-	nil,                                 // 20: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	(*Mention_BlobInfo)(nil),            // 21: com.seed.entities.v1alpha.Mention.BlobInfo
-	(*timestamppb.Timestamp)(nil),       // 22: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),               // 23: google.protobuf.Empty
+	(SearchType)(0),                     // 1: com.seed.entities.v1alpha.SearchType
+	(ContentTypeFilter)(0),              // 2: com.seed.entities.v1alpha.ContentTypeFilter
+	(*GetChangeRequest)(nil),            // 3: com.seed.entities.v1alpha.GetChangeRequest
+	(*GetEntityTimelineRequest)(nil),    // 4: com.seed.entities.v1alpha.GetEntityTimelineRequest
+	(*DiscoverEntityRequest)(nil),       // 5: com.seed.entities.v1alpha.DiscoverEntityRequest
+	(*DiscoverEntityResponse)(nil),      // 6: com.seed.entities.v1alpha.DiscoverEntityResponse
+	(*DiscoveryProgress)(nil),           // 7: com.seed.entities.v1alpha.DiscoveryProgress
+	(*Change)(nil),                      // 8: com.seed.entities.v1alpha.Change
+	(*EntityTimeline)(nil),              // 9: com.seed.entities.v1alpha.EntityTimeline
+	(*AuthorVersion)(nil),               // 10: com.seed.entities.v1alpha.AuthorVersion
+	(*Entity)(nil),                      // 11: com.seed.entities.v1alpha.Entity
+	(*DeletedEntity)(nil),               // 12: com.seed.entities.v1alpha.DeletedEntity
+	(*SearchEntitiesRequest)(nil),       // 13: com.seed.entities.v1alpha.SearchEntitiesRequest
+	(*SearchEntitiesResponse)(nil),      // 14: com.seed.entities.v1alpha.SearchEntitiesResponse
+	(*DeleteEntityRequest)(nil),         // 15: com.seed.entities.v1alpha.DeleteEntityRequest
+	(*ListDeletedEntitiesRequest)(nil),  // 16: com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	(*ListDeletedEntitiesResponse)(nil), // 17: com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	(*UndeleteEntityRequest)(nil),       // 18: com.seed.entities.v1alpha.UndeleteEntityRequest
+	(*ListEntityMentionsRequest)(nil),   // 19: com.seed.entities.v1alpha.ListEntityMentionsRequest
+	(*ListEntityMentionsResponse)(nil),  // 20: com.seed.entities.v1alpha.ListEntityMentionsResponse
+	(*Mention)(nil),                     // 21: com.seed.entities.v1alpha.Mention
+	nil,                                 // 22: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	(*Mention_BlobInfo)(nil),            // 23: com.seed.entities.v1alpha.Mention.BlobInfo
+	(*timestamppb.Timestamp)(nil),       // 24: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),               // 25: google.protobuf.Empty
 }
 var file_entities_v1alpha_entities_proto_depIdxs = []int32{
 	0,  // 0: com.seed.entities.v1alpha.DiscoverEntityResponse.state:type_name -> com.seed.entities.v1alpha.DiscoveryTaskState
-	22, // 1: com.seed.entities.v1alpha.DiscoverEntityResponse.last_result_time:type_name -> google.protobuf.Timestamp
-	22, // 2: com.seed.entities.v1alpha.DiscoverEntityResponse.result_expire_time:type_name -> google.protobuf.Timestamp
-	5,  // 3: com.seed.entities.v1alpha.DiscoverEntityResponse.progress:type_name -> com.seed.entities.v1alpha.DiscoveryProgress
-	22, // 4: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
-	20, // 5: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
-	8,  // 6: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
-	22, // 7: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
-	22, // 8: com.seed.entities.v1alpha.Entity.version_time:type_name -> google.protobuf.Timestamp
-	22, // 9: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
-	9,  // 10: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
-	10, // 11: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
-	19, // 12: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
-	21, // 13: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
-	6,  // 14: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
-	22, // 15: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
-	1,  // 16: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
-	2,  // 17: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
-	3,  // 18: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
-	11, // 19: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
-	13, // 20: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
-	14, // 21: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
-	16, // 22: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
-	17, // 23: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
-	6,  // 24: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
-	7,  // 25: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
-	4,  // 26: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
-	12, // 27: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
-	23, // 28: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
-	15, // 29: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
-	23, // 30: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
-	18, // 31: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
-	24, // [24:32] is the sub-list for method output_type
-	16, // [16:24] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	24, // 1: com.seed.entities.v1alpha.DiscoverEntityResponse.last_result_time:type_name -> google.protobuf.Timestamp
+	24, // 2: com.seed.entities.v1alpha.DiscoverEntityResponse.result_expire_time:type_name -> google.protobuf.Timestamp
+	7,  // 3: com.seed.entities.v1alpha.DiscoverEntityResponse.progress:type_name -> com.seed.entities.v1alpha.DiscoveryProgress
+	24, // 4: com.seed.entities.v1alpha.Change.create_time:type_name -> google.protobuf.Timestamp
+	22, // 5: com.seed.entities.v1alpha.EntityTimeline.changes:type_name -> com.seed.entities.v1alpha.EntityTimeline.ChangesEntry
+	10, // 6: com.seed.entities.v1alpha.EntityTimeline.author_versions:type_name -> com.seed.entities.v1alpha.AuthorVersion
+	24, // 7: com.seed.entities.v1alpha.AuthorVersion.version_time:type_name -> google.protobuf.Timestamp
+	24, // 8: com.seed.entities.v1alpha.Entity.version_time:type_name -> google.protobuf.Timestamp
+	24, // 9: com.seed.entities.v1alpha.DeletedEntity.delete_time:type_name -> google.protobuf.Timestamp
+	1,  // 10: com.seed.entities.v1alpha.SearchEntitiesRequest.search_type:type_name -> com.seed.entities.v1alpha.SearchType
+	2,  // 11: com.seed.entities.v1alpha.SearchEntitiesRequest.content_type_filter:type_name -> com.seed.entities.v1alpha.ContentTypeFilter
+	11, // 12: com.seed.entities.v1alpha.SearchEntitiesResponse.entities:type_name -> com.seed.entities.v1alpha.Entity
+	12, // 13: com.seed.entities.v1alpha.ListDeletedEntitiesResponse.deleted_entities:type_name -> com.seed.entities.v1alpha.DeletedEntity
+	21, // 14: com.seed.entities.v1alpha.ListEntityMentionsResponse.mentions:type_name -> com.seed.entities.v1alpha.Mention
+	23, // 15: com.seed.entities.v1alpha.Mention.source_blob:type_name -> com.seed.entities.v1alpha.Mention.BlobInfo
+	8,  // 16: com.seed.entities.v1alpha.EntityTimeline.ChangesEntry.value:type_name -> com.seed.entities.v1alpha.Change
+	24, // 17: com.seed.entities.v1alpha.Mention.BlobInfo.create_time:type_name -> google.protobuf.Timestamp
+	3,  // 18: com.seed.entities.v1alpha.Entities.GetChange:input_type -> com.seed.entities.v1alpha.GetChangeRequest
+	4,  // 19: com.seed.entities.v1alpha.Entities.GetEntityTimeline:input_type -> com.seed.entities.v1alpha.GetEntityTimelineRequest
+	5,  // 20: com.seed.entities.v1alpha.Entities.DiscoverEntity:input_type -> com.seed.entities.v1alpha.DiscoverEntityRequest
+	13, // 21: com.seed.entities.v1alpha.Entities.SearchEntities:input_type -> com.seed.entities.v1alpha.SearchEntitiesRequest
+	15, // 22: com.seed.entities.v1alpha.Entities.DeleteEntity:input_type -> com.seed.entities.v1alpha.DeleteEntityRequest
+	16, // 23: com.seed.entities.v1alpha.Entities.ListDeletedEntities:input_type -> com.seed.entities.v1alpha.ListDeletedEntitiesRequest
+	18, // 24: com.seed.entities.v1alpha.Entities.UndeleteEntity:input_type -> com.seed.entities.v1alpha.UndeleteEntityRequest
+	19, // 25: com.seed.entities.v1alpha.Entities.ListEntityMentions:input_type -> com.seed.entities.v1alpha.ListEntityMentionsRequest
+	8,  // 26: com.seed.entities.v1alpha.Entities.GetChange:output_type -> com.seed.entities.v1alpha.Change
+	9,  // 27: com.seed.entities.v1alpha.Entities.GetEntityTimeline:output_type -> com.seed.entities.v1alpha.EntityTimeline
+	6,  // 28: com.seed.entities.v1alpha.Entities.DiscoverEntity:output_type -> com.seed.entities.v1alpha.DiscoverEntityResponse
+	14, // 29: com.seed.entities.v1alpha.Entities.SearchEntities:output_type -> com.seed.entities.v1alpha.SearchEntitiesResponse
+	25, // 30: com.seed.entities.v1alpha.Entities.DeleteEntity:output_type -> google.protobuf.Empty
+	17, // 31: com.seed.entities.v1alpha.Entities.ListDeletedEntities:output_type -> com.seed.entities.v1alpha.ListDeletedEntitiesResponse
+	25, // 32: com.seed.entities.v1alpha.Entities.UndeleteEntity:output_type -> google.protobuf.Empty
+	20, // 33: com.seed.entities.v1alpha.Entities.ListEntityMentions:output_type -> com.seed.entities.v1alpha.ListEntityMentionsResponse
+	26, // [26:34] is the sub-list for method output_type
+	18, // [18:26] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_entities_v1alpha_entities_proto_init() }
@@ -1843,7 +2038,7 @@ func file_entities_v1alpha_entities_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_entities_v1alpha_entities_proto_rawDesc), len(file_entities_v1alpha_entities_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      3,
 			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,

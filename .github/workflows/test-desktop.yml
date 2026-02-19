@@ -49,10 +49,12 @@ jobs:
           - os: windows-2025
             arch: x64
             goarch: amd64
-            daemon_name: x86_64-pc-windows-msvc
+            daemon_name: x86_64-pc-windows-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/ci-setup
         with:
@@ -64,20 +66,26 @@ jobs:
         if: matrix.config.os != 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
+          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }} ./backend/cmd/seed-daemon
         env:
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Build Backend (Windows)
         if: matrix.config.os == 'windows-2025'
         run: |
           mkdir -p plz-out/bin/backend
+          # GPU is enabled by default (no -tags needed)
           go build -o plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe ./backend/cmd/seed-daemon
         env:
           GOOS: "windows"
           GOARCH: ${{ matrix.config.goarch }}
           CGO_ENABLED: 1
+          LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+          C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
 
       - name: Set temporal version in package.json
         run: |

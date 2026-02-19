@@ -1,9 +1,14 @@
 import {getUpdateStatusLabel, useUpdateStatus} from '@/components/auto-updater'
 import {useConnectionSummary} from '@/models/contacts'
+import {useDaemonInfo} from '@/models/daemon'
 import {
   getActiveDiscoveriesStream,
   getAggregatedDiscoveryStream,
 } from '@/models/entities'
+import {
+  Task,
+  TaskName,
+} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {COMMIT_HASH, VERSION} from '@shm/shared/constants'
 import {DiscoveryState} from '@shm/shared/hm-types'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -49,6 +54,7 @@ export default function Footer({children}: {children?: ReactNode}) {
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-1">
+        <DaemonTasksIndicator />
         <DiscoveryIndicator />
         {children}
       </div>
@@ -327,6 +333,131 @@ function DiscoveryIndicator() {
       </HoverCardTrigger>
       <HoverCardContent side="top" align="end" className="w-80">
         {hoverContent}
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
+/**
+ * Get human-readable label for a task name
+ */
+function getTaskLabel(taskName: TaskName): string {
+  switch (taskName) {
+    case TaskName.REINDEXING:
+      return 'Reindexing Database'
+    case TaskName.EMBEDDING:
+      return 'Generating Embeddings'
+    case TaskName.LOADING_MODEL:
+      return 'Loading AI Model'
+    default:
+      return 'Background Task'
+  }
+}
+
+/**
+ * Calculate progress percentage for a task
+ */
+function getTaskProgress(task: Task): number {
+  const total = Number(task.total)
+  const completed = Number(task.completed)
+  if (total <= 0) return 0
+  return Math.round((completed / total) * 100)
+}
+
+/**
+ * Single task item in the hover card
+ */
+function DaemonTaskItem({task}: {task: Task}) {
+  const progress = getTaskProgress(task)
+  const label = getTaskLabel(task.taskName)
+  const total = Number(task.total)
+  const completed = Number(task.completed)
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <SizableText size="xs" className="font-medium">
+          {label}
+        </SizableText>
+        <SizableText size="xs" className="text-muted-foreground">
+          {progress}%
+        </SizableText>
+      </div>
+      <Progress value={progress} className="h-1.5" />
+      {total > 0 && (
+        <SizableText size="xs" className="text-muted-foreground">
+          {completed.toLocaleString()} / {total.toLocaleString()}
+          {task.description && ` - ${task.description}`}
+        </SizableText>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Footer indicator showing background daemon tasks with progress
+ */
+function DaemonTasksIndicator() {
+  const {data: info} = useDaemonInfo()
+
+  // Get active tasks
+  const tasks = info?.tasks ?? []
+
+  // Don't render anything if no tasks
+  if (tasks.length === 0) return null
+
+  // Build summary text
+  const taskCount = tasks.length
+  const summaryText =
+    taskCount === 1
+      ? getTaskLabel(tasks[0].taskName)
+      : `${taskCount} tasks running`
+
+  // Calculate average progress across all tasks for the inline indicator
+  const avgProgress =
+    tasks.length > 0
+      ? Math.round(
+          tasks.reduce(
+            (sum: number, task: Task) => sum + getTaskProgress(task),
+            0,
+          ) / tasks.length,
+        )
+      : 0
+
+  return (
+    <HoverCard openDelay={200}>
+      <HoverCardTrigger asChild>
+        <div className="flex cursor-default items-center gap-2 px-2">
+          <Spinner size="small" className="size-3" />
+          <SizableText
+            size="xs"
+            className="text-muted-foreground select-none"
+            style={{fontSize: 10}}
+          >
+            {summaryText}
+          </SizableText>
+          {tasks.length === 1 && (
+            <SizableText
+              size="xs"
+              className="text-muted-foreground select-none"
+              style={{fontSize: 10}}
+            >
+              ({avgProgress}%)
+            </SizableText>
+          )}
+        </div>
+      </HoverCardTrigger>
+      <HoverCardContent side="top" align="end" className="w-80">
+        <div className="flex flex-col gap-3">
+          <SizableText size="sm" className="font-medium">
+            Background Tasks
+          </SizableText>
+          <div className="flex flex-col gap-3">
+            {tasks.map((task: Task, index: number) => (
+              <DaemonTaskItem key={`${task.taskName}-${index}`} task={task} />
+            ))}
+          </div>
+        </div>
       </HoverCardContent>
     </HoverCard>
   )

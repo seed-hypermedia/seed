@@ -74,6 +74,7 @@ import {
 import {defaultRoute} from '@shm/shared/routes'
 import {initCommentDrafts} from './app-comments'
 import {initDrafts} from './app-drafts'
+import {getStoredEmbeddingEnabled} from './app-experiments'
 import {
   getOnboardingState,
   setInitialAccountIdCount,
@@ -253,7 +254,9 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
   try {
     // Start daemon - this spawns the process and polls until ACTIVE
     // Daemon will send state updates (startup, migrating, etc) to loading window
-    await startMainDaemon()
+    const embeddingEnabled = getStoredEmbeddingEnabled()
+    logger.info('[MAIN]: Starting daemon with embedding:', {embeddingEnabled})
+    await startMainDaemon(embeddingEnabled)
     logger.info('[MAIN]: Daemon is ACTIVE')
   } finally {
     // Cleanup: unsubscribe if still subscribed
