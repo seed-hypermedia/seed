@@ -1,5 +1,5 @@
-import {SignedComment} from '@/api'
 import {grpcClient} from '@/client.server'
+import type {SignedComment} from '@shm/shared/comment-creation'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {ActionFunction, json} from '@remix-run/node'
 import {

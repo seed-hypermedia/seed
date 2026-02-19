@@ -1,5 +1,5 @@
 import {APIParams} from './api'
-import type {HMRequest, UnpackedHypermediaId} from './hm-types'
+import type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 import {HMRequestSchema} from './hm-types'
 import {serializeQueryString} from './input-querystring'
 import type {UniversalClient} from './universal-client'
@@ -20,6 +20,9 @@ export type WebClientDependencies = {
   // Recents management (optional)
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
+
+  // Platform-specific signing
+  getSigner?: (accountUid: string) => HMSigner
 }
 
 export function createWebUniversalClient(deps: WebClientDependencies): UniversalClient {
@@ -29,6 +32,8 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
     fetchRecents: deps.fetchRecents,
 
     deleteRecent: deps.deleteRecent,
+
+    getSigner: deps.getSigner,
 
     request: async <Req extends HMRequest>(key: Req['key'], input: Req['input']): Promise<Req['output']> => {
       // Find the matching request schema

@@ -1,5 +1,11 @@
 import {PlainMessage} from '@bufbuild/protobuf'
 import * as z from 'zod'
+
+// Signing abstraction: each platform provides its own implementation
+export type HMSigner = {
+  getPublicKey: () => Promise<Uint8Array>
+  sign: (data: Uint8Array) => Promise<Uint8Array>
+}
 import {
   type Account,
   type Block,
