@@ -19,6 +19,7 @@ import {registerChangesCommand} from './commands/changes'
 import {registerKeyCommands} from './commands/key'
 import {registerUpdateCommand} from './commands/update'
 import {registerWriteCommentCommand} from './commands/write-comment'
+import {registerCreateCommand} from './commands/create'
 
 const program = new Command()
 
@@ -62,6 +63,7 @@ registerChangesCommand(program)
 registerKeyCommands(program)
 registerUpdateCommand(program)
 registerWriteCommentCommand(program)
+registerCreateCommand(program)
 
 // Config command
 program
