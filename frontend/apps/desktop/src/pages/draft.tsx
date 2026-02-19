@@ -52,7 +52,7 @@ import {DirectoryPanel} from '@shm/ui/directory-panel'
 import {DocumentTools} from '@shm/ui/document-tools'
 import {Feed} from '@shm/ui/feed'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import {HistoryIcon, Home, Trash} from '@shm/ui/icons'
+import {Home, Trash} from '@shm/ui/icons'
 import {useDocumentLayout} from '@shm/ui/layout'
 import {DocNavigationItem} from '@shm/ui/navigation'
 import {MenuItemType, OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -66,7 +66,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useMutation} from '@tanstack/react-query'
 import {useSelector} from '@xstate/react'
-import {Eye, Folder, Settings} from 'lucide-react'
+import {Eye, Settings} from 'lucide-react'
 import {Selection} from 'prosemirror-state'
 import {MouseEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
@@ -1122,7 +1122,6 @@ function applyInputResize(target: HTMLTextAreaElement) {
 function DraftActionButtons({route}: {route: DraftRoute}) {
   const selectedAccount = useSelectedAccount()
   const replace = useNavigate('replace')
-  const push = useNavigate('push')
   const dispatch = useNavigationDispatch()
   const draftId = route.id
   const draft = useDraft(draftId)
@@ -1131,35 +1130,18 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
   const editIdWriteCap = useSelectedAccountCapability(editId || locationId, 'writer')
   const deleteDialog = useDeleteDraftDialog()
 
-  const targetId = editId || locationId
   const menuItems: MenuItemType[] = [
-    ...(targetId
-      ? [
-          {
-            key: 'versions',
-            label: 'Document Versions',
-            icon: <HistoryIcon className="size-4" />,
-            onClick: () => {
-              replace({
-                ...route,
-                panel: {
-                  key: 'activity',
-                  id: targetId,
-                  filterEventType: ['Ref'],
-                },
-              } as any)
-            },
-          },
-          {
-            key: 'directory',
-            label: 'Directory',
-            icon: <Folder className="size-4" />,
-            onClick: () => {
-              push({...route, panel: {key: 'directory', id: targetId}})
-            },
-          },
-        ]
-      : []),
+    {
+      key: 'options',
+      label: 'Document Options',
+      icon: <Settings className="size-4" />,
+      onClick: () => {
+        replace({
+          ...route,
+          panel: route.panel?.key === 'options' ? null : {key: 'options'},
+        })
+      },
+    },
     {
       key: 'delete-draft',
       label: 'Delete Draft',
@@ -1213,19 +1195,6 @@ function DraftActionButtons({route}: {route: DraftRoute}) {
           </Button>
         </Tooltip>
       ) : null}
-      <Tooltip content="Toggle Draft Options">
-        <Button
-          className="hover:bg-hover dark:bg-background bg-white"
-          onClick={() => {
-            replace({
-              ...route,
-              panel: route.key == 'draft' && route.panel?.key == 'options' ? null : {key: 'options'},
-            })
-          }}
-        >
-          <Settings className={cn('size-4', route.key == 'draft' && route.panel?.key == 'options' && 'text-brand')} />
-        </Button>
-      </Tooltip>
       <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />
       {deleteDialog.content}
     </div>
