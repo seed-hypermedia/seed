@@ -10,7 +10,7 @@ import {CID} from 'multiformats/cid'
 import {base58btc} from 'multiformats/bases/base58'
 import {getClient, getOutputFormat} from '../index'
 import {printError, printSuccess, printInfo, formatOutput} from '../output'
-import {getKey, getDefaultKey, type KeyringKey} from '../utils/keyring'
+import {resolveKey} from '../utils/keyring'
 import {signBlob, encodeBlock, blockReference} from '../utils/signing'
 
 // Ed25519 multicodec prefix.
@@ -134,26 +134,6 @@ export function registerWriteCommentCommand(program: Command) {
         process.exit(1)
       }
     })
-}
-
-function resolveKey(keyFlag: string | undefined, dev: boolean): KeyringKey {
-  if (keyFlag) {
-    const key = getKey(keyFlag, dev)
-    if (!key) {
-      throw new Error(
-        `Key "${keyFlag}" not found. Use "seed-cli key list" to see available keys.`,
-      )
-    }
-    return key
-  }
-
-  const key = getDefaultKey(dev)
-  if (!key) {
-    throw new Error(
-      'No signing keys found. Use "seed-cli key generate" or "seed-cli key import" first.',
-    )
-  }
-  return key
 }
 
 /**

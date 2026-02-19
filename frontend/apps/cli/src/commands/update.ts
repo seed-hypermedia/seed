@@ -9,7 +9,7 @@ import type {Command} from 'commander'
 import {CID} from 'multiformats/cid'
 import {getClient, getOutputFormat} from '../index'
 import {printError, printSuccess, printInfo, formatOutput} from '../output'
-import {getKey, getDefaultKey, type KeyringKey} from '../utils/keyring'
+import {resolveKey} from '../utils/keyring'
 import {
   createDocumentChange,
   createRef,
@@ -106,26 +106,6 @@ export function registerUpdateCommand(program: Command) {
         process.exit(1)
       }
     })
-}
-
-function resolveKey(keyFlag: string | undefined, dev: boolean): KeyringKey {
-  if (keyFlag) {
-    const key = getKey(keyFlag, dev)
-    if (!key) {
-      throw new Error(
-        `Key "${keyFlag}" not found. Use "seed-cli key list" to see available keys.`,
-      )
-    }
-    return key
-  }
-
-  const key = getDefaultKey(dev)
-  if (!key) {
-    throw new Error(
-      'No signing keys found. Use "seed-cli key generate" or "seed-cli key import" first.',
-    )
-  }
-  return key
 }
 
 function buildMetadataOps(
