@@ -348,7 +348,15 @@ function DraftPanelContent({
         />
       ) : null
     case 'discussions':
-      return route.panel?.key === 'discussions' && docId ? (
+      if (!docId) return null
+      if (isEditingHomeDoc) {
+        return (
+          <PanelContent>
+            <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} />
+          </PanelContent>
+        )
+      }
+      return route.panel?.key === 'discussions' ? (
         <DiscussionsPanel docId={docId} selection={{...route.panel, id: route.panel.id ?? docId}} />
       ) : null
     case 'activity':

@@ -1125,6 +1125,9 @@ function PanelContentRenderer({
         <Feed size="sm" filterResource={docId.id} filterEventType={panelRoute.filterEventType} targetDomain={siteUrl} />
       )
     case 'discussions':
+      if (!docId.path?.length) {
+        return <Feed size="sm" filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
+      }
       return (
         <DiscussionsPageContent
           docId={docId}
@@ -1243,6 +1246,13 @@ function MainContent({
       )
 
     case 'discussions':
+      if (!docId.path?.length) {
+        return (
+          <PageLayout contentMaxWidth={contentMaxWidth}>
+            <Feed filterResource={`${docId.id}*`} filterEventType={['Comment']} targetDomain={siteUrl} />
+          </PageLayout>
+        )
+      }
       return (
         <DiscussionsPageContent
           docId={docId}
