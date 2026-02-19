@@ -13,6 +13,7 @@ import {execSync} from 'child_process'
 import {platform} from 'os'
 import {base58btc} from 'multiformats/bases/base58'
 import * as ed25519 from '@noble/ed25519'
+import {loadConfig} from '../config'
 
 const KEYRING_ACCOUNT = 'parentCollection'
 
@@ -255,7 +256,7 @@ export function getKey(
 
 /**
  * Gets the default key from the keyring.
- * Prefers "main", otherwise returns the first key.
+ * Priority: config defaultAccount > key named "main" > first key.
  */
 export function getDefaultKey(dev: boolean): KeyringKey | null {
   const serviceName = getServiceName(dev)
@@ -263,6 +264,22 @@ export function getDefaultKey(dev: boolean): KeyringKey | null {
   const entries = Object.entries(collection)
 
   if (entries.length === 0) return null
+
+  // Check config for an explicit default.
+  const config = loadConfig()
+  if (config.defaultAccount) {
+    for (const [name, base64Data] of entries) {
+      try {
+        const {publicKey} = decodeLibp2pKey(base64Data)
+        if (computeAccountId(publicKey) === config.defaultAccount) {
+          return decodeKeyEntry(name, base64Data)
+        }
+      } catch {
+        continue
+      }
+    }
+    // defaultAccount set but key not found in this environment — fall through.
+  }
 
   if (collection['main']) {
     return decodeKeyEntry('main', collection['main'])
@@ -341,6 +358,62 @@ export function removeKey(nameOrAccountId: string, dev: boolean): boolean {
   }
 
   return false
+}
+
+/**
+ * Resolves the signing key from an optional --key flag, falling back to the default.
+ */
+export function resolveKey(
+  keyFlag: string | undefined,
+  dev: boolean,
+): KeyringKey {
+  if (keyFlag) {
+    const key = getKey(keyFlag, dev)
+    if (!key) {
+      throw new Error(
+        `Key "${keyFlag}" not found. Use "seed-cli key list" to see available keys.`,
+      )
+    }
+    return key
+  }
+
+  const key = getDefaultKey(dev)
+  if (!key) {
+    throw new Error(
+      'No signing keys found. Use "seed-cli key generate" or "seed-cli key import" first.',
+    )
+  }
+  return key
+}
+
+/**
+ * Renames a key in the OS keyring.
+ */
+export function renameKey(
+  currentName: string,
+  newName: string,
+  dev: boolean,
+): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(newName)) {
+    throw new Error(
+      'Invalid key name. Use only alphanumeric characters, hyphens, and underscores.',
+    )
+  }
+
+  const serviceName = getServiceName(dev)
+  const collection = readCollection(serviceName)
+
+  if (!collection[currentName]) {
+    throw new Error(`Key "${currentName}" not found.`)
+  }
+
+  if (collection[newName]) {
+    throw new Error(`Key "${newName}" already exists.`)
+  }
+
+  collection[newName] = collection[currentName]
+  delete collection[currentName]
+  writeCollection(serviceName, collection)
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
