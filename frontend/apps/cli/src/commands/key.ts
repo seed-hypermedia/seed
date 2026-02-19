@@ -23,6 +23,7 @@ import {
   getDefaultKey as keyringGetDefaultKey,
   storeKey as keyringStoreKey,
   removeKey as keyringRemoveKey,
+  renameKey as keyringRenameKey,
 } from '../utils/keyring'
 import {setConfigValue} from '../config'
 import {getOutputFormat} from '../index'
@@ -193,6 +194,22 @@ export function registerKeyCommands(program: Command) {
           printError(`Failed to remove key "${nameOrId}"`)
           process.exit(1)
         }
+      } catch (error) {
+        printError((error as Error).message)
+        process.exit(1)
+      }
+    })
+
+  key
+    .command('rename <currentName> <newName>')
+    .description('Rename a stored key')
+    .action(async (currentName: string, newName: string, _options, cmd) => {
+      const globalOpts = cmd.optsWithGlobals()
+      const dev = !!globalOpts.dev
+
+      try {
+        keyringRenameKey(currentName, newName, dev)
+        printSuccess(`Key "${currentName}" renamed to "${newName}"`)
       } catch (error) {
         printError((error as Error).message)
         process.exit(1)
