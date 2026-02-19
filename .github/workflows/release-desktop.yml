@@ -159,6 +159,36 @@ jobs:
           cp "$DLL_PATH" plz-out/bin/backend/libwinpthread-1.dll
           ls -la plz-out/bin/backend/libwinpthread-1.dll
 
+      - name: Verify Windows daemon runtime deps
+        if: startsWith(matrix.config.os, 'windows')
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="plz-out/bin/backend/seed-daemon-${{ matrix.config.daemon_name }}.exe"
+
+          if ! command -v objdump >/dev/null 2>&1; then
+            echo "objdump not available on runner; skipping dependency check"
+            exit 0
+          fi
+
+          DLLS="$(objdump -p "$BIN" | awk '/DLL Name:/ {print $3}')"
+          echo "Windows DLL imports:"
+          echo "$DLLS"
+
+          if echo "$DLLS" | grep -Eiq '^(libstdc\+\+-6\.dll|libgcc_s_seh-1\.dll|libgomp-1\.dll)$'; then
+            echo "ERROR: MinGW runtime DLL dependency is still present"
+            exit 1
+          fi
+
+          if echo "$DLLS" | grep -Eiq '^libwinpthread-1\.dll$'; then
+            if [ ! -f "plz-out/bin/backend/libwinpthread-1.dll" ]; then
+              echo "ERROR: daemon imports libwinpthread-1.dll but runtime DLL is not staged"
+              exit 1
+            fi
+
+            echo "libwinpthread-1.dll import detected and staged correctly"
+          fi
+
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')
         env:
