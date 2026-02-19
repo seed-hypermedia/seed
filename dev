@@ -210,6 +210,30 @@ def main():
 
     @cmd(
         cmds,
+        "install-cli",
+        "Build and install the seed-cli command into ~/.local/bin.",
+    )
+    def install_cli(args):
+        import pathlib
+
+        run("pnpm install")
+        run("pnpm --filter @seed-hypermedia/cli build")
+
+        cli_dist = pathlib.Path(__file__).resolve().parent / "frontend" / "apps" / "cli" / "dist" / "index.js"
+        if not cli_dist.exists():
+            print(f"Error: build output not found at {cli_dist}")
+            sys.exit(1)
+
+        bin_dir = pathlib.Path.home() / ".local" / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        link = bin_dir / "seed-cli"
+        if link.exists() or link.is_symlink():
+            link.unlink()
+        link.symlink_to(cli_dist)
+        print(f"Installed: {link} -> {cli_dist}")
+
+    @cmd(
+        cmds,
         "release",
         "Create a new Release. this will create a new tag and push it to the remote repository",
     )
