@@ -4,7 +4,7 @@
  */
 
 import * as dagCBOR from "@ipld/dag-cbor"
-import type * as blobs from "./blobs"
+import type * as blobs from "@shm/shared/blobs"
 
 /** A single Hypermedia account stored in the vault. */
 export interface Account {

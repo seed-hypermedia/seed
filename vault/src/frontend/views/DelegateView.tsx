@@ -1,11 +1,11 @@
+import * as blobs from "@shm/shared/blobs"
 import { ExternalLink, Plus, Shield, User } from "lucide-react"
 import { Navigate, useSearchParams } from "react-router-dom"
-import * as blobs from "@/frontend/blobs"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
 import { ErrorMessage } from "@/frontend/components/ErrorMessage"
 import { Button } from "@/frontend/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/frontend/components/ui/card"
-import * as delegation from "@/frontend/delegation"
+import * as hmauth from "@/frontend/hmauth"
 import { useActions, useAppState } from "@/frontend/store"
 
 /**
@@ -20,7 +20,7 @@ export function DelegateView() {
 
 	const accounts = vaultData?.accounts ?? []
 
-	if (!delegationRequest && !searchParams.has(delegation.PARAM_CLIENT_ID)) {
+	if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
 		return <Navigate to="/" replace />
 	}
 

@@ -1,13 +1,21 @@
-FROM oven/bun:1 AS builder
+# Build from the repo root with `docker build -t seedhypermedia/vault:dev . -f ./vault/Dockerfile`.
+
+FROM oven/bun:1 AS base
 WORKDIR /build
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-COPY . .
-RUN bun run build
+
+FROM base AS build
+WORKDIR /build
+COPY frontend/packages/shared/package.json ./frontend/packages/shared/
+COPY vault/package.json vault/bunfig.toml vault/bun.lock ./vault/
+RUN cd vault && bun install --frozen-lockfile --production
+COPY frontend/packages/shared ./frontend/packages/shared/
+COPY vault ./vault/
+RUN cd vault && bun run build
 
 FROM oven/bun:1
 WORKDIR /app
-COPY --from=builder /build/dist/ .
-COPY --from=builder /build/node_modules ./node_modules
+COPY --from=build /build/vault/dist/ .
 VOLUME /data
-CMD ["bun", "main.js"]
+ENV SEED_VAULT_DB_PATH=/data/vault.sqlite
+EXPOSE 3000
+CMD ["bun", "run", "--no-install", "main.js"]

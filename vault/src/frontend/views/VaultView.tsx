@@ -1,7 +1,7 @@
+import * as blobs from "@shm/shared/blobs"
 import { Check, Copy, Plus, Settings, User } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import * as blobs from "@/frontend/blobs"
 import { CreateAccountDialog } from "@/frontend/components/CreateAccountDialog"
 import { Button } from "@/frontend/components/ui/button"
 import { Separator } from "@/frontend/components/ui/separator"

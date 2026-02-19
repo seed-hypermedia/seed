@@ -1,11 +1,11 @@
+import * as blobs from "@shm/shared/blobs"
 import * as webauthn from "@simplewebauthn/browser"
 import { createContext, useContext } from "react"
 import { proxy, useSnapshot } from "valtio"
 import type * as api from "@/api"
 import * as base64 from "./base64"
-import * as blobs from "./blobs"
 import * as localCrypto from "./crypto"
-import * as delegation from "./delegation"
+import * as hmauth from "./hmauth"
 import * as vaultDataMod from "./vault"
 
 export interface SessionInfo {
@@ -39,7 +39,7 @@ export function initialState() {
 		emailChangeChallengeId: "", // For email change polling.
 		sessionChecked: false,
 		/** Active delegation request parsed from URL params. Null when not in delegation flow. */
-		delegationRequest: null as delegation.DelegationRequest | null,
+		delegationRequest: null as hmauth.DelegationRequest | null,
 		/** Whether the user has given consent for the current delegation. */
 		delegationConsented: false,
 		/** Server-configured relying party origin used by WebAuthn verification. */
@@ -1065,7 +1065,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 		 */
 		parseDelegationFromUrl(url: URL | string) {
 			try {
-				const request = delegation.parseDelegationRequest(url)
+				const request = hmauth.parseDelegationRequest(url)
 				if (request) {
 					state.delegationRequest = request
 				}
@@ -1109,15 +1109,11 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 				if (configuredVaultOrigin !== state.delegationRequest.vaultOrigin) {
 					throw new Error("Delegation request vault origin mismatch")
 				}
-				await delegation.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
+				await hmauth.verifyDelegationRequestProof(state.delegationRequest, configuredVaultOrigin)
 
 				const issuerKeyPair = blobs.keyPairFromPrivateKey(account.seed)
 				const sessionKeyPrincipal = blobs.principalFromString(state.delegationRequest.sessionKeyPrincipal)
-				const encoded = delegation.createDelegation(
-					issuerKeyPair,
-					sessionKeyPrincipal,
-					state.delegationRequest.clientId,
-				)
+				const encoded = hmauth.createDelegation(issuerKeyPair, sessionKeyPrincipal, state.delegationRequest.clientId)
 
 				const delegatedSession: vaultDataMod.DelegatedSession = {
 					clientId: state.delegationRequest.clientId,
@@ -1130,7 +1126,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				await actions.saveVaultData()
 
-				const callbackUrl = await delegation.buildCallbackUrl(
+				const callbackUrl = await hmauth.buildCallbackUrl(
 					state.delegationRequest.redirectUri,
 					state.delegationRequest.state,
 					issuerKeyPair.principal,
@@ -1143,7 +1139,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
 				window.location.href = callbackUrl
 			} catch (e) {
-				console.error("Delegation failed:", e)
+				// Error is surfaced to the user via state.error; no console.error
+				// to avoid noisy output in tests that intentionally trigger failures.
 				state.error = (e as Error).message || "Delegation failed"
 			} finally {
 				state.loading = false

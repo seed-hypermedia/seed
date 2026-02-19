@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import * as delegation from "@/frontend/delegation"
-import * as SDK from "./hypermedia-auth"
+import * as blobs from "@shm/shared/blobs"
+import * as base64 from "./base64"
+import * as SDK from "./hmauth"
 
 const hasWebCryptoEd25519 = await (async () => {
 	try {
@@ -117,6 +118,39 @@ function createIndexedDBMock() {
 	return indexedDBMock
 }
 
+async function createSignedDelegationUrl(
+	clientId = "https://example.com",
+	redirectUri = "https://example.com/callback",
+	vaultOrigin = "https://vault.example.com",
+) {
+	const keyPair = (await crypto.subtle.generateKey("Ed25519" as unknown as AlgorithmIdentifier, false, [
+		"sign",
+		"verify",
+	])) as CryptoKeyPair
+	const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey))
+	const sessionKeyPrincipal = blobs.principalToString(blobs.principalFromEd25519(publicKeyRaw))
+	const state = "AAAAAAAAAAAAAAAAAAAAAA"
+	const requestTs = Date.now()
+	const unsignedUrl = new URL(`${vaultOrigin}${SDK.DELEGATION_PATH}`)
+	unsignedUrl.searchParams.set(SDK.PARAM_CLIENT_ID, clientId)
+	unsignedUrl.searchParams.set(SDK.PARAM_REDIRECT_URI, redirectUri)
+	unsignedUrl.searchParams.set(SDK.PARAM_SESSION_KEY, sessionKeyPrincipal)
+	unsignedUrl.searchParams.set(SDK.PARAM_STATE, state)
+	unsignedUrl.searchParams.set(SDK.PARAM_TS, String(requestTs))
+	const payload = new TextEncoder().encode(unsignedUrl.toString())
+	const proof = new Uint8Array(
+		await crypto.subtle.sign(
+			"Ed25519" as unknown as AlgorithmIdentifier,
+			keyPair.privateKey,
+			payload as ArrayBufferView<ArrayBuffer>,
+		),
+	)
+	const proofBase64 = base64.encode(proof)
+	const delimiter = unsignedUrl.search ? "&" : "?"
+	const url = new URL(`${unsignedUrl.toString()}${delimiter}${SDK.PARAM_PROOF}=${encodeURIComponent(proofBase64)}`)
+	return { url, state }
+}
+
 describe("hypermedia auth protocol", () => {
 	const originalLocation = window.location
 	const originalIndexedDB = (globalThis as { indexedDB?: unknown }).indexedDB
@@ -148,16 +182,16 @@ describe("hypermedia auth protocol", () => {
 		const authUrl = await SDK.startAuth({ vaultUrl })
 		const parsed = new URL(authUrl)
 
-		expect(parsed.searchParams.get("client_id")).toBe("http://localhost:8081")
-		expect(parsed.searchParams.get("redirect_uri")).toBe("http://localhost:8081/callback")
-		expect(parsed.searchParams.get("session_key")).toBeString()
-		expect(parsed.searchParams.get("state")).toBeString()
-		expect(parsed.searchParams.get("ts")).toBeString()
-		expect(parsed.searchParams.get("proof")).toBeString()
+		expect(parsed.searchParams.get(SDK.PARAM_CLIENT_ID)).toBe("http://localhost:8081")
+		expect(parsed.searchParams.get(SDK.PARAM_REDIRECT_URI)).toBe("http://localhost:8081/callback")
+		expect(parsed.searchParams.get(SDK.PARAM_SESSION_KEY)).toBeString()
+		expect(parsed.searchParams.get(SDK.PARAM_STATE)).toBeString()
+		expect(parsed.searchParams.get(SDK.PARAM_TS)).toBeString()
+		expect(parsed.searchParams.get(SDK.PARAM_PROOF)).toBeString()
 
 		const session = await SDK.getSession(vaultUrl)
 		expect(session).not.toBeNull()
-		const sessionKey = parsed.searchParams.get("session_key")
+		const sessionKey = parsed.searchParams.get(SDK.PARAM_SESSION_KEY)
 		if (!sessionKey) {
 			throw new Error("missing session_key")
 		}
@@ -166,7 +200,9 @@ describe("hypermedia auth protocol", () => {
 
 	test("handleCallback returns null when callback params are absent", async () => {
 		setUrl("http://localhost:8081/")
-		const result = await SDK.handleCallback({ vaultUrl: "http://localhost:3000/vault/delegate" })
+		const result = await SDK.handleCallback({
+			vaultUrl: "http://localhost:3000/vault/delegate",
+		})
 		expect(result).toBeNull()
 	})
 
@@ -175,7 +211,7 @@ describe("hypermedia auth protocol", () => {
 		setUrl("http://localhost:8081/callback")
 		const vaultUrl = "http://localhost:3000/vault/delegate"
 		await SDK.startAuth({ vaultUrl })
-		setUrl("http://localhost:8081/callback?error=access_denied&state=WRONGSTATE")
+		setUrl(`http://localhost:8081/callback?${SDK.PARAM_ERROR}=access_denied&${SDK.PARAM_STATE}=WRONGSTATE`)
 		await expect(SDK.handleCallback({ vaultUrl })).rejects.toThrow("Invalid callback state")
 	})
 
@@ -186,13 +222,13 @@ describe("hypermedia auth protocol", () => {
 		const authUrl = await SDK.startAuth({ vaultUrl })
 		const parsedAuthUrl = new URL(authUrl)
 
-		const request = delegation.parseDelegationRequest(parsedAuthUrl)
+		const request = SDK.parseDelegationRequest(parsedAuthUrl)
 		expect(request).not.toBeNull()
-		await expect(delegation.verifyDelegationRequestProof(request!, parsedAuthUrl.origin)).resolves.toBeUndefined()
+		await expect(SDK.verifyDelegationRequestProof(request!, parsedAuthUrl.origin)).resolves.toBeUndefined()
 	})
 
 	test("handleCallback requires state when callback has error", async () => {
-		setUrl("http://localhost:8081/callback?error=access_denied")
+		setUrl(`http://localhost:8081/callback?${SDK.PARAM_ERROR}=access_denied`)
 		await expect(SDK.handleCallback({ vaultUrl: "http://localhost:3000/vault/delegate" })).rejects.toThrow(
 			"Missing callback state",
 		)
@@ -225,5 +261,66 @@ describe("sdk key operations", () => {
 			data as ArrayBufferView<ArrayBuffer>,
 		)
 		expect(valid).toBe(true)
+	})
+})
+
+describe("delegation request protocol", () => {
+	cryptoTest("parses and verifies a valid signed request", async () => {
+		const { url } = await createSignedDelegationUrl()
+		const request = SDK.parseDelegationRequest(url)
+		expect(request).not.toBeNull()
+		await expect(SDK.verifyDelegationRequestProof(request!, "https://vault.example.com")).resolves.toBeUndefined()
+	})
+
+	cryptoTest("rejects request when signed fields are tampered", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set(SDK.PARAM_STATE, "BBBBBBBBBBBBBBBBBBBBBB")
+		const request = SDK.parseDelegationRequest(url)
+		await expect(SDK.verifyDelegationRequestProof(request!, "https://vault.example.com")).rejects.toThrow(
+			"does not match session key",
+		)
+	})
+
+	cryptoTest("rejects request with malformed proof encoding", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set(SDK.PARAM_PROOF, "not-base64url")
+		const request = SDK.parseDelegationRequest(url)
+		await expect(SDK.verifyDelegationRequestProof(request!, "https://vault.example.com")).rejects.toThrow(
+			"Invalid proof signature encoding",
+		)
+	})
+
+	cryptoTest("rejects expired request proof", async () => {
+		const { url } = await createSignedDelegationUrl()
+		const request = SDK.parseDelegationRequest(url)
+		const now = Date.now() + 6 * 60 * 1000
+		await expect(SDK.verifyDelegationRequestProof(request!, "https://vault.example.com", now)).rejects.toThrow(
+			"expired",
+		)
+	})
+
+	cryptoTest("rejects request when proof is not the final query parameter", async () => {
+		const { url } = await createSignedDelegationUrl()
+		url.searchParams.set("extra", "1")
+		expect(() => SDK.parseDelegationRequest(url)).toThrow("proof must be the final query parameter")
+	})
+})
+
+describe("delegation callback protocol", () => {
+	test("echoes state in callback URL", async () => {
+		const issuer = blobs.generateKeyPair()
+		const delegate = blobs.generateKeyPair()
+		const capability = blobs.createCapability(issuer, delegate.principal, "AGENT", Date.now()).decoded
+		const profile = blobs.createProfile(issuer, { name: "Alice" }, Date.now()).decoded
+		const url = await SDK.buildCallbackUrl(
+			"https://example.com/callback",
+			"AAAAAAAAAAAAAAAAAAAAAA",
+			issuer.principal,
+			capability,
+			profile,
+		)
+		const parsed = new URL(url)
+		expect(parsed.searchParams.get(SDK.PARAM_STATE)).toBe("AAAAAAAAAAAAAAAAAAAAAA")
+		expect(parsed.searchParams.get(SDK.PARAM_DATA)).toBeString()
 	})
 })

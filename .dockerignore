@@ -4,3 +4,6 @@
 plz-out
 node_modules
 target
+.pnpm-store
+dist
+.vite

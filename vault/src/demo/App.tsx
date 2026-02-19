@@ -1,9 +1,9 @@
 import * as dagCBOR from "@ipld/dag-cbor"
+import * as blobs from "@shm/shared/blobs"
 import { useEffect, useMemo, useState } from "react"
 import * as base64 from "../frontend/base64"
-import * as blobs from "../frontend/blobs"
-import type { AuthResult } from "../sdk/hypermedia-auth"
-import * as hmauth from "../sdk/hypermedia-auth"
+import type { AuthResult } from "../frontend/hmauth"
+import * as hmauth from "../frontend/hmauth"
 
 const DEFAULT_DELEGATE_URL = "http://localhost:3000/vault/delegate"
 const DEMO_CALLBACK_PATH = "/callback"

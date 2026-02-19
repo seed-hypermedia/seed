@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import * as dagCBOR from "@ipld/dag-cbor"
-import * as blobs from "./blobs"
+import * as blobs from "@shm/shared/blobs"
 import * as vaultData from "./vault"
 
 function makeProfile(kp: blobs.KeyPair, name: string): blobs.Profile {
