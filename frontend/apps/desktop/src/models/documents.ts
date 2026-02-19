@@ -32,12 +32,21 @@ import {
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
+  HMListedDraft,
   HMNavigationItem,
   HMResourceFetchResult,
   HMResourceRequest,
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@shm/shared/hm-types'
+/**
+ * Extended draft type returned by app-drafts.ts listAccount/list endpoints.
+ * These endpoints compute locationId/editId from the raw uid+path fields.
+ */
+export type HMListedDraftWithLocation = HMListedDraft & {
+  locationId?: UnpackedHypermediaId
+  editId?: UnpackedHypermediaId
+}
 import {prepareHMDocumentInfo, useDirectory, useResource, useResources} from '@shm/shared/models/entity'
 import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -119,6 +128,65 @@ export function useDeleteDraft(opts?: UseMutationOptions<void, unknown, string>)
     ...opts,
   })
   return deleteDraft
+}
+
+export function useChildDrafts(parentId?: UnpackedHypermediaId) {
+  const drafts = useAccountDraftList(parentId?.uid)
+  return useMemo(() => {
+    if (!drafts.data || !parentId) return []
+    return drafts.data.filter((draft) => {
+      const locationId = (draft as HMListedDraftWithLocation).locationId
+      if (!locationId) return false
+      return locationId.id === parentId.id
+    })
+  }, [drafts.data, parentId])
+}
+
+export function useCreateInlineDraft(parentId: UnpackedHypermediaId | undefined) {
+  return useMutation({
+    mutationFn: async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
+      if (!parentId) throw new Error('No parent ID')
+      const draftId = nanoid(10)
+      await client.drafts.write.mutate({
+        id: draftId,
+        locationUid: parentId.uid,
+        locationPath: parentId.path || [],
+        metadata: {name: ''},
+        content: [],
+        deps: [],
+        visibility: visibility ?? 'PUBLIC',
+      })
+      return {draftId}
+    },
+    onSuccess: () => {
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, parentId?.uid])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+    },
+  })
+}
+
+export function useUpdateDraftMetadata() {
+  return useMutation({
+    mutationFn: async ({draftId, metadata}: {draftId: string; metadata: Partial<HMDraft['metadata']>}) => {
+      const draft = await client.drafts.get.query(draftId)
+      if (!draft) throw new Error(`Draft ${draftId} not found`)
+      await client.drafts.write.mutate({
+        id: draft.id,
+        locationUid: draft.locationUid,
+        locationPath: draft.locationPath,
+        editUid: draft.editUid,
+        editPath: draft.editPath,
+        metadata: {...draft.metadata, ...metadata},
+        content: draft.content,
+        deps: draft.deps,
+        navigation: draft.navigation,
+        visibility: draft.visibility,
+      })
+      invalidateQueries([queryKeys.DRAFT, draftId])
+      invalidateQueries([queryKeys.DRAFTS_LIST])
+      invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT])
+    },
+  })
 }
 
 export type EmbedsContent = HMResourceFetchResult[]

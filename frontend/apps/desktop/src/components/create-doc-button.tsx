@@ -1,7 +1,7 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {UnpackedHypermediaId} from '@shm/shared'
+import {HMResourceVisibility, UnpackedHypermediaId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -46,7 +46,20 @@ function ImportMenuItem({
   )
 }
 
-export function CreateDocumentButton({locationId, siteUrl}: {locationId?: UnpackedHypermediaId; siteUrl?: string}) {
+/**
+ * When `onInlineCreate` is provided, menu items call it to create a draft
+ * inline (card at bottom of current page). When omitted, falls back to
+ * `createDraft()` which navigates to a new draft page.
+ */
+export function CreateDocumentButton({
+  locationId,
+  siteUrl,
+  onInlineCreate,
+}: {
+  locationId?: UnpackedHypermediaId
+  siteUrl?: string
+  onInlineCreate?: (opts?: {visibility?: HMResourceVisibility}) => void
+}) {
   const capability = useSelectedAccountCapability(locationId)
   const canEdit = roleCanWrite(capability?.role)
   const isHomeDoc = !locationId?.path?.length
@@ -78,7 +91,7 @@ export function CreateDocumentButton({locationId, siteUrl}: {locationId?: Unpack
             <DropdownMenuContent align="end" className="w-56">
               {isHomeDoc ? (
                 <>
-                  <DropdownMenuItem onClick={() => createDraft()}>
+                  <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
                     <FilePlus2 className="size-4" />
                     Public Document
                   </DropdownMenuItem>
@@ -123,7 +136,7 @@ export function CreateDocumentButton({locationId, siteUrl}: {locationId?: Unpack
                   )}
                 </>
               ) : (
-                <DropdownMenuItem onClick={() => createDraft()}>
+                <DropdownMenuItem onClick={() => (onInlineCreate ? onInlineCreate() : createDraft())}>
                   <FilePlus2 className="size-4" />
                   New Document
                 </DropdownMenuItem>
