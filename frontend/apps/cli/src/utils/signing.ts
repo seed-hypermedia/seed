@@ -31,7 +31,7 @@ export type EncodedBlock = {
  */
 export async function encodeBlock(
   data: unknown,
-  codec = cborCodec
+  codec = cborCodec,
 ): Promise<EncodedBlock> {
   const block = await Block.encode({
     value: data,
@@ -56,7 +56,7 @@ export function blockReference(block: EncodedBlock) {
  */
 export async function signBlob<T extends {sig: Uint8Array}>(
   unsigned: T,
-  privateKey: Uint8Array
+  privateKey: Uint8Array,
 ): Promise<T> {
   const cborData = cborEncode(unsigned)
   const signature = await ed25519.signAsync(cborData, privateKey)
@@ -88,9 +88,9 @@ export type DocumentChange = {
 
 export type DocumentOperation =
   | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: unknown}>}
-  | {type: 'MoveBlock'; blockId: string; parent: string; leftSibling: string}
-  | {type: 'ReplaceBlock'; blockId: string; block: unknown}
-  | {type: 'DeleteBlock'; blockId: string}
+  | {type: 'MoveBlocks'; blocks: string[]; parent: string}
+  | {type: 'ReplaceBlock'; block: unknown}
+  | {type: 'DeleteBlocks'; blocks: string[]}
 
 export type Ref = {
   type: 'Ref'
@@ -109,7 +109,7 @@ export type Ref = {
  * Creates a genesis change (first change in document/account)
  */
 export async function createGenesisChange(
-  keyPair: KeyPair
+  keyPair: KeyPair,
 ): Promise<GenesisChange> {
   const unsigned: GenesisChange = {
     type: 'Change',
@@ -128,7 +128,7 @@ export async function createDocumentChange(
   genesisCid: CID,
   deps: CID[],
   depth: number,
-  operations: DocumentOperation[]
+  operations: DocumentOperation[],
 ): Promise<DocumentChange> {
   const unsigned: DocumentChange = {
     type: 'Change',
@@ -152,7 +152,7 @@ export async function createRef(
   headCid: CID,
   generation: number,
   path?: string,
-  space?: Uint8Array
+  space?: Uint8Array,
 ): Promise<Ref> {
   const unsigned: Ref = {
     type: 'Ref',
